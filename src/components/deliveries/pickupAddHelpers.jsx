@@ -8,6 +8,41 @@ import { resolvePickupTimeWindow } from './deliveryAddHelpers';
 import { buildPickupStagedDelivery } from './deliveryStagingHelpers';
 import { createDelivery as createDeliveryLocal, setBatchFormSaving } from '../utils/entityMutations';
 import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
+import { loadStatHolidays, isStatHoliday } from '../utils/statHolidayResolver';
+
+/**
+ * Returns true if the pickup should be flagged as after_hours:
+ * - The delivery date is a stat holiday, OR
+ * - The driver is not the scheduled default driver for that store/day/slot
+ */
+const shouldBeAfterHours = async (formData, store) => {
+  const { delivery_date, driver_id, ampm_deliveries } = formData;
+  if (!delivery_date || !store) return false;
+
+  // Check stat holiday
+  const holidays = await loadStatHolidays();
+  if (isStatHoliday(delivery_date, holidays)) return true;
+
+  // Check if driver is the default scheduled driver for this store/day/slot
+  const dayOfWeek = new Date(`${delivery_date}T00:00:00`).getDay();
+  const isSaturday = dayOfWeek === 6;
+  const isSunday = dayOfWeek === 0;
+  const slot = ampm_deliveries || 'AM';
+
+  let scheduledDriverId;
+  if (isSaturday) {
+    scheduledDriverId = slot === 'PM' ? store.saturday_pm_driver_id : store.saturday_am_driver_id;
+  } else if (isSunday) {
+    scheduledDriverId = slot === 'PM' ? store.sunday_pm_driver_id : store.sunday_am_driver_id;
+  } else {
+    scheduledDriverId = slot === 'PM' ? store.weekday_pm_driver_id : store.weekday_am_driver_id;
+  }
+
+  // If no driver is scheduled for this slot, or the driver doesn't match → after hours
+  if (!scheduledDriverId || String(scheduledDriverId) !== String(driver_id)) return true;
+
+  return false;
+};
 
 /**
  * Adds a pickup to the route immediately (creates it in the DB).
@@ -77,6 +112,8 @@ export const addPickupToRoute = async ({
   const resolvedTimeStart = pickupTimes?.delivery_time_start || pickupToCreate.delivery_time_start || '';
   const resolvedTimeEnd = pickupTimes?.delivery_time_end || pickupToCreate.delivery_time_end || '';
 
+  const afterHours = await shouldBeAfterHours(formData, store);
+
   // CRITICAL: defer polyline regeneration — handleBatchSave runs a single
   // optimizeRemainingStops + purgeAndRegeneratePolylines at the end, so we
   // must NOT trigger one per pickup or it causes duplicate records + ~15s delay.
@@ -93,6 +130,7 @@ export const addPickupToRoute = async ({
     delivery_time_eta: resolvedTimeStart,
     time_window_start: resolvedTimeStart,
     time_window_end: resolvedTimeEnd,
+    after_hours_pickup: afterHours,
   }, { deferPolylineRefresh: true });
   setBatchFormSaving(false);
   resumeRealtimeSync();
