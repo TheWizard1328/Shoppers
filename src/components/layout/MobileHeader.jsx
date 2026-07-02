@@ -105,12 +105,13 @@ export default function MobileHeader({
             {logo && !logo.includes('placehold') ? (
               <img
                 src={logo}
-                alt="Company Logo"
+                alt="RxDeliver"
                 className="w-8 h-8 rounded object-contain"
                 style={{ filter: 'var(--image-filter, none)' }}
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling && (e.currentTarget.nextSibling.style.display = 'flex'); }}
               />
-            ) : (
+            ) : null}
+            {(!logo || logo.includes('placehold')) && (
               <div className="w-8 h-8 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-xs">Rx</span>
               </div>
