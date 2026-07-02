@@ -746,6 +746,21 @@ export default function Patients() {
     // If hasAccess is true but contextDataLoaded is false, or cities are not yet loaded, isLoading remains true.
   }, [currentUser, hasAccess, contextDataLoaded, cities]);
 
+  // Auto-select a patient when ?patient=<id> is in the URL
+  useEffect(() => {
+    if (!allPatients.length) return;
+    const urlParams = new URLSearchParams(location.search);
+    const patientIdFromQuery = urlParams.get('patient');
+    if (!patientIdFromQuery) return;
+    const found = allPatients.find((p) => p?.id === patientIdFromQuery);
+    if (found) {
+      setSelectedPatient(found);
+      // Remove param from URL so it doesn't persist on back/forward
+      urlParams.delete('patient');
+      navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
+    }
+  }, [allPatients, location.search]);
+
   // Effect to read store filter from URL query parameters and update state
   // ALSO: Auto-redirect dispatchers to their first assigned store (bypass Store Overview)
   useEffect(() => {

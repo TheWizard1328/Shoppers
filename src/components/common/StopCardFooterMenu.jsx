@@ -7,11 +7,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { CheckCircle, Edit, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
+import { CheckCircle, Edit, History, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
+import { useNavigate } from 'react-router-dom';
 
 export default function StopCardFooterMenu(props) {
+  const navigate = useNavigate();
   const {
     blockCardToggle,
     currentUser,
@@ -75,6 +77,12 @@ export default function StopCardFooterMenu(props) {
 
   const canShowViewAsPatient = !!(isAppOwner?.(currentUser) && patient && delivery?.patient_id && !isInterStore);
 
+  const canShowPatientHistory = !!(patient && delivery?.patient_id && !isInterStore && !isPickupForMenu && (
+    isAdminOrOwner ||
+    isDispatcherOnly ||
+    (isDriverOnly && isActiveDelivery)
+  ));
+
   const canShowComplete = !!(
     !isPickupForMenu &&
     !isFinishedDelivery &&
@@ -118,6 +126,15 @@ export default function StopCardFooterMenu(props) {
         {canShowEditPatient && (
           <DropdownMenuItem inset={false} onClick={(e) => { dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); onEditPatient(patient); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 dark:text-slate-100 focus:bg-slate-100 dark:focus:bg-slate-700 focus:text-slate-900 dark:focus:text-slate-100">
             <User className="w-5 h-5 mr-2" />Edit Patient
+          </DropdownMenuItem>
+        )}
+        {canShowPatientHistory && (
+          <DropdownMenuItem inset={false} onClick={(e) => {
+            dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation();
+            const storeId = delivery?.store_id || '';
+            navigate(`/Patients?store=${storeId}&patient=${delivery.patient_id}`);
+          }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 dark:text-slate-100 focus:bg-slate-100 dark:focus:bg-slate-700 focus:text-slate-900 dark:focus:text-slate-100">
+            <History className="w-5 h-5 mr-2" />Patient History
           </DropdownMenuItem>
         )}
         {canShowViewAsPatient && (
