@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { isAppOwner } from "../utils/userRoles";
+import { isAppOwner, userHasRole } from "../utils/userRoles";
 import {
   Phone,
   MapPin,
@@ -19,11 +19,15 @@ import {
   TrendingUp,
   Bell,
   BellOff,
-  Mailbox } from
+  Mailbox,
+  Globe,
+  LogIn,
+  Hash } from
 "lucide-react";
 import { formatPhoneNumber } from "../utils/formatters";
 import { formatAddressWithUnit } from '../utils/formatters';
 import { format } from "date-fns";
+import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
 
 import {
   DropdownMenu,
@@ -284,8 +288,59 @@ export default function PatientCard({
               <Trash2 className="w-4 h-4" />
             </Button>
             }
+            {isAppOwner(currentUser) &&
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-blue-400 hover:text-blue-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                activatePatientViewOverlay(patient);
+              }}
+              title="Open Patient Portal">
+
+              <Globe className="w-4 h-4" />
+            </Button>
+            }
           </div>
         </div>
+
+        {/* Portal Login Badges — admin only */}
+        {userHasRole(currentUser, 'admin') && (patient.last_login_date || patient.portal_login_count > 0) &&
+        <div className="flex gap-2 mt-2 flex-wrap">
+            {patient.last_login_date ?
+            (() => {
+              const loginDate = new Date(patient.last_login_date);
+              const now = new Date();
+              const diffMs = now - loginDate;
+              const diffMins = Math.floor(diffMs / 60000);
+              const diffHrs = Math.floor(diffMs / 3600000);
+              const diffDays = Math.floor(diffMs / 86400000);
+              const isRecent = diffMins < 60;
+              let label;
+              if (diffMins < 2) label = 'Logged In';
+              else if (diffMins < 60) label = `${diffMins}m ago`;
+              else if (diffHrs < 24) label = `${diffHrs}h ago`;
+              else if (diffDays === 1) label = 'Yesterday';
+              else label = loginDate.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+              return (
+                <Badge
+                  className={`text-xs ${isRecent ? 'bg-green-100 text-green-800 border-green-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                  variant="outline">
+                  <LogIn className="w-3 h-3 mr-1" />
+                  {label}
+                </Badge>);
+            })() :
+            null
+            }
+            {(patient.portal_login_count > 0) &&
+            <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-300">
+                <Hash className="w-3 h-3 mr-1" />
+                {patient.portal_login_count} login{patient.portal_login_count !== 1 ? 's' : ''}
+              </Badge>
+            }
+          </div>
+        }
 
         {/* Quick Info Icons (Badges) */}
         <div className="flex gap-2 mt-3 flex-wrap">

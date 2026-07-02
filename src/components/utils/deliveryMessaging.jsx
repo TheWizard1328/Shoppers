@@ -40,11 +40,7 @@ export async function sendDeliveryMessage({
 }
 
 /**
- * Send a Web Push notification for a delivery event. `receiverId` here is
- * already the auth user_id (see getRecipientsForEvent, which maps AppUser
- * records to { id: u.user_id, name: u.user_name }) — the same id space
- * PushSubscription.user_id is keyed on, so no id translation is needed.
- * Fire-and-forget: push delivery failures must never block in-app messaging.
+ * Fire-and-forget push notification alongside in-app messages
  */
 async function sendPushForNotification({ receiverId, senderName, content }) {
   if (!receiverId || !content) return;
@@ -83,10 +79,9 @@ async function sendNotification({
       receiverName,
       content
     });
+    // Fire-and-forget push alongside each in-app message
+    sendPushForNotification({ receiverId, senderName, content });
   }
-
-  // Also push a native notification so the recipient is alerted even when the app is backgrounded
-  sendPushForNotification({ receiverId, senderName, content });
 }
 
 /**

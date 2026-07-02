@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, ChevronDown } from "lucide-react";
+import { hexToRgba } from "@/components/utils/colorGenerator";
 
 const formatAmount = (value) => {
   const amount = Number(value || 0);
@@ -32,55 +33,60 @@ const isRowCollected = (row) => {
   return cls.includes('bg-emerald-100') || cls.includes('bg-emerald-900');
 };
 
-const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed }) =>
-<tr
-  key={getRowKey(row, index)}
-  onClick={onRowClick ? () => onRowClick(row) : undefined}
-  className={`transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50${dimmed ? ' opacity-60' : ''}`}>
-    <td className="p-3">
-      <div className="font-medium text-sm text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</div>
-      <div className="text-xs mt-1 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</div>
-    </td>
-    <td className="p-3">
-      <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
-      {row.collectionType &&
-    <div className={`inline-flex mt-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${String(row.collectionType).toLowerCase().includes('cash') ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-          {row.collectionType}
-        </div>
-    }
-    </td>
-    <td className="p-3">
-      <div className="text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</div>
-      
-    </td>
-    {showLocationColumn &&
-  <td className="p-3">
-        <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">
-          {row.locationId || '--'}
+const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed }) => {
+  const driverColor = row.driverColor || null;
+  const rowStyle = driverColor ? { borderLeft: `3px solid ${driverColor}`, background: hexToRgba(driverColor, 0.03) } : {};
+  return (
+    <tr
+      key={getRowKey(row, index)}
+      onClick={onRowClick ? () => onRowClick(row) : undefined}
+      style={rowStyle}
+      className={`transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50${dimmed ? ' opacity-60' : ''}`}>
+      <td className="p-3 min-w-[180px]">
+        <div className="font-medium text-sm text-slate-900 dark:text-slate-50 whitespace-nowrap">{row.itemName || 'N/A'}</div>
+        <div className="text-xs mt-1 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</div>
+      </td>
+      <td className="p-3 whitespace-nowrap">
+        <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
+        {row.collectionType &&
+          <div className={`inline-flex mt-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${String(row.collectionType).toLowerCase().includes('cash') ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
+            {row.collectionType}
+          </div>
+        }
+      </td>
+      <td className="p-3 whitespace-nowrap">
+        <div className="text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</div>
+      </td>
+      {showLocationColumn &&
+        <td className="p-3">
+          <div className="text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+            {row.locationId || '--'}
+          </div>
+        </td>
+      }
+      <td className="p-3">
+        <div className="text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+          {row.catalogId || '--'}
         </div>
       </td>
-  }
-    <td className="p-3">
-      <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">
-        {row.catalogId || '--'}
-      </div>
-    </td>
-    <td className="p-3">
-      <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">
-        {row.transactionId || '--'}
-      </div>
-    </td>
-    <td className="p-3">
-      <div className="space-y-1">
-        <div className="flex justify-start [&>button]:w-24 [&>div>button]:w-24" onClick={(e) => e.stopPropagation()}>
-          {row.actions || <span className="text-slate-400">—</span>}
+      <td className="p-3">
+        <div className="text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+          {row.transactionId ? (row.transactionId.includes(':') ? row.transactionId.split(':')[0] : row.transactionId) : '--'}
         </div>
-        {row.notes &&
-      <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">{row.notes}</div>
-      }
-      </div>
-    </td>
-  </tr>;
+      </td>
+      <td className="p-3">
+        <div className="space-y-1">
+          <div className="flex justify-start [&>button]:w-24 [&>div>button]:w-24" onClick={(e) => e.stopPropagation()}>
+            {row.actions || <span className="text-slate-400">—</span>}
+          </div>
+          {row.notes &&
+            <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">{row.notes}</div>
+          }
+        </div>
+      </td>
+    </tr>
+  );
+};
 
 
 const SectionDivider = ({ label, colSpan }) =>
@@ -105,9 +111,12 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
     else setExpanded((prev) => !prev);
   };
 
+  const driverColor = row.driverColor || null;
+  const cardBorderStyle = driverColor ? { borderLeftColor: driverColor, borderLeftWidth: 3, background: hexToRgba(driverColor, 0.03) } : {};
   return (
     <div
       key={row.id || `${row.itemName}-${index}`}
+      style={cardBorderStyle}
       className={`rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden${dimmed ? ' opacity-60' : ''}`}>
       {/* Collapsed summary row — always visible */}
       <div
@@ -153,7 +162,7 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
             <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Transaction ID</div>
             <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
-              {row.transactionId || '--'}
+              {row.transactionId ? (row.transactionId.includes(':') ? row.transactionId.split(':')[0] : row.transactionId) : '--'}
             </div>
           </div>
           {row.notes &&
@@ -211,23 +220,19 @@ export default function SquareCodDatasetTable({
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             {/* Desktop */}
             <div className="hidden md:flex flex-col flex-1 min-h-0 overflow-hidden">
-              <div className="overflow-x-auto px-0">
-                <table className="w-full table-fixed">
-                  <thead className="bg-white dark:bg-slate-900">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
+                <table className="w-full table-auto">
+                  <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
                     <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
-                      <th className="p-3">Item Name</th>
-                      <th className="p-3">Amount</th>
-                      <th className="p-3">Store</th>
-                      {showLocationColumn && <th className="p-3">Square Location ID</th>}
-                      <th className="p-3">Catalog ID</th>
-                      <th className="p-3">Transaction ID</th>
-                      <th className="p-3">Actions</th>
+                      <th className="p-3 whitespace-nowrap">Item Name</th>
+                      <th className="p-3 whitespace-nowrap">Amount</th>
+                      <th className="p-3 whitespace-nowrap">Store</th>
+                      {showLocationColumn && <th className="p-3 whitespace-nowrap">Square Location ID</th>}
+                      <th className="p-3 whitespace-nowrap">Catalog ID</th>
+                      <th className="p-3 whitespace-nowrap">Transaction ID</th>
+                      <th className="p-3 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
-                </table>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
-                <table className="w-full table-fixed">
                   <tbody>
                     {hasNewCatalogRows &&
                   <SectionDivider label={`New Catalog Items (${newCatalogRows.length})`} colSpan={colSpan} />

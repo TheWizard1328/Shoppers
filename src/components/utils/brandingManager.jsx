@@ -11,6 +11,8 @@ const DEFAULT_BRANDING = {
 
 let cachedBranding = null;
 
+export function clearBrandingCache() { cachedBranding = null; }
+
 export async function getCompanyBranding(companyId) {
   if (!companyId) return DEFAULT_BRANDING;
   if (cachedBranding) return cachedBranding;

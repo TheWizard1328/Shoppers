@@ -89,6 +89,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       // Check if ANY field at all changed — if nothing changed, skip everything
       const ALL_TRACKED_FIELDS = [
         ...STRUCTURAL_FIELDS,
+        'arrival_time', 'actual_delivery_time',
         'delivery_notes', 'delivery_instructions', 'unit_number',
         'patient_name', 'patient_phone', 'store_phone',
         'cod_total_amount_required', 'signature_needed', 'fridge_item',

@@ -2,6 +2,7 @@ import React from 'react';
 import ConnectionRecoveryBanner from './ConnectionRecoveryBanner';
 import MobileOverlayBackHandler from './MobileOverlayBackHandler';
 import PWAInstallPrompt from '../common/PWAInstallPrompt';
+import PushNotificationPrompt from '../common/PushNotificationPrompt';
 import CitySelectionPopup from '../cities/CitySelectionPopup';
 import DeviceRegistration from '../devices/DeviceRegistration';
 import MessagingPanel from '../messaging/MessagingPanel';
@@ -44,6 +45,9 @@ export default function GlobalOverlays({
 
       {/* PWA Install Prompt */}
       <PWAInstallPrompt />
+
+      {/* Push Notification Permission Prompt */}
+      <PushNotificationPrompt userId={currentUser?.id} />
 
       {showCitySelectionPopup && currentUser && cities && cities.length > 0 &&
       <CitySelectionPopup

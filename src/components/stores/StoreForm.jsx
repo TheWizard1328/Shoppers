@@ -16,9 +16,9 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
   // Safely get context - may not be available if rendered outside AppDataProvider
   const appDataContext = useAppData();
   const setIsFormOverlayOpen = appDataContext?.setIsFormOverlayOpen;
-  
+
   const [squareLocationConfigs, setSquareLocationConfigs] = useState([]);
-  
+
   useEffect(() => {
     const loadSquareConfigs = async () => {
       try {
@@ -30,7 +30,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
     };
     loadSquareConfigs();
   }, []);
-  
+
   // Helper to find driver ID based on name, for backward compatibility during initialization
   const findDriverIdFromName = (driverName, allDrivers) => {
     if (!driverName || !allDrivers || allDrivers.length === 0) return null;
@@ -42,7 +42,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
     // If not found, try by first name
     const firstName = driverName.split(' ')[0].toLowerCase().trim();
     matchedDriver = allDrivers.find((d) => {
-      if (!d || (!d.user_name && !d.full_name)) return false;
+      if (!d || !d.user_name && !d.full_name) return false;
       const driverFirstName = (d.user_name || d.full_name).split(' ')[0].toLowerCase().trim();
       return driverFirstName === firstName;
     });
@@ -172,13 +172,13 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
       // Backward compatibility: if _id is still null but name exists, try to find ID
       const timeSlotMappings = [
-        { slot: 'weekday_am', idField: 'weekday_am_driver_id', nameField: 'weekday_am_driver' },
-        { slot: 'weekday_pm', idField: 'weekday_pm_driver_id', nameField: 'weekday_pm_driver' },
-        { slot: 'saturday_am', idField: 'saturday_am_driver_id', nameField: 'saturday_am_driver' },
-        { slot: 'saturday_pm', idField: 'saturday_pm_driver_id', nameField: 'saturday_pm_driver' },
-        { slot: 'sunday_am', idField: 'sunday_am_driver_id', nameField: 'sunday_am_driver' },
-        { slot: 'sunday_pm', idField: 'sunday_pm_driver_id', nameField: 'sunday_pm_driver' }
-      ];
+      { slot: 'weekday_am', idField: 'weekday_am_driver_id', nameField: 'weekday_am_driver' },
+      { slot: 'weekday_pm', idField: 'weekday_pm_driver_id', nameField: 'weekday_pm_driver' },
+      { slot: 'saturday_am', idField: 'saturday_am_driver_id', nameField: 'saturday_am_driver' },
+      { slot: 'saturday_pm', idField: 'saturday_pm_driver_id', nameField: 'saturday_pm_driver' },
+      { slot: 'sunday_am', idField: 'sunday_am_driver_id', nameField: 'sunday_am_driver' },
+      { slot: 'sunday_pm', idField: 'sunday_pm_driver_id', nameField: 'sunday_pm_driver' }];
+
 
       timeSlotMappings.forEach(({ idField, nameField }) => {
         if (!initialData[idField] && initialData[nameField]) {
@@ -196,7 +196,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
   // Sort drivers, users and cities for display
   // Filter drivers to include all available users who can be assigned to slots (drivers, dispatchers, admins)
-  const filteredDrivers = drivers.filter(d => d && (d.app_roles?.includes('driver') || d.app_roles?.includes('dispatcher') || d.app_roles?.includes('admin')));
+  const filteredDrivers = drivers.filter((d) => d && (d.app_roles?.includes('driver') || d.app_roles?.includes('dispatcher') || d.app_roles?.includes('admin')));
   const sortedDrivers = sortUsers(filteredDrivers.length > 0 ? filteredDrivers : drivers);
   const sortedUsers = sortUsers(allUsers);
   const sortedCities = [...cities].sort((a, b) => a.name.localeCompare(b.name));
@@ -286,13 +286,13 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
     // Clear driver/time data when toggle is off
     const timeSlots = [
-      { enabled: 'weekday_am_enabled', driverId: 'weekday_am_driver_id', driverName: 'weekday_am_driver', start: 'weekday_am_start', end: 'weekday_am_end' },
-      { enabled: 'weekday_pm_enabled', driverId: 'weekday_pm_driver_id', driverName: 'weekday_pm_driver', start: 'weekday_pm_start', end: 'weekday_pm_end' },
-      { enabled: 'saturday_am_enabled', driverId: 'saturday_am_driver_id', driverName: 'saturday_am_driver', start: 'saturday_am_start', end: 'saturday_am_end' },
-      { enabled: 'saturday_pm_enabled', driverId: 'saturday_pm_driver_id', driverName: 'saturday_pm_driver', start: 'saturday_pm_start', end: 'saturday_pm_end' },
-      { enabled: 'sunday_am_enabled', driverId: 'sunday_am_driver_id', driverName: 'sunday_am_driver', start: 'sunday_am_start', end: 'sunday_am_end' },
-      { enabled: 'sunday_pm_enabled', driverId: 'sunday_pm_driver_id', driverName: 'sunday_pm_driver', start: 'sunday_pm_start', end: 'sunday_pm_end' }
-    ];
+    { enabled: 'weekday_am_enabled', driverId: 'weekday_am_driver_id', driverName: 'weekday_am_driver', start: 'weekday_am_start', end: 'weekday_am_end' },
+    { enabled: 'weekday_pm_enabled', driverId: 'weekday_pm_driver_id', driverName: 'weekday_pm_driver', start: 'weekday_pm_start', end: 'weekday_pm_end' },
+    { enabled: 'saturday_am_enabled', driverId: 'saturday_am_driver_id', driverName: 'saturday_am_driver', start: 'saturday_am_start', end: 'saturday_am_end' },
+    { enabled: 'saturday_pm_enabled', driverId: 'saturday_pm_driver_id', driverName: 'saturday_pm_driver', start: 'saturday_pm_start', end: 'saturday_pm_end' },
+    { enabled: 'sunday_am_enabled', driverId: 'sunday_am_driver_id', driverName: 'sunday_am_driver', start: 'sunday_am_start', end: 'sunday_am_end' },
+    { enabled: 'sunday_pm_enabled', driverId: 'sunday_pm_driver_id', driverName: 'sunday_pm_driver', start: 'sunday_pm_start', end: 'sunday_pm_end' }];
+
 
 
     timeSlots.forEach((slot) => {
@@ -348,10 +348,10 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                             <Label htmlFor="status" style={{ color: 'var(--text-slate-900)' }}>Store Status</Label>
                             <div className="flex items-center gap-3 h-10 mt-1">
                                 <Switch
-                                    id="status"
-                                    checked={formData.status !== 'inactive'}
-                                    onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'active' : 'inactive' })}
-                                />
+                  id="status"
+                  checked={formData.status !== 'inactive'}
+                  onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'active' : 'inactive' })} />
+                
                                 <Label htmlFor="status" className={`font-medium ${formData.status === 'inactive' ? 'text-red-600' : 'text-green-600'}`}>
                                     {formData.status === 'inactive' ? 'Inactive' : 'Active'}
                                 </Label>
@@ -363,12 +363,12 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         <div>
                             <Label htmlFor="address" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
                             <Input
-              id="address"
-              name="address"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              required
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
+                id="address"
+                name="address"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                required
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                         </div>
                         
@@ -449,24 +449,24 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         <div>
                             <Label htmlFor="dispatcher_id" style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatcher</Label>
                             <Select
-                              value={formData.dispatcher_id || 'null'}
-                              onValueChange={handleDispatcherSelect}>
+                value={formData.dispatcher_id || 'null'}
+                onValueChange={handleDispatcherSelect}>
                                 <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                                     <SelectValue placeholder="Select dispatcher...">
                                         {formData.dispatcher_id ?
-                                          sortedUsers.find((u) => u.id === formData.dispatcher_id)?.user_name || sortedUsers.find((u) => u.id === formData.dispatcher_id)?.full_name :
-                                          "Select dispatcher..."}
+                    sortedUsers.find((u) => u.id === formData.dispatcher_id)?.user_name || sortedUsers.find((u) => u.id === formData.dispatcher_id)?.full_name :
+                    "Select dispatcher..."}
                                     </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                                     <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Dispatcher</SelectItem>
-                                    {sortedUsers
-                                        .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
-                                        .map((dispatcher) =>
-                                            <SelectItem key={dispatcher.id} value={dispatcher.id} style={{ color: 'var(--text-slate-900)' }}>
+                                    {sortedUsers.
+                  filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher')).
+                  map((dispatcher) =>
+                  <SelectItem key={dispatcher.id} value={dispatcher.id} style={{ color: 'var(--text-slate-900)' }}>
                                                 {dispatcher.user_name || dispatcher.full_name}
                                             </SelectItem>
-                                        )}
+                  )}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -474,8 +474,8 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         <div>
                           <Label htmlFor="patient_scan_day" style={{ color: 'var(--text-slate-900)' }}>Patient Scan Day</Label>
                           <Select
-                            value={formData.patient_scan_day !== null && formData.patient_scan_day !== undefined ? String(formData.patient_scan_day) : 'null'}
-                            onValueChange={(v) => setFormData({ ...formData, patient_scan_day: v === 'null' ? null : Number(v) })}>
+                value={formData.patient_scan_day !== null && formData.patient_scan_day !== undefined ? String(formData.patient_scan_day) : 'null'}
+                onValueChange={(v) => setFormData({ ...formData, patient_scan_day: v === 'null' ? null : Number(v) })}>
                             <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                               <SelectValue placeholder="No scan day" />
                             </SelectTrigger>
@@ -500,22 +500,22 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                             </span>
                           </Label>
                           <Select
-                            value={formData.square_location_config_id || 'null'}
-                            onValueChange={(value) => setFormData({ ...formData, square_location_config_id: value === 'null' ? null : value })}>
+                value={formData.square_location_config_id || 'null'}
+                onValueChange={(value) => setFormData({ ...formData, square_location_config_id: value === 'null' ? null : value })}>
                             <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                               <SelectValue placeholder="Select Square location...">
-                                {formData.square_location_config_id
-                                  ? squareLocationConfigs.find((c) => c.id === formData.square_location_config_id)?.name
-                                  : "None"}
+                                {formData.square_location_config_id ?
+                    squareLocationConfigs.find((c) => c.id === formData.square_location_config_id)?.name :
+                    "None"}
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                               <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Square location</SelectItem>
-                              {squareLocationConfigs.map((config) => (
-                                <SelectItem key={config.id} value={config.id} style={{ color: 'var(--text-slate-900)' }}>
+                              {squareLocationConfigs.map((config) =>
+                  <SelectItem key={config.id} value={config.id} style={{ color: 'var(--text-slate-900)' }}>
                                   {config.name}
                                 </SelectItem>
-                              ))}
+                  )}
                             </SelectContent>
                           </Select>
                         </div>
@@ -527,10 +527,10 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                             <Label style={{ color: 'var(--text-slate-900)' }}>App Fee Status & History</Label>
                             <div className="flex items-center gap-2">
                                 <Switch
-                                    id="pays_app_fees"
-                                    checked={formData.pays_app_fees || false}
-                                    onCheckedChange={(checked) => setFormData({ ...formData, pays_app_fees: checked })}
-                                />
+                  id="pays_app_fees"
+                  checked={formData.pays_app_fees || false}
+                  onCheckedChange={(checked) => setFormData({ ...formData, pays_app_fees: checked })} />
+                
                                 <Label htmlFor="pays_app_fees" className={`text-sm font-medium ${formData.pays_app_fees ? 'text-green-600' : 'text-slate-500'}`}>
                                     {formData.pays_app_fees ? 'Currently Paying Fees' : 'Not Paying Fees'}
                                 </Label>
@@ -538,33 +538,33 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         {/* App Fee History List */}
-                        {formData.app_fee_history && formData.app_fee_history.length > 0 && (
-                            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                        {formData.app_fee_history && formData.app_fee_history.length > 0 &&
+            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
                                 <p className="text-xs font-semibold text-slate-600 mb-2">Fee Payment History:</p>
-                                {formData.app_fee_history
-                                    .slice()
-                                    .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))
-                                    .map((entry, idx) => (
-                                        <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border" style={{ borderColor: 'var(--border-slate-200)' }}>
+                                {formData.app_fee_history.
+              slice().
+              sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date)).
+              map((entry, idx) =>
+              <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border" style={{ borderColor: 'var(--border-slate-200)' }}>
                                             <div className="flex items-center gap-3">
                                                 <Input
-                                                    type="date"
-                                                    value={entry.effective_date}
-                                                    onChange={(e) => {
-                                                        const updated = [...formData.app_fee_history];
-                                                        updated[idx] = { ...entry, effective_date: e.target.value };
-                                                        setFormData({ ...formData, app_fee_history: updated });
-                                                    }}
-                                                    className="w-36 h-8 text-xs"
-                                                    style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)' }}
-                                                />
+                    type="date"
+                    value={entry.effective_date}
+                    onChange={(e) => {
+                      const updated = [...formData.app_fee_history];
+                      updated[idx] = { ...entry, effective_date: e.target.value };
+                      setFormData({ ...formData, app_fee_history: updated });
+                    }}
+                    className="w-36 h-8 text-xs"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)' }} />
+                  
                                                 <Select
-                                                    value={entry.pays_app_fees ? 'true' : 'false'}
-                                                    onValueChange={(value) => {
-                                                        const updated = [...formData.app_fee_history];
-                                                        updated[idx] = { ...entry, pays_app_fees: value === 'true' };
-                                                        setFormData({ ...formData, app_fee_history: updated });
-                                                    }}>
+                    value={entry.pays_app_fees ? 'true' : 'false'}
+                    onValueChange={(value) => {
+                      const updated = [...formData.app_fee_history];
+                      updated[idx] = { ...entry, pays_app_fees: value === 'true' };
+                      setFormData({ ...formData, app_fee_history: updated });
+                    }}>
                                                     <SelectTrigger className="w-32 h-8" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)' }}>
                                                         <SelectValue />
                                                     </SelectTrigger>
@@ -573,43 +573,43 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                                                         <SelectItem value="false">Not Paying</SelectItem>
                                                     </SelectContent>
                                                 </Select>
-                                                {entry.changed_by && (
-                                                    <span className="text-xs text-slate-500">by {entry.changed_by}</span>
-                                                )}
+                                                {entry.changed_by &&
+                  <span className="text-xs text-slate-500">by {entry.changed_by}</span>
+                  }
                                             </div>
                                             <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={() => {
-                                                    const updated = formData.app_fee_history.filter((_, i) => i !== idx);
-                                                    setFormData({ ...formData, app_fee_history: updated });
-                                                }}
-                                                className="h-7 w-7 p-0">
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    const updated = formData.app_fee_history.filter((_, i) => i !== idx);
+                    setFormData({ ...formData, app_fee_history: updated });
+                  }}
+                  className="h-7 w-7 p-0">
                                                 <Trash2 className="w-4 h-4 text-red-500" />
                                             </Button>
                                         </div>
-                                    ))}
+              )}
                             </div>
-                        )}
+            }
 
                         {/* Add New History Entry */}
                         <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                                const newEntry = {
-                                    effective_date: new Date().toISOString().split('T')[0],
-                                    pays_app_fees: formData.pays_app_fees || false,
-                                    changed_by: 'Admin'
-                                };
-                                setFormData({
-                                    ...formData,
-                                    app_fee_history: [...(formData.app_fee_history || []), newEntry]
-                                });
-                            }}
-                            className="gap-2">
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const newEntry = {
+                  effective_date: new Date().toISOString().split('T')[0],
+                  pays_app_fees: formData.pays_app_fees || false,
+                  changed_by: 'Admin'
+                };
+                setFormData({
+                  ...formData,
+                  app_fee_history: [...(formData.app_fee_history || []), newEntry]
+                });
+              }}
+              className="gap-2">
                             <Plus className="w-4 h-4" />
                             Add History Entry
                         </Button>
@@ -990,7 +990,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 </div>
 
                 {/* Form Actions */}
-                <div className="flex justify-end gap-3 pt-4" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
+                <div className="flex justify-end gap-3 py-4" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
                     <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
                         Cancel
                     </Button>

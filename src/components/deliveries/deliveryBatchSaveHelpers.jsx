@@ -107,14 +107,17 @@ export const getStagedActivationStatus = (delivery) => {
 };
 
 export const buildExistingDeliveryBatchUpdate = (delivery) => {
-  const finalStatus = getStagedActivationStatus(delivery);
+  // For directly-edited deliveries (not Staged activations), preserve the status the user set.
+  const isDirectEdit = delivery._wasEdited && delivery.status !== 'Staged';
+  const finalStatus = isDirectEdit ? delivery.status : getStagedActivationStatus(delivery);
   const now = new Date();
   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  return {
+  const base = {
     status: finalStatus,
     finished_leg_transport_mode: delivery.finished_leg_transport_mode || 'driving',
-    delivery_time_start: finalStatus === 'in_transit' ? currentLocalTime : delivery.delivery_time_start,
+    delivery_time_start: !isDirectEdit && finalStatus === 'in_transit' ? currentLocalTime : delivery.delivery_time_start,
+    delivery_time_end: delivery.delivery_time_end || '',
     delivery_notes: delivery.delivery_notes || '',
     prescription_number: delivery.prescription_number || '',
     cod_total_amount_required: delivery.cod_total_amount_required || 0,
@@ -133,6 +136,14 @@ export const buildExistingDeliveryBatchUpdate = (delivery) => {
     ampm_deliveries: delivery.ampm_deliveries || null,
     puid: delivery.puid || ''
   };
+
+  // For direct edits, also persist the time fields the user explicitly set
+  if (isDirectEdit) {
+    if (delivery.arrival_time !== undefined) base.arrival_time = delivery.arrival_time;
+    if (delivery.actual_delivery_time !== undefined) base.actual_delivery_time = delivery.actual_delivery_time;
+  }
+
+  return base;
 };
 
 export const getDeliveryReadyForSave = (delivery) => {

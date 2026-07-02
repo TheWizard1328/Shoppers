@@ -28,6 +28,7 @@ export default function DriverSettings() {
   const [freshAppUsers, setFreshAppUsers] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingDriver, setEditingDriver] = useState(null);
+  const [userEmails, setUserEmails] = useState({});
   let selectedCityId = globalFilters.getSelectedCityId();
 
   // Default to user's assigned city if not set
@@ -55,6 +56,14 @@ export default function DriverSettings() {
         const freshAppData = await getData('AppUser', '-updated_date', null, true); // Force refresh
         setFreshAppUsers(freshAppData || []);
         console.log(`✅ [DriverSettings] Loaded ${freshAppData?.length || 0} AppUsers`);
+
+        // Also fetch User records (built-in auth users) to get emails for all drivers
+        const userRecords = await base44.entities.User.list();
+        const emailMap = {};
+        (Array.isArray(userRecords) ? userRecords : []).forEach((u) => {
+          if (u?.id && u?.email) emailMap[u.id] = u.email;
+        });
+        setUserEmails(emailMap);
       } catch (error) {
         console.warn('Failed to fetch fresh AppUser data:', error);
       }
@@ -372,23 +381,25 @@ export default function DriverSettings() {
                             <h3 className="font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>
                               {getDriverDisplayName(driver)}
                             </h3>
-                            <Badge className={`text-xs ${(latestAppUser?.status ?? driver.status) === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                              {(latestAppUser?.status ?? driver.status) === 'active' ? 'Active' : 'Inactive'}
-                            </Badge>
-                            <Badge className={`text-xs ${dutyStatus.color}`}>
-                              {dutyStatus.label}
-                            </Badge>
-                            {gpsLabel &&
-                            <Badge className={`text-xs gap-1 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                                <Navigation className="w-3 h-3" />
-                                GPS: {gpsLabel.label}
-                              </Badge>
-                            }
                           </div>
                           {distToStore &&
                           <Badge className="text-xs gap-1 bg-slate-100 text-slate-600 flex-shrink-0">
                               <MapPin className="w-3 h-3" />
                               {distToStore}
+                            </Badge>
+                          }
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <Badge className={`text-xs ${(latestAppUser?.status ?? driver.status) === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                            {(latestAppUser?.status ?? driver.status) === 'active' ? 'Active' : 'Inactive'}
+                          </Badge>
+                          <Badge className={`text-xs ${dutyStatus.color}`}>
+                            {dutyStatus.label}
+                          </Badge>
+                          {gpsLabel &&
+                          <Badge className={`text-xs gap-1 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                              <Navigation className="w-3 h-3" />
+                              GPS: {gpsLabel.label}
                             </Badge>
                           }
                         </div>
@@ -402,10 +413,10 @@ export default function DriverSettings() {
                               </a>
                             </div>
                           }
-                          {driver.email &&
+                          {(driver.email || userEmails[driver.id]) &&
                           <div className="flex items-center gap-1 truncate">
                               <User className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="truncate text-xs">{driver.email}</span>
+                              <span className="truncate text-xs">{driver.email || userEmails[driver.id]}</span>
                             </div>
                           }
                         </div>

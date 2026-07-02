@@ -20,6 +20,7 @@ import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineS
 import { backgroundSyncManager } from '@/components/utils/backgroundSyncManager';
 import { notifyDriverStarted } from '@/components/utils/deliveryMessaging';
 import { determinePolylineSegment, fetchPolylineForSegment } from '@/components/utils/dynamicPolylineManager';
+import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
 
 export async function handleStartDelivery({
   deliveryId,
@@ -108,8 +109,10 @@ export async function handleStartDelivery({
 
     // ─── STEP 3: Immediate UI update from local state ─────────────────────
     if (updateDeliveriesLocally) {
+      // CRITICAL: Keep all other drivers' deliveries for the same date — only replace
+      // deliveries that belong to THIS driver on THIS date.
       const otherDeliveries = (deliveries || []).filter(
-        (d) => d && d.delivery_date !== deliveryDate
+        (d) => d && !(d.driver_id === driverId && d.delivery_date === deliveryDate)
       );
       updateDeliveriesLocally([...otherDeliveries, ...mutatedDeliveries], true);
     }
@@ -152,68 +155,28 @@ export async function handleStartDelivery({
     // Without this the optimizer may race the status writes and see the pickup as still 'pending'.
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // ─── STEP 5: Invoke route optimizer ──────────────────────────────────
-    // Online DB is now consistent — optimizer will see the correct in_transit status
-    let optimizeData = null;
-    let optimizedRouteFromBackend = null;
-
-    try {
-      const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-      let driverCurrentLat = null;
-      let driverCurrentLon = null;
-      const driverAppUser = appUsers.find((u) => u?.user_id === driverId);
-      if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-        driverCurrentLat = driverAppUser.current_latitude;
-        driverCurrentLon = driverAppUser.current_longitude;
-      } else if (driverLocation?.latitude && driverLocation?.longitude && driverId === currentUser?.id) {
-        driverCurrentLat = driverLocation.latitude;
-        driverCurrentLon = driverLocation.longitude;
-      }
-
-      const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
-        driverId,
-        deliveryDate,
-        currentLocalTime: localTimeString,
-        deviceTime: now.toISOString(),
-        currentLocation: driverCurrentLat && driverCurrentLon
-          ? { lat: driverCurrentLat, lon: driverCurrentLon }
-          : undefined,
-        bypassDeduplication: true,
-        bypassHistoricalCheck: true,
-        bypassDriverStatus: true,
-      });
-      optimizeData = optimizeResponse?.data || optimizeResponse || null;
-      optimizedRouteFromBackend = optimizeData?.optimizedRoute || null;
-      console.log('✅ [handleStartDelivery] Step 5 complete — optimizer success:', optimizeData?.success);
-    } catch (optimizeError) {
-      console.warn('⚠️ [handleStartDelivery] Step 5 — optimizer failed:', optimizeError?.message);
+    // ─── STEP 5+6: Unified route optimization (optimize + polyline regeneration) ──
+    // Uses the same proven FAB path (optimizeRemainingStops → regenerateType1Polyline)
+    let driverCurrentLat = null;
+    let driverCurrentLon = null;
+    const driverAppUser = appUsers.find((u) => u?.user_id === driverId);
+    if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+      driverCurrentLat = driverAppUser.current_latitude;
+      driverCurrentLon = driverAppUser.current_longitude;
+    } else if (driverLocation?.latitude && driverLocation?.longitude && driverId === currentUser?.id) {
+      driverCurrentLat = driverLocation.latitude;
+      driverCurrentLon = driverLocation.longitude;
     }
 
-    // ─── STEP 6: Invoke polyline generator ───────────────────────────────
-    if (optimizeData?.success) {
-      const orderedDeliveryIds =
-        Array.isArray(optimizeData?.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
-          ? optimizeData.orderedDeliveryIds
-          : null;
-      const trueOriginCoords = optimizeData?.trueOriginCoords || null;
+    const coordResult = await performRouteOptimization({
+      driverId,
+      deliveryDate,
+      currentLocation: driverCurrentLat && driverCurrentLon ? { lat: driverCurrentLat, lon: driverCurrentLon } : null,
+      source: 'start_delivery',
+      bypassDriverStatus: true,
+    });
 
-      try {
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
-          driverId,
-          deliveryDate,
-          ...(orderedDeliveryIds ? { orderedDeliveryIds } : { scope: 'active_only' }),
-          ...(trueOriginCoords ? { currentPosition: trueOriginCoords } : {}),
-          reason: 'post_start_delivery',
-          sourcePage: 'Dashboard',
-          bypassDriverStatus: true,
-          recalculateEtas: false,
-        });
-        console.log('✅ [handleStartDelivery] Step 6 complete — polylines regenerated');
-      } catch (e) {
-        console.warn('⚠️ [handleStartDelivery] Step 6 — polyline regeneration failed:', e?.message);
-      }
-    }
+    console.log('✅ [handleStartDelivery] Steps 5+6 complete — coordinator success:', coordResult?.success);
 
     // ─── STEP 7: Remaining processes ─────────────────────────────────────
     // 7a: Blue polyline (driver → next stop)
@@ -252,16 +215,19 @@ export async function handleStartDelivery({
     }
 
     // ─── STEP 8: Final UI update from fresh server data ───────────────────
-    invalidate('Delivery');
-    const freshDeliveries = await base44.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-    });
+    // coordinator already fetched + saved fresh deliveries to offlineDB via Step 5+6.
+    // Use the coordinator's fresh data to update the UI.
+    const freshDeliveries = coordResult?.freshDeliveries?.length > 0
+      ? coordResult.freshDeliveries
+      : await base44.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate,
+        }).catch(() => []);
 
-    // Merge in optimized route data (ETAs, stop_order) from the backend response
-    if (optimizedRouteFromBackend && Array.isArray(optimizedRouteFromBackend)) {
+    // Merge in optimized route data (ETAs, stop_order) from the coordinator response
+    if (coordResult?.optimizeData?.optimizedRoute && Array.isArray(coordResult.optimizeData.optimizedRoute)) {
       const optimizedMap = new Map(
-        optimizedRouteFromBackend
+        coordResult.optimizeData.optimizedRoute
           .filter((stop) => stop?.deliveryId || stop?.delivery_id)
           .map((stop) => [stop.deliveryId || stop.delivery_id, stop])
       );
@@ -281,8 +247,9 @@ export async function handleStartDelivery({
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
 
     if (updateDeliveriesLocally) {
+      // CRITICAL: Same as Step 3 — preserve other drivers' same-date deliveries.
       const otherDeliveries = (deliveries || []).filter(
-        (d) => d && d.delivery_date !== deliveryDate
+        (d) => d && !(d.driver_id === driverId && d.delivery_date === deliveryDate)
       );
       updateDeliveriesLocally([...otherDeliveries, ...freshDeliveries], true);
     }

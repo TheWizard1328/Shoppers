@@ -405,6 +405,24 @@ export default function PayrollSummaryCard({
     } catch (error) {console.error('❌ [Payroll] Failed to save changes:', error);}
   };
 
+  // Auto-populate App Owner fee amount when the "Manage App Owner App Fee" dialog opens
+  useEffect(() => {
+    if (appFeeOverlayAllDriversId !== 'all' || !currentUser?.id) return;
+    const existingAmt = driverEdits[currentUser.id]?.appFeeAmount;
+    if (Number(existingAmt) != 0) return; // only prefill if blank/zero
+    // When App Owner fee is 0, prefill with the full monthly app fee total
+    const ownerPct = Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent);
+    const ownerAmt = Math.round((ownerPct > 0 ? calculateAppFeeAmount(currentUser.id, ownerPct) : monthlyAppFeeBaseTotal) * 100) / 100;
+    setDriverEdits((prev) => ({
+      ...prev,
+      [currentUser.id]: {
+        ...prev[currentUser.id],
+        appFeePercent: ownerPct,
+        appFeeAmount: ownerAmt,
+      }
+    }));
+  }, [appFeeOverlayAllDriversId]);
+
   // Initialize deduction input drafts when dialog opens
   useEffect(() => {
     if (!deductionOverlayDriverId) {
@@ -1262,6 +1280,7 @@ export default function PayrollSummaryCard({
                     onDeductionsClick={setDeductionOverlayDriverId}
                     onBonusClick={setBonusOverlayDriverId}
                     payrollRecord={driverPayrollRecord}
+                    appUsers={appUsers}
                     onPaidAmountSave={async (driverId, paidAmount) => {
                       skipNextAutoSyncRef.current = true;
                       await savePayrollChanges(driverId, { paid_amount: paidAmount });
@@ -1280,14 +1299,26 @@ export default function PayrollSummaryCard({
                 }));
               };
 
+              const driverAppUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
               return (
                 <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
-                <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                  {data.driver.user_name || data.driver.full_name}
-                </h3>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                    {data.driver.user_name || data.driver.full_name}
+                  </h3>
+                  {driverAppUser?.ETrans_Email ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      💳 {driverAppUser.ETrans_Email}
+                    </span>
+                  ) : isDriver && data.driver.id === currentUser?.id ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                      ⚠️ No e-Transfer email set
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                   {canShowConfirmButton &&
                     <Button
                       size="sm"

@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 18; // v18: Added rx_temp_logs store
+const DB_VERSION = 19; // v19: Added stat_holidays store
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 
@@ -30,7 +30,8 @@ const STORES = {
   INTER_STORE_LOCATIONS: 'inter_store_locations',
   TILE_CACHE_META: 'tile_cache_meta',  // city-scoped tile hash metadata
   TILE_COVERAGE: 'tile_coverage',         // collective driver tile discovery — mirrors TileCoverage Base44 entity
-  RX_TEMP_LOGS: 'rx_temp_logs'            // cooler temperature logs per driver/date
+  RX_TEMP_LOGS: 'rx_temp_logs',           // cooler temperature logs per driver/date
+  STAT_HOLIDAYS: 'stat_holidays'          // statutory holidays for date lookups
 };
 
 let dbInstance = null;
@@ -253,6 +254,13 @@ const openDatabase = async () => {
         tempLogStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
+      // v19: stat_holidays — statutory holidays for offline date lookups
+      if (!db.objectStoreNames.contains(STORES.STAT_HOLIDAYS)) {
+        const statHolidayStore = db.createObjectStore(STORES.STAT_HOLIDAYS, { keyPath: 'id' });
+        statHolidayStore.createIndex('date', 'date', { unique: true });
+        statHolidayStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
       // v16: tile_coverage — local mirror of the TileCoverage Base44 entity
       // Keyed by tile_key (same format as buildTileCacheKey). city_id index lets us
       // bulk-read all discovered tiles for the active city without a DB call.
@@ -272,6 +280,14 @@ const openDatabase = async () => {
 
 /**
  * Save a single record to a store
+ */
+/**
+ * Save a single record to a store.
+ * CRITICAL: IndexedDB `put` REPLACES the entire existing record by ID — it does NOT
+ * perform a shallow merge. If you save `{ id, driver_status: 'off_duty' }`, the
+ * existing record's `app_roles`, `user_name`, and all other fields are PERMANENTLY
+ * lost. Always read the existing record first and merge before saving.
+ * See DriverStatusToggle for the correct merge pattern.
  */
 const save = async (storeName, record) => {
   if (!record) {
@@ -481,8 +497,26 @@ const replaceAllRecords = async (storeName, records = []) => {
       console.warn(`[OfflineDB] replaceAllRecords: received 0 records for ${storeName} — skipping clear to prevent data loss`);
       return { success: true, count: 0 };
     }
-    await clearStore(storeName);
-    return await bulkSave(storeName, records);
+    
+    // UPSERT-FIRST strategy: Write all new records BEFORE pruning old ones.
+    // This guarantees the store is never empty mid-sync, preventing the UI
+    // from reading an empty dataset during a concurrent offline DB read
+    // (e.g. from a realtime event or intermediate render in syncOnFilterChange).
+    const writeResult = await bulkSave(storeName, records);
+    if (!writeResult.success) return writeResult;
+    
+    // Prune: delete local records that are NOT in the incoming set.
+    // Only delete confirmed records (skip temp_ prefixed local-only IDs).
+    const incomingIds = new Set(
+      records.filter(r => r?.id && !r.id.startsWith('temp_')).map(r => r.id)
+    );
+    const allExisting = await getAll(storeName);
+    const toDelete = allExisting.filter(r => r?.id && !r.id.startsWith('temp_') && !incomingIds.has(r.id));
+    if (toDelete.length > 0) {
+      await Promise.all(toDelete.map(r => deleteRecord(storeName, r.id).catch(() => {})));
+    }
+    
+    return { success: true, count: records.length };
   } catch (error) {
     return { success: false, error: error.message };
   }

@@ -68,6 +68,8 @@ const sanitizeDeliveryData = (deliveryData) => {
 
 // Lazy load broadcastMutation / pause helpers to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data, ids = null) => {
+  // In batch silent mode, skip per-record broadcasts. Batch caller fires one bulk event.
+  if (isBatchSilentMode) return;
   try {
     const { broadcastMutation: broadcast } = await import('./realtimeSync');
     return broadcast(entity, action, id, data, ids);
@@ -141,6 +143,7 @@ const getCurrentCreatorAppUserId = async () => {
 let mutationListeners = [];
 let mutationsPaused = false;
 let isBatchFormSaving = false; // CRITICAL: Track if Add To Route form is batch saving
+let isBatchSilentMode = false; // CRITICAL: Suppress ALL per-record UI notifications during a batch save
 
 /**
  * Pause all mutations (during route optimization)
@@ -177,6 +180,25 @@ export const setBatchFormSaving = (isSaving) => {
 export const isBatchFormSavingActive = () => isBatchFormSaving;
 
 /**
+ * Enter batch silent mode — all per-record notifyMutation / broadcastMutation / smartRefresh
+ * calls are suppressed. A single bulk broadcast is made at the end by the caller.
+ */
+export const enterBatchSilentMode = () => {
+  isBatchSilentMode = true;
+  isBatchFormSaving = true;
+  console.log('🔇 [EntityMutations] Batch silent mode ON — suppressing per-record UI updates');
+};
+
+/**
+ * Exit batch silent mode and re-enable per-record broadcasts.
+ */
+export const exitBatchSilentMode = () => {
+  isBatchSilentMode = false;
+  isBatchFormSaving = false;
+  console.log('🔊 [EntityMutations] Batch silent mode OFF — per-record UI updates restored');
+};
+
+/**
  * Subscribe to mutation events for UI updates
  * Callback receives: { type, entity, id, data, oldId?, newId? }
  */
@@ -195,6 +217,9 @@ const notifyMutation = (mutation) => {
     console.log('⏸️ [EntityMutations] Notification skipped - mutations paused');
     return;
   }
+  // In batch silent mode, skip per-record UI notifications entirely.
+  // The batch caller is responsible for a single bulk update at the end.
+  if (isBatchSilentMode) return;
 
   mutationListeners.forEach(callback => {
     try {
@@ -223,9 +248,9 @@ const pauseSmartRefresh = async () => {
  * Restart smart refresh after mutation
  */
 const restartSmartRefresh = async () => {
-  // CRITICAL: Skip restart if batch form is saving (prevents spam during Add To Route)
-  if (isBatchFormSaving) {
-    console.log('⏭️ [EntityMutations] Skipping SmartRefresh restart - batch form saving active');
+  // CRITICAL: Skip restart if batch form is saving or in silent mode
+  if (isBatchFormSaving || isBatchSilentMode) {
+    console.log('⏭️ [EntityMutations] Skipping SmartRefresh restart - batch save active');
     return;
   }
   
@@ -691,11 +716,20 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       }
     }
 
-    // If delivery didn't exist in either DB, skip the rest
+    // If delivery didn't exist in either DB, still remove it from UI/cache in case
+    // it exists in React state but was already cleaned from both DBs.
     if (!existedOffline && !existedOnline) {
-      console.log('⏭️ [EntityMutations] Delivery not found in offline or online DB, skipping:', deliveryId);
+      console.log('⏭️ [EntityMutations] Delivery not found in offline or online DB — removing from UI anyway:', deliveryId);
+      const { removeDeletedFromCache } = await import('./dataManager');
+      removeDeletedFromCache('Delivery', [deliveryId]);
+      const { smartRefreshManager } = await import('./smartRefreshManager');
+      smartRefreshManager.deletedDeliveryIds.add(deliveryId);
+      notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: [deliveryId] } }));
+      }
       await restartSmartRefresh();
-      return false; // Indicate it was already deleted
+      return true;
     }
 
     if (deletedDeliverySnapshot?.driver_id && deletedDeliverySnapshot?.delivery_date) {
@@ -895,11 +929,19 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     
     console.log(`☁️ [EntityMutations] Backend deleted ${deletedOnlineIds.length} deliveries (${notFoundIds.length} not found)`);
 
-    // If nothing was deleted from either DB, skip the rest
+    // If nothing was deleted from either DB, still remove from UI/cache
     if (idsToDeleteOffline.length === 0 && deletedOnlineIds.length === 0) {
-      console.log('⏭️ [EntityMutations] No deliveries found in offline or online DB, all already deleted');
+      console.log('⏭️ [EntityMutations] No deliveries found in offline or online DB — removing from UI anyway:', deliveryIds);
+      const { removeDeletedFromCache } = await import('./dataManager');
+      removeDeletedFromCache('Delivery', deliveryIds);
+      const { smartRefreshManager } = await import('./smartRefreshManager');
+      deliveryIds.forEach(id => smartRefreshManager.deletedDeliveryIds.add(id));
+      notifyMutation({ type: 'batch_delete', entity: 'Delivery', ids: deliveryIds, data: null });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: deliveryIds } }));
+      }
       await restartSmartRefresh();
-      return false;
+      return true;
     }
     
     const firstDeletedDelivery = offlineDeliveries.find(d => idsToDeleteOffline.includes(d.id));
@@ -955,7 +997,9 @@ export const createEntity = async (entityName, data, options = {}) => {
     const result = await base44.entities[entityName].create(data);
 
     if (entityName === 'AppUser') {
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+      // Merge with existing offline record to preserve all fields (IndexedDB put replaces the entire record)
+      const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, result.id).catch(() => ({})) || {};
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]);
     }
 
     notifyMutation({ type: 'create', entity: entityName, id: result.id, data: result });
@@ -977,7 +1021,11 @@ export const updateEntity = async (entityName, entityId, updates, options = {}) 
     const result = await base44.entities[entityName].update(entityId, updates);
 
     if (entityName === 'AppUser') {
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+      // CRITICAL: Merge with existing offline record to preserve all fields.
+      // The SDK update response may omit fields like app_roles, user_name, etc.
+      // Saving a partial record would overwrite the full record in IndexedDB.
+      const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, entityId).catch(() => ({})) || {};
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]);
     }
 
     notifyMutation({ type: 'update', entity: entityName, id: entityId, data: result });
@@ -1046,7 +1094,10 @@ export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
     
     // STEP 2: CRITICAL - DUAL-WRITE to offline DB immediately
     try {
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+      // CRITICAL: Merge with existing offline record to preserve app_roles and all other fields.
+      // The SDK update response may only return changed fields, not the full record.
+      const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]);
       console.log(`💾 [EntityMutations] Synced AppUser to offline DB: ${appUserId}`);
     } catch (offlineError) {
       console.warn('⚠️ [EntityMutations] Failed to sync AppUser to offline DB:', offlineError.message);

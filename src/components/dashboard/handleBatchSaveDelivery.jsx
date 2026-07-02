@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { generateUniqueSID, addMinutesToTime } from "@/components/dashboard/DashboardHelpers";
-import { batchCreateDeliveriesLocal, updateDeliveryLocal } from "@/components/utils/entityMutations";
+import { batchCreateDeliveriesLocal, updateDeliveryLocal, enterBatchSilentMode, exitBatchSilentMode } from "@/components/utils/entityMutations";
 import { base44 } from "@/api/base44Client";
 import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
 
@@ -58,6 +58,15 @@ export const handleBatchSaveDelivery = async ({
     console.warn('[AddToRoute] ⚠️ No staged deliveries found!');
     return;
   }
+
+  // CRITICAL: Enter silent mode for the entire batch — suppresses per-record notifyMutation,
+  // broadcastMutation, and SmartRefresh restarts. A single deliveriesUpdated event fires at the end.
+  enterBatchSilentMode();
+  let _realtimePauseModule = null;
+  try {
+    _realtimePauseModule = await import('@/components/utils/realtimeSync');
+    _realtimePauseModule.pauseRealtimeSync();
+  } catch (_) {}
 
   const deliveriesByGroup = {};
   stagedDeliveries.forEach((delivery) => {
@@ -446,7 +455,14 @@ export const handleBatchSaveDelivery = async ({
         fridge_item: stop.fridge_item || false,
         oversized: stop.oversized || false,
         extra_time: stop.extra_time || 5,
-        first_delivery: stop.first_delivery || false
+        first_delivery: stop.first_delivery || false,
+        // Cycling marker fields — preserved only when stop is a cycling marker
+        ...(stop.is_cycling_marker ? {
+          is_cycling_marker: true,
+          cycling_latitude: stop.cycling_latitude ?? null,
+          cycling_longitude: stop.cycling_longitude ?? null,
+          transport_mode: stop.transport_mode || 'cycling',
+        } : {}),
       };
 
       if (stop.isNew) {
@@ -510,11 +526,21 @@ export const handleBatchSaveDelivery = async ({
 
   }
 
+  // CRITICAL: Always exit silent mode after the batch loop — even if an error occurred above
+  exitBatchSilentMode();
+  try {
+    if (_realtimePauseModule?.resumeRealtimeSync) _realtimePauseModule.resumeRealtimeSync();
+    else {
+      const { resumeRealtimeSync } = await import('@/components/utils/realtimeSync');
+      resumeRealtimeSync();
+    }
+  } catch (_) {}
+
   invalidate('Delivery');
 
   const batchDeliveryDate = stagedDeliveries[0]?.delivery_date || format(selectedDate, 'yyyy-MM-dd');
   const batchDriverId = stagedDeliveries[0]?.driver_id;
-  
+
   // Use the locally created/updated deliveries to update UI immediately
   const resolvedEnsuredPickups = (ensuredPickupRecords || []).map((delivery) => {
     const resolved = createdDeliveryMap.get(`pickup__${delivery?.store_id}__${delivery?.delivery_date}__${delivery?.driver_id || ''}__${delivery?.ampm_deliveries || ''}`);
@@ -548,8 +574,9 @@ export const handleBatchSaveDelivery = async ({
   setEditingDelivery(null);
   hasAutoSelectedRef.current = false;
 
-  setTimeout(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await refreshData();
-  }, 0);
+  // CRITICAL: Do NOT call refreshData() here — it triggers a full reload that races with
+  // the WebSocket echo for each newly-created delivery, causing triplicated UI entries.
+  // The deliveriesUpdated event above (batchSaveImmediate) already merges the new records
+  // into the Layout state. The WebSocket echo will arrive shortly after and be deduplicated
+  // by realtimeSync's completion lockout. A full reload is unnecessary and harmful here.
 };

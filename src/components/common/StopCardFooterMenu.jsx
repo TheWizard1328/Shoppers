@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Edit, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
+import { CheckCircle, Edit, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
 
@@ -41,6 +41,10 @@ export default function StopCardFooterMenu(props) {
     isProcessingBackground,
     isFailing,
     dispatchBleReconnect,
+    handleCompleteAction,
+    isCompleting,
+    isGlobalCompleteLocked,
+    isGlobalRestartLocked,
   } = props;
 
   const canManageStop = !!(!isStrippedForDispatcher && (
@@ -61,13 +65,25 @@ export default function StopCardFooterMenu(props) {
   const isFinishedPickup = isPickupForMenu && isFinishedDelivery;
   const isFinishedRegularDelivery = !isPickupForMenu && isFinishedDelivery;
 
-  const canShowEdit = !!(canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
+  const isAdminOrOwner = !!(isAppOwner?.(currentUser) || userHasRole?.(currentUser, 'admin'));
+  const canShowEdit = !!(canManageStop && (!routeCompleted || isAdminOrOwner) && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
 
-  const canShowEditPatient = !!(!isDispatcherOnly && onEditPatient && patient && canManageStop && (isActiveDelivery || isFinishedRegularDelivery) && !isInterStore);
+  const isDriverOnly = !!(userHasRole?.(currentUser, 'driver') && !userHasRole?.(currentUser, 'admin') && !isAppOwner?.(currentUser));
+  const canShowEditPatient = !!(!isDispatcherOnly && !isDriverOnly && onEditPatient && patient && canManageStop && (isActiveDelivery || isFinishedRegularDelivery) && !isInterStore);
 
   const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && patient && !isPickupForMenu && !isInterStore && (isNextDelivery || isFinishedDelivery));
 
   const canShowViewAsPatient = !!(isAppOwner?.(currentUser) && patient && delivery?.patient_id && !isInterStore);
+
+  const canShowComplete = !!(
+    !isPickupForMenu &&
+    !isFinishedDelivery &&
+    !isNextDelivery &&
+    isActiveDelivery &&
+    handleCompleteAction &&
+    canManageStop &&
+    !isInterStore
+  );
 
   const canShowFailCancel = !!(!isDispatcherOnly && onStatusUpdate && canManageStop && (
     isActivePickup || (isActiveDelivery && isNextDelivery)
@@ -114,6 +130,14 @@ export default function StopCardFooterMenu(props) {
           <DropdownMenuItem inset={false} onClick={(e) => { dispatchBleReconnect?.(); blockCardToggle(e); handleUpdateGPS(e); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 dark:text-slate-100 focus:bg-slate-100 dark:focus:bg-slate-700 focus:text-slate-900 dark:focus:text-slate-100">
             <Locate className="w-5 h-5 mr-2" />Update GPS
           </DropdownMenuItem>
+        )}
+        {canShowComplete && (
+          <>
+            <DropdownMenuSeparator className="dark:bg-slate-600" />
+            <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="flex cursor-pointer items-center text-emerald-600 dark:text-emerald-400 text-base py-2.5 md:py-1.5 focus:bg-emerald-50 dark:focus:bg-emerald-950 focus:text-emerald-700 dark:focus:text-emerald-300">
+              <CheckCircle className="w-5 h-5 mr-2" />Complete
+            </DropdownMenuItem>
+          </>
         )}
         {canShowFailCancel && (
           <>

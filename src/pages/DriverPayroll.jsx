@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2, Download, RefreshCw } from "lucide-react";
+import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2, Download, RefreshCw, User } from "lucide-react";
+import { ProfilePanel, SettingsDialog } from '@/pages/Settings';
 import { sortUsers, sortStores } from '../components/utils/sorting';
 import { useUser } from '../components/utils/UserContext';
 import { useAppData } from '../components/utils/AppDataContext';
@@ -270,9 +271,26 @@ export default function DriverPayroll() {
   const lastFetchTimestampRef = useRef(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const citySelectTriggerRef = useRef(null);
+  const [showETransEmailDialog, setShowETransEmailDialog] = useState(false);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
+
+  // Drivers without e-Transfer email: prompt them to add one
+  // Use AppUser directly — currentUser from auth context may not carry app_roles reliably
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
+      const appUser = appUsers?.[0];
+      if (!appUser) return;
+      const isDriverRole = Array.isArray(appUser.app_roles) &&
+        appUser.app_roles.includes('driver') &&
+        !appUser.app_roles.includes('admin');
+      if (isDriverRole && !appUser.ETrans_Email) {
+        setShowETransEmailDialog(true);
+      }
+    }).catch(() => {});
+  }, [currentUser?.id]);
   const isPayrollPageActive = typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('driverpayroll');
 
   const years = useMemo(() => {
@@ -1066,21 +1084,22 @@ export default function DriverPayroll() {
   // Conditional rendering without early return to maintain hook order
   if (!isPayrollPageActive) return null;
 
-  return !currentUser ?
-  <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-      <span className="text-lg text-slate-600">Please log in to view payroll</span>
-    </div> :
-  needsCitySelection ?
-  <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-      <span className="text-lg text-slate-600">Select a city to view payroll.</span>
-    </div> :
-  isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null ?
-  <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
-      <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
-    </div> :
+  const eTransDialog = (
+    <SettingsDialog
+      open={showETransEmailDialog}
+      onOpenChange={(o) => !o && setShowETransEmailDialog(false)}
+      title="Account"
+      description="Update your display name and phone number."
+      icon={User}>
+      <ProfilePanel currentUser={currentUser} onClose={() => setShowETransEmailDialog(false)} />
+    </SettingsDialog>
+  );
 
-  <div className="px-3 py-2 h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col md:p-4" style={{ background: 'var(--bg-slate-50)' }}>
+  if (!currentUser) return <>{eTransDialog}<div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600">Please log in to view payroll</span></div></>;
+  if (needsCitySelection) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600">Select a city to view payroll.</span></div>{eTransDialog}</>;
+  if (isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div><span className="ml-3 text-lg text-slate-600">Loading payroll data...</span></div>{eTransDialog}</>;
+
+  return <div className="px-3 py-2 h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col md:p-4" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl w-full mx-auto flex flex-col min-h-full min-w-0" ref={contentRef}>
         {/* Header */}
         <div className="bg-[var(--bg-slate-50)]/95 pt-1 pb-1 sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75 w-full min-w-0 overflow-x-hidden">
@@ -1339,8 +1358,9 @@ export default function DriverPayroll() {
         onClose={() => setShowScreenshotModal(false)}
         imageDataUrl={screenshotDataUrl}
         filename={`driver-payroll-${selectedYear}.png`} />
+
+        {eTransDialog}
       
       </div>
     </div>;
-
 }

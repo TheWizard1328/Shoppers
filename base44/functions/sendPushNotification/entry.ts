@@ -1,17 +1,7 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import webpush from 'npm:web-push@3.6.7';
 
-// Sends a Web Push notification to all of a user's registered PushSubscription
-// records. Expired/invalid subscriptions (410 Gone, or 404 Not Found) are
-// deleted automatically so stale rows don't accumulate.
-//
-// Payload:
-//   user_id (string, required)  — AppUser.id to notify
-//   title   (string, required)  — notification title
-//   body    (string, required)  — notification body text
-//   url     (string, optional)  — deep link opened on notificationclick (default '/')
-//   tag     (string, optional)  — groups/replaces notifications with the same tag
-//   requireInteraction (bool, optional)
+// Payload: user_id (required), title (required), body (required), url (optional, default '/'), tag (optional), requireInteraction (optional)
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -19,58 +9,30 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { user_id, title, body, url, tag, requireInteraction } = await req.json();
-
-    if (!user_id || !title || !body) {
-      return Response.json({ error: 'user_id, title, and body are required' }, { status: 400 });
-    }
+    if (!user_id || !title || !body) return Response.json({ error: 'user_id, title, and body are required' }, { status: 400 });
 
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
     const vapidSubject = Deno.env.get('VAPID_SUBJECT');
-
-    if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) {
-      return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
-    }
+    if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
 
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
     const subscriptions = await base44.asServiceRole.entities.PushSubscription.filter({ user_id });
+    if (!subscriptions || subscriptions.length === 0) return Response.json({ sent: 0, message: 'No push subscriptions for this user' });
 
-    if (!subscriptions || subscriptions.length === 0) {
-      return Response.json({ sent: 0, message: 'No push subscriptions for this user' });
-    }
+    const payload = JSON.stringify({ title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction });
 
-    const payload = JSON.stringify({
-      title,
-      body,
-      url: url || '/',
-      tag: tag || undefined,
-      requireInteraction: !!requireInteraction
-    });
-
-    let sent = 0;
-    let removed = 0;
+    let sent = 0, removed = 0;
     const errors = [];
-
     await Promise.all(subscriptions.map(async (sub) => {
-      const pushSubscription = {
-        endpoint: sub.endpoint,
-        keys: {
-          p256dh: sub.p256dh_key,
-          auth: sub.auth_key
-        }
-      };
-
+      const pushSubscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } };
       try {
         await webpush.sendNotification(pushSubscription, payload);
         sent++;
-        await base44.asServiceRole.entities.PushSubscription.update(sub.id, {
-          last_used_at: new Date().toISOString()
-        }).catch(() => {});
+        await base44.asServiceRole.entities.PushSubscription.update(sub.id, { last_used_at: new Date().toISOString() }).catch(() => {});
       } catch (err) {
-        const statusCode = err?.statusCode;
-        if (statusCode === 410 || statusCode === 404) {
-          // Subscription is gone (unsubscribed, uninstalled, or expired) — clean it up
+        if (err?.statusCode === 410 || err?.statusCode === 404) {
           await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
           removed++;
         } else {

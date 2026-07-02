@@ -169,6 +169,15 @@ function ChatWindow({
         content: messageContent,
         read: false,
       });
+      // Fire-and-forget push notification to recipient
+      const senderName = currentUser.user_name || currentUser.full_name || 'RxDeliver';
+      base44.functions.invoke('sendPushNotification', {
+        user_id: otherUserId,
+        title: senderName,
+        body: messageContent,
+        tag: `chat-${conversationId}`,
+        url: `/?openChat=${encodeURIComponent(currentUser.id)}&openChatName=${encodeURIComponent(senderName)}`
+      }).catch((error) => console.warn('Push notification failed:', error?.message || error));
       setNewMessage('');
       setMessages((prev) => [...prev, createdMessage]);
       shouldRestoreFocusRef.current = true;

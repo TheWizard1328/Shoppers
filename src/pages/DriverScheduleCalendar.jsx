@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { userHasRole } from '@/components/utils/userRoles';
 import { generateDriverColor, getContrastColor } from '@/components/utils/colorGenerator';
+import { loadStatHolidays, getStatHoliday } from '@/components/utils/statHolidayResolver';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -170,14 +171,14 @@ function DriverSlotCell({
     const ampm = isAM ? 'AM' : 'PM';
     const filterDriverId = isDeliveryDriven ? deliveryDrivenDriverId : effectiveDriverId;
     return (deliveriesByDay[dateStr] || []).filter((d) => {
+      const isPatientOrAHPickup = (d.patient_id && d.patient_id !== '') || d.after_hours_pickup;
       if (isBookedOff && !filterDriverId) {
-        // Show unassigned pending stops for this store/slot
         return !d.driver_id && d.store_id === store.id &&
-          d.patient_id && d.patient_id !== '' && d.status === 'pending' &&
+          isPatientOrAHPickup && d.status === 'pending' &&
           (!d.ampm_deliveries || d.ampm_deliveries === ampm);
       }
       return d.driver_id === filterDriverId && d.store_id === store.id &&
-        d.patient_id && d.patient_id !== '' &&
+        isPatientOrAHPickup &&
         (!d.ampm_deliveries || d.ampm_deliveries === ampm);
     });
   }, [deliveriesByDay, dateStr, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven, isBookedOff, store.id, isAM, isMySlot]);
@@ -190,15 +191,15 @@ function DriverSlotCell({
     if (isBookedOff && !filterDriverId) {
       return (deliveriesByDay[dateStr] || []).filter((d) =>
         !d.driver_id && d.store_id === store.id &&
-        d.patient_id && d.patient_id !== '' && d.status === 'pending' &&
+        ((d.patient_id && d.patient_id !== '') || d.after_hours_pickup) && d.status === 'pending' &&
         (!d.ampm_deliveries || d.ampm_deliveries === ampm)
       ).length;
     }
     if (!filterDriverId) return 0;
     return (deliveriesByDay[dateStr] || []).filter((d) =>
-    d.driver_id === filterDriverId && d.store_id === store.id &&
-    d.patient_id && d.patient_id !== '' && (
-    !d.ampm_deliveries || d.ampm_deliveries === ampm)
+      d.driver_id === filterDriverId && d.store_id === store.id &&
+      ((d.patient_id && d.patient_id !== '') || d.after_hours_pickup) &&
+      (!d.ampm_deliveries || d.ampm_deliveries === ampm)
     ).length;
   }, [deliveriesByDay, dateStr, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven, isBookedOff, store.id, isAM]);
 
@@ -209,13 +210,14 @@ function DriverSlotCell({
     const filterDriverId = isDeliveryDriven ? deliveryDrivenDriverId : effectiveDriverId;
     if (!filterDriverId && !isBookedOff) return [];
     return (deliveriesByDay[dateStr] || []).filter((d) => {
+      const isPatientOrAHPickup = (d.patient_id && d.patient_id !== '') || d.after_hours_pickup;
       if (isBookedOff && !filterDriverId) {
         return !d.driver_id && d.store_id === store.id &&
-          d.patient_id && d.patient_id !== '' && d.status === 'pending' &&
+          isPatientOrAHPickup && d.status === 'pending' &&
           (!d.ampm_deliveries || d.ampm_deliveries === ampm);
       }
       return d.driver_id === filterDriverId && d.store_id === store.id &&
-        d.patient_id && d.patient_id !== '' &&
+        isPatientOrAHPickup &&
         (!d.ampm_deliveries || d.ampm_deliveries === ampm);
     });
   }, [deliveriesByDay, dateStr, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven, isBookedOff, store.id, isAM]);
@@ -407,6 +409,7 @@ export default function DriverScheduleCalendar() {
   const [stores, setStores] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
   const [overrides, setOverrides] = useState([]);
+  const [statHolidays, setStatHolidays] = useState([]);
   const [deliveriesByDay, setDeliveriesByDay] = useState({});
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -430,14 +433,16 @@ export default function DriverScheduleCalendar() {
     const load = async () => {
       setLoading(true);
       try {
-        const [user, storeList, userList] = await Promise.all([
+        const [user, storeList, userList, holidays] = await Promise.all([
         base44.auth.me(),
         base44.entities.Store.list('sort_order', 200),
-        base44.entities.AppUser.list('sort_order', 200)]
+        base44.entities.AppUser.list('sort_order', 200),
+        loadStatHolidays()]
         );
         setCurrentUser(user);
         setStores(storeList.filter((s) => s.status !== 'inactive'));
         setAppUsers(userList);
+        setStatHolidays(holidays || []);
         // Auto-select driver filter for non-admin drivers
         const appUser = userList.find((u) => u.user_id === user?.id);
         if (appUser && appUser.app_roles?.includes('driver') && !userHasRole(user, 'admin')) {
@@ -816,6 +821,7 @@ export default function DriverScheduleCalendar() {
             const today = isToday(date);
             const dateStr = format(date, 'yyyy-MM-dd');
             const dayName = format(date, 'EEE');
+            const statHoliday = getStatHoliday(dateStr, statHolidays);
 
             // Build scheduled driver map from store schedule + overrides
             const driverMap = new Map();
@@ -837,46 +843,36 @@ export default function DriverScheduleCalendar() {
             });
 
             // ── Delivery-driven slots ──────────────────────────────────────
-            // Find drivers who have actual deliveries for a store on this date
-            // but are NOT already the scheduled driver for that store/slot combo.
+            // Use delivery.store_id + delivery.ampm_deliveries as the primary binding keys.
             const dayDeliveries = deliveriesByDay[dateStr] || [];
+            const storeById = new Map(visibleStores.map((s) => [s.id, s]));
             dayDeliveries.forEach((delivery) => {
-              if (!delivery.driver_id || !delivery.store_id || !delivery.patient_id) return;
+              if (!delivery.driver_id) return;
               if (delivery.status === 'cancelled') return;
-              const store = visibleStores.find((s) => s.id === delivery.store_id);
+              if (delivery.is_cycling_marker) return;
+              const isPatient = !!(delivery.patient_id && delivery.patient_id !== '');
+              const isInterStore = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
+              if (!isPatient && !isInterStore) return;
+
+              const store = delivery.store_id ? storeById.get(delivery.store_id) : null;
               if (!store) return;
 
+              // Map ampm_deliveries → slot key suffix; default to AM if unset
               const ampm = delivery.ampm_deliveries; // 'AM', 'PM', or undefined
-              const slotKeys = getSlotKey(date);
+              const [amSk, pmSk] = getSlotKey(date);
+              const sk = (!ampm || ampm === 'AM') ? amSk : pmSk;
 
-              slotKeys.forEach((sk) => {
-                const isAM = sk.endsWith('_am');
-                // Only match if ampm matches (or no ampm set on delivery)
-                if (ampm && (isAM && ampm !== 'AM' || !isAM && ampm !== 'PM')) return;
+              // Skip if this driver is already the scheduled driver for this store/slot
+              const override = overrides.find((o) => o.date === dateStr && o.slot_key === sk && o.store_id === store.id);
+              const scheduledDriverId = override ? override.driver_id : getDefaultDriverId(store, sk);
+              if (scheduledDriverId === delivery.driver_id) return;
 
-                // Check if this driver is already the scheduled driver for this store/slot
-                const scheduledDriverId = (() => {
-                  const override = overrides.find((o) => o.date === dateStr && o.slot_key === sk && o.store_id === store.id);
-                  const defId = getDefaultDriverId(store, sk);
-                  return override ? override.driver_id : defId;
-                })();
-
-                if (scheduledDriverId === delivery.driver_id) return; // already shown
-
-                // Check if the slot is enabled; if it is, it's already in the scheduled view — skip
-                // If slot is NOT enabled for the store, still show as delivery-driven
-                // If slot IS enabled but driver is different, show as delivery-driven
-                const slotAlreadyCovered = isSlotEnabled(store, sk) && scheduledDriverId === delivery.driver_id;
-                if (slotAlreadyCovered) return;
-
-                // Add to driver's group as a delivery-driven entry
-                if (!driverMap.has(delivery.driver_id)) driverMap.set(delivery.driver_id, []);
-                const group = driverMap.get(delivery.driver_id);
-                const alreadyHas = group.some((e) => e.store.id === store.id && e.slotKey === sk);
-                if (!alreadyHas) {
-                  group.push({ store, slotKey: sk, startTime: getSlotStartTime(store, sk), isDeliveryDriven: true });
-                }
-              });
+              if (!driverMap.has(delivery.driver_id)) driverMap.set(delivery.driver_id, []);
+              const group = driverMap.get(delivery.driver_id);
+              const alreadyHas = group.some((e) => e.store.id === store.id && e.slotKey === sk);
+              if (!alreadyHas) {
+                group.push({ store, slotKey: sk, startTime: getSlotStartTime(store, sk), isDeliveryDriven: true });
+              }
             });
 
             driverMap.forEach((entries) => entries.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')));
@@ -885,6 +881,16 @@ export default function DriverScheduleCalendar() {
             const myUserId = currentUser?.id;
             const sortedDriverIds = [...driverMap.keys()].
             filter((id) => selectedDriverId === 'all' || id === selectedDriverId).
+            filter((id) => {
+              // Only hide on past dates
+              if (!past) return true;
+              const entries = driverMap.get(id);
+              // If any entry is delivery-driven, always show the driver
+              if (entries.some((e) => e.isDeliveryDriven)) return true;
+              // Past date: only show if driver has at least one actual delivery or pickup
+              const dayDelivs = deliveriesByDay[dateStr] || [];
+              return dayDelivs.some((d) => d.driver_id === id && !d.is_cycling_marker);
+            }).
             sort((a, b) => {
               // Current user's driver group always first
               if (a === myUserId) return -1;
@@ -919,12 +925,47 @@ export default function DriverScheduleCalendar() {
                   }
                 </div>
 
-                <div className="flex-1 p-1.5 space-y-2">
+                <div className="flex-1 p-1.5 flex flex-col gap-2">
                   {sortedDriverIds.map((driverId) => {
+                    const dayDelivs = deliveriesByDay[dateStr] || [];
+
+                    // On stat holidays, only show drivers who have actual deliveries/pickups/interstores
+                    if (statHoliday) {
+                      const hasAssignment = dayDelivs.some((d) =>
+                        d.driver_id === driverId && !d.is_cycling_marker
+                      );
+                      if (!hasAssignment) return null;
+                    }
+
                     const driver = appUsers.find((u) => u.user_id === driverId || u.id === driverId);
-                    const entries = driverMap.get(driverId);
                     const driverColor = generateDriverColor(driver?.user_name || driverId);
                     const driverTextColor = getContrastColor(driverColor);
+
+                    // On stat holidays, build entries from actual deliveries instead of default schedule
+                    let entries = driverMap.get(driverId);
+                    if (statHoliday) {
+                      const assignedStoreIds = [...new Set(
+                        dayDelivs
+                          .filter((d) => d.driver_id === driverId && !d.is_cycling_marker)
+                          .map((d) => d.store_id)
+                          .filter(Boolean)
+                      )];
+                      entries = assignedStoreIds.flatMap((storeId) => {
+                        const store = stores.find((s) => s.id === storeId);
+                        if (!store) return [];
+                        // Determine AM/PM from deliveries for this store
+                        const storeDelivs = dayDelivs.filter((d) => d.driver_id === driverId && d.store_id === storeId);
+                        const hasAM = storeDelivs.some((d) => !d.ampm_deliveries || d.ampm_deliveries === 'AM');
+                        const hasPM = storeDelivs.some((d) => d.ampm_deliveries === 'PM');
+                        const slots = [];
+                        if (hasAM) slots.push({ store, slotKey: `weekday_am`, startTime: store.weekday_am_start || '08:00', isDeliveryDriven: true });
+                        if (hasPM) slots.push({ store, slotKey: `weekday_pm`, startTime: store.weekday_pm_start || '13:00', isDeliveryDriven: true });
+                        if (!hasAM && !hasPM) slots.push({ store, slotKey: `weekday_am`, startTime: store.weekday_am_start || '08:00', isDeliveryDriven: true });
+                        return slots;
+                      });
+                    }
+
+                    if (!entries || entries.length === 0) return null;
 
                     const isMyGroup = !isAdmin && driverId === currentUser?.id;
                     if (!isMobile && (isAdmin || isMyGroup)) {
@@ -991,8 +1032,12 @@ export default function DriverScheduleCalendar() {
                     setDragItem={setDragItem} />
                   }
 
+                  {/* Stat Holiday Banner — fills remaining space with diagonal text */}
+                  {statHoliday && <StatHolidayBanner name={statHoliday.holiday_name} />}
+
                   {/* Drop zones when dragging */}
                   {!isMobile && dragItem?.dateStr === dateStr && (() => {
+
                     // If there's already an unassigned/booked-off card visible, it acts as the book-off drop zone
                     const hasNoDriverCard = noDriverEntries.length > 0;
                     if (isAdmin) return (
@@ -1031,6 +1076,47 @@ export default function DriverScheduleCalendar() {
     </div>);
 }
 
+// ── StatHolidayBanner ─────────────────────────────────────────────────────────
+
+function StatHolidayBanner({ name }) {
+  const ref = useRef(null);
+  const [angle, setAngle] = useState(-35);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const { offsetWidth: w, offsetHeight: h } = ref.current;
+    if (w && h) setAngle(-Math.atan2(h, w) * (180 / Math.PI));
+    const ro = new ResizeObserver(([entry]) => {
+      const { width: w2, height: h2 } = entry.contentRect;
+      if (w2 && h2) setAngle(-Math.atan2(h2, w2) * (180 / Math.PI));
+    });
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="flex-1 rounded-lg overflow-hidden relative"
+      style={{ background: '#fef9c3', border: '1px solid #fde047', minHeight: 40 }}>
+      <div style={{
+        position: 'absolute',
+        top: '50%', left: '50%',
+        width: '200%',
+        transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+        textAlign: 'center',
+        pointerEvents: 'none',
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#78350f', letterSpacing: '0.04em', lineHeight: 1.3 }}>
+          🎉 {name} 🎉
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#92400e', marginTop: 1, opacity: 0.85 }}>
+          Stat Holiday
+        </div>
+      </div>
+    </div>);
+}
+
 // ── MobileDriverGroup ─────────────────────────────────────────────────────────
 
 function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers, appUsers, currentUser,
@@ -1042,15 +1128,12 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
 
   const isMyGroup = isAdmin || driverId === currentUser?.id;
   const dateKey = format(date, 'yyyy-MM-dd');
-  const total = isMyGroup ? entries.reduce((sum, { store, slotKey }) => {
-    const isAM = slotKey.endsWith('_am');
-    const ampm = isAM ? 'AM' : 'PM';
-    return sum + (deliveriesByDay?.[dateKey]?.filter(
-      (d) => d.driver_id === driverId && d.store_id === store.id &&
-      d.patient_id && d.patient_id !== '' && (
-      !d.ampm_deliveries || d.ampm_deliveries === ampm)
-    ).length || 0);
-  }, 0) : 0;
+  const total = isMyGroup ? (deliveriesByDay?.[dateKey] || []).filter((d) =>
+    d.driver_id === driverId &&
+    d.status !== 'cancelled' &&
+    !d.is_cycling_marker &&
+    (d.patient_id && d.patient_id !== '' || d._interstore_source_id || d._interstore_dest_id || d.after_hours_pickup)
+  ).length : 0;
 
   const scheduledEntries = entries.filter((e) => !e.isDeliveryDriven);
   const canBookOff = canBookOffDay && scheduledEntries.length > 0;
@@ -1180,15 +1263,12 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
       {(() => {
         const isMyGroup = isAdmin || driverId === currentUser?.id;
         const dateKey = format(date, 'yyyy-MM-dd');
-        const total = isMyGroup ? entries.reduce((sum, { store, slotKey }) => {
-          const isAM = slotKey.endsWith('_am');
-          const ampm = isAM ? 'AM' : 'PM';
-          return sum + (deliveriesByDay?.[dateKey]?.filter(
-            (d) => d.driver_id === driverId && d.store_id === store.id &&
-            d.patient_id && d.patient_id !== '' && (
-            !d.ampm_deliveries || d.ampm_deliveries === ampm)
-          ).length || 0);
-        }, 0) : 0;
+        const total = isMyGroup ? (deliveriesByDay?.[dateKey] || []).filter((d) =>
+          d.driver_id === driverId &&
+          d.status !== 'cancelled' &&
+          !d.is_cycling_marker &&
+          (d.patient_id && d.patient_id !== '' || d._interstore_source_id || d._interstore_dest_id || d.after_hours_pickup)
+        ).length : 0;
 
         // All lock keys for this driver's scheduled entries
         const allLockKeys = scheduledEntries.map(({ store, slotKey }) => slotLockKey(dateStr, store.id, slotKey));

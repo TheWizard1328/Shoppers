@@ -15,7 +15,8 @@ export const OFFLINE_ENTITY_STORE_KEYS = {
   DemoPatient: 'PATIENTS',
   DemoRoute: 'DELIVERIES',
   DemoAppUser: 'APP_USERS',
-  DemoStore: 'STORES'
+  DemoStore: 'STORES',
+  StatHoliday: 'STAT_HOLIDAYS'
 };
 
 export const OFFLINE_SYNC_ENTITY_CLIENTS = {

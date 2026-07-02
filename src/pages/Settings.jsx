@@ -10,8 +10,9 @@ import {
 } from '@/components/ui/dialog';
 import {
   User, Bell, Moon, Smartphone, Monitor, LogOut, ChevronRight,
-  Sun, Check, Ruler, Save, Loader2,
+  Sun, Check, Ruler, Save, Loader2, ShieldAlert,
 } from 'lucide-react';
+import { initPushNotifications, resetPushSubscription } from '@/components/utils/pushNotifications';
 import { toast } from 'sonner';
 import { useUser } from '@/components/utils/UserContext';
 import AccountDeletionSection from '@/components/settings/AccountDeletionSection';
@@ -21,19 +22,28 @@ import DevicesPanel from '@/components/devices/DevicesPanel';
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
 // ── Profile Panel ─────────────────────────────────────────────────────────────
-function ProfilePanel({ currentUser }) {
+export function ProfilePanel({ currentUser, onClose }) {
   const [displayName, setDisplayName] = useState(currentUser?.user_name || currentUser?.full_name || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [eTransEmail, setETransEmail] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
+      if (appUsers?.length > 0) setETransEmail(appUsers[0].ETrans_Email || '');
+    }).catch(() => {});
+  }, [currentUser?.id]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
       if (appUsers?.length > 0) {
-        await base44.entities.AppUser.update(appUsers[0].id, { user_name: displayName, phone });
+        await base44.entities.AppUser.update(appUsers[0].id, { user_name: displayName, phone, ETrans_Email: eTransEmail });
       }
       toast.success('Profile updated');
+      if (onClose) onClose();
     } catch {
       toast.error('Failed to save profile');
     } finally {
@@ -56,6 +66,11 @@ function ProfilePanel({ currentUser }) {
         <Label htmlFor="phone">Phone Number</Label>
         <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" type="tel" />
       </div>
+      <div className="space-y-1">
+        <Label htmlFor="eTransEmail">e-Transfer Email</Label>
+        <Input id="eTransEmail" value={eTransEmail} onChange={(e) => setETransEmail(e.target.value)} placeholder="your@email.com" type="email" />
+        <p className="text-xs text-slate-400">Used for Interac e-Transfer payroll payments.</p>
+      </div>
       <Button onClick={handleSave} disabled={saving} className="w-full gap-2 mt-2">
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
         {saving ? 'Saving…' : 'Save Changes'}
@@ -69,6 +84,10 @@ function NotificationsPanel({ currentUser, settings }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notifications_enabled ?? true);
   const [sound, setSound] = useState(settings.notifications_sound ?? true);
   const [vibration, setVibration] = useState(settings.notifications_vibration ?? true);
+  const [browserPermission, setBrowserPermission] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+  );
+  const [subscribing, setSubscribing] = useState(false);
 
   const handleToggle = async (key, value, setter) => {
     setter(value);
@@ -76,14 +95,96 @@ function NotificationsPanel({ currentUser, settings }) {
     toast.success('Preference saved');
   };
 
+  const handleEnableToggle = async (val) => {
+    if (val && browserPermission !== 'granted') {
+      // Ask browser for permission and subscribe
+      setSubscribing(true);
+      try {
+        await initPushNotifications(currentUser.id);
+        const newPermission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+        setBrowserPermission(newPermission);
+        if (newPermission === 'granted') {
+          setNotificationsEnabled(true);
+          await saveSetting(currentUser.id, 'notifications_enabled', true);
+          toast.success('Push notifications enabled');
+        } else {
+          toast.error('Permission not granted — please allow notifications in your browser settings');
+        }
+      } catch {
+        toast.error('Could not enable notifications');
+      } finally {
+        setSubscribing(false);
+      }
+    } else {
+      handleToggle('notifications_enabled', val, setNotificationsEnabled);
+    }
+  };
+
+  const handleResubscribe = async () => {
+    setSubscribing(true);
+    try {
+      await resetPushSubscription(currentUser.id);
+      const newPermission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+      setBrowserPermission(newPermission);
+      toast.success('Push subscription refreshed');
+    } catch {
+      toast.error('Could not re-subscribe');
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
   const rows = [
-    { key: 'notifications_enabled', label: 'Enable Notifications', description: 'Receive in-app alerts and updates', value: notificationsEnabled, setter: setNotificationsEnabled },
     { key: 'notifications_sound', label: 'Sound', description: 'Play a sound with notifications', value: sound, setter: setSound },
     { key: 'notifications_vibration', label: 'Vibration', description: 'Vibrate device with notifications', value: vibration, setter: setVibration },
   ];
 
+  const permissionDenied = browserPermission === 'denied';
+
   return (
     <div className="divide-y divide-slate-100 p-1">
+      {/* Browser permission status banner */}
+      {permissionDenied && (
+        <div className="flex items-start gap-2 py-3 px-3 mb-1 bg-red-50 rounded-lg border border-red-200">
+          <ShieldAlert className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-red-700">
+            Notifications are blocked by your browser. Go to your browser's site settings and allow notifications for this site, then re-open this panel.
+          </p>
+        </div>
+      )}
+
+      {/* Enable push notifications toggle */}
+      <div className="flex items-center justify-between py-4">
+        <div>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Enable Push Notifications</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>
+            {browserPermission === 'granted' ? 'Browser permission granted ✓' : 'Receive alerts even when the app is in the background'}
+          </p>
+        </div>
+        {subscribing
+          ? <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+          : <Switch
+              checked={notificationsEnabled && browserPermission === 'granted'}
+              disabled={permissionDenied}
+              onCheckedChange={handleEnableToggle}
+            />
+        }
+      </div>
+
+      {/* Re-subscribe button — shown when granted but user wants to refresh */}
+      {browserPermission === 'granted' && (
+        <div className="flex items-center justify-between py-4">
+          <div>
+            <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Re-register Device</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>Force a fresh push subscription for this device</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleResubscribe} disabled={subscribing}>
+            {subscribing ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Refresh'}
+          </Button>
+        </div>
+      )}
+
+      {/* Sound & Vibration */}
       {rows.map((row) => (
         <div key={row.key} className="flex items-center justify-between py-4">
           <div>
@@ -165,7 +266,7 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
 }
 
 // ── Settings Dialog wrapper ───────────────────────────────────────────────────
-function SettingsDialog({ open, onOpenChange, title, description, icon: Icon, children }) {
+export function SettingsDialog({ open, onOpenChange, title, description, icon: Icon, children }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-md max-h-[85vh] overflow-y-auto px-4 py-4">
@@ -187,9 +288,27 @@ export default function Settings() {
   const { currentUser } = useUser();
   const [openPanel, setOpenPanel] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
+  const [eTransEmail, setETransEmail] = useState('');
 
   useEffect(() => {
     if (currentUser?.id) loadUserSettings(currentUser.id).then(setUserSettings);
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
+      if (appUsers?.length > 0) {
+        const email = appUsers[0].ETrans_Email || '';
+        setETransEmail(email);
+        // Drivers without an e-Transfer email: auto-open profile to prompt them to add it
+        const isDriverOnly = Array.isArray(appUsers[0].app_roles) &&
+          appUsers[0].app_roles.includes('driver') &&
+          !appUsers[0].app_roles.includes('admin');
+        if (isDriverOnly && !email) {
+          setOpenPanel('profile');
+        }
+      }
+    }).catch(() => {});
   }, [currentUser?.id]);
 
   const handleThemeChange = (newTheme) => {
@@ -203,7 +322,7 @@ export default function Settings() {
       icon: User,
       items: [
         { label: 'Profile', description: currentUser?.user_name || currentUser?.full_name || 'Tap to edit', onClick: () => setOpenPanel('profile') },
-        { label: 'Email', description: currentUser?.email || 'Not available', disabled: true },
+        { label: 'Email', description: currentUser?.email || 'Not available', eTransEmail: eTransEmail || 'Not set', disabled: true, isEmailRow: true },
       ],
     },
     {
@@ -257,20 +376,37 @@ export default function Settings() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1">
-                {section.items.map((item, i) => (
-                  <button
-                    key={i}
-                    onClick={item.onClick}
-                    disabled={item.disabled}
-                    className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors text-left select-none ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 active:bg-slate-100'}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.label}</p>
-                      {item.description && <p className="text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>{item.description}</p>}
-                    </div>
-                    {!item.disabled && <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />}
-                  </button>
-                ))}
+                {section.items.map((item, i) => {
+                  if (item.isEmailRow) {
+                    return (
+                      <div key={i} className="flex items-center gap-2 px-3 py-3 opacity-60">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Email</p>
+                          <p className="text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>{item.description}</p>
+                        </div>
+                        <div className="w-px self-stretch" style={{ background: 'var(--border-slate-200)' }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>e-Transfer Email</p>
+                          <p className="text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>{item.eTransEmail}</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <button
+                      key={i}
+                      onClick={item.onClick}
+                      disabled={item.disabled}
+                      className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors text-left select-none ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 active:bg-slate-100'}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.label}</p>
+                        {item.description && <p className="text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>{item.description}</p>}
+                      </div>
+                      {!item.disabled && <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />}
+                    </button>
+                  );
+                })}
               </CardContent>
             </Card>
           );
@@ -290,7 +426,7 @@ export default function Settings() {
 
       {/* ── Dialogs ── */}
       <SettingsDialog open={openPanel === 'profile'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Account" description="Update your display name and phone number." icon={User}>
-        <ProfilePanel currentUser={currentUser} />
+        <ProfilePanel currentUser={currentUser} onClose={() => { setOpenPanel(null); base44.entities.AppUser.filter({ user_id: currentUser.id }).then((au) => { if (au?.length > 0) setETransEmail(au[0].ETrans_Email || ''); }).catch(() => {}); }} />
       </SettingsDialog>
 
       <SettingsDialog open={openPanel === 'notifications'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Notifications" description="Control how and when you receive alerts." icon={Bell}>

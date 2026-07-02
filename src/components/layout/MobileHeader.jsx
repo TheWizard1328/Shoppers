@@ -102,12 +102,20 @@ export default function MobileHeader({
                 onMessagingClick?.();
               }
             }}>
-            <img
-              src={logo || "https://cdn-icons-png.flaticon.com/512/3843/3843479.png"}
-              alt="Company Logo"
-              className="w-8 h-8 rounded object-contain"
-              style={{ filter: 'var(--image-filter, none)' }}
-            />
+            {logo && !logo.includes('placehold') ? (
+              <img
+                src={logo}
+                alt="RxDeliver"
+                className="w-8 h-8 rounded object-contain"
+                style={{ filter: 'var(--image-filter, none)' }}
+                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling && (e.currentTarget.nextSibling.style.display = 'flex'); }}
+              />
+            ) : null}
+            {(!logo || logo.includes('placehold')) && (
+              <div className="w-8 h-8 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-xs">Rx</span>
+              </div>
+            )}
             {unreadMessageCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
                 {unreadMessageCount > 9 ? '9+' : unreadMessageCount}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Menu, X, Package, MapPin, Clock, Truck, CheckCircle, RefreshCw, HeartPulse, Wifi } from 'lucide-react';
@@ -17,42 +17,114 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const storeIcon = L.divIcon({
-  html: `<div style="background:#1e293b;color:white;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:18px;">🏥</div>`,
-  className: '',
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
-});
+const HOUSE_SVG = (strokeColor) =>
+  `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><polyline points='9 22 9 12 15 12 15 22'/></svg>`;
 
-const patientIcon = L.divIcon({
-  html: `<div style="background:#2563eb;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:18px;border:3px solid white;">📦</div>`,
-  className: '',
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
-});
+function makeStoreIcon(pickupDone) {
+  const bg = pickupDone ? '#16a34a' : 'white';
+  const border = pickupDone ? '#15803d' : '#e2e8f0';
+  return L.divIcon({
+    html: `<div style="background:${bg};width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid ${border};overflow:hidden;"><img src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/189b7cc2c_ShoppersLogo.ico" style="width:30px;height:30px;object-fit:contain;" /></div>`,
+    className: '',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+  });
+}
+
+function makePatientIcon(deliveryStatus, isNextDelivery, stopsBeforeCount) {
+  let bg = '#2563eb';
+  let iconColor = 'white';
+  if (deliveryStatus === 'completed') { bg = '#16a34a'; }
+  else if (deliveryStatus === 'failed') { bg = '#dc2626'; }
+  else if (isNextDelivery) { bg = '#ca8a04'; iconColor = '#fef08a'; }
+
+  // Cluster badge: show stops-before count only when delivery is not yet done and count > 0
+  const showBadge = stopsBeforeCount != null && stopsBeforeCount > 0 && !['completed', 'failed', 'cancelled'].includes(deliveryStatus);
+  const badge = showBadge
+    ? `<div style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);z-index:10;">${stopsBeforeCount}</div>`
+    : '';
+
+  return L.divIcon({
+    html: `<div style="position:relative;width:36px;height:36px;"><div style="background:${bg};color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:3px solid white;">${HOUSE_SVG(iconColor)}</div>${badge}</div>`,
+    className: '',
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+  });
+}
 
 const driverIcon = L.divIcon({
   html: `<div style="background:#16a34a;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:18px;border:3px solid white;">🚚</div>`,
   className: '',
   iconSize: [36, 36],
-  iconAnchor: [18, 18],
+  iconAnchor: [18, 36],
 });
 
+// Initial bounds fitter — runs once on first load
 function MapBoundsFitter({ positions }) {
   const map = useMap();
+  const fittedRef = useRef(false);
   useEffect(() => {
-    if (positions.length === 0) return;
+    if (fittedRef.current || positions.length === 0) return;
+    fittedRef.current = true;
     if (positions.length === 1) {
       map.setView(positions[0], 14);
-      return;
+    } else {
+      map.fitBounds(L.latLngBounds(positions), { padding: [60, 60] });
     }
-    const bounds = L.latLngBounds(positions);
-    map.fitBounds(bounds, { padding: [60, 60] });
   }, [positions.map(p => p.join(',')).join('|')]);
   return null;
 }
 
+// Tracks driver+patient, handles double-tap to reset tracking
+function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTap, onUserInteract }) {
+  const map = useMap();
+
+  // Auto-pan when driver moves and tracking is active
+  useEffect(() => {
+    if (!trackingMode || !driverLocation || !patientLatLng) return;
+    const positions = [
+      [driverLocation.lat, driverLocation.lng],
+      patientLatLng,
+    ];
+    map.fitBounds(L.latLngBounds(positions), { padding: [60, 60], animate: true });
+  }, [driverLocation?.lat, driverLocation?.lng, trackingMode]);
+
+  // Listen for double-tap to re-enable tracking mode
+  useEffect(() => {
+    const handleDblClick = () => onDoubleTap();
+    map.on('dblclick', handleDblClick);
+    // Any user drag/zoom disables tracking
+    const handleInteract = () => onUserInteract();
+    map.on('dragstart', handleInteract);
+    map.on('zoomstart', handleInteract);
+    return () => {
+      map.off('dblclick', handleDblClick);
+      map.off('dragstart', handleInteract);
+      map.off('zoomstart', handleInteract);
+    };
+  }, [map, onDoubleTap, onUserInteract]);
+
+  return null;
+}
+
 const TODAY = format(new Date(), 'yyyy-MM-dd');
+
+// Decode Google-encoded polyline to [[lat, lng], ...]
+function decodePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const coords = [];
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
 
 const STATUS_CONFIG = {
   completed: { label: 'Delivered',  color: 'text-green-700 bg-green-50 border-green-200',  Icon: CheckCircle },
@@ -72,11 +144,19 @@ export default function PatientPortal() {
   const [driverLocation, setDriverLocation] = useState(null);
   const [loading, setLoading]               = useState(true);
   const [liveConnected, setLiveConnected]   = useState(false);
+  const [stopsBeforePatient, setStopsBeforePatient] = useState(null);
+  const [routeDeliveries, setRouteDeliveries] = useState([]);
+  // trackingMode: when true the map auto-pans to keep driver+patient in view
+  const [trackingMode, setTrackingMode] = useState(false);
+  const [driverStatus, setDriverStatus] = useState(null);
 
   // Keep a ref to the current todayDelivery so subscriptions can read it without
   // going stale in closures.
   const todayDeliveryRef = useRef(null);
   todayDeliveryRef.current = todayDelivery;
+
+  // Holds the full driver route snapshot for live badge recalculation
+  const routeDeliveriesRef = useRef([]);
 
   // ── Initial data load ─────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -99,22 +179,49 @@ export default function PatientPortal() {
         PatientSessionManager.startExpirationTimer();
       }
 
+      // Count stops before patient on the driver's route (and seed the live ref)
+      if (activeToday?.driver_id && activeToday?.stop_order != null) {
+        try {
+          const routeDeliveries = await base44.entities.Delivery.filter({
+            driver_id: activeToday.driver_id,
+            delivery_date: TODAY,
+          });
+          routeDeliveriesRef.current = routeDeliveries;
+          setRouteDeliveries(routeDeliveries);
+          const countBefore = routeDeliveries.filter((d) =>
+            d.id !== activeToday.id &&
+            Number(d.stop_order) < Number(activeToday.stop_order) &&
+            !['completed', 'failed', 'cancelled'].includes(d.status)
+          ).length;
+          setStopsBeforePatient(countBefore);
+        } catch (_) {
+          setStopsBeforePatient(null);
+        }
+      } else {
+        routeDeliveriesRef.current = [];
+        setStopsBeforePatient(null);
+      }
+
       // Seed driver location from initial load (no poll — WS takes over after this)
       if (activeToday?.driver_id && ['in_transit', 'en_route'].includes(activeToday.status)) {
         try {
           const appUsers = await base44.entities.AppUser.filter({ user_id: activeToday.driver_id });
           const driver = appUsers?.[0];
+          if (driver?.driver_status) setDriverStatus(driver.driver_status);
           if (driver?.current_latitude && driver?.current_longitude) {
             setDriverLocation({ lat: driver.current_latitude, lng: driver.current_longitude, name: driver.user_name });
           }
         } catch (_) {}
       }
 
-      const storeIds = [...new Set(allDeliveries.map((d) => d.store_id).filter(Boolean))];
-      if (storeIds.length > 0) {
-        const allStores = await base44.entities.Store.filter({});
-        setStores(allStores.filter((s) => storeIds.includes(s.id)));
-      }
+      const storeIds = [...new Set([
+        ...allDeliveries.map((d) => d.store_id).filter(Boolean),
+        patient?.store_id,
+        activeToday?.store_id,
+      ].filter(Boolean))];
+      const allStores = await base44.entities.Store.filter({});
+      // Keep all stores that match any delivery store OR the patient's home store
+      setStores(allStores.filter((s) => storeIds.includes(s.id)));
     } catch (err) {
       console.error('PatientPortal load error:', err);
     } finally {
@@ -126,9 +233,26 @@ export default function PatientPortal() {
     loadData();
   }, [loadData]);
 
+  // Keep a ref to the current todayDelivery's driver_id and stop_order for use in WS closures
+  const todayDeliveryRouteRef = useRef(null);
+  todayDeliveryRouteRef.current = todayDelivery
+    ? { driver_id: todayDelivery.driver_id, stop_order: todayDelivery.stop_order, id: todayDelivery.id }
+    : null;
+
+  // Helper: recount stops before patient from a given route deliveries array
+  const recountStopsBefore = useCallback((routeDeliveries, patientDelivery) => {
+    if (!patientDelivery?.stop_order == null) return;
+    const count = routeDeliveries.filter((d) =>
+      d.id !== patientDelivery.id &&
+      Number(d.stop_order) < Number(patientDelivery.stop_order) &&
+      !['completed', 'failed', 'cancelled'].includes(d.status)
+    ).length;
+    setStopsBeforePatient(count);
+  }, []);
+
   // ── WebSocket: Delivery subscription ─────────────────────────────
-  // Listens for any Delivery change and filters to this patient's records.
-  // Updates todayDelivery in real-time (status, ETA, driver assignment, etc.).
+  // Listens for any Delivery change. Filters to this patient's records for
+  // todayDelivery/deliveries state, AND tracks all route stops for the badge count.
   useEffect(() => {
     if (!patient?.id) return;
 
@@ -138,10 +262,29 @@ export default function PatientPortal() {
         const updated = event?.data;
         if (!updated?.id) return;
 
-        // Only process deliveries that belong to this patient
-        if (updated.patient_id !== patient.id) return;
-
         setLiveConnected(true);
+
+        // --- Update route deliveries ref for badge recalculation ---
+        const route = todayDeliveryRouteRef.current;
+        if (
+          route &&
+          updated.driver_id === route.driver_id &&
+          updated.delivery_date === TODAY
+        ) {
+          // Patch or add this delivery into our local route snapshot
+          const existing = routeDeliveriesRef.current;
+          const idx = existing.findIndex((d) => d.id === updated.id);
+          const next = idx >= 0
+            ? existing.map((d) => d.id === updated.id ? { ...d, ...updated } : d)
+            : [...existing, updated];
+          routeDeliveriesRef.current = next;
+          setRouteDeliveries([...next]);
+          // Recount badge using the patient's own delivery as reference
+          recountStopsBefore(routeDeliveriesRef.current, route);
+        }
+
+        // --- Update this patient's own deliveries ---
+        if (updated.patient_id !== patient.id) return;
 
         // Patch deliveries list
         setDeliveries((prev) => {
@@ -169,7 +312,7 @@ export default function PatientPortal() {
     }
 
     return () => { try { unsub?.(); } catch (_) {} };
-  }, [patient?.id]);
+  }, [patient?.id, recountStopsBefore]);
 
   // ── WebSocket: AppUser subscription (driver location) ────────────
   // Listens for any AppUser change. When the record matches the driver assigned
@@ -193,6 +336,8 @@ export default function PatientPortal() {
         // which matches delivery.driver_id)
         if (updated.user_id !== today.driver_id) return;
 
+        if (updated.driver_status) setDriverStatus(updated.driver_status);
+
         if (updated.current_latitude && updated.current_longitude) {
           setDriverLocation({
             lat: updated.current_latitude,
@@ -208,18 +353,88 @@ export default function PatientPortal() {
     return () => { try { unsub?.(); } catch (_) {} };
   }, [patient?.id]);
 
-  // ── Clear driver location when delivery is no longer active ───────
+  // ── Clear driver location + tracking when delivery is no longer active ───────
   useEffect(() => {
     const isActive = todayDelivery && ['in_transit', 'en_route'].includes(todayDelivery.status);
-    if (!isActive) setDriverLocation(null);
+    if (!isActive) {
+      setDriverLocation(null);
+      setTrackingMode(false);
+    } else {
+      // Auto-enable tracking when driver becomes active
+      setTrackingMode(true);
+    }
   }, [todayDelivery?.status]);
 
   // ── Map markers ───────────────────────────────────────────────────
   const storeMap = {};
   stores.forEach((s) => { storeMap[s.id] = s; });
 
-  const activeStore   = todayDelivery ? storeMap[todayDelivery.store_id] : null;
+  const activeStore   = todayDelivery ? storeMap[todayDelivery.store_id] : (patient?.store_id ? storeMap[patient.store_id] : null);
   const statusConfig  = todayDelivery ? STATUS_CONFIG[todayDelivery.status] || STATUS_CONFIG.pending : null;
+
+  // Store marker: green bg when pickup is done (driver has left the store = in_transit/en_route/completed)
+  const pickupDone = todayDelivery ? ['in_transit', 'en_route', 'completed'].includes(todayDelivery.status) : false;
+  const storeIcon = makeStoreIcon(pickupDone);
+
+  // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
+  const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsBeforePatient);
+
+  // Helper: merge decoded polyline segments, deduplicating shared endpoints
+  const mergePolylineSegments = (stops) => {
+    const merged = [];
+    for (const stop of stops) {
+      const decoded = decodePolyline(stop.encoded_polyline);
+      if (decoded.length < 2) continue;
+      if (merged.length > 0) {
+        const [lastLat, lastLng] = merged[merged.length - 1];
+        const [firstLat, firstLng] = decoded[0];
+        if (Math.abs(lastLat - firstLat) < 1e-5 && Math.abs(lastLng - firstLng) < 1e-5) {
+          merged.push(...decoded.slice(1));
+        } else {
+          merged.push(...decoded);
+        }
+      } else {
+        merged.push(...decoded);
+      }
+    }
+    return merged;
+  };
+
+  // Build route polylines split into:
+  // 1. staticPolylineCoords — all legs EXCEPT the first stop's leg and the current leg (always visible)
+  // 2. firstLegCoords — the leg from store → first stop (hidden when off duty / before 9:30)
+  // 3. currentLegCoords — the leg leading to the driver's isNextDelivery stop (hidden when off duty / before 9:30)
+  const { staticPolylineCoords, firstLegCoords, currentLegCoords } = useMemo(() => {
+    if (!todayDelivery?.stop_order || routeDeliveries.length === 0) return { staticPolylineCoords: [], firstLegCoords: [], currentLegCoords: [] };
+    const patientStopOrder = Number(todayDelivery.stop_order);
+    const DONE_STATUSES = ['completed', 'failed', 'cancelled'];
+
+    const relevantStops = routeDeliveries
+      .filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder && !DONE_STATUSES.includes(d.status))
+      .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
+
+    if (relevantStops.length === 0) return { staticPolylineCoords: [], firstLegCoords: [], currentLegCoords: [] };
+
+    const firstStop = relevantStops[0];
+    const minStopOrder = Number(firstStop.stop_order);
+
+    // Current leg = stop with isNextDelivery=true
+    const currentLegStop = relevantStops.find((d) => d.isNextDelivery === true);
+
+    // Static = everything except first stop leg and current leg
+    const staticStops = relevantStops.filter((d) =>
+      Number(d.stop_order) !== minStopOrder && d.isNextDelivery !== true
+    );
+
+    // First leg = first stop only (unless it's also the current leg, then it's covered there)
+    const firstLegStop = firstStop.isNextDelivery ? null : firstStop;
+
+    return {
+      staticPolylineCoords: mergePolylineSegments(staticStops),
+      firstLegCoords: firstLegStop ? decodePolyline(firstLegStop.encoded_polyline) : [],
+      currentLegCoords: currentLegStop ? decodePolyline(currentLegStop.encoded_polyline) : [],
+    };
+  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
 
   const mapPositions = [
     activeStore?.latitude  && activeStore?.longitude  ? [activeStore.latitude, activeStore.longitude]   : null,
@@ -230,6 +445,20 @@ export default function PatientPortal() {
   const defaultCenter = patient?.latitude && patient?.longitude
     ? [patient.latitude, patient.longitude]
     : [53.5461, -113.4938]; // Edmonton fallback
+
+  const patientLatLng = patient?.latitude && patient?.longitude
+    ? [patient.latitude, patient.longitude]
+    : null;
+
+  const handleDoubleTap = useCallback(() => setTrackingMode(true), []);
+  const handleUserInteract = useCallback(() => setTrackingMode(false), []);
+
+  // Live tracking is only visible after 9:30 AM and when driver is on_duty
+  const isAfter930am = (() => {
+    const now = new Date();
+    return now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() >= 30);
+  })();
+  const showLiveTracking = isAfter930am && driverStatus === 'on_duty';
 
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden">
@@ -314,7 +543,7 @@ export default function PatientPortal() {
                   </span>
                 )}
               </div>
-              {driverLocation && (
+              {showLiveTracking && driverLocation && (
                 <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-green-700">
                   <Wifi className="w-3.5 h-3.5" />
                   Driver location updating live
@@ -335,7 +564,14 @@ export default function PatientPortal() {
         </div>
 
         {/* Map */}
-        <div className="flex-1 px-4 pb-4 overflow-hidden">
+        <div className="flex-1 px-4 pb-4 overflow-hidden relative">
+          {showLiveTracking && driverLocation && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
+              <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-slate-500 border-slate-200'}`}>
+                {trackingMode ? '📍 Tracking driver' : 'Double-tap map to track driver'}
+              </div>
+            </div>
+          )}
           <div className="h-full rounded-xl overflow-hidden border border-slate-200 shadow-sm">
             <MapContainer
               center={defaultCenter}
@@ -349,6 +585,37 @@ export default function PatientPortal() {
               />
 
               {mapPositions.length > 0 && <MapBoundsFitter positions={mapPositions} />}
+              <DriverTracker
+                driverLocation={showLiveTracking ? driverLocation : null}
+                patientLatLng={patientLatLng}
+                trackingMode={trackingMode}
+                onDoubleTap={handleDoubleTap}
+                onUserInteract={handleUserInteract}
+              />
+
+              {/* Static polyline — all legs except first stop and current leg — always visible */}
+              {staticPolylineCoords.length > 1 && (
+                <Polyline
+                  positions={staticPolylineCoords}
+                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                />
+              )}
+
+              {/* First stop leg — hidden when off duty or before 9:30 AM */}
+              {showLiveTracking && firstLegCoords.length > 1 && (
+                <Polyline
+                  positions={firstLegCoords}
+                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                />
+              )}
+
+              {/* Current leg (isNextDelivery stop) — hidden when off duty or before 9:30 AM */}
+              {showLiveTracking && currentLegCoords.length > 1 && (
+                <Polyline
+                  positions={currentLegCoords}
+                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.75, dashArray: '8, 6' }}
+                />
+              )}
 
               {/* Store marker */}
               {activeStore?.latitude && activeStore?.longitude && (
@@ -364,8 +631,8 @@ export default function PatientPortal() {
                 </Marker>
               )}
 
-              {/* Driver marker */}
-              {driverLocation && (
+              {/* Driver marker — only when live tracking is enabled */}
+              {showLiveTracking && driverLocation && (
                 <Marker position={[driverLocation.lat, driverLocation.lng]} icon={driverIcon}>
                   <Popup><strong>Your Driver</strong><br />{driverLocation.name || 'On the way!'}</Popup>
                 </Marker>

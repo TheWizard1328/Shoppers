@@ -2,14 +2,6 @@
   "name": "Patient",
   "type": "object",
   "properties": {
-    "company_id": {
-      "type": "string",
-      "description": "Reference to the Company this delivery belongs to"
-    },
-    "dispatcher_id": {
-      "type": "string",
-      "description": "System ID of the assigned dispatcher"
-    },
     "store_id": {
       "type": "string",
       "description": "ID of the store this patient is assigned to"
@@ -70,6 +62,16 @@
       "type": "string",
       "format": "date",
       "description": "The date of the patient's last delivery"
+    },
+    "last_login_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the patient's most recent successful portal login"
+    },
+    "portal_login_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Total number of successful patient portal logins"
     },
     "status": {
       "type": "string",

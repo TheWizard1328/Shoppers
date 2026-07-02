@@ -110,8 +110,15 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
   const pickupOptions = useMemo(() => {
     if (!values.delivery_date || hasMixedPuids) return [];
-    return allowedStores.flatMap((store) => getStoreSlotOptions(store, values.delivery_date, effectiveDriverId));
-  }, [allowedStores, effectiveDriverId, values.delivery_date, hasMixedPuids]);
+    // If the selected stops all share a store, only show slots for that store (ignoring driver filter)
+    const selectedStoreIds = new Set((selectedDeliveries || []).map((d) => d?.store_id).filter(Boolean));
+    const relevantStores = selectedStoreIds.size > 0
+      ? allowedStores.filter((store) => selectedStoreIds.has(store.id))
+      : allowedStores;
+    // Use the effective driver filter only when not scoped to specific stores from the selection
+    const driverFilterId = selectedStoreIds.size > 0 ? null : effectiveDriverId;
+    return relevantStores.flatMap((store) => getStoreSlotOptions(store, values.delivery_date, driverFilterId));
+  }, [allowedStores, effectiveDriverId, values.delivery_date, hasMixedPuids, selectedDeliveries]);
 
   useEffect(() => {
     if (hasMixedPuids || values.storeChoice === "unchanged") return;
@@ -253,7 +260,15 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
             </Label>
             <Select
               value={values.storeChoice}
-              onValueChange={(value) => setValues((current) => ({ ...current, storeChoice: value }))}
+              onValueChange={(value) => {
+                const selected = pickupOptions.find((o) => o.value === value);
+                setValues((current) => ({
+                  ...current,
+                  storeChoice: value,
+                  // Sync AM/PM to match the chosen slot
+                  ampmChoice: selected ? selected.slot : current.ampmChoice,
+                }));
+              }}
               disabled={pickupFieldsDisabled || pickupOptions.length === 0}>
               
               <SelectTrigger style={getFieldStyle('storeChoice')}>
@@ -276,7 +291,19 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
               <Label style={{ color: "var(--text-slate-900)" }}>AM/PM</Label>
               <Select
                 value={values.ampmChoice}
-                onValueChange={(value) => setValues((current) => ({ ...current, ampmChoice: value }))}
+                onValueChange={(value) => {
+                  setValues((current) => {
+                    // If a specific store slot is selected, try to switch to the same store's other slot
+                    if (current.storeChoice && current.storeChoice !== 'unchanged') {
+                      const currentOption = pickupOptions.find((o) => o.value === current.storeChoice);
+                      if (currentOption && currentOption.slot !== value) {
+                        const newOption = pickupOptions.find((o) => o.storeId === currentOption.storeId && o.slot === value);
+                        if (newOption) return { ...current, ampmChoice: value, storeChoice: newOption.value };
+                      }
+                    }
+                    return { ...current, ampmChoice: value };
+                  });
+                }}
                 disabled={isSaving}>
                 <SelectTrigger style={getFieldStyle('ampmChoice')}>
                   <SelectValue />
@@ -310,7 +337,18 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
               <Label style={{ color: "var(--text-slate-900)" }}>AM/PM</Label>
               <Select
                 value={values.ampmChoice}
-                onValueChange={(value) => setValues((current) => ({ ...current, ampmChoice: value }))}
+                onValueChange={(value) => {
+                  setValues((current) => {
+                    if (current.storeChoice && current.storeChoice !== 'unchanged') {
+                      const currentOption = pickupOptions.find((o) => o.value === current.storeChoice);
+                      if (currentOption && currentOption.slot !== value) {
+                        const newOption = pickupOptions.find((o) => o.storeId === currentOption.storeId && o.slot === value);
+                        if (newOption) return { ...current, ampmChoice: value, storeChoice: newOption.value };
+                      }
+                    }
+                    return { ...current, ampmChoice: value };
+                  });
+                }}
                 disabled={isSaving}>
                 <SelectTrigger style={getFieldStyle('ampmChoice')}>
                   <SelectValue />

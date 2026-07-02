@@ -106,8 +106,8 @@ export default function SettingsMenu({
     >
       {/* Settings header and Admin Import toggle - only for admins/app owners */}
 
-      {/* Display Settings - Admin/Dispatcher Only */}
-      {currentUser?.app_roles?.includes('admin') || currentUser?.app_roles?.includes('dispatcher') ? (
+      {/* Display Settings - Admin/Dispatcher/Driver */}
+      {currentUser?.app_roles?.includes('admin') || currentUser?.app_roles?.includes('dispatcher') || currentUser?.app_roles?.includes('driver') ? (
         <>
           <DropdownMenuLabel 
             className="px-2 font-semibold uppercase tracking-wider text-slate-500" 

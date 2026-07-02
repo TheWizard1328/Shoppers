@@ -13,7 +13,8 @@ export function buildDeliveryFormInitialState({
   resolveDefaultDriverForNewDelivery,
   userHasRole,
   getDriverNameForStorage,
-  scheduledDriverMap = {}
+  scheduledDriverMap = {},
+  allDeliveries = []
 }) {
   const selectedPatient = initialPatientId && Array.isArray(patients)
     ? patients.find((pt) => pt && pt.id === initialPatientId)
@@ -87,7 +88,8 @@ export function buildDeliveryFormInitialState({
       initialDriverId,
       userHasRole,
       getDriverNameForStorage,
-      scheduledDriverMap
+      scheduledDriverMap,
+      allDeliveries
     });
 
     if (driverId && driverName) {

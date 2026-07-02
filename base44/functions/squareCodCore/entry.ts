@@ -5,6 +5,7 @@ const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
 const TRANSACTION_RETENTION_DAYS = 90;
 const MATCH_DATE_OFFSET_DAYS = 2;
+const MATCH_DATE_STRICT_DAYS = 7; // max days between transaction date and catalog item date for a "collected" match
 const SQUARE_API_MAX_RETRIES = 3;
 const SQUARE_RETRY_BASE_DELAY_MS = 400;
 const SQUARE_REQUEST_SPACING_MS = 100;
@@ -35,6 +36,29 @@ const getTransactionRetentionStartMs = () => { const t = new Date(); t.setHours(
 const buildItemSignature = (n, c) => `${normalizeText(n)}::${toAmountCents(c)}`;
 const normalizeMatchName = (v) => normalizeText(v).replace(/\s+/g,' ').replace(/\s-\s\$\d+(?:\.\d{2})?$/,'').replace(/^(\d{2})-(\d{2})/,'$1/$2').toLowerCase();
 const buildComparableLocationSignature = (n, c, lid) => `${normalizeText(lid)}::${normalizeMatchName(n)}::${toAmountCents(c)}`;
+// Returns true if a string is in the structured COD format: MM/DD(STORE)-PatientName
+const isStructuredCodName = (v) => /^\d{2}[\/-]\d{2}\([^)]+\)-.+/.test(String(v||'').trim());
+// For structured names, extract the date portion as YYYY-MM-DD (best-guess year via parseDateValue).
+// Returns null if not structured or date can't be parsed.
+const getStructuredCodDate = (v) => { if (!isStructuredCodName(v)) return null; return toIsoDate(v); };
+// Primary match rule: if BOTH strings are structured COD names, they must be an EXACT
+// string match (trim only). The chronology guard uses ONLY the date embedded in the
+// item name strings themselves — never the external txDateIso fallback — so that
+// "06/02(LD)-Angela Dottor" can never match "06/30(LD)-Angela Dottor" regardless of
+// what the Square payment date says.
+// Returns true=match, false=no-match, null=not both structured (fall through to other logic).
+const structuredCodNamesMatch = (txName, catalogName, _txDateIso) => {
+  if (!isStructuredCodName(txName) || !isStructuredCodName(catalogName)) return null;
+  // Pure 1-to-1: trim only, no lowercasing, no date/prefix stripping — must be identical
+  if (normalizeText(txName) !== normalizeText(catalogName)) return false;
+  // Chronology: use only the date embedded in the name strings themselves.
+  // If the tx name and catalog name are identical (above check passed), their embedded
+  // dates are also identical, so this guard is primarily a safety net for caller misuse.
+  const txNameDateIso = getStructuredCodDate(txName);
+  const catDateIso = getStructuredCodDate(catalogName);
+  if (txNameDateIso && catDateIso && txNameDateIso < catDateIso) return false;
+  return true;
+};
 const getCatalogItemLocationIds = (item) => Array.from(new Set([...(item?.present_at_location_ids||[]),...(item?.item_data?.variations||[]).flatMap((v)=>v?.present_at_location_ids||[])].filter(Boolean)));
 const isCatalogItemAtLocation = (item, lid) => { if (!item||!lid) return false; if (item?.present_at_all_locations) return true; return getCatalogItemLocationIds(item).includes(lid); };
 const getCatalogItemAmountCents = (item) => { const vs=item?.item_data?.variations||[]; const v=vs.find((e)=>e?.item_variation_data?.price_money?.amount!=null)||vs[0]; return toAmountCents(v?.item_variation_data?.price_money?.amount); };
@@ -162,7 +186,7 @@ async function deleteCatalogObjects(objectIds, accessToken) {
 }
 
 async function createCatalogItem({itemName,amountCents,locationId,deliveryId,patientName,accessToken}) {
-  const json=await squareFetch('/v2/catalog/batch-upsert','POST',accessToken,{idempotency_key:crypto.randomUUID(),batches:[{objects:[{type:'ITEM',id:`#item-${deliveryId}`,present_at_all_locations:true,item_data:{name:itemName,description:`COD for ${patientName||'patient'} | Delivery ${deliveryId}`,is_taxable:true,product_type:'REGULAR',variations:[{type:'ITEM_VARIATION',id:`#variation-${deliveryId}`,present_at_all_locations:true,item_variation_data:{name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'},sellable:true,stockable:true}}]}}]}]});
+  const json=await squareFetch('/v2/catalog/batch-upsert','POST',accessToken,{idempotency_key:crypto.randomUUID(),batches:[{objects:[{type:'ITEM',id:`#item-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:locationId?[locationId]:[],item_data:{name:itemName,description:`COD for ${patientName||'patient'} | Delivery ${deliveryId}`,is_taxable:true,product_type:'REGULAR',variations:[{type:'ITEM_VARIATION',id:`#variation-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:locationId?[locationId]:[],item_variation_data:{name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'},sellable:true,stockable:true}}]}}]}]});
   return (json.objects||[]).find((o)=>o.type==='ITEM')||null;
 }
 
@@ -172,10 +196,11 @@ async function updateCatalogItem({catalogObjectId,catalogVersion,itemName,amount
   const existingItem=existingJson?.object;
   if(!existingItem)return createCatalogItem({itemName,amountCents,locationId,deliveryId,patientName,accessToken});
   const evs=existingItem?.item_data?.variations||[];
+  const presentAtLids=locationId?[locationId]:[];
   const updatedVariations=evs.length>0
-    ?evs.map((v)=>({type:'ITEM_VARIATION',id:v.id,version:v.version,present_at_all_locations:true,item_variation_data:{...v.item_variation_data,name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'}}}))
-    :[{type:'ITEM_VARIATION',id:`#variation-${deliveryId}`,present_at_all_locations:true,item_variation_data:{name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'},sellable:true,stockable:true}}];
-  const json=await squareFetch('/v2/catalog/batch-upsert','POST',accessToken,{idempotency_key:crypto.randomUUID(),batches:[{objects:[{type:'ITEM',id:catalogObjectId,version:catalogVersion||existingItem.version,present_at_all_locations:true,item_data:{name:itemName,description:`COD for ${patientName||'patient'} | Delivery ${deliveryId}`,is_taxable:true,product_type:'REGULAR',variations:updatedVariations}}]}]});
+    ?evs.map((v)=>({type:'ITEM_VARIATION',id:v.id,version:v.version,present_at_all_locations:false,present_at_location_ids:presentAtLids,item_variation_data:{...v.item_variation_data,name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'}}}))
+    :[{type:'ITEM_VARIATION',id:`#variation-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:presentAtLids,item_variation_data:{name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'},sellable:true,stockable:true}}];
+  const json=await squareFetch('/v2/catalog/batch-upsert','POST',accessToken,{idempotency_key:crypto.randomUUID(),batches:[{objects:[{type:'ITEM',id:catalogObjectId,version:catalogVersion||existingItem.version,present_at_all_locations:false,present_at_location_ids:presentAtLids,item_data:{name:itemName,description:`COD for ${patientName||'patient'} | Delivery ${deliveryId}`,is_taxable:true,product_type:'REGULAR',variations:updatedVariations}}]}]});
   return (json.objects||[]).find((o)=>o.type==='ITEM')||null;
 }
 
@@ -213,7 +238,13 @@ function buildRefundedOrderIdSet(orders) {
 
 function flattenOrderItems(orders) {
   const items=[];
-  for(const order of orders||[])for(const li of order?.line_items||[]){const itemName=normalizeText(li?.name||li?.note);if(!itemName||shouldIgnoreManualOrderLabel(itemName))continue;const qty=Math.round(Number(li?.quantity||1))||1;const eu=toAmountCents(li?.base_price_money?.amount);const gr=toAmountCents(li?.gross_sales_money?.amount||li?.total_money?.amount);const ac=eu||(qty>0?Math.round(gr/qty):gr);const ts=order?.state==='COMPLETED'?'completed':'pending';for(let i=0;i<qty;i++)items.push({order_id:order?.id,line_item_uid:li?.uid||`${order?.id}-${li?.catalog_object_id||itemName}-${i}`,location_id:order?.location_id||null,item_name:itemName,amount_cents:ac,catalog_object_id:li?.catalog_object_id||null,payment_date:order?.created_at||null,order_created_at:order?.created_at||null,note:order?.note||'',order_state:order?.state||null,transaction_status:ts});}
+  for(const order of orders||[]){
+    const lineItems=order?.line_items||[];
+    // Build a map of refunded quantities per line_item_uid from return line items
+    const refundedQtyByUid=new Map();
+    for(const rli of order?.return_line_items||[]){const uid=rli?.source_line_item_uid;if(!uid)continue;const rq=Math.round(Number(rli?.quantity||1))||1;refundedQtyByUid.set(uid,(refundedQtyByUid.get(uid)||0)+rq);}
+    for(const li of lineItems){const itemName=normalizeText(li?.name||li?.note);if(!itemName||shouldIgnoreManualOrderLabel(itemName))continue;const totalQty=Math.round(Number(li?.quantity||1))||1;const refundedQty=refundedQtyByUid.get(li?.uid)||0;const netQty=Math.max(0,totalQty-refundedQty);if(netQty<=0)continue;const eu=toAmountCents(li?.base_price_money?.amount);const gr=toAmountCents(li?.gross_sales_money?.amount||li?.total_money?.amount);const ac=eu||(totalQty>0?Math.round(gr/totalQty):gr);const ts=order?.state==='COMPLETED'?'completed':'pending';for(let i=0;i<netQty;i++)items.push({order_id:order?.id,line_item_uid:li?.uid?`${li.uid}-${i}`:(order?.id+'-'+(li?.catalog_object_id||itemName)+'-'+i),location_id:order?.location_id||null,item_name:itemName,amount_cents:ac,catalog_object_id:li?.catalog_object_id||null,payment_date:order?.created_at||null,order_created_at:order?.created_at||null,note:order?.note||'',order_state:order?.state||null,transaction_status:ts});}
+  }
   return items;
 }
 
@@ -403,8 +434,16 @@ async function handleFetchPayments(base44, payload) {
   const paidOrderItems=flattenOrderItems((completedOrders||[]).filter((o)=>!refundedOrderIds.has(o?.id))).filter((item)=>{const t=new Date(item?.payment_date||item?.order_created_at||0).getTime();return Number.isFinite(t)&&t>=getTransactionRetentionStartMs();});
   const getDriverFromDelivery=(d)=>drivers.find((dr)=>dr?.user_id===d?.driver_id||dr?.id===d?.driver_id)||null;
   // For matching, use the resolved store (abbr-aware) but also search across all stores at the same location
-  const getDeliveryCandidatesForItem=(item,resolvedStore)=>{const payIso=(item?.payment_date||item?.order_created_at||'').slice(0,10);const combined=`${normalizeText(item?.note||'')} ${normalizeText(item?.item_name||'')}`.trim();const locationStores=storesByLocationId.get(item?.location_id)||[];return deliveriesWithAmounts.filter((d)=>{const storeMatch=locationStores.some((s)=>s?.id===d?.store_id);if(!storeMatch)return false;const matchingStore=locationStores.find((s)=>s?.id===d?.store_id)||resolvedStore;if(matchingStore&&!itemNameContainsStore(item?.item_name,matchingStore)&&!itemNameContainsStore(item?.note,matchingStore)){const anyStoreMatch=locationStores.some((s)=>itemNameContainsStore(item?.item_name,s)||itemNameContainsStore(item?.note,s));if(!anyStoreMatch)return false;}const da=Math.round(Number(d?.cod_total_amount_required||0)*100);if(da!==toAmountCents(item?.amount_cents))return false;const cs=buildLocationDateAmountSignatureCandidates(item?.location_id,d?.delivery_date,da,5);const is=buildLocationDateAmountSignature(item?.location_id,payIso||item?.item_name,item?.amount_cents);if(!cs.includes(is))return false;const pt=patientsById.get(d?.patient_id);return pt&&notesContainPatientName(combined,pt.full_name);});};
-  const matchDeliveryForItem=(item,resolvedStore)=>{const note=normalizeText(item?.note||'');const cands=getDeliveryCandidatesForItem(item,resolvedStore);if(!cands.length)return null;const ssc=resolvedStore?.id?cands.filter((d)=>d?.store_id===resolvedStore.id):[];const pri=ssc.length?[...ssc,...cands.filter((d)=>d?.store_id!==resolvedStore?.id)]:cands;const dm=note.match(/delivery\s*(id|#)?\s*[:=-]?\s*([a-f0-9]{24})/i);if(dm){const m=pri.find((d)=>d?.id===dm[2]);if(m)return m;}const sm=note.match(/\b(?:sid|stop\s*id)\s*[:=-]?\s*([a-z0-9-]+)/i);if(sm){const m=pri.find((d)=>normalizeText(d?.stop_id).toLowerCase()===normalizeText(sm[1]).toLowerCase());if(m)return m;}return pri.find((d)=>{const p=patientsById.get(d?.patient_id);return p&&notesContainPatientName(note,p.full_name);})||pri.find((d)=>{const p=patientsById.get(d?.patient_id);return p&&notesContainPatientName(item?.item_name,p.full_name);})||pri[0];};
+  // Transaction date must be ON OR AFTER the delivery date — a payment can't precede the delivery.
+  // If payIso is unknown, allow the match (we can't rule it out).
+  const txIsOnOrAfterDelivery=(payIso,deliveryDate)=>{if(!payIso||!deliveryDate)return true;return payIso>=deliveryDate;};
+  // Sort candidates by date proximity to the transaction payment date (ascending = closest first)
+  const sortByDateProximity=(candidates,payIso)=>{if(!payIso||candidates.length<=1)return candidates;const payMs=new Date(payIso+'T00:00:00').getTime();if(!Number.isFinite(payMs))return candidates;return [...candidates].sort((a,b)=>{const da=Math.abs(new Date((a.delivery_date||'')+'T00:00:00').getTime()-payMs);const db=Math.abs(new Date((b.delivery_date||'')+'T00:00:00').getTime()-payMs);return da-db;});};
+  const getDeliveryCandidatesForItem=(item,resolvedStore)=>{const payIso=(item?.payment_date||item?.order_created_at||'').slice(0,10);const combined=`${normalizeText(item?.note||'')} ${normalizeText(item?.item_name||'')}`.trim();const locationStores=storesByLocationId.get(item?.location_id)||[];const raw=deliveriesWithAmounts.filter((d)=>{const storeMatch=locationStores.some((s)=>s?.id===d?.store_id);if(!storeMatch)return false;const matchingStore=locationStores.find((s)=>s?.id===d?.store_id)||resolvedStore;if(matchingStore&&!itemNameContainsStore(item?.item_name,matchingStore)&&!itemNameContainsStore(item?.note,matchingStore)){const anyStoreMatch=locationStores.some((s)=>itemNameContainsStore(item?.item_name,s)||itemNameContainsStore(item?.note,s));if(!anyStoreMatch)return false;}const da=Math.round(Number(d?.cod_total_amount_required||0)*100);if(da!==toAmountCents(item?.amount_cents))return false;// Hard rule: transaction date must be on or after the delivery date
+  if(!txIsOnOrAfterDelivery(payIso,d?.delivery_date))return false;const pt=patientsById.get(d?.patient_id);return pt&&notesContainPatientName(combined,pt.full_name);});return sortByDateProximity(raw,payIso);};
+  const matchDeliveryForItem=(item,resolvedStore)=>{const note=normalizeText(item?.note||'');const payIso=(item?.payment_date||item?.order_created_at||'').slice(0,10);const cands=getDeliveryCandidatesForItem(item,resolvedStore);if(!cands.length)return null;const ssc=resolvedStore?.id?cands.filter((d)=>d?.store_id===resolvedStore.id):[];const pri=ssc.length?[...ssc,...cands.filter((d)=>d?.store_id!==resolvedStore?.id)]:cands;const dm=note.match(/delivery\s*(id|#)?\s*[:=-]?\s*([a-f0-9]{24})/i);if(dm){const m=pri.find((d)=>d?.id===dm[2]);if(m)return m;}const sm=note.match(/\b(?:sid|stop\s*id)\s*[:=-]?\s*([a-z0-9-]+)/i);if(sm){const m=pri.find((d)=>normalizeText(d?.stop_id).toLowerCase()===normalizeText(sm[1]).toLowerCase());if(m)return m;}// Prefer candidate whose delivery date is within MATCH_DATE_STRICT_DAYS of the transaction date (txIsOnOrAfterDelivery already enforced in candidates)
+  const withinWindow=(d)=>{if(!payIso||!d?.delivery_date)return false;const diffMs=new Date(payIso+'T00:00:00').getTime()-new Date(d.delivery_date+'T00:00:00').getTime();return diffMs>=0&&diffMs<=MATCH_DATE_STRICT_DAYS*86400000;};const closeByNote=pri.find((d)=>withinWindow(d)&&notesContainPatientName(note,patientsById.get(d?.patient_id)?.full_name||''));if(closeByNote)return closeByNote;const closeByName=pri.find((d)=>withinWindow(d)&&notesContainPatientName(item?.item_name,patientsById.get(d?.patient_id)?.full_name||''));if(closeByName)return closeByName;// Fall back to name match (no date window) — still sorted closest-first
+  return pri.find((d)=>{const p=patientsById.get(d?.patient_id);return p&&notesContainPatientName(note,p.full_name);})||pri.find((d)=>{const p=patientsById.get(d?.patient_id);return p&&notesContainPatientName(item?.item_name,p.full_name);})||pri[0];};
   const transactionRecords=[];const seenKeys=new Set();
   for(const item of paidOrderItems){const ukey=`${item?.order_id}::${item?.line_item_uid}`;if(seenKeys.has(ukey))continue;seenKeys.add(ukey);const store=resolveStoreForItem(item?.item_name,item?.location_id,storesByLocationId);const md=matchDeliveryForItem(item,store);const mp=md?patientsById.get(md?.patient_id):null;const mdr=md?getDriverFromDelivery(md):null;// Use the matched delivery's actual store for the item name (it's the authoritative store)
   const ms=md?(stores||[]).find((s)=>s?.id===md.store_id)||store:store;const isCustom=!normalizeText(item?.catalog_object_id);const fmtName=md?formatItemName(md.delivery_date,getPreferredStoreAbbreviation(ms),mp?.full_name||md?.patient_name):'';const dn=isCustom&&fmtName?fmtName:(item?.item_name||'');const existing=(existingTransactions||[]).find((t)=>normalizeText(t?.square_transaction_id)===normalizeText(item?.order_id)&&normalizeText(t?.raw_square_data?.line_item_uid)===normalizeText(item?.line_item_uid));const pr={square_transaction_id:item?.order_id||null,square_payment_id:`${item?.order_id||'order'}:${item?.line_item_uid||'line'}`,square_catalog_object_id:item?.catalog_object_id||null,item_name:dn,amount:toAmountCents(item?.amount_cents)/100,amount_cents:toAmountCents(item?.amount_cents),type:'collection',status:item?.transaction_status||'pending',delivery_id:md?.id||null,patient_id:mp?.id||md?.patient_id||null,store_id:md?.store_id||store?.id||null,location_id:item?.location_id||null,driver_id:md?.driver_id||mdr?.id||mdr?.user_id||null,dispatcher_id:md?.created_by_app_user_id||null,payment_method:'card',raw_square_data:{...(existing?.raw_square_data||{}),line_item_uid:item?.line_item_uid||null,payment_date:item?.payment_date||null,order_created_at:item?.order_created_at||null,order_state:item?.order_state||null,notes:item?.note||'',original_item_name:item?.item_name||'',is_custom_amount:isCustom,matched_by:md?'delivery_match':'unmatched'}};
@@ -493,19 +532,54 @@ async function handleSyncCatalogItems(base44, payload={}) {
   const catalogBySignature=new Map();const catalogByDateLocationAmount=new Map();
   for(const item of recentCatalogItems){const n=normalizeText(item?.item_data?.name);if(!n)continue;const ac=getCatalogItemAmountCents(item);catalogBySignature.set(buildItemSignature(n,ac),item);for(const lid of getCatalogItemLocationIds(item)){const sig=buildLocationDateAmountSignature(lid,n,ac);if(!catalogByDateLocationAmount.has(sig))catalogByDateLocationAmount.set(sig,item);}}
   const paidCatalogObjectIds=new Set(paidOrderItems.map((x)=>x.catalog_object_id).filter(Boolean));
-  const paidOrderItemSignatures=new Set();const paidOrderComparableSignatures=new Set();const paidOrderItemsByDLA=new Map();
-  for(const item of paidOrderItems){const sig=buildLocationDateAmountSignature(item.location_id,item.item_name,item.amount_cents);paidOrderItemSignatures.add(buildItemSignature(item.item_name,item.amount_cents));paidOrderComparableSignatures.add(buildComparableLocationSignature(item.item_name,item.amount_cents,item.location_id));if(!paidOrderItemsByDLA.has(sig))paidOrderItemsByDLA.set(sig,[]);paidOrderItemsByDLA.get(sig).push(item);}
+  const paidOrderItemSignatures=new Set();const paidOrderItemsByDLA=new Map();
+  // paidOrderComparableSignatures intentionally removed — strips date, causes cross-date false matches.
+  for(const item of paidOrderItems){
+    const sig=buildLocationDateAmountSignature(item.location_id,item.item_name,item.amount_cents);
+    paidOrderItemSignatures.add(buildItemSignature(item.item_name,item.amount_cents));
+    if(!paidOrderItemsByDLA.has(sig))paidOrderItemsByDLA.set(sig,[]);
+    paidOrderItemsByDLA.get(sig).push(item);
+  }
   const txByDeliveryId=new Map();const settledCatIds=new Set();const settledItemSigs=new Set();const settledComparableSigs=new Set();const settledDLASigs=new Set();
-  for(const t of recentSquareTx){const ac=t?.amount_cents??Math.round(Number(t?.amount||0)*100);if(t?.delivery_id){if(!txByDeliveryId.has(t.delivery_id))txByDeliveryId.set(t.delivery_id,[]);txByDeliveryId.get(t.delivery_id).push(t);}if(t?.status&&t.status!=='pending'){if(t?.square_catalog_object_id)settledCatIds.add(t.square_catalog_object_id);settledItemSigs.add(buildItemSignature(t?.item_name,ac));settledComparableSigs.add(buildComparableLocationSignature(t?.item_name,ac,t?.location_id));for(const sig of buildLocationDateAmountSignatureCandidates(t?.location_id,t?.item_name,ac))settledDLASigs.add(sig);}}
+  // Helper: transaction date must be on or after the item date AND within the strict window.
+  // This prevents a June 4th transaction for "06/02-Angela Dottor" from marking a new
+  // "06/30-Angela Dottor" catalog item as settled (settledItemSigs strips the date prefix,
+  // so name+amount alone would falsely match if we don't guard by date here).
+  const txOnOrAfterAndClose=(txD,itemD)=>{if(!txD||!itemD)return true;const diffMs=new Date(txD+'T00:00:00').getTime()-new Date(itemD+'T00:00:00').getTime();return diffMs>=0&&diffMs<=MATCH_DATE_STRICT_DAYS*86400000;};
+  for(const t of recentSquareTx){const ac=t?.amount_cents??Math.round(Number(t?.amount||0)*100);if(t?.delivery_id){if(!txByDeliveryId.has(t.delivery_id))txByDeliveryId.set(t.delivery_id,[]);txByDeliveryId.get(t.delivery_id).push(t);}if(t?.status&&t.status!=='pending'){const txDateIso=(t?.raw_square_data?.payment_date||t?.created_date||'').slice(0,10);const itemDateIso=toIsoDate(t?.item_name);const dateOk=txOnOrAfterAndClose(txDateIso,itemDateIso);
+  // Only add name/comparable/DLA signatures when the date guard passes.
+  // settledCatIds is keyed by Square object ID (exact match) so it's always safe to add.
+  if(t?.square_catalog_object_id)settledCatIds.add(t.square_catalog_object_id);
+  if(dateOk){settledItemSigs.add(buildItemSignature(t?.item_name,ac));settledComparableSigs.add(buildComparableLocationSignature(t?.item_name,ac,t?.location_id));for(const sig of buildLocationDateAmountSignatureCandidates(t?.location_id,t?.item_name,ac))settledDLASigs.add(sig);}}}
   const itemsToDelete=[];const txToCancel=[];const txToComplete=[];const deliveriesToSync=[];const matchedCatIds=new Set();const matchedDLASigs=new Set();
-  for(const item of recentCatalogItems){const n=normalizeText(item?.item_data?.name);if(!n)continue;const ac=getCatalogItemAmountCents(item);const isig=buildItemSignature(n,ac);const lids=getCatalogItemLocationIds(item);const compSigs=lids.map((l)=>buildComparableLocationSignature(n,ac,l));const varIds=(item?.item_data?.variations||[]).map((v)=>v?.id).filter(Boolean);const dateSigs=lids.map((l)=>buildLocationDateAmountSignature(l,n,ac));const byPaid=paidCatalogObjectIds.has(item.id)||varIds.some((v)=>paidCatalogObjectIds.has(v))||paidOrderItemSignatures.has(isig)||compSigs.some((s)=>paidOrderComparableSignatures.has(s))||dateSigs.some((s)=>paidOrderItemsByDLA.has(s));const bySettled=settledCatIds.has(item.id)||varIds.some((v)=>settledCatIds.has(v))||settledItemSigs.has(isig)||compSigs.some((s)=>settledComparableSigs.has(s))||dateSigs.some((s)=>settledDLASigs.has(s));if(byPaid||bySettled){matchedCatIds.add(item.id);dateSigs.forEach((s)=>matchedDLASigs.add(s));itemsToDelete.push(item.id);}}
+  for(const item of recentCatalogItems){const n=normalizeText(item?.item_data?.name);if(!n)continue;const ac=getCatalogItemAmountCents(item);const isig=buildItemSignature(n,ac);const lids=getCatalogItemLocationIds(item);const varIds=(item?.item_data?.variations||[]).map((v)=>v?.id).filter(Boolean);const dateSigs=lids.map((l)=>buildLocationDateAmountSignature(l,n,ac));
+  // PRIMARY RULE: structured COD names (MM/DD(STORE)-Patient) must match EXACTLY.
+  // No fuzzy/DLA/signature fallbacks — the full string including date is the key.
+  // Non-structured items fall back to catalog object ID or DLA signature matching.
+  const catalogIsStructured=isStructuredCodName(n);
+  const byPaidExactId=paidCatalogObjectIds.has(item.id)||varIds.some((v)=>paidCatalogObjectIds.has(v));
+  const byPaidStructured=catalogIsStructured&&paidOrderItems.some((pi)=>structuredCodNamesMatch(pi.item_name,n,null)===true);
+  const byPaidFallback=!catalogIsStructured&&(byPaidExactId||paidOrderItemSignatures.has(isig)||dateSigs.some((s)=>paidOrderItemsByDLA.has(s)));
+  const byPaid=byPaidExactId||(catalogIsStructured?byPaidStructured:byPaidFallback);
+  // Settled tx match: structured names require exact string equality; non-structured use signatures.
+  const bySettledExact=settledCatIds.has(item.id)||varIds.some((v)=>settledCatIds.has(v));
+  const bySettledSig=catalogIsStructured
+    ?recentSquareTx.some((t)=>{if(!t?.status||t.status==='pending')return false;return structuredCodNamesMatch(t?.item_name,n,null)===true;})
+    :settledItemSigs.has(isig)||dateSigs.some((s)=>settledDLASigs.has(s));
+  const bySettled=bySettledExact||bySettledSig;
+  if(byPaid||bySettled){matchedCatIds.add(item.id);dateSigs.forEach((s)=>matchedDLASigs.add(s));itemsToDelete.push(item.id);}}
   for(const t of recentSquareTx){if(t?.status!=='pending')continue;const cs=buildLocationDateAmountSignatureCandidates(t?.location_id,deliveryById.get(t?.delivery_id)?.delivery_date||t?.item_name,t?.amount_cents??Math.round(Number(t?.amount||0)*100));if(matchedCatIds.has(t?.square_catalog_object_id)||cs.some((s)=>matchedDLASigs.has(s)))txToComplete.push(t.id);}
   for(const delivery of allCodDeliveries){const store=storeById.get(delivery.store_id);const ac=activeConfigById.get(store?.square_location_config_id);
   // Use pre-loaded patient maps — no async lookup needed
   const rp=patientById.get(delivery.patient_id)||patientByPid.get(normalizeText(delivery.patient_id))||null;
   const rpn=normalizeText(rp?.full_name||delivery?.patient_name)||'Unknown Patient';const itemName=formatItemName(delivery.delivery_date,store?.abbreviation,rpn);const amountCents=Math.round(Number(delivery.cod_total_amount_required||0)*100);const sig=buildItemSignature(itemName,amountCents);const dSigs=buildLocationDateAmountSignatureCandidates(ac?.square_location_id,delivery.delivery_date,amountCents);let catalogItem=catalogBySignature.get(sig)||dSigs.map((s)=>catalogByDateLocationAmount.get(s)).find(Boolean)||null;const exTx=txByDeliveryId.get(delivery.id)||[];const settledTx=exTx.filter((t)=>t?.status&&t.status!=='pending');const phNames=new Set(buildPlaceholderItemNames(delivery.delivery_date,store?.abbreviation));if(rpn!=='Unknown Patient'&&ac?.square_location_id)for(const pi of recentCatalogItems){const pn=normalizeText(pi?.item_data?.name);if(!phNames.has(pn))continue;if(getCatalogItemAmountCents(pi)!==amountCents)continue;if(isCatalogItemAtLocation(pi,ac.square_location_id))itemsToDelete.push(pi.id);}
   const exPending=exTx.find((t)=>t.status==='pending');if(exPending?.square_catalog_object_id&&(exPending.item_name!==itemName||toAmountCents(exPending.amount_cents)!==amountCents)){itemsToDelete.push(exPending.square_catalog_object_id);if(catalogItem?.id===exPending.square_catalog_object_id)catalogItem=null;}
-  const hasCard=hasCollectedCardPayment(delivery);const hasOffline=hasCollectedOfflinePayment(delivery);const hasSquarePaid=paidOrderItemSignatures.has(sig)||paidOrderComparableSignatures.has(buildComparableLocationSignature(itemName,amountCents,ac?.square_location_id))||dSigs.some((s)=>paidOrderItemsByDLA.has(s))||settledTx.length>0||settledItemSigs.has(sig)||settledComparableSigs.has(buildComparableLocationSignature(itemName,amountCents,ac?.square_location_id))||dSigs.some((s)=>settledDLASigs.has(s));
+  const hasCard=hasCollectedCardPayment(delivery);const hasOffline=hasCollectedOfflinePayment(delivery);
+  // PRIMARY RULE: structured COD name — only match if paid/settled tx item name matches exactly (same date+store+patient).
+  const hasSquarePaid=settledTx.length>0||
+    paidOrderItems.some((pi)=>structuredCodNamesMatch(pi.item_name,itemName,(pi.payment_date||pi.order_created_at||'').slice(0,10))===true)||
+    recentSquareTx.some((t)=>{if(!t?.status||t.status==='pending')return false;const txDateIso=(t?.raw_square_data?.payment_date||t?.created_date||'').slice(0,10);return structuredCodNamesMatch(t?.item_name,itemName,txDateIso)===true;})||
+    paidCatalogObjectIds.has(exTx[0]?.square_catalog_object_id||'');
   const delForInvalid=!ac||!store?.square_location_config_id||!ac?.square_location_id||delivery?.status==='failed';const shouldDel=delForInvalid||hasSquarePaid;
   if(catalogItem&&!isCatalogItemAtLocation(catalogItem,ac?.square_location_id)){itemsToDelete.push(catalogItem.id);catalogItem=null;}
   if(shouldDel){if(catalogItem?.id)itemsToDelete.push(catalogItem.id);for(const t of exTx){if(t.status!=='pending')continue;if(delForInvalid)txToCancel.push(t.id);else if(hasSquarePaid)txToComplete.push(t.id);}continue;}
@@ -515,7 +589,25 @@ async function handleSyncCatalogItems(base44, payload={}) {
   for(const tid of Array.from(new Set(txToComplete.filter(Boolean))))await base44.asServiceRole.entities.SquareTransaction.update(tid,{status:'completed'});
   let createdCount=0;let updatedCount=0;
   for(const entry of deliveriesToSync){const{delivery,itemName,patientName,patientId,amountCents,locationId,existingCatalogItem}=entry;const sig=buildItemSignature(itemName,amountCents);let ci=existingCatalogItem||catalogBySignature.get(sig)||null;if(!ci?.id){ci=await createCatalogItem({itemName,amountCents,locationId,deliveryId:delivery.id,patientName,accessToken});if(!ci?.id)throw new Error(`Square did not return a catalog item for delivery ${delivery.id}`);catalogBySignature.set(sig,ci);catalogByDateLocationAmount.set(buildLocationDateAmountSignature(locationId,delivery.delivery_date,amountCents),ci);createdCount++;}const exPending=(txByDeliveryId.get(delivery.id)||[]).find((t)=>t.status==='pending');const txPayload={item_name:itemName,amount:Number(delivery.cod_total_amount_required||0),amount_cents:amountCents,type:'collection',status:'pending',delivery_id:delivery.id,patient_id:patientId,store_id:delivery.store_id,location_id:locationId,driver_id:delivery.driver_id||null,dispatcher_id:delivery.dispatcher_id||null,square_catalog_object_id:ci.id,square_catalog_version:ci.version||null};if(exPending){await base44.asServiceRole.entities.SquareTransaction.update(exPending.id,txPayload);updatedCount++;}else await base44.asServiceRole.entities.SquareTransaction.create(txPayload);}
-  const allTxAfter=await base44.asServiceRole.entities.SquareTransaction.list('-updated_date',2000);const toRemove=(allTxAfter||[]).filter((t)=>t?.square_catalog_object_id&&t?.status&&t.status!=='pending');const extraIds=Array.from(new Set(toRemove.map((t)=>t.square_catalog_object_id).filter(Boolean))).filter((id)=>!deleteResult.deleted.includes(id));const extraDel=extraIds.length?await deleteCatalogObjects(extraIds,accessToken):{deleted:[],failed:[]};
+  // Post-sync cleanup: remove Square catalog items for transactions that are already completed/settled.
+  // CRITICAL: only delete the catalog item if the SquareTransaction's item_name structurally matches
+  // a non-pending tx — never use just catalog_object_id because the same object_id may be reused
+  // across different delivery dates for the same patient+amount, causing false deletions.
+  const allTxAfter=await base44.asServiceRole.entities.SquareTransaction.list('-updated_date',2000);
+  const toRemove=(allTxAfter||[]).filter((t)=>{
+    if(!t?.square_catalog_object_id||!t?.status||t.status==='pending')return false;
+    // Only sweep catalog items where the settled tx name EXACTLY matches the live catalog item name
+    const liveItem=recentCatalogItems.find((ci)=>ci?.id===t.square_catalog_object_id);
+    if(!liveItem)return false; // catalog item already gone — nothing to delete
+    const liveName=normalizeText(liveItem?.item_data?.name);
+    const txName=normalizeText(t?.item_name);
+    if(isStructuredCodName(liveName)&&isStructuredCodName(txName)){
+      const txDateIso=(t?.raw_square_data?.payment_date||t?.created_date||'').slice(0,10);
+      return structuredCodNamesMatch(txName,liveName,txDateIso)===true;
+    }
+    return liveName===txName; // non-structured: require exact normalized text match
+  });
+  const extraIds=Array.from(new Set(toRemove.map((t)=>t.square_catalog_object_id).filter(Boolean))).filter((id)=>!deleteResult.deleted.includes(id));const extraDel=extraIds.length?await deleteCatalogObjects(extraIds,accessToken):{deleted:[],failed:[]};
   const stale=(allTxAfter||[]).filter((t)=>{const tm=new Date(t?.created_date||t?.updated_date||0).getTime();return Number.isFinite(tm)&&tm<txRetentionMs;});for(const t of stale)await base44.asServiceRole.entities.SquareTransaction.delete(t.id);
   return{success:true,scanned_deliveries:allCodDeliveries.length,catalog_items_seen:recentCatalogItems.length,paid_order_items_seen:paidOrderItems.length,deleted_catalog_items:deleteResult.deleted.length+extraDel.deleted.length,cancelled_transactions:Array.from(new Set(txToCancel.filter(Boolean))).length,completed_transactions:Array.from(new Set(txToComplete.filter(Boolean))).length,created_catalog_items:createdCount,updated_pending_transactions:updatedCount,pruned_transactions:stale.length,synced_square_catalog_items:0};
 }
@@ -578,28 +670,60 @@ async function handleReconcile(base44, payload) {
   };
 
   for (const tx of noMatchTransactions) {
-    const txAmountCents = toAmountCents(tx.amount || (tx.amount_cents / 100));
-    const parsedName = (() => {
-      const n = String(tx.item_name || '');
-      const m = n.match(/\d{1,2}[\/-]\d{1,2}\([^)]+\)-(.+)$/);
-      return m ? m[1].trim() : n.replace(/^\d{1,2}[\/-]\d{1,2}/, '').replace(/\([^)]+\)/, '').replace(/^[-\s]+/, '').trim();
-    })();
+    const txAmountCents = toAmountCents(tx.amount_cents ?? Math.round(Number(tx.amount || 0) * 100));
+    const txItemName = normalizeText(tx.item_name || '');
+    const txIsStructured = isStructuredCodName(txItemName);
+
+    // Parse the transaction date from the item name string itself (most reliable source).
+    // Fall back to raw_square_data payment date only for non-structured names.
+    const txNameDateIso = txIsStructured ? getStructuredCodDate(txItemName) : null;
+    const txDateIso = txNameDateIso || (tx.raw_square_data?.payment_date || tx.created_date || '').slice(0, 10);
+    const txDateMs = txDateIso ? new Date(txDateIso + 'T00:00:00').getTime() : 0;
 
     let bestMatch = null;
+    let bestMatchDiffMs = Infinity;
+
     for (const d of noMatchDeliveries) {
       if (usedDeliveryIds.has(d.id)) continue;
       const dAmountCents = toAmountCents(d.cod_total_amount_required);
       if (dAmountCents !== txAmountCents) continue;
-      const patient = patientById.get(d.patient_id);
-      if (!patient?.full_name) continue;
-      if (!namesMatch(patient.full_name, parsedName)) continue;
-      bestMatch = d;
-      break;
+
+      if (txIsStructured) {
+        // For structured names: build the expected item name from delivery data and require exact match.
+        const store = storeById.get(d.store_id);
+        const config = store ? configById.get(store.square_location_config_id) : null;
+        const patient = patientById.get(d.patient_id);
+        if (!patient?.full_name || !store?.abbreviation) continue;
+        const expectedName = formatItemName(d.delivery_date, store.abbreviation, patient.full_name);
+        if (normalizeText(expectedName) !== txItemName) continue;
+        // Hard chronology rule: the date embedded in the name IS the delivery date,
+        // so this is automatically satisfied by the exact name match above.
+        // Still enforce: tx name date >= delivery_date as a final safety check.
+        if (d.delivery_date && txNameDateIso && txNameDateIso < d.delivery_date) continue;
+      } else {
+        // Non-structured: fuzzy patient name match + chronology guard
+        const parsedName = (() => {
+          const m = txItemName.match(/\d{1,2}[\/-]\d{1,2}\([^)]+\)-(.+)$/);
+          return m ? m[1].trim() : txItemName.replace(/^\d{1,2}[\/-]\d{1,2}/, '').replace(/\([^)]+\)/, '').replace(/^[-\s]+/, '').trim();
+        })();
+        const patient = patientById.get(d.patient_id);
+        if (!patient?.full_name) continue;
+        if (!namesMatch(patient.full_name, parsedName)) continue;
+        if (txDateIso && d.delivery_date && txDateIso < d.delivery_date) continue;
+      }
+
+      // Prefer delivery whose date is closest to the transaction date
+      const dDateMs = d.delivery_date ? new Date(d.delivery_date + 'T00:00:00').getTime() : 0;
+      const diffMs = (txDateMs && dDateMs) ? Math.abs(dDateMs - txDateMs) : Infinity;
+      if (diffMs < bestMatchDiffMs) {
+        bestMatch = d;
+        bestMatchDiffMs = diffMs;
+      }
     }
 
     if (bestMatch) {
       usedDeliveryIds.add(bestMatch.id);
-      matchResults.push({ transactionId: tx.id, deliveryId: bestMatch.id, matchedBy: 'name_and_amount' });
+      matchResults.push({ transactionId: tx.id, deliveryId: bestMatch.id, matchedBy: txIsStructured ? 'exact_name_match' : 'name_and_amount' });
     }
   }
 
@@ -659,19 +783,23 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
   const refundedOrderIds = buildRefundedOrderIdSet(completedOrders);
   const paidOrderItems = flattenOrderItems((completedOrders||[]).filter((o) => !refundedOrderIds.has(o?.id)));
 
-  // Build lookup sets for paid items — by catalog_object_id AND by name+amount signature
+  // Build lookup set for paid items — by catalog_object_id only (exact Square ID match).
+  // Do NOT use name+amount signature here: buildItemSignature strips the date prefix so
+  // "06/02(LD)-Angela Dottor" and "06/30(LD)-Angela Dottor" would collide and the June 30
+  // catalog item would be falsely deleted when only June 2 was paid.
   const paidCatalogObjectIds = new Set(paidOrderItems.map((x) => x.catalog_object_id).filter(Boolean));
-  const paidItemSignatures = new Set(paidOrderItems.map((x) => buildItemSignature(x.item_name, x.amount_cents)));
 
-  // Find catalog items that have been paid
+  // Find catalog items that have been paid — exact Square object ID match only.
   const toDelete = (liveCatalogItems||[]).filter((item) => {
     if (!item?.id) return false;
-    const n = normalizeText(item?.item_data?.name);
-    const ac = getCatalogItemAmountCents(item);
     const varIds = (item?.item_data?.variations||[]).map((v)=>v?.id).filter(Boolean);
     if (paidCatalogObjectIds.has(item.id)) return true;
     if (varIds.some((v) => paidCatalogObjectIds.has(v))) return true;
-    if (paidItemSignatures.has(buildItemSignature(n, ac))) return true;
+    // Structured name: require exact structural match with a paid order item (same date+store+patient)
+    const n = normalizeText(item?.item_data?.name);
+    if (isStructuredCodName(n)) {
+      return paidOrderItems.some((pi) => structuredCodNamesMatch(pi.item_name, n, null)===true);
+    }
     return false;
   });
 

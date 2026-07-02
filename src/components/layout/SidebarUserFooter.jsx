@@ -272,7 +272,7 @@ function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, de
 
     const deliveryCount = (deliveries || []).filter(
       (d) => d?.delivery_date === todayStr && d?.driver_id === driverId && dispatcherStoreIds.includes(d?.store_id)
-    ).length;
+    ).filter((d) => d?.delivery_id && !d.delivery_id.startsWith('BIK')).length;
 
     driverMap.set(key, { driver, slots, deliveryCount, isAssigned: assignedDriverIds.has(driverId) });
   });

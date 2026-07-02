@@ -77,12 +77,28 @@ export function useLayoutEventHandlers({
     const unsubscribeMutations = subscribeMutations(async (mutation) => {
       console.log('🔔 [Layout] Mutation received:', mutation.entity, mutation.type, mutation.id);
 
-      // CRITICAL: Handle 'replace' mutations to swap temp IDs with real backend IDs
+      // CRITICAL: Handle 'replace' mutations to swap temp IDs with real backend IDs.
+      // Use a Map-based merge (not prev.map) to prevent a race condition where the
+      // WebSocket subscription from cityFilteredRealtimeSync receives the backend's
+      // 'create' event (with realId) before the local replace fires (with tempId).
+      // In that race, the state already has an entry with realId, and prev.map would
+      // transform the tempId entry to also use realId — resulting in TWO entries with
+      // the same realId = duplicate markers on the map. Map.set deduplicates by id.
       if (mutation.type === 'replace') {
         if (mutation.entity === 'Patient') {
-          setPatients((prev) => prev.map((p) => p?.id === mutation.oldId ? mutation.data : p));
+          setPatients((prev) => {
+            const map = new Map(prev.filter(Boolean).map((p) => [p.id, p]));
+            map.delete(mutation.oldId);
+            map.set(mutation.newId, mutation.data);
+            return Array.from(map.values());
+          });
         } else if (mutation.entity === 'Delivery') {
-          setDeliveries((prev) => prev.map((d) => d?.id === mutation.oldId ? mutation.data : d));
+          setDeliveries((prev) => {
+            const map = new Map(prev.filter(Boolean).map((d) => [d.id, d]));
+            map.delete(mutation.oldId);
+            map.set(mutation.newId, mutation.data);
+            return Array.from(map.values());
+          });
         }
         return;
       }
@@ -288,6 +304,20 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('dataConflictsDetected', handleConflict);
 
+    // Listen for store updates from Stores page — surgical merge, no full reload
+    const handleStoreUpdated = (event) => {
+      const { storeId, updatedStore } = event.detail || {};
+      if (!storeId) return;
+      if (updatedStore) {
+        setStores((prev) => {
+          const map = new Map((prev || []).filter(Boolean).map((s) => [s.id, s]));
+          map.set(storeId, { ...(map.get(storeId) || {}), ...updatedStore });
+          return Array.from(map.values()).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        });
+      }
+    };
+    window.addEventListener('storeUpdated', handleStoreUpdated);
+
     // Listen for offline deletions and update UI immediately
     const handleOfflineDeliveriesDeleted = (event) => {
       const { deletedIds } = event.detail || {};
@@ -408,7 +438,16 @@ export function useLayoutEventHandlers({
       if (freshPatients && freshPatients.length > 0) {
         setPatients((prev) => mergePatients(prev, freshPatients));
       }
-      if (freshStores && freshStores.length > 0) setStores(freshStores);
+      if (freshStores && freshStores.length > 0) {
+        // CRITICAL: Merge — never replace. Incoming freshStores may be a city-filtered
+        // subset (e.g., from PullToSync or a targeted sync). A full replacement would
+        // wipe stores from other cities from the Layout's state on ALL connected devices.
+        setStores((prev) => {
+          const map = new Map((prev || []).filter(Boolean).map((s) => [s.id, s]));
+          freshStores.forEach((store) => { if (store?.id) map.set(store.id, store); });
+          return Array.from(map.values()).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        });
+      }
       if (freshAppUsers && freshAppUsers.length > 0) {
         setAppUsers((prev) => {const m = new Map(prev.map((u) => [u.id, u]));freshAppUsers.forEach((u) => {if (u?.id) m.set(u.id, u);});return Array.from(m.values());});
       }
@@ -538,6 +577,7 @@ export function useLayoutEventHandlers({
       window.removeEventListener('patientsUpdated', handlePatientsUpdated);
       window.removeEventListener('userRolesChanged', handleUserRolesChanged);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
+      window.removeEventListener('storeUpdated', handleStoreUpdated);
       window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
       window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
       // window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);

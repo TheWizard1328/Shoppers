@@ -1209,12 +1209,22 @@ Deno.serve(async (req) => {
       // Pending stops never get polylines — they haven't been routed yet
       const isPending = stop.status === 'pending';
 
+      // CRITICAL: Pickup stops (no patient_id) must always be en_route unless completed/cancelled.
+      // If a pickup somehow got stamped as in_transit (a bug), correct it here during optimization.
+      const isPickupStop = !stop.patient_id && !stop.is_cycling_marker;
+      const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
+      const correctedStatus = isPickupStop && stop.status === 'in_transit' ? 'en_route' : undefined;
+      if (correctedStatus) {
+        console.log(`[optimizeRemainingStops] Correcting pickup status in_transit → en_route | delivery=${stop.id}`);
+      }
+
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
         delivery_time_eta: stop.delivery_time_eta,
         isNextDelivery: stop.id === nextStopId,
         transport_mode: safeTransportMode,
+        ...(correctedStatus ? { status: correctedStatus } : {}),
         travel_dist: isPending ? null : (Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null),

@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
         ampm_deliveries: ampmDeliveries
       }, '-created_date', 20);
 
-      const incompletePickup = existingPickups.find((pickup) =>
+      let incompletePickup = existingPickups.find((pickup) =>
         !pickup.patient_id &&
         pickup.status !== 'completed' &&
         pickup.status !== 'cancelled' &&
@@ -188,6 +188,17 @@ Deno.serve(async (req) => {
       );
 
       if (incompletePickup) {
+        // CRITICAL: Correct status to en_route if it's null/blank/in_transit
+        if (incompletePickup.status !== 'en_route') {
+          console.log(`[ensurePickupForDelivery] Correcting special-store pickup status "${incompletePickup.status}" → "en_route" | pickup=${incompletePickup.id}`);
+          try {
+            const corrected = await base44.asServiceRole.entities.Delivery.update(incompletePickup.id, { status: 'en_route' }).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            });
+            if (corrected) incompletePickup = { ...incompletePickup, ...corrected, status: 'en_route' };
+          } catch (_) { incompletePickup = { ...incompletePickup, status: 'en_route' }; }
+        }
         const pickupWithDriverName = await ensurePickupDriverName(base44, incompletePickup, driverName);
         if (!pickupWithDriverName) {
           return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
@@ -359,6 +370,19 @@ Deno.serve(async (req) => {
         targetPickup = storePickups.find((pickup) => isIncomplete(pickup));
       }
       if (targetPickup) {
+        // CRITICAL: If the pickup's status is not en_route (e.g. null, blank, in_transit),
+        // correct it to en_route before returning. Only completed/cancelled are exempt.
+        const needsStatusCorrection = targetPickup.status !== 'en_route';
+        if (needsStatusCorrection) {
+          console.log(`[ensurePickupForDelivery] Correcting pickup status from "${targetPickup.status}" → "en_route" | pickup=${targetPickup.id}`);
+          try {
+            const corrected = await base44.asServiceRole.entities.Delivery.update(targetPickup.id, { status: 'en_route' }).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            });
+            if (corrected) targetPickup = { ...targetPickup, ...corrected, status: 'en_route' };
+          } catch (_) { targetPickup = { ...targetPickup, status: 'en_route' }; }
+        }
         let updated = await maybeUpdatePickupTimes(targetPickup);
         const pickupWithDriverName = await ensurePickupDriverName(base44, updated, driverName);
         if (!pickupWithDriverName) {

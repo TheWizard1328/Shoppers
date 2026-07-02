@@ -72,6 +72,7 @@ import { getLayoutStyles } from './components/layout/layoutStyles';
 import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisibility';
 import { mergePatients } from './components/layout/layoutDataHelpers';
 import { initializeAppLoadDataFlow, executeAppLoadDataSync } from './components/layout/AppLoadDataManager';
+import { initPushNotifications } from '@/components/utils/pushNotifications';
 import { initializeGlobalFilters, createMergedUser, hasCurrentUserRefreshImpact } from './components/layout/initializeGlobalFilters';
 import { usePayrollBadge } from './components/layout/usePayrollBadge';
 import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandlers';
@@ -218,6 +219,53 @@ export default function Layout({ children, currentPageName }) {
   const [deviceTypeDetected, setDeviceTypeDetected] = useState(null);
   const [isSettingUpDevice, setIsSettingUpDevice] = useState(false);
   const [showInitRetryHint, setShowInitRetryHint] = useState(false);
+
+  // ─── Web Push: subscribe as soon as possible ────────────────────────────────
+  // If permission is already granted → subscribe immediately.
+  // If permission is 'default' (not yet asked) → wait for first user gesture
+  // so the browser permission prompt feels natural (iOS/Android requirement).
+  useEffect(() => {
+    if (!currentUser?.id || typeof Notification === 'undefined') return;
+
+    if (Notification.permission === 'granted') {
+      // Already permitted — subscribe right away (safe to call repeatedly, idempotent)
+      initPushNotifications(currentUser.id).catch(() => {});
+      return;
+    }
+
+    if (Notification.permission !== 'default') return; // 'denied' — nothing to do
+
+    // Not yet asked — request on first meaningful gesture
+    const handleFirstGesture = () => {
+      document.removeEventListener('pointerdown', handleFirstGesture, true);
+      document.removeEventListener('keydown', handleFirstGesture, true);
+      initPushNotifications(currentUser.id).catch(() => {});
+    };
+    document.addEventListener('pointerdown', handleFirstGesture, true);
+    document.addEventListener('keydown', handleFirstGesture, true);
+    return () => {
+      document.removeEventListener('pointerdown', handleFirstGesture, true);
+      document.removeEventListener('keydown', handleFirstGesture, true);
+    };
+  }, [currentUser?.id]);
+
+  // ─── Deep-link: open chat from push notification tap ────────────────────
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const openChatUserId = params.get('openChat');
+      if (!openChatUserId) return;
+      const openChatName = params.get('openChatName') || 'User';
+      const conversationId = [currentUser.id, openChatUserId].sort().join('_');
+      setInitialConversation({ conversationId, otherUserId: openChatUserId, otherUserName: decodeURIComponent(openChatName) });
+      setShowMessaging(true);
+      params.delete('openChat');
+      params.delete('openChatName');
+      const newSearch = params.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`);
+    } catch (_) {}
+  }, [currentUser?.id]);
 
   // AppSettings sync via WebSocket realtime only (no polling)
   // adminImportEnabled updates are received through the realtimeSync WebSocket subscription
@@ -402,12 +450,27 @@ export default function Layout({ children, currentPageName }) {
 
     if (updates.deliveries) updateDeliveriesLocally(updates.deliveries, false); // CRITICAL: merge, never replace — prevents wiping other drivers' stops
     if (updates.patients) setPatients(updates.patients);
+    // CRITICAL: Merge stores — never replace. SmartRefresh may return a city-scoped
+    // subset; a full replacement would wipe stores from other cities/pages.
+    if (updates.stores && updates.stores.length > 0) {
+      setStores((prev) => {
+        const map = new Map((prev || []).filter(Boolean).map((s) => [s.id, s]));
+        updates.stores.forEach((s) => { if (s?.id) map.set(s.id, s); });
+        return sortStores(Array.from(map.values()));
+      });
+    }
     if (updates.appUsers) {
 
       if (currentUser && !isReloadingFromAppUserChange.current) {
         const updatedAppUserForCurrentUser = updates.appUsers.find((au) => au && au.user_id === currentUser.id);
 
-        if (updatedAppUserForCurrentUser) {
+        // CRITICAL: Never reload for driver_status / location-only changes.
+        // DriverStatusToggle writes these fields; a full reload would wipe sidebar + all data.
+        const RELOAD_SKIP_KEYS = new Set(['driver_status', 'location_tracking_enabled', 'current_latitude', 'current_longitude', 'location_updated_at', 'updated_date', 'id', 'user_id']);
+        const hasOnlyTransientChanges = updatedAppUserForCurrentUser &&
+          Object.keys(updatedAppUserForCurrentUser).every(k => RELOAD_SKIP_KEYS.has(k));
+
+        if (updatedAppUserForCurrentUser && !hasOnlyTransientChanges) {
           if (hasCurrentUserRefreshImpact(currentUser, updatedAppUserForCurrentUser)) {
             isReloadingFromAppUserChange.current = true;
             setAppUsers(updates.appUsers);

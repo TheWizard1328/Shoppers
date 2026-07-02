@@ -34,6 +34,10 @@
       "type": "string",
       "description": "User's phone number"
     },
+    "ETrans_Email": {
+      "type": "string",
+      "description": "Interac e-Transfer email address for driver payment"
+    },
     "home_latitude": {
       "type": "number",
       "description": "User's home address latitude"

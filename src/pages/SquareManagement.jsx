@@ -19,6 +19,7 @@ import SquareCodDatasetTable from "@/components/square/SquareCodDatasetTable";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import * as squareCODOfflineManager from "@/components/utils/squareCODOfflineManager";
+import { generateDriverColor, hexToRgba } from "@/components/utils/colorGenerator";
 
 export default function SquareManagement() {
   const {
@@ -227,6 +228,7 @@ export default function SquareManagement() {
   }, [locationConfigs]);
 
   const reconciliationRowsRef = useRef([]);
+  const filteredCatalogRowsRef = useRef([]);
   const visibleStoreIdsRef = useRef(new Set());
   const selectedDriverUserIdsRef = useRef(new Set());
 
@@ -235,84 +237,57 @@ export default function SquareManagement() {
     setIsUpdatingCatalog(true);
     setError(null);
     try {
-      const currentRows = reconciliationRowsRef.current || [];
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // Step 1: Find catalog items that match a settled (completed/refunded) transaction.
-      // Use item name + amount as the canonical match — these come directly from the Catalog tab
-      // and reliably identify the Square catalog object even if catalog_object_id is stale.
-      const settledTxDeliveryIds = new Set(
-        (allTransactions || [])
-          .filter((tx) => ['completed', 'refunded'].includes(tx?.status) && tx?.delivery_id)
-          .map((tx) => tx.delivery_id)
-      );
-      const settledTxCatalogObjectIds = new Set(
-        (allTransactions || [])
-          .filter((tx) => ['completed', 'refunded'].includes(tx?.status) && tx?.square_catalog_object_id)
-          .map((tx) => tx.square_catalog_object_id)
-      );
+      // Combine rows from both tabs to find items with a Transaction ID
+      const allRows = [...(filteredCatalogRowsRef.current || []), ...(reconciliationRowsRef.current || [])];
 
-      const catalogItemsToDelete = (catalogItems || []).filter((ci) => {
-        const catalogObjId = ci.catalog_object_id || ci.id;
-        if (catalogObjId && settledTxCatalogObjectIds.has(catalogObjId)) return true;
-        if (ci.delivery_id && settledTxDeliveryIds.has(ci.delivery_id)) return true;
-        return false;
-      });
+      // ── Step 1: Delete catalog items that have a Transaction ID ──────────
+      const toDeleteMap = new Map();
+      for (const row of allRows) {
+        const catalogId = row.catalogId;
+        const transactionId = row.transactionId;
+        if (!catalogId || catalogId === '--') continue;
+        if (!transactionId || transactionId === '--') continue;
+        if (!toDeleteMap.has(catalogId)) toDeleteMap.set(catalogId, row);
+      }
+      const toDelete = Array.from(toDeleteMap.values());
 
-      let deletedCount = 0;
-      if (catalogItemsToDelete.length > 0) {
-        // Delete each item from Square API by item name + amount (most reliable identifier).
-        // The backend searches the live Square catalog for a matching item and deletes it,
-        // then cleans up SquareCatalogItems and SquareTransaction DB records.
-        await Promise.all(catalogItemsToDelete.map((ci) =>
-          base44.functions.invoke('squareCodCore', {
-            action: 'deleteCodItemsByNameAmount',
-            itemName: ci.name || ci.item_name,
-            amountCents: ci.price_cents ?? Math.round(Number(ci.price_dollars || ci.amount || 0) * 100),
-            locationId: ci.location_id || undefined,
-            deliveryId: ci.delivery_id || undefined,
-            reason: 'collected_catalog_cleanup',
-          }).catch(() => null)
-        ));
-        deletedCount = catalogItemsToDelete.length;
-
-        // Immediately remove from local React state
-        const deletedKeys = new Set([
-          ...catalogItemsToDelete.map((ci) => ci.catalog_object_id || ci.id).filter(Boolean),
-          ...catalogItemsToDelete.map((ci) => ci.delivery_id).filter(Boolean),
-        ]);
-        setCatalogItems((prev) => prev.filter((ci) => {
-          const objId = ci.catalog_object_id || ci.id;
-          if (objId && deletedKeys.has(objId)) return false;
-          if (ci.delivery_id && deletedKeys.has(ci.delivery_id)) return false;
-          return true;
-        }));
-
-        // Purge from offline IndexedDB
-        const offlineCatalog = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
-        const kept = (offlineCatalog || []).filter((ci) => {
-          const objId = ci.square_catalog_object_id || ci.id;
-          if (objId && deletedKeys.has(objId)) return false;
-          if (ci.delivery_id && deletedKeys.has(ci.delivery_id)) return false;
-          return true;
-        });
-        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, kept);
+      for (const row of toDelete) {
+        try {
+          await base44.functions.invoke('squareDeleteCodItem', { catalogObjectId: row.catalogId });
+          const existing = await base44.entities.SquareCatalogItems.filter({ square_catalog_object_id: row.catalogId });
+          for (const record of existing || []) {
+            await base44.entities.SquareCatalogItems.delete(record.id);
+          }
+        } catch (_) { /* skip individual failures */ }
       }
 
-      // Step 2: Add catalog items for reconciliation rows that have NO catalog ID yet
-      const itemsToAdd = currentRows
-        .filter((row) => !row.catalogId || row.catalogId === '--')
-        .map((row) => ({
-          deliveryId: row.rawDelivery?.id,
-          patientName: (() => {
-            const p = patients.find((pt) => pt?.id === row.rawDelivery?.patient_id || pt?.patient_id === row.rawDelivery?.patient_id);
-            return p?.full_name || null;
-          })(),
-          storeId: row.rawDelivery?.store_id,
-          codAmount: row.rawDelivery?.cod_total_amount_required,
-          deliveryDate: row.rawDelivery?.delivery_date,
-        }))
-        .filter((item) => item.deliveryId && Number(item.codAmount) > 0);
+      // Purge deleted items from offline DB
+      if (toDelete.length > 0) {
+        const deletedIds = new Set(toDelete.map((r) => r.catalogId));
+        const allOffline = (await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)) || [];
+        const remaining = allOffline.filter((item) => !deletedIds.has(item.square_catalog_object_id) && !deletedIds.has(item.id));
+        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, remaining);
+      }
+
+      // ── Step 2: Add items without a Catalog ID to Square ────────────────
+      const rowsToAdd = (reconciliationRowsRef.current || []).filter(
+        (row) => !row.catalogId || row.catalogId === '--'
+      );
+
+      const itemsToAdd = rowsToAdd.map((row) => {
+        const delivery = row.rawDelivery;
+        if (!delivery) return null;
+        const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
+        return {
+          deliveryId: delivery.id,
+          patientName: patient?.full_name || null,
+          storeId: delivery.store_id,
+          codAmount: delivery.cod_total_amount_required,
+          deliveryDate: delivery.delivery_date,
+        };
+      }).filter((item) => item && item.deliveryId && Number(item.codAmount) > 0);
 
       if (itemsToAdd.length > 0) {
         await base44.functions.invoke('squareCodCore', {
@@ -322,37 +297,30 @@ export default function SquareManagement() {
         });
       }
 
-      // Step 3: Pull fresh catalog + transactions from Square API and refresh all local state
-      const codResponse = await base44.functions.invoke('squareCodCore', {
-        action: 'getCodData',
-        daysBack: Number(selectedDaysRange || 90),
-        forceDeliveryRefresh: false,
-      });
-      const codData = codResponse?.data || codResponse || {};
-      const catalogRecords = codData.catalogRecords || [];
-      const transactionRecords = codData.transactionRecords || [];
-
-      await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
-      await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
-
+      // ── Step 3: Refresh UI from offline DB (windowed deliveries only) ───
+      const { offlineDB: offlineDB2 } = await import('@/components/utils/offlineDatabase');
+      const { startDateStr, endDateStr } = getSourceWindow();
+      const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB2, startDateStr, endDateStr);
+      if (windowedDeliveries.length > 0) setDeliveries([...windowedDeliveries]);
       const [freshCatalog, freshTransactions] = await Promise.all([
-        squareCODOfflineManager.getCatalogItemsOffline(),
-        squareCODOfflineManager.getPaymentTransactionsOffline(),
+        getCatalogItemsOffline(),
+        getPaymentTransactionsOffline(),
       ]);
+      if (freshCatalog) setCatalogItems([...freshCatalog]);
+      if (freshTransactions) {
+        setAllTransactions([...freshTransactions]);
+        setSoldCatalogItems([...freshTransactions.filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
+      }
+      await loadSyncStatus();
 
-      setCatalogItems([...(freshCatalog || [])]);
-      setAllTransactions([...(freshTransactions || [])]);
-      setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
-
-      setActiveView('catalog');
-      toast.success(`Catalog updated: ${itemsToAdd.length} item(s) added, ${deletedCount} collected item(s) removed`);
+      toast.success(`Catalog updated: ${itemsToAdd.length} added, ${toDelete.length} deleted`);
     } catch (err) {
       toast.error('Catalog update failed: ' + err.message);
       setError(err.message);
     } finally {
       setIsUpdatingCatalog(false);
     }
-  }, [isUpdatingCatalog, isSyncing, patients, selectedDaysRange, catalogItems, allTransactions]);
+  }, [isUpdatingCatalog, isSyncing, patients, refreshUiFromOfflineOnly]);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
@@ -469,9 +437,9 @@ export default function SquareManagement() {
           await squareCODOfflineManager.saveCatalogItemsOffline(freshData.catalogRecords || []);
           await squareCODOfflineManager.savePaymentTransactionsOffline(freshData.transactionRecords || []);
           const [freshCatalog, freshTransactions] = await Promise.all([
-            squareCODOfflineManager.getCatalogItemsOffline(),
-            squareCODOfflineManager.getPaymentTransactionsOffline(),
-          ]);
+          squareCODOfflineManager.getCatalogItemsOffline(),
+          squareCODOfflineManager.getPaymentTransactionsOffline()]
+          );
           setCatalogItems([...(freshCatalog || [])]);
           setAllTransactions([...(freshTransactions || [])]);
           setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
@@ -609,6 +577,13 @@ export default function SquareManagement() {
 
 
 
+
+
+
+
+
+
+
           // Keep whatever was already loaded from offline DB on mount
         }return { offlineDB, nextLocationConfigs };} catch (err) {console.error('Failed to sync lookup data:', err);return null;}}; // First load: also load deliveries and trigger Square sync
     if (!initialLoadKeyRef.current) {// CRITICAL: Don't lock the initialLoadKey until we have locationConfigs.
@@ -616,14 +591,7 @@ export default function SquareManagement() {
       // would be empty when the filter chain evaluates — filtering out every delivery row.
       // Wait until either the offline DB or appDataStores has produced configs.
       const configsReady = (locationConfigsRef.current || []).length > 0 || (appDataStores || []).length > 0;if (!configsReady) return; // re-runs when appDataStores arrives
-      initialLoadKeyRef.current = true;(async () => {const result = await syncLookupData();if (!result) return;try {const { offlineDB } = result;
-          const { startDateStr, endDateStr } = getSourceWindow();
-          await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
-          await loadSquareViewFromOffline();
-          setIsLoading(false);
-          setHasInitialLoadCompleted(true);
-          await syncFromSquare();
-          setBgSyncProgress({ stage: 'idle' });
+      initialLoadKeyRef.current = true;(async () => {const result = await syncLookupData();if (!result) return;try {const { offlineDB } = result;const { startDateStr, endDateStr } = getSourceWindow();await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);await loadSquareViewFromOffline();setIsLoading(false);setHasInitialLoadCompleted(true);await syncFromSquare();setBgSyncProgress({ stage: 'idle' });
         } catch (err) {
           console.error('Failed to load COD data:', err);
           setIsLoading(false);
@@ -933,7 +901,7 @@ export default function SquareManagement() {
       if (transaction.delivery_id && transaction.delivery_id === delivery?.id) return true;
 
       const transactionAmountSet = getTransactionAmountSet(transaction);
-      if (!amountSetsIntersect(deliveryAmountSet, transactionAmountSet)) return false;
+      const amountsMatch = amountSetsIntersect(deliveryAmountSet, transactionAmountSet);
 
       const parsed = parseSquareItemName(String(transaction.item_name || '').trim());
       const parsedTransactionDateString = parsed?.deliveryDate || null;
@@ -955,9 +923,13 @@ export default function SquareManagement() {
       !!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation ||
       String(transaction.item_name || '').toLowerCase().includes(storeAbbreviation));
 
-
       const searchableText = String(transaction.item_name || transaction.raw_square_data?.note || transaction.raw_square_data?.notes || '').trim();
       const nameMatches = !!patientName && !!searchableText && patientNamesMatch(patientName, searchableText);
+
+      // Amount + name alone is sufficient (handles plain-text transaction item names like "Wendy Paustian")
+      if (amountsMatch && nameMatches) return true;
+
+      if (!amountsMatch) return false;
 
       if (dateMatches && (locationMatches || abbreviationMatches || nameMatches)) return true;
       if (locationMatches && (abbreviationMatches || nameMatches)) return true;
@@ -1022,14 +994,14 @@ export default function SquareManagement() {
 
     // Build a fast lookup of settled transaction delivery IDs and catalog object IDs
     const settledTxCatalogIds = new Set(
-      (allTransactions || [])
-        .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.square_catalog_object_id)
-        .map((t) => t.square_catalog_object_id)
+      (allTransactions || []).
+      filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.square_catalog_object_id).
+      map((t) => t.square_catalog_object_id)
     );
     const settledTxDeliveryIds = new Set(
-      (allTransactions || [])
-        .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.delivery_id)
-        .map((t) => t.delivery_id)
+      (allTransactions || []).
+      filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.delivery_id).
+      map((t) => t.delivery_id)
     );
 
     items = items.filter((item) => {
@@ -1075,7 +1047,7 @@ export default function SquareManagement() {
   const lookbackStart = useMemo(() => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - Number(selectedDaysRange || 90));
+    date.setDate(date.getDate() - Number(selectedDaysRange || 90) + 1);
     return date;
   }, [selectedDaysRange]);
 
@@ -1147,6 +1119,13 @@ export default function SquareManagement() {
     return new Set(locationConfigs.filter((config) => configIds.has(config?.id)).map((config) => config?.square_location_id).filter(Boolean));
   }, [currentUser, currentAppUser, drivers, selectedDriverFilter, locationConfigs]);
 
+  // Resolve the driver color (same palette as dashboard) for a given driver_id or driver user_id
+  const getDriverColorForId = useCallback((driverId) => {
+    if (!driverId) return null;
+    const driver = drivers.find((d) => d?.user_id === driverId || d?.id === driverId);
+    return driver?.user_name ? generateDriverColor(driver.user_name) : null;
+  }, [drivers]);
+
   const filteredDeliveryRows = useMemo(() => {
     const rows = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0).
     filter((delivery) => {
@@ -1181,15 +1160,19 @@ export default function SquareManagement() {
         if (!tx || tx.type !== 'collection') return false;
         if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
         if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
+        const deliveryPatient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
+        const txSearchText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
+        const nameMatches = !!(deliveryPatient?.full_name && txSearchText && patientNamesMatch(deliveryPatient.full_name, txSearchText));
         const txAmountSet = getTransactionAmountSet(tx);
-        if (!amountSetsIntersect(getDeliveryPaymentAmountSet(delivery), txAmountSet)) return false;
+        const amountsMatch = amountSetsIntersect(getDeliveryPaymentAmountSet(delivery), txAmountSet);
+        // Amount + name is sufficient
+        if (amountsMatch && nameMatches) return true;
+        if (!amountsMatch) return false;
         const parsed = parseSquareItemName(String(tx.item_name || ''));
         const txDate = parsed?.deliveryDate || null;
         const txStoreAbbr = String(parsed?.storeAbbr || '').trim().toLowerCase();
         const deliveryStoreAbbr = String(store?.abbreviation || '').trim().toLowerCase();
         const abbrMatches = !!deliveryStoreAbbr && (txStoreAbbr === deliveryStoreAbbr || String(tx.item_name || '').toLowerCase().includes(deliveryStoreAbbr));
-        const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
-        const nameMatches = !!(patient?.full_name && patientNamesMatch(patient.full_name, String(tx.item_name || '')));
         if (txDate === delivery.delivery_date && (abbrMatches || nameMatches || tx.location_id === resolvedLocationId)) return true;
         if (abbrMatches && nameMatches) return true;
         return false;
@@ -1214,6 +1197,7 @@ export default function SquareManagement() {
         deliveryDate: delivery.delivery_date,
         collectionType,
         subtext: delivery.driver_name || null,
+        driverColor: getDriverColorForId(delivery.driver_id),
         actions: hasMatch ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
         delivery.status === 'pending' ?
@@ -1229,7 +1213,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds]);
+  }, [deliveries, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds, getDriverColorForId]);
 
   const isCardSaleTransaction = useCallback((transaction) => {
     if (!transaction || isTransferTransaction(transaction)) return false;
@@ -1248,9 +1232,11 @@ export default function SquareManagement() {
     (allTransactions || []).
     filter((transaction) => {
       if (!isCardSaleTransaction(transaction)) return false;
-      const hasFormattedItemDate = !!parseSquareItemName(transaction?.item_name)?.deliveryDate;
-      const transactionDate = getTransactionFilterDate(transaction);
-      if (hasFormattedItemDate && (!transactionDate || transactionDate < lookbackStart)) return false;
+      // Always apply date filter — use item-name date first, fall back to created_date
+      const transactionDate = getTransactionFilterDate(transaction) || (
+      transaction?.created_date ? new Date(transaction.created_date) : null) || (
+      transaction?.raw_square_data?.payment_date ? new Date(transaction.raw_square_data.payment_date) : null);
+      if (!transactionDate || transactionDate < lookbackStart) return false;
 
       const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
       // Check visibility: config found by location_id OR store resolved from config.store_name
@@ -1318,9 +1304,9 @@ export default function SquareManagement() {
         catalogId: (() => {
           // Prefer the catalog item's own ID (matches Catalog tab); fall back to transaction's reference
           const linkedCatalogItem = (catalogItems || []).find((ci) =>
-            (ci.delivery_id && matchedDelivery?.id && ci.delivery_id === matchedDelivery.id) ||
-            (ci.catalog_object_id && transaction.square_catalog_object_id && ci.catalog_object_id === transaction.square_catalog_object_id) ||
-            (ci.id && transaction.square_catalog_object_id && ci.id === transaction.square_catalog_object_id)
+          ci.delivery_id && matchedDelivery?.id && ci.delivery_id === matchedDelivery.id ||
+          ci.catalog_object_id && transaction.square_catalog_object_id && ci.catalog_object_id === transaction.square_catalog_object_id ||
+          ci.id && transaction.square_catalog_object_id && ci.id === transaction.square_catalog_object_id
           );
           return linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || transaction.square_catalog_object_id || '--';
         })(),
@@ -1329,6 +1315,7 @@ export default function SquareManagement() {
         collectionDate,
         collectionType,
         subtext: collectedByName ? `Collected by ${collectedByName}` : transaction.payment_method || null,
+        driverColor: getDriverColorForId(matchedDelivery?.driver_id || transaction.driver_id),
         notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
         actions: matchedDelivery || transaction.square_payment_id || transaction.square_transaction_id ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
@@ -1351,7 +1338,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [allTransactions, lookbackStart, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction, visibleSquareLocationConfigIds]);
+  }, [allTransactions, lookbackStart, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction, visibleSquareLocationConfigIds, getDriverColorForId]);
 
   const filteredCatalogRows = useMemo(() => {
     const rows = (catalogItems || []).
@@ -1377,16 +1364,24 @@ export default function SquareManagement() {
       // A catalog item is "Collected" ONLY if there is a matching transaction in the transactions list.
       // Match by: square_catalog_object_id on the transaction, OR delivery_id on the transaction.
       const catalogObjectId = item.catalog_object_id || item.id;
+      const linkedPatient = linkedDelivery?.patient_id ?
+      patients.find((p) => p?.id === linkedDelivery.patient_id || p?.patient_id === linkedDelivery.patient_id) : null;
+      const linkedPatientName = linkedPatient?.full_name || parseSquareItemName(item.name || item.item_name)?.patientName || '';
       const matchingTx = (allTransactions || []).find((tx) => {
         if (!tx) return false;
         // Match by delivery_id (most reliable)
         if (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id) return true;
         // Match by catalog object ID on the transaction
         if (tx.square_catalog_object_id && (tx.square_catalog_object_id === catalogObjectId || tx.square_catalog_object_id === item.id)) return true;
-        // Match by amount + location + delivery date from item name
         const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
         const itemAmountCents = Math.round(Number(item.price_dollars || item.amount || 0) * 100);
-        if (txAmountCents !== itemAmountCents || !item.location_id || tx.location_id !== item.location_id) return false;
+        const amountsMatch = txAmountCents === itemAmountCents;
+        const txSearchableText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
+        const txNameMatches = !!linkedPatientName && !!txSearchableText && patientNamesMatch(linkedPatientName, txSearchableText);
+        // Amount + patient name match (handles plain-text transaction names)
+        if (amountsMatch && txNameMatches) return true;
+        // Amount + location + delivery date from item name
+        if (!amountsMatch || !item.location_id || tx.location_id !== item.location_id) return false;
         const itemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
         const txDateStr = getTransactionEffectiveDateString(tx);
         return !!(itemDateStr && txDateStr && itemDateStr === txDateStr);
@@ -1400,9 +1395,10 @@ export default function SquareManagement() {
         storeName: store?.name || config?.name || 'Unknown',
         locationId: item.location_id || '--',
         catalogId: catalogObjectId || '--',
-        transactionId: matchingTx ? (matchingTx.square_payment_id || matchingTx.square_transaction_id || matchingTx.id || '--') : '--',
+        transactionId: matchingTx ? matchingTx.square_payment_id || matchingTx.square_transaction_id || matchingTx.id || '--' : '--',
         deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
         subtext: item.description || item.status || null,
+        driverColor: getDriverColorForId(linkedDelivery?.driver_id),
         isCollected,
         actions: isCollected ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
@@ -1433,7 +1429,32 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, hasMatchingSquareTransaction]);
+  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, hasMatchingSquareTransaction, getDriverColorForId]);
+
+  // Build a fast set of delivery IDs that are already matched in the Transactions tab
+  const transactionMatchedDeliveryIds = useMemo(() => {
+    const ids = new Set();
+    for (const tx of allTransactions || []) {
+      if (!tx || tx.type !== 'collection') continue;
+      if (!['completed', 'pending'].includes(tx.status)) continue;
+      if (tx.delivery_id) ids.add(tx.delivery_id);
+    }
+    return ids;
+  }, [allTransactions]);
+
+  // Build a fast set of (amount+patientName) signatures from transactions so we can match by name
+  const transactionSignatures = useMemo(() => {
+    const sigs = new Set();
+    for (const tx of allTransactions || []) {
+      if (!tx || tx.type !== 'collection') continue;
+      if (!['completed', 'pending'].includes(tx.status)) continue;
+      const amtCents = Math.round(Number(tx.amount || 0) * 100);
+      const parsed = parseSquareItemName(String(tx.item_name || ''));
+      const name = normalizePatientName(parsed?.patientName || tx.item_name || '');
+      if (name) sigs.add(`${amtCents}::${name}`);
+    }
+    return sigs;
+  }, [allTransactions]);
 
   const reconciliationRows = useMemo(() => {
     const rows = (deliveries || []).
@@ -1458,6 +1479,23 @@ export default function SquareManagement() {
 
       const resolvedLocationId = storeConfig?.square_location_id || null;
       if (!resolvedLocationId) return false;
+
+      // Exclude if directly matched by delivery_id in any transaction
+      if (transactionMatchedDeliveryIds.has(delivery.id)) return false;
+
+      // Exclude if matched by amount + patient name in any transaction
+      const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
+      if (patient?.full_name) {
+        const amtCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
+        const deliveryName = normalizePatientName(patient.full_name);
+        // Check if any transaction signature matches this delivery's amount + name
+        const hasNameMatch = Array.from(transactionSignatures).some((sig) => {
+          const [sigAmt, sigName] = sig.split('::');
+          if (Number(sigAmt) !== amtCents) return false;
+          return patientNamesMatch(deliveryName, sigName);
+        });
+        if (hasNameMatch) return false;
+      }
 
       return !hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions);
     }).
@@ -1492,6 +1530,17 @@ export default function SquareManagement() {
       const linkedCatalogItem = (catalogItems || []).find((ci) => ci?.delivery_id === delivery.id);
       const catalogObjectId = linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || null;
 
+      // Find any matching transaction (same-location or cross-store) for the Transaction ID column
+      const anyMatchingTx = crossStoreTx || (allTransactions || []).find((tx) => {
+        if (!tx || tx.type !== 'collection') return false;
+        if (!['completed', 'pending'].includes(tx.status)) return false;
+        if (tx.delivery_id === delivery.id) return true;
+        const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
+        if (txAmountCents !== deliveryAmountCents) return false;
+        if (!patientName) return false;
+        return patientNamesMatch(patientName, String(tx.item_name || ''));
+      }) || null;
+
       return {
         id: delivery.id,
         key: `${delivery.id || 'delivery'}|${resolvedLocationId}|${delivery.delivery_date || 'no-date'}`,
@@ -1503,12 +1552,13 @@ export default function SquareManagement() {
         storeName: store?.name || 'Unknown',
         locationId: resolvedLocationId,
         catalogId: catalogObjectId || '--',
-        transactionId: crossStoreTx ? (crossStoreTx.square_payment_id || crossStoreTx.square_transaction_id || crossStoreTx.id || '--') : '--',
+        transactionId: anyMatchingTx ? anyMatchingTx.square_payment_id || anyMatchingTx.square_transaction_id || anyMatchingTx.id || '--' : '--',
         deliveryDate: delivery.delivery_date,
         collectionType: Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
         Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
         null,
         subtext: delivery.driver_name || null,
+        driverColor: getDriverColorForId(delivery.driver_id),
         crossStoreAlert: crossStoreTx ? { collectedAt: crossStoreName } : null,
         actions: crossStoreTx ?
         <div className="flex items-center gap-1.5">
@@ -1530,9 +1580,10 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay, catalogItems]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId]);
 
   reconciliationRowsRef.current = reconciliationRows;
+  filteredCatalogRowsRef.current = filteredCatalogRows;
 
   const codDeliveriesCount = useMemo(() => filteredDeliveryRows.length, [filteredDeliveryRows]);
 
@@ -1606,16 +1657,16 @@ export default function SquareManagement() {
   return (
     <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
       {/* ═══════════════════════════════════════════════════════════════════
-                            MASTER LAYOUT  –  2 main rows × 2 columns
-                            Left column  : auto/shrink  (content-width)
-                            Right column : flex-1       (fills remaining width)
-                        ═══════════════════════════════════════════════════════════════════ */}
+                                   MASTER LAYOUT  –  2 main rows × 2 columns
+                                   Left column  : auto/shrink  (content-width)
+                                   Right column : flex-1       (fills remaining width)
+                               ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex-shrink-0 mb-4">
 
-        {/* ── MAIN 2-COL LAYOUT ── static left col | auto right col ── */}
-        <div className="grid grid-cols-1 gap-2 md:gap-3 md:mb-3 md:grid-cols-[40%_60%]">
+        {/* ── 2×2 GRID LAYOUT ── */}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-[40%_60%]">
 
-          {/* LEFT col – filters/tabs + stat cards stacked */}
+          {/* R1-C1: Filters + Tab buttons */}
           <div className="flex flex-col gap-2">
 
             {/* Sub-row 1: Drivers | Stores | Date range | Sync */}
@@ -1712,49 +1763,10 @@ export default function SquareManagement() {
 
 
 
-            {/* Sub-row 3b: 2×2 stat cards (catalog view only) */}
-            {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && (() => {
-              const newCatalogItems = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
-              const newCatalogTotal = newCatalogItems.reduce((s, r) => s + Number(r.amount || 0), 0);
-              const uncollectedTotal = filteredCatalogRows.filter((row) => !row.isCollected).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-              const grandTotal = activeViewStats.amountValue + newCatalogTotal;
-              return (
-                <div className="grid grid-cols-2 gap-2 mt-6 w-fit">
-                  <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 max-w-[175px]">
-                    <CardContent className="px-3 py-4">
-                      <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Total Amount</div>
-                      <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${grandTotal.toFixed(2)}</div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800 max-w-[175px]">
-                    <CardContent className="px-3 py-4">
-                      <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
-                      <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">${(uncollectedTotal + newCatalogTotal).toFixed(2)}</div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 max-w-[175px]">
-                    <CardContent className="px-3 py-4">
-                      <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Catalog Items</div>
-                      <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800 max-w-[175px]">
-                    <CardContent className="px-3 py-4">
-                      <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">New Items</div>
-                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{newCatalogItems.length}</div>
-                      {newCatalogTotal > 0 && <div className="text-xs text-blue-500 dark:text-blue-400 leading-tight">${newCatalogTotal.toFixed(2)}</div>}
-                    </CardContent>
-                  </Card>
-                </div>
-              );
-            })()}
           </div>
 
-          {/* RIGHT col – sync status + stat cards + store location cards */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2 self-start">
+          {/* R1-C2: Sync status card */}
+          <div className="flex-1 min-w-0 self-start">
             {syncStatus &&
             <SyncStatusIndicator
               syncStatus={syncStatus}
@@ -1766,136 +1778,200 @@ export default function SquareManagement() {
               salesCount={filteredSalesCount}
               collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
             }
-
-
-
-            {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
-            <div>
-              <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                 {(() => {
-                  const storeCardMap = new Map();
-                  const newCatalogItemsForStore = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
-
-                  // Add existing catalog items
-                  for (const item of filteredCatalogRows) {
-                    const parsed = parseSquareItemName(item.itemName || item.name || '');
-                    const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
-                    const locationId = item.locationId;
-                    const config = locationConfigs.find((c) => c?.square_location_id === locationId);
-                    const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
-                    const storeByConfig = getStoreForConfig(config);
-                    const resolvedStore = storeByAbbr || storeByConfig;
-                    const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
-                    const sortOrder = resolvedStore?.sort_order ?? Infinity;
-                    const cardKey = `${locationId}::${abbr || 'unknown'}`;
-                    if (!storeCardMap.has(cardKey)) {
-                      storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
-                    }
-                    storeCardMap.get(cardKey).items.push(item);
-                  }
-
-                  // Add new catalog items (from reconciliation, no catalog ID yet)
-                  for (const row of newCatalogItemsForStore) {
-                    const store = stores.find((s) => s?.id === row.rawStoreId);
-                    const config = store ? getConfigForStore(store) : null;
-                    const locationId = row.locationId !== '--' ? row.locationId : config?.square_location_id || null;
-                    if (!locationId) continue;
-                    const abbr = store?.abbreviation?.toUpperCase() || null;
-                    const label = store?.name || row.storeName || 'Unknown';
-                    const sortOrder = store?.sort_order ?? Infinity;
-                    const cardKey = `${locationId}::${abbr || 'unknown'}`;
-                    if (!storeCardMap.has(cardKey)) {
-                      storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
-                    }
-                    storeCardMap.get(cardKey).newItems.push(row);
-                  }
-
-                  return Array.from(storeCardMap.values()).
-                  sort((a, b) => a.sortOrder - b.sortOrder).
-                  map(({ label, locationId, config, storeAbbr, items, newItems }) => {
-                    const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-                      + (newItems || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
-                    const itemCount = items.length + (newItems || []).length;
-                    return (
-                      <LocationSummaryCard
-                        key={`${locationId}::${storeAbbr || 'unknown'}`}
-                        location={{ name: label, square_location_id: locationId }}
-                        codTotal={codTotal}
-                        itemCount={itemCount}
-                        onClick={() => config && setSelectedLocation(config)} />);
-                  });
-                })()}
-              </div>
-            </div>
-            }
           </div>
+
+          {/* R2-C1: 4 stat cards (catalog view only) */}
+          {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && (() => {
+            const newCatalogItems = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
+            const newCatalogTotal = newCatalogItems.reduce((s, r) => s + Number(r.amount || 0), 0);
+            const uncollectedRows = filteredCatalogRows.filter((row) => !row.isCollected);
+            const collectedRows = filteredCatalogRows.filter((row) => row.isCollected);
+            const uncollectedTotal = uncollectedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+            const collectedAmount = collectedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+            const catalogTotal = filteredCatalogRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+            // Total = Catalog Items + New Items - Collected
+            const grandTotal = catalogTotal + newCatalogTotal - collectedAmount;
+            const totalItemCount = filteredCatalogRows.length + newCatalogItems.length;
+            const uncollectedItemCount = uncollectedRows.length;
+            const catalogOnlyItemCount = filteredCatalogRows.length;
+            // Bar percentages relative to the overall pool (catalog + new) for all 4 cards
+            const overallPool = catalogTotal + newCatalogTotal > 0 ? catalogTotal + newCatalogTotal : 1;
+            const collectedPct = (collectedAmount / overallPool) * 100;
+            const uncollectedPct = (uncollectedTotal / overallPool) * 100;
+            const catalogPct = (catalogTotal / overallPool) * 100;
+            const newItemsPct = (newCatalogTotal / overallPool) * 100;
+            return (
+              <div className="grid grid-cols-4 gap-3 mt-6 mb-1">
+                {/* Total Amount = Catalog + New - Collected */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                  <div className="px-5 pt-5 pb-3">
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Total Amount</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
+                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                      {collectedPct > 0 && <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />}
+                      {catalogPct > 0 && <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />}
+                      {newItemsPct > 0 && <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />}
+                    </div>
+                  </div>
+                </div>
+                {/* Collected */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                  <div className="px-5 pt-5 pb-3">
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Collected</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${collectedAmount.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{collectedRows.length} item{collectedRows.length !== 1 ? 's' : ''}</div>
+                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />
+                    </div>
+                  </div>
+                </div>
+                {/* Catalog Items */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                  <div className="px-5 pt-5 pb-3">
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Catalog Items</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${catalogTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{catalogOnlyItemCount} item{catalogOnlyItemCount !== 1 ? 's' : ''}</div>
+                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />
+                    </div>
+                  </div>
+                </div>
+                {/* New Items */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                  <div className="px-5 pt-5 pb-3">
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">New Items</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${newCatalogTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{newCatalogItems.length} item{newCatalogItems.length !== 1 ? 's' : ''}</div>
+                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </div>);
+
+          })()}
+
+          {/* R2-C2: Store location cards (catalog view only) */}
+          {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
+          <div className="flex-1 min-w-0 self-start">
+            <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {(() => {
+                const storeCardMap = new Map();
+                const newCatalogItemsForStore = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
+                for (const item of filteredCatalogRows) {
+                  const parsed = parseSquareItemName(item.itemName || item.name || '');
+                  const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
+                  const locationId = item.locationId;
+                  const config = locationConfigs.find((c) => c?.square_location_id === locationId);
+                  const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
+                  const storeByConfig = getStoreForConfig(config);
+                  const resolvedStore = storeByAbbr || storeByConfig;
+                  const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
+                  const sortOrder = resolvedStore?.sort_order ?? Infinity;
+                  const cardKey = `${locationId}::${abbr || 'unknown'}`;
+                  if (!storeCardMap.has(cardKey)) storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
+                  storeCardMap.get(cardKey).items.push(item);
+                }
+                for (const row of newCatalogItemsForStore) {
+                  const store = stores.find((s) => s?.id === row.rawStoreId);
+                  const config = store ? getConfigForStore(store) : null;
+                  const locationId = row.locationId !== '--' ? row.locationId : config?.square_location_id || null;
+                  if (!locationId) continue;
+                  const abbr = store?.abbreviation?.toUpperCase() || null;
+                  const label = store?.name || row.storeName || 'Unknown';
+                  const sortOrder = store?.sort_order ?? Infinity;
+                  const cardKey = `${locationId}::${abbr || 'unknown'}`;
+                  if (!storeCardMap.has(cardKey)) storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
+                  storeCardMap.get(cardKey).newItems.push(row);
+                }
+                return Array.from(storeCardMap.values()).sort((a, b) => a.sortOrder - b.sortOrder).map(({ label, locationId, config, storeAbbr, items, newItems, sortOrder }) => {
+                  const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0) + (newItems || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
+                  const itemCount = items.length + (newItems || []).length;
+                  // Resolve the store's default driver color (same logic as dashboard)
+                  const resolvedStore = storeAbbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === storeAbbr) : getStoreForConfig(config);
+                  const defaultDriverId = resolvedStore?.weekday_am_driver_id || resolvedStore?.weekday_pm_driver_id || resolvedStore?.saturday_am_driver_id || null;
+                  const defaultDriver = defaultDriverId ? drivers.find((d) => d?.id === defaultDriverId || d?.user_id === defaultDriverId) : null;
+                  const driverHex = defaultDriver?.user_name ? generateDriverColor(defaultDriver.user_name) : null;
+                  const cardStoreColor = driverHex ? { border: driverHex, bg: hexToRgba(driverHex, 0.06) } : undefined;
+                  return (
+                    <LocationSummaryCard
+                      key={`${locationId}::${storeAbbr || 'unknown'}`}
+                      location={{ name: label, square_location_id: locationId }}
+                      codTotal={codTotal}
+                      itemCount={itemCount}
+                      storeColor={cardStoreColor}
+                      onClick={() => config && setSelectedLocation(config)} />);
+
+                });
+              })()}
+            </div>
+          </div>
+          }
         </div>
 
         {/* Reconciliation stat cards — full-width single row */}
         {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
         <div className="grid grid-cols-10 gap-2">
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Locations</div>
-              <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{new Set(reconciliationRows.map((r) => r.locationId).filter(Boolean)).size}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Transactions</div>
-              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{filteredTransactionRows.length}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Locations</div>
+              <div className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">{new Set(reconciliationRows.map((r) => r.locationId).filter(Boolean)).size}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Collected $</div>
-              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${filteredTransactionRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Transactions</div>
+              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{filteredTransactionRows.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Collected $</div>
+              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">${filteredTransactionRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cash</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Cash}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Cash</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Cash}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Debit</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Debit}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Debit</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Debit}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Credit</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Credit}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Credit</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Credit}</div>
             </CardContent>
           </Card>
-
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">COD Deliveries</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{codDeliveriesCount}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched</div>
-              <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">{reconciliationRows.length}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">COD Deliveries</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{codDeliveriesCount}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched $</div>
-              <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">${reconciliationRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Unmatched</div>
+              <div className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">{reconciliationRows.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Unmatched $</div>
+              <div className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">${reconciliationRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-orange-200 dark:border-orange-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cross-Store</div>
-              <div className="text-lg font-bold text-orange-600 dark:text-orange-400 leading-tight">{reconciliationRows.filter((r) => r.crossStoreAlert).length}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Cross-Store</div>
+              <div className="text-base font-bold text-orange-600 dark:text-orange-400 tabular-nums">{reconciliationRows.filter((r) => r.crossStoreAlert).length}</div>
             </CardContent>
           </Card>
         </div>
@@ -1947,9 +2023,9 @@ export default function SquareManagement() {
           headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
           <>
               <Button
-                onClick={updateCatalog}
-                disabled={isLoading || isUpdatingCatalog || isSyncing || (reconciliationRows.length > 0 && reconciliationRows.every((r) => r.catalogId && r.catalogId !== '--'))}
-                className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              onClick={updateCatalog}
+              disabled={isLoading || isUpdatingCatalog || isSyncing || reconciliationRows.length === 0}
+              className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
                 <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
@@ -1974,14 +2050,14 @@ export default function SquareManagement() {
           groupByCollected
           newCatalogRows={reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--')}
           headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
-            <Button
-              onClick={updateCatalog}
-              disabled={isLoading || isUpdatingCatalog || isSyncing}
-              className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <Button
+            onClick={updateCatalog}
+            disabled={isLoading || isUpdatingCatalog || isSyncing}
+            className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
               <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
             </Button> :
-            undefined} />
+          undefined} />
 
         }
 

@@ -139,7 +139,8 @@ export default function DeliveryFormView({
   buttonState, cancelButtonState, isFormValid, hasChanges, isPatientFormOpen,
   closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false, pickupsAddedCount = 0,
   applyDeliveryChangesLocally, onDriverManuallyChanged,
-  scheduledDriverMap = {}
+  scheduledDriverMap = {},
+  statHolidayWarning = null
 }) {
   const activeFieldScrollFrameRef = useRef(null);
   const barcodeInputRef = useRef(null);
@@ -288,9 +289,11 @@ export default function DeliveryFormView({
     }
   }, []);
 
-  // Require driver selection when no regular pickup exists for the patient's store/date/slot
+  // Require driver selection when no regular pickup exists for the patient's store/date/slot,
+  // OR when the delivery date is a stat holiday (must always pick manually).
   const requiresDriverSelection = (() => {
     if (delivery || isPickupMode) return false; // only for new patient deliveries
+    if (statHolidayWarning && !formData?.driver_id) return true; // stat holiday — force selection
     if (formData?.driver_id) return false; // driver already chosen
     const patientToCheck = selectedPatient || (formData?.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
     const storeId = patientToCheck?.store_id || formData?.store_id;
@@ -692,6 +695,11 @@ export default function DeliveryFormView({
             }
           </CardHeader>
 
+          {statHolidayWarning &&
+          <div className="px-3 py-2 text-sm font-semibold flex items-center gap-2 border-b" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
+            🎉 {statHolidayWarning} — Stat Holiday. Please select a driver manually.
+          </div>
+          }
           {error && <div className="p-3 text-sm text-center" style={{ background: '#fee2e2', color: '#991b1b' }}>Error: {error}</div>}
           {isPayrollLocked && payrollLockMessage &&
           <div className="p-3 text-sm text-center border-b flex items-center justify-center gap-2" style={{ background: '#fef3c7', color: '#78350f', borderColor: '#fcd34d' }}>
@@ -1117,7 +1125,28 @@ export default function DeliveryFormView({
                             <div className="px-3 rounded-lg space-y-2 border py-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                               <div className="flex gap-3">
                                 <div className="flex-[65] space-y-1">
-                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
+                                  <div className="relative" style={{ height: '1.5rem' }}>
+                                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
+                                    {delivery && selectedPatient && handleNewAddressPatient && (() => {
+                                     const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
+                                     return isLocked ? (
+                                       <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
+                                         Change Address
+                                       </span>
+                                     ) : (
+                                       <span
+                                         role="button"
+                                         tabIndex={0}
+                                         onClick={() => handleNewAddressPatient(selectedPatient)}
+                                         onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                         className="absolute right-0 top-0 cursor-pointer select-none">
+                                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                           Change Address
+                                         </span>
+                                       </span>
+                                     );
+                                    })()}
+                                  </div>
                                   <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
                                 </div>
 
@@ -1304,7 +1333,28 @@ export default function DeliveryFormView({
                             </div>
                             <div className="flex gap-3">
                               <div className="flex-[65] space-y-1">
-                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
+                                <div className="relative" style={{ height: '1.5rem' }}>
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
+                                  {delivery && selectedPatient && handleNewAddressPatient && (() => {
+                                    const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
+                                    return isLocked ? (
+                                      <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
+                                        Change Address
+                                      </span>
+                                    ) : (
+                                      <span
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => handleNewAddressPatient(selectedPatient)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                        className="absolute right-0 top-0 cursor-pointer select-none">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                          Change Address
+                                        </span>
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
                                 <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
                               </div>
 
