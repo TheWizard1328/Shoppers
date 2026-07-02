@@ -755,58 +755,12 @@ export default function useStopCardActions(params) {
           backgroundSyncManager.pause();
           pauseRealtimeSync();
           try {
-<<<<<<< HEAD
-            const hereApiKey = await getOrFetchHereApiKey();
-            // Brief settle window — handleStartDelivery already committed the started
-            // stop's status but client-side batch writes (stop_order, isNextDelivery)
-            // may still be in-flight. 800ms is enough for a single-stop write.
-            await new Promise(r => setTimeout(r, 800));
-            const now3 = new Date();
-            const currentLocalTime3 = `${String(now3.getHours()).padStart(2, '0')}:${String(now3.getMinutes()).padStart(2, '0')}`;
-            const optimizeData = await invokeOptimizeAwareCycling({
-              driverId: delivery.driver_id,
-              deliveryDate: delivery.delivery_date,
-              currentLocalTime: currentLocalTime3,
-              deviceTime: now3.toISOString(),
-              hereApiKey,
-              deliveriesWithStopOrder: allDeliveries || [],
-              patients: patients || [],
-              stores: stores || [],
-              forceFullRemainingRouteOptimization: true,
-              bypassDeduplication: true,
-              bypassDriverStatus: true,
-              triggerSource: 'start_button',
-            }).catch(() => null);
-
-            // Fetch fresh deliveries after optimization to capture authoritative stop_order
-            const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-            const refreshedListImmediate = Array.isArray(refreshedImmediately)
-              ? refreshedImmediately
-              : Array.isArray(refreshedImmediately?.deliveries)
-                ? refreshedImmediately.deliveries
-                : null;
-
-            if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
-              // Ensure started stop is marked isNextDelivery in the refreshed list before writing
-              const withNextFlag = refreshedListImmediate.map((d) => ({
-                ...d,
-                isNextDelivery: d.id === delivery.id ? true : (d.isNextDelivery && d.id !== delivery.id ? false : d.isNextDelivery),
-              }));
-              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, withNextFlag);
-              updateDeliveriesLocally?.(withNextFlag, true);
-            }
-
-            await base44.functions.invoke('recalculateTrackingNumbers', {
-              driverId: delivery.driver_id,
-              deliveryDate: delivery.delivery_date
-=======
             // Unified FAB path: optimizeRemainingStops → regenerateType1Polyline
             await performRouteOptimization({
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
               source: 'start_button',
               bypassDriverStatus: true,
->>>>>>> github/main
             }).catch(() => null);
 
             // Fetch fresh deliveries after optimization
