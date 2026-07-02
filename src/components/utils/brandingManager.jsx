@@ -18,7 +18,8 @@ export async function getCompanyBranding(companyId) {
   if (cachedBranding) return cachedBranding;
 
   try {
-    const company = await getData('Company', '-updated_date', { id: companyId });
+    // Fetch directly from API — never from offline cache — so logo changes are immediate
+    const company = await base44.entities.Company.filter({ id: companyId });
 
     if (company && company.length > 0) {
       cachedBranding = {
