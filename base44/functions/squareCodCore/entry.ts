@@ -41,17 +41,22 @@ const isStructuredCodName = (v) => /^\d{2}[\/-]\d{2}\([^)]+\)-.+/.test(String(v|
 // For structured names, extract the date portion as YYYY-MM-DD (best-guess year via parseDateValue).
 // Returns null if not structured or date can't be parsed.
 const getStructuredCodDate = (v) => { if (!isStructuredCodName(v)) return null; return toIsoDate(v); };
-// Primary match rule: if BOTH strings are structured COD names, they must be a literal
-// 1-to-1 match (trim only, no stripping) AND the transaction date must be >= catalog item date.
+// Primary match rule: if BOTH strings are structured COD names, they must be an EXACT
+// string match (trim only). The chronology guard uses ONLY the date embedded in the
+// item name strings themselves — never the external txDateIso fallback — so that
+// "06/02(LD)-Angela Dottor" can never match "06/30(LD)-Angela Dottor" regardless of
+// what the Square payment date says.
 // Returns true=match, false=no-match, null=not both structured (fall through to other logic).
-const structuredCodNamesMatch = (txName, catalogName, txDateIso) => {
+const structuredCodNamesMatch = (txName, catalogName, _txDateIso) => {
   if (!isStructuredCodName(txName) || !isStructuredCodName(catalogName)) return null;
-  // Pure 1-to-1: trim only, no lowercasing, no date/prefix stripping
+  // Pure 1-to-1: trim only, no lowercasing, no date/prefix stripping — must be identical
   if (normalizeText(txName) !== normalizeText(catalogName)) return false;
-  // Enforce tx date >= catalog item date
+  // Chronology: use only the date embedded in the name strings themselves.
+  // If the tx name and catalog name are identical (above check passed), their embedded
+  // dates are also identical, so this guard is primarily a safety net for caller misuse.
+  const txNameDateIso = getStructuredCodDate(txName);
   const catDateIso = getStructuredCodDate(catalogName);
-  const effectiveTxDateIso = getStructuredCodDate(txName) || txDateIso;
-  if (catDateIso && effectiveTxDateIso && effectiveTxDateIso < catDateIso) return false;
+  if (txNameDateIso && catDateIso && txNameDateIso < catDateIso) return false;
   return true;
 };
 const getCatalogItemLocationIds = (item) => Array.from(new Set([...(item?.present_at_location_ids||[]),...(item?.item_data?.variations||[]).flatMap((v)=>v?.present_at_location_ids||[])].filter(Boolean)));
@@ -548,19 +553,18 @@ async function handleSyncCatalogItems(base44, payload={}) {
   if(dateOk){settledItemSigs.add(buildItemSignature(t?.item_name,ac));settledComparableSigs.add(buildComparableLocationSignature(t?.item_name,ac,t?.location_id));for(const sig of buildLocationDateAmountSignatureCandidates(t?.location_id,t?.item_name,ac))settledDLASigs.add(sig);}}}
   const itemsToDelete=[];const txToCancel=[];const txToComplete=[];const deliveriesToSync=[];const matchedCatIds=new Set();const matchedDLASigs=new Set();
   for(const item of recentCatalogItems){const n=normalizeText(item?.item_data?.name);if(!n)continue;const ac=getCatalogItemAmountCents(item);const isig=buildItemSignature(n,ac);const lids=getCatalogItemLocationIds(item);const varIds=(item?.item_data?.variations||[]).map((v)=>v?.id).filter(Boolean);const dateSigs=lids.map((l)=>buildLocationDateAmountSignature(l,n,ac));
-  // PRIMARY RULE: if the catalog item name is a structured COD name (MM/DD(STORE)-Patient),
-  // a paid order item only matches if its own name also matches structurally AND the dates agree.
+  // PRIMARY RULE: structured COD names (MM/DD(STORE)-Patient) must match EXACTLY.
+  // No fuzzy/DLA/signature fallbacks — the full string including date is the key.
+  // Non-structured items fall back to catalog object ID or DLA signature matching.
   const catalogIsStructured=isStructuredCodName(n);
-  const byPaidStructured=catalogIsStructured&&paidOrderItems.some((pi)=>{const sr=structuredCodNamesMatch(pi.item_name,n,(pi.payment_date||pi.order_created_at||'').slice(0,10));return sr===true&&(paidCatalogObjectIds.has(pi.catalog_object_id)||buildItemSignature(pi.item_name,pi.amount_cents)===isig||dateSigs.includes(buildLocationDateAmountSignature(pi.location_id,pi.item_name,pi.amount_cents)));});
-  const byPaidFallback=!catalogIsStructured&&(paidCatalogObjectIds.has(item.id)||varIds.some((v)=>paidCatalogObjectIds.has(v))||paidOrderItemSignatures.has(isig)||dateSigs.some((s)=>paidOrderItemsByDLA.has(s)));
   const byPaidExactId=paidCatalogObjectIds.has(item.id)||varIds.some((v)=>paidCatalogObjectIds.has(v));
-  const byPaid=byPaidExactId||byPaidStructured||byPaidFallback;
-  // For settled tx sigs: if catalog item is structured, only match if the tx item name also
-  // structurally matches (same date+store+patient). settledItemSigs uses raw normalizeText
-  // (preserves full date text) so exact match is safe. settledComparableSigs excluded (strips date).
+  const byPaidStructured=catalogIsStructured&&paidOrderItems.some((pi)=>structuredCodNamesMatch(pi.item_name,n,null)===true);
+  const byPaidFallback=!catalogIsStructured&&(byPaidExactId||paidOrderItemSignatures.has(isig)||dateSigs.some((s)=>paidOrderItemsByDLA.has(s)));
+  const byPaid=byPaidExactId||(catalogIsStructured?byPaidStructured:byPaidFallback);
+  // Settled tx match: structured names require exact string equality; non-structured use signatures.
   const bySettledExact=settledCatIds.has(item.id)||varIds.some((v)=>settledCatIds.has(v));
   const bySettledSig=catalogIsStructured
-    ?recentSquareTx.some((t)=>{if(!t?.status||t.status==='pending')return false;const txDateIso=(t?.raw_square_data?.payment_date||t?.created_date||'').slice(0,10);return structuredCodNamesMatch(t?.item_name,n,txDateIso)===true;})
+    ?recentSquareTx.some((t)=>{if(!t?.status||t.status==='pending')return false;return structuredCodNamesMatch(t?.item_name,n,null)===true;})
     :settledItemSigs.has(isig)||dateSigs.some((s)=>settledDLASigs.has(s));
   const bySettled=bySettledExact||bySettledSig;
   if(byPaid||bySettled){matchedCatIds.add(item.id);dateSigs.forEach((s)=>matchedDLASigs.add(s));itemsToDelete.push(item.id);}}
@@ -666,28 +670,48 @@ async function handleReconcile(base44, payload) {
   };
 
   for (const tx of noMatchTransactions) {
-    const txAmountCents = toAmountCents(tx.amount || (tx.amount_cents / 100));
-    const parsedName = (() => {
-      const n = String(tx.item_name || '');
-      const m = n.match(/\d{1,2}[\/-]\d{1,2}\([^)]+\)-(.+)$/);
-      return m ? m[1].trim() : n.replace(/^\d{1,2}[\/-]\d{1,2}/, '').replace(/\([^)]+\)/, '').replace(/^[-\s]+/, '').trim();
-    })();
+    const txAmountCents = toAmountCents(tx.amount_cents ?? Math.round(Number(tx.amount || 0) * 100));
+    const txItemName = normalizeText(tx.item_name || '');
+    const txIsStructured = isStructuredCodName(txItemName);
 
-    // Parse the transaction date for proximity scoring
-    const txDateIso = (tx.raw_square_data?.payment_date || tx.created_date || '').slice(0, 10);
+    // Parse the transaction date from the item name string itself (most reliable source).
+    // Fall back to raw_square_data payment date only for non-structured names.
+    const txNameDateIso = txIsStructured ? getStructuredCodDate(txItemName) : null;
+    const txDateIso = txNameDateIso || (tx.raw_square_data?.payment_date || tx.created_date || '').slice(0, 10);
     const txDateMs = txDateIso ? new Date(txDateIso + 'T00:00:00').getTime() : 0;
 
     let bestMatch = null;
     let bestMatchDiffMs = Infinity;
+
     for (const d of noMatchDeliveries) {
       if (usedDeliveryIds.has(d.id)) continue;
       const dAmountCents = toAmountCents(d.cod_total_amount_required);
       if (dAmountCents !== txAmountCents) continue;
-      const patient = patientById.get(d.patient_id);
-      if (!patient?.full_name) continue;
-      if (!namesMatch(patient.full_name, parsedName)) continue;
-      // Hard rule: transaction date must be on or after the delivery date
-      if (txDateIso && d.delivery_date && txDateIso < d.delivery_date) continue;
+
+      if (txIsStructured) {
+        // For structured names: build the expected item name from delivery data and require exact match.
+        const store = storeById.get(d.store_id);
+        const config = store ? configById.get(store.square_location_config_id) : null;
+        const patient = patientById.get(d.patient_id);
+        if (!patient?.full_name || !store?.abbreviation) continue;
+        const expectedName = formatItemName(d.delivery_date, store.abbreviation, patient.full_name);
+        if (normalizeText(expectedName) !== txItemName) continue;
+        // Hard chronology rule: the date embedded in the name IS the delivery date,
+        // so this is automatically satisfied by the exact name match above.
+        // Still enforce: tx name date >= delivery_date as a final safety check.
+        if (d.delivery_date && txNameDateIso && txNameDateIso < d.delivery_date) continue;
+      } else {
+        // Non-structured: fuzzy patient name match + chronology guard
+        const parsedName = (() => {
+          const m = txItemName.match(/\d{1,2}[\/-]\d{1,2}\([^)]+\)-(.+)$/);
+          return m ? m[1].trim() : txItemName.replace(/^\d{1,2}[\/-]\d{1,2}/, '').replace(/\([^)]+\)/, '').replace(/^[-\s]+/, '').trim();
+        })();
+        const patient = patientById.get(d.patient_id);
+        if (!patient?.full_name) continue;
+        if (!namesMatch(patient.full_name, parsedName)) continue;
+        if (txDateIso && d.delivery_date && txDateIso < d.delivery_date) continue;
+      }
+
       // Prefer delivery whose date is closest to the transaction date
       const dDateMs = d.delivery_date ? new Date(d.delivery_date + 'T00:00:00').getTime() : 0;
       const diffMs = (txDateMs && dDateMs) ? Math.abs(dDateMs - txDateMs) : Infinity;
@@ -699,7 +723,7 @@ async function handleReconcile(base44, payload) {
 
     if (bestMatch) {
       usedDeliveryIds.add(bestMatch.id);
-      matchResults.push({ transactionId: tx.id, deliveryId: bestMatch.id, matchedBy: 'name_and_amount' });
+      matchResults.push({ transactionId: tx.id, deliveryId: bestMatch.id, matchedBy: txIsStructured ? 'exact_name_match' : 'name_and_amount' });
     }
   }
 
@@ -774,7 +798,7 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
     // Structured name: require exact structural match with a paid order item (same date+store+patient)
     const n = normalizeText(item?.item_data?.name);
     if (isStructuredCodName(n)) {
-      return paidOrderItems.some((pi) => structuredCodNamesMatch(pi.item_name, n, (pi.payment_date||pi.order_created_at||'').slice(0,10))===true);
+      return paidOrderItems.some((pi) => structuredCodNamesMatch(pi.item_name, n, null)===true);
     }
     return false;
   });
