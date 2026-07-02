@@ -226,7 +226,7 @@ export default function SquareLocationConfigs() {
                   <div className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="text-slate-500">Stores:</span>
                     {linkedStores.length > 0 ? (
-                      linkedStores.map((s) => (
+                      [...linkedStores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)).map((s) => (
                         <Badge key={s.id} variant="outline" className="text-xs">{s.name}</Badge>
                       ))
                     ) : (
