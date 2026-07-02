@@ -85,7 +85,6 @@ const DEFAULT_APP_VERSION = 'v1.0.0';
 
 import QuickStats from './components/layout/DashboardQuickStats';
 import { initTileCacheManager } from '@/components/utils/tileCacheManager';
-import { initPushNotifications } from '@/components/utils/pushNotifications';
 
 const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, count, isActive }) => {
   return (
