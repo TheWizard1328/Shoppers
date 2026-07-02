@@ -161,7 +161,7 @@ export default function AppSidebar({
 
         <div>
           <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>
-            {currentUser?.company_id ? 'Company App' : 'RxDeliver'}
+            {branding?.name || 'RxDeliver'}
           </h2>
           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
           <div className="flex items-center gap-1">
