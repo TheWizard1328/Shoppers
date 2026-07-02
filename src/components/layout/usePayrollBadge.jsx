@@ -38,7 +38,7 @@ export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
             p.pay_period_start <= selectedDate && p.pay_period_end >= selectedDate
           );
           if (match) {
-            setCurrentPayrollGrossPay(match.gross_pay || null);
+            setCurrentPayrollGrossPay((match.gross_pay || 0) + (match.app_fee_amount || 0) || null);
             return;
           }
         }
@@ -51,7 +51,7 @@ export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
         const c = (ps || []).find(p =>
           p.pay_period_start <= selectedDate && p.pay_period_end >= selectedDate
         );
-        setCurrentPayrollGrossPay(c ? (c.gross_pay || null) : null);
+        setCurrentPayrollGrossPay(c ? ((c.gross_pay || 0) + (c.app_fee_amount || 0) || null) : null);
       } catch {
         setCurrentPayrollGrossPay(null);
       }
