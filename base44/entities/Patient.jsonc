@@ -2,10 +2,6 @@
   "name": "Patient",
   "type": "object",
   "properties": {
-    "company_id": {
-      "type": "string",
-      "description": "Reference to the Company this delivery belongs to"
-    },
     "store_id": {
       "type": "string",
       "description": "ID of the store this patient is assigned to"
