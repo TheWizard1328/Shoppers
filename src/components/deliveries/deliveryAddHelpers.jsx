@@ -114,6 +114,15 @@ export const createPatientFromDraft = async ({
   return { patient, isNewPatient: true };
 };
 
+// Unified pickup-attachment policy for any newly created delivery (Staged, Pending, or In Transit):
+//   1. Attach to the first existing En Route pickup for the same store/date/driver (matching slot preferred).
+//   2. Otherwise attach to a same-date + driver Completed pickup — but only if it was completed within
+//      the last hour, UNLESS forceAttachToExisting is set (manual In Transit), in which case the most
+//      recent Completed pickup is reused regardless of how long ago it finished.
+//   3. Otherwise reuse any other in-progress pickup (pending/in_transit/Staged) already on this route.
+//   4. forceAttachToExisting must always attach to *something* if anything at all exists for this
+//      store/date/driver, even a non-matching-slot record, rather than spawn a new pickup.
+//   5. Otherwise (Staged/Pending with nothing to reuse) fall through to create a brand-new pickup.
 export const resolvePickupPuid = async ({
   stagedDeliveries,
   allDeliveries,
@@ -122,8 +131,7 @@ export const resolvePickupPuid = async ({
   driverId,
   timeSlot,
   ensureMissingPickup,
-  allowRecentlyCompleted = false,
-  reuseLatestCompleted = false
+  forceAttachToExisting = false
 }) => {
   const stagedPickup = (stagedDeliveries || []).find((delivery) =>
     !delivery.patient_id &&
@@ -137,49 +145,60 @@ export const resolvePickupPuid = async ({
     return stagedPickup.puid || stagedPickup.stop_id || null;
   }
 
-  const existingPickup = (allDeliveries || []).find((delivery) =>
+  // All already-persisted pickup records (patient_id null) for this exact store + date + driver
+  const candidatePickups = (allDeliveries || []).filter((delivery) =>
     delivery &&
     !delivery.patient_id &&
     delivery.store_id === storeId &&
     delivery.delivery_date === deliveryDate &&
-    delivery.driver_id === driverId &&
-    (delivery.ampm_deliveries || 'AM') === timeSlot
+    delivery.driver_id === driverId
   );
 
-  if (existingPickup) {
-    const isReusable = allowRecentlyCompleted
-      ? ['pending', 'en_route', 'in_transit'].includes(existingPickup.status) || (
-          existingPickup.status === 'completed' &&
-          existingPickup.actual_delivery_time &&
-          (new Date() - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000)
-        )
-      : ['pending', 'en_route', 'in_transit', 'Staged'].includes(existingPickup.status);
+  // 1. First existing En Route pickup for this store — prefer the matching AM/PM slot, else any slot
+  const enRoutePickup =
+    candidatePickups.find((p) => p.status === 'en_route' && (p.ampm_deliveries || 'AM') === timeSlot) ||
+    candidatePickups.find((p) => p.status === 'en_route');
+  if (enRoutePickup) {
+    return enRoutePickup.puid || enRoutePickup.stop_id;
+  }
 
-    if (isReusable) {
-      return existingPickup.puid || existingPickup.stop_id;
+  // 2. A same-date + driver Completed pickup
+  const completedPickups = candidatePickups
+    .filter((p) => p.status === 'completed' && p.actual_delivery_time)
+    .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+
+  if (completedPickups.length > 0) {
+    if (forceAttachToExisting) {
+      return completedPickups[0].puid || completedPickups[0].stop_id;
+    }
+    const ONE_HOUR_MS = 60 * 60 * 1000;
+    const recentCompleted = completedPickups.find(
+      (p) => (Date.now() - new Date(p.actual_delivery_time).getTime()) < ONE_HOUR_MS
+    );
+    if (recentCompleted) {
+      return recentCompleted.puid || recentCompleted.stop_id;
     }
   }
 
-  if (reuseLatestCompleted) {
-    const latestCompletedPickup = [...(allDeliveries || [])]
-      .filter((delivery) =>
-        delivery &&
-        !delivery.patient_id &&
-        delivery.store_id === storeId &&
-        delivery.status === 'completed' &&
-        delivery.stop_id
-      )
-      .sort((a, b) => {
-        const aTime = new Date(a.actual_delivery_time || a.updated_date || a.created_date || 0).getTime();
-        const bTime = new Date(b.actual_delivery_time || b.updated_date || b.created_date || 0).getTime();
-        return bTime - aTime;
-      })[0];
+  // 3. Other non-terminal pickups already in progress for this store/date/driver
+  const otherReusable =
+    candidatePickups.find((p) => ['pending', 'in_transit', 'Staged'].includes(p.status) && (p.ampm_deliveries || 'AM') === timeSlot) ||
+    candidatePickups.find((p) => ['pending', 'in_transit', 'Staged'].includes(p.status));
+  if (otherReusable) {
+    return otherReusable.puid || otherReusable.stop_id;
+  }
 
-    if (latestCompletedPickup) {
-      return latestCompletedPickup.stop_id;
+  // 4. Manual In Transit must attach to *something* if anything at all exists for this store/date/driver
+  if (forceAttachToExisting && candidatePickups.length > 0) {
+    const mostRecent = [...candidatePickups].sort(
+      (a, b) => new Date(b.updated_date || b.created_date || 0) - new Date(a.updated_date || a.created_date || 0)
+    )[0];
+    if (mostRecent) {
+      return mostRecent.puid || mostRecent.stop_id;
     }
   }
 
+  // 5. Nothing to reuse — fall back to computing a fresh id / creating a new pickup via the backend
   const fallbackPuid = getPickupStopIdForDelivery(storeId, deliveryDate, timeSlot, allDeliveries);
 
   if (!ensureMissingPickup) {

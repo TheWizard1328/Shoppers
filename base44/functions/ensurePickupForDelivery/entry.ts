@@ -112,7 +112,12 @@ Deno.serve(async (req) => {
       primarySlot: legacyPrimarySlot = null,
       allowCreateIfMissing = false,
       skipReuseCheck = false,
-      deliveryId: callerDeliveryId = null
+      deliveryId: callerDeliveryId = null,
+      // When true (manual In Transit creation), always attach to an existing pickup —
+      // the first En Route one, else the most recent Completed one regardless of how
+      // long ago it finished. When false (Staged/Pending creation), a Completed pickup
+      // is only reused if it finished within the last hour.
+      forceAttachIfInTransit = false
     } = body || {};
 
     if (!storeId || !deliveryDate || !driverId) {
@@ -200,6 +205,23 @@ Deno.serve(async (req) => {
           } catch (_) { incompletePickup = { ...incompletePickup, status: 'en_route' }; }
         }
         const pickupWithDriverName = await ensurePickupDriverName(base44, incompletePickup, driverName);
+        if (!pickupWithDriverName) {
+          return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
+        }
+        return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
+      }
+
+      // Reuse a same-date + driver Completed pickup instead of creating a duplicate.
+      const completedPickupsSpecial = existingPickups
+        .filter((pickup) => !pickup.patient_id && pickup.status === 'completed' && pickup.actual_delivery_time)
+        .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+
+      const reusableCompletedSpecial = forceAttachIfInTransit
+        ? completedPickupsSpecial[0]
+        : completedPickupsSpecial.find((pickup) => (Date.now() - new Date(pickup.actual_delivery_time).getTime()) < 60 * 60 * 1000);
+
+      if (reusableCompletedSpecial) {
+        const pickupWithDriverName = await ensurePickupDriverName(base44, reusableCompletedSpecial, driverName);
         if (!pickupWithDriverName) {
           return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
         }
@@ -361,6 +383,23 @@ Deno.serve(async (req) => {
           return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
         }
         triggerRegenForReusedPickup(enRoutePickup, updated);
+        return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
+      }
+
+      // Reuse a same-date + driver Completed pickup instead of creating a duplicate.
+      const completedPickupsGeneral = storePickups
+        .filter((pickup) => pickup.status === 'completed' && pickup.actual_delivery_time)
+        .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+
+      const reusableCompletedGeneral = forceAttachIfInTransit
+        ? completedPickupsGeneral[0]
+        : completedPickupsGeneral.find((pickup) => (Date.now() - new Date(pickup.actual_delivery_time).getTime()) < 60 * 60 * 1000);
+
+      if (reusableCompletedGeneral) {
+        const pickupWithDriverName = await ensurePickupDriverName(base44, reusableCompletedGeneral, driverName);
+        if (!pickupWithDriverName) {
+          return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
+        }
         return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
       }
 

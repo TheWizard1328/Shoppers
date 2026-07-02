@@ -1161,7 +1161,7 @@ export default function DeliveryForm({
       : resolveProjectedDeliveryDriver({ store, patient, deliveryDate: formData.delivery_date, drivers, getDriverNameForStorage, scheduledDriverMap: scheduledDriverMapRef.current });
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
     const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, autoDriverId, allDeliveries);
-    const puid = await resolvePickupPuid({ stagedDeliveries, allDeliveries, storeId: projected.store_id, deliveryDate: formData.delivery_date, driverId: autoDriverId, timeSlot, allowRecentlyCompleted: true });
+    const puid = await resolvePickupPuid({ stagedDeliveries, allDeliveries, storeId: projected.store_id, deliveryDate: formData.delivery_date, driverId: autoDriverId, timeSlot });
     const newStagedItem = buildProjectedStagedItem({ projected, patient, store, formData, timeSlot, autoSelectedDriverId, autoSelectedDriverName, distanceFromStore });
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
     setStagedDeliveries((prev) => [...prev, puid ? { ...newStagedItem, puid } : newStagedItem]);
