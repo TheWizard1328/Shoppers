@@ -15,6 +15,7 @@ import { toast } from "sonner";
 export default function SquareLocationConfigs() {
   const [configs, setConfigs] = useState([]);
   const [stores, setStores] = useState([]);
+  const [appUsers, setAppUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editingConfig, setEditingConfig] = useState(null);
@@ -55,12 +56,14 @@ export default function SquareLocationConfigs() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [configsData, storesData] = await Promise.all([
+      const [configsData, storesData, appUsersData] = await Promise.all([
         base44.entities.SquareLocationConfig.list(),
-        base44.entities.Store.list()
+        base44.entities.Store.list(),
+        base44.entities.AppUser.filter({ status: 'active' })
       ]);
       setConfigs(configsData || []);
       if ((storesData || []).length > 0) setStores(storesData);
+      setAppUsers((appUsersData || []).filter((u) => u?.app_roles?.includes('driver')));
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load Square location configs");
@@ -72,6 +75,26 @@ export default function SquareLocationConfigs() {
   // Returns all stores linked to this config via store.square_location_config_id
   const getLinkedStores = (config) =>
     stores.filter((s) => s?.square_location_config_id === config.id);
+
+  // Returns unique active drivers assigned to any of the given store IDs
+  const getDriversForStores = (storeIds) => {
+    const storeIdSet = new Set(storeIds);
+    const seen = new Set();
+    return appUsers.filter((u) => {
+      if (!u?.app_roles?.includes('driver')) return false;
+      const assigned = (u.store_ids || []).some((id) => storeIdSet.has(id));
+      if (!assigned || seen.has(u.id)) return false;
+      seen.add(u.id);
+      return true;
+    }).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+  };
+
+  const formatDriverNames = (drivers) => {
+    if (drivers.length === 0) return null;
+    const names = drivers.map((d) => d.user_name || 'Unknown');
+    if (names.length === 1) return names[0];
+    return names.slice(0, -1).join(', ') + ' & ' + names[names.length - 1];
+  };
 
   const handleOpenDialog = (config = null) => {
     if (config) {
@@ -243,7 +266,7 @@ export default function SquareLocationConfigs() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   {config.notes && <p className="text-sm text-slate-600 mb-3">{config.notes}</p>}
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-2 text-sm mb-2">
                     <span className="text-slate-500">Stores:</span>
                     {linkedStores.length > 0 ? (
                       [...linkedStores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)).map((s) => (
@@ -253,6 +276,16 @@ export default function SquareLocationConfigs() {
                       <span className="text-slate-400 italic">No stores linked</span>
                     )}
                   </div>
+                  {(() => {
+                    const drivers = getDriversForStores(linkedStores.map((s) => s.id));
+                    const label = formatDriverNames(drivers);
+                    return label ? (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-slate-500">{drivers.length === 1 ? 'Driver:' : 'Drivers:'}</span>
+                        <span className="text-slate-700">{label}</span>
+                      </div>
+                    ) : null;
+                  })()}
                 </CardContent>
               </Card>
             );
