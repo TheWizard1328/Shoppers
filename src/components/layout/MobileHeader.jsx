@@ -102,7 +102,7 @@ export default function MobileHeader({
                 onMessagingClick?.();
               }
             }}>
-            {logo ? (
+            {logo && !logo.includes('placehold') ? (
               <img
                 src={logo}
                 alt="Company Logo"
@@ -111,7 +111,7 @@ export default function MobileHeader({
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             ) : (
-              <div className="w-8 h-8 rounded bg-emerald-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-xs">Rx</span>
               </div>
             )}
