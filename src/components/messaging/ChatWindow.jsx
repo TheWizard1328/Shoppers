@@ -159,19 +159,34 @@ function ChatWindow({
 
     setIsSending(true);
     try {
+      const messageContent = newMessage.trim();
       const createdMessage = await base44.entities.Message.create({
         sender_id: currentUser.id,
         sender_name: currentUser.user_name || currentUser.full_name,
         receiver_id: otherUserId,
         receiver_name: otherUserName,
         conversation_id: conversationId,
-        content: newMessage.trim(),
+        content: messageContent,
         read: false,
       });
       setNewMessage('');
       setMessages((prev) => [...prev, createdMessage]);
       shouldRestoreFocusRef.current = true;
       restoreInputFocus(isMobileRef.current ? 60 : 0);
+
+      // Push notification so the recipient is alerted even if the app is backgrounded.
+      // Fire-and-forget — must never block the chat UI. Deep-links back into this
+      // conversation via /?openChat=<senderId> (see Layout.jsx's openChat handler).
+      const senderName = currentUser.user_name || currentUser.full_name || 'RxDeliver';
+      base44.functions.invoke('sendPushNotification', {
+        user_id: otherUserId,
+        title: senderName,
+        body: messageContent,
+        tag: `chat-${conversationId}`,
+        url: `/?openChat=${encodeURIComponent(currentUser.id)}&openChatName=${encodeURIComponent(senderName)}`
+      }).catch((error) => {
+        console.warn('[ChatWindow] Push notification failed:', error?.message || error);
+      });
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {

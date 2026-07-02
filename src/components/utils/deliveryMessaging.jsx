@@ -40,7 +40,28 @@ export async function sendDeliveryMessage({
 }
 
 /**
- * Send notification through configured channels (in-app only)
+ * Send a Web Push notification for a delivery event. `receiverId` here is
+ * already the auth user_id (see getRecipientsForEvent, which maps AppUser
+ * records to { id: u.user_id, name: u.user_name }) — the same id space
+ * PushSubscription.user_id is keyed on, so no id translation is needed.
+ * Fire-and-forget: push delivery failures must never block in-app messaging.
+ */
+async function sendPushForNotification({ receiverId, senderName, content }) {
+  if (!receiverId || !content) return;
+  try {
+    await base44.functions.invoke('sendPushNotification', {
+      user_id: receiverId,
+      title: senderName || 'RxDeliver',
+      body: content,
+      url: '/'
+    });
+  } catch (error) {
+    console.warn('[deliveryMessaging] Push notification failed:', error?.message || error);
+  }
+}
+
+/**
+ * Send notification through configured channels (in-app + push)
  */
 async function sendNotification({
   event,
@@ -63,6 +84,9 @@ async function sendNotification({
       content
     });
   }
+
+  // Also push a native notification so the recipient is alerted even when the app is backgrounded
+  sendPushForNotification({ receiverId, senderName, content });
 }
 
 /**
