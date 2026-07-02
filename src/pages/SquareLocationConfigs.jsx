@@ -168,7 +168,7 @@ export default function SquareLocationConfigs() {
         </Card> :
 
       <div className="space-y-4">
-          {configs.map((config) => {
+          {[...configs].sort((a, b) => (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1)).map((config) => {
           const assignedStore = getAssignedStore(config);
           return (
             <Card key={config.id} className={config.status === "inactive" ? "opacity-60" : ""}>
