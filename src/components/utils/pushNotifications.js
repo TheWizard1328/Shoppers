@@ -12,7 +12,19 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 function isPushSupported() {
-  return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  return typeof window !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window &&
+    'Notification' in window;
+}
+
+async function getPushRegistration() {
+  // Prefer the dedicated push-sw.js registration
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  const pushReg = registrations.find(r => r.active?.scriptURL?.includes('push-sw.js'));
+  if (pushReg) return pushReg;
+  // Fallback: wait for any ready SW
+  return navigator.serviceWorker.ready;
 }
 
 async function persistSubscription(userId, subscription) {
@@ -37,24 +49,32 @@ export async function initPushNotifications(userId) {
   _initInFlight = (async () => {
     try {
       if (Notification.permission === 'denied') return;
+
       if (Notification.permission === 'default') {
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') return;
       }
+
       if (Notification.permission !== 'granted') return;
 
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getPushRegistration();
       let subscription = await registration.pushManager.getSubscription();
 
       if (!subscription) {
         const { publicKey } = await base44.functions.invoke('getVapidPublicKey', {});
-        if (!publicKey) return;
+        if (!publicKey) {
+          console.warn('[pushNotifications] No VAPID public key returned');
+          return;
+        }
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(publicKey)
         });
+        console.log('[pushNotifications] New subscription created');
       }
+
       await persistSubscription(userId, subscription);
+      console.log('[pushNotifications] Subscription persisted for user', userId);
     } catch (error) {
       console.warn('[pushNotifications] Init failed:', error?.message || error);
     } finally {
@@ -62,4 +82,21 @@ export async function initPushNotifications(userId) {
     }
   })();
   return _initInFlight;
+}
+
+/**
+ * Force re-subscribe (clears existing subscription and creates a fresh one).
+ * Useful if VAPID keys changed or subscription expired.
+ */
+export async function resetPushSubscription(userId) {
+  if (!userId || !isPushSupported()) return;
+  try {
+    const registration = await getPushRegistration();
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) await existing.unsubscribe();
+    _initInFlight = null;
+    await initPushNotifications(userId);
+  } catch (error) {
+    console.warn('[pushNotifications] Reset failed:', error?.message || error);
+  }
 }

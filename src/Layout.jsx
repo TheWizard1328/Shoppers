@@ -219,16 +219,22 @@ export default function Layout({ children, currentPageName }) {
   const [isSettingUpDevice, setIsSettingUpDevice] = useState(false);
   const [showInitRetryHint, setShowInitRetryHint] = useState(false);
 
-  // ─── Web Push: subscribe on first user gesture (iOS/Android requirement) ───
+  // ─── Web Push: subscribe as soon as possible ────────────────────────────────
+  // If permission is already granted → subscribe immediately.
+  // If permission is 'default' (not yet asked) → wait for first user gesture
+  // so the browser permission prompt feels natural (iOS/Android requirement).
   useEffect(() => {
     if (!currentUser?.id || typeof Notification === 'undefined') return;
 
     if (Notification.permission === 'granted') {
+      // Already permitted — subscribe right away (safe to call repeatedly, idempotent)
       initPushNotifications(currentUser.id).catch(() => {});
       return;
     }
-    if (Notification.permission !== 'default') return;
 
+    if (Notification.permission !== 'default') return; // 'denied' — nothing to do
+
+    // Not yet asked — request on first meaningful gesture
     const handleFirstGesture = () => {
       document.removeEventListener('pointerdown', handleFirstGesture, true);
       document.removeEventListener('keydown', handleFirstGesture, true);
