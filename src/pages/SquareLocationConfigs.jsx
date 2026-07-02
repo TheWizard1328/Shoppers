@@ -301,6 +301,7 @@ export default function SquareLocationConfigs() {
                     <Checkbox
                       checked={formData.selectedStoreIds.includes(store.id)}
                       onCheckedChange={() => toggleStoreId(store.id)} />
+                    {store.color && <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: store.color }} />}
                     <span className="text-sm">{store.name}</span>
                     {store.square_location_config_id && store.square_location_config_id !== editingConfig?.id && (
                       <span className="text-xs text-amber-500 ml-auto">linked elsewhere</span>
