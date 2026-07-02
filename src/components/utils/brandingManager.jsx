@@ -2,6 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { getData } from './dataManager';
 
 const DEFAULT_BRANDING = {
+  name: 'RxDeliver',
   logo_url: '',
   favicon_url: '',
   primary_color: '#000000',
@@ -23,6 +24,7 @@ export async function getCompanyBranding(companyId) {
 
     if (company && company.length > 0) {
       cachedBranding = {
+        name: company[0].name || DEFAULT_BRANDING.name,
         logo_url: company[0].logo_url || DEFAULT_BRANDING.logo_url,
         favicon_url: company[0].favicon_url || DEFAULT_BRANDING.favicon_url,
         primary_color: company[0].primary_color || DEFAULT_BRANDING.primary_color,
