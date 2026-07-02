@@ -1,13 +1,18 @@
 /**
- * map-tile-sw.js — HERE map tile cache-first Service Worker
+ * map-tile-sw.js — HERE map tile cache-first Service Worker + Web Push
  *
- * Strategy:
+ * Tile caching strategy:
  *   1. Check active city cache → return if hit
  *   2. Check legacy/fallback caches → return if hit
  *   3. Fetch from network, cache it, broadcast TILE_NETWORK_FETCH to clients
  *
  * City namespacing: each city gets its own Cache Storage bucket so switching
  * cities doesn't invalidate the entire tile cache.
+ *
+ * Push notifications:
+ *   'push' event      — shows a notification using the payload's title/body/icon/url
+ *   'notificationclick' — focuses an existing app window or opens a new one,
+ *                         navigating to `data.url` if provided (deep link)
  */
 
 const SW_VERSION = 'v9';
@@ -262,3 +267,72 @@ async function getCacheStats() {
     return { totalTiles: 0, perCity: {}, activeCityId };
   }
 }
+
+
+// ─── Web Push ─────────────────────────────────────────────────────────────────
+
+const DEFAULT_NOTIFICATION_ICON = '/icons/icon-192.png';
+const DEFAULT_NOTIFICATION_BADGE = '/icons/icon-192.png';
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (_) {
+    // Payload wasn't JSON — fall back to plain text body
+    payload = { body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || 'RxDeliver';
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || DEFAULT_NOTIFICATION_ICON,
+    badge: payload.badge || DEFAULT_NOTIFICATION_BADGE,
+    tag: payload.tag || undefined,
+    // Re-notify even if the same tag exists so route/message alerts aren't silently merged
+    renotify: !!payload.tag,
+    requireInteraction: !!payload.requireInteraction,
+    data: {
+      url: payload.url || '/',
+      ...payload.data
+    }
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+      // If a window is already open, focus it and navigate to the deep link
+      for (const client of allClients) {
+        try {
+          const clientUrl = new URL(client.url);
+          const sameOrigin = clientUrl.origin === self.location.origin;
+          if (sameOrigin && 'focus' in client) {
+            await client.focus();
+            if ('navigate' in client && targetUrl !== clientUrl.pathname) {
+              try {
+                await client.navigate(targetUrl);
+              } catch (_) {
+                // navigate() can fail cross-origin or if unsupported — fall back silently,
+                // the focused window is still usable even without the deep link
+              }
+            }
+            return;
+          }
+        } catch (_) {}
+      }
+
+      // No existing window — open a new one at the deep link
+      if (self.clients.openWindow) {
+        await self.clients.openWindow(targetUrl);
+      }
+    })()
+  );
+});

@@ -84,6 +84,7 @@ const DEFAULT_APP_VERSION = 'v1.0.0';
 
 import QuickStats from './components/layout/DashboardQuickStats';
 import { initTileCacheManager } from '@/components/utils/tileCacheManager';
+import { initPushNotifications } from '@/components/utils/pushNotifications';
 
 const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, count, isActive }) => {
   return (
@@ -649,6 +650,37 @@ export default function Layout({ children, currentPageName }) {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Subscribe this device to Web Push once the user is known. Safe to call
+  // repeatedly — initPushNotifications no-ops if already subscribed, unsupported,
+  // or permission was previously denied.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    initPushNotifications(currentUser.id).catch(() => {});
+  }, [currentUser?.id]);
+
+  // Deep-link handler: a push notification for a chat message opens the app at
+  // /?openChat=<senderId>&openChatName=<encoded name>. Open that conversation once
+  // the messaging state setters and currentUser are ready, then clean the URL.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const openChatUserId = params.get('openChat');
+      if (!openChatUserId) return;
+      const openChatName = params.get('openChatName') || 'User';
+      const conversationId = [currentUser.id, openChatUserId].sort().join('_');
+      setInitialConversation({ conversationId, otherUserId: openChatUserId, otherUserName: decodeURIComponent(openChatName) });
+      setShowMessaging(true);
+      params.delete('openChat');
+      params.delete('openChatName');
+      const newSearch = params.toString();
+      const newUrl = `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`;
+      window.history.replaceState({}, '', newUrl);
+    } catch (_) {
+      // Non-fatal — worst case the deep link query param just lingers in the URL
+    }
+  }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const initialDataLoadFiredRef = useRef(false);
   useEffect(() => {
