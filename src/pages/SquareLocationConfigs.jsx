@@ -205,7 +205,13 @@ export default function SquareLocationConfigs() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {[...configs].sort((a, b) => (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1)).map((config) => {
+          {[...configs].sort((a, b) => {
+            const statusDiff = (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1);
+            if (statusDiff !== 0) return statusDiff;
+            const aMin = getLinkedStores(a).reduce((m, s) => Math.min(m, s.sort_order ?? Infinity), Infinity);
+            const bMin = getLinkedStores(b).reduce((m, s) => Math.min(m, s.sort_order ?? Infinity), Infinity);
+            return aMin - bMin;
+          }).map((config) => {
             const linkedStores = getLinkedStores(config);
             return (
               <Card key={config.id} className={config.status === "inactive" ? "opacity-60" : ""}>
@@ -223,7 +229,7 @@ export default function SquareLocationConfigs() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={config.status === "active" ? "default" : "secondary"}>
+                      <Badge className={config.status === "active" ? "bg-green-600 text-white hover:bg-green-600" : "bg-red-600 text-white hover:bg-red-600"}>
                         {config.status}
                       </Badge>
                       <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(config)}>
@@ -241,7 +247,7 @@ export default function SquareLocationConfigs() {
                     <span className="text-slate-500">Stores:</span>
                     {linkedStores.length > 0 ? (
                       [...linkedStores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)).map((s) => (
-                        <Badge key={s.id} variant="outline" className="text-xs">{s.name}</Badge>
+                        <Badge key={s.id} className="text-xs text-white border-0" style={{ backgroundColor: s.color || '#64748b' }}>{s.name}</Badge>
                       ))
                     ) : (
                       <span className="text-slate-400 italic">No stores linked</span>
