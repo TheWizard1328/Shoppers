@@ -82,7 +82,22 @@ export async function handleSaveDelivery(deliveryData, ctx) {
         'actual_delivery_time', 'delivery_time_eta',
       ];
 
-      const hasStructuralChange = STRUCTURAL_FIELDS.some(
+      // BUG FIX: a pure Staged→pending status flip (no other structural field changed)
+      // must NEVER trigger stop-order recalculation + optimization. This mirrors the
+      // isPureStagedToPendingTransition guard already in handleBatchSave.jsx for the
+      // batch/multi-add path — this single-delivery edit path was missing the equivalent
+      // check, so converting one staged pickup to pending (e.g. via a status dropdown)
+      // was being treated as a full structural route change just because 'status' is in
+      // STRUCTURAL_FIELDS, wastefully re-running the HERE optimizer + showing the orange
+      // "Optimizing Route" indicator for a transition that never changes the active route.
+      const isPureStagedToPendingStatusChange =
+        String(editingDelivery?.status || '') === 'Staged' &&
+        String(deliveryData?.status || '') === 'pending' &&
+        STRUCTURAL_FIELDS.filter((field) => field !== 'status').every(
+          (field) => (deliveryData?.[field] ?? '') === (editingDelivery?.[field] ?? '')
+        );
+
+      const hasStructuralChange = !isPureStagedToPendingStatusChange && STRUCTURAL_FIELDS.some(
         (field) => (deliveryData?.[field] ?? '') !== (editingDelivery?.[field] ?? '')
       );
 
