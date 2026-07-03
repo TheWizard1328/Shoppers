@@ -551,7 +551,7 @@ export default function AdminMetrics() {
       }
 
       const totalReturned = item.returned || 0;
-        const totalCompleted = (item.completed || 0) + (item.afterHours || 0) - totalReturned;
+        const totalCompleted = (item.completed || 0) + (item.afterHours || 0);
         const totalFailed = item.failed || 0;
       const extraKm = item.extra_km || item.extraKm || 0;
 
@@ -563,7 +563,7 @@ export default function AdminMetrics() {
         envelopeCount: envelopeValue,
         fees: item.fees || 0,
         extraKm,
-        totalDeliveries: Math.max(0, totalCompleted) + totalFailed + totalReturned
+        totalDeliveries: totalCompleted + totalFailed + totalReturned
       };
     });
   }, [displayMetricsData.storeData, filteredData, metricsData, selectedMonth, selectedStoreMonth, selectedYear, showEnvelopeAdjustedTotals]);
