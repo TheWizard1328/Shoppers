@@ -95,7 +95,7 @@ const isPatientOrTransferDelivery = (delivery) => !!delivery?.patient_id;
 const isReturnDelivery = (delivery) => {
   const name = String(delivery?.patient_name || '').toUpperCase();
   const notes = String(delivery?.delivery_notes || '').toUpperCase();
-  return name.includes('(RTN)') || notes.includes('(RTN)');
+  return name.includes('Return') || notes.includes('(RTN)');
 };
 // ISD/ISP inter-store deliveries: always counted as deliveries, never as pickups
 const isInterStoreDelivery = (delivery) => {
