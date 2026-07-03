@@ -1553,7 +1553,39 @@ useEffect(() => {
     if (cardElement) {
       cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
+
+    // Auto-open Patient History panel for dispatchers clicking their own store's patient markers
+    if (
+      delivery.patient_id &&
+      isDispatcher &&
+      !isAdmin &&
+      currentUser?.store_ids?.includes(delivery.store_id)
+    ) {
+      setTimeout(() => {
+        const patient = patients.find((p) => p && p.id === delivery.patient_id);
+        window.dispatchEvent(new CustomEvent('openPatientHistoryPanel', {
+          detail: { patientId: delivery.patient_id, patient }
+        }));
+      }, 400);
+    }
   };
+
+  // Collapse expanded stop card when Patient History panel is closed
+  useEffect(() => {
+    const handlePatientHistoryPanelClosed = () => {
+      setSelectedCardId(null);
+      setHighlightedCardId(null);
+      cardExpandedAtRef.current = null;
+      if (previousMapState?.center && previousMapState?.zoom) {
+        setMapCenter(previousMapState.center);
+        setMapZoom(previousMapState.zoom);
+        setShouldFitBounds(null);
+      }
+      setPreviousMapState(null);
+    };
+    window.addEventListener('patientHistoryPanelClosed', handlePatientHistoryPanelClosed);
+    return () => window.removeEventListener('patientHistoryPanelClosed', handlePatientHistoryPanelClosed);
+  }, [previousMapState]);
 
   const handleCardClick = (delivery) => {
     if (!delivery || !delivery.id) {

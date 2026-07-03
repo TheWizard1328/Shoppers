@@ -164,7 +164,10 @@ export default function DashboardDialogs({
         patient={historyPatient}
         deliveries={deliveries}
         currentUser={currentUser}
-        onClose={() => setHistoryPatient(null)}
+        onClose={() => {
+          setHistoryPatient(null);
+          window.dispatchEvent(new CustomEvent('patientHistoryPanelClosed'));
+        }}
         onEditDelivery={(delivery) => {
           setHistoryPatient(null);
           setEditingDelivery(delivery);
