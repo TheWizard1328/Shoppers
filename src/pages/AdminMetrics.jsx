@@ -551,7 +551,7 @@ export default function AdminMetrics() {
       }
 
       const totalReturned = item.returned || 0;
-      const totalCompleted = (item.completed || 0) + (item.afterHours || 0);
+      const totalCompleted = (item.completed || 0) + (item.afterHours || 0) - totalReturned;
       const totalFailed = item.failed || 0;
       const extraKm = item.extra_km || item.extraKm || 0;
 
