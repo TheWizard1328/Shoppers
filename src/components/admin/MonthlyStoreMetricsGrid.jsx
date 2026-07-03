@@ -77,11 +77,13 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
+    const currentDay = now.getDate();
     const targetYear = parseInt(selectedYear, 10);
 
     if (targetYear < currentYear) return 12;
     if (targetYear > currentYear) return 0;
-    return currentMonth; // include current month
+    // Only include the current month in averages after the 20th
+    return currentDay > 20 ? currentMonth : currentMonth - 1;
   };
 
   // Calculate totals and averages per store (yearly)
