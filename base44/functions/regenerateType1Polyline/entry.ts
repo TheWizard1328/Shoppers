@@ -454,13 +454,34 @@ Deno.serve(async (req) => {
     // stops were completed in (re-optimization, skips, manual reorders, etc.) — using stop_order
     // here caused the polyline origin to sometimes anchor to the wrong finished stop, producing a
     // different/inconsistent origin point each time Start was pressed.
-    const mostRecentFinishedStop = (deliveries || [])
-      .filter((delivery) => finishedStatuses.has(delivery.status))
+    const finishedStopsForOrigin = (deliveries || []).filter((delivery) => finishedStatuses.has(delivery.status));
+    const mostRecentFinishedStop = [...finishedStopsForOrigin]
       .sort((a, b) => {
         const aTime = new Date(a?.actual_delivery_time || a?.updated_date || a?.created_date || 0).getTime();
         const bTime = new Date(b?.actual_delivery_time || b?.updated_date || b?.created_date || 0).getTime();
         return bTime - aTime;
       })[0] || null;
+
+    // Diagnostic-only: if the old stop_order-based pick would have chosen a DIFFERENT stop than
+    // the time-based one above, log it loudly. This doesn't change behavior (time-based always
+    // wins) — it just gives us a trail in the function logs if stop_order and completion time
+    // ever drift apart again, instead of silently anchoring the polyline to the wrong stop.
+    const highestStopOrderFinishedStop = [...finishedStopsForOrigin]
+      .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
+    if (
+      mostRecentFinishedStop &&
+      highestStopOrderFinishedStop &&
+      mostRecentFinishedStop.id !== highestStopOrderFinishedStop.id
+    ) {
+      console.warn(
+        `[regenerateType1Polyline] STOP_ORDER/TIME MISMATCH for driver ${driverId} on ${deliveryDate}: ` +
+        `time-based most-recent-finished is ${mostRecentFinishedStop.id} (stop_order=${mostRecentFinishedStop.stop_order}, ` +
+        `completed=${mostRecentFinishedStop.actual_delivery_time || mostRecentFinishedStop.updated_date}), but highest ` +
+        `stop_order among finished stops is ${highestStopOrderFinishedStop.id} (stop_order=${highestStopOrderFinishedStop.stop_order}, ` +
+        `completed=${highestStopOrderFinishedStop.actual_delivery_time || highestStopOrderFinishedStop.updated_date}). ` +
+        `Using the time-based stop as polyline origin.`
+      );
+    }
 
     const patientIds = [...new Set(activeStops.filter((d) => d?.patient_id).map((d) => d.patient_id))];
     const storeIds = [...new Set(activeStops.filter((d) => d?.store_id).map((d) => d.store_id))];
