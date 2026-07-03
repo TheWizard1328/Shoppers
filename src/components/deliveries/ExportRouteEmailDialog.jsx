@@ -236,7 +236,7 @@ export default function ExportRouteEmailDialog({
 
   const isRange = endDate > startDate;
   const dayCount = isRange ? Math.round((parseISO(endDate) - parseISO(startDate)) / 86400000) + 1 : 1;
-  const rangeTooBig = dayCount > 14;
+  const rangeTooBig = dayCount > 31;
   const canExport = !isLoading && !isExporting && stores.length > 0 && startDate && !rangeTooBig;
 
   return (
@@ -318,7 +318,7 @@ export default function ExportRouteEmailDialog({
           {isRange && (
             <p className={`text-xs -mt-1 ${rangeTooBig ? 'text-red-500 font-medium' : 'text-slate-500'}`}>
               {rangeTooBig
-                ? `⚠️ ${dayCount} days selected — maximum is 14. Please shorten the range.`
+                ? `⚠️ ${dayCount} days selected — maximum is 31. Please shorten the range.`
                 : `Exporting ${dayCount} days — stores with deliveries in any day of this range will appear below.`}
             </p>
           )}
