@@ -152,11 +152,11 @@ export default function ExportRouteEmailDialog({
       drafts[store.id] = Array.isArray(store.route_export_emails) ? store.route_export_emails : [];
     });
 
-    // Driver names for the start date
+    // Driver names across the full date range
     const driverNames = {};
     filteredStores.forEach((store) => {
       const storeDeliveries = allDeliveries.filter(
-        (d) => d && d.delivery_date === startDate && d.store_id === store.id
+        (d) => d && datesToCheck.includes(d.delivery_date) && d.store_id === store.id
       );
       const uniqueDrivers = [...new Set(storeDeliveries.map((d) => d.driver_name || d.driver_id).filter(Boolean))];
       driverNames[store.id] = uniqueDrivers;
