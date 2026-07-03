@@ -538,15 +538,15 @@ export default function DeliveriesPage() {
           console.log(`📅 [Deliveries] Delivery date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
       } else {
-        // CRITICAL: Load ENTIRE MONTH's data for Route Management - bypass offline DB to get fresh data
-        const currentYear = selectedYear;
-        const currentMonth = selectedMonth;
-        const startOfMonth = new Date(currentYear, currentMonth, 1);
-        const endDate = new Date(currentYear, currentMonth + 1, 0);
-        const startDateStr = format(startOfMonth, 'yyyy-MM-dd');
-        const endDateStr = format(endDate, 'yyyy-MM-dd');
+        // Load current month through end of current year, so future scheduled deliveries
+        // (e.g. next month) always appear in the date list alongside current-month dates.
+        const now = new Date();
+        const rangeStart = new Date(now.getFullYear(), now.getMonth(), 1); // start of current month
+        const rangeEnd = new Date(now.getFullYear(), 11, 31); // end of current year
+        const startDateStr = format(rangeStart, 'yyyy-MM-dd');
+        const endDateStr = format(rangeEnd, 'yyyy-MM-dd');
 
-        console.log('📅 [Deliveries] Fetching entire month:', format(startOfMonth, 'MMMM yyyy'), `(${startDateStr} to ${endDateStr})`);
+        console.log('📅 [Deliveries] Fetching current month → end of year:', `(${startDateStr} to ${endDateStr})`);
 
         // CRITICAL: Always fetch fresh from server for Route Management (don't rely on offline DB which may be stale)
         try {
@@ -554,11 +554,11 @@ export default function DeliveriesPage() {
             'Delivery',
             '-delivery_date',
             { delivery_date: { $gte: startDateStr, $lte: endDateStr } },
-            true // Force refresh to ensure we get complete month data
+            true // Force refresh to ensure we get complete data
           );
-          console.log(`✅ [Deliveries] Fetched ${deliveriesData?.length || 0} deliveries from server for month`);
+          console.log(`✅ [Deliveries] Fetched ${deliveriesData?.length || 0} deliveries from server for range`);
         } catch (error) {
-          console.error('❌ [Deliveries] Error fetching month deliveries:', error.message);
+          console.error('❌ [Deliveries] Error fetching deliveries:', error.message);
           deliveriesData = [];
         }
       }
@@ -1206,26 +1206,7 @@ export default function DeliveriesPage() {
       console.log(`👔 [Deliveries] Dispatcher filter: ${deliveriesToGroup.length} of ${driverFilteredDeliveries.length} deliveries in assigned stores`);
     }
 
-    // When in Route Management mode for admins/dispatchers (not Driver Overview or driver-only), only show dates in selected month
-    const isDriverOnlyUser = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
-    if (!isDriverOverviewMode && !isDriverOnlyUser && selectedYear !== undefined && selectedMonth !== undefined) {
-      const monthStart = new Date(selectedYear, selectedMonth, 1);
-      const monthEnd = new Date(selectedYear, selectedMonth + 1, 0);
-      const filtered = deliveriesToGroup.filter((d) => {
-        if (!d || !d.delivery_date) return false;
-        const [y, m, day] = d.delivery_date.split('-').map(Number);
-        const deliveryDate = new Date(y, m - 1, day);
-        return deliveryDate >= monthStart && deliveryDate <= monthEnd;
-      });
-      return filtered.reduce((acc, delivery) => {
-        const dateKey = delivery.delivery_date.substring(0, 10);
-        if (!acc[dateKey]) acc[dateKey] = [];
-        acc[dateKey].push(delivery);
-        return acc;
-      }, {});
-    }
-
-    // Driver Overview OR driver-only users: show all dates
+    // Show all dates from loaded data (current month through end of year + any past dates loaded)
     return deliveriesToGroup.reduce((acc, delivery) => {
       if (!delivery || !delivery.delivery_date) {
         return acc;
@@ -1266,17 +1247,9 @@ export default function DeliveriesPage() {
 
   const filteredDatesByMonth = useMemo(() => {
     if (!sortedDates) return [];
-
-    // Filter dates by selected year and month
-    const filtered = sortedDates.filter((date) => {
-      const [y, m, d] = date.split('-').map(Number);
-      return !isNaN(y) && !isNaN(m) && !isNaN(d) && y === selectedYear && m - 1 === selectedMonth;
-    });
-
-    console.log(`📅 [Deliveries] Filtered dates for ${selectedMonth + 1}/${selectedYear}: ${filtered.length} dates`);
-
-    return filtered;
-  }, [sortedDates, selectedYear, selectedMonth]);
+    // Show all available dates (current month through end of year, plus any past dates in loaded data)
+    return sortedDates;
+  }, [sortedDates]);
 
   const dateListWithStats = useMemo(() => {
     const patientMap = new Map((effectivePatients || []).map((p) => [p.id, p]));
