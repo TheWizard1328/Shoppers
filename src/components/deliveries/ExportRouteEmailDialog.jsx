@@ -234,8 +234,10 @@ export default function ExportRouteEmailDialog({
     });
   };
 
-  const canExport = !isLoading && !isExporting && stores.length > 0 && startDate;
   const isRange = endDate > startDate;
+  const dayCount = isRange ? Math.round((parseISO(endDate) - parseISO(startDate)) / 86400000) + 1 : 1;
+  const rangeTooBig = dayCount > 14;
+  const canExport = !isLoading && !isExporting && stores.length > 0 && startDate && !rangeTooBig;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -302,7 +304,7 @@ export default function ExportRouteEmailDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={isExporting || isLoading}
+                  disabled={isExporting || isLoading || rangeTooBig}
                   onClick={() => onPreviewPdf({ startDate, endDate, useBarcodes })}
                   className="gap-1.5 whitespace-nowrap"
                 >
@@ -314,8 +316,10 @@ export default function ExportRouteEmailDialog({
           </div>
 
           {isRange && (
-            <p className="text-xs text-slate-500 -mt-1">
-              Exporting {Math.round((parseISO(endDate) - parseISO(startDate)) / 86400000) + 1} days — stores with deliveries in any day of this range will appear below.
+            <p className={`text-xs -mt-1 ${rangeTooBig ? 'text-red-500 font-medium' : 'text-slate-500'}`}>
+              {rangeTooBig
+                ? `⚠️ ${dayCount} days selected — maximum is 14. Please shorten the range.`
+                : `Exporting ${dayCount} days — stores with deliveries in any day of this range will appear below.`}
             </p>
           )}
 

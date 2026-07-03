@@ -128,6 +128,11 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
+    // Guard: cap at 14 days to avoid timeouts
+    if (datesToProcess.length > 14) {
+      return Response.json({ error: `Date range too large (${datesToProcess.length} days). Please select 14 days or fewer.` }, { status: 400 });
+    }
+
     const finished = ['completed', 'failed', 'cancelled', 'returned'];
     const isObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
 
@@ -807,6 +812,10 @@ Deno.serve(async (req) => {
     for (let i = 0; i < datesToProcess.length; i++) {
       const meta = await generateManifestForDate(sharedDoc, datesToProcess[i], i === 0);
       dateMetadata.push(meta);
+      // Throttle between dates to avoid hitting DB rate limits on large ranges
+      if (i < datesToProcess.length - 1) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
     }
 
     const combinedPdfBytes = sharedDoc.output('arraybuffer');
