@@ -424,6 +424,7 @@ export default function AdminMetrics() {
             completed: agg.completed || 0,
             failed: agg.failed || 0,
             afterHours: agg.afterHours || 0,
+            returned: store.returned || 0,
             extraKm: agg.extraKm || 0,
             fees: feeData?.fees ?? feeData?.total_fees ?? 0
           };
@@ -469,6 +470,7 @@ export default function AdminMetrics() {
         completed: yearAgg[store.storeId]?.completed || 0,
         failed: yearAgg[store.storeId]?.failed || 0,
         afterHours: yearAgg[store.storeId]?.afterHours || 0,
+        returned: store.returned || 0,
         extraKm: yearAgg[store.storeId]?.extraKm || 0,
         fees: allMonthsStoreFees[store.abbreviation] || 0
       }));
