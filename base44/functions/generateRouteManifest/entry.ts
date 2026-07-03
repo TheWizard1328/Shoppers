@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 
     // Guard: cap at 31 days to avoid timeouts
     if (datesToProcess.length > 31) {
-      return Response.json({ error: `Date range too large (${datesToProcess.length} days). Please select 14 days or fewer.` }, { status: 400 });
+      return Response.json({ error: `Date range too large (${datesToProcess.length} days). Please select 31 days or fewer.` }, { status: 400 });
     }
 
     const finished = ['completed', 'failed', 'cancelled', 'returned'];
