@@ -83,6 +83,13 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
 
   const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store, viewMode), 0);
 
+  // Helper: Get afterHours count for a store and day
+  const getAfterHoursCount = (storeId, day) => {
+    const storeDaily = dailyStoreData[storeId] || [];
+    const dayData = storeDaily.find(d => d.day === day);
+    return dayData?.afterHours || 0;
+  };
+
   // Helper: Check if a day is a weekend (Saturday=6 or Sunday=0)
   const isWeekend = (day) => {
     const date = new Date(parseInt(selectedYear), selectedMonth - 1, day);
@@ -121,14 +128,17 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                       {day}
                     </td>
                     {stores.map(store => {
-                      const value = getDayValue(store.storeId || store.id, day, viewMode);
+                      const storeId = store.storeId || store.id;
+                      const value = getDayValue(storeId, day, viewMode);
+                      const ahCount = viewMode === 'deliveries' ? getAfterHoursCount(storeId, day) : 0;
+                      const plusSuffix = '+'.repeat(ahCount);
                       return (
                         <td
-                          key={store.storeId || store.id}
+                          key={storeId}
                           className="text-center px-1 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? (store.color || '#64748b') : '#94a3b8' }}
                         >
-                          {value > 0 ? formatGridValue(value) : ''}
+                          {value > 0 ? <>{formatGridValue(value)}{ahCount > 0 && <span className="text-amber-500 font-bold">{plusSuffix}</span>}</> : ''}
                         </td>
                       );
                     })}
