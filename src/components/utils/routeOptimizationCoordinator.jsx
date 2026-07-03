@@ -81,10 +81,11 @@ export async function performRouteOptimization({
     }
 
     // ── Step 2: Regenerate polylines using the proven FAB path (regenerateType1Polyline) ──
+    let polylineResponse = null;
     if (!skipPolyline && resolvedOrderedIds && resolvedOrderedIds.length > 0) {
       // Use the same call as handleReoptimizeRoute (regenerateType1Polyline with ordered IDs)
       try {
-        await base44.functions.invoke('regenerateType1Polyline', {
+        polylineResponse = await base44.functions.invoke('regenerateType1Polyline', {
           driverId,
           deliveryDate,
           currentLocation: currentLocation || (optimizeData?.trueOriginCoords || null),
@@ -102,7 +103,10 @@ export async function performRouteOptimization({
             scope: 'active_only',
             bypassDriverStatus: true,
             recalculateEtas: false,
-          }).catch((e2) => console.warn(`[RouteOptimization] ${source} — purgeAndRegeneratePolylines also failed:`, e2?.message));
+          }).catch((e2) => {
+            console.warn(`[RouteOptimization] ${source} — purgeAndRegeneratePolylines also failed:`, e2?.message);
+            return null;
+          });
         });
       } catch (e) {
         console.warn(`[RouteOptimization] ${source} — polyline regeneration failed:`, e?.message);
@@ -110,18 +114,28 @@ export async function performRouteOptimization({
     } else if (!skipPolyline && !resolvedOrderedIds) {
       // No ordered IDs — try purgeAndRegeneratePolylines with scope='active_only'
       try {
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
           driverId,
           deliveryDate,
           scope: 'active_only',
           reason: source,
           bypassDriverStatus: true,
           recalculateEtas: false,
-        }).catch((e) => console.warn(`[RouteOptimization] ${source} — purgeAndRegeneratePolylines failed:`, e?.message));
+        }).catch((e) => {
+          console.warn(`[RouteOptimization] ${source} — purgeAndRegeneratePolylines failed:`, e?.message);
+          return null;
+        });
       } catch (e) {
         console.warn(`[RouteOptimization] ${source} — purgeAndRegeneratePolylines failed:`, e?.message);
       }
     }
+
+    // Degraded-optimization signals — surfaced to callers so the UI can tell the user
+    // when "success" actually meant a straight-line/crow-flies approximation rather
+    // than a real HERE-computed route.
+    const polylineData = polylineResponse?.data || polylineResponse;
+    const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;
+    const usedFallbackPolyline = polylineData?.usedFallbackPolyline === true;
 
     // ── Step 3: Fetch fresh deliveries and persist to offline DB ──
     // Wait briefly for the polyline backend function to finish writing encoded_polyline
@@ -147,6 +161,9 @@ export async function performRouteOptimization({
       optimizeData,
       freshDeliveries: freshDeliveries || [],
       orderedDeliveryIds: resolvedOrderedIds,
+      usedFallbackOrdering,
+      usedFallbackPolyline,
+      isDegraded: usedFallbackOrdering || usedFallbackPolyline,
     };
   } catch (error) {
     console.error(`[RouteOptimization] ${source} — Error:`, error);

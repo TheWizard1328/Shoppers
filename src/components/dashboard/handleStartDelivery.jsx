@@ -11,6 +11,7 @@
  * 8. Final UI update from fresh server data
  */
 
+import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { invalidate } from '@/components/utils/dataManager';
@@ -177,6 +178,14 @@ export async function handleStartDelivery({
     });
 
     console.log('✅ [handleStartDelivery] Steps 5+6 complete — coordinator success:', coordResult?.success);
+
+    if (coordResult?.isDegraded) {
+      console.warn('⚠️ [handleStartDelivery] Route optimization degraded — HERE routing unavailable, used straight-line approximation', {
+        usedFallbackOrdering: coordResult?.usedFallbackOrdering,
+        usedFallbackPolyline: coordResult?.usedFallbackPolyline,
+      });
+      toast.warning('Route order approximated — HERE routing was unavailable, so stop order/map lines may not be fully optimized.');
+    }
 
     // ─── STEP 7: Remaining processes ─────────────────────────────────────
     // 7a: Blue polyline (driver → next stop)

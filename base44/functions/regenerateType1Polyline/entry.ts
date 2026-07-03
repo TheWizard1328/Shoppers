@@ -200,7 +200,8 @@ async function getSegmentDirections(base44, from, to, transportMode = 'driving',
       estimated_distance_km: cachedPolyline.estimated_distance_km ?? null,
       estimated_duration_minutes: cachedPolyline.estimated_duration_minutes ?? null,
       transport_mode: cachedPolyline.transport_mode || transportMode || 'driving',
-      from_cache: true
+      from_cache: true,
+      usedFallbackPolyline: false
     };
   }
 
@@ -212,7 +213,8 @@ async function getSegmentDirections(base44, from, to, transportMode = 'driving',
       estimated_duration_minutes: null,
       transport_mode: transportMode || 'driving'
     }),
-    from_cache: false
+    from_cache: false,
+    usedFallbackPolyline: route.sections[0] ? route.usedFallbackPolyline === true : true
   };
 }
 
@@ -314,7 +316,7 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
 async function getMultiStopRoute(base44, points, transportMode = 'driving') {
   const validPoints = (points || []).filter((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lon));
   if (validPoints.length < 2) {
-    return { sections: [] };
+    return { sections: [], usedFallbackPolyline: false };
   }
 
   const response = await base44.functions.invoke('getHereDirections', {
@@ -328,9 +330,9 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
 
   const data = response?.data || response || {};
   const sections = Array.isArray(data?.sections) ? data.sections : [];
+  let anySegmentFellBackToCrowFlies = false;
 
-  return {
-    sections: validPoints.slice(0, -1).map((fromPoint, index) => {
+  const builtSections = validPoints.slice(0, -1).map((fromPoint, index) => {
       const section = sections[index] || {};
       let polyline = null;
 
@@ -348,6 +350,7 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
       if (!polyline) {
         const toPoint = validPoints[index + 1];
         polyline = encodeGooglePolyline([[fromPoint.lat, fromPoint.lon], [toPoint.lat, toPoint.lon]]);
+        anySegmentFellBackToCrowFlies = true;
       }
 
       return {
@@ -356,7 +359,11 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
         estimated_duration_minutes: section?.estimated_duration_minutes ?? null,
         transport_mode: data?.transport_mode || transportMode || 'driving'
       };
-    })
+    });
+
+  return {
+    sections: builtSections,
+    usedFallbackPolyline: anySegmentFellBackToCrowFlies || data?.usedFallbackPolyline === true || data?.polyline_format === 'fallback'
   };
 }
 
@@ -588,6 +595,11 @@ Deno.serve(async (req) => {
     const multiStopRoute = await getMultiStopRoute(base44, remainingRoutePoints, preferredTravelMode);
     const routeSections = Array.isArray(multiStopRoute?.sections) ? multiStopRoute.sections : [];
     const directions = routeSections[0] || await getSegmentDirections(base44, effectiveOriginCoords, nextStopCoords, preferredTravelMode, [], driverId, deliveryDate);
+    // Degraded-optimization signal: true if any leg of this polyline refresh had to
+    // fall back to a straight-line ("crow-flies") segment instead of a real HERE route.
+    const usedFallbackPolyline = routeSections.length > 0
+      ? multiStopRoute.usedFallbackPolyline === true
+      : directions?.usedFallbackPolyline === true;
 
     if (routeSections.length > 0) {
       await persistRouteSections(
@@ -631,7 +643,8 @@ Deno.serve(async (req) => {
       nextStopId: nextRouteStop?.id || 'HOME_LOCATION',
       originStopId: mostRecentFinishedStop?.id || null,
       repairedStopOrders: stopOrderRepairUpdates.length,
-      segmentCount: segmentSpecs.length
+      segmentCount: segmentSpecs.length,
+      usedFallbackPolyline
     });
   } catch (error) {
     console.error('[regenerateType1Polyline] Error:', error?.message || error);

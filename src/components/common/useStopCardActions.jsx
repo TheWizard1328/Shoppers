@@ -369,6 +369,14 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
       }
 
+      if (coordResult?.isDegraded) {
+        console.warn('⚠️ [AcceptAll] Route optimization degraded — HERE routing unavailable, used straight-line approximation', {
+          usedFallbackOrdering: coordResult?.usedFallbackOrdering,
+          usedFallbackPolyline: coordResult?.usedFallbackPolyline,
+        });
+        toast.warning('Route order approximated — HERE routing was unavailable, so stop order/map lines may not be fully optimized.');
+      }
+
       // polylineResponse stub — polylines regenerated internally by coordinator
       const polylineResponse = null;
 
