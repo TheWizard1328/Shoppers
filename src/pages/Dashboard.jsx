@@ -2149,7 +2149,7 @@ useEffect(() => {
     isDataLoaded,
     userSettingsLoaded,
     currentUser, isDriver, isAdmin, isDispatcher, isMobile,
-    deliveries, patients, stores, drivers, appUsers,
+    deliveries, patients, stores, drivers, appUsers, cities,
     filteredDeliveries, deliveriesWithStopOrder, stats, driversList,
     selectedDate, selectedDriverId, calendarMonth, setCalendarMonth,
     isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,

@@ -98,6 +98,7 @@ export default function DeliveryForm({
   patients,
   stores,
   drivers,
+  cities,
   onSave,
   onCancel,
   initialPatientId,
@@ -1264,7 +1265,7 @@ export default function DeliveryForm({
       setShowMatchPopup={setShowMatchPopup} setScanMatches={setScanMatches} setExtractedData={setExtractedData}
       availableStores={availableStores} allDrivers={allDrivers} stores={stores} patients={patients} currentUser={currentUser}
       onDriverManuallyChanged={() => { driverManuallyChangedRef.current = true; }}
-      appUsers={appUsers}
+      appUsers={appUsers} cities={cities}
       allDeliveries={allDeliveries} selectedPickupOption={selectedPickupOption} setSelectedPickupOption={setSelectedPickupOption}
       getDriverDisplayName={getDriverDisplayName} getDriverNameForStorage={getDriverNameForStorage}
       editingStagedId={editingStagedId} setStagedDeliveries={setStagedDeliveries} setHasChanges={setHasChanges}

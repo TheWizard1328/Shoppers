@@ -18,7 +18,7 @@ export default function DashboardView({
   // User & roles
   currentUser, isDriver, isAdmin, isDispatcher, isMobile,
   // Data
-  deliveries, patients, stores, drivers, appUsers,
+  deliveries, patients, stores, drivers, appUsers, cities,
   filteredDeliveries, deliveriesWithStopOrder, stats, driversList,
   // Date & driver selection
   selectedDate, selectedDateStr, selectedDriverId, calendarMonth, setCalendarMonth,
@@ -324,7 +324,7 @@ export default function DashboardView({
         </div>
         <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
-          deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers}
+          deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers} cities={cities}
           filteredDeliveries={filteredDeliveries} deliveriesWithStopOrder={deliveriesWithStopOrder}
           selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
           mapCenter={mapCenter} mapZoom={mapZoom} shouldFitBounds={shouldFitBounds}

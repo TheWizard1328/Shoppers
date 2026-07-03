@@ -22,7 +22,7 @@ import { useEffect, useState } from 'react';
 
 export default function DashboardDialogs({
   currentUser, isDriver, isDispatcher,
-  deliveries, patients, stores, drivers, appUsers,
+  deliveries, patients, stores, drivers, appUsers, cities,
   filteredDeliveries, deliveriesWithStopOrder,
   selectedDate, selectedDateStr, selectedDriverId,
   driverLocation,
@@ -99,7 +99,7 @@ export default function DashboardDialogs({
   return (
     <>
       <AnimatePresence>
-        {showDeliveryForm && <DeliveryForm delivery={editingDelivery} patients={patients} stores={stores} drivers={drivers} onSave={handleSaveDelivery} onCancel={() => { setShowDeliveryForm(false); setEditingDelivery(null); }} suggestedDate={format(selectedDate, 'yyyy-MM-dd')} currentUser={currentUser} allDeliveries={deliveries} onCreatePatient={handleCreatePatientFromDelivery} defaultToPickupMode={!!editingDelivery && !editingDelivery.patient_id} openMode={editingDelivery && isInterStoreDelivery(editingDelivery.delivery_id) ? 'interstore_edit' : null} />}
+        {showDeliveryForm && <DeliveryForm delivery={editingDelivery} patients={patients} stores={stores} drivers={drivers} cities={cities} onSave={handleSaveDelivery} onCancel={() => { setShowDeliveryForm(false); setEditingDelivery(null); }} suggestedDate={format(selectedDate, 'yyyy-MM-dd')} currentUser={currentUser} allDeliveries={deliveries} onCreatePatient={handleCreatePatientFromDelivery} defaultToPickupMode={!!editingDelivery && !editingDelivery.patient_id} openMode={editingDelivery && isInterStoreDelivery(editingDelivery.delivery_id) ? 'interstore_edit' : null} />}
       </AnimatePresence>
 
       <AnimatePresence>
