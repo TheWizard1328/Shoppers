@@ -6,10 +6,20 @@ import React, { useState, useEffect } from 'react';
  * Shows:
  * - A "Saving changes…" spinner during the debounce countdown (optimizationDebouncerState)
  * - A KITT-style scanning bar while the route optimizer is actively running (optimizationRunning)
+ *
+ * IMPORTANT: Both spinner states are filtered to the currently-viewed driver+date
+ * (broadcast by Dashboard.jsx via `dashboardContextChanged` / `window.__currentDashboardContext`).
+ * Without this filter, ANY route optimization happening anywhere in the app (another
+ * driver's Accept All, a dispatcher batch save, a background polyline repair, etc.) would
+ * show this banner to every viewer, making it look like the current user's own action
+ * (e.g. a harmless Staged→Pending flip) triggered an expensive HERE API call when it didn't.
+ * If the viewer is in "all drivers" mode (dispatcher, driverId null), any optimization for
+ * the selected date is still shown since they're viewing all of those routes at once.
  */
 export default function OptimizationSpinner() {
-  const [activeRoutes, setActiveRoutes] = useState(new Set());
-  const [optimizingRoutes, setOptimizingRoutes] = useState(new Set());
+  const [activeRoutes, setActiveRoutes] = useState(new Map());
+  const [optimizingRoutes, setOptimizingRoutes] = useState(new Map());
+  const [context, setContext] = useState(() => window.__currentDashboardContext || null);
 
   useEffect(() => {
     const handleDebouncer = (e) => {
@@ -17,8 +27,8 @@ export default function OptimizationSpinner() {
       if (!driverId || !deliveryDate) return;
       const key = `${driverId}|${deliveryDate}`;
       setActiveRoutes(prev => {
-        const next = new Set(prev);
-        if (active) next.add(key);
+        const next = new Map(prev);
+        if (active) next.set(key, { driverId, deliveryDate });
         else next.delete(key);
         return next;
       });
@@ -29,26 +39,43 @@ export default function OptimizationSpinner() {
       if (!driverId || !deliveryDate) return;
       const key = `${driverId}|${deliveryDate}`;
       setOptimizingRoutes(prev => {
-        const next = new Set(prev);
-        if (active) next.add(key);
+        const next = new Map(prev);
+        if (active) next.set(key, { driverId, deliveryDate });
         else next.delete(key);
         return next;
       });
     };
 
+    const handleContextChanged = (e) => {
+      setContext(e.detail || null);
+    };
+
     window.addEventListener('optimizationDebouncerState', handleDebouncer);
     window.addEventListener('optimizationRunning', handleRunning);
+    window.addEventListener('dashboardContextChanged', handleContextChanged);
     return () => {
       window.removeEventListener('optimizationDebouncerState', handleDebouncer);
       window.removeEventListener('optimizationRunning', handleRunning);
+      window.removeEventListener('dashboardContextChanged', handleContextChanged);
       // Clear all spinner state on unmount to prevent stale KITT bar on re-mount
-      setActiveRoutes(new Set());
-      setOptimizingRoutes(new Set());
+      setActiveRoutes(new Map());
+      setOptimizingRoutes(new Map());
     };
   }, []);
 
-  const isOptimizing = optimizingRoutes.size > 0;
-  const isSaving = activeRoutes.size > 0;
+  // A route entry is "relevant" to the current viewer if:
+  // - no context is known yet (fail open — don't hide a real signal), OR
+  // - the viewer is in "all drivers" mode and the date matches, OR
+  // - the viewer has a specific driver selected and both driver+date match
+  const isRelevant = (entry) => {
+    if (!context) return true;
+    if (context.deliveryDate && entry.deliveryDate !== context.deliveryDate) return false;
+    if (context.driverId && entry.driverId !== context.driverId) return false;
+    return true;
+  };
+
+  const isOptimizing = [...optimizingRoutes.values()].some(isRelevant);
+  const isSaving = [...activeRoutes.values()].some(isRelevant);
 
   if (!isSaving && !isOptimizing) return null;
 

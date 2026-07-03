@@ -1524,6 +1524,26 @@ useEffect(() => {
     };
   }, []);
 
+  // BUG FIX: OptimizationSpinner (the global bottom-right "Optimizing Route" KITT bar)
+  // used to show for ANY driver/date optimization happening anywhere in the app — so a
+  // driver doing a harmless Staged→Pending flip on their own screen could see the orange
+  // banner because a completely unrelated optimization (another driver's Accept All, a
+  // dispatcher batch save, etc.) happened to be running in the background at the same
+  // moment. Broadcast the currently-viewed driver+date so the spinner can filter to only
+  // the route the current user is actually looking at.
+  useEffect(() => {
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    window.__currentDashboardContext = {
+      driverId: selectedDriverId === 'all' ? null : selectedDriverId,
+      deliveryDate: dateStr,
+    };
+    window.dispatchEvent(new CustomEvent('dashboardContextChanged', { detail: window.__currentDashboardContext }));
+    return () => {
+      window.__currentDashboardContext = null;
+      window.dispatchEvent(new CustomEvent('dashboardContextChanged', { detail: null }));
+    };
+  }, [selectedDriverId, selectedDate]);
+
   const handleAIToggle = () => {
     const newValue = !isAIEnabled;
     setIsAIEnabled(newValue);
