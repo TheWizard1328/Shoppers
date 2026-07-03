@@ -50,6 +50,28 @@ export async function performRouteOptimization({
   let optimizeData = null;
   let resolvedOrderedIds = orderedDeliveryIds || null;
 
+  // regenerateType1Polyline HARD REQUIRES a valid { lat, lon } currentLocation in its request
+  // body and 400s immediately without one — which base44.functions.invoke does not treat as a
+  // thrown error, so a missing currentLocation previously caused polyline generation to no-op
+  // completely and silently for any caller that forgot to pass it (e.g. Accept All / Assign All).
+  // Resolve it here from the driver's AppUser record as a safety net so this can't regress again.
+  let resolvedCurrentLocation = currentLocation;
+  if (!resolvedCurrentLocation || !Number.isFinite(resolvedCurrentLocation?.lat) || !Number.isFinite(resolvedCurrentLocation?.lon)) {
+    try {
+      const driverAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
+      const driverAppUser = Array.isArray(driverAppUsers) ? driverAppUsers[0] : null;
+      const fallbackLat = Number(driverAppUser?.current_latitude);
+      const fallbackLon = Number(driverAppUser?.current_longitude);
+      if (Number.isFinite(fallbackLat) && Number.isFinite(fallbackLon)) {
+        resolvedCurrentLocation = { lat: fallbackLat, lon: fallbackLon };
+      } else {
+        console.warn(`[RouteOptimization] ${source} — no currentLocation provided and no AppUser GPS fix available; polyline regeneration will be skipped`);
+      }
+    } catch (e) {
+      console.warn(`[RouteOptimization] ${source} — failed resolving fallback currentLocation:`, e?.message);
+    }
+  }
+
   try {
     // ── Step 1: Optimize remaining stops (unless skipped with pre-computed IDs) ──
     if (!skipOptimize && !resolvedOrderedIds) {
@@ -88,7 +110,7 @@ export async function performRouteOptimization({
         polylineResponse = await base44.functions.invoke('regenerateType1Polyline', {
           driverId,
           deliveryDate,
-          currentLocation: currentLocation || (optimizeData?.trueOriginCoords || null),
+          currentLocation: resolvedCurrentLocation || (optimizeData?.trueOriginCoords || null),
           orderedDeliveryIds: resolvedOrderedIds,
           routeChangeSource: source,
           force: true,

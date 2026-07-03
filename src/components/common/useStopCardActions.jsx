@@ -355,10 +355,21 @@ export default function useStopCardActions(params) {
 
       // STEP 2: Run route optimization using the unified coordinator (same FAB path).
       // Uses the proven Manual FAB path: optimizeRemainingStops → regenerateType1Polyline.
+      // NOTE: regenerateType1Polyline REQUIRES a currentLocation (lat/lon) in its request body —
+      // without it, the backend function 400s immediately and the polyline step silently no-ops
+      // for every stop that was just transitioned pending → in_transit. Resolve it from the
+      // driver's AppUser record here, same as handleStartDelivery does.
       const now2 = new Date();
+      const acceptAllDriverAppUser = appUsers.find((u) => u?.user_id === delivery.driver_id);
+      const acceptAllDriverLat = Number(acceptAllDriverAppUser?.current_latitude);
+      const acceptAllDriverLon = Number(acceptAllDriverAppUser?.current_longitude);
+      const acceptAllCurrentLocation = Number.isFinite(acceptAllDriverLat) && Number.isFinite(acceptAllDriverLon)
+        ? { lat: acceptAllDriverLat, lon: acceptAllDriverLon }
+        : null;
       const coordResult = await performRouteOptimization({
         driverId: delivery.driver_id,
         deliveryDate: delivery.delivery_date,
+        currentLocation: acceptAllCurrentLocation,
         source: 'accept_all',
         bypassDriverStatus: true,
       }).catch(() => null);
