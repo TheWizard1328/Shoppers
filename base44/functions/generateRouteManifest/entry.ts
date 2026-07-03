@@ -265,8 +265,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ─── Generate a single-date manifest PDF ────────────────────────────────────
-    async function generateManifestForDate(dateStr) {
+    // ─── Generate manifest content for one date into a shared jsPDF doc ────────
+    async function generateManifestForDate(doc, dateStr, isFirstDate) {
       // Build a targeted filter — only fetch what this dispatcher needs
       const deliveryFilter = { delivery_date: dateStr };
       if (driverId) deliveryFilter.driver_id = driverId;
@@ -384,7 +384,6 @@ Deno.serve(async (req) => {
       });
       const allImages = await Promise.all(imagePromises);
 
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const thumbSize = 12;
@@ -397,6 +396,9 @@ Deno.serve(async (req) => {
       const minRowHeight = 6;
       const cellPadding = 1;
       const textTopOffset = 0.5;
+
+      // Each date starts on a fresh page (except the very first)
+      if (!isFirstDate) { doc.addPage(); }
 
       const titleType = manifestType === 'pre-route' ? `Pre-Route (${effectiveAmpm})` : 'Post-Route (All)';
       doc.setFontSize(16);
@@ -795,19 +797,27 @@ Deno.serve(async (req) => {
       }
       // ─── End Temperature Graph ───────────────────────────────────────────────
 
-      return {
-        pdfBytes: doc.output('arraybuffer'),
-        displayStoreName,
-        manifestType,
-        dateStr
-      };
+      // Return metadata only — pdfBytes come from the shared doc at the end
+      return { displayStoreName, manifestType, dateStr };
     }
 
-    // ─── Process all dates sequentially to avoid rate limits ────────────────────
-    const pdfResults = [];
-    for (const d of datesToProcess) {
-      pdfResults.push(await generateManifestForDate(d));
+    // ─── Create ONE shared doc, process all dates into it ───────────────────────
+    const sharedDoc = new jsPDF({ orientation: 'landscape', unit: 'mm' });
+    const dateMetadata = [];
+    for (let i = 0; i < datesToProcess.length; i++) {
+      const meta = await generateManifestForDate(sharedDoc, datesToProcess[i], i === 0);
+      dateMetadata.push(meta);
     }
+
+    const combinedPdfBytes = sharedDoc.output('arraybuffer');
+    const combinedPdfBase64 = uint8ToBase64(new Uint8Array(combinedPdfBytes));
+
+    const isSingleDate = datesToProcess.length === 1;
+    const dateRangeStr = isSingleDate
+      ? datesToProcess[0]
+      : `${datesToProcess[0]} to ${datesToProcess[datesToProcess.length - 1]}`;
+    const firstStoreName = dateMetadata[0]?.displayStoreName || requestedStoreName || 'All Stores';
+    const combinedFileName = `RxDeliver Logs - ${firstStoreName} - ${dateRangeStr}.pdf`;
 
     if (Array.isArray(recipientEmails) && recipientEmails.length > 0) {
       const uniqueRecipientEmails = [...new Set(
@@ -818,35 +828,23 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'No valid recipient emails were provided' });
       }
 
-      // Force-refresh token on every call — bypasses any stale cached token in the runtime
       const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail', { forceRefresh: true });
       const emailStartedAt = Date.now();
 
-      const attachments = pdfResults.map(({ pdfBytes, displayStoreName, dateStr }) => ({
-        pdfBytes,
-        fileName: `RxDeliver Logs - ${displayStoreName} - ${dateStr}.pdf`
-      }));
-
-      const isSingleDate = datesToProcess.length === 1;
-      const dateRangeStr = isSingleDate
-        ? datesToProcess[0]
-        : `${datesToProcess[0]} to ${datesToProcess[datesToProcess.length - 1]}`;
-
-      const firstStoreName = pdfResults[0]?.displayStoreName || requestedStoreName || 'All Stores';
       const subject = emailSubject || `RxDeliver Route logs for: ${firstStoreName} - ${dateRangeStr}`;
       const bodyLines = [`RxDeliver Route logs for: ${firstStoreName} - ${dateRangeStr}`, ''];
       if (!isSingleDate) {
-        pdfResults.forEach(({ displayStoreName, dateStr, manifestType }) => {
-          bodyLines.push(`• ${dateStr} (${manifestType}) — ${displayStoreName}`);
+        dateMetadata.forEach(({ displayStoreName: ds, dateStr: dt, manifestType: mt }) => {
+          bodyLines.push(`• ${dt} (${mt}) — ${ds}`);
         });
       }
       const body = bodyLines.join('\n');
+      const attachments = [{ pdfBytes: combinedPdfBytes, fileName: combinedFileName }];
 
       try {
         const toAddresses = uniqueRecipientEmails.join(', ');
         const raw = buildGmailRawMessageMulti({ to: toAddresses, subject, body, attachments });
 
-        // Attempt send; if 401, fetch a second fresh token and retry once
         let gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -886,21 +884,8 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, sent_to: uniqueRecipientEmails });
     }
 
-    // Preview (no email): return all PDFs as base64 — one per date
-    if (pdfResults.length === 1) {
-      const { pdfBytes, displayStoreName, dateStr: singleDate } = pdfResults[0];
-      return Response.json({
-        pdfBase64: uint8ToBase64(new Uint8Array(pdfBytes)),
-        fileName: `RxDeliver Logs - ${displayStoreName} - ${singleDate}.pdf`
-      });
-    }
-    // Multi-date: return array so the frontend can open each in its own tab
-    return Response.json({
-      pdfResults: pdfResults.map(({ pdfBytes, displayStoreName, dateStr: d }) => ({
-        pdfBase64: uint8ToBase64(new Uint8Array(pdfBytes)),
-        fileName: `RxDeliver Logs - ${displayStoreName} - ${d}.pdf`
-      }))
-    });
+    // Preview — return the single combined PDF
+    return Response.json({ pdfBase64: combinedPdfBase64, fileName: combinedFileName });
 
   } catch (error) {
     return Response.json({ error: error?.message || 'Server error' }, { status: 500 });
