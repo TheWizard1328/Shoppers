@@ -3,8 +3,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
-const CACHE_VERSION = '4';
-const SUMMARY_VERSION = '3';
+const CACHE_VERSION = '5';
+const SUMMARY_VERSION = '4';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
 const CACHE_DISABLED = false;
@@ -91,9 +91,8 @@ const isCancelledStatus = (delivery) => delivery?.status === 'cancelled';
 const isAfterHoursPickupDelivery = (delivery) => delivery?.after_hours_pickup === true;
 const isPatientOrTransferDelivery = (delivery) => !!delivery?.patient_id;
 const isReturnDelivery = (delivery) => {
-  const name = String(delivery?.patient_name || '').toUpperCase();
-  const notes = String(delivery?.delivery_notes || '').toUpperCase();
-  return name.includes('(RTN)') || notes.includes('(RTN)');
+  const notes = String(delivery?.delivery_notes || '');
+  return notes.includes('(RTN)');
 };
 // ISD/ISP inter-store deliveries: always counted as deliveries, never as pickups
 const isInterStoreDelivery = (delivery) => {
