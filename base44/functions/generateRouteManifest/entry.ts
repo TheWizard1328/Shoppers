@@ -810,7 +810,7 @@ Deno.serve(async (req) => {
     }
 
     const combinedPdfBytes = sharedDoc.output('arraybuffer');
-    const combinedPdfBase64 = uint8ToBase64(new Uint8Array(combinedPdfBytes));
+    const combinedPdfBase64 = uint8ToBase64(new Uint8Array(combinedPdfBytes as ArrayBuffer));
 
     const isSingleDate = datesToProcess.length === 1;
     const dateRangeStr = isSingleDate
