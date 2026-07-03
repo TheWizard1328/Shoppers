@@ -588,6 +588,18 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     return getClusterKey(delivery.driver_id, delivery.delivery_date, clusterIds.slice().sort());
   }, [delivery?.id, delivery?.patient_id, delivery?.driver_id, delivery?.delivery_date, coLocatedCount, patient, allDeliveries, patients]);
 
+  // Refs so the arrival effect below can read the latest isSelected/onClick/delivery without
+  // needing them in its dependency array — those values (especially the `delivery` object
+  // reference) change on almost every re-render, and we only want the collapse-on-open logic
+  // to fire once, at the moment the dialog actually opens, not every time this component
+  // re-renders while the dialog stays open (which would fight a manual re-expand by the driver).
+  const isSelectedRef = useRef(isSelected);
+  useEffect(() => { isSelectedRef.current = isSelected; }, [isSelected]);
+  const onClickRef = useRef(onClick);
+  useEffect(() => { onClickRef.current = onClick; }, [onClick]);
+  const deliveryRef = useRef(delivery);
+  useEffect(() => { deliveryRef.current = delivery; }, [delivery]);
+
   useEffect(() => {
     const isActiveUser = delivery?.driver_id === currentUser?.id;
     // Only show on the driver's primary device — non-primary devices must not pop this dialog
@@ -597,6 +609,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (_openClusterKeys.has(clusterKey)) return;
     _openClusterKeys.add(clusterKey);
     setShowMultiArrivalDialog(true);
+    // Multi-delivery arrivals are handled entirely inside the dialog — the underlying stop
+    // card must not sit there expanded behind it (confusing double-UI). If this card happens
+    // to already be expanded at the moment the dialog pops, collapse it once (onClick toggles
+    // closed when the card is already selected). This fires exactly once per dialog-open, not
+    // on every re-render, so it never fights a manual re-expand while the dialog stays open.
+    if (isSelectedRef.current) onClickRef.current && onClickRef.current(deliveryRef.current);
   }, [hasArrived, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey, isPrimaryDevice]);
 
   // Derived: driver has physically arrived at this pickup stop AND there are pending deliveries to accept.

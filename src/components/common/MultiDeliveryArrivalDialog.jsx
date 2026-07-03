@@ -131,7 +131,18 @@ export default function MultiDeliveryArrivalDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden" style={{ zIndex: 99999, width: '95vw', maxWidth: '95vw' }}>
+        {/*
+          CRITICAL: React bubbles synthetic events along the React component tree, not the
+          DOM tree — even though Radix portals this DialogContent out to document.body, it is
+          still a React child of the StopCard that opened it. Without stopping propagation here,
+          taps on Complete/Fail inside this dialog bubble up to the underlying StopCard's
+          <Card onClick=...> handler and toggle that card open/closed as an unwanted side effect.
+        */}
+        <DialogContent
+          className="max-h-[85vh] overflow-y-auto overflow-x-hidden"
+          style={{ zIndex: 99999, width: '95vw', maxWidth: '95vw' }}
+          onClick={(e) => e.stopPropagation()}
+        >
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <MapPin className="w-4 h-4 text-blue-600" />
