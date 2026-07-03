@@ -375,6 +375,48 @@ Deno.serve(async (req) => {
       const patientNameMap = new Map((manifestPatients || []).map((p) => [p.id, p.full_name || p.patient_id || p.id]));
       const storeNameMap = new Map((manifestStores || []).map((s) => [s.id, s.name || s.abbreviation || s.id]));
 
+      // ── Inter-store location lookup (for ISP/ISD display names) ──────────
+      // Fetch all ISP/ISD delivery_ids to resolve their InterStoreLocation store names
+      const ispIsdDeliveries = items.filter((d) => {
+        const upper = String(d?.delivery_id || '').toUpperCase();
+        return upper.startsWith('ISP-') || upper.startsWith('ISD-');
+      });
+      const interStoreLocations = ispIsdDeliveries.length > 0
+        ? await base44.asServiceRole.entities.InterStoreLocation.list().catch(() => [])
+        : [];
+      // Build phone → store_name map
+      const phoneToInterStoreName = new Map();
+      (interStoreLocations || []).forEach((loc) => {
+        if (loc?.store_phone && loc?.store_name) {
+          const digits = String(loc.store_phone).replace(/\D/g, '');
+          if (digits) phoneToInterStoreName.set(digits, loc.store_name);
+        }
+      });
+
+      function parseInterStorePhone(deliveryId) {
+        if (!deliveryId) return { pickupPhone: null, assignedPhone: null, type: null };
+        const upper = String(deliveryId).toUpperCase();
+        const isISP = upper.startsWith('ISP-');
+        const isISD = upper.startsWith('ISD-');
+        if (!isISP && !isISD) return { pickupPhone: null, assignedPhone: null, type: null };
+        const parts = String(deliveryId).split('-');
+        return {
+          type: isISP ? 'ISP' : 'ISD',
+          pickupPhone: parts[2] ? parts[2].replace(/\D/g, '') : null,
+          assignedPhone: parts[3] ? parts[3].replace(/\D/g, '') : null,
+        };
+      }
+
+      function resolveInterStoreDisplayName(delivery) {
+        const { type, pickupPhone } = parseInterStorePhone(delivery?.delivery_id);
+        if (type === 'ISP') {
+          const storeName = pickupPhone ? phoneToInterStoreName.get(pickupPhone) : null;
+          return storeName ? `${storeName}(ISP)` : 'ISP Pickup';
+        }
+        if (type === 'ISD') return 'InterStore DropOff';
+        return null;
+      }
+
       const displayStoreName = requestedStoreName
         || (manifestStores.length === 1 ? manifestStores[0]?.name : null)
         || (finalStoreIds?.length === 1 ? (manifestStores.find((s) => s.id === finalStoreIds[0])?.name || 'Store') : null)
@@ -461,13 +503,21 @@ Deno.serve(async (req) => {
       for (let i = 0; i < items.length; i++) {
         const d = items[i];
         const images = allImages[i];
-        const isPickup = !d?.patient_id;
-        const name = isPickup
-          ? (storeNameMap.get(d?.store_id) || d?.delivery_notes || 'Store Pickup')
-          : (patientNameMap.get(d?.patient_id) || d?.patient_name || '');
+        const upper = String(d?.delivery_id || '').toUpperCase();
+        const isISP = upper.startsWith('ISP-');
+        const isISD = upper.startsWith('ISD-');
+        const isInterStoreStop = isISP || isISD;
+        const isPickup = !d?.patient_id && !isInterStoreStop;
+        // Resolve display name: ISP/ISD use inter-store naming, regular stops use patient/store
+        const name = isInterStoreStop
+          ? (resolveInterStoreDisplayName(d) || (isISP ? 'ISP Pickup' : 'InterStore DropOff'))
+          : isPickup
+            ? (storeNameMap.get(d?.store_id) || d?.delivery_notes || 'Store Pickup')
+            : (patientNameMap.get(d?.patient_id) || d?.patient_name || '');
         const driverName = driverNameMap.get(d?.driver_id) || d?.driver_name || d?.driver_id || '';
         const createdByName = creatorNameMap.get(d?.created_by_app_user_id) || creatorNameMap.get(d?.created_by_id) || d?.created_by_id || '';
-        const notes = d?.delivery_notes || '';
+        // ISP/ISD: use _interstore_notes first, fall back to delivery_notes
+        const notes = (isInterStoreStop ? (d?._interstore_notes || d?.delivery_notes) : d?.delivery_notes) || '';
         const stopLabel = isPickup ? 'P' : (d?.stop_order != null ? String(d.stop_order) : '');
         const trNum = d?.tracking_number || '';
         const timeStr = extractTime(d?.actual_delivery_time || d?.arrival_time || '');
