@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -106,16 +106,19 @@ export default function StopCardFooterMenu(props) {
   const isCurrentDispatcherStopFinished = isDispatcherOnly && finishedStatuses.includes(delivery?.status);
   const areAllDispatcherStoreStopsFinished = isDispatcherOnly && (dispatcherStoreStops.length === 0 || dispatcherStoreStops.every((item) => finishedStatuses.includes(item?.status)));
 
+  const [open, setOpen] = useState(false);
+  const closeMenu = () => setOpen(false);
+
   if (isCurrentDispatcherStopFinished && areAllDispatcherStoreStopsFinished) return null;
 
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 border border-slate-300 hover:bg-slate-100 relative z-[50] pointer-events-auto" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <MoreVertical className="w-5 h-5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" className="p-1 rounded-md min-w-[12rem] overflow-visible border-2 shadow-md z-[9999] bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 dark:border-slate-600" sideOffset={8} onClick={(e) => e.stopPropagation()} style={{ opacity: 1, visibility: 'visible' }}>
+      <DropdownMenuContent align="end" side="top" className="p-1 rounded-md min-w-[12rem] overflow-visible border-2 shadow-md z-[9999] bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 dark:border-slate-600" sideOffset={8} onClick={(e) => { e.stopPropagation(); closeMenu(); }} style={{ opacity: 1, visibility: 'visible' }}>
         {canShowEdit && (
           <DropdownMenuItem inset={false} onClick={(e) => { dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); onEdit?.(delivery); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 dark:text-slate-100 focus:bg-slate-100 dark:focus:bg-slate-700 focus:text-slate-900 dark:focus:text-slate-100">
             <Edit className="w-5 h-5 mr-2" />{isPickupForMenu ? 'Edit Pickup' : isInterStore ? 'Edit InterStore' : 'Edit Delivery'}
