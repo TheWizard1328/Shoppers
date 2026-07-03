@@ -281,6 +281,9 @@ Deno.serve(async (req) => {
       // Exclude cycling marker pseudo-stops — they have no delivery data and corrupt stop/TR# ordering
       let items = (deliveries || []).filter((d) => d && !d.is_cycling_marker);
 
+      // Skip dates with no deliveries for this driver/store combination
+      if (items.length === 0) return null;
+
       // ── AUTO-DETECT manifestType from actual data ──────────────────────────
       const allFinished = items.length > 0 && items.every((d) => finished.includes(d?.status));
       const hasAnyPending = items.some((d) => !finished.includes(d?.status));
@@ -809,13 +812,21 @@ Deno.serve(async (req) => {
     // ─── Create ONE shared doc, process all dates into it ───────────────────────
     const sharedDoc = new jsPDF({ orientation: 'landscape', unit: 'mm' });
     const dateMetadata = [];
+    let isFirstRenderedDate = true;
     for (let i = 0; i < datesToProcess.length; i++) {
-      const meta = await generateManifestForDate(sharedDoc, datesToProcess[i], i === 0);
-      dateMetadata.push(meta);
+      const meta = await generateManifestForDate(sharedDoc, datesToProcess[i], isFirstRenderedDate);
+      if (meta !== null) {
+        dateMetadata.push(meta);
+        isFirstRenderedDate = false;
+      }
       // Throttle between dates to avoid hitting DB rate limits on large ranges
       if (i < datesToProcess.length - 1) {
         await new Promise((r) => setTimeout(r, 300));
       }
+    }
+
+    if (dateMetadata.length === 0) {
+      return Response.json({ error: 'No deliveries found for the selected date range and filters.' }, { status: 404 });
     }
 
     const combinedPdfBytes = sharedDoc.output('arraybuffer');
