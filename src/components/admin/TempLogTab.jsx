@@ -4,7 +4,7 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { clearAllTempLogs } from '@/functions/clearAllTempLogs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Thermometer, ChevronRight, ChevronDown, Trash2, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Loader2, RefreshCw, Thermometer, ChevronRight, ChevronDown, Trash2, AlertTriangle, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
 import { format } from 'date-fns';
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -30,6 +30,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
 
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [selectedDriverId, setSelectedDriverId] = useState('all');
+  const [dataSource, setDataSource] = useState('online'); // 'online' | 'offline'
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [deliveries, setDeliveries] = useState([]);
@@ -52,17 +53,32 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     );
   }, []);
 
-  const load = useCallback(async (date, driverId) => {
-    // 1. Read offline DB instantly — no spinner if data exists
+  const load = useCallback(async (date, driverId, source) => {
+    const src = source || dataSource;
+
+    if (src === 'offline') {
+      // Offline-only: read from IndexedDB, no API call
+      setLoading(true);
+      try {
+        const cached = await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS);
+        setLogs(applyFilter(cached, date, driverId));
+      } catch (_) {
+        setLogs([]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Online mode: read offline DB instantly, then background API fetch
     const cached = await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS);
     const filteredCached = applyFilter(cached, date, driverId);
     if (filteredCached.length > 0) {
       setLogs(filteredCached);
     } else {
-      setLoading(true); // show spinner only when cold (nothing cached)
+      setLoading(true);
     }
 
-    // 2. Background API fetch — updates data silently
     try {
       const filter = { delivery_date: date };
       if (driverId !== 'all') filter.driver_id = driverId;
@@ -74,13 +90,13 @@ export default function TempLogTab({ drivers = [], currentUser }) {
         setLogs([]);
       }
     } catch (_) {
-
       // keep whatever cached data was shown
-    } finally {setLoading(false);
+    } finally {
+      setLoading(false);
     }
-  }, [applyFilter]);
+  }, [applyFilter, dataSource]);
 
-  useEffect(() => {load(selectedDate, selectedDriverId);}, [selectedDate, selectedDriverId, load]);
+  useEffect(() => {load(selectedDate, selectedDriverId, dataSource);}, [selectedDate, selectedDriverId, dataSource, load]);
 
   // Load deliveries for the selected date to determine route start/end times
   useEffect(() => {
@@ -423,7 +439,23 @@ export default function TempLogTab({ drivers = [], currentUser }) {
           </SelectContent>
         </Select>
 
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+        {/* Online / Offline toggle */}
+        <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+          <button
+            onClick={() => setDataSource('online')}
+            className={`flex items-center gap-1.5 px-3 py-2 transition-colors ${dataSource === 'online' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+          >
+            <Wifi className="w-3.5 h-3.5" /> Online
+          </button>
+          <button
+            onClick={() => setDataSource('offline')}
+            className={`flex items-center gap-1.5 px-3 py-2 transition-colors ${dataSource === 'offline' ? 'bg-slate-700 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+          >
+            <WifiOff className="w-3.5 h-3.5" /> Offline
+          </button>
+        </div>
+
+        <Button variant="outline" size="sm" onClick={() => load(selectedDate, selectedDriverId, dataSource)} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
