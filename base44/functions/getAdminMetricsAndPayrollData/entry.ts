@@ -95,7 +95,7 @@ const isPatientOrTransferDelivery = (delivery) => !!delivery?.patient_id;
 const isReturnDelivery = (delivery) => {
   const name = String(delivery?.patient_name || '').toUpperCase();
   const notes = String(delivery?.delivery_notes || '').toUpperCase();
-  return name.includes('Return') || notes.includes('(RTN)');
+  return name.includes('(RTN)') || notes.includes('(RTN)');
 };
 // ISD/ISP inter-store deliveries: always counted as deliveries, never as pickups
 const isInterStoreDelivery = (delivery) => {
@@ -352,6 +352,7 @@ const negateDailyMetricEntries = (entries = []) => {
     completed: -(entry?.completed || 0),
     failed: -(entry?.failed || 0),
     afterHours: -(entry?.afterHours || 0),
+    returned: -(entry?.returned || 0),
     cancelled: -(entry?.cancelled || 0),
     billable: -(entry?.billable || 0),
     nonBillable: -(entry?.nonBillable || 0),
