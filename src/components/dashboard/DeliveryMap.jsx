@@ -1158,7 +1158,11 @@ export default function DeliveryMap({
       const size = map.getSize();
       const topPad = paddingTopLeft[1];
       const bottomPad = paddingBottomRight[1];
-      const verticalShift = (topPad - bottomPad) / 2;
+      // NOTE: sign matches Leaflet's own _getBoundsCenterZoom padding-offset convention
+      // (paddingBottomRight - paddingTopLeft) / 2, added to the projected y-coordinate —
+      // NOT (topPad - bottomPad), which pushed the effective center north and made the
+      // driver/stop pair render below the crosshair once the map was pinned at max zoom.
+      const verticalShift = (bottomPad - topPad) / 2;
       const point = map.project([midLat, midLng], currentZoomLevel);
       const newCenter = map.unproject(L.point(point.x, point.y + verticalShift), currentZoomLevel);
       map.setView(newCenter, currentZoomLevel, { animate: true, duration: 0.5 });
