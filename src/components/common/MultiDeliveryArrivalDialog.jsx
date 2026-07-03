@@ -143,9 +143,17 @@ export default function MultiDeliveryArrivalDialog({
           </DialogHeader>
 
           <div className="space-y-3 mt-2 w-full min-w-0">
+            {/*
+              "Current" must track the live isNextDelivery flag, not which stop originally
+              triggered this dialog open. currentDelivery is a snapshot from whichever
+              StopCard rendered the dialog — if that stop gets completed/failed while the
+              dialog stays open (or a stale re-render happens), isCurrent would otherwise
+              stay pinned to the now-finished stop instead of following the real active one.
+            */}
             {allAtLocation.map((delivery) => {
               const patient = patients.find((p) => p?.id === delivery.patient_id);
-              const isCurrent = delivery.id === currentDelivery.id;
+              const groupHasNextFlag = allAtLocation.some((d) => d?.isNextDelivery === true);
+              const isCurrent = groupHasNextFlag ? delivery.isNextDelivery === true : delivery.id === currentDelivery.id;
               const isFinished = FINISHED_STATUSES.includes(delivery.status) || locallyFinishedIds.has(delivery.id);
               const isLoading = loadingId === delivery.id;
 
