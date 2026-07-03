@@ -1,7 +1,10 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, Ruler } from 'lucide-react';
+import { Package, Ruler, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { globalFilters } from '@/components/utils/globalFilters';
+import { createPageUrl } from '@/utils';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -12,6 +15,15 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  */
 export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, selectedYear, metricsViewMode = 'deliveries', onResetView }) {
   const viewMode = metricsViewMode;
+  const navigate = useNavigate();
+
+  const handleNavigateToDashboard = (day) => {
+    const month = String(selectedMonth).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    const dateStr = `${selectedYear}-${month}-${dayStr}`;
+    globalFilters.setSelectedDate(dateStr);
+    navigate(createPageUrl('Dashboard') + `?date=${dateStr}`);
+  };
   const formatGridValue = (value) => viewMode === 'fees' || viewMode === 'extra_km' ? Number(value).toFixed(2) : Math.round(Number(value)).toString();
   if (!metricsData || !selectedMonth) {
     return (
@@ -125,7 +137,15 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                 return (
                   <tr key={day} className={`border-b hover:bg-slate-50 ${weekend ? 'bg-slate-100' : ''}`}>
                     <td className={`px-1.5 py-0.5 font-medium sticky left-0 border-r border-slate-300 z-10 text-slate-700 ${weekend ? 'bg-slate-100' : 'bg-white'}`}>
-                      {day}
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>{day}</span>
+                        <button
+                          onClick={() => handleNavigateToDashboard(day)}
+                          className="!h-4 !w-4 !min-h-0 !p-0 rounded hover:bg-slate-200 transition-colors opacity-50 hover:opacity-100 inline-flex items-center justify-center"
+                          title={`View day ${day} on Dashboard`}>
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                      </div>
                     </td>
                     {stores.map(store => {
                       const storeId = store.storeId || store.id;
