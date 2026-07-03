@@ -81,8 +81,6 @@ const DELIVERY_FIELDS = [
   'travel_dist',
   'oversized',
   'no_charge',
-  'patient_name',
-  'address',
   'delivery_notes',
   'actual_delivery_time'
 ];
