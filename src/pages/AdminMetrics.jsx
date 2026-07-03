@@ -516,11 +516,13 @@ export default function AdminMetrics() {
           const totalFailed = existing?.failed || 0;
         const fees = existing?.fees || 0;
         const extraKm = existing?.extra_km || existing?.extraKm || 0;
+        const afterHours = existing?.afterHours || 0;
         return {
           day,
           totalCompleted,
           totalFailed,
           totalReturned,
+          afterHours,
           envelopeCount: 0,
           fees,
           extraKm,
@@ -1070,7 +1072,20 @@ export default function AdminMetrics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis
                       dataKey={selectedStoreMonth ? "day" : "abbreviation"}
-                      tick={selectedStoreMonth ? { fill: 'var(--text-slate-600)', fontSize: 11 } : (props) => {
+                      tick={selectedStoreMonth ? (props) => {
+                        const { x, y, payload } = props;
+                        const dayData = bottomStoreChartData.find((d) => d.day === payload.value);
+                        const hasAH = (dayData?.afterHours || 0) > 0;
+                        return (
+                          <g transform={`translate(${x},${y})`}>
+                            <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={11}
+                              fontWeight={hasAH ? 'bold' : 'normal'}
+                              textDecoration={hasAH ? 'underline' : 'none'}>
+                              {payload.value}
+                            </text>
+                          </g>
+                        );
+                      } : (props) => {
                         const { x, y, payload } = props;
                         const storeData = bottomStoreChartData.find((s) => s.abbreviation === payload.value);
                         if (metricsViewMode !== 'deliveries') {
