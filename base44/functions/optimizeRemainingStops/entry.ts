@@ -898,6 +898,7 @@ Deno.serve(async (req) => {
 
     let attemptedHereCalls = 0;
     let usedTimeWindows = true;
+    let usedFallbackOrdering = false;
     let routeStops = routeOriginStop ? [routeOriginStop] : [];
     let directionsLegs = [];
     let segmentPolylines = [];
@@ -991,6 +992,7 @@ Deno.serve(async (req) => {
 
       if (!hereAttempt.response.ok || !result || waypoints.length === 0) {
         console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed - using crow-flies fallback');
+        usedFallbackOrdering = true;
         routeStops = [...routeStops, ...stopsToSequence].sort((a, b) => {
           const distA = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, a.lat, a.lng);
           const distB = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, b.lat, b.lng);
@@ -1125,66 +1127,6 @@ Deno.serve(async (req) => {
     })();
     // ── End unit-number micro-sort ──────────────────────────────────────────
 
-    // ── Unit-number micro-sort (post-optimization, pre-ETA) ────────────────
-    // For in_transit DID-prefixed patient deliveries that share the same GPS
-    // coordinates (same building), sort within each group by unit_number
-    // ascending so the driver visits lower units first.
-    // Pickups, ISP/ISD, BIK, en_route, and pending stops are untouched.
-    (() => {
-      const GPS_PRECISION = 4; // ~11m tolerance
-      const roundGps = (v) => Number(Number(v).toFixed(GPS_PRECISION));
-      const processed = new Set();
-
-      for (let i = 0; i < routeStops.length; i++) {
-        if (processed.has(i)) continue;
-        const { delivery, lat, lng } = routeStops[i];
-
-        if (
-          delivery.status !== 'in_transit' ||
-          !delivery.patient_id ||
-          !String(delivery.delivery_id || '').toUpperCase().startsWith('DID')
-        ) continue;
-
-        const rLat = roundGps(lat);
-        const rLng = roundGps(lng);
-
-        const groupIndices = [i];
-        for (let j = i + 1; j < routeStops.length; j++) {
-          const s = routeStops[j];
-          if (
-            s.delivery.status !== 'in_transit' ||
-            !s.delivery.patient_id ||
-            !String(s.delivery.delivery_id || '').toUpperCase().startsWith('DID')
-          ) continue;
-          if (roundGps(s.lat) === rLat && roundGps(s.lng) === rLng) {
-            groupIndices.push(j);
-          }
-        }
-
-        if (groupIndices.length < 2) { processed.add(i); continue; }
-
-        const group = groupIndices.map((idx) => routeStops[idx]);
-        group.sort((a, b) => {
-          const ua = String(a.delivery.unit_number || patientMap.get(a.delivery.patient_id)?.unit_number || '').trim();
-          const ub = String(b.delivery.unit_number || patientMap.get(b.delivery.patient_id)?.unit_number || '').trim();
-          const na = parseInt(ua, 10);
-          const nb = parseInt(ub, 10);
-          if (!isNaN(na) && !isNaN(nb)) return na - nb;
-          return ua.localeCompare(ub);
-        });
-
-        groupIndices.forEach((idx, pos) => {
-          routeStops[idx] = group[pos];
-          processed.add(idx);
-        });
-
-        console.log(
-          `🏢 [optimizeRemainingStops] Unit-sort at (${rLat},${rLng}): ` +
-          group.map((s) => `#${s.delivery.unit_number || patientMap.get(s.delivery.patient_id)?.unit_number || '?'}`).join(' → ')
-        );
-      }
-    })();
-    // ── End unit-number micro-sort ──────────────────────────────────────────
 
     const stageEtaMap = new Map();
     const segmentPolylineByDeliveryId = new Map(segmentPolylines.map((segment) => [segment.deliveryId, segment]));
@@ -1440,6 +1382,7 @@ Deno.serve(async (req) => {
       apiCallsMade: attemptedHereCalls,
       locationSource,
       usedTimeWindows,
+      usedFallbackOrdering,
       preserveExistingOrder,
       forceFullRemainingRouteOptimization,
       nextDeliveryId: nextStopId,

@@ -89,6 +89,7 @@ const buildFallback = (origin, destination, extra = {}, waypoints = []) => Respo
   estimated_distance_km: 0,
   estimated_duration_minutes: 0,
   polyline_format: 'fallback',
+  usedFallbackPolyline: true,
   ...extra
 });
 
@@ -351,7 +352,7 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
     ...(lastIsDest ? [] : [{ lat: destinationLat, lng: destinationLng }])
   ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
 
-  if (orderedPoints.length < 2) return { sections: [], combinedEncodedPolyline: null, combinedCoordinates: null };
+  if (orderedPoints.length < 2) return { sections: [], combinedEncodedPolyline: null, combinedCoordinates: null, usedCrowFliesFallback: false };
 
   const transportMode = normalizedTransportMode === 'cycling'
     ? 'bicycle'
@@ -585,7 +586,8 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
         ...seg,
         encoded_polyline: ep,
         coordinates: [seg._fromPoint, seg._toPoint],
-        _needsRetry: false
+        _needsRetry: false,
+        _isCrowFliesFallback: true
       };
       console.info(`[getHereDirections] Segment ${i} fell back to crow-flies`);
     }
@@ -602,10 +604,13 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
     return [...acc, ...coords];
   }, []);
 
+  const usedCrowFliesFallback = sections.some((s) => s && s._isCrowFliesFallback === true);
+
   return {
     sections,
     combinedEncodedPolyline: combinedCoordinates.length > 1 ? encodeGooglePolyline(combinedCoordinates) : null,
-    combinedCoordinates: combinedCoordinates.length > 1 ? combinedCoordinates.map(([lat, lng]) => ({ lat, lng })) : null
+    combinedCoordinates: combinedCoordinates.length > 1 ? combinedCoordinates.map(([lat, lng]) => ({ lat, lng })) : null,
+    usedCrowFliesFallback
   };
 };
 
@@ -1001,7 +1006,8 @@ Deno.serve(async (req) => {
       transport_mode: normalizedTransportMode,
       optimized_waypoint_ids: orderedWaypoints.map((waypoint) => waypoint.id),
       used_time_windows: preserveWaypointOrder ? false : true,
-      api_call_count: routeCallCount
+      api_call_count: routeCallCount,
+      usedFallbackPolyline: routedGeometry.usedCrowFliesFallback === true
     });
   } catch (err) {
     console.error('[getHereDirections] unexpected error', err?.message || err);

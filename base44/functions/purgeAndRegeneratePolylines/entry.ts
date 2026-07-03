@@ -643,7 +643,8 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
     const routePolylines = Array.isArray(data?.polylines) ? data.polylines : [];
 
     console.log(`[purgeAndRegeneratePolylines] getMultiSegmentDirections response: ${sections.length} sections, format=${data?.polyline_format || 'encoded'}`);
-    return safeSpecs.map((segment, index) => {
+    let anySegmentFellBackToCrowFlies = false;
+    const mappedSegments = safeSpecs.map((segment, index) => {
       const section = sections[index] || null;
       const routePolyline = routePolylines[index] || null;
       let polyline = null;
@@ -668,6 +669,7 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
 
       if (!polyline) {
         polyline = encodeGooglePolyline([[segment.from.lat, segment.from.lon], [segment.to.lat, segment.to.lon]]);
+        anySegmentFellBackToCrowFlies = true;
       }
 
       return {
@@ -676,13 +678,17 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
         estimated_duration_minutes: section?.estimated_duration_minutes ?? null
       };
     });
+    mappedSegments.usedFallbackPolyline = anySegmentFellBackToCrowFlies || data?.usedFallbackPolyline === true || data?.polyline_format === 'fallback';
+    return mappedSegments;
   } catch (error) {
     console.warn('[purgeAndRegeneratePolylines] Multi-segment directions unavailable, using fallback:', error?.message || error);
-    return safeSpecs.map((segment) => ({
+    const fallbackSegments = safeSpecs.map((segment) => ({
       encoded_polyline: encodeGooglePolyline([[segment.from.lat, segment.from.lon], [segment.to.lat, segment.to.lon]]),
       estimated_distance_km: null,
       estimated_duration_minutes: null
     }));
+    fallbackSegments.usedFallbackPolyline = true;
+    return fallbackSegments;
   }
 }
 
@@ -718,6 +724,11 @@ Deno.serve(async (req) => {
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
     }
+
+    // Tracks whether any HERE call in this run fell back to a straight-line
+    // ("crow-flies") polyline instead of a real routed one, so the caller/UI
+    // can surface a degraded-optimization signal instead of a silent success.
+    let anyFallbackPolylineUsed = false;
 
     if (sourcePage && sourcePage !== 'Dashboard') {
       return Response.json({
@@ -1074,6 +1085,7 @@ Deno.serve(async (req) => {
             const mode = getNormalizedTravelMode(group[0]?.transportMode, 'driving');
             const groupedFinishedRoute = await getMultiSegmentDirections(base44, group.map((segment) => ({ from: segment.from, to: segment.to })), mode);
             apiCallsMade += 1;
+            if (groupedFinishedRoute.usedFallbackPolyline) anyFallbackPolylineUsed = true;
             group.forEach((segment, index) => {
               finishedDirectionsByStopId.set(segment.stop.id, groupedFinishedRoute[index] || null);
             });
@@ -1092,6 +1104,7 @@ Deno.serve(async (req) => {
             'driving'
           );
           apiCallsMade += 1;
+          if (drivingPassDirections.usedFallbackPolyline) anyFallbackPolylineUsed = true;
           finishedSegmentSpecs.forEach((spec, index) => {
             finishedDirectionsByStopId.set(spec.stop.id, drivingPassDirections[index] || null);
           });
@@ -1121,6 +1134,7 @@ Deno.serve(async (req) => {
               'cycling'
             );
             apiCallsMade += 1;
+            if (cyclingDirections.usedFallbackPolyline) anyFallbackPolylineUsed = true;
             loopSpecs.forEach((spec, index) => {
               // Override the driving-pass result for this stop with bicycle directions
               finishedDirectionsByStopId.set(spec.stop.id, cyclingDirections[index] || null);
@@ -1323,6 +1337,7 @@ Deno.serve(async (req) => {
             primaryTransportMode
           );
           apiCallsMade += 1;
+          if (groupedDirections.usedFallbackPolyline) anyFallbackPolylineUsed = true;
           group.forEach((spec, index) => {
             directionsBySegmentKey.set(
               makeSegmentKey(driverId, deliveryDate, spec.from, spec.to),
@@ -1469,6 +1484,7 @@ Deno.serve(async (req) => {
             primaryTransportMode
           );
           apiCallsMade += 1;
+          if (groupedDirections.usedFallbackPolyline) anyFallbackPolylineUsed = true;
           group.forEach((spec, index) => {
             uncachedDirectionsBySegmentKey.set(
               makeSegmentKey(driverId, deliveryDate, spec.from, spec.to),
@@ -1550,6 +1566,7 @@ Deno.serve(async (req) => {
       deleted: deletedPolylineCount,
       created: createdSegments.length,
       apiCallsMade,
+      usedFallbackPolyline: anyFallbackPolylineUsed,
       segments: createdSegments,
       clearedFinishedLegs,
       regeneratedFinishedLegs: regeneratedFinishedLegStopIds.length,
