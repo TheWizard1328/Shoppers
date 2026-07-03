@@ -1204,10 +1204,10 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const monthStores = metrics.monthlyStoreData[index + 1] || [];
     const billable = monthStores
       .filter((storeEntry) => (storeEntry.fees || 0) > 0)
-      .reduce((sum, storeEntry) => sum + (storeEntry.completed || 0) + (storeEntry.failed || 0) + (storeEntry.afterHours || 0), 0);
+      .reduce((sum, storeEntry) => sum + (storeEntry.completed || 0) + (storeEntry.failed || 0) + (storeEntry.afterHours || 0) + (storeEntry.returned || 0), 0);
     const nonBillable = monthStores
       .filter((storeEntry) => (storeEntry.fees || 0) <= 0)
-      .reduce((sum, storeEntry) => sum + (storeEntry.completed || 0) + (storeEntry.failed || 0) + (storeEntry.afterHours || 0), 0);
+      .reduce((sum, storeEntry) => sum + (storeEntry.completed || 0) + (storeEntry.failed || 0) + (storeEntry.afterHours || 0) + (storeEntry.returned || 0), 0);
 
     return {
       month: MONTH_NAMES[index],

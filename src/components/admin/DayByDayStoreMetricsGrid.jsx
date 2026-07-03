@@ -58,7 +58,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
       return dayData.fees || 0;
     }
 
-    return (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0);
+    return (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0) + (dayData.returned || 0);
   };
 
   // Calculate day totals (sum across all stores for each day)
@@ -78,7 +78,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
       // Sum actual daily fees from dailyStoreData — consistent with app_fee_history-aware backend values
       return storeDaily.reduce((sum, day) => sum + (day.fees || 0), 0);
     }
-    return storeDaily.reduce((sum, day) => sum + (day.completed || 0) + (day.failed || 0) + (day.afterHours || 0), 0);
+    return storeDaily.reduce((sum, day) => sum + (day.completed || 0) + (day.failed || 0) + (day.afterHours || 0) + (day.returned || 0), 0);
   };
 
   const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store, viewMode), 0);
