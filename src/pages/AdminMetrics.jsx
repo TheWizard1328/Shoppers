@@ -510,7 +510,7 @@ export default function AdminMetrics() {
         const day = index + 1;
         const existing = dataByDay.get(day);
         const totalReturned = existing?.returned || 0;
-        const totalCompleted = Math.max(0, (existing?.completed || 0) + (existing?.afterHours || 0) - totalReturned);
+        const totalCompleted = (existing?.completed || 0) + (existing?.afterHours || 0);
         const totalFailed = existing?.failed || 0;
         const fees = existing?.fees || 0;
         const extraKm = existing?.extra_km || existing?.extraKm || 0;
@@ -549,13 +549,13 @@ export default function AdminMetrics() {
       }
 
       const totalReturned = item.returned || 0;
-      const totalCompleted = (item.completed || 0) + (item.afterHours || 0) - totalReturned;
+      const totalCompleted = (item.completed || 0) + (item.afterHours || 0);
       const totalFailed = item.failed || 0;
       const extraKm = item.extra_km || item.extraKm || 0;
 
       return {
         ...item,
-        totalCompleted: Math.max(0, totalCompleted),
+        totalCompleted,
         totalFailed,
         totalReturned,
         envelopeCount: envelopeValue,

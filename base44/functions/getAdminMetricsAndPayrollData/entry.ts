@@ -92,7 +92,11 @@ const isFailedStatus = (delivery) => delivery?.status === 'failed';
 const isCancelledStatus = (delivery) => delivery?.status === 'cancelled';
 const isAfterHoursPickupDelivery = (delivery) => delivery?.after_hours_pickup === true;
 const isPatientOrTransferDelivery = (delivery) => !!delivery?.patient_id;
-const isReturnDelivery = (delivery) => String(delivery?.patient_name || '').toUpperCase().includes('(RTN)');
+const isReturnDelivery = (delivery) => {
+  const name = String(delivery?.patient_name || '').toUpperCase();
+  const notes = String(delivery?.delivery_notes || '').toUpperCase();
+  return name.includes('(RTN)') || notes.includes('(RTN)');
+};
 // ISD/ISP inter-store deliveries: always counted as deliveries, never as pickups
 const isInterStoreDelivery = (delivery) => {
   const id = String(delivery?.delivery_id || '').toUpperCase();
@@ -249,7 +253,7 @@ const mergeMetrics = (baseMetrics, incomingMetrics) => {
         return;
       }
       const mergedItem = { ...existing, ...item };
-      ['completed', 'failed', 'afterHours', 'cancelled', 'fees', 'billable', 'nonBillable', 'extra_km', 'total', 'totalCompleted', 'totalFailed'].forEach((field) => {
+      ['completed', 'failed', 'afterHours', 'returned', 'cancelled', 'fees', 'billable', 'nonBillable', 'extra_km', 'total', 'totalCompleted', 'totalFailed'].forEach((field) => {
         if (existing[field] != null || item[field] != null) {
           mergedItem[field] = (existing[field] || 0) + (item[field] || 0);
         }
@@ -1001,7 +1005,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   stores.forEach(s => {
     metrics.storeData.push({
       abbreviation: s.abbreviation, name: s.name, storeId: s.id,
-      completed: 0, failed: 0, afterHours: 0, cancelled: 0, fees: 0,
+      completed: 0, failed: 0, afterHours: 0, returned: 0, cancelled: 0, fees: 0,
       color: s.color, sortOrder: s.sort_order
     });
   });
@@ -1017,7 +1021,8 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   });
   metrics.driverData = Array.from(uniqueDriverMap.values());
 
-  const isCountableCompletedDelivery = (d) => d?.no_charge !== true && isStandardOrInterStoreDelivery(d) && isCompletedStatus(d);
+  const isCountableCompletedDelivery = (d) => d?.no_charge !== true && isStandardOrInterStoreDelivery(d) && isCompletedStatus(d) && !isReturnDelivery(d);
+  const isCountableReturnDelivery = (d) => d?.no_charge !== true && isStandardOrInterStoreDelivery(d) && isCompletedStatus(d) && isReturnDelivery(d);
   const isCountableFailedDelivery = (d) => d?.no_charge !== true && isStandardOrInterStoreDelivery(d) && isFailedStatus(d);
   const isCountableAfterHoursPickup = (d) => d?.no_charge !== true && isAfterHoursPickupDelivery(d) && (isCompletedStatus(d) || isCancelledStatus(d));
 
@@ -1122,6 +1127,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       const annualStoreEntry = metrics.storeData.find(s => s.storeId === delivery.store_id);
       if (annualStoreEntry) {
         if (isCountableCompletedDelivery(delivery)) annualStoreEntry.completed++;
+        if (isCountableReturnDelivery(delivery)) annualStoreEntry.returned++;
         if (isCountableFailedDelivery(delivery)) annualStoreEntry.failed++;
         if (isCountableAfterHoursPickup(delivery)) annualStoreEntry.afterHours++;
       }
@@ -1129,10 +1135,11 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (!metrics.storeDataByMonth[monthIndex + 1]) metrics.storeDataByMonth[monthIndex + 1] = [];
       let monthlyStoreEntry = metrics.storeDataByMonth[monthIndex + 1].find(s => s.storeId === delivery.store_id);
       if (!monthlyStoreEntry) {
-        monthlyStoreEntry = { abbreviation: store.abbreviation, name: store.name, storeId: delivery.store_id, completed: 0, failed: 0, afterHours: 0, extra_km: 0, color: store.color, sortOrder: store.sort_order };
+        monthlyStoreEntry = { abbreviation: store.abbreviation, name: store.name, storeId: delivery.store_id, completed: 0, failed: 0, afterHours: 0, returned: 0, extra_km: 0, color: store.color, sortOrder: store.sort_order };
         metrics.storeDataByMonth[monthIndex + 1].push(monthlyStoreEntry);
       }
       if (isCountableCompletedDelivery(delivery)) monthlyStoreEntry.completed++;
+      if (isCountableReturnDelivery(delivery)) monthlyStoreEntry.returned++;
       if (isCountableFailedDelivery(delivery)) monthlyStoreEntry.failed++;
       if (isCountableAfterHoursPickup(delivery)) monthlyStoreEntry.afterHours++;
       if ((delivery.patient_id || isInterStoreDelivery(delivery)) && (isCountableCompletedDelivery(delivery) || isCountableFailedDelivery(delivery))) monthlyStoreEntry.extra_km += calculateExtraKm(delivery);
@@ -1141,10 +1148,11 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (!metrics.dailyStoreData[monthIndex + 1][delivery.store_id]) metrics.dailyStoreData[monthIndex + 1][delivery.store_id] = [];
       let dailyStoreEntry = metrics.dailyStoreData[monthIndex + 1][delivery.store_id].find(d => d.day === dayOfMonth);
       if (!dailyStoreEntry) {
-        dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, extra_km: 0, fees: 0 };
+        dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, returned: 0, extra_km: 0, fees: 0 };
         metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
       }
       if (isCountableCompletedDelivery(delivery)) dailyStoreEntry.completed++;
+      if (isCountableReturnDelivery(delivery)) dailyStoreEntry.returned++;
       if (isCountableFailedDelivery(delivery)) dailyStoreEntry.failed++;
       if (isCountableAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
       if ((delivery.patient_id || isInterStoreDelivery(delivery)) && (isCountableCompletedDelivery(delivery) || isCountableFailedDelivery(delivery))) dailyStoreEntry.extra_km += calculateExtraKm(delivery);
