@@ -886,12 +886,20 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, sent_to: uniqueRecipientEmails });
     }
 
-    // Single-date preview (no email): return as base64 JSON
-    const { pdfBytes, displayStoreName, dateStr: singleDate } = pdfResults[0];
-    const pdfBase64 = uint8ToBase64(new Uint8Array(pdfBytes));
+    // Preview (no email): return all PDFs as base64 — one per date
+    if (pdfResults.length === 1) {
+      const { pdfBytes, displayStoreName, dateStr: singleDate } = pdfResults[0];
+      return Response.json({
+        pdfBase64: uint8ToBase64(new Uint8Array(pdfBytes)),
+        fileName: `RxDeliver Logs - ${displayStoreName} - ${singleDate}.pdf`
+      });
+    }
+    // Multi-date: return array so the frontend can open each in its own tab
     return Response.json({
-      pdfBase64,
-      fileName: `RxDeliver Logs - ${displayStoreName} - ${singleDate}.pdf`
+      pdfResults: pdfResults.map(({ pdfBytes, displayStoreName, dateStr: d }) => ({
+        pdfBase64: uint8ToBase64(new Uint8Array(pdfBytes)),
+        fileName: `RxDeliver Logs - ${displayStoreName} - ${d}.pdf`
+      }))
     });
 
   } catch (error) {
