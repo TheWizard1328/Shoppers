@@ -509,7 +509,8 @@ export default function AdminMetrics() {
       return Array.from({ length: daysInMonth }, (_, index) => {
         const day = index + 1;
         const existing = dataByDay.get(day);
-        const totalCompleted = (existing?.completed || 0) + (existing?.afterHours || 0);
+        const totalReturned = existing?.returned || 0;
+        const totalCompleted = Math.max(0, (existing?.completed || 0) + (existing?.afterHours || 0) - totalReturned);
         const totalFailed = existing?.failed || 0;
         const fees = existing?.fees || 0;
         const extraKm = existing?.extra_km || existing?.extraKm || 0;
@@ -517,10 +518,11 @@ export default function AdminMetrics() {
           day,
           totalCompleted,
           totalFailed,
+          totalReturned,
           envelopeCount: 0,
           fees,
           extraKm,
-          totalDeliveries: totalCompleted + totalFailed
+          totalDeliveries: totalCompleted + totalFailed + totalReturned
         };
       });
     }
@@ -546,18 +548,20 @@ export default function AdminMetrics() {
         }
       }
 
-      const totalCompleted = (item.completed || 0) + (item.afterHours || 0);
+      const totalReturned = item.returned || 0;
+      const totalCompleted = (item.completed || 0) + (item.afterHours || 0) - totalReturned;
       const totalFailed = item.failed || 0;
       const extraKm = item.extra_km || item.extraKm || 0;
 
       return {
         ...item,
-        totalCompleted,
+        totalCompleted: Math.max(0, totalCompleted),
         totalFailed,
+        totalReturned,
         envelopeCount: envelopeValue,
         fees: item.fees || 0,
         extraKm,
-        totalDeliveries: totalCompleted + totalFailed
+        totalDeliveries: Math.max(0, totalCompleted) + totalFailed + totalReturned
       };
     });
   }, [displayMetricsData.storeData, filteredData, metricsData, selectedMonth, selectedStoreMonth, selectedYear, showEnvelopeAdjustedTotals]);
@@ -1067,20 +1071,32 @@ export default function AdminMetrics() {
                       tick={selectedStoreMonth ? { fill: 'var(--text-slate-600)', fontSize: 11 } : (props) => {
                         const { x, y, payload } = props;
                         const storeData = bottomStoreChartData.find((s) => s.abbreviation === payload.value);
-                        const displayValue = metricsViewMode === 'fees' ?
-                        `$${(storeData?.fees || 0).toFixed(0)}` : metricsViewMode === 'extra_km' ?
-                        Number(storeData?.extraKm || 0).toFixed(2) :
-                        storeData?.totalDeliveries || 0;
+                        if (metricsViewMode !== 'deliveries') {
+                          const displayValue = metricsViewMode === 'fees' ?
+                            `$${(storeData?.fees || 0).toFixed(0)}` :
+                            Number(storeData?.extraKm || 0).toFixed(2);
+                          return (
+                            <g transform={`translate(${x},${y})`}>
+                              <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={11}>{payload.value}</text>
+                              <text x={0} y={0} dy={26} textAnchor="middle" fill={metricsViewMode === 'fees' ? '#f59e0b' : '#8b5cf6'} fontSize={10} fontWeight="600">{displayValue}</text>
+                            </g>
+                          );
+                        }
+                        const c = storeData?.totalCompleted || 0;
+                        const f = storeData?.totalFailed || 0;
+                        const r = storeData?.totalReturned || 0;
                         return (
                           <g transform={`translate(${x},${y})`}>
-                          <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={11}>
-                            {payload.value}
-                          </text>
-                          <text x={0} y={0} dy={26} textAnchor="middle" fill={metricsViewMode === 'fees' ? '#f59e0b' : '#10b981'} fontSize={10} fontWeight="600">
-                            {displayValue}
-                          </text>
-                        </g>);
-
+                            <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={11}>{payload.value}</text>
+                            <text x={0} y={0} dy={25} textAnchor="middle" fontSize={9} fontWeight="700">
+                              <tspan fill="#10b981">{c}</tspan>
+                              <tspan fill="var(--text-slate-400)">/</tspan>
+                              <tspan fill="#ef4444">{f}</tspan>
+                              <tspan fill="var(--text-slate-400)">/</tspan>
+                              <tspan fill="#f97316">{r}</tspan>
+                            </text>
+                          </g>
+                        );
                       }}
                       interval={0}
                       height={50} />
@@ -1111,7 +1127,8 @@ export default function AdminMetrics() {
                       {showEnvelopeAdjustedTotals &&
                       <Bar dataKey="envelopeCount" stackId="completed" fill="#3b82f6" name="Envelope" radius={[4, 4, 0, 0]} />
                       }
-                      <Bar dataKey="totalFailed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="totalFailed" stackId="failReturn" fill="#ef4444" name="Failed" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="totalReturned" stackId="failReturn" fill="#f97316" name="Returned" radius={[4, 4, 0, 0]} />
                     </>
                     }
                 </BarChart>
