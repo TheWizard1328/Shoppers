@@ -417,6 +417,7 @@ export const handleBatchSaveDelivery = async ({
 
       const payload = {
         delivery_id: deliveryId,
+        company_id: currentUser?.company_id || null,
         dispatcher_id: dispatcherId,
         created_by_app_user_id: createdByAppUserId,
         patient_id: stop.patient_id || null,
