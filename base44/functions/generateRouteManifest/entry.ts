@@ -128,8 +128,8 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
-    // Guard: cap at 14 days to avoid timeouts
-    if (datesToProcess.length > 14) {
+    // Guard: cap at 31 days to avoid timeouts
+    if (datesToProcess.length > 31) {
       return Response.json({ error: `Date range too large (${datesToProcess.length} days). Please select 14 days or fewer.` }, { status: 400 });
     }
 
