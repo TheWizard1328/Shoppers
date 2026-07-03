@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -208,6 +208,30 @@ export default function ExportRouteEmailDialog({
     setIsSaving(false);
   };
 
+  const [exportProgress, setExportProgress] = useState(0); // 0-100
+  const exportProgressRef = useRef(null);
+
+  const startProgressAnimation = (totalDays) => {
+    setExportProgress(0);
+    const estimatedMs = Math.max(totalDays * 350, 1500);
+    const intervalMs = 80;
+    const steps = estimatedMs / intervalMs;
+    let step = 0;
+    exportProgressRef.current = setInterval(() => {
+      step++;
+      // Ease-out: fast start, slow near 90%
+      const raw = step / steps;
+      const eased = 1 - Math.pow(1 - raw, 2);
+      setExportProgress(Math.min(Math.round(eased * 90), 90));
+      if (step >= steps) clearInterval(exportProgressRef.current);
+    }, intervalMs);
+  };
+
+  const stopProgressAnimation = (success = true) => {
+    if (exportProgressRef.current) clearInterval(exportProgressRef.current);
+    setExportProgress(success ? 100 : 0);
+  };
+
   const handleExportRoute = async () => {
     await saveEmails();
     const perStoreEmails = stores.reduce((acc, store) => {
@@ -221,17 +245,23 @@ export default function ExportRouteEmailDialog({
     if (testingEmail && isValidEmail(testingEmail)) allRecipientEmails.push(testingEmail);
     const recipientEmails = [...new Set(allRecipientEmails)];
 
-    onOpenChange(false);
-    await onExportRoute({
-      recipientEmails,
-      perStoreEmails,
-      exportDate: startDate,
-      startDate,
-      endDate,
-      stores,
-      storeName: stores.length === 1 ? stores[0]?.name : undefined,
-      useBarcodes
-    });
+    startProgressAnimation(dayCount);
+    try {
+      await onExportRoute({
+        recipientEmails,
+        perStoreEmails,
+        exportDate: startDate,
+        startDate,
+        endDate,
+        stores,
+        storeName: stores.length === 1 ? stores[0]?.name : undefined,
+        useBarcodes
+      });
+      stopProgressAnimation(true);
+      setTimeout(() => { onOpenChange(false); setExportProgress(0); }, 600);
+    } catch {
+      stopProgressAnimation(false);
+    }
   };
 
   const isRange = endDate > startDate;
@@ -315,12 +345,31 @@ export default function ExportRouteEmailDialog({
             )}
           </div>
 
-          {isRange && (
+          {isRange && !isExporting && (
             <p className={`text-xs -mt-1 ${rangeTooBig ? 'text-red-500 font-medium' : 'text-slate-500'}`}>
               {rangeTooBig
                 ? `⚠️ ${dayCount} days selected — maximum is 31. Please shorten the range.`
                 : `Exporting ${dayCount} days — stores with deliveries in any day of this range will appear below.`}
             </p>
+          )}
+          {isExporting && (
+            <div className="-mt-1 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-blue-600 font-medium">
+                  {exportProgress < 100 ? `Generating PDF… ${exportProgress}%` : '✓ Done!'}
+                </span>
+                <span className="text-xs text-slate-400">{dayCount} day{dayCount !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-slate-200, #e2e8f0)' }}>
+                <div
+                  className="h-full rounded-full transition-all duration-150"
+                  style={{
+                    width: `${exportProgress}%`,
+                    background: exportProgress === 100 ? '#16a34a' : '#2563eb'
+                  }}
+                />
+              </div>
+            </div>
           )}
 
           {/* Testing email — fixed below date pickers */}
