@@ -421,7 +421,7 @@ Deno.serve(async (req) => {
       const colSig = colPhotos - (thumbSize + rightGap);
       const colRx = colSig - (thumbSize + rightGap);
       const colReceipts = colRx - (thumbSize + rightGap);
-      const colNotes = colReceipts - 34;
+      const colNotes = colReceipts - 60;
       const colCreatedBy = colNotes - 28;
       const colDriver = colCreatedBy - 28;
 
@@ -494,11 +494,11 @@ Deno.serve(async (req) => {
         const barcodeRowHeight = barcodesToDraw.length > 0 ? (barcodeH + 4) : 0; // 4mm for label below
         const barcodeLineCount = barcodeStr ? 1 : 0;
 
-        const nameLines = doc.splitTextToSize(name, 27); // reduced 40% from 45
+        const nameLines = doc.splitTextToSize(name, 14);
         const driverLines = doc.splitTextToSize(driverName, 24);
         const createdByLines = doc.splitTextToSize(createdByName, 24);
-        const fridgeTempLines = fridgeTempStr ? doc.splitTextToSize(fridgeTempStr, 28) : [];
-        const notesLines = doc.splitTextToSize(fridgeTempStr ? (fridgeTempStr + (notes ? '\n' + notes : '')) : notes, 28);
+        const fridgeTempLines = fridgeTempStr ? doc.splitTextToSize(fridgeTempStr, 56) : [];
+        const notesLines = doc.splitTextToSize(fridgeTempStr ? (fridgeTempStr + (notes ? '\n' + notes : '')) : notes, 56);
         const textContentLines = Math.max(nameLines.length + barcodeLineCount, driverLines.length, createdByLines.length, notesLines.length, 1);
         const hasPhotos = images?.photos?.length > 0;
         const hasSig = !!images?.signature;
