@@ -448,9 +448,19 @@ Deno.serve(async (req) => {
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    // IMPORTANT: "most recent finished stop" must be determined by actual completion TIME
+    // (matching optimizeRemainingStops' getLatestFinishedDelivery), NOT by stop_order. stop_order
+    // reflects the originally-planned sequence and can legitimately diverge from the real order
+    // stops were completed in (re-optimization, skips, manual reorders, etc.) — using stop_order
+    // here caused the polyline origin to sometimes anchor to the wrong finished stop, producing a
+    // different/inconsistent origin point each time Start was pressed.
     const mostRecentFinishedStop = (deliveries || [])
       .filter((delivery) => finishedStatuses.has(delivery.status))
-      .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
+      .sort((a, b) => {
+        const aTime = new Date(a?.actual_delivery_time || a?.updated_date || a?.created_date || 0).getTime();
+        const bTime = new Date(b?.actual_delivery_time || b?.updated_date || b?.created_date || 0).getTime();
+        return bTime - aTime;
+      })[0] || null;
 
     const patientIds = [...new Set(activeStops.filter((d) => d?.patient_id).map((d) => d.patient_id))];
     const storeIds = [...new Set(activeStops.filter((d) => d?.store_id).map((d) => d.store_id))];
