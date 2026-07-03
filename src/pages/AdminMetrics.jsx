@@ -142,7 +142,7 @@ export default function AdminMetrics() {
     checkAccess();
   }, []);
 
-  const getAdminMetricsCacheKey = useCallback((year, cityId) => `admin-metrics-${year}-${cityId}`, []);
+  const getAdminMetricsCacheKey = useCallback((year, cityId) => `admin-metrics-v2-${year}-${cityId}`, []);
 
   const loadOfflineMetrics = useCallback(async (year, cityId) => {
     const cacheId = getAdminMetricsCacheKey(year, cityId);
@@ -532,7 +532,7 @@ export default function AdminMetrics() {
     return (filteredData?.storeData || displayMetricsData.storeData || []).
     slice().
     filter((item) => {
-      const totalDeliveries = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0);
+      const totalDeliveries = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0) + (item.returned || 0);
       const extraKm = item.extra_km || item.extraKm || 0;
       return totalDeliveries > 0 || (item.fees || 0) > 0 || extraKm > 0;
     }).
