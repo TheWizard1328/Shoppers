@@ -899,6 +899,7 @@ Deno.serve(async (req) => {
     let attemptedHereCalls = 0;
     let usedTimeWindows = true;
     let usedFallbackOrdering = false;
+    let __TEMP_DEBUG_HERE_FAILURE = null;
     let routeStops = routeOriginStop ? [routeOriginStop] : [];
     let directionsLegs = [];
     let segmentPolylines = [];
@@ -991,7 +992,20 @@ Deno.serve(async (req) => {
       }
 
       if (!hereAttempt.response.ok || !result || waypoints.length === 0) {
-        console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed - using crow-flies fallback');
+        console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed - using crow-flies fallback', {
+          status: hereAttempt.response?.status,
+          statusText: hereAttempt.response?.statusText,
+          rawData: JSON.stringify(hereAttempt.data)?.slice(0, 2000),
+          resultPresent: !!result,
+          waypointsLength: waypoints.length,
+        });
+        __TEMP_DEBUG_HERE_FAILURE = {
+          status: hereAttempt.response?.status,
+          statusText: hereAttempt.response?.statusText,
+          rawData: hereAttempt.data,
+          resultPresent: !!result,
+          waypointsLength: waypoints.length,
+        };
         usedFallbackOrdering = true;
         routeStops = [...routeStops, ...stopsToSequence].sort((a, b) => {
           const distA = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, a.lat, a.lng);
@@ -1383,6 +1397,7 @@ Deno.serve(async (req) => {
       locationSource,
       usedTimeWindows,
       usedFallbackOrdering,
+      __debugHereFailure: __TEMP_DEBUG_HERE_FAILURE,
       preserveExistingOrder,
       forceFullRemainingRouteOptimization,
       nextDeliveryId: nextStopId,
