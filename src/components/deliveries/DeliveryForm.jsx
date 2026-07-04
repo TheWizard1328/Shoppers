@@ -599,8 +599,9 @@ export default function DeliveryForm({
     const autoSelectedDriverName = driverManuallyChangedRef.current && formData.driver_id ? formData.driver_name : resolvedDriverName;
 
     const updatedFormData = { ...buildSelectedPatientFormData({ formData, patient, deliveryAMPM, autoSelectedDriverId, autoSelectedDriverName }), patient_email: patient.email || '' };
+    const isDMR = (patient.full_name || '').toUpperCase().includes('DMR');
     const routePickups = getRoutePickupsForStore({ allDeliveries, stagedDeliveries, storeId: patient.store_id, driverId: autoSelectedDriverId, deliveryDate: formData.delivery_date });
-    const fallbackPickup = buildPendingNewPickup({ store: patientStore, formData: { ...updatedFormData, store_id: patient.store_id }, driverName: autoSelectedDriverName, stopId: generateStopId() });
+    const fallbackPickup = isDMR ? null : buildPendingNewPickup({ store: patientStore, formData: { ...updatedFormData, store_id: patient.store_id }, driverName: autoSelectedDriverName, stopId: generateStopId() });
     const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup });
     setSelectedRoutePickup(chosenPickup);
     setPendingRoutePickup(chosenPickup?._pendingCreate ? chosenPickup : null);
@@ -958,7 +959,8 @@ export default function DeliveryForm({
       } else {
         if (buttonState === 'add' || buttonState === 'updateStaged' || buttonState === 'done') { setIsSaving(false); return false; }
         let resolvedPuid = dataToSave.puid || '';
-        if (!delivery?.id && pendingRoutePickup?._pendingCreate && !isPickupMode) {
+        const _isDMR = (formData.patient_name || '').toUpperCase().includes('DMR');
+        if (!delivery?.id && pendingRoutePickup?._pendingCreate && !isPickupMode && !_isDMR) {
           const pickupStore = stores?.find((s) => s && s.id === pendingRoutePickup.store_id);
           const pickupTimes = resolvePickupTimeWindow({ store: pickupStore, deliveryDate: pendingRoutePickup.delivery_date, timeSlot: pendingRoutePickup.ampm_deliveries || 'AM' });
           const createdPickup = await createDeliveryLocal({ ...pendingRoutePickup, status: 'en_route', delivery_time_start: pickupTimes?.delivery_time_start || '', delivery_time_end: pickupTimes?.delivery_time_end || '', time_window_start: pickupTimes?.delivery_time_start || '', time_window_end: pickupTimes?.delivery_time_end || '' });
