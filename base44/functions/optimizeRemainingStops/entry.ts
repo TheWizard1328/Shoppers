@@ -95,11 +95,11 @@ const formatMinutesToTime = (minutes) => {
 };
 
 const getEffectiveWindowStart = (delivery, patient = null) => {
-  return delivery?.time_window_start || patient?.time_window_start || delivery?.delivery_time_start || null;
+  return delivery?.delivery_time_start || delivery?.time_window_start || patient?.time_window_start || null;
 };
 
 const getEffectiveWindowEnd = (delivery, patient = null) => {
-  return delivery?.time_window_end || patient?.time_window_end || delivery?.delivery_time_end || null;
+  return delivery?.delivery_time_end || delivery?.time_window_end || patient?.time_window_end || null;
 };
 
 const isLateWindowStop = (windowStart, currentMinutes) => {

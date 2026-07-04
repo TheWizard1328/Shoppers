@@ -149,10 +149,10 @@ const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
 };
 
 const getEffectiveWindowStart = (delivery, patient = null) =>
-  delivery?.time_window_start || patient?.time_window_start || delivery?.delivery_time_start || null;
+  delivery?.delivery_time_start || delivery?.time_window_start || patient?.time_window_start || null;
 
 const getEffectiveWindowEnd = (delivery, patient = null) =>
-  delivery?.time_window_end || patient?.time_window_end || delivery?.delivery_time_end || null;
+  delivery?.delivery_time_end || delivery?.time_window_end || patient?.time_window_end || null;
 
 const isLateWindowStop = (windowStart, currentMinutes) => {
   const startMinutes = parseTimeToMinutes(windowStart);

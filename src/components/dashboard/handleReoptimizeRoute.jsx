@@ -32,6 +32,7 @@ export async function handleReoptimizeRoute({
   stores = null,
 }) {
   try {
+    console.log('🚀 [handleReoptimizeRoute] FAB triggered — using client-side engine, deliveries:', deliveries?.length, 'patients:', patients?.length, 'stores:', stores?.length);
     setIsReoptimizing(true);
     setOptimizationMessage('Re-optimizing route...');
 
