@@ -78,7 +78,7 @@ export default function StopCardFooterMenu(props) {
   const canShowPatientHistory = !!(patient && delivery?.patient_id && !isInterStore && !isPickupForMenu && (
     isAdminOrOwner ||
     isDispatcherOnly ||
-    (isDriverOnly && isActiveDelivery)
+    (isDriverOnly && !routeCompleted && (isActiveDelivery || isFinishedRegularDelivery))
   ));
 
   const canShowComplete = !!(

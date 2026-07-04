@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, Package, BarChart3, Calendar, ChevronDown, Eye, Pencil } from "lucide-react";
+import { X, Package, BarChart3, Calendar, ChevronDown, Eye, Pencil, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -23,45 +23,46 @@ const getStatusStyle = (status) => {
   }
 };
 
-export default function PatientHistoryPanel({ patient, deliveries, currentUser, onClose, onEditDelivery }) {
+export default function PatientHistoryPanel({ patient, currentUser, onClose, onEditDelivery }) {
   const [analyticsCollapsed, setAnalyticsCollapsed] = useState(false);
   const [codOnly, setCodOnly] = useState(false);
   const [deliveryStats, setDeliveryStats] = useState(null);
+  const [allDeliveries, setAllDeliveries] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!patient) return;
+    if (!patient?.id) return;
+    setIsLoading(true);
+    setAllDeliveries([]);
+    setDeliveryStats(null);
 
-    const patientDeliveries = (deliveries || []).filter(
-      (d) => d && d.patient_id === patient.id && d.status === 'completed'
-    );
+    base44.entities.Delivery.filter({ patient_id: patient.id }, '-delivery_date', 60)
+      .then((fetched) => {
+        const valid = (fetched || []).filter(Boolean);
+        setAllDeliveries(valid);
 
-    if (patientDeliveries.length === 0) {
-      setDeliveryStats({ totalDeliveries: 0, mostCommonDay: null, lastDeliveryDate: null, dayFrequency: {} });
-      return;
-    }
+        const completed = valid.filter((d) => d.status === 'completed');
+        if (completed.length === 0) {
+          setDeliveryStats({ totalDeliveries: 0, mostCommonDay: null, lastDeliveryDate: null, dayFrequency: {} });
+          return;
+        }
 
-    const dayFrequency = {};
-    let lastDate = null;
+        const dayFrequency = {};
+        let lastDate = null;
+        completed.forEach((d) => {
+          const dayName = new Date(d.delivery_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+          dayFrequency[dayName] = (dayFrequency[dayName] || 0) + 1;
+          if (!lastDate || d.delivery_date > lastDate) lastDate = d.delivery_date;
+        });
 
-    patientDeliveries.forEach((d) => {
-      const dateObj = new Date(d.delivery_date + 'T12:00:00');
-      const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
-      dayFrequency[dayName] = (dayFrequency[dayName] || 0) + 1;
-      if (!lastDate || d.delivery_date > lastDate) lastDate = d.delivery_date;
-    });
+        const mostCommonDay = Object.entries(dayFrequency).sort(([, a], [, b]) => b - a)[0]?.[0] || null;
+        setDeliveryStats({ totalDeliveries: completed.length, mostCommonDay, lastDeliveryDate: lastDate, dayFrequency });
+      })
+      .catch(() => setDeliveryStats({ totalDeliveries: 0, mostCommonDay: null, lastDeliveryDate: null, dayFrequency: {} }))
+      .finally(() => setIsLoading(false));
+  }, [patient?.id]);
 
-    const mostCommonDay = Object.entries(dayFrequency).sort(([, a], [, b]) => b - a)[0]?.[0] || null;
-
-    setDeliveryStats({
-      totalDeliveries: patientDeliveries.length,
-      mostCommonDay,
-      lastDeliveryDate: lastDate,
-      dayFrequency
-    });
-  }, [patient, deliveries]);
-
-  const patientDeliveries = (deliveries || [])
-    .filter((d) => d && d.patient_id === patient?.id)
+  const patientDeliveries = allDeliveries
     .filter((d) => !codOnly || Number(d.cod_total_amount_required || 0) > 0)
     .sort((a, b) => new Date(b.delivery_date) - new Date(a.delivery_date))
     .slice(0, 30);
@@ -117,8 +118,15 @@ export default function PatientHistoryPanel({ patient, deliveries, currentUser, 
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
 
+              {isLoading && (
+                <div className="flex items-center justify-center py-10 gap-2" style={{ color: 'var(--text-slate-500)' }}>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm">Loading history...</span>
+                </div>
+              )}
+
               {/* Analytics Card */}
-              {deliveryStats && (
+              {!isLoading && deliveryStats && (
                 <div className="rounded-xl border shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <div
                     className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
@@ -192,7 +200,7 @@ export default function PatientHistoryPanel({ patient, deliveries, currentUser, 
               )}
 
               {/* Recent Deliveries */}
-              <div className="rounded-xl border shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              {!isLoading && <div className="rounded-xl border shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border-slate-100)' }}>
                   <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
                     <Package className="w-4 h-4 text-blue-600" />
@@ -290,7 +298,7 @@ export default function PatientHistoryPanel({ patient, deliveries, currentUser, 
                     </div>
                   )}
                 </div>
-              </div>
+              </div>}
             </div>
           </motion.div>
         </>

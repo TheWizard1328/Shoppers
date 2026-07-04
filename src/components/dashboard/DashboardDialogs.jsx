@@ -162,7 +162,6 @@ export default function DashboardDialogs({
 
       <PatientHistoryPanel
         patient={historyPatient}
-        deliveries={deliveries}
         currentUser={currentUser}
         onClose={() => {
           setHistoryPatient(null);
