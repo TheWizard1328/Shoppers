@@ -831,7 +831,7 @@ Deno.serve(async (req) => {
 
     if (!currentPosition && explicitNextCoords) {
       currentPosition = explicitNextCoords;
-      locationSource = 'next_delivery_stop__DEPLOYTEST123';
+      locationSource = 'next_delivery_stop';
     }
 
     if (!routeHasStarted && !currentPosition && driverGpsPosition) {
