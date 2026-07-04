@@ -1678,16 +1678,17 @@ export default function AdminUtilities() {
   }
 
   return (
-    <div className="w-full flex flex-col p-2 md:p-3 overflow-y-auto" style={{ background: 'var(--bg-slate-50)', height: '100%' }}>
-      <div className="w-full max-w-none space-y-4 md:space-y-6 flex flex-col pb-4">
-        <div className="flex items-center justify-between gap-2">
+    <div className="w-full flex flex-col" style={{ background: 'var(--bg-slate-50)', height: '100%', overflow: 'hidden' }}>
+      {/* Sticky header — never scrolls */}
+      <div className="flex-shrink-0 px-2 md:px-3 pt-2 md:pt-3 pb-2" style={{ background: 'var(--bg-slate-50)' }}>
+        <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
             <h1 className="text-xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
             <SmartRefreshIndicator inline={true} onManualRefresh={handleRefreshAllData} />
           </div>
         </div>
 
-        <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full flex flex-col">
+        <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
           <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
             <TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(9,minmax(max-content,1fr))' }}>
               <TabsTrigger value="data" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Data</TabsTrigger>
@@ -1701,8 +1702,14 @@ export default function AdminUtilities() {
               <TabsTrigger value="sync-management" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Sync</TabsTrigger>
             </TabsList>
           </div>
+        </Tabs>
+      </div>
 
-          <TabsContent value="data" className="mt-4">
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto px-2 md:px-3 pb-4">
+        <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
+
+          <TabsContent value="data" className="mt-0">
             {dataLoading && activeDataTab !== 'deliveries' || dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length ?
             <div className="flex justify-center items-center h-60">
                 <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
@@ -1982,7 +1989,6 @@ export default function AdminUtilities() {
         onConfirm={confirmDialog.onConfirm}
         confirmText={confirmDialog.confirmText}
         variant={confirmDialog.variant} />
-      
     </div>);
 
 }
