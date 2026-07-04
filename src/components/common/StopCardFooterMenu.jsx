@@ -71,7 +71,7 @@ export default function StopCardFooterMenu(props) {
   const isDriverOnly = !!(userHasRole?.(currentUser, 'driver') && !userHasRole?.(currentUser, 'admin') && !isAppOwner?.(currentUser));
   const canShowEditPatient = !!(!isDispatcherOnly && !isDriverOnly && onEditPatient && patient && canManageStop && (isActiveDelivery || isFinishedRegularDelivery) && !isInterStore);
 
-  const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && patient && !isPickupForMenu && !isInterStore && (isNextDelivery || isFinishedDelivery));
+  const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && patient && !isPickupForMenu && !isInterStore && (isNextDelivery || isFinishedDelivery || delivery?.status === 'in_transit'));
 
   const canShowViewAsPatient = !!(isAppOwner?.(currentUser) && patient && delivery?.patient_id && !isInterStore);
 
