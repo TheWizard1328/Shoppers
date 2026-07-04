@@ -62,6 +62,8 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
       .finally(() => setIsLoading(false));
   }, [patient?.id]);
 
+  const codCount = allDeliveries.filter((d) => Number(d.cod_total_amount_required || 0) > 0).length;
+
   const patientDeliveries = allDeliveries
     .filter((d) => !codOnly || Number(d.cod_total_amount_required || 0) > 0)
     .sort((a, b) => new Date(b.delivery_date) - new Date(a.delivery_date))
@@ -203,18 +205,20 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
               {!isLoading && <div className="rounded-xl border shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border-slate-100)' }}>
                   <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
-                    <Package className="w-4 h-4 text-blue-600" />
-                    Recent Deliveries
-                  </span>
-                  <label className="flex items-center gap-1.5 text-xs font-normal cursor-pointer select-none" style={{ color: 'var(--text-slate-600)' }}>
-                    <input
-                      type="checkbox"
-                      checked={codOnly}
-                      onChange={(e) => setCodOnly(e.target.checked)}
-                      className="rounded"
-                    />
-                    COD only
-                  </label>
+                     <Package className="w-4 h-4 text-blue-600" />
+                     Recent Deliveries
+                   </span>
+                   {codCount > 0 && (
+                     <label className="flex items-center gap-1.5 text-xs font-normal cursor-pointer select-none" style={{ color: 'var(--text-slate-600)' }}>
+                       <input
+                         type="checkbox"
+                         checked={codOnly}
+                         onChange={(e) => setCodOnly(e.target.checked)}
+                         className="rounded"
+                       />
+                       COD only ({codCount})
+                     </label>
+                   )}
                 </div>
 
                 <div className="p-3">
