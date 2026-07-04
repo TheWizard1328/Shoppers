@@ -316,7 +316,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       if (!stop.stop_id) stop.stop_id = generateUniqueSID(allDeliveriesForDate);
       const deliveryId = stop.delivery_id || (stop.is_cycling_marker ? `BIK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : `DID-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
       const payload = {
-        delivery_id: deliveryId, patient_id: stop.patient_id || null, store_id: stop.store_id,
+        delivery_id: deliveryId, company_id: currentUser?.company_id || null, patient_id: stop.patient_id || null, store_id: stop.store_id,
         driver_id: driverId, driver_name: driver.user_name || driver.full_name, delivery_date: stop.delivery_date,
         delivery_time_start: stop.delivery_time_start, delivery_time_end: stop.delivery_time_end,
         delivery_time_eta: stop.estimated_arrival || stop.delivery_time_start,
