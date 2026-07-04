@@ -129,6 +129,11 @@ export default function StopCardFooterMenu(props) {
             <User className="w-5 h-5 mr-2" />Edit Patient
           </DropdownMenuItem>
         )}
+        {canShowUpdateGps && (
+          <DropdownMenuItem inset={false} onClick={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); handleUpdateGPS(e); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 dark:text-slate-100 focus:bg-slate-100 dark:focus:bg-slate-700 focus:text-slate-900 dark:focus:text-slate-100">
+            <Locate className="w-5 h-5 mr-2" />Update GPS
+          </DropdownMenuItem>
+        )}
         {canShowPatientHistory && (
           <DropdownMenuItem inset={false} onClick={(e) => {
             closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation();
@@ -143,11 +148,6 @@ export default function StopCardFooterMenu(props) {
           <DropdownMenuItem inset={false} onClick={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); activatePatientViewOverlay(patient); }}
  className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-indigo-600 dark:text-indigo-400 focus:bg-indigo-50 dark:focus:bg-indigo-950 focus:text-indigo-700 dark:focus:text-indigo-300">
             <ExternalLink className="w-5 h-5 mr-2" />View As Patient
-          </DropdownMenuItem>
-        )}
-        {canShowUpdateGps && (
-          <DropdownMenuItem inset={false} onClick={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); handleUpdateGPS(e); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 dark:text-slate-100 focus:bg-slate-100 dark:focus:bg-slate-700 focus:text-slate-900 dark:focus:text-slate-100">
-            <Locate className="w-5 h-5 mr-2" />Update GPS
           </DropdownMenuItem>
         )}
         {canShowComplete && (
