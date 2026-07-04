@@ -1711,6 +1711,8 @@ useEffect(() => {
       currentUser, selectedDate, appUsers, format,
       setIsReoptimizing, setOptimizationMessage, setIsEntityUpdating, setSkippedStopsDialogData,
       refreshData, isMapViewLockedRef, setIsMapViewLocked, setMapViewTrigger,
+      // Pass local in-memory data to the client-side route engine
+      deliveries: deliveriesRef.current, patients: patientsRef.current, stores: storesRef.current,
     });
   };
 

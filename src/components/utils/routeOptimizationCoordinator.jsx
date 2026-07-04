@@ -7,182 +7,210 @@
  * All code paths (manual FAB, form save, start delivery, status update, accept all)
  * must go through this coordinator.
  *
- * Mirrors the proven Manual FAB path:
- *   optimizeRemainingStops → regenerateType1Polyline
- * then fetches fresh data, saves to offline DB, and broadcasts UI updates.
+ * Now uses the client-side engine (clientRouteEngine.js) instead of backend functions.
+ * This eliminates the race condition where the backend optimizer reads stale data
+ * before client-side writes have settled: the engine operates on fresh in-memory data,
+ * then the coordinator writes results to the backend DB for other viewers.
  */
 
 import { base44 } from '@/api/base44Client';
 import { invalidate } from '@/components/utils/dataManager';
 import { offlineDB } from '@/components/utils/offlineDatabase';
+import { getOrFetchHereApiKey } from '@/components/utils/hereApiKeyStore';
+import { optimizeRouteClientSide } from '@/components/utils/clientRouteEngine';
 
 /**
- * Core route optimization engine.
+ * Core route optimization engine (client-side).
  *
  * @param {Object} params
  * @param {string} params.driverId
  * @param {string} params.deliveryDate       - YYYY-MM-DD
  * @param {Object} [params.currentLocation]   - { lat, lon } for polyline origin
+ * @param {Array}  [params.deliveries]        - Local deliveries array (from React state/refs)
+ * @param {Array}  [params.patients]          - Local patients array
+ * @param {Array}  [params.stores]            - Local stores array
+ * @param {Array}  [params.appUsers]          - Local appUsers array
  * @param {string[]} [params.orderedDeliveryIds] - Pre-computed ordered IDs (skip optimizer if provided)
- * @param {boolean} [params.skipOptimize=false]  - Skip optimizeRemainingStops call (use orderedDeliveryIds directly)
- * @param {boolean} [params.skipPolyline=false]  - Skip polyline regeneration entirely
+ * @param {boolean} [params.skipOptimize=false]  - Skip optimization (use orderedDeliveryIds directly)
+ * @param {boolean} [params.skipPolyline=false]  - Skip polyline generation entirely
  * @param {string}  [params.source='coordinator'] - Label for logging / events
  * @param {boolean} [params.bypassDriverStatus=true]
- * @param {Object}  [params.hereApiKey]
+ * @param {boolean} [params.preserveExistingOrder=false]
+ * @param {boolean} [params.cyclingSegmentOnly=false]
+ * @param {Object}  [params.cyclingOrigin]
+ * @param {Object}  [params.cyclingDestination]
+ * @param {string[]} [params.cyclingStopIds]
+ * @param {boolean} [params.drivingSegmentOnly=false]
+ * @param {Object}  [params.drivingOrigin]
+ * @param {string[]} [params.excludeStopIds]
+ * @param {number}  [params.startingStopOrder]
  * @returns {Promise<{success: boolean, optimizeData?: Object, freshDeliveries?: Array, orderedDeliveryIds?: string[], error?: string}>}
  */
 export async function performRouteOptimization({
   driverId,
   deliveryDate,
   currentLocation = null,
+  deliveries = null,
+  patients = null,
+  stores = null,
+  appUsers = null,
   orderedDeliveryIds = null,
   skipOptimize = false,
   skipPolyline = false,
   source = 'coordinator',
   bypassDriverStatus = true,
-  hereApiKey = null,
+  preserveExistingOrder = false,
+  cyclingSegmentOnly = false,
+  cyclingOrigin = null,
+  cyclingDestination = null,
+  cyclingStopIds = [],
+  drivingSegmentOnly = false,
+  drivingOrigin = null,
+  excludeStopIds = [],
+  startingStopOrder = null,
 }) {
   if (!driverId || !deliveryDate) {
     console.warn(`[RouteOptimization] ${source} — missing driverId or deliveryDate`);
     return { success: false, error: 'Missing driverId or deliveryDate' };
   }
 
-  let optimizeData = null;
-  let resolvedOrderedIds = orderedDeliveryIds || null;
+  // ── Resolve HERE API key ──────────────────────────────────────────────────
+  let hereApiKey = null;
+  try {
+    hereApiKey = await getOrFetchHereApiKey();
+  } catch (e) {
+    console.warn(`[RouteOptimization] ${source} — failed to get HERE API key:`, e?.message);
+  }
+  if (!hereApiKey) {
+    return { success: false, error: 'HERE API key not available' };
+  }
 
-  // regenerateType1Polyline HARD REQUIRES a valid { lat, lon } currentLocation in its request
-  // body and 400s immediately without one — which base44.functions.invoke does not treat as a
-  // thrown error, so a missing currentLocation previously caused polyline generation to no-op
-  // completely and silently for any caller that forgot to pass it (e.g. Accept All / Assign All).
-  // Resolve it here from the driver's AppUser record as a safety net so this can't regress again.
+  // ── Resolve current location from AppUser if not provided ─────────────────
   let resolvedCurrentLocation = currentLocation;
+  let resolvedAppUsers = appUsers;
+
   if (!resolvedCurrentLocation || !Number.isFinite(resolvedCurrentLocation?.lat) || !Number.isFinite(resolvedCurrentLocation?.lon)) {
-    try {
-      const driverAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
-      const driverAppUser = Array.isArray(driverAppUsers) ? driverAppUsers[0] : null;
-      const fallbackLat = Number(driverAppUser?.current_latitude);
-      const fallbackLon = Number(driverAppUser?.current_longitude);
-      if (Number.isFinite(fallbackLat) && Number.isFinite(fallbackLon)) {
-        resolvedCurrentLocation = { lat: fallbackLat, lon: fallbackLon };
-      } else {
-        console.warn(`[RouteOptimization] ${source} — no currentLocation provided and no AppUser GPS fix available; polyline regeneration will be skipped`);
+    // Try to resolve from appUsers first (if provided)
+    if (!resolvedAppUsers) {
+      try {
+        resolvedAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
+      } catch (e) {
+        console.warn(`[RouteOptimization] ${source} — failed to fetch AppUser for location fallback:`, e?.message);
       }
-    } catch (e) {
-      console.warn(`[RouteOptimization] ${source} — failed resolving fallback currentLocation:`, e?.message);
+    }
+    const driverAppUser = Array.isArray(resolvedAppUsers) ? resolvedAppUsers.find(au => au?.user_id === driverId) : null;
+    const fallbackLat = Number(driverAppUser?.current_latitude);
+    const fallbackLon = Number(driverAppUser?.current_longitude);
+    if (Number.isFinite(fallbackLat) && Number.isFinite(fallbackLon)) {
+      resolvedCurrentLocation = { lat: fallbackLat, lon: fallbackLon };
     }
   }
 
-  try {
-    // ── Step 1: Optimize remaining stops (unless skipped with pre-computed IDs) ──
-    if (!skipOptimize && !resolvedOrderedIds) {
-      const now = new Date();
-      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  // ── Fetch local data if not provided by caller ────────────────────────────
+  // When the caller doesn't pass local data (e.g. legacy call sites), we fall back to
+  // fetching from the backend. This is the old behavior and may still race, but it's
+  // better than failing. New call sites should always pass local data.
+  let resolvedDeliveries = deliveries;
+  let resolvedPatients = patients;
+  let resolvedStores = stores;
 
-      const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
+  if (!resolvedDeliveries) {
+    console.warn(`[RouteOptimization] ${source} — no local deliveries provided, fetching from backend (may race)`);
+    resolvedDeliveries = await base44.entities.Delivery.filter({
+      driver_id: driverId, delivery_date: deliveryDate
+    }).catch(() => []);
+  }
+  if (!resolvedPatients) {
+    const patientIds = [...new Set((resolvedDeliveries || []).filter(d => d.patient_id).map(d => d.patient_id))];
+    resolvedPatients = patientIds.length ? await base44.entities.Patient.filter({ id: { $in: patientIds } }).catch(() => []) : [];
+  }
+  if (!resolvedStores) {
+    const storeIds = [...new Set((resolvedDeliveries || []).map(d => d.store_id).filter(Boolean))];
+    resolvedStores = storeIds.length ? await base44.entities.Store.filter({ id: { $in: storeIds } }).catch(() => []) : [];
+  }
+  if (!resolvedAppUsers) {
+    resolvedAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
+  }
+
+  try {
+    // ── Step 1: Run client-side optimization engine ──────────────────────────
+    let optimizeData = null;
+
+    if (!skipOptimize) {
+      const engineResult = await optimizeRouteClientSide({
+        deliveries: resolvedDeliveries,
+        patients: resolvedPatients,
+        stores: resolvedStores,
+        appUsers: resolvedAppUsers,
         driverId,
         deliveryDate,
-        currentLocalTime,
-        deviceTime: now.toISOString(),
-        ...(bypassDriverStatus ? { bypassDriverStatus: true } : {}),
-        ...(hereApiKey ? { hereApiKey } : {}),
+        hereApiKey,
+        currentLocation: resolvedCurrentLocation,
+        source,
+        preserveExistingOrder,
+        cyclingSegmentOnly,
+        cyclingOrigin,
+        cyclingDestination,
+        cyclingStopIds,
+        drivingSegmentOnly,
+        drivingOrigin,
+        excludeStopIds,
+        startingStopOrder,
       }).catch((err) => {
-        console.warn(`[RouteOptimization] ${source} — optimizeRemainingStops failed:`, err?.message);
+        console.error(`[RouteOptimization] ${source} — client engine error:`, err);
         return null;
       });
 
-      optimizeData = optimizeResponse?.data || optimizeResponse;
-
-      if (!optimizeData?.success) {
-        console.warn(`[RouteOptimization] ${source} — Optimizer did not succeed:`, optimizeData?.error || 'unknown');
-        // Non-fatal — fall through and try polyline refresh with whatever order exists
-      } else {
-        resolvedOrderedIds = Array.isArray(optimizeData.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
-          ? optimizeData.orderedDeliveryIds
-          : null;
+      if (!engineResult?.success) {
+        console.warn(`[RouteOptimization] ${source} — engine did not succeed:`, engineResult?.error || 'unknown');
+        // Non-fatal — fall through and try to fetch whatever exists
       }
+
+      optimizeData = engineResult;
+
+      // ── Step 2: Write results to backend DB ──────────────────────────────
+      if (optimizeData?.writeBatch && optimizeData.writeBatch.length > 0) {
+        console.log(`[RouteOptimization] ${source} — writing ${optimizeData.writeBatch.length} updates to DB`);
+        // Chunk writes to avoid rate-limiting (same as backend's processInChunks)
+        const CHUNK_SIZE = 12;
+        for (let i = 0; i < optimizeData.writeBatch.length; i += CHUNK_SIZE) {
+          const chunk = optimizeData.writeBatch.slice(i, i + CHUNK_SIZE);
+          await Promise.all(chunk.map(async ({ id, data }) => {
+            try {
+              await base44.entities.Delivery.update(id, data);
+            } catch (e) {
+              console.warn(`[RouteOptimization] ${source} — failed to update delivery ${id}:`, e?.message);
+            }
+          }));
+        }
+      }
+    } else if (orderedDeliveryIds) {
+      // Caller provided pre-computed order — just use it
+      optimizeData = { success: true, orderedDeliveryIds, optimizedRoute: [], writeBatch: [] };
     }
 
-    // ── Step 2: Regenerate polylines using the proven FAB path (regenerateType1Polyline) ──
-    let polylineResponse = null;
-    if (!skipPolyline && resolvedOrderedIds && resolvedOrderedIds.length > 0) {
-      // Use the same call as handleReoptimizeRoute (regenerateType1Polyline with ordered IDs)
-      try {
-        polylineResponse = await base44.functions.invoke('regenerateType1Polyline', {
-          driverId,
-          deliveryDate,
-          currentLocation: resolvedCurrentLocation || (optimizeData?.trueOriginCoords || null),
-          orderedDeliveryIds: resolvedOrderedIds,
-          routeChangeSource: source,
-          force: true,
-        }).catch((e) => {
-          console.warn(`[RouteOptimization] ${source} — regenerateType1Polyline failed, falling back to purgeAndRegeneratePolylines:`, e?.message);
-          // Fallback: try purgeAndRegeneratePolylines
-          return base44.functions.invoke('purgeAndRegeneratePolylines', {
-            driverId,
-            deliveryDate,
-            routeStopOrder: resolvedOrderedIds,
-            reason: source,
-            scope: 'active_only',
-            bypassDriverStatus: true,
-            recalculateEtas: false,
-          }).catch((e2) => {
-            console.warn(`[RouteOptimization] ${source} — purgeAndRegeneratePolylines also failed:`, e2?.message);
-            return null;
-          });
-        });
-      } catch (e) {
-        console.warn(`[RouteOptimization] ${source} — polyline regeneration failed:`, e?.message);
-      }
-    } else if (!skipPolyline && !resolvedOrderedIds) {
-      // No ordered IDs — try purgeAndRegeneratePolylines with scope='active_only'
-      try {
-        polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
-          driverId,
-          deliveryDate,
-          scope: 'active_only',
-          reason: source,
-          bypassDriverStatus: true,
-          recalculateEtas: false,
-        }).catch((e) => {
-          console.warn(`[RouteOptimization] ${source} — purgeAndRegeneratePolylines failed:`, e?.message);
-          return null;
-        });
-      } catch (e) {
-        console.warn(`[RouteOptimization] ${source} — purgeAndRegeneratePolylines failed:`, e?.message);
-      }
-    }
-
-    // Degraded-optimization signals — surfaced to callers so the UI can tell the user
-    // when "success" actually meant a straight-line/crow-flies approximation rather
-    // than a real HERE-computed route.
-    const polylineData = polylineResponse?.data || polylineResponse;
-    const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;
-    const usedFallbackPolyline = polylineData?.usedFallbackPolyline === true;
-
-    // ── Step 3: Fetch fresh deliveries and persist to offline DB ──
-    // Wait briefly for the polyline backend function to finish writing encoded_polyline
-    // back to the DB before we fetch — without this, the fetch races the async write.
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // ── Step 3: Fetch fresh deliveries and persist to offline DB ─────────────
+    // Brief delay for DB write consistency
+    await new Promise((resolve) => setTimeout(resolve, 500));
     invalidate('Delivery');
     const freshDeliveries = await base44.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate,
+      driver_id: driverId, delivery_date: deliveryDate
     }).catch(() => []);
 
     if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
       await offlineDB.replaceRecordsByIndex(
-        offlineDB.STORES.DELIVERIES,
-        'delivery_date',
-        deliveryDate,
-        freshDeliveries
+        offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDate, freshDeliveries
       ).catch(() => {});
     }
+
+    const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;
+    const usedFallbackPolyline = false; // Engine handles polylines inline; no separate fallback
 
     return {
       success: true,
       optimizeData,
       freshDeliveries: freshDeliveries || [],
-      orderedDeliveryIds: resolvedOrderedIds,
+      orderedDeliveryIds: optimizeData?.orderedDeliveryIds || orderedDeliveryIds || null,
       usedFallbackOrdering,
       usedFallbackPolyline,
       isDegraded: usedFallbackOrdering || usedFallbackPolyline,
