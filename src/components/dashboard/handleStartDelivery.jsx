@@ -169,10 +169,17 @@ export async function handleStartDelivery({
       driverCurrentLon = driverLocation.longitude;
     }
 
+    // Pass the just-mutated local deliveries directly to the client-side engine.
+    // mutatedDeliveries already contains the full driver+date set from offlineDB
+    // with the latest status/isNextDelivery/stop_order writes applied.
     const coordResult = await performRouteOptimization({
       driverId,
       deliveryDate,
       currentLocation: driverCurrentLat && driverCurrentLon ? { lat: driverCurrentLat, lon: driverCurrentLon } : null,
+      deliveries: mutatedDeliveries,
+      patients,
+      stores,
+      appUsers,
       source: 'start_delivery',
       bypassDriverStatus: true,
     });

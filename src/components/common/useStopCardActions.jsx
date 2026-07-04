@@ -21,6 +21,7 @@ import { triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
+import { pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineMutations';
 import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
@@ -218,7 +219,9 @@ export default function useStopCardActions(params) {
 
   const executeAcceptAllStops = useCallback(async () => {
     pauseOfflineSync('delivery_actions');
+    pauseOfflineMutations();
     pauseRealtimeSync();
+    backgroundSyncManager.pause();
     setIsAcceptingAll(true);
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     try {
@@ -366,10 +369,24 @@ export default function useStopCardActions(params) {
       const acceptAllCurrentLocation = Number.isFinite(acceptAllDriverLat) && Number.isFinite(acceptAllDriverLon)
         ? { lat: acceptAllDriverLat, lon: acceptAllDriverLon }
         : null;
+      // Merge just-updated local deliveries into allDeliveries for the client-side engine
+      const _acceptAllChangedMap = new Map();
+      for (const d of [...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])]) {
+        if (d?.id) _acceptAllChangedMap.set(d.id, d);
+      }
+      const _acceptAllFullDeliveries = [
+        ...(allDeliveries || []).map(d => _acceptAllChangedMap.get(d?.id) || d),
+        ...[...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])].filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
+      ];
+
       const coordResult = await performRouteOptimization({
         driverId: delivery.driver_id,
         deliveryDate: delivery.delivery_date,
         currentLocation: acceptAllCurrentLocation,
+        deliveries: _acceptAllFullDeliveries,
+        patients,
+        stores,
+        appUsers,
         source: 'accept_all',
         bypassDriverStatus: true,
       }).catch(() => null);
@@ -434,6 +451,8 @@ export default function useStopCardActions(params) {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
       resumeRealtimeSync();
       resumeOfflineSync('delivery_actions');
+      resumeOfflineMutations();
+      backgroundSyncManager.resume();
       driverLocationPoller.resume();
       smartRefreshManager.resume();
       setIsEntityUpdating(false);
@@ -773,11 +792,27 @@ export default function useStopCardActions(params) {
           smartRefreshManager.pause();
           backgroundSyncManager.pause();
           pauseRealtimeSync();
+          pauseOfflineSync('delivery_actions');
+          pauseOfflineMutations();
           try {
             // Unified FAB path: optimizeRemainingStops → regenerateType1Polyline
+            // Merge startedRouteDeliveries (just-updated local state) into allDeliveries
+            const _startChangedMap = new Map();
+            for (const d of (startedRouteDeliveries || [])) {
+              if (d?.id) _startChangedMap.set(d.id, d);
+            }
+            const _startFullDeliveries = [
+              ...(allDeliveries || []).map(d => _startChangedMap.get(d?.id) || d),
+              ...(startedRouteDeliveries || []).filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
+            ];
+
             await performRouteOptimization({
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
+              deliveries: _startFullDeliveries,
+              patients,
+              stores,
+              appUsers,
               source: 'start_button',
               bypassDriverStatus: true,
             }).catch(() => null);
@@ -821,6 +856,8 @@ export default function useStopCardActions(params) {
             console.warn('⚠️ [Start bg] background optimization failed:', bgErr?.message || bgErr);
           } finally {
             // Always resume after background work completes or fails
+            resumeOfflineSync('delivery_actions');
+            resumeOfflineMutations();
             smartRefreshManager.resume();
             backgroundSyncManager.resume();
             resumeRealtimeSync();
