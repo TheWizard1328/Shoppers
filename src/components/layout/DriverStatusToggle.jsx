@@ -8,6 +8,7 @@ import { useAppData } from "../utils/AppDataContext";
 import { fabControlEvents } from "../utils/fabControlEvents";
 import { loadUserSettings } from "../utils/userSettingsManager";
 import { reconcilePendingBreadcrumbsOnDuty } from "../utils/pendingBreadcrumbReconciliation";
+import { globalFilters } from "../utils/globalFilters";
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -194,7 +195,8 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     isTogglingRef.current = true;
 
     const today = getTodayStr();
-    const selectedRouteDate = appDataContext?.deliveries?.find(d => d?.driver_id === effectiveUser?.id && d?.isNextDelivery)?.delivery_date || today;
+    // Use the globally selected date (what the admin/driver has selected in the UI) as the authoritative route date
+    const selectedRouteDate = globalFilters.getSelectedDate() || today;
     const optimizerDate = newStatus === 'on_duty' ? today : selectedRouteDate;
 
     // Block going off_duty mid-route
@@ -267,18 +269,20 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       // Clear isNextDelivery flags when going off_duty or on_break
       if (newStatus === 'off_duty' || newStatus === 'on_break') {
         try {
+          // Fetch fresh from API — local cache may be stale or filtered differently
           const routeDeliveries = await base44.entities.Delivery.filter({
             driver_id: effectiveUser.id,
             delivery_date: optimizerDate,
-            isNextDelivery: true
           });
-          if (routeDeliveries?.length > 0) {
-            await Promise.all(routeDeliveries.map(d =>
+          const flagged = (routeDeliveries || []).filter(d => d?.isNextDelivery === true);
+          if (flagged.length > 0) {
+            await Promise.all(flagged.map(d =>
               base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
             ));
             if (appDataContext?.updateDeliveriesLocally) {
-              appDataContext.updateDeliveriesLocally(routeDeliveries.map(d => ({ ...d, isNextDelivery: false })), false);
+              appDataContext.updateDeliveriesLocally(flagged.map(d => ({ ...d, isNextDelivery: false })), false);
             }
+            console.log(`[DriverStatusToggle] Cleared isNextDelivery on ${flagged.length} stops for driver ${effectiveUser.id} on ${optimizerDate}`);
           }
         } catch (e) { console.warn('[DriverStatusToggle] Could not clear isNextDelivery flags:', e?.message); }
       }
