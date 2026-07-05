@@ -98,6 +98,7 @@ export default function DeliveryForm({
   patients,
   stores,
   drivers,
+  cities,
   onSave,
   onCancel,
   initialPatientId,
@@ -371,8 +372,8 @@ export default function DeliveryForm({
       const { patientId, updates } = event.detail || {};
       if (patientId !== delivery.patient_id) return;
       setFormData(prev => ({ ...prev, patient_name: updates.full_name || prev.patient_name, patient_phone: updates.phone || prev.patient_phone, patient_phone_secondary: updates.phone_secondary !== undefined ? (updates.phone_secondary || '') : prev.patient_phone_secondary, unit_number: updates.unit_number || prev.unit_number, delivery_instructions: updates.notes || prev.delivery_instructions,
-        ...(updates.time_window_start !== undefined ? { delivery_time_start: updates.time_window_start || '', time_window_start: updates.time_window_start || '' } : {}),
-        ...(updates.time_window_end !== undefined ? { delivery_time_end: updates.time_window_end || '', time_window_end: updates.time_window_end || '' } : {}),
+        ...(updates.time_window_start !== undefined ? { time_window_start: updates.time_window_start || '' } : {}),
+        ...(updates.time_window_end !== undefined ? { time_window_end: updates.time_window_end || '' } : {}),
         mailbox_ok: updates.mailbox_ok !== undefined ? updates.mailbox_ok : prev.mailbox_ok, call_upon_arrival: updates.call_upon_arrival !== undefined ? updates.call_upon_arrival : prev.call_upon_arrival, ring_bell: updates.ring_bell !== undefined ? updates.ring_bell : prev.ring_bell, dont_ring_bell: updates.dont_ring_bell !== undefined ? updates.dont_ring_bell : prev.dont_ring_bell, back_door: updates.back_door !== undefined ? updates.back_door : prev.back_door, signature_needed: updates.signature_needed !== undefined ? updates.signature_needed : prev.signature_needed, recurring: updates.recurring !== undefined ? updates.recurring : prev.recurring, recurring_daily: updates.recurring_daily !== undefined ? updates.recurring_daily : prev.recurring_daily, recurring_weekly_mon: updates.recurring_weekly_mon !== undefined ? updates.recurring_weekly_mon : prev.recurring_weekly_mon, recurring_weekly_tue: updates.recurring_weekly_tue !== undefined ? updates.recurring_weekly_tue : prev.recurring_weekly_tue, recurring_weekly_wed: updates.recurring_weekly_wed !== undefined ? updates.recurring_weekly_wed : prev.recurring_weekly_wed, recurring_weekly_thu: updates.recurring_weekly_thu !== undefined ? updates.recurring_weekly_thu : prev.recurring_weekly_thu, recurring_weekly_fri: updates.recurring_weekly_fri !== undefined ? updates.recurring_weekly_fri : prev.recurring_weekly_fri, recurring_weekly_sat: updates.recurring_weekly_sat !== undefined ? updates.recurring_weekly_sat : prev.recurring_weekly_sat, recurring_weekly_sun: updates.recurring_weekly_sun !== undefined ? updates.recurring_weekly_sun : prev.recurring_weekly_sun, recurring_biweekly: updates.recurring_biweekly !== undefined ? updates.recurring_biweekly : prev.recurring_biweekly, recurring_weekly_x4: updates.recurring_weekly_x4 !== undefined ? updates.recurring_weekly_x4 : prev.recurring_weekly_x4, recurring_monthly: updates.recurring_monthly !== undefined ? updates.recurring_monthly : prev.recurring_monthly, recurring_bimonthly: updates.recurring_bimonthly !== undefined ? updates.recurring_bimonthly : prev.recurring_bimonthly }));
     };
     const unsubscribeDelivery = base44.entities.Delivery.subscribe((event) => {
@@ -381,8 +382,8 @@ export default function DeliveryForm({
       if (event?.type === 'delete') return onCancel?.();
       const d = event?.data; if (!d) return;
       const livePatient = delivery.patient_id ? patients?.find((p) => p && p.id === delivery.patient_id) : null;
-      const canonicalTimeStart = livePatient?.time_window_start || d.delivery_time_start || '';
-      const canonicalTimeEnd = livePatient?.time_window_end || d.delivery_time_end || '';
+      const canonicalTimeStart = d.delivery_time_start || livePatient?.time_window_start || '';
+      const canonicalTimeEnd = d.delivery_time_end || livePatient?.time_window_end || '';
       setFormData(prev => ({ ...prev, delivery_date: d.delivery_date || prev.delivery_date, delivery_time_start: canonicalTimeStart, delivery_time_end: canonicalTimeEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time || '', actual_delivery_time: d.actual_delivery_time || '', status: d.status || prev.status, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null }));
       if (d.actual_delivery_time && !Number.isNaN(new Date(d.actual_delivery_time).getTime())) setCompletionTime(format(new Date(d.actual_delivery_time), 'HH:mm'));
     });
@@ -404,7 +405,7 @@ export default function DeliveryForm({
       }
       setFormData({
         patient_id: delivery.patient_id || "", delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
-        delivery_time_start: patient?.time_window_start || delivery.delivery_time_start || "", delivery_time_end: patient?.time_window_end || delivery.delivery_time_end || "",
+        delivery_time_start: delivery.delivery_time_start || patient?.time_window_start || "", delivery_time_end: delivery.delivery_time_end || patient?.time_window_end || "",
         arrival_time: delivery.arrival_time ? (delivery.arrival_time.includes('T') ? delivery.arrival_time.substring(11, 16) : delivery.arrival_time) : "",
         time_window_start: patient?.time_window_start || delivery.time_window_start || "", time_window_end: patient?.time_window_end || delivery.time_window_end || "",
         status: delivery.status || "Ready For Pickup", driver_name: delivery.driver_name || "", driver_id: delivery.driver_id || "",
@@ -598,8 +599,9 @@ export default function DeliveryForm({
     const autoSelectedDriverName = driverManuallyChangedRef.current && formData.driver_id ? formData.driver_name : resolvedDriverName;
 
     const updatedFormData = { ...buildSelectedPatientFormData({ formData, patient, deliveryAMPM, autoSelectedDriverId, autoSelectedDriverName }), patient_email: patient.email || '' };
+    const isDMR = (patient.full_name || '').toUpperCase().includes('DMR');
     const routePickups = getRoutePickupsForStore({ allDeliveries, stagedDeliveries, storeId: patient.store_id, driverId: autoSelectedDriverId, deliveryDate: formData.delivery_date });
-    const fallbackPickup = buildPendingNewPickup({ store: patientStore, formData: { ...updatedFormData, store_id: patient.store_id }, driverName: autoSelectedDriverName, stopId: generateStopId() });
+    const fallbackPickup = isDMR ? null : buildPendingNewPickup({ store: patientStore, formData: { ...updatedFormData, store_id: patient.store_id }, driverName: autoSelectedDriverName, stopId: generateStopId() });
     const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup });
     setSelectedRoutePickup(chosenPickup);
     setPendingRoutePickup(chosenPickup?._pendingCreate ? chosenPickup : null);
@@ -670,7 +672,7 @@ export default function DeliveryForm({
     if (isMobileDevice) setShowStagedPanel(false);
     setEditingStagedId(staged._tempId);
     const stagedPatient = staged.patient_id ? patients?.find((p) => p && p.id === staged.patient_id) : null;
-    let formDataToSet = { ...staged, puid: staged.puid || '', driver_id: staged.driver_id || '', driver_name: staged.driver_name || '', patient_phone: staged.patient_phone || stagedPatient?.phone || '', unit_number: staged.unit_number || stagedPatient?.unit_number || '', delivery_instructions: staged.delivery_instructions || stagedPatient?.notes || '', cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0, delivery_time_start: stagedPatient?.time_window_start || staged.delivery_time_start || '', delivery_time_end: stagedPatient?.time_window_end || staged.delivery_time_end || '', time_window_start: stagedPatient?.time_window_start || staged.time_window_start || '', time_window_end: stagedPatient?.time_window_end || staged.time_window_end || '' };
+    let formDataToSet = { ...staged, puid: staged.puid || '', driver_id: staged.driver_id || '', driver_name: staged.driver_name || '', patient_phone: staged.patient_phone || stagedPatient?.phone || '', unit_number: staged.unit_number || stagedPatient?.unit_number || '', delivery_instructions: staged.delivery_instructions || stagedPatient?.notes || '', cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0, delivery_time_start: staged.delivery_time_start || stagedPatient?.time_window_start || '', delivery_time_end: staged.delivery_time_end || stagedPatient?.time_window_end || '', time_window_start: stagedPatient?.time_window_start || staged.time_window_start || '', time_window_end: stagedPatient?.time_window_end || staged.time_window_end || '' };
     if (staged.patient_id && staged.puid) {
       const allPossiblePickups = [...stagedDeliveries, ...(allDeliveries || [])];
       const parentPickup = allPossiblePickups.find((d) => d && !d.patient_id && d.stop_id === staged.puid);
@@ -957,7 +959,8 @@ export default function DeliveryForm({
       } else {
         if (buttonState === 'add' || buttonState === 'updateStaged' || buttonState === 'done') { setIsSaving(false); return false; }
         let resolvedPuid = dataToSave.puid || '';
-        if (!delivery?.id && pendingRoutePickup?._pendingCreate && !isPickupMode) {
+        const _isDMR = (formData.patient_name || '').toUpperCase().includes('DMR');
+        if (!delivery?.id && pendingRoutePickup?._pendingCreate && !isPickupMode && !_isDMR) {
           const pickupStore = stores?.find((s) => s && s.id === pendingRoutePickup.store_id);
           const pickupTimes = resolvePickupTimeWindow({ store: pickupStore, deliveryDate: pendingRoutePickup.delivery_date, timeSlot: pendingRoutePickup.ampm_deliveries || 'AM' });
           const createdPickup = await createDeliveryLocal({ ...pendingRoutePickup, status: 'en_route', delivery_time_start: pickupTimes?.delivery_time_start || '', delivery_time_end: pickupTimes?.delivery_time_end || '', time_window_start: pickupTimes?.delivery_time_start || '', time_window_end: pickupTimes?.delivery_time_end || '' });
@@ -1264,7 +1267,7 @@ export default function DeliveryForm({
       setShowMatchPopup={setShowMatchPopup} setScanMatches={setScanMatches} setExtractedData={setExtractedData}
       availableStores={availableStores} allDrivers={allDrivers} stores={stores} patients={patients} currentUser={currentUser}
       onDriverManuallyChanged={() => { driverManuallyChangedRef.current = true; }}
-      appUsers={appUsers}
+      appUsers={appUsers} cities={cities}
       allDeliveries={allDeliveries} selectedPickupOption={selectedPickupOption} setSelectedPickupOption={setSelectedPickupOption}
       getDriverDisplayName={getDriverDisplayName} getDriverNameForStorage={getDriverNameForStorage}
       editingStagedId={editingStagedId} setStagedDeliveries={setStagedDeliveries} setHasChanges={setHasChanges}

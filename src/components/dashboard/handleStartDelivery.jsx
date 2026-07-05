@@ -11,6 +11,7 @@
  * 8. Final UI update from fresh server data
  */
 
+import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { invalidate } from '@/components/utils/dataManager';
@@ -168,15 +169,30 @@ export async function handleStartDelivery({
       driverCurrentLon = driverLocation.longitude;
     }
 
+    // Pass the just-mutated local deliveries directly to the client-side engine.
+    // mutatedDeliveries already contains the full driver+date set from offlineDB
+    // with the latest status/isNextDelivery/stop_order writes applied.
     const coordResult = await performRouteOptimization({
       driverId,
       deliveryDate,
       currentLocation: driverCurrentLat && driverCurrentLon ? { lat: driverCurrentLat, lon: driverCurrentLon } : null,
+      deliveries: mutatedDeliveries,
+      patients,
+      stores,
+      appUsers,
       source: 'start_delivery',
       bypassDriverStatus: true,
     });
 
     console.log('✅ [handleStartDelivery] Steps 5+6 complete — coordinator success:', coordResult?.success);
+
+    if (coordResult?.isDegraded) {
+      console.warn('⚠️ [handleStartDelivery] Route optimization degraded — HERE routing unavailable, used straight-line approximation', {
+        usedFallbackOrdering: coordResult?.usedFallbackOrdering,
+        usedFallbackPolyline: coordResult?.usedFallbackPolyline,
+      });
+      toast.warning('Route order approximated — HERE routing was unavailable, so stop order/map lines may not be fully optimized.');
+    }
 
     // ─── STEP 7: Remaining processes ─────────────────────────────────────
     // 7a: Blue polyline (driver → next stop)

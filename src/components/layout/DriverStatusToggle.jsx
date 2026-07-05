@@ -2,12 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { cn } from "@/lib/utils";
-import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
 import { fabControlEvents } from "../utils/fabControlEvents";
 import { loadUserSettings } from "../utils/userSettingsManager";
 import { reconcilePendingBreadcrumbsOnDuty } from "../utils/pendingBreadcrumbReconciliation";
+import { globalFilters } from "../utils/globalFilters";
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -194,18 +194,23 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     isTogglingRef.current = true;
 
     const today = getTodayStr();
-    const selectedRouteDate = appDataContext?.deliveries?.find(d => d?.driver_id === effectiveUser?.id && d?.isNextDelivery)?.delivery_date || today;
+    // Use the globally selected date (what the admin/driver has selected in the UI) as the authoritative route date
+    const selectedRouteDate = globalFilters.getSelectedDate() || today;
     const optimizerDate = newStatus === 'on_duty' ? today : selectedRouteDate;
 
-    // Block going off_duty mid-route
+    // Block going off_duty only if the route has already started (has finished stops) AND
+    // still has active stops in progress — i.e. the driver is mid-route.
+    // If there are only pending/en_route/in_transit stops but none finished, the route
+    // hasn't started yet and going off-duty is allowed.
     if (newStatus === 'off_duty') {
       try {
-        const todayDeliveries = await base44.entities.Delivery.filter({ driver_id: effectiveUser?.id, delivery_date: selectedRouteDate });
-        const finished = ['completed', 'failed', 'cancelled', 'returned'];
-        const completedStops = todayDeliveries.filter(d => finished.includes(d.status));
-        const activeStops = todayDeliveries.filter(d => !finished.includes(d.status));
-        if (completedStops.length > 0 && activeStops.length > 0) {
-          toast.error(`Cannot go off duty with ${activeStops.length} active stop${activeStops.length > 1 ? 's' : ''} (route in progress)`);
+        const todayDeliveries = await base44.entities.Delivery.filter({ driver_id: effectiveUser.id, delivery_date: selectedRouteDate });
+        const finishedStatuses = ['completed', 'failed', 'cancelled'];
+        const hasFinished = todayDeliveries.some(d => finishedStatuses.includes(d.status));
+        const activeStops = todayDeliveries.filter(d => d.status === 'en_route' || d.status === 'in_transit' || d.status === 'pending');
+        const midRoute = hasFinished && activeStops.length > 0;
+        if (midRoute) {
+          toast.error(`Cannot go off duty — route is in progress with ${activeStops.length} remaining stop${activeStops.length !== 1 ? 's' : ''}`);
           isTogglingRef.current = false;
           return;
         }
@@ -264,6 +269,27 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
       const safeRecord = { ...existingRecord, ...updatedAppUser, ...updatePayload, id: appUserId };
       await offlineDB.save(offlineDB.STORES.APP_USERS, safeRecord);
+
+      // Clear isNextDelivery flags when going off_duty or on_break
+      if (newStatus === 'off_duty' || newStatus === 'on_break') {
+        try {
+          // Fetch fresh from API — local cache may be stale or filtered differently
+          const routeDeliveries = await base44.entities.Delivery.filter({
+            driver_id: effectiveUser.id,
+            delivery_date: optimizerDate,
+          });
+          const flagged = (routeDeliveries || []).filter(d => d?.isNextDelivery === true);
+          if (flagged.length > 0) {
+            await Promise.all(flagged.map(d =>
+              base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
+            ));
+            if (appDataContext?.updateDeliveriesLocally) {
+              appDataContext.updateDeliveriesLocally(flagged.map(d => ({ ...d, isNextDelivery: false })), false);
+            }
+            console.log(`[DriverStatusToggle] Cleared isNextDelivery on ${flagged.length} stops for driver ${effectiveUser.id} on ${optimizerDate}`);
+          }
+        } catch (e) { console.warn('[DriverStatusToggle] Could not clear isNextDelivery flags:', e?.message); }
+      }
 
       // Call backend (handles isNextDelivery clearing, single-device enforcement, etc.)
       const result = await base44.functions.invoke('setDriverStatus', {
@@ -324,32 +350,9 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             fabControlEvents.notifyBreakEnd(1);
           }
 
-          // Set isNextDelivery on first active stop
-          try {
-            const activeDeliveries = (appDataContext?.deliveries || [])
-              .filter(d => d && d.driver_id === currentUser.id && d.delivery_date === today &&
-                !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status))
-              .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
-            const firstActive = activeDeliveries[0];
-            if (firstActive && !activeDeliveries.find(d => d.isNextDelivery)) {
-              await base44.entities.Delivery.update(firstActive.id, { isNextDelivery: true }).catch(() => {});
-              if (appDataContext?.updateDeliveriesLocally) {
-                appDataContext.updateDeliveriesLocally(activeDeliveries.map(d => ({ ...d, isNextDelivery: d.id === firstActive.id })), false);
-              }
-            }
-          } catch (e) { console.warn('[DriverStatusToggle] Could not set isNextDelivery:', e?.message); }
-
-          // Trigger route optimization
-          const currentGPS = await getFreshGPS(5000);
-          await triggerRouteOptimization({
-            driverId: currentUser.id,
-            deliveryDate: optimizerDate,
-            currentLocation: currentGPS ? { latitude: currentGPS.lat, longitude: currentGPS.lng } : null,
-            trigger: 'on_duty',
-            onNotification: (n) => {
-              if (n.type === 'route_optimized') toast.success(n.message, { description: n.aiSuggestion });
-            }
-          }).catch(e => console.warn('[DriverStatusToggle] Route optimization failed:', e?.message));
+          // Trigger the manual FAB reoptimize flow — it correctly assigns isNextDelivery
+          // and updates stop order via the proven optimization path.
+          fabControlEvents.notifyOnDutyFromToggle();
         }
       }
 

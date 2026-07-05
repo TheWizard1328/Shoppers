@@ -131,7 +131,18 @@ export default function MultiDeliveryArrivalDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden" style={{ zIndex: 99999, width: '95vw', maxWidth: '95vw' }}>
+        {/*
+          CRITICAL: React bubbles synthetic events along the React component tree, not the
+          DOM tree — even though Radix portals this DialogContent out to document.body, it is
+          still a React child of the StopCard that opened it. Without stopping propagation here,
+          taps on Complete/Fail inside this dialog bubble up to the underlying StopCard's
+          <Card onClick=...> handler and toggle that card open/closed as an unwanted side effect.
+        */}
+        <DialogContent
+          className="max-h-[85vh] overflow-y-auto overflow-x-hidden"
+          style={{ zIndex: 99999, width: '95vw', maxWidth: '95vw' }}
+          onClick={(e) => e.stopPropagation()}
+        >
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <MapPin className="w-4 h-4 text-blue-600" />
@@ -143,9 +154,17 @@ export default function MultiDeliveryArrivalDialog({
           </DialogHeader>
 
           <div className="space-y-3 mt-2 w-full min-w-0">
+            {/*
+              "Current" must track the live isNextDelivery flag, not which stop originally
+              triggered this dialog open. currentDelivery is a snapshot from whichever
+              StopCard rendered the dialog — if that stop gets completed/failed while the
+              dialog stays open (or a stale re-render happens), isCurrent would otherwise
+              stay pinned to the now-finished stop instead of following the real active one.
+            */}
             {allAtLocation.map((delivery) => {
               const patient = patients.find((p) => p?.id === delivery.patient_id);
-              const isCurrent = delivery.id === currentDelivery.id;
+              const groupHasNextFlag = allAtLocation.some((d) => d?.isNextDelivery === true);
+              const isCurrent = groupHasNextFlag ? delivery.isNextDelivery === true : delivery.id === currentDelivery.id;
               const isFinished = FINISHED_STATUSES.includes(delivery.status) || locallyFinishedIds.has(delivery.id);
               const isLoading = loadingId === delivery.id;
 

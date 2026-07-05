@@ -17,7 +17,13 @@ export function useFabControlEventHandler({
   setMapViewPhase,
   setIsMapViewLocked,
   setMapViewTrigger,
+  // Optional: called when ON_DUTY_FROM_TOGGLE fires so the manual reoptimize runs
+  onOnDutyFromToggle,
 }) {
+  // Keep a ref so the stable useEffect([]) closure always calls the latest callback
+  const onOnDutyFromToggleRef = useRef(onOnDutyFromToggle);
+  useEffect(() => { onOnDutyFromToggleRef.current = onOnDutyFromToggle; });
+
   useEffect(() => {
     const setFabPhase = (phase, locked, triggerMap = true) => {
       mapViewPhaseRef.current = phase;
@@ -221,6 +227,12 @@ export function useFabControlEventHandler({
             window._lastProgrammaticMapMove = Date.now();
             setMapViewTrigger((p) => p + 1);
           }
+          break;
+        }
+        case 'ON_DUTY_FROM_TOGGLE': {
+          // Driver went on_duty via the toggle (not the Start button).
+          // Use the ref so the stable closure always calls the latest callback.
+          setTimeout(() => onOnDutyFromToggleRef.current?.(), 800);
           break;
         }
         case 'DELIVERY_REALTIME_CREATE_DELETE_PULSE': {

@@ -4,6 +4,9 @@ import { base44 } from '@/api/base44Client';
 // In-memory cache to prevent repeated API calls for the same driver/date within a session
 const _apiFetchedKeys = new Set();
 
+// Sentinel stop_order for the master 'TODAY' timeline record
+const MASTER_STOP_ORDER = -1;
+
 function getEdmontonDateString(value = Date.now()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Edmonton',
@@ -41,15 +44,50 @@ function decodePolyline(encoded) {
   return coordinates;
 }
 
+// Parse a breadcrumb record into { stop_order, lat/lng points array }
+function parseBreadcrumbRecord(record) {
+  if (!record?.encoded_polyline) return null;
+  const coords = decodePolyline(record.encoded_polyline);
+  const tsArr = record.timestamps ? record.timestamps.split(',').map(Number) : [];
+  return {
+    id: record.id,
+    stop_order: record.stop_order,
+    driver_id: record.driver_id,
+    encoded_polyline: record.encoded_polyline,
+    timestamps: record.timestamps,
+    transport_mode: record.transport_mode,
+    point_count: record.point_count,
+    _coords: coords,
+    _tsArr: tsArr,
+  };
+}
+
+// Extract flat [{lat, lng, timestamp}] from a breadcrumb record (for the 'current' live trail)
+function extractLivePoints(record, filterDate) {
+  if (!record?.encoded_polyline || !record?.timestamps) return [];
+  const coords = decodePolyline(record.encoded_polyline);
+  const tsArr = record.timestamps.split(',').map(Number);
+  return coords.map((coord, i) => ({
+    lat: coord[0],
+    lng: coord[1],
+    timestamp: tsArr[i] || 0
+  })).filter((point) => {
+    if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return false;
+    if (!point.timestamp) return true;
+    return !filterDate || getEdmontonDateString(point.timestamp) === filterDate;
+  });
+}
+
 export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUsers = []) {
   if (!driverId || !selectedDateStr) {
     return { historical: [], current: [] };
   }
 
-  let historical = [];
+  let historical = []; // Per-stop sliced records (stop_order >= 0)
+  let masterLivePoints = []; // Points from the master TODAY record (live trail)
 
   try {
-    // Load from offline DeliveryBreadcrumbs first
+    // ── Load from offline DB first ─────────────────────────────────────────
     const offlineBreadcrumbs = await offlineDB.getByCompoundIndex(
       offlineDB.STORES.DELIVERY_BREADCRUMBS,
       'date_driver',
@@ -57,26 +95,26 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
     );
 
     if (Array.isArray(offlineBreadcrumbs) && offlineBreadcrumbs.length > 0) {
-      historical = offlineBreadcrumbs
-        .filter(record => record?.encoded_polyline)
-        .map(record => ({
-          id: record.id || record.delivery_id,
-          stop_order: record.stop_order,
-          driver_id: record.driver_id,
-          encoded_polyline: record.encoded_polyline,
-          timestamps: record.timestamps,
-          transport_mode: record.transport_mode,
-          point_count: record.point_count,
-        }));
+      for (const record of offlineBreadcrumbs) {
+        if (!record?.encoded_polyline) continue;
+
+        if (Number(record.stop_order) === MASTER_STOP_ORDER) {
+          // Master 'TODAY' record — extract as live points for the current trail
+          masterLivePoints = extractLivePoints(record, selectedDateStr);
+        } else {
+          // Per-stop sliced record
+          const parsed = parseBreadcrumbRecord(record);
+          if (parsed) historical.push(parsed);
+        }
+      }
     }
 
-    // Fall back to API only once per driver/date per session to avoid rate limits
+    // ── Fall back to API once per session if offline has nothing ─────────────
     const cacheKey = `${driverId}:${selectedDateStr}`;
-    if (historical.length === 0 && base44.entities?.DeliveryBreadcrumbs && !_apiFetchedKeys.has(cacheKey)) {
+    if (historical.length === 0 && masterLivePoints.length === 0 && !_apiFetchedKeys.has(cacheKey)) {
       _apiFetchedKeys.add(cacheKey);
 
-      // Cheap probe: fetch just 1 record to check if server has any data for this driver/date.
-      // If empty, skip the full fetch — server is likely empty too.
+      // Cheap probe: check if server has any data
       const probe = await base44.entities.DeliveryBreadcrumbs.filter(
         { driver_id: driverId, delivery_date: selectedDateStr },
         '-created_date',
@@ -84,7 +122,6 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
       );
 
       if (Array.isArray(probe) && probe.length > 0) {
-        // Server has data — fetch full set, save to offline DB, then read back
         const apiBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
           driver_id: driverId,
           delivery_date: selectedDateStr
@@ -93,65 +130,52 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
         if (Array.isArray(apiBreadcrumbs) && apiBreadcrumbs.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS, apiBreadcrumbs);
 
-          // Read back from offline DB (source of truth going forward)
-          const saved = await offlineDB.getByCompoundIndex(
-            offlineDB.STORES.DELIVERY_BREADCRUMBS,
-            'date_driver',
-            [selectedDateStr, driverId]
-          );
-
-          historical = (saved || apiBreadcrumbs)
-            .filter(record => record?.encoded_polyline)
-            .map(record => ({
-              id: record.id || record.delivery_id,
-              stop_order: record.stop_order,
-              driver_id: record.driver_id,
-              encoded_polyline: record.encoded_polyline,
-              timestamps: record.timestamps,
-              transport_mode: record.transport_mode,
-              point_count: record.point_count,
-            }));
+          for (const record of apiBreadcrumbs) {
+            if (!record?.encoded_polyline) continue;
+            if (Number(record.stop_order) === MASTER_STOP_ORDER) {
+              masterLivePoints = extractLivePoints(record, selectedDateStr);
+            } else {
+              const parsed = parseBreadcrumbRecord(record);
+              if (parsed) historical.push(parsed);
+            }
+          }
         }
       }
-      // If probe returned empty — server has no data, nothing to do
     }
   } catch (e) {
     console.warn('⚠️ Failed to load breadcrumbs:', e.message);
   }
 
-  // Load "current" live breadcrumbs from offline DELIVERY_BREADCRUMBS for today's in-progress legs.
-  // Only include live records whose stop_order is NOT already covered by a historical (synced) record
-  // to prevent duplicate polylines being drawn on the same path.
-  const historicalStopOrders = new Set(historical.map((r) => r.stop_order));
+  // ── Build 'current' live trail ─────────────────────────────────────────────
+  // Use the master TODAY offline key as the source for the live trail.
+  // This gives an unsliced, continuous path of where the driver has been today.
+  // We also supplement from the local offline key format for backward compatibility.
+  let current = [...masterLivePoints];
 
-  let current = [];
   try {
-    const allOffline = await offlineDB.getAll(offlineDB.STORES.DELIVERY_BREADCRUMBS);
-    const liveRecords = (allOffline || []).filter((record) => {
-      if (!record?.encoded_polyline || !record?.timestamps) return false;
-      if (record.driver_id !== driverId) return false;
-      if (record.delivery_date !== selectedDateStr) return false;
-      // "Live" records use the local offline key format (not a backend ID)
-      if (!(typeof record.id === 'string' && record.id.includes('__stop_'))) return false;
-      // Skip if this stop_order is already represented in the historical (synced) data
-      if (record.stop_order != null && historicalStopOrders.has(record.stop_order)) return false;
-      return true;
-    });
+    if (current.length === 0) {
+      // Fallback: check for old-style per-leg local offline keys (backward compatibility)
+      const allOffline = await offlineDB.getAll(offlineDB.STORES.DELIVERY_BREADCRUMBS);
+      const liveRecords = (allOffline || []).filter((record) => {
+        if (!record?.encoded_polyline || !record?.timestamps) return false;
+        if (record.driver_id !== driverId) return false;
+        if (record.delivery_date !== selectedDateStr) return false;
+        // Old format: local-only keys
+        if (!(typeof record.id === 'string' && record.id.includes('__'))) return false;
+        return true;
+      });
 
-    current = liveRecords.flatMap((record) => {
-      const coords = decodePolyline(record.encoded_polyline);
-      const tsArr = record.timestamps.split(',').map(Number);
-      return coords.map((coord, i) => ({
-        lat: coord[0],
-        lng: coord[1],
-        timestamp: tsArr[i] || 0
-      }));
-    }).filter((point) => {
-      if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return false;
-      if (!point.timestamp) return true;
-      return getEdmontonDateString(point.timestamp) === selectedDateStr;
-    });
+      current = liveRecords.flatMap((record) => extractLivePoints(record, selectedDateStr));
+    }
   } catch (_) {}
+
+  // Deduplicate current points by timestamp
+  const seenTs = new Set();
+  current = current.filter((pt) => {
+    if (!pt.timestamp || seenTs.has(pt.timestamp)) return false;
+    seenTs.add(pt.timestamp);
+    return true;
+  }).sort((a, b) => a.timestamp - b.timestamp);
 
   return { historical, current };
 }

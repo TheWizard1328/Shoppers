@@ -1,7 +1,10 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, Ruler } from 'lucide-react';
+import { Package, Ruler, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { globalFilters } from '@/components/utils/globalFilters';
+import { createPageUrl } from '@/utils';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -12,6 +15,15 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  */
 export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, selectedYear, metricsViewMode = 'deliveries', onResetView }) {
   const viewMode = metricsViewMode;
+  const navigate = useNavigate();
+
+  const handleNavigateToDashboard = (day) => {
+    const month = String(selectedMonth).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    const dateStr = `${selectedYear}-${month}-${dayStr}`;
+    globalFilters.setSelectedDate(dateStr);
+    navigate(createPageUrl('Dashboard') + `?date=${dateStr}`);
+  };
   const formatGridValue = (value) => viewMode === 'fees' || viewMode === 'extra_km' ? Number(value).toFixed(2) : Math.round(Number(value)).toString();
   if (!metricsData || !selectedMonth) {
     return (
@@ -58,7 +70,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
       return dayData.fees || 0;
     }
 
-    return (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0);
+    return (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0) + (dayData.returned || 0);
   };
 
   // Calculate day totals (sum across all stores for each day)
@@ -78,10 +90,17 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
       // Sum actual daily fees from dailyStoreData — consistent with app_fee_history-aware backend values
       return storeDaily.reduce((sum, day) => sum + (day.fees || 0), 0);
     }
-    return storeDaily.reduce((sum, day) => sum + (day.completed || 0) + (day.failed || 0) + (day.afterHours || 0), 0);
+    return storeDaily.reduce((sum, day) => sum + (day.completed || 0) + (day.failed || 0) + (day.afterHours || 0) + (day.returned || 0), 0);
   };
 
   const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store, viewMode), 0);
+
+  // Helper: Get afterHours count for a store and day
+  const getAfterHoursCount = (storeId, day) => {
+    const storeDaily = dailyStoreData[storeId] || [];
+    const dayData = storeDaily.find(d => d.day === day);
+    return dayData?.afterHours || 0;
+  };
 
   // Helper: Check if a day is a weekend (Saturday=6 or Sunday=0)
   const isWeekend = (day) => {
@@ -118,17 +137,28 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                 return (
                   <tr key={day} className={`border-b hover:bg-slate-50 ${weekend ? 'bg-slate-100' : ''}`}>
                     <td className={`px-1.5 py-0.5 font-medium sticky left-0 border-r border-slate-300 z-10 text-slate-700 ${weekend ? 'bg-slate-100' : 'bg-white'}`}>
-                      {day}
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>{day}</span>
+                        <button
+                          onClick={() => handleNavigateToDashboard(day)}
+                          className="!h-4 !w-4 !min-h-0 !p-0 rounded hover:bg-slate-200 transition-colors opacity-50 hover:opacity-100 inline-flex items-center justify-center"
+                          title={`View day ${day} on Dashboard`}>
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                      </div>
                     </td>
                     {stores.map(store => {
-                      const value = getDayValue(store.storeId || store.id, day, viewMode);
+                      const storeId = store.storeId || store.id;
+                      const value = getDayValue(storeId, day, viewMode);
+                      const ahCount = viewMode === 'deliveries' ? getAfterHoursCount(storeId, day) : 0;
+                      const plusSuffix = '+'.repeat(ahCount);
                       return (
                         <td
-                          key={store.storeId || store.id}
+                          key={storeId}
                           className="text-center px-1 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? (store.color || '#64748b') : '#94a3b8' }}
                         >
-                          {value > 0 ? formatGridValue(value) : ''}
+                          {value > 0 ? <>{formatGridValue(value)}{ahCount > 0 && <span className="text-amber-500 font-bold">{plusSuffix}</span>}</> : ''}
                         </td>
                       );
                     })}

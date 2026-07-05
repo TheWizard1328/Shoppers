@@ -59,19 +59,36 @@ const driverIcon = L.divIcon({
   iconAnchor: [18, 36],
 });
 
-// Initial bounds fitter — runs once on first load
-function MapBoundsFitter({ positions }) {
+// Fits the map to patient + store on load (once both are available).
+// If the driver is live, fits driver + patient instead.
+function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver }) {
   const map = useMap();
   const fittedRef = useRef(false);
+
   useEffect(() => {
-    if (fittedRef.current || positions.length === 0) return;
-    fittedRef.current = true;
-    if (positions.length === 1) {
-      map.setView(positions[0], 14);
-    } else {
-      map.fitBounds(L.latLngBounds(positions), { padding: [60, 60] });
+    // Already fitted — don't re-run
+    if (fittedRef.current) return;
+
+    // Must have patient location
+    if (!patientLatLng) return;
+
+    if (showDriver && driverLatLng) {
+      // Driver is live: fit driver + patient
+      fittedRef.current = true;
+      map.fitBounds(L.latLngBounds([driverLatLng, patientLatLng]), { padding: [70, 70], animate: true });
+    } else if (storeLatLng) {
+      // Normal case: fit store + patient (wait until store is loaded)
+      fittedRef.current = true;
+      map.fitBounds(L.latLngBounds([storeLatLng, patientLatLng]), { padding: [70, 70], animate: true });
     }
-  }, [positions.map(p => p.join(',')).join('|')]);
+    // If neither condition met yet, effect will re-run when deps change
+  }, [
+    patientLatLng ? patientLatLng.join(',') : null,
+    storeLatLng ? storeLatLng.join(',') : null,
+    driverLatLng ? driverLatLng.join(',') : null,
+    showDriver,
+  ]);
+
   return null;
 }
 
@@ -139,6 +156,7 @@ export default function PatientPortal() {
   const patient = PatientSessionManager.getPatient();
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const [deliveries, setDeliveries]         = useState([]);
+  const [pickupStops, setPickupStops]       = useState([]);
   const [stores, setStores]                 = useState([]);
   const [todayDelivery, setTodayDelivery]   = useState(null);
   const [driverLocation, setDriverLocation] = useState(null);
@@ -169,6 +187,30 @@ export default function PatientPortal() {
         200
       );
       setDeliveries(allDeliveries);
+
+      // Fetch pickup stops so sidebar can show "Picked up at" times.
+      // PUIDs are unique per date per pickup, so querying puid + delivery_date gives exactly
+      // the one pickup stop record for that route day — works for all historical dates.
+      const puidDatePairs = [
+        ...new Map(
+          allDeliveries
+            .filter((d) => d.puid && d.delivery_date)
+            .map((d) => [`${d.puid}|${d.delivery_date}`, { puid: d.puid, delivery_date: d.delivery_date }])
+        ).values(),
+      ];
+      if (puidDatePairs.length > 0) {
+        try {
+          const results = await Promise.all(
+            puidDatePairs.map(({ puid, delivery_date }) =>
+              base44.entities.Delivery.filter({ puid, delivery_date }, '-delivery_date', 10)
+                .catch(() => [])
+            )
+          );
+          // The pickup stop is the record with no patient_id and no interstore source
+          const allPickups = results.flat().filter((d) => !d.patient_id && !d._interstore_source_id);
+          setPickupStops(allPickups);
+        } catch (_) {}
+      }
 
       const activeToday = allDeliveries.find(
         (d) => d.delivery_date === TODAY && !['cancelled', 'failed'].includes(d.status)
@@ -436,11 +478,9 @@ export default function PatientPortal() {
     };
   }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
 
-  const mapPositions = [
-    activeStore?.latitude  && activeStore?.longitude  ? [activeStore.latitude, activeStore.longitude]   : null,
-    patient?.latitude      && patient?.longitude      ? [patient.latitude, patient.longitude]           : null,
-    driverLocation                                    ? [driverLocation.lat, driverLocation.lng]        : null,
-  ].filter(Boolean);
+  const storeLatLng = activeStore?.latitude && activeStore?.longitude
+    ? [activeStore.latitude, activeStore.longitude]
+    : null;
 
   const defaultCenter = patient?.latitude && patient?.longitude
     ? [patient.latitude, patient.longitude]
@@ -468,6 +508,7 @@ export default function PatientPortal() {
       <PatientSidebar
         patient={patient}
         deliveries={deliveries}
+        pickupStops={pickupStops}
         stores={stores}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -530,11 +571,15 @@ export default function PatientPortal() {
                       {todayDelivery.delivery_time_end ? ` – ${todayDelivery.delivery_time_end}` : ''}
                     </p>
                   )}
-                  {todayDelivery.delivery_time_eta && !['completed', 'failed', 'cancelled'].includes(todayDelivery.status) && (
+                  {todayDelivery.status === 'completed' && todayDelivery.actual_delivery_time ? (
+                    <p className="text-xs text-emerald-600 font-medium mt-1">
+                      Delivered: {todayDelivery.actual_delivery_time.substring(11, 16)}
+                    </p>
+                  ) : todayDelivery.delivery_time_eta && !['completed', 'failed', 'cancelled'].includes(todayDelivery.status) ? (
                     <p className="text-xs text-blue-600 font-medium mt-1">
                       ETA: {todayDelivery.delivery_time_eta}
                     </p>
-                  )}
+                  ) : null}
                 </div>
                 {statusConfig && (
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${statusConfig.color}`}>
@@ -584,7 +629,12 @@ export default function PatientPortal() {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
 
-              {mapPositions.length > 0 && <MapBoundsFitter positions={mapPositions} />}
+              <MapBoundsFitter
+                patientLatLng={patientLatLng}
+                storeLatLng={storeLatLng}
+                driverLatLng={driverLocation ? [driverLocation.lat, driverLocation.lng] : null}
+                showDriver={showLiveTracking && !!driverLocation}
+              />
               <DriverTracker
                 driverLocation={showLiveTracking ? driverLocation : null}
                 patientLatLng={patientLatLng}

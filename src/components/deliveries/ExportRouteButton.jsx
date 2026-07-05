@@ -257,12 +257,20 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
       const data = res?.data || res;
       if (data?.error) { alert(data.error); return; }
 
-      const binaryStr = atob(data.pdfBase64);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-      const blob = new Blob([bytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      // Multi-date preview: open each date in its own tab
+      const pdfsToOpen = Array.isArray(data.pdfResults)
+        ? data.pdfResults
+        : [{ pdfBase64: data.pdfBase64 }];
+
+      for (const { pdfBase64 } of pdfsToOpen) {
+        if (!pdfBase64) continue;
+        const binaryStr = atob(pdfBase64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      }
     } finally {
       setIsExporting(false);
     }

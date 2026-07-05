@@ -90,21 +90,44 @@ export const notificationRules = {
   }
 };
 
-/**
- * Check if a notification should be sent for an event
- */
-export function shouldNotify(event, channel = 'inApp') {
-  const rule = notificationRules[event];
-  if (!rule || !rule.enabled) return false;
-  return rule.inApp;
+// ── Runtime overrides loaded from AppSettings (push_notification_rules) ──────
+let _overrides = {};
+
+export function loadNotificationOverrides(overridesMap) {
+  _overrides = overridesMap || {};
+}
+
+function getEffective(event) {
+  const base = notificationRules[event] || {};
+  const override = _overrides[event] || {};
+  return { ...base, ...override };
 }
 
 /**
- * Get the message for an event
+ * Check if a notification should be sent for an event and channel ('inApp' | 'push')
+ */
+export function shouldNotify(event, channel = 'inApp') {
+  const rule = getEffective(event);
+  if (!rule.enabled) return false;
+  if (channel === 'push') return rule.push === true;
+  return rule.inApp !== false;
+}
+
+/**
+ * Get the message for an event.
+ * Uses the admin-configured messageTemplate when present, falls back to hardcoded buildMessage.
  */
 export function getNotificationMessage(event, data) {
+  const override = _overrides[event];
+  if (override?.messageTemplate) {
+    return override.messageTemplate
+      .replace(/\{\{driverName\}\}/g, data.driverName || '')
+      .replace(/\{\{patientName\}\}/g, data.patientName || '')
+      .replace(/\{\{storeName\}\}/g, data.storeName || '')
+      .replace(/\{\{deliveryList\}\}/g, data.deliveryList || '');
+  }
   const rule = notificationRules[event];
-  if (!rule || !rule.buildMessage) return null;
+  if (!rule?.buildMessage) return null;
   return rule.buildMessage(data);
 }
 
@@ -112,6 +135,6 @@ export function getNotificationMessage(event, data) {
  * Get recipients type for an event
  */
 export function getRecipients(event) {
-  const rule = notificationRules[event];
+  const rule = getEffective(event);
   return rule?.recipients || null;
 }

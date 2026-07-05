@@ -21,6 +21,7 @@ import { triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
+import { pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineMutations';
 import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
@@ -218,7 +219,9 @@ export default function useStopCardActions(params) {
 
   const executeAcceptAllStops = useCallback(async () => {
     pauseOfflineSync('delivery_actions');
+    pauseOfflineMutations();
     pauseRealtimeSync();
+    backgroundSyncManager.pause();
     setIsAcceptingAll(true);
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     try {
@@ -355,10 +358,35 @@ export default function useStopCardActions(params) {
 
       // STEP 2: Run route optimization using the unified coordinator (same FAB path).
       // Uses the proven Manual FAB path: optimizeRemainingStops → regenerateType1Polyline.
+      // NOTE: regenerateType1Polyline REQUIRES a currentLocation (lat/lon) in its request body —
+      // without it, the backend function 400s immediately and the polyline step silently no-ops
+      // for every stop that was just transitioned pending → in_transit. Resolve it from the
+      // driver's AppUser record here, same as handleStartDelivery does.
       const now2 = new Date();
+      const acceptAllDriverAppUser = appUsers.find((u) => u?.user_id === delivery.driver_id);
+      const acceptAllDriverLat = Number(acceptAllDriverAppUser?.current_latitude);
+      const acceptAllDriverLon = Number(acceptAllDriverAppUser?.current_longitude);
+      const acceptAllCurrentLocation = Number.isFinite(acceptAllDriverLat) && Number.isFinite(acceptAllDriverLon)
+        ? { lat: acceptAllDriverLat, lon: acceptAllDriverLon }
+        : null;
+      // Merge just-updated local deliveries into allDeliveries for the client-side engine
+      const _acceptAllChangedMap = new Map();
+      for (const d of [...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])]) {
+        if (d?.id) _acceptAllChangedMap.set(d.id, d);
+      }
+      const _acceptAllFullDeliveries = [
+        ...(allDeliveries || []).map(d => _acceptAllChangedMap.get(d?.id) || d),
+        ...[...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])].filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
+      ];
+
       const coordResult = await performRouteOptimization({
         driverId: delivery.driver_id,
         deliveryDate: delivery.delivery_date,
+        currentLocation: acceptAllCurrentLocation,
+        deliveries: _acceptAllFullDeliveries,
+        patients,
+        stores,
+        appUsers,
         source: 'accept_all',
         bypassDriverStatus: true,
       }).catch(() => null);
@@ -367,6 +395,14 @@ export default function useStopCardActions(params) {
 
       if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
         window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
+      }
+
+      if (coordResult?.isDegraded) {
+        console.warn('⚠️ [AcceptAll] Route optimization degraded — HERE routing unavailable, used straight-line approximation', {
+          usedFallbackOrdering: coordResult?.usedFallbackOrdering,
+          usedFallbackPolyline: coordResult?.usedFallbackPolyline,
+        });
+        toast.warning('Route order approximated — HERE routing was unavailable, so stop order/map lines may not be fully optimized.');
       }
 
       // polylineResponse stub — polylines regenerated internally by coordinator
@@ -415,6 +451,8 @@ export default function useStopCardActions(params) {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
       resumeRealtimeSync();
       resumeOfflineSync('delivery_actions');
+      resumeOfflineMutations();
+      backgroundSyncManager.resume();
       driverLocationPoller.resume();
       smartRefreshManager.resume();
       setIsEntityUpdating(false);
@@ -649,7 +687,7 @@ export default function useStopCardActions(params) {
         const startMinutes = now.getHours() * 60 + now.getMinutes() + 5;
         const startTimeStr = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
         const reorderedActiveStops = activeStops.filter((d) => d?.id !== delivery.id);
-        reorderedActiveStops.unshift({ ...delivery, status: 'in_transit', delivery_time_start: startTimeStr });
+        reorderedActiveStops.unshift({ ...delivery, status: isPickup ? 'en_route' : 'in_transit', delivery_time_start: startTimeStr });
         const startedRouteDeliveries = [...completedStops, ...reorderedActiveStops, ...pendingStops]
           .filter(Boolean)
           .map((d, index) => ({
@@ -680,7 +718,8 @@ export default function useStopCardActions(params) {
             if (Number(existing.display_stop_order || 0) !== Number(item.display_stop_order || 0)) updates.display_stop_order = item.display_stop_order;
             // For the started stop: persist status + delivery_time_start immediately
             if (item.id === delivery.id) {
-              if (existing.status !== 'in_transit') updates.status = 'in_transit';
+              const expectedStartStatus = isPickup ? 'en_route' : 'in_transit';
+              if (existing.status !== expectedStartStatus) updates.status = expectedStartStatus;
               if (item.delivery_time_start && existing.delivery_time_start !== item.delivery_time_start) updates.delivery_time_start = item.delivery_time_start;
             }
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
@@ -754,11 +793,27 @@ export default function useStopCardActions(params) {
           smartRefreshManager.pause();
           backgroundSyncManager.pause();
           pauseRealtimeSync();
+          pauseOfflineSync('delivery_actions');
+          pauseOfflineMutations();
           try {
             // Unified FAB path: optimizeRemainingStops → regenerateType1Polyline
+            // Merge startedRouteDeliveries (just-updated local state) into allDeliveries
+            const _startChangedMap = new Map();
+            for (const d of (startedRouteDeliveries || [])) {
+              if (d?.id) _startChangedMap.set(d.id, d);
+            }
+            const _startFullDeliveries = [
+              ...(allDeliveries || []).map(d => _startChangedMap.get(d?.id) || d),
+              ...(startedRouteDeliveries || []).filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
+            ];
+
             await performRouteOptimization({
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
+              deliveries: _startFullDeliveries,
+              patients,
+              stores,
+              appUsers,
               source: 'start_button',
               bypassDriverStatus: true,
             }).catch(() => null);
@@ -802,6 +857,8 @@ export default function useStopCardActions(params) {
             console.warn('⚠️ [Start bg] background optimization failed:', bgErr?.message || bgErr);
           } finally {
             // Always resume after background work completes or fails
+            resumeOfflineSync('delivery_actions');
+            resumeOfflineMutations();
             smartRefreshManager.resume();
             backgroundSyncManager.resume();
             resumeRealtimeSync();

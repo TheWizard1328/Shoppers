@@ -200,7 +200,8 @@ async function getSegmentDirections(base44, from, to, transportMode = 'driving',
       estimated_distance_km: cachedPolyline.estimated_distance_km ?? null,
       estimated_duration_minutes: cachedPolyline.estimated_duration_minutes ?? null,
       transport_mode: cachedPolyline.transport_mode || transportMode || 'driving',
-      from_cache: true
+      from_cache: true,
+      usedFallbackPolyline: false
     };
   }
 
@@ -212,7 +213,8 @@ async function getSegmentDirections(base44, from, to, transportMode = 'driving',
       estimated_duration_minutes: null,
       transport_mode: transportMode || 'driving'
     }),
-    from_cache: false
+    from_cache: false,
+    usedFallbackPolyline: route.sections[0] ? route.usedFallbackPolyline === true : true
   };
 }
 
@@ -314,7 +316,7 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
 async function getMultiStopRoute(base44, points, transportMode = 'driving') {
   const validPoints = (points || []).filter((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lon));
   if (validPoints.length < 2) {
-    return { sections: [] };
+    return { sections: [], usedFallbackPolyline: false };
   }
 
   const response = await base44.functions.invoke('getHereDirections', {
@@ -328,9 +330,9 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
 
   const data = response?.data || response || {};
   const sections = Array.isArray(data?.sections) ? data.sections : [];
+  let anySegmentFellBackToCrowFlies = false;
 
-  return {
-    sections: validPoints.slice(0, -1).map((fromPoint, index) => {
+  const builtSections = validPoints.slice(0, -1).map((fromPoint, index) => {
       const section = sections[index] || {};
       let polyline = null;
 
@@ -348,6 +350,7 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
       if (!polyline) {
         const toPoint = validPoints[index + 1];
         polyline = encodeGooglePolyline([[fromPoint.lat, fromPoint.lon], [toPoint.lat, toPoint.lon]]);
+        anySegmentFellBackToCrowFlies = true;
       }
 
       return {
@@ -356,7 +359,11 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
         estimated_duration_minutes: section?.estimated_duration_minutes ?? null,
         transport_mode: data?.transport_mode || transportMode || 'driving'
       };
-    })
+    });
+
+  return {
+    sections: builtSections,
+    usedFallbackPolyline: anySegmentFellBackToCrowFlies || data?.usedFallbackPolyline === true || data?.polyline_format === 'fallback'
   };
 }
 
@@ -441,9 +448,40 @@ Deno.serve(async (req) => {
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
-    const mostRecentFinishedStop = (deliveries || [])
-      .filter((delivery) => finishedStatuses.has(delivery.status))
+    // IMPORTANT: "most recent finished stop" must be determined by actual completion TIME
+    // (matching optimizeRemainingStops' getLatestFinishedDelivery), NOT by stop_order. stop_order
+    // reflects the originally-planned sequence and can legitimately diverge from the real order
+    // stops were completed in (re-optimization, skips, manual reorders, etc.) — using stop_order
+    // here caused the polyline origin to sometimes anchor to the wrong finished stop, producing a
+    // different/inconsistent origin point each time Start was pressed.
+    const finishedStopsForOrigin = (deliveries || []).filter((delivery) => finishedStatuses.has(delivery.status));
+    const mostRecentFinishedStop = [...finishedStopsForOrigin]
+      .sort((a, b) => {
+        const aTime = new Date(a?.actual_delivery_time || a?.updated_date || a?.created_date || 0).getTime();
+        const bTime = new Date(b?.actual_delivery_time || b?.updated_date || b?.created_date || 0).getTime();
+        return bTime - aTime;
+      })[0] || null;
+
+    // Diagnostic-only: if the old stop_order-based pick would have chosen a DIFFERENT stop than
+    // the time-based one above, log it loudly. This doesn't change behavior (time-based always
+    // wins) — it just gives us a trail in the function logs if stop_order and completion time
+    // ever drift apart again, instead of silently anchoring the polyline to the wrong stop.
+    const highestStopOrderFinishedStop = [...finishedStopsForOrigin]
       .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
+    if (
+      mostRecentFinishedStop &&
+      highestStopOrderFinishedStop &&
+      mostRecentFinishedStop.id !== highestStopOrderFinishedStop.id
+    ) {
+      console.warn(
+        `[regenerateType1Polyline] STOP_ORDER/TIME MISMATCH for driver ${driverId} on ${deliveryDate}: ` +
+        `time-based most-recent-finished is ${mostRecentFinishedStop.id} (stop_order=${mostRecentFinishedStop.stop_order}, ` +
+        `completed=${mostRecentFinishedStop.actual_delivery_time || mostRecentFinishedStop.updated_date}), but highest ` +
+        `stop_order among finished stops is ${highestStopOrderFinishedStop.id} (stop_order=${highestStopOrderFinishedStop.stop_order}, ` +
+        `completed=${highestStopOrderFinishedStop.actual_delivery_time || highestStopOrderFinishedStop.updated_date}). ` +
+        `Using the time-based stop as polyline origin.`
+      );
+    }
 
     const patientIds = [...new Set(activeStops.filter((d) => d?.patient_id).map((d) => d.patient_id))];
     const storeIds = [...new Set(activeStops.filter((d) => d?.store_id).map((d) => d.store_id))];
@@ -588,6 +626,11 @@ Deno.serve(async (req) => {
     const multiStopRoute = await getMultiStopRoute(base44, remainingRoutePoints, preferredTravelMode);
     const routeSections = Array.isArray(multiStopRoute?.sections) ? multiStopRoute.sections : [];
     const directions = routeSections[0] || await getSegmentDirections(base44, effectiveOriginCoords, nextStopCoords, preferredTravelMode, [], driverId, deliveryDate);
+    // Degraded-optimization signal: true if any leg of this polyline refresh had to
+    // fall back to a straight-line ("crow-flies") segment instead of a real HERE route.
+    const usedFallbackPolyline = routeSections.length > 0
+      ? multiStopRoute.usedFallbackPolyline === true
+      : directions?.usedFallbackPolyline === true;
 
     if (routeSections.length > 0) {
       await persistRouteSections(
@@ -631,7 +674,8 @@ Deno.serve(async (req) => {
       nextStopId: nextRouteStop?.id || 'HOME_LOCATION',
       originStopId: mostRecentFinishedStop?.id || null,
       repairedStopOrders: stopOrderRepairUpdates.length,
-      segmentCount: segmentSpecs.length
+      segmentCount: segmentSpecs.length,
+      usedFallbackPolyline
     });
   } catch (error) {
     console.error('[regenerateType1Polyline] Error:', error?.message || error);

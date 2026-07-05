@@ -249,10 +249,10 @@ export async function handleBatchSave({
       });
 
       creatorFlowEnsuredPickups = normalizedDefaultPickups;
+      // NOTE: creating pickup containers does NOT by itself force routeStructureChanged —
+      // see the final assignment below (routeStructureChanged = hasNewActiveSops), which is
+      // the one that actually matters for the optimization decision.
       let newPickupsCreated = normalizedDefaultPickups.length > 0;
-      if (newPickupsCreated) {
-        routeStructureChanged = true;
-      }
 
       // Build a set of driver/date pairs that already have ISP/ISD stops (no pickup needed)
       const ispIsdDriverDateKeys = new Set([
@@ -368,18 +368,18 @@ export async function handleBatchSave({
           .map((pickup) => [pickup.id || pickup.stop_id, pickup])
       ).values());
       
-      // Only trigger route optimization if there are NEW ACTIVE (en_route/in_transit) pickup
-      // containers actually created by ensurePickup calls — NOT pickups that were already in
-      // the staged list. Pure staged→pending transitions must NOT trigger optimization or
-      // polyline regeneration (adding pending stops should never hit the HERE API).
-      const freshlyEnsuredPickups = [
-        ...normalizedDefaultPickups,
-        ...ensuredPickups.map((result) => result?.data?.pickup).filter(Boolean)
-      ].filter((pickup) => pickup && !pickupRecordsFromStage.some((sp) => sp.id && sp.id === pickup.id));
-      const activePickupsCreated = freshlyEnsuredPickups.some(
-        (pickup) => pickup && ['en_route', 'in_transit'].includes(pickup.status)
-      );
-      routeStructureChanged = hasNewActiveSops || activePickupsCreated;
+      // CRITICAL FIX: Newly-created/ensured pickup CONTAINERS are always persisted with
+      // status 'en_route' by design (that's just their resting/default status — it does NOT
+      // mean the driver started moving). Treating that as an "active pickup created" signal
+      // previously forced routeStructureChanged=true (and triggered the HERE optimizer +
+      // orange "Optimizing Route" banner) on essentially EVERY normal "stage some patient
+      // stops, click Done" workflow, since staging a store's first stop of the day always
+      // needs a fresh pickup container. That's exactly the "staged→pending shouldn't hit the
+      // HERE API" case the user reported. Route structure only actually needs re-optimization
+      // when one of the newly staged DELIVERIES itself is genuinely active (e.g. in_transit —
+      // the driver is being told to go there right now), which hasNewActiveSops already
+      // captures from the user-set status. Pickup-container creation alone must never force it.
+      routeStructureChanged = hasNewActiveSops;
 
       const ensuredPickupByKey = new Map(
         ensuredPickupRecords

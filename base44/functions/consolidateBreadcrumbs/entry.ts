@@ -1,5 +1,23 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// ─── consolidateBreadcrumbs ────────────────────────────────────────────────────
+// "Master Timeline Slicer"
+//
+// Reads the single master 'TODAY' breadcrumb record (stop_order = -1) for a given
+// driver/date and slices it into per-stop segments using delivery_time_end values.
+//
+// Slicing logic:
+//   - Stop N's segment = all points where: prev_stop.delivery_time_end <= ts < this_stop.delivery_time_end
+//   - Stop 1's segment starts from the first point in the master timeline (no previous stop boundary)
+//
+// This function can be called:
+//   1. After a stop is completed (to slice that specific stop).
+//   2. At end-of-day to slice all stops at once.
+//   3. On-demand for replay/repair.
+//
+// If stop_order is omitted, ALL stops for the driver/date are sliced.
+// ──────────────────────────────────────────────────────────────────────────────
+
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
 const EDMONTON_TZ = 'America/Edmonton';
 
@@ -29,10 +47,7 @@ function parseTimestampMs(value) {
     if (!trimmed) return null;
     if (/^\d+$/.test(trimmed)) {
       const numeric = Number(trimmed);
-      if (!Number.isFinite(numeric)) return null;
-      if (numeric > 1e12) return numeric;
-      if (numeric > 1e9) return numeric * 1000;
-      return null;
+      return numeric > 1e12 ? numeric : numeric > 1e9 ? numeric * 1000 : null;
     }
     const parsed = new Date(trimmed).getTime();
     return Number.isNaN(parsed) ? null : parsed;
@@ -40,55 +55,34 @@ function parseTimestampMs(value) {
   return null;
 }
 
-function parseLocalDateTimeMs(value, fallbackDate) {
-  if (!value || typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const hasDate = /^\d{4}-\d{2}-\d{2}/.test(trimmed);
-  const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
-  const candidate = hasDate ? normalized : `${fallbackDate}T${normalized}`;
-  const isoLike = candidate.includes('Z') || /[+-]\d{2}:?\d{2}$/.test(candidate)
-    ? candidate : `${candidate}-06:00`;
-  const parsed = new Date(isoLike).getTime();
-  return Number.isNaN(parsed) ? null : parsed;
-}
+// Parse "HH:mm" or "YYYY-MM-DDTHH:MM:SS" time string into a UTC milliseconds timestamp
+// anchored to the given delivery_date in America/Edmonton time.
+function parseDeliveryTimeMs(timeValue, deliveryDate) {
+  if (!timeValue || !deliveryDate) return null;
+  const trimmed = String(timeValue).trim();
 
-function parseBoundaryTimeMs(value, fallbackDate) {
-  return parseTimestampMs(value) ?? parseLocalDateTimeMs(value, fallbackDate);
-}
-
-function normalizeBreadcrumbPoint(point) {
-  if (Array.isArray(point) && point.length >= 3) {
-    const lat = Number(point[0]);
-    const lon = Number(point[1]);
-    const timestampMs = parseTimestampMs(point[2]);
-    if (Number.isFinite(lat) && Number.isFinite(lon) && timestampMs) {
-      return [lat, lon, timestampMs];
-    }
+  // Already a full ISO datetime (actual_delivery_time / arrival_time)
+  if (trimmed.includes('T') || trimmed.includes(' ')) {
+    const normalized = trimmed.replace(' ', 'T');
+    // If no timezone info, treat as Edmonton local time (UTC-6 standard / UTC-7 MDT)
+    const withTz = /[Zz]|[+-]\d{2}:?\d{2}$/.test(normalized)
+      ? normalized
+      : `${normalized}-06:00`;
+    const ms = new Date(withTz).getTime();
+    return Number.isNaN(ms) ? null : ms;
   }
-  if (point && typeof point === 'object') {
-    const lat = Number(point.latitude ?? point.lat);
-    const lon = Number(point.longitude ?? point.lng ?? point.lon);
-    const timestampMs = parseTimestampMs(point.timestamp_ms ?? point.timestamp ?? point.time);
-    if (Number.isFinite(lat) && Number.isFinite(lon) && timestampMs) {
-      return [lat, lon, timestampMs];
-    }
+
+  // "HH:mm" format — combine with delivery_date in Edmonton timezone
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+    const candidate = `${deliveryDate}T${trimmed}`;
+    const withTz = `${candidate}-06:00`;
+    const ms = new Date(withTz).getTime();
+    return Number.isNaN(ms) ? null : ms;
   }
-  return null;
+
+  return parseTimestampMs(trimmed);
 }
 
-function dedupeSequential(points) {
-  const result = [];
-  for (const point of points) {
-    const prev = result[result.length - 1];
-    if (!prev || prev[0] !== point[0] || prev[1] !== point[1] || prev[2] !== point[2]) {
-      result.push(point);
-    }
-  }
-  return result;
-}
-
-// --- Polyline encoding (Google/flexible format) ---
 function encodePolylineValue(value) {
   let v = Math.round(value * 1e5);
   v = v < 0 ? ~(v << 1) : v << 1;
@@ -102,20 +96,16 @@ function encodePolylineValue(value) {
 }
 
 function encodePolyline(points) {
-  let prevLat = 0, prevLon = 0;
-  let result = '';
+  let prevLat = 0, prevLon = 0, result = '';
   for (const point of points) {
-    const lat = point[0];
-    const lon = point[1];
-    result += encodePolylineValue(lat - prevLat);
-    result += encodePolylineValue(lon - prevLon);
-    prevLat = lat;
-    prevLon = lon;
+    result += encodePolylineValue(point[0] - prevLat);
+    result += encodePolylineValue(point[1] - prevLon);
+    prevLat = point[0];
+    prevLon = point[1];
   }
   return result;
 }
 
-// Decode existing encoded polyline back to [[lat, lon], ...] for merging
 function decodePolyline(encoded) {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
@@ -140,15 +130,15 @@ function decodePolyline(encoded) {
   return coordinates;
 }
 
-// Parse existing DeliveryBreadcrumbs record back to [[lat, lon, ts], ...]
-function parseExistingBreadcrumbRecord(record) {
-  if (!record?.encoded_polyline || !record?.timestamps) return [];
-  const coords = decodePolyline(record.encoded_polyline);
-  const tsStrings = record.timestamps.split(',');
-  return coords.map((coord, i) => {
-    const ts = parseTimestampMs(tsStrings[i]);
-    return ts ? [coord[0], coord[1], ts] : null;
-  }).filter(Boolean);
+function dedupeSequential(points) {
+  const result = [];
+  for (const point of points) {
+    const prev = result[result.length - 1];
+    if (!prev || prev[0] !== point[0] || prev[1] !== point[1] || prev[2] !== point[2]) {
+      result.push(point);
+    }
+  }
+  return result;
 }
 
 Deno.serve(async (req) => {
@@ -158,94 +148,176 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { driver_id, delivery_date, stop_order, delivery_status } = body || {};
 
-    if (!driver_id || !delivery_date || !Number.isFinite(Number(stop_order))) {
-      return Response.json({ error: 'driver_id, delivery_date, and stop_order are required' }, { status: 400 });
+    // Support both direct call and entity automation payload
+    const deliveryData = body.data || null;
+    const driver_id = body.driver_id || deliveryData?.driver_id;
+    const delivery_date = body.delivery_date || deliveryData?.delivery_date;
+    // Optional: if stop_order is provided, only slice that specific stop. Otherwise slice all.
+    const target_stop_order = body.stop_order != null ? Number(body.stop_order) : null;
+
+    if (!driver_id || !delivery_date) {
+      return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
     }
 
-    if (delivery_status && !TERMINAL_STATUSES.has(String(delivery_status))) {
-      return Response.json({ success: true, skipped: true, reason: 'non_terminal_status' });
-    }
-
-    const numericStopOrder = Number(stop_order);
-    const deliveries = await base44.asServiceRole.entities.Delivery.filter({
-      driver_id, delivery_date
-    }, 'stop_order', 50000);
-
-    const currentDelivery = (deliveries || []).find((d) => Number(d?.stop_order) === numericStopOrder) || null;
-    if (!currentDelivery?.id) {
-      return Response.json({ success: true, skipped: true, reason: 'delivery_not_found', driver_id, delivery_date, stop_order: numericStopOrder });
-    }
-
-    const currentStatus = String(currentDelivery.status || delivery_status || '');
-    if (!TERMINAL_STATUSES.has(currentStatus)) {
-      return Response.json({ success: true, skipped: true, reason: 'delivery_not_terminal', delivery_id: currentDelivery.id });
-    }
-
-    const previousStop = (deliveries || [])
-      .filter((d) => Number(d?.stop_order) < numericStopOrder && TERMINAL_STATUSES.has(String(d?.status || '')))
-      .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
-
-    const legEndMs = parseBoundaryTimeMs(currentDelivery.actual_delivery_time || currentDelivery.arrival_time || currentDelivery.updated_date, delivery_date);
-    const legStartMs = previousStop
-      ? parseBoundaryTimeMs(previousStop.actual_delivery_time || previousStop.arrival_time || previousStop.updated_date, delivery_date)
-      : null;
-
-    if (!legEndMs) {
-      return Response.json({ success: true, skipped: true, reason: 'missing_leg_end_time', delivery_id: currentDelivery.id });
-    }
-
-    // Fetch existing DeliveryBreadcrumbs record by composite key (driver_id + delivery_date + stop_order)
-    const existingBreadcrumbRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
-      driver_id, delivery_date, stop_order: numericStopOrder
+    // ── 1. Fetch the master 'TODAY' breadcrumb record (stop_order = -1) ──────
+    const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+      driver_id,
+      delivery_date,
+      stop_order: -1,
     }).catch(() => []);
-    const existingRecord = existingBreadcrumbRecords?.[0] || null;
+    const masterRecord = masterRecords?.[0] || null;
 
-    const existingPoints = parseExistingBreadcrumbRecord(existingRecord)
-      .filter((point) => {
-        const timestampMs = point[2];
-        const pointDate = getEdmontonDateString(timestampMs);
-        if (pointDate !== delivery_date) return false;
-        if (timestampMs >= legEndMs) return false;
-        if (legStartMs && timestampMs < legStartMs) return false;
+    if (!masterRecord?.encoded_polyline || !masterRecord?.timestamps) {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'no_master_timeline_record',
+        driver_id,
+        delivery_date,
+      });
+    }
+
+    // Parse master timeline into [[lat, lon, ts_ms], ...] sorted by time
+    const masterCoords = decodePolyline(masterRecord.encoded_polyline);
+    const masterTs = masterRecord.timestamps.split(',').map(Number);
+    const masterPoints = masterCoords
+      .map((coord, i) => {
+        const ts = parseTimestampMs(masterTs[i]);
+        return ts ? [coord[0], coord[1], ts] : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => a[2] - b[2]);
+
+    if (masterPoints.length === 0) {
+      return Response.json({ success: true, skipped: true, reason: 'empty_master_timeline' });
+    }
+
+    // ── 2. Fetch all deliveries for this driver/date, sorted by stop_order ───
+    const allDeliveries = await base44.asServiceRole.entities.Delivery.filter(
+      { driver_id, delivery_date },
+      'stop_order',
+      50000
+    );
+
+    // Only process terminal (completed/failed/etc) stops so we don't slice mid-transit stops
+    const terminalStops = (allDeliveries || [])
+      .filter((d) => d && d.stop_order != null && TERMINAL_STATUSES.has(String(d.status || '')))
+      .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
+
+    if (terminalStops.length === 0) {
+      return Response.json({ success: true, skipped: true, reason: 'no_terminal_stops', driver_id, delivery_date });
+    }
+
+    // Filter to just the target stop if specified
+    const stopsToSlice = target_stop_order != null
+      ? terminalStops.filter((d) => Number(d.stop_order) === target_stop_order)
+      : terminalStops;
+
+    if (stopsToSlice.length === 0) {
+      return Response.json({ success: true, skipped: true, reason: 'target_stop_not_found_or_not_terminal', target_stop_order });
+    }
+
+    // ── 3. Fetch existing per-stop breadcrumb records for bulk upsert ─────────
+    const existingStopRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter(
+      { driver_id, delivery_date },
+      'stop_order',
+      50000
+    ).catch(() => []);
+
+    // Build a lookup: stop_order -> existing record (exclude master sentinel)
+    const existingByStopOrder = new Map();
+    for (const rec of (existingStopRecords || [])) {
+      if (rec?.stop_order != null && Number(rec.stop_order) !== -1) {
+        existingByStopOrder.set(Number(rec.stop_order), rec);
+      }
+    }
+
+    // ── 4. Slice master timeline into per-stop segments ───────────────────────
+    // Boundary rule:
+    //   Stop N covers points where: prevStopEndMs <= ts < thisStopEndMs
+    //   Stop 1 has no lower bound (takes all points from the start of the day)
+    //
+    // delivery_time_end is the authoritative boundary. If unavailable, fall back to
+    // actual_delivery_time, then arrival_time.
+
+    const results = [];
+
+    for (let i = 0; i < stopsToSlice.length; i++) {
+      const stop = stopsToSlice[i];
+      const numericStopOrder = Number(stop.stop_order);
+
+      // Upper boundary: this stop's completion time
+      const stopEndMs = parseDeliveryTimeMs(
+        stop.delivery_time_end || stop.actual_delivery_time || stop.arrival_time,
+        delivery_date
+      );
+
+      if (!stopEndMs) {
+        results.push({ stop_order: numericStopOrder, skipped: true, reason: 'no_end_time' });
+        continue;
+      }
+
+      // Lower boundary: the previous terminal stop's completion time (if any)
+      // The previous stop is the highest stop_order below this one that is terminal
+      const prevTerminalStop = terminalStops
+        .filter((d) => Number(d.stop_order) < numericStopOrder)
+        .at(-1) || null;
+
+      const prevStopEndMs = prevTerminalStop
+        ? parseDeliveryTimeMs(
+            prevTerminalStop.delivery_time_end || prevTerminalStop.actual_delivery_time || prevTerminalStop.arrival_time,
+            delivery_date
+          )
+        : null;
+
+      // Slice: include points in [prevStopEndMs, stopEndMs)
+      const slicedPoints = masterPoints.filter((pt) => {
+        const ts = pt[2];
+        if (ts >= stopEndMs) return false; // After this stop ends
+        if (prevStopEndMs && ts < prevStopEndMs) return false; // Before this leg started
         return true;
       });
 
-    const sortedPoints = dedupeSequential([...existingPoints].sort((a, b) => a[2] - b[2]));
+      if (slicedPoints.length === 0) {
+        results.push({ stop_order: numericStopOrder, skipped: true, reason: 'no_points_in_window', prevStopEndMs, stopEndMs });
+        continue;
+      }
 
-    if (sortedPoints.length === 0) {
-      return Response.json({ success: true, message: 'No valid breadcrumb points to consolidate', delivery_id: currentDelivery.id, breadcrumb_count: 0 });
-    }
+      const dedupedPoints = dedupeSequential(slicedPoints);
+      const encodedPolyline = encodePolyline(dedupedPoints);
+      const timestamps = dedupedPoints.map((p) => p[2]).join(',');
 
-    // Encode to compact polyline + timestamps string
-    const encodedPolyline = encodePolyline(sortedPoints);
-    const timestamps = sortedPoints.map((p) => p[2]).join(',');
+      const breadcrumbData = {
+        driver_id,
+        delivery_date,
+        stop_order: numericStopOrder,
+        encoded_polyline: encodedPolyline,
+        timestamps,
+        transport_mode: stop.transport_mode || 'driving',
+        point_count: dedupedPoints.length,
+      };
 
-    // Save or update DeliveryBreadcrumbs record (no delivery_id — composite key is the canonical lookup)
-    const breadcrumbData = {
-      driver_id,
-      delivery_date,
-      stop_order: numericStopOrder,
-      encoded_polyline: encodedPolyline,
-      timestamps,
-      transport_mode: currentDelivery.transport_mode || 'driving',
-      point_count: sortedPoints.length,
-    };
+      const existingRec = existingByStopOrder.get(numericStopOrder);
+      if (existingRec?.id) {
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existingRec.id, breadcrumbData);
+      } else {
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(breadcrumbData);
+      }
 
-    if (existingRecord?.id) {
-      await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existingRecord.id, breadcrumbData);
-    } else {
-      await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(breadcrumbData);
+      results.push({ stop_order: numericStopOrder, point_count: dedupedPoints.length, sliced: true });
     }
 
     return Response.json({
       success: true,
-      delivery_id: currentDelivery.id,
-      breadcrumb_count: sortedPoints.length,
-      leg_start_ms: legStartMs,
-      leg_end_ms: legEndMs
+      driver_id,
+      delivery_date,
+      master_point_count: masterPoints.length,
+      stops_sliced: results.filter((r) => r.sliced).length,
+      stops_skipped: results.filter((r) => r.skipped).length,
+      results,
     });
+
   } catch (error) {
     console.error('[consolidateBreadcrumbs] Error:', error?.message || error);
     return Response.json({ error: error?.message || 'Internal error' }, { status: 500 });

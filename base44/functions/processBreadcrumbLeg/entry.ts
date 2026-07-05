@@ -1,5 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// ─── processBreadcrumbLeg ──────────────────────────────────────────────────────
+// Called when a stop reaches a terminal status (completed/failed/etc).
+// Triggers the master timeline slicer (consolidateBreadcrumbs) for this specific stop,
+// then copies the resulting polyline to the Delivery record.
+//
+// With the new architecture, there is no per-stop breadcrumb writing on the mobile side.
+// All GPS points accumulate in the master 'TODAY' record (stop_order = -1) and are sliced
+// by consolidateBreadcrumbs using delivery_time_end boundaries.
+// ──────────────────────────────────────────────────────────────────────────────
+
 const MIN_BREADCRUMB_POINTS = 5;
 
 Deno.serve(async (req) => {
@@ -18,61 +28,54 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'delivery_id, driver_id, delivery_date, and stop_order are required' }, { status: 400 });
     }
 
-    // Fetch the delivery record
-    const delivery = deliveryData?.id === delivery_id
-      ? deliveryData
-      : await base44.asServiceRole.entities.Delivery.get(delivery_id);
-    if (!delivery) {
-      return Response.json({ error: 'Delivery not found' }, { status: 404 });
+    // ── Step 1: Trigger the slicer for this specific stop ────────────────────
+    // consolidateBreadcrumbs will slice the master 'TODAY' timeline and write
+    // a per-stop DeliveryBreadcrumbs record for this stop_order.
+    const sliceResult = await base44.asServiceRole.functions.invoke('consolidateBreadcrumbs', {
+      driver_id,
+      delivery_date,
+      stop_order: Number(stop_order),
+    });
+
+    const slicedStop = sliceResult?.results?.find((r) => Number(r.stop_order) === Number(stop_order));
+
+    if (!slicedStop?.sliced || slicedStop.point_count < MIN_BREADCRUMB_POINTS) {
+      return Response.json({
+        success: false,
+        skipped: true,
+        reason: slicedStop?.reason || 'insufficient_points_after_slice',
+        point_count: slicedStop?.point_count ?? 0,
+        min_required: MIN_BREADCRUMB_POINTS,
+        delivery_id,
+      });
     }
 
-    // Look up the matching DeliveryBreadcrumbs record by composite key: driver_id + delivery_date + stop_order
+    // ── Step 2: Read the freshly sliced per-stop record ──────────────────────
     const breadcrumbRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id,
       delivery_date,
       stop_order: Number(stop_order),
     }).catch(() => []);
 
-    if (!breadcrumbRecords || breadcrumbRecords.length === 0) {
-      return Response.json({ success: false, skipped: true, reason: 'no_breadcrumb_record', delivery_id, driver_id, delivery_date, stop_order });
+    const breadcrumb = (breadcrumbRecords || []).sort((a, b) =>
+      new Date(b.updated_date || b.created_date || 0).getTime() -
+      new Date(a.updated_date || a.created_date || 0).getTime()
+    )[0];
+
+    if (!breadcrumb?.encoded_polyline) {
+      return Response.json({ success: false, skipped: true, reason: 'no_sliced_polyline_found', delivery_id });
     }
 
-    // Use the most recently updated breadcrumb record if there are multiple
-    const breadcrumb = breadcrumbRecords.sort((a, b) => {
-      const aTime = new Date(a.updated_date || a.created_date || 0).getTime();
-      const bTime = new Date(b.updated_date || b.created_date || 0).getTime();
-      return bTime - aTime;
-    })[0];
-
-    const pointCount = Number(breadcrumb.point_count) || 0;
-    const encodedPolyline = breadcrumb.encoded_polyline;
-
-    // Enforce minimum point threshold — insufficient data produces unreliable polylines
-    if (pointCount < MIN_BREADCRUMB_POINTS) {
-      return Response.json({
-        success: false,
-        skipped: true,
-        reason: 'insufficient_breadcrumb_points',
-        point_count: pointCount,
-        min_required: MIN_BREADCRUMB_POINTS,
-        delivery_id,
-      });
-    }
-
-    if (!encodedPolyline) {
-      return Response.json({ success: false, skipped: true, reason: 'no_encoded_polyline_on_breadcrumb', delivery_id });
-    }
-
-    // Copy the pre-encoded polyline directly from the breadcrumb to the delivery
+    // ── Step 3: Copy sliced polyline to the Delivery record ──────────────────
     await base44.asServiceRole.entities.Delivery.update(delivery_id, {
-      encoded_polyline: encodedPolyline,
+      encoded_polyline: breadcrumb.encoded_polyline,
     });
 
     return Response.json({
       success: true,
       delivery_id,
       stop_order,
-      point_count: pointCount,
+      point_count: breadcrumb.point_count || slicedStop.point_count,
     });
 
   } catch (error) {

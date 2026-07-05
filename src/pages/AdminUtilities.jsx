@@ -1678,16 +1678,17 @@ export default function AdminUtilities() {
   }
 
   return (
-    <div className="h-full min-h-0 w-full flex flex-col p-2 pb-0 md:p-3 md:pb-0" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="w-full max-w-none space-y-4 md:space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden pb-2 md:pb-0">
-        <div className="flex items-center justify-between gap-2">
+    <div className="w-full flex flex-col" style={{ background: 'var(--bg-slate-50)', height: '100%', overflow: 'hidden' }}>
+      {/* Sticky header — never scrolls */}
+      <div className="flex-shrink-0 px-2 md:px-3 pt-2 md:pt-3 pb-2" style={{ background: 'var(--bg-slate-50)' }}>
+        <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
             <h1 className="text-xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
             <SmartRefreshIndicator inline={true} onManualRefresh={handleRefreshAllData} />
           </div>
         </div>
 
-        <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full flex-1 flex flex-col min-h-0">
+        <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
           <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
             <TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(9,minmax(max-content,1fr))' }}>
               <TabsTrigger value="data" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Data</TabsTrigger>
@@ -1701,16 +1702,22 @@ export default function AdminUtilities() {
               <TabsTrigger value="sync-management" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Sync</TabsTrigger>
             </TabsList>
           </div>
+        </Tabs>
+      </div>
 
-          <TabsContent value="data" className="mt-4 flex-1 min-h-0 overflow-hidden">
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto px-2 md:px-3 pb-4">
+        <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
+
+          <TabsContent value="data" className="mt-0">
             {dataLoading && activeDataTab !== 'deliveries' || dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length ?
             <div className="flex justify-center items-center h-60">
                 <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
                 <span className="ml-3 text-lg text-slate-600">Loading data...</span>
               </div> :
 
-            <div className="space-y-6 h-full min-h-0 overflow-hidden">
-                <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full h-full min-h-0 flex flex-col">
+            <div className="space-y-6">
+                <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full flex flex-col">
                    <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(9,minmax(max-content,1fr))' }}>
                        <TabsTrigger value="companies" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Companies</TabsTrigger>
                        <TabsTrigger value="cities" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Cities</TabsTrigger>
@@ -1721,8 +1728,8 @@ export default function AdminUtilities() {
                        <TabsTrigger value="ble-diagnostic" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ BLE Diag</TabsTrigger>
                        </TabsList></div>
 
-                  <TabsContent value="deliveries" className="mt-4 flex-1 min-h-0 overflow-hidden">
-                    <div className="space-y-2 h-full min-h-0 overflow-auto">
+                  <TabsContent value="deliveries" className="mt-4">
+                    <div className="space-y-2">
                       <div className="flex flex-col md:flex-row gap-1 flex-wrap items-stretch md:items-center justify-between">
                         {!manualLoadTriggered ?
                       <Alert className="bg-background text-foreground pt-2 pr-3 pb-1 pl-3 text-sm rounded-lg relative w-full border [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7 flex-1">
@@ -1886,7 +1893,7 @@ export default function AdminUtilities() {
             
           </TabsContent>
 
-          <TabsContent value="polylines" className="mt-6 flex-1 min-h-0">
+          <TabsContent value="polylines" className="mt-6">
             <PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} />
           </TabsContent>
 
@@ -1982,7 +1989,6 @@ export default function AdminUtilities() {
         onConfirm={confirmDialog.onConfirm}
         confirmText={confirmDialog.confirmText}
         variant={confirmDialog.variant} />
-      
     </div>);
 
 }

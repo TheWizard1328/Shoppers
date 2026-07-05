@@ -329,7 +329,8 @@ function Dashboard() {
   const handleStatsPanelInteraction = useCallback((isHovering) => { if (!isMobile) return; if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } if (isHovering || isExpanded) setStatsPanelOpacity(1); else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
   useEffect(() => { if (!isMobile) { setStatsPanelOpacity(1); return; } if (isExpanded) { setStatsPanelOpacity(1); if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } } else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
   useEffect(() => { if (!isMobile || !isDataLoaded) return; const t = setTimeout(() => { if (!isExpanded) setStatsPanelOpacity(0.5); }, 5000); return () => clearTimeout(t); }, [isDataLoaded, isExpanded, isMobile]);
-  useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger });
+  const handleReoptimizeRouteRef = useRef(null);
+  useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger, onOnDutyFromToggle: () => handleReoptimizeRouteRef.current?.() });
   useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, selectedDate, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({ currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally });
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });
@@ -1524,6 +1525,26 @@ useEffect(() => {
     };
   }, []);
 
+  // BUG FIX: OptimizationSpinner (the global bottom-right "Optimizing Route" KITT bar)
+  // used to show for ANY driver/date optimization happening anywhere in the app — so a
+  // driver doing a harmless Staged→Pending flip on their own screen could see the orange
+  // banner because a completely unrelated optimization (another driver's Accept All, a
+  // dispatcher batch save, etc.) happened to be running in the background at the same
+  // moment. Broadcast the currently-viewed driver+date so the spinner can filter to only
+  // the route the current user is actually looking at.
+  useEffect(() => {
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    window.__currentDashboardContext = {
+      driverId: selectedDriverId === 'all' ? null : selectedDriverId,
+      deliveryDate: dateStr,
+    };
+    window.dispatchEvent(new CustomEvent('dashboardContextChanged', { detail: window.__currentDashboardContext }));
+    return () => {
+      window.__currentDashboardContext = null;
+      window.dispatchEvent(new CustomEvent('dashboardContextChanged', { detail: null }));
+    };
+  }, [selectedDriverId, selectedDate]);
+
   const handleAIToggle = () => {
     const newValue = !isAIEnabled;
     setIsAIEnabled(newValue);
@@ -1553,7 +1574,39 @@ useEffect(() => {
     if (cardElement) {
       cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
+
+    // Auto-open Patient History panel for dispatchers clicking their own store's patient markers
+    if (
+      delivery.patient_id &&
+      isDispatcher &&
+      !isAdmin &&
+      currentUser?.store_ids?.includes(delivery.store_id)
+    ) {
+      setTimeout(() => {
+        const patient = patients.find((p) => p && p.id === delivery.patient_id);
+        window.dispatchEvent(new CustomEvent('openPatientHistoryPanel', {
+          detail: { patientId: delivery.patient_id, patient }
+        }));
+      }, 400);
+    }
   };
+
+  // Collapse expanded stop card when Patient History panel is closed
+  useEffect(() => {
+    const handlePatientHistoryPanelClosed = () => {
+      setSelectedCardId(null);
+      setHighlightedCardId(null);
+      cardExpandedAtRef.current = null;
+      if (previousMapState?.center && previousMapState?.zoom) {
+        setMapCenter(previousMapState.center);
+        setMapZoom(previousMapState.zoom);
+        setShouldFitBounds(null);
+      }
+      setPreviousMapState(null);
+    };
+    window.addEventListener('patientHistoryPanelClosed', handlePatientHistoryPanelClosed);
+    return () => window.removeEventListener('patientHistoryPanelClosed', handlePatientHistoryPanelClosed);
+  }, [previousMapState]);
 
   const handleCardClick = (delivery) => {
     if (!delivery || !delivery.id) {
@@ -1654,11 +1707,18 @@ useEffect(() => {
   };
 
   const handleReoptimizeRoute = async () => {
+    handleReoptimizeRouteRef.current = handleReoptimizeRoute;
     const mod = await import('@/components/dashboard/handleReoptimizeRoute');
+    // CRITICAL: Use the selected driver ID (not currentUser.id) so admins viewing
+    // a specific driver's route optimize that driver — not themselves.
+    const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
     return mod.handleReoptimizeRoute({
       currentUser, selectedDate, appUsers, format,
+      driverId: targetDriverId,
       setIsReoptimizing, setOptimizationMessage, setIsEntityUpdating, setSkippedStopsDialogData,
       refreshData, isMapViewLockedRef, setIsMapViewLocked, setMapViewTrigger,
+      // Pass local in-memory data to the client-side route engine
+      deliveries: deliveriesRef.current, patients: patientsRef.current, stores: storesRef.current,
     });
   };
 
@@ -2117,7 +2177,7 @@ useEffect(() => {
     isDataLoaded,
     userSettingsLoaded,
     currentUser, isDriver, isAdmin, isDispatcher, isMobile,
-    deliveries, patients, stores, drivers, appUsers,
+    deliveries, patients, stores, drivers, appUsers, cities,
     filteredDeliveries, deliveriesWithStopOrder, stats, driversList,
     selectedDate, selectedDriverId, calendarMonth, setCalendarMonth,
     isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,

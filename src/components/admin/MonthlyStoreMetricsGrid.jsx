@@ -77,11 +77,13 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
+    const currentDay = now.getDate();
     const targetYear = parseInt(selectedYear, 10);
 
     if (targetYear < currentYear) return 12;
     if (targetYear > currentYear) return 0;
-    return currentMonth; // include current month
+    // Only include the current month in averages after the 20th
+    return currentDay > 20 ? currentMonth : currentMonth - 1;
   };
 
   // Calculate totals and averages per store (yearly)
@@ -104,7 +106,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
         if (totals[storeData.abbreviation] !== undefined) {
           let value;
           if (metricsViewMode === 'deliveries') {
-            const totalDeliveries = (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0);
+            const totalDeliveries = (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) + (storeData.returned || 0);
             const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
             const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
             envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
@@ -144,7 +146,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
     return monthData.reduce((sum, store) => {
       let value;
       if (metricsViewMode === 'deliveries') {
-        const totalDeliveries = (store.completed || 0) + (store.failed || 0) + (store.afterHours || 0);
+        const totalDeliveries = (store.completed || 0) + (store.failed || 0) + (store.afterHours || 0) + (store.returned || 0);
         const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[store.storeId]?.[month];
         const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
         envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
@@ -169,7 +171,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
 
     let value;
     if (metricsViewMode === 'deliveries') {
-      const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
+      const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0) + (storeData.returned || 0);
 
       if (showEnvelopeAdjustedTotals) {
         const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];

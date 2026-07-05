@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { Button } from "@/components/ui/button";
 import { format } from 'date-fns';
+import PatientHistoryPanel from '@/components/dashboard/PatientHistoryPanel';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
 import PatientForm from "@/components/patients/PatientForm";
@@ -17,11 +18,11 @@ import useModeRouteDialog from '@/components/dashboard/useModeRouteDialog';
 
 import EndOfDayStatsDialog from '@/components/dashboard/EndOfDayStatsDialog';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function DashboardDialogs({
   currentUser, isDriver, isDispatcher,
-  deliveries, patients, stores, drivers, appUsers,
+  deliveries, patients, stores, drivers, appUsers, cities,
   filteredDeliveries, deliveriesWithStopOrder,
   selectedDate, selectedDateStr, selectedDriverId,
   driverLocation,
@@ -48,6 +49,22 @@ export default function DashboardDialogs({
   // Mode dialog (cycling)
   setPreferredTravelMode,
 }) {
+  const [historyPatient, setHistoryPatient] = useState(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const { patient, patientId } = e.detail || {};
+      if (patient) {
+        setHistoryPatient(patient);
+      } else if (patientId) {
+        const found = patients?.find((p) => p?.id === patientId);
+        setHistoryPatient(found || null);
+      }
+    };
+    window.addEventListener('openPatientHistoryPanel', handler);
+    return () => window.removeEventListener('openPatientHistoryPanel', handler);
+  }, [patients]);
+
   const {
     modeDialogOpen, setModeDialogOpen,
     nearbyModeStops, selectedModeStopIds, toggleModeStop,
@@ -82,7 +99,7 @@ export default function DashboardDialogs({
   return (
     <>
       <AnimatePresence>
-        {showDeliveryForm && <DeliveryForm delivery={editingDelivery} patients={patients} stores={stores} drivers={drivers} onSave={handleSaveDelivery} onCancel={() => { setShowDeliveryForm(false); setEditingDelivery(null); }} suggestedDate={format(selectedDate, 'yyyy-MM-dd')} currentUser={currentUser} allDeliveries={deliveries} onCreatePatient={handleCreatePatientFromDelivery} defaultToPickupMode={!!editingDelivery && !editingDelivery.patient_id} openMode={editingDelivery && isInterStoreDelivery(editingDelivery.delivery_id) ? 'interstore_edit' : null} />}
+        {showDeliveryForm && <DeliveryForm delivery={editingDelivery} patients={patients} stores={stores} drivers={drivers} cities={cities} onSave={handleSaveDelivery} onCancel={() => { setShowDeliveryForm(false); setEditingDelivery(null); }} suggestedDate={format(selectedDate, 'yyyy-MM-dd')} currentUser={currentUser} allDeliveries={deliveries} onCreatePatient={handleCreatePatientFromDelivery} defaultToPickupMode={!!editingDelivery && !editingDelivery.patient_id} openMode={editingDelivery && isInterStoreDelivery(editingDelivery.delivery_id) ? 'interstore_edit' : null} />}
       </AnimatePresence>
 
       <AnimatePresence>
@@ -142,6 +159,20 @@ export default function DashboardDialogs({
       />
 
       <DispatcherPickupNotification deliveries={deliveries} stores={stores} appUsers={appUsers} currentUser={currentUser} isDispatcher={isDispatcher} />
+
+      <PatientHistoryPanel
+        patient={historyPatient}
+        currentUser={currentUser}
+        onClose={() => {
+          setHistoryPatient(null);
+          window.dispatchEvent(new CustomEvent('patientHistoryPanelClosed'));
+        }}
+        onEditDelivery={(delivery) => {
+          setHistoryPatient(null);
+          setEditingDelivery(delivery);
+          setShowDeliveryForm(true);
+        }}
+      />
 
       <Dialog open={isDriver ? showQuickAdjustments : false} onOpenChange={(open) => {
         if (!open) {

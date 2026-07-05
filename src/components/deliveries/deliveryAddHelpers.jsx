@@ -114,15 +114,6 @@ export const createPatientFromDraft = async ({
   return { patient, isNewPatient: true };
 };
 
-// Unified pickup-attachment policy for any newly created delivery (Staged, Pending, or In Transit):
-//   1. Attach to the first existing En Route pickup for the same store/date/driver (matching slot preferred).
-//   2. Otherwise attach to a same-date + driver Completed pickup — but only if it was completed within
-//      the last hour, UNLESS forceAttachToExisting is set (manual In Transit), in which case the most
-//      recent Completed pickup is reused regardless of how long ago it finished.
-//   3. Otherwise reuse any other in-progress pickup (pending/in_transit/Staged) already on this route.
-//   4. forceAttachToExisting must always attach to *something* if anything at all exists for this
-//      store/date/driver, even a non-matching-slot record, rather than spawn a new pickup.
-//   5. Otherwise (Staged/Pending with nothing to reuse) fall through to create a brand-new pickup.
 export const resolvePickupPuid = async ({
   stagedDeliveries,
   allDeliveries,
@@ -145,7 +136,6 @@ export const resolvePickupPuid = async ({
     return stagedPickup.puid || stagedPickup.stop_id || null;
   }
 
-  // All already-persisted pickup records (patient_id null) for this exact store + date + driver
   const candidatePickups = (allDeliveries || []).filter((delivery) =>
     delivery &&
     !delivery.patient_id &&
@@ -154,7 +144,6 @@ export const resolvePickupPuid = async ({
     delivery.driver_id === driverId
   );
 
-  // 1. First existing En Route pickup for this store — prefer the matching AM/PM slot, else any slot
   const enRoutePickup =
     candidatePickups.find((p) => p.status === 'en_route' && (p.ampm_deliveries || 'AM') === timeSlot) ||
     candidatePickups.find((p) => p.status === 'en_route');
@@ -162,7 +151,6 @@ export const resolvePickupPuid = async ({
     return enRoutePickup.puid || enRoutePickup.stop_id;
   }
 
-  // 2. A same-date + driver Completed pickup
   const completedPickups = candidatePickups
     .filter((p) => p.status === 'completed' && p.actual_delivery_time)
     .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
@@ -180,7 +168,6 @@ export const resolvePickupPuid = async ({
     }
   }
 
-  // 3. Other non-terminal pickups already in progress for this store/date/driver
   const otherReusable =
     candidatePickups.find((p) => ['pending', 'in_transit', 'Staged'].includes(p.status) && (p.ampm_deliveries || 'AM') === timeSlot) ||
     candidatePickups.find((p) => ['pending', 'in_transit', 'Staged'].includes(p.status));
@@ -188,7 +175,6 @@ export const resolvePickupPuid = async ({
     return otherReusable.puid || otherReusable.stop_id;
   }
 
-  // 4. Manual In Transit must attach to *something* if anything at all exists for this store/date/driver
   if (forceAttachToExisting && candidatePickups.length > 0) {
     const mostRecent = [...candidatePickups].sort(
       (a, b) => new Date(b.updated_date || b.created_date || 0) - new Date(a.updated_date || a.created_date || 0)
@@ -198,7 +184,6 @@ export const resolvePickupPuid = async ({
     }
   }
 
-  // 5. Nothing to reuse — fall back to computing a fresh id / creating a new pickup via the backend
   const fallbackPuid = getPickupStopIdForDelivery(storeId, deliveryDate, timeSlot, allDeliveries);
 
   if (!ensureMissingPickup) {
