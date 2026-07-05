@@ -198,14 +198,19 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     const selectedRouteDate = globalFilters.getSelectedDate() || today;
     const optimizerDate = newStatus === 'on_duty' ? today : selectedRouteDate;
 
-    // Block going off_duty mid-route
+    // Block going off_duty only if the route has already started (has finished stops) AND
+    // still has active stops in progress — i.e. the driver is mid-route.
+    // If there are only pending/en_route/in_transit stops but none finished, the route
+    // hasn't started yet and going off-duty is allowed.
     if (newStatus === 'off_duty') {
       try {
-        const todayDeliveries = await base44.entities.Delivery.filter({ driver_id: effectiveUser?.id, delivery_date: selectedRouteDate });
-        // Only block if a stop is actively in progress (en_route or in_transit)
-        const inProgressStops = todayDeliveries.filter(d => d.status === 'en_route' || d.status === 'in_transit');
-        if (inProgressStops.length > 0) {
-          toast.error(`Cannot go off duty — ${inProgressStops.length} stop${inProgressStops.length > 1 ? 's' : ''} currently in progress`);
+        const todayDeliveries = await base44.entities.Delivery.filter({ driver_id: effectiveUser.id, delivery_date: selectedRouteDate });
+        const finishedStatuses = ['completed', 'failed', 'cancelled'];
+        const hasFinished = todayDeliveries.some(d => finishedStatuses.includes(d.status));
+        const activeStops = todayDeliveries.filter(d => d.status === 'en_route' || d.status === 'in_transit' || d.status === 'pending');
+        const midRoute = hasFinished && activeStops.length > 0;
+        if (midRoute) {
+          toast.error(`Cannot go off duty — route is in progress with ${activeStops.length} remaining stop${activeStops.length !== 1 ? 's' : ''}`);
           isTogglingRef.current = false;
           return;
         }
