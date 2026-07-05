@@ -323,7 +323,7 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   params.set('apiKey', hereApiKey);
   params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
   params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
-  params.set('improveFor', 'time');
+  params.set('improveFor', 'quality');
   params.set('start', `driverStart;${sequenceStart.lat},${sequenceStart.lng}`);
   if (resolvedHomePosition) {
     params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);
@@ -545,6 +545,7 @@ export async function optimizeRouteClientSide({
   const driverGpsPosition = driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
     ? { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) }
     : null;
+  console.log(`[clientRouteEngine] ${source} — driver AppUser: gps=${driverGpsPosition ? `(${driverGpsPosition.lat.toFixed(4)},${driverGpsPosition.lng.toFixed(4)})` : 'null'}, home=${driverAppUser.home_latitude != null ? `(${driverAppUser.home_latitude},${driverAppUser.home_longitude})` : 'null'}, travelMode=${preferredTravelMode}`);
 
   let currentPosition = null;
   let locationSource = null;
@@ -583,8 +584,10 @@ export async function optimizeRouteClientSide({
   }
 
   if (!currentPosition) {
+    console.error(`[clientRouteEngine] ${source} — ABORT: no currentPosition resolved (no GPS, no home, no completed stops, no next delivery coords)`);
     return { success: false, error: 'Driver location not available - no GPS, last completed, or home location set' };
   }
+  console.log(`[clientRouteEngine] ${source} — currentPosition=(${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)}) source=${locationSource}`);
 
   const logicalSegmentOrigin = latestFinishedCoords
     || (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
