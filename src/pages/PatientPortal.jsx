@@ -59,19 +59,40 @@ const driverIcon = L.divIcon({
   iconAnchor: [18, 36],
 });
 
-// Initial bounds fitter — runs once on first load
-function MapBoundsFitter({ positions }) {
+// Initial bounds fitter — runs once when positions are ready after load
+// If driver is active (in_transit/en_route + on_duty + has location): fit driver + patient
+// Otherwise: fit store + patient
+function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver }) {
   const map = useMap();
   const fittedRef = useRef(false);
+
   useEffect(() => {
-    if (fittedRef.current || positions.length === 0) return;
+    if (fittedRef.current) return;
+
+    // Wait until we have at least the patient location
+    if (!patientLatLng) return;
+
+    // Decide which positions to fit
+    const positions = [];
+    if (showDriver && driverLatLng) {
+      // Driver is live: fit driver + patient
+      positions.push(driverLatLng, patientLatLng);
+    } else {
+      // Default: fit store + patient
+      if (storeLatLng) positions.push(storeLatLng);
+      positions.push(patientLatLng);
+    }
+
     fittedRef.current = true;
+
     if (positions.length === 1) {
       map.setView(positions[0], 14);
     } else {
-      map.fitBounds(L.latLngBounds(positions), { padding: [60, 60] });
+      map.fitBounds(L.latLngBounds(positions), { padding: [70, 70] });
     }
-  }, [positions.map(p => p.join(',')).join('|')]);
+  // Re-run when driver location becomes available (first real location fix after load)
+  }, [patientLatLng?.toString(), storeLatLng?.toString(), driverLatLng?.toString(), showDriver]);
+
   return null;
 }
 
@@ -182,8 +203,8 @@ export default function PatientPortal() {
                 .catch(() => [])
             )
           );
-          // Keep only the actual pickup stops (no patient_id)
-          const allPickups = results.flat().filter((d) => !d.patient_id);
+          // Keep only the actual pickup stops (no patient_id, no interstore stops)
+          const allPickups = results.flat().filter((d) => !d.patient_id && !d._interstore_source_id);
           setPickupStops(allPickups);
         } catch (_) {}
       }
@@ -454,11 +475,9 @@ export default function PatientPortal() {
     };
   }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
 
-  const mapPositions = [
-    activeStore?.latitude  && activeStore?.longitude  ? [activeStore.latitude, activeStore.longitude]   : null,
-    patient?.latitude      && patient?.longitude      ? [patient.latitude, patient.longitude]           : null,
-    driverLocation                                    ? [driverLocation.lat, driverLocation.lng]        : null,
-  ].filter(Boolean);
+  const storeLatLng = activeStore?.latitude && activeStore?.longitude
+    ? [activeStore.latitude, activeStore.longitude]
+    : null;
 
   const defaultCenter = patient?.latitude && patient?.longitude
     ? [patient.latitude, patient.longitude]
@@ -607,7 +626,12 @@ export default function PatientPortal() {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
 
-              {mapPositions.length > 0 && <MapBoundsFitter positions={mapPositions} />}
+              <MapBoundsFitter
+                patientLatLng={patientLatLng}
+                storeLatLng={storeLatLng}
+                driverLatLng={driverLocation ? [driverLocation.lat, driverLocation.lng] : null}
+                showDriver={showLiveTracking && !!driverLocation}
+              />
               <DriverTracker
                 driverLocation={showLiveTracking ? driverLocation : null}
                 patientLatLng={patientLatLng}
