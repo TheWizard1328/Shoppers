@@ -329,12 +329,7 @@ function Dashboard() {
   const handleStatsPanelInteraction = useCallback((isHovering) => { if (!isMobile) return; if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } if (isHovering || isExpanded) setStatsPanelOpacity(1); else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
   useEffect(() => { if (!isMobile) { setStatsPanelOpacity(1); return; } if (isExpanded) { setStatsPanelOpacity(1); if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } } else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
   useEffect(() => { if (!isMobile || !isDataLoaded) return; const t = setTimeout(() => { if (!isExpanded) setStatsPanelOpacity(0.5); }, 5000); return () => clearTimeout(t); }, [isDataLoaded, isExpanded, isMobile]);
-  const handleReoptimizeRouteRef = useRef(null);
-  // Keep ref always pointing to latest handleReoptimizeRoute (defined below) so the
-  // useFabControlEventHandler's stable closure can invoke it without going stale.
-  // This effect runs after every render, keeping the ref fresh.
-  useEffect(() => { handleReoptimizeRouteRef.current = handleReoptimizeRoute; });
-  useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger, onOnDutyFromToggle: () => handleReoptimizeRouteRef.current?.() });
+  useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger, onOnDutyFromToggle: handleReoptimizeRoute });
   useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, selectedDate, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({ currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally });
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });

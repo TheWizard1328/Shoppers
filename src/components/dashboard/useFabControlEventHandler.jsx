@@ -20,6 +20,10 @@ export function useFabControlEventHandler({
   // Optional: called when ON_DUTY_FROM_TOGGLE fires so the manual reoptimize runs
   onOnDutyFromToggle,
 }) {
+  // Keep a ref so the stable useEffect([]) closure always calls the latest callback
+  const onOnDutyFromToggleRef = useRef(onOnDutyFromToggle);
+  useEffect(() => { onOnDutyFromToggleRef.current = onOnDutyFromToggle; });
+
   useEffect(() => {
     const setFabPhase = (phase, locked, triggerMap = true) => {
       mapViewPhaseRef.current = phase;
@@ -227,11 +231,8 @@ export function useFabControlEventHandler({
         }
         case 'ON_DUTY_FROM_TOGGLE': {
           // Driver went on_duty via the toggle (not the Start button).
-          // Run the manual FAB reoptimize so isNextDelivery is set correctly.
-          if (typeof onOnDutyFromToggle === 'function') {
-            // Small delay to let the AppUser status write propagate first
-            setTimeout(() => onOnDutyFromToggle(), 800);
-          }
+          // Use the ref so the stable closure always calls the latest callback.
+          setTimeout(() => onOnDutyFromToggleRef.current?.(), 800);
           break;
         }
         case 'DELIVERY_REALTIME_CREATE_DELETE_PULSE': {
