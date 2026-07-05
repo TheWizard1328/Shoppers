@@ -549,7 +549,7 @@ export async function optimizeRouteClientSide({
   const driverGpsPosition = _driverAppUser.current_latitude != null && _driverAppUser.current_longitude != null
     ? { lat: Number(_driverAppUser.current_latitude), lng: Number(_driverAppUser.current_longitude) }
     : null;
-  console.log(`[clientRouteEngine] ${source} — driver location: gps=${driverGpsPosition ? `(${driverGpsPosition.lat.toFixed(4)},${driverGpsPosition.lng.toFixed(4)})` : 'null'}, home=${__driverAppUser.home_latitude != null ? `(${__driverAppUser.home_latitude},${__driverAppUser.home_longitude})` : 'null'}, travelMode=${preferredTravelMode}`);
+  console.log(`[clientRouteEngine] ${source} — driver location: gps=${driverGpsPosition ? `(${driverGpsPosition.lat.toFixed(4)},${driverGpsPosition.lng.toFixed(4)})` : 'null'}, home=${_driverAppUser.home_latitude != null ? `(${_driverAppUser.home_latitude},${_driverAppUser.home_longitude})` : 'null'}, travelMode=${preferredTravelMode}`);
 
   let currentPosition = null;
   let locationSource = null;
@@ -569,8 +569,8 @@ export async function optimizeRouteClientSide({
   if (!currentPosition && previousStopCoords) { currentPosition = previousStopCoords; locationSource = 'previous_stop_before_next'; }
   if (!currentPosition && explicitNextCoords) { currentPosition = explicitNextCoords; locationSource = 'next_delivery_stop'; }
   if (!routeHasStarted && !currentPosition && driverGpsPosition) { currentPosition = driverGpsPosition; locationSource = 'driver_gps'; }
-  if (!currentPosition && __driverAppUser.home_latitude != null && __driverAppUser.home_longitude != null) {
-    currentPosition = { lat: Number(__driverAppUser.home_latitude), lng: Number(__driverAppUser.home_longitude) };
+  if (!currentPosition && _driverAppUser.home_latitude != null && _driverAppUser.home_longitude != null) {
+    currentPosition = { lat: Number(_driverAppUser.home_latitude), lng: Number(_driverAppUser.home_longitude) };
     locationSource = 'home';
   }
   if (cyclingSegmentOnly && cyclingOrigin?.lat != null && cyclingOrigin?.lon != null) {
@@ -599,8 +599,8 @@ export async function optimizeRouteClientSide({
       : null)
     || currentPosition;
 
-  const resolvedHomePosition = __driverAppUser.home_latitude != null && __driverAppUser.home_longitude != null
-    ? { lat: Number(__driverAppUser.home_latitude), lng: Number(__driverAppUser.home_longitude) }
+  const resolvedHomePosition = _driverAppUser.home_latitude != null && _driverAppUser.home_longitude != null
+    ? { lat: Number(_driverAppUser.home_latitude), lng: Number(_driverAppUser.home_longitude) }
     : null;
 
   // Build optimization stops list
