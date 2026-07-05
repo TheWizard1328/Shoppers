@@ -667,6 +667,11 @@ export async function optimizeRouteClientSide({
     }
   }
 
+  // Dispatch phase event: optimization (sequencing) starting
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { phase: 'optimizing', source, driverId, deliveryDate } }));
+  }
+
   // ── Run HERE sequencing or fallback ────────────────────────────────────────
   if (preserveExistingOrder) {
     routeStops = [...orderedOptimizationStops];
@@ -745,6 +750,11 @@ export async function optimizeRouteClientSide({
 
   // ── Unit-number micro-sort ─────────────────────────────────────────────────
   _unitNumberMicroSort(routeStops, patientMap);
+
+  // Dispatch phase event: polyline generation starting
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { phase: 'polylines', source, driverId, deliveryDate } }));
+  }
 
   // ── Generate polylines via HERE Router v8 ──────────────────────────────────
   const segmentPolylineByDeliveryId = new Map();

@@ -214,6 +214,12 @@ export async function performRouteOptimization({
     const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;
     const usedFallbackPolyline = false; // Engine handles polylines inline; no separate fallback
 
+    // Dispatch completion with stop count for KITT bar final message
+    const _optimizedCount = optimizeData?.optimizedCount || optimizeData?.writeBatch?.length || 0;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source, driverId, deliveryDate, optimizedCount: _optimizedCount } }));
+    }
+
     return {
       success: true,
       optimizeData,

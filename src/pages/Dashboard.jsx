@@ -1507,21 +1507,52 @@ useEffect(() => {
     }
   };
 
-  // Show KITT banner when start-button background optimization is running
+  // KITT bar phased messages: activate on button click, show 3 phases, clear on done
+  const kittTimeoutRef = useRef(null);
   useEffect(() => {
     const handleOptStart = (e) => {
-      const { source } = e.detail || {};
-      if (source === 'start_button') setOptimizationMessage('Optimizing Route…');
+      const { source, driverId, deliveryDate } = e.detail || {};
+      // Accept All, Assign All, and Start button all trigger the KITT bar
+      if (!['accept_all', 'assign_all', 'start_button'].includes(source)) return;
+      if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
+      setOptimizationMessage('Optimizing Route…');
+    };
+    const handleOptPhase = (e) => {
+      const { phase, source } = e.detail || {};
+      if (!['accept_all', 'assign_all', 'start_button'].includes(source)) return;
+      if (phase === 'polylines') {
+        setOptimizationMessage('Generating Route Lines…');
+      }
     };
     const handleOptComplete = (e) => {
-      const { source } = e.detail || {};
-      if (source === 'start_button') setOptimizationMessage(null);
+      const { source, optimizedCount } = e.detail || {};
+      if (!['accept_all', 'assign_all', 'start_button'].includes(source)) return;
+      // If optimizedCount is present, this is from the coordinator (success) — show final message
+      // If not present, this is a safety-net from the call site's finally block — just clear
+      if (optimizedCount != null) {
+        const count = optimizedCount || 0;
+        setOptimizationMessage(`${count} Stops Optimized`);
+      // Clear after 3 seconds
+        if (kittTimeoutRef.current) clearTimeout(kittTimeoutRef.current);
+        kittTimeoutRef.current = setTimeout(() => {
+          setOptimizationMessage(null);
+          kittTimeoutRef.current = null;
+        }, 3000);
+      } else {
+        // Safety-net: coordinator threw, just clear the bar
+        if (kittTimeoutRef.current) clearTimeout(kittTimeoutRef.current);
+        setOptimizationMessage(null);
+        kittTimeoutRef.current = null;
+      }
     };
     window.addEventListener('routeOptimizationStarted', handleOptStart);
+    window.addEventListener('routeOptimizationPhase', handleOptPhase);
     window.addEventListener('routeOptimizationComplete', handleOptComplete);
     return () => {
       window.removeEventListener('routeOptimizationStarted', handleOptStart);
+      window.removeEventListener('routeOptimizationPhase', handleOptPhase);
       window.removeEventListener('routeOptimizationComplete', handleOptComplete);
+      if (kittTimeoutRef.current) clearTimeout(kittTimeoutRef.current);
     };
   }, []);
 

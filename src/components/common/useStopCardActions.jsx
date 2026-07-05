@@ -258,6 +258,9 @@ export default function useStopCardActions(params) {
         }
       }
 
+      // KITT bar activates IMMEDIATELY on button click — before any batch processing
+      const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
+      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: isDriverAction ? 'accept_all' : 'assign_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       // Show "Processing Pending Stops" banner immediately while batch pipeline runs
       window.dispatchEvent(new CustomEvent('pendingStopsProcessingStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
@@ -309,13 +312,8 @@ export default function useStopCardActions(params) {
         console.warn('[AcceptAll] Failed to write route summary note:', noteErr?.message || noteErr);
       }
 
-      // Small delay so React can render "Processing Pending Stops" before switching to "Optimizing Route"
+      // Small delay so React can render before switching to "Optimizing Route"
       await new Promise((resolve) => setTimeout(resolve, 400));
-
-      // Dispatch optimizationStarted AFTER the batch pipeline has updated all delivery statuses
-      // so the optimizer fires only once all transitions are complete.
-      const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
-      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: isDriverAction ? 'accept_all' : 'assign_all', stopCount: scopedPendingDeliveries.length, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: [...stagedChangedDeliveries, ...finalOfflineUpdates], alreadyOptimized: false } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -379,9 +377,6 @@ export default function useStopCardActions(params) {
         ...[...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])].filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
       ];
 
-      // Show KITT scanner bar during optimization + polyline generation
-      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: true } }));
-
       const coordResult = await performRouteOptimization({
         driverId: delivery.driver_id,
         deliveryDate: delivery.delivery_date,
@@ -394,8 +389,6 @@ export default function useStopCardActions(params) {
         bypassDriverStatus: true,
       }).catch(() => null);
 
-      // Hide KITT scanner bar
-      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: false } }));
 
       const optimizeData = coordResult?.optimizeData || null;
 
@@ -453,8 +446,6 @@ export default function useStopCardActions(params) {
       toast.error(`Failed to accept all: ${error.message}`);
       throw error;
     } finally {
-      // Safety net: ensure KITT bar is hidden even if coordinator threw
-      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: false } }));
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
       resumeRealtimeSync();
@@ -795,6 +786,7 @@ export default function useStopCardActions(params) {
         fabControlEvents.reactivatePhaseTwoIfAvailable();
 
         // ── Background: optimization + polyline regen via unified coordinator ──
+        // KITT bar activates IMMEDIATELY on Start button click
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         Promise.resolve().then(async () => {
           // Re-pause for the async optimization work
@@ -815,8 +807,6 @@ export default function useStopCardActions(params) {
               ...(startedRouteDeliveries || []).filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
             ];
 
-            // Show KITT scanner bar during optimization + polyline generation
-            window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: true } }));
 
             await performRouteOptimization({
               driverId: delivery.driver_id,
@@ -829,8 +819,6 @@ export default function useStopCardActions(params) {
               bypassDriverStatus: true,
             }).catch(() => null);
 
-            // Hide KITT scanner bar
-            window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: false } }));
 
             // Fetch fresh deliveries after optimization
             const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -872,8 +860,6 @@ export default function useStopCardActions(params) {
           } catch (bgErr) {
             console.warn('⚠️ [Start bg] background optimization failed:', bgErr?.message || bgErr);
           } finally {
-            // Safety net: ensure KITT bar is hidden even if coordinator threw
-            window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: false } }));
             // Always resume after background work completes or fails
             resumeOfflineSync('delivery_actions');
             resumeOfflineMutations();

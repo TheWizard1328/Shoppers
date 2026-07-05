@@ -59,7 +59,7 @@ import { calculateUserCodTotal, calculateRouteCodBalance } from './components/ut
 import BatteryIndicator from './components/layout/BatteryIndicator';
 import SettingsMenu from './components/layout/SettingsMenu';
 import { getCompanyBranding, applyBrandingStyles } from './components/utils/brandingManager';
-import OptimizationSpinner from './components/common/OptimizationSpinner';
+// OptimizationSpinner removed — replaced by the black KITT bar above stop cards in DashboardView
 import PatientViewOverlay from './components/patient-portal/PatientViewOverlay';
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
@@ -1288,7 +1288,7 @@ export default function Layout({ children, currentPageName }) {
           </UserProvider>
       }
 
-      <OptimizationSpinner />
+      {/* OptimizationSpinner removed — KITT bar now in DashboardView */}
       <PatientViewOverlay />
     </AppErrorBoundary>);
 }
