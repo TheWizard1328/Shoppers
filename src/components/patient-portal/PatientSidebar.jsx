@@ -71,13 +71,24 @@ export default function PatientSidebar({ patient, deliveries, stores, isOpen, on
             </div>
           ) : (
             <div className="space-y-2 relative">
-              {displayed.map((delivery) => (
-                <PatientDeliveryCard
-                  key={delivery.id}
-                  delivery={delivery}
-                  storeName={storeMap[delivery.store_id]}
-                />
-              ))}
+              {displayed.map((delivery) => {
+                const pickupStop = delivery.puid
+                  ? (deliveries || []).find((d) =>
+                      d.puid === delivery.puid &&
+                      d.delivery_date === delivery.delivery_date &&
+                      !d.patient_id &&
+                      d.actual_delivery_time
+                    )
+                  : null;
+                return (
+                  <PatientDeliveryCard
+                    key={delivery.id}
+                    delivery={delivery}
+                    storeName={storeMap[delivery.store_id]}
+                    pickupTime={pickupStop?.actual_delivery_time || null}
+                  />
+                );
+              })}
 
               {sorted.length > 10 && (
                 <button

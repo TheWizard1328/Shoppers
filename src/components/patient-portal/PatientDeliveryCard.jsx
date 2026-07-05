@@ -24,7 +24,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-export default function PatientDeliveryCard({ delivery, storeName }) {
+export default function PatientDeliveryCard({ delivery, storeName, pickupTime }) {
   const [expanded, setExpanded] = useState(false);
   const config = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pending;
   const { Icon } = config;
@@ -37,8 +37,8 @@ export default function PatientDeliveryCard({ delivery, storeName }) {
     ? format(new Date(delivery.actual_delivery_time), 'h:mm a')
     : null;
 
-  const arrivalTime = delivery.arrival_time
-    ? delivery.arrival_time.substring(11, 16)
+  const arrivalTime = pickupTime
+    ? format(new Date(pickupTime), 'h:mm a')
     : null;
 
   const codTotal = delivery.cod_total_amount_required || 0;
