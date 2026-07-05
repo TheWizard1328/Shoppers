@@ -687,7 +687,7 @@ export default function useStopCardActions(params) {
         const startMinutes = now.getHours() * 60 + now.getMinutes() + 5;
         const startTimeStr = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
         const reorderedActiveStops = activeStops.filter((d) => d?.id !== delivery.id);
-        reorderedActiveStops.unshift({ ...delivery, status: 'in_transit', delivery_time_start: startTimeStr });
+        reorderedActiveStops.unshift({ ...delivery, status: isPickup ? 'en_route' : 'in_transit', delivery_time_start: startTimeStr });
         const startedRouteDeliveries = [...completedStops, ...reorderedActiveStops, ...pendingStops]
           .filter(Boolean)
           .map((d, index) => ({
@@ -718,7 +718,8 @@ export default function useStopCardActions(params) {
             if (Number(existing.display_stop_order || 0) !== Number(item.display_stop_order || 0)) updates.display_stop_order = item.display_stop_order;
             // For the started stop: persist status + delivery_time_start immediately
             if (item.id === delivery.id) {
-              if (existing.status !== 'in_transit') updates.status = 'in_transit';
+              const expectedStartStatus = isPickup ? 'en_route' : 'in_transit';
+              if (existing.status !== expectedStartStatus) updates.status = expectedStartStatus;
               if (item.delivery_time_start && existing.delivery_time_start !== item.delivery_time_start) updates.delivery_time_start = item.delivery_time_start;
             }
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
