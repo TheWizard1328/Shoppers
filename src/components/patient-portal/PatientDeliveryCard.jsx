@@ -92,7 +92,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime, s
             {delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />}
             {arrivalTime && <InfoRow icon={Truck} label="Picked up at" value={arrivalTime} />}
             {stopsBetween != null && <InfoRow icon={MapPin} label="Stops before you" value={stopsBetween === 0 ? 'Direct delivery' : `${stopsBetween} stop${stopsBetween !== 1 ? 's' : ''}`} />}
-            {actualTime && <InfoRow icon={CheckCircle} label="Delivered at" value={actualTime} />}
+            {actualTime && <InfoRow icon={delivery.status === 'failed' ? XCircle : CheckCircle} label={delivery.status === 'failed' ? 'Attempted at' : 'Delivered at'} value={actualTime} />}
             {delivery.tracking_number && <InfoRow icon={Package} label="Tracking #" value={delivery.tracking_number} />}
             {delivery.prescription_number && <InfoRow icon={FileText} label="Prescription #" value={delivery.prescription_number} />}
             {delivery.delivery_notes && <InfoRow icon={FileText} label="Driver Notes" value={delivery.delivery_notes} />}
