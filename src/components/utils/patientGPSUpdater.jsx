@@ -21,24 +21,23 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
   return +(R * c).toFixed(2);
 };
 
-// Get driving distance from HERE Routing API; falls back to haversine on failure
+// Get driving distance via the dedicated getPatientDistanceFromStore backend function (HERE Router API)
 const getHereRoutingDistanceKm = async (storeLat, storeLon, patientLat, patientLon) => {
   try {
-    const response = await base44.functions.invoke('getHereDirections', {
-      origin: { lat: storeLat, lng: storeLon },
-      destination: { lat: patientLat, lng: patientLon },
-      transportMode: 'driving',
+    const response = await base44.functions.invoke('getPatientDistanceFromStore', {
+      originLat: storeLat,
+      originLng: storeLon,
+      destLat: patientLat,
+      destLng: patientLon,
     });
     const data = response?.data || response;
-    // HERE returns distance in metres in routes[0].sections[0].summary.length
-    const metres = data?.routes?.[0]?.sections?.[0]?.summary?.length
-      ?? data?.summary?.length
-      ?? null;
-    if (metres != null && Number.isFinite(Number(metres))) {
-      return +(Number(metres) / 1000).toFixed(2);
+    const distKm = Number(data?.distance_km);
+    if (Number.isFinite(distKm) && distKm > 0) {
+      console.log(`[patientGPSUpdater] HERE distance: ${distKm} km (source: ${data?.source})`);
+      return distKm;
     }
   } catch (err) {
-    console.warn('[patientGPSUpdater] HERE routing failed, falling back to haversine:', err?.message);
+    console.warn('[patientGPSUpdater] getPatientDistanceFromStore failed, falling back to haversine:', err?.message);
   }
   return haversineKm(storeLat, storeLon, patientLat, patientLon);
 };
