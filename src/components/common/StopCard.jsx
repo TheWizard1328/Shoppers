@@ -287,9 +287,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const isInterStorePickup = isISP || isISD;
 
   const currentDriverAppUser = useMemo(() => {
-    if (!currentUser?.id || !Array.isArray(appUsers)) return null;
-    return appUsers.find((appUser) => appUser?.user_id === currentUser.id) || null;
-  }, [appUsers, currentUser?.id]);
+    if (!Array.isArray(appUsers)) return null;
+    // Prefer the SELECTED driver (delivery.driver_id) — not the logged-in user.
+    // When a driver uses the app themselves, delivery.driver_id === currentUser.id so this is equivalent.
+    // When an admin/dispatcher is viewing a driver's route, this correctly resolves to the driver's AppUser.
+    const driverId = delivery?.driver_id || currentUser?.id;
+    return appUsers.find((appUser) => appUser?.user_id === driverId) || null;
+  }, [appUsers, currentUser?.id, delivery?.driver_id]);
 
   const safeDriver = useMemo(() => {
     const assignedDriver = (drivers || []).find((item) => item?.id === delivery?.driver_id || item?.user_id === delivery?.driver_id);
