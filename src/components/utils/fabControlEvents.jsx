@@ -276,6 +276,22 @@ export const fabControlEvents = {
     });
   },
 
+  /**
+   * Notify when driver goes on_duty via the status toggle (not the Start button).
+   * Dashboard listens and triggers manual route re-optimization so isNextDelivery
+   * is set correctly by the proven optimization path.
+   */
+  notifyOnDutyFromToggle: () => {
+    console.log('📢 [FAB Events] Broadcasting on_duty from toggle — triggering reoptimize');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'ON_DUTY_FROM_TOGGLE' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
+  },
+
   notifyDriverSelectionChanged: () => {
     console.log('📢 [FAB Events] Broadcasting driver selection change - activating phase 1');
     fabControlListeners.forEach(callback => {

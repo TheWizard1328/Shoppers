@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { cn } from "@/lib/utils";
-import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
 import { fabControlEvents } from "../utils/fabControlEvents";
@@ -346,32 +345,9 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             fabControlEvents.notifyBreakEnd(1);
           }
 
-          // Set isNextDelivery on first active stop
-          try {
-            const activeDeliveries = (appDataContext?.deliveries || [])
-              .filter(d => d && d.driver_id === currentUser.id && d.delivery_date === today &&
-                !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status))
-              .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
-            const firstActive = activeDeliveries[0];
-            if (firstActive && !activeDeliveries.find(d => d.isNextDelivery)) {
-              await base44.entities.Delivery.update(firstActive.id, { isNextDelivery: true }).catch(() => {});
-              if (appDataContext?.updateDeliveriesLocally) {
-                appDataContext.updateDeliveriesLocally(activeDeliveries.map(d => ({ ...d, isNextDelivery: d.id === firstActive.id })), false);
-              }
-            }
-          } catch (e) { console.warn('[DriverStatusToggle] Could not set isNextDelivery:', e?.message); }
-
-          // Trigger route optimization
-          const currentGPS = await getFreshGPS(5000);
-          await triggerRouteOptimization({
-            driverId: currentUser.id,
-            deliveryDate: optimizerDate,
-            currentLocation: currentGPS ? { latitude: currentGPS.lat, longitude: currentGPS.lng } : null,
-            trigger: 'on_duty',
-            onNotification: (n) => {
-              if (n.type === 'route_optimized') toast.success(n.message, { description: n.aiSuggestion });
-            }
-          }).catch(e => console.warn('[DriverStatusToggle] Route optimization failed:', e?.message));
+          // Trigger the manual FAB reoptimize flow — it correctly assigns isNextDelivery
+          // and updates stop order via the proven optimization path.
+          fabControlEvents.notifyOnDutyFromToggle();
         }
       }
 

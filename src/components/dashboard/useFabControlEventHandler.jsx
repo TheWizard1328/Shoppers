@@ -17,6 +17,8 @@ export function useFabControlEventHandler({
   setMapViewPhase,
   setIsMapViewLocked,
   setMapViewTrigger,
+  // Optional: called when ON_DUTY_FROM_TOGGLE fires so the manual reoptimize runs
+  onOnDutyFromToggle,
 }) {
   useEffect(() => {
     const setFabPhase = (phase, locked, triggerMap = true) => {
@@ -220,6 +222,15 @@ export function useFabControlEventHandler({
             lastProgrammaticMapMoveRef.current = Date.now();
             window._lastProgrammaticMapMove = Date.now();
             setMapViewTrigger((p) => p + 1);
+          }
+          break;
+        }
+        case 'ON_DUTY_FROM_TOGGLE': {
+          // Driver went on_duty via the toggle (not the Start button).
+          // Run the manual FAB reoptimize so isNextDelivery is set correctly.
+          if (typeof onOnDutyFromToggle === 'function') {
+            // Small delay to let the AppUser status write propagate first
+            setTimeout(() => onOnDutyFromToggle(), 800);
           }
           break;
         }
