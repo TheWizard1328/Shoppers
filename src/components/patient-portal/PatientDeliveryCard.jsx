@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, User, Package, FileText, Camera, DollarSign } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, User, Package, FileText, Camera, DollarSign, MapPin } from 'lucide-react';
 
 const STATUS_CONFIG = {
   completed: { label: 'Delivered', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', Icon: CheckCircle },
@@ -24,7 +24,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-export default function PatientDeliveryCard({ delivery, storeName, pickupTime }) {
+export default function PatientDeliveryCard({ delivery, storeName, pickupTime, stopsBetween }) {
   const [expanded, setExpanded] = useState(false);
   const config = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pending;
   const { Icon } = config;
@@ -91,6 +91,7 @@ export default function PatientDeliveryCard({ delivery, storeName, pickupTime })
           <div className="p-3 space-y-0.5">
             {delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />}
             {arrivalTime && <InfoRow icon={Truck} label="Picked up at" value={arrivalTime} />}
+            {stopsBetween != null && <InfoRow icon={MapPin} label="Stops before you" value={stopsBetween === 0 ? 'Direct delivery' : `${stopsBetween} stop${stopsBetween !== 1 ? 's' : ''}`} />}
             {actualTime && <InfoRow icon={CheckCircle} label="Delivered at" value={actualTime} />}
             {delivery.tracking_number && <InfoRow icon={Package} label="Tracking #" value={delivery.tracking_number} />}
             {delivery.prescription_number && <InfoRow icon={FileText} label="Prescription #" value={delivery.prescription_number} />}

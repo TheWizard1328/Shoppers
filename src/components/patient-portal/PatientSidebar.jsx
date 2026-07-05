@@ -79,12 +79,25 @@ export default function PatientSidebar({ patient, deliveries, pickupStops, store
                       d.actual_delivery_time
                     )
                   : null;
+
+                // Count stops between the pickup stop and this patient's stop (exclusive of both endpoints)
+                let stopsBetween = null;
+                if (
+                  pickupStop?.stop_order != null &&
+                  delivery.stop_order != null
+                ) {
+                  const pickupOrder = Number(pickupStop.stop_order);
+                  const patientOrder = Number(delivery.stop_order);
+                  stopsBetween = Math.max(0, patientOrder - pickupOrder - 1);
+                }
+
                 return (
                   <PatientDeliveryCard
                     key={delivery.id}
                     delivery={delivery}
                     storeName={storeMap[delivery.store_id]}
                     pickupTime={pickupStop?.actual_delivery_time || null}
+                    stopsBetween={stopsBetween}
                   />
                 );
               })}
