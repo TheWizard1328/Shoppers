@@ -201,11 +201,10 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     if (newStatus === 'off_duty') {
       try {
         const todayDeliveries = await base44.entities.Delivery.filter({ driver_id: effectiveUser?.id, delivery_date: selectedRouteDate });
-        const finished = ['completed', 'failed', 'cancelled', 'returned'];
-        const completedStops = todayDeliveries.filter(d => finished.includes(d.status));
-        const activeStops = todayDeliveries.filter(d => !finished.includes(d.status));
-        if (completedStops.length > 0 && activeStops.length > 0) {
-          toast.error(`Cannot go off duty with ${activeStops.length} active stop${activeStops.length > 1 ? 's' : ''} (route in progress)`);
+        // Only block if a stop is actively in progress (en_route or in_transit)
+        const inProgressStops = todayDeliveries.filter(d => d.status === 'en_route' || d.status === 'in_transit');
+        if (inProgressStops.length > 0) {
+          toast.error(`Cannot go off duty — ${inProgressStops.length} stop${inProgressStops.length > 1 ? 's' : ''} currently in progress`);
           isTogglingRef.current = false;
           return;
         }
