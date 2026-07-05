@@ -530,11 +530,15 @@ export default function PatientPortal() {
                       {todayDelivery.delivery_time_end ? ` – ${todayDelivery.delivery_time_end}` : ''}
                     </p>
                   )}
-                  {todayDelivery.delivery_time_eta && !['completed', 'failed', 'cancelled'].includes(todayDelivery.status) && (
+                  {todayDelivery.status === 'completed' && todayDelivery.actual_delivery_time ? (
+                    <p className="text-xs text-emerald-600 font-medium mt-1">
+                      Delivered: {todayDelivery.actual_delivery_time.substring(11, 16)}
+                    </p>
+                  ) : todayDelivery.delivery_time_eta && !['completed', 'failed', 'cancelled'].includes(todayDelivery.status) ? (
                     <p className="text-xs text-blue-600 font-medium mt-1">
                       ETA: {todayDelivery.delivery_time_eta}
                     </p>
-                  )}
+                  ) : null}
                 </div>
                 {statusConfig && (
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${statusConfig.color}`}>
