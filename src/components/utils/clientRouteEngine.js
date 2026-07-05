@@ -324,7 +324,7 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   params.set('apiKey', hereApiKey);
   params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
   params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
-  params.set('improveFor', 'quality');
+  params.set('improveFor', 'time');
   params.set('start', `driverStart;${sequenceStart.lat},${sequenceStart.lng}`);
   if (resolvedHomePosition) {
     params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);
