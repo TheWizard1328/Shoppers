@@ -457,9 +457,17 @@ export async function optimizeRouteClientSide({
   let currentMinutes = edmontonHour * 60 + edmontonMinute;
   const currentLocalTime = `${String(edmontonHour).padStart(2, '0')}:${String(edmontonMinute).padStart(2, '0')}`;
 
+  // CRITICAL: Filter to only this driver's deliveries for this date.
+  // allDeliveries may contain other drivers' stops (admin/dispatcher view), which would
+  // cause cross-driver polyline contamination and wrong sequencing.
+  const driverDeliveries = allDeliveries.filter(d =>
+    d && String(d.driver_id) === String(driverId) && d.delivery_date === deliveryDate
+  );
+  console.log(`[clientRouteEngine] ${source} — allDeliveries=${allDeliveries.length}, after driver/date filter=${driverDeliveries.length} (driverId=${driverId}, date=${deliveryDate})`);
+
   // Separate deliveries by status
-  const completedDeliveries = allDeliveries.filter(d => FINISHED_STATUSES.includes(d.status));
-  const incompleteDeliveries = allDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
+  const completedDeliveries = driverDeliveries.filter(d => FINISHED_STATUSES.includes(d.status));
+  const incompleteDeliveries = driverDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
   const activeRouteDeliveries = incompleteDeliveries.filter(d => ACTIVE_STATUSES.includes(d.status));
   const pendingRouteDeliveries = incompleteDeliveries.filter(d => d.status === 'pending');
   const filteredPendingRouteDeliveries = pendingRouteDeliveries.filter(d => !d.is_cycling_marker);
@@ -830,15 +838,8 @@ export async function optimizeRouteClientSide({
     delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
   }));
 
-  // Sort pending stops to end for DB writes
-  routeStops.sort((a, b) => {
-    const aPending = a.delivery.status === 'pending';
-    const bPending = b.delivery.status === 'pending';
-    if (aPending && !bPending) return 1;
-    if (!aPending && bPending) return -1;
-    return 0;
-  });
-
+  // NOTE: Do NOT sort pending stops to end — the HERE optimizer already sequenced them
+  // correctly, and reordering here would scramble the stop_order vs polyline mapping.
   const activeStops = routeStops.map(stop => ({
     ...stop.delivery,
     delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
