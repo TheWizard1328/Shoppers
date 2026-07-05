@@ -423,10 +423,14 @@ export async function optimizeRouteClientSide({
   // Resolve driver AppUser
   const driverAppUser = (appUsers || []).find((au) => au?.user_id === driverId || au?.id === driverId) || null;
   if (!driverAppUser) {
-    return { success: true, skipped: true, reason: 'driver_unavailable', routeChanged: false, optimizedCount: 0 };
+    console.warn(`[clientRouteEngine] ${source} — driver AppUser NOT FOUND in appUsers (array size=${(appUsers || []).length}, driverId=${driverId}). Proceeding with defaults — will use stop coords as origin fallback.`);
+  } else {
+    console.log(`[clientRouteEngine] ${source} — driver AppUser found: user_id=${driverAppUser.user_id}, gps=${driverAppUser.current_latitude ?? 'null'},${driverAppUser.current_longitude ?? 'null'}, home=${_driverAppUser.home_latitude ?? 'null'},${_driverAppUser.home_longitude ?? 'null'}, travelMode=${driverAppUser.preferred_travel_mode || 'default'}`);
   }
+  // Soft-fallback: use empty object so downstream null-checks still work
+  const _driverAppUser = driverAppUser || {};
 
-  const preferredTravelMode = String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
+  const preferredTravelMode = String(_driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
   const effectiveTravelMode = cyclingSegmentOnly ? 'cycling' : (preferredTravelMode === 'cycling' ? 'driving' : preferredTravelMode);
   const hereTransportMode = cyclingSegmentOnly ? 'bicycle' : effectiveTravelMode === 'pedestrian' ? 'pedestrian' : 'car';
 
@@ -542,10 +546,10 @@ export async function optimizeRouteClientSide({
   const routeHasStarted = completedDeliveries.length > 0 || !!previousStopBeforeNext;
   const shouldLockExplicitNextStop = !!explicitNextDelivery;
 
-  const driverGpsPosition = driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
-    ? { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) }
+  const driverGpsPosition = _driverAppUser.current_latitude != null && _driverAppUser.current_longitude != null
+    ? { lat: Number(_driverAppUser.current_latitude), lng: Number(_driverAppUser.current_longitude) }
     : null;
-  console.log(`[clientRouteEngine] ${source} — driver AppUser: gps=${driverGpsPosition ? `(${driverGpsPosition.lat.toFixed(4)},${driverGpsPosition.lng.toFixed(4)})` : 'null'}, home=${driverAppUser.home_latitude != null ? `(${driverAppUser.home_latitude},${driverAppUser.home_longitude})` : 'null'}, travelMode=${preferredTravelMode}`);
+  console.log(`[clientRouteEngine] ${source} — driver location: gps=${driverGpsPosition ? `(${driverGpsPosition.lat.toFixed(4)},${driverGpsPosition.lng.toFixed(4)})` : 'null'}, home=${__driverAppUser.home_latitude != null ? `(${__driverAppUser.home_latitude},${__driverAppUser.home_longitude})` : 'null'}, travelMode=${preferredTravelMode}`);
 
   let currentPosition = null;
   let locationSource = null;
@@ -565,8 +569,8 @@ export async function optimizeRouteClientSide({
   if (!currentPosition && previousStopCoords) { currentPosition = previousStopCoords; locationSource = 'previous_stop_before_next'; }
   if (!currentPosition && explicitNextCoords) { currentPosition = explicitNextCoords; locationSource = 'next_delivery_stop'; }
   if (!routeHasStarted && !currentPosition && driverGpsPosition) { currentPosition = driverGpsPosition; locationSource = 'driver_gps'; }
-  if (!currentPosition && driverAppUser.home_latitude != null && driverAppUser.home_longitude != null) {
-    currentPosition = { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) };
+  if (!currentPosition && __driverAppUser.home_latitude != null && __driverAppUser.home_longitude != null) {
+    currentPosition = { lat: Number(__driverAppUser.home_latitude), lng: Number(__driverAppUser.home_longitude) };
     locationSource = 'home';
   }
   if (cyclingSegmentOnly && cyclingOrigin?.lat != null && cyclingOrigin?.lon != null) {
@@ -590,13 +594,13 @@ export async function optimizeRouteClientSide({
   console.log(`[clientRouteEngine] ${source} — currentPosition=(${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)}) source=${locationSource}`);
 
   const logicalSegmentOrigin = latestFinishedCoords
-    || (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
-      ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
+    || (_driverAppUser.home_latitude != null && _driverAppUser.home_longitude != null
+      ? { lat: Number(_driverAppUser.home_latitude), lng: Number(_driverAppUser.home_longitude) }
       : null)
     || currentPosition;
 
-  const resolvedHomePosition = driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
-    ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
+  const resolvedHomePosition = __driverAppUser.home_latitude != null && __driverAppUser.home_longitude != null
+    ? { lat: Number(__driverAppUser.home_latitude), lng: Number(__driverAppUser.home_longitude) }
     : null;
 
   // Build optimization stops list
