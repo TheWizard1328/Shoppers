@@ -1709,8 +1709,12 @@ useEffect(() => {
   const handleReoptimizeRoute = async () => {
     handleReoptimizeRouteRef.current = handleReoptimizeRoute;
     const mod = await import('@/components/dashboard/handleReoptimizeRoute');
+    // CRITICAL: Use the selected driver ID (not currentUser.id) so admins viewing
+    // a specific driver's route optimize that driver — not themselves.
+    const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
     return mod.handleReoptimizeRoute({
       currentUser, selectedDate, appUsers, format,
+      driverId: targetDriverId,
       setIsReoptimizing, setOptimizationMessage, setIsEntityUpdating, setSkippedStopsDialogData,
       refreshData, isMapViewLockedRef, setIsMapViewLocked, setMapViewTrigger,
       // Pass local in-memory data to the client-side route engine

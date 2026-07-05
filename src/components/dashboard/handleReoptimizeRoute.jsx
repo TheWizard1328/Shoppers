@@ -17,6 +17,8 @@ export async function handleReoptimizeRoute({
   selectedDate,
   appUsers,
   format,
+  // CRITICAL: driverId is the selected driver (may differ from currentUser.id for admins)
+  driverId: explicitDriverId,
   setIsReoptimizing,
   setOptimizationMessage,
   setIsEntityUpdating,
@@ -31,8 +33,11 @@ export async function handleReoptimizeRoute({
   patients = null,
   stores = null,
 }) {
+  // Use explicit driverId when provided (admin viewing a specific driver), else fall back to currentUser
+  const driverId = explicitDriverId || currentUser.id;
+
   try {
-    console.log('🚀 [handleReoptimizeRoute] FAB triggered — using client-side engine, deliveries:', deliveries?.length, 'patients:', patients?.length, 'stores:', stores?.length);
+    console.log('🚀 [handleReoptimizeRoute] FAB triggered — driverId:', driverId, 'deliveries:', deliveries?.length, 'patients:', patients?.length, 'stores:', stores?.length);
     setIsReoptimizing(true);
     setOptimizationMessage('Re-optimizing route...');
 
@@ -43,19 +48,19 @@ export async function handleReoptimizeRoute({
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
-    const driverAppUser = appUsers.find((au) => au?.user_id === currentUser.id);
+    const driverAppUser = appUsers.find((au) => au?.user_id === driverId);
     const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude
       ? { lat: driverAppUser.current_latitude, lon: driverAppUser.current_longitude }
       : null;
 
     // Filter deliveries to just this driver+date for the engine
     const driverDeliveries = Array.isArray(deliveries)
-      ? deliveries.filter(d => d && d.driver_id === currentUser.id && d.delivery_date === deliveryDate)
+      ? deliveries.filter(d => d && d.driver_id === driverId && d.delivery_date === deliveryDate)
       : null;
 
     // ── Unified optimization call (client-side engine) ──────────────────────
     const result = await performRouteOptimization({
-      driverId: currentUser.id,
+      driverId,
       deliveryDate,
       currentLocation,
       deliveries: driverDeliveries,
@@ -77,7 +82,7 @@ export async function handleReoptimizeRoute({
         updateDeliveriesLocally?.(result.freshDeliveries, true);
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
-            driverId: currentUser.id,
+            driverId,
             deliveryDate,
             triggeredBy: 'reoptimizeRoute',
             alreadyOptimized: true,
@@ -88,7 +93,7 @@ export async function handleReoptimizeRoute({
       } else {
         await refreshData();
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { driverId: currentUser.id, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true },
+          detail: { driverId, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true },
         }));
       }
 
