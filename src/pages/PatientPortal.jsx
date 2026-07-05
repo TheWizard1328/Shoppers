@@ -188,18 +188,25 @@ export default function PatientPortal() {
       );
       setDeliveries(allDeliveries);
 
-      // Fetch pickup stops so sidebar can show "Picked up at" times
-      const puids = [...new Set(allDeliveries.map((d) => d.puid).filter(Boolean))];
-      if (puids.length > 0) {
+      // Fetch pickup stops so sidebar can show "Picked up at" times.
+      // Fetch by puid + delivery_date so we get the right pickup stop for every date,
+      // even for older deliveries where a limit-of-5 per puid would miss them.
+      const puidDatePairs = [
+        ...new Map(
+          allDeliveries
+            .filter((d) => d.puid && d.delivery_date)
+            .map((d) => [`${d.puid}|${d.delivery_date}`, { puid: d.puid, delivery_date: d.delivery_date }])
+        ).values(),
+      ];
+      if (puidDatePairs.length > 0) {
         try {
-          // Fetch pickup stops per puid (pickup stops share the same puid as their deliveries)
           const results = await Promise.all(
-            puids.map((puid) =>
-              base44.entities.Delivery.filter({ puid, is_cycling_marker: false }, '-delivery_date', 5)
+            puidDatePairs.map(({ puid, delivery_date }) =>
+              base44.entities.Delivery.filter({ puid, delivery_date, is_cycling_marker: false }, '-delivery_date', 3)
                 .catch(() => [])
             )
           );
-          // Keep only the actual pickup stops (no patient_id, no interstore stops)
+          // Keep only actual pickup stops (no patient_id, no interstore stops)
           const allPickups = results.flat().filter((d) => !d.patient_id && !d._interstore_source_id);
           setPickupStops(allPickups);
         } catch (_) {}
