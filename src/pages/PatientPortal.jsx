@@ -59,39 +59,35 @@ const driverIcon = L.divIcon({
   iconAnchor: [18, 36],
 });
 
-// Initial bounds fitter — runs once when positions are ready after load
-// If driver is active (in_transit/en_route + on_duty + has location): fit driver + patient
-// Otherwise: fit store + patient
+// Fits the map to patient + store on load (once both are available).
+// If the driver is live, fits driver + patient instead.
 function MapBoundsFitter({ patientLatLng, storeLatLng, driverLatLng, showDriver }) {
   const map = useMap();
   const fittedRef = useRef(false);
 
   useEffect(() => {
+    // Already fitted — don't re-run
     if (fittedRef.current) return;
 
-    // Wait until we have at least the patient location
+    // Must have patient location
     if (!patientLatLng) return;
 
-    // Decide which positions to fit
-    const positions = [];
     if (showDriver && driverLatLng) {
       // Driver is live: fit driver + patient
-      positions.push(driverLatLng, patientLatLng);
-    } else {
-      // Default: fit store + patient
-      if (storeLatLng) positions.push(storeLatLng);
-      positions.push(patientLatLng);
+      fittedRef.current = true;
+      map.fitBounds(L.latLngBounds([driverLatLng, patientLatLng]), { padding: [70, 70], animate: true });
+    } else if (storeLatLng) {
+      // Normal case: fit store + patient (wait until store is loaded)
+      fittedRef.current = true;
+      map.fitBounds(L.latLngBounds([storeLatLng, patientLatLng]), { padding: [70, 70], animate: true });
     }
-
-    fittedRef.current = true;
-
-    if (positions.length === 1) {
-      map.setView(positions[0], 14);
-    } else {
-      map.fitBounds(L.latLngBounds(positions), { padding: [70, 70] });
-    }
-  // Re-run when driver location becomes available (first real location fix after load)
-  }, [patientLatLng?.toString(), storeLatLng?.toString(), driverLatLng?.toString(), showDriver]);
+    // If neither condition met yet, effect will re-run when deps change
+  }, [
+    patientLatLng ? patientLatLng.join(',') : null,
+    storeLatLng ? storeLatLng.join(',') : null,
+    driverLatLng ? driverLatLng.join(',') : null,
+    showDriver,
+  ]);
 
   return null;
 }
