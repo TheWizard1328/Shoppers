@@ -632,14 +632,24 @@ export async function optimizeRouteClientSide({
     ? optimizationStops.slice().sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999))
     : optimizationStops;
 
-  // Lock isNextDelivery stop if actively in_transit
-  const nextDeliveryStop = orderedOptimizationStops.find(s => s.delivery.isNextDelivery === true) || null;
-  const nextStopIsActive = nextDeliveryStop && ACTIVE_STATUSES.includes(nextDeliveryStop.delivery.status);
-  const lockedNextStop = !preserveExistingOrder && shouldLockExplicitNextStop && nextDeliveryStop && nextStopIsActive ? nextDeliveryStop : null;
+  // Lock isNextDelivery stop as first in sequence.
+  // The isNextDelivery stop is the one the driver is currently heading to — it must
+  // NOT be re-sequenced by HERE. If no explicit isNextDelivery exists yet (e.g. after
+  // Accept All where no stop has been flagged), fall back to the first active stop.
+  const explicitNextStop = orderedOptimizationStops.find(s => s.delivery.isNextDelivery === true) || null;
+  const explicitNextIsActive = explicitNextStop && ACTIVE_STATUSES.includes(explicitNextStop.delivery.status);
+  // If no explicit isNextDelivery, pick the first active stop as implicit next
+  const implicitNextStop = !explicitNextStop
+    ? orderedOptimizationStops.find(s => ACTIVE_STATUSES.includes(s.delivery.status)) || null
+    : null;
+  const lockedNextStop = !preserveExistingOrder
+    ? (explicitNextIsActive ? explicitNextStop : (implicitNextStop || null))
+    : null;
   const routeOriginStop = lockedNextStop || null;
   const stopsToSequence = routeOriginStop
     ? orderedOptimizationStops.filter(s => s.delivery.id !== routeOriginStop.delivery.id)
     : orderedOptimizationStops;
+  console.log(`[clientRouteEngine] ${source} — isNextDelivery lock: explicit=${explicitNextStop?.delivery.id || 'none'}(active=${explicitNextIsActive}), implicit=${implicitNextStop?.delivery.id || 'none'}, locked=${lockedNextStop?.delivery.id || 'none'}`);
 
   let usedTimeWindows = true;
   let usedFallbackOrdering = false;
@@ -882,7 +892,7 @@ export async function optimizeRouteClientSide({
     const isPendingStop = stop?.status === 'pending';
     const rawTransportMode = isPendingStop ? effectiveTravelMode : String(stop?.transport_mode || effectiveTravelMode).toLowerCase();
     const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(rawTransportMode) ? rawTransportMode : 'driving';
-    const isNextStop = stop.id === nextStopId && i === 0 && !!lockedNextStop;
+    const isNextStop = stop.id === nextStopId && i === 0;
     const logicalDurationMinutes = isNextStop && nextStopLogicalSegment
       ? nextStopLogicalSegment.durationMinutes
       : (typeof seg?.estimatedDurationMinutes === 'number' ? seg.estimatedDurationMinutes : null);
@@ -900,6 +910,7 @@ export async function optimizeRouteClientSide({
       display_stop_order: newOrder,
       delivery_time_eta: stop.delivery_time_eta,
       isNextDelivery: stop.id === nextStopId,
+      ...(stop.id !== nextStopId ? { isNextDelivery: false } : {}),
       transport_mode: safeTransportMode,
       ...(correctedStatus ? { status: correctedStatus } : {}),
       travel_dist: isPending ? null : (Number(directionsLegs[i]?.distance)

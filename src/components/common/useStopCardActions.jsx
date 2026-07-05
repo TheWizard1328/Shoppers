@@ -379,6 +379,9 @@ export default function useStopCardActions(params) {
         ...[...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])].filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
       ];
 
+      // Show KITT scanner bar during optimization + polyline generation
+      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: true } }));
+
       const coordResult = await performRouteOptimization({
         driverId: delivery.driver_id,
         deliveryDate: delivery.delivery_date,
@@ -390,6 +393,9 @@ export default function useStopCardActions(params) {
         source: 'accept_all',
         bypassDriverStatus: true,
       }).catch(() => null);
+
+      // Hide KITT scanner bar
+      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: false } }));
 
       const optimizeData = coordResult?.optimizeData || null;
 
@@ -447,6 +453,8 @@ export default function useStopCardActions(params) {
       toast.error(`Failed to accept all: ${error.message}`);
       throw error;
     } finally {
+      // Safety net: ensure KITT bar is hidden even if coordinator threw
+      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: false } }));
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
       resumeRealtimeSync();
@@ -807,6 +815,9 @@ export default function useStopCardActions(params) {
               ...(startedRouteDeliveries || []).filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
             ];
 
+            // Show KITT scanner bar during optimization + polyline generation
+            window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: true } }));
+
             await performRouteOptimization({
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
@@ -817,6 +828,9 @@ export default function useStopCardActions(params) {
               source: 'start_button',
               bypassDriverStatus: true,
             }).catch(() => null);
+
+            // Hide KITT scanner bar
+            window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: false } }));
 
             // Fetch fresh deliveries after optimization
             const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -858,6 +872,8 @@ export default function useStopCardActions(params) {
           } catch (bgErr) {
             console.warn('⚠️ [Start bg] background optimization failed:', bgErr?.message || bgErr);
           } finally {
+            // Safety net: ensure KITT bar is hidden even if coordinator threw
+            window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, active: false } }));
             // Always resume after background work completes or fails
             resumeOfflineSync('delivery_actions');
             resumeOfflineMutations();
