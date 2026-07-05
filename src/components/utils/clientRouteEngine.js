@@ -740,10 +740,11 @@ export async function optimizeRouteClientSide({
   const segmentPolylineByDeliveryId = new Map();
 
   // Build the list of points for multi-stop routing: origin → each stop in order
-  // Generate polylines for ALL route stops (active + pending) so the full route is visible.
-  const allRouteStopsForPolyline = routeStops;
-  console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, stopsForPolyline=${allRouteStopsForPolyline.length}`);
-  if (allRouteStopsForPolyline.length > 0) {
+  // ONLY generate polylines for active stops (en_route, in_transit) — pending stops
+  // haven't been picked up yet so there's no driving path to them.
+  const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending');
+  console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
+  if (activeRouteStops.length > 0) {
     const polylineOrigin = (() => {
       // Match regenerateType1Polyline origin logic: most recent finished stop by time, or home, or current position
       if (latestFinishedCoords) return { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng };
@@ -754,7 +755,7 @@ export async function optimizeRouteClientSide({
 
     const routePoints = [
       polylineOrigin,
-      ...allRouteStopsForPolyline.map(s => ({ lat: s.lat, lon: s.lng }))
+      ...activeRouteStops.map(s => ({ lat: s.lat, lon: s.lng }))
     ];
 
     const multiStopRoute = await getMultiStopRouteHere(routePoints, effectiveTravelMode, hereApiKey).catch((err) => {
@@ -765,7 +766,7 @@ export async function optimizeRouteClientSide({
     console.log(`[clientRouteEngine] ${source} — HERE Router v8 returned ${routeSections.length} sections for ${routePoints.length} points (fallback=${multiStopRoute.usedFallbackPolyline})`);
 
     // Map sections to stops (section[0] = origin → stop[0], section[1] = stop[0] → stop[1], etc.)
-    allRouteStopsForPolyline.forEach((stop, index) => {
+    activeRouteStops.forEach((stop, index) => {
       const section = routeSections[index] || null;
       segmentPolylineByDeliveryId.set(stop.delivery.id, {
         deliveryId: stop.delivery.id,
@@ -776,10 +777,10 @@ export async function optimizeRouteClientSide({
     });
 
     const _polylineCount = [...segmentPolylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
-    console.log(`[clientRouteEngine] ${source} — polylines generated: ${_polylineCount}/${allRouteStopsForPolyline.length} stops have encoded_polyline`);
+    console.log(`[clientRouteEngine] ${source} — polylines generated: ${_polylineCount}/${activeRouteStops.length} stops have encoded_polyline`);
 
     // Re-sync directionsLegs with actual HERE routing durations if available
-    allRouteStopsForPolyline.forEach((stop, index) => {
+    activeRouteStops.forEach((stop, index) => {
       const section = routeSections[index];
       if (section?.estimated_duration_minutes && Number(section.estimated_duration_minutes) > 0) {
         directionsLegs[routeStops.indexOf(stop)] = {
@@ -901,12 +902,12 @@ export async function optimizeRouteClientSide({
       isNextDelivery: stop.id === nextStopId,
       transport_mode: safeTransportMode,
       ...(correctedStatus ? { status: correctedStatus } : {}),
-      travel_dist: Number(directionsLegs[i]?.distance)
-        ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3)) : null,
-      ...(logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
-      ...(logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
-      ...(seg?.encodedPolyline ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode } : {}),
-      ...(isPending && !seg?.encodedPolyline ? { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
+      travel_dist: isPending ? null : (Number(directionsLegs[i]?.distance)
+        ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3)) : null),
+      ...(!isPending && logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
+      ...(!isPending && logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
+      ...(!isPending && seg?.encodedPolyline ? { encoded_polyline: seg.encodedPolyline, transport_mode: safeTransportMode } : {}),
+      ...(isPending ? { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
     };
 
     if (pendingStartTime) {
