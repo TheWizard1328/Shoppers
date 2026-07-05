@@ -139,6 +139,7 @@ export default function PatientPortal() {
   const patient = PatientSessionManager.getPatient();
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const [deliveries, setDeliveries]         = useState([]);
+  const [pickupStops, setPickupStops]       = useState([]);
   const [stores, setStores]                 = useState([]);
   const [todayDelivery, setTodayDelivery]   = useState(null);
   const [driverLocation, setDriverLocation] = useState(null);
@@ -169,6 +170,23 @@ export default function PatientPortal() {
         200
       );
       setDeliveries(allDeliveries);
+
+      // Fetch pickup stops so sidebar can show "Picked up at" times
+      const puids = [...new Set(allDeliveries.map((d) => d.puid).filter(Boolean))];
+      if (puids.length > 0) {
+        try {
+          // Fetch pickup stops per puid (pickup stops share the same puid as their deliveries)
+          const results = await Promise.all(
+            puids.map((puid) =>
+              base44.entities.Delivery.filter({ puid, is_cycling_marker: false }, '-delivery_date', 5)
+                .catch(() => [])
+            )
+          );
+          // Keep only the actual pickup stops (no patient_id)
+          const allPickups = results.flat().filter((d) => !d.patient_id);
+          setPickupStops(allPickups);
+        } catch (_) {}
+      }
 
       const activeToday = allDeliveries.find(
         (d) => d.delivery_date === TODAY && !['cancelled', 'failed'].includes(d.status)
@@ -468,6 +486,7 @@ export default function PatientPortal() {
       <PatientSidebar
         patient={patient}
         deliveries={deliveries}
+        pickupStops={pickupStops}
         stores={stores}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

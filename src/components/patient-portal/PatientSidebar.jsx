@@ -3,7 +3,7 @@ import { HeartPulse, LogOut, Package, ChevronDown, ChevronUp } from 'lucide-reac
 import PatientDeliveryCard from './PatientDeliveryCard';
 import { PatientSessionManager } from './PatientSessionManager';
 
-export default function PatientSidebar({ patient, deliveries, stores, isOpen, onClose }) {
+export default function PatientSidebar({ patient, deliveries, pickupStops, stores, isOpen, onClose }) {
   const [showAll, setShowAll] = useState(false);
 
   const storeMap = {};
@@ -73,10 +73,9 @@ export default function PatientSidebar({ patient, deliveries, stores, isOpen, on
             <div className="space-y-2 relative">
               {displayed.map((delivery) => {
                 const pickupStop = delivery.puid
-                  ? (deliveries || []).find((d) =>
+                  ? (pickupStops || []).find((d) =>
                       d.puid === delivery.puid &&
                       d.delivery_date === delivery.delivery_date &&
-                      !d.patient_id &&
                       d.actual_delivery_time
                     )
                   : null;
