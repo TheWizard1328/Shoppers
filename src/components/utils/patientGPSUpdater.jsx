@@ -10,15 +10,36 @@ import { toast } from "sonner";
 let _gpsUpdateInFlight = false;
 let _gpsUpdateLastAt = 0;
 
-// Haversine distance in KM (rounded to 2 decimals)
+// Haversine distance in KM — used only as fallback when HERE routing fails
 const haversineKm = (lat1, lon1, lat2, lon2) => {
   const toRad = (v) => (v * Math.PI) / 180;
-  const R = 6371; // km
+  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return +(R * c).toFixed(2);
+};
+
+// Get driving distance via the dedicated getPatientDistanceFromStore backend function (HERE Router API)
+const getHereRoutingDistanceKm = async (storeLat, storeLon, patientLat, patientLon) => {
+  try {
+    const response = await base44.functions.invoke('getPatientDistanceFromStore', {
+      originLat: storeLat,
+      originLng: storeLon,
+      destLat: patientLat,
+      destLng: patientLon,
+    });
+    const data = response?.data || response;
+    const distKm = Number(data?.distance_km);
+    if (Number.isFinite(distKm) && distKm > 0) {
+      console.log(`[patientGPSUpdater] HERE distance: ${distKm} km (source: ${data?.source})`);
+      return distKm;
+    }
+  } catch (err) {
+    console.warn('[patientGPSUpdater] getPatientDistanceFromStore failed, falling back to haversine:', err?.message);
+  }
+  return haversineKm(storeLat, storeLon, patientLat, patientLon);
 };
 
 // Get a fresh device location using the Geolocation API (high accuracy, no cache)
@@ -101,8 +122,8 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
       throw new Error('No valid coordinates available for GPS update');
     }
 
-    // 3) Compute distance from store
-    const distanceKm = haversineKm(store.latitude, store.longitude, nextLatitude, nextLongitude);
+    // 3) Compute driving distance from store via HERE API (falls back to haversine if unavailable)
+    const distanceKm = await getHereRoutingDistanceKm(store.latitude, store.longitude, nextLatitude, nextLongitude);
 
     // 4) Update ONLY the selected patient directly
     const existingPatient = await base44.entities.Patient.get(patientId);

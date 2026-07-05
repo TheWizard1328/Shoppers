@@ -457,8 +457,11 @@ export async function optimizeRouteClientSide({
   }
 
   if (optimizableDeliveries.length === 0) {
+    console.warn(`[clientRouteEngine] ${source} — no optimizable deliveries (completed=${completedDeliveries.length}, active=${activeRouteDeliveries.length}, pending=${pendingRouteDeliveries.length})`);
     return { success: true, routeChanged: false, optimizedCount: 0, orderedDeliveryIds: [], optimizedRoute: [], writeBatch: [] };
   }
+
+  console.log(`[clientRouteEngine] ${source} — INPUT: ${allDeliveries.length} total deliveries → completed=${completedDeliveries.length}, active=${activeRouteDeliveries.length}, pending=${pendingRouteDeliveries.length}, optimizable=${optimizableDeliveries.length}`);
 
   // ISP source locations (client-side: try to resolve from stores by phone match)
   const ispSourceIds = [...new Set(allDeliveries.filter(d => d._interstore_source_id && !d.patient_id).map(d => d._interstore_source_id))];
@@ -500,6 +503,17 @@ export async function optimizeRouteClientSide({
       timeMinutes: parseTimeToMinutes(windowStart || delivery.delivery_time_start)
     };
   }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  const _droppedStops = optimizableDeliveries.length - stops.length;
+  if (_droppedStops > 0) {
+    console.warn(`[clientRouteEngine] ${source} — ${_droppedStops} stops DROPPED (missing coords). storeMap size=${storeMap.size}, patientMap size=${patientMap.size}`);
+    const dropped = optimizableDeliveries.filter(d => {
+      const c = getDeliveryCoords(d, patientMap, storeMap, ispSourceMap);
+      return !c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng);
+    });
+    dropped.forEach(d => console.warn(`  └─ dropped delivery ${d.id} store_id=${d.store_id} patient_id=${d.patient_id || 'N/A'}`));
+  } else {
+    console.log(`[clientRouteEngine] ${source} — ${stops.length} stops resolved with valid coords`);
+  }
 
   // ── Future route light mode ──────────────────────────────────────────────
   const historicalRoute = isHistoricalRouteDate(deliveryDate);
@@ -626,6 +640,7 @@ export async function optimizeRouteClientSide({
       prevPos = { lat: stop.lat, lng: stop.lng };
     }
   } else if (stopsToSequence.length > 0) {
+    console.log(`[clientRouteEngine] ${source} — calling HERE findsequence2 for ${stopsToSequence.length} stops (preserveExistingOrder=${preserveExistingOrder})`);
     let hereAttempt = await callHereSequence({
       sequenceStart: routeOriginStop ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng } : currentPosition,
       stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode,
@@ -649,6 +664,7 @@ export async function optimizeRouteClientSide({
 
     if (!hereAttempt.response.ok || !result || waypoints.length === 0) {
       // Crow-flies fallback
+      console.warn(`[clientRouteEngine] ${source} — HERE sequencing FAILED (status=${hereAttempt.response.status}, usedTimeWindows=${usedTimeWindows}), using crow-flies fallback`);
       usedFallbackOrdering = true;
       routeStops = [...routeStops, ...stopsToSequence].sort((a, b) => {
         const distA = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, a.lat, a.lng);
@@ -665,6 +681,7 @@ export async function optimizeRouteClientSide({
       }
     } else {
       // HERE success — map waypoints to stops
+      console.log(`[clientRouteEngine] ${source} — HERE sequencing OK: ${waypoints.length} waypoints, usedTimeWindows=${usedTimeWindows}`);
       const orderedStops = waypoints
         .filter(wp => wp.id !== 'driverStart' && wp.id !== 'driverEnd')
         .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
@@ -697,6 +714,7 @@ export async function optimizeRouteClientSide({
 
   // Build the list of points for multi-stop routing: origin → each stop in order
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending');
+  console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length}`);
   if (activeRouteStops.length > 0) {
     const polylineOrigin = (() => {
       // Match regenerateType1Polyline origin logic: most recent finished stop by time, or home, or current position
@@ -704,14 +722,19 @@ export async function optimizeRouteClientSide({
       if (resolvedHomePosition) return { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng };
       return { lat: currentPosition.lat, lon: currentPosition.lng };
     })();
+    console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'currentPos'}`);
 
     const routePoints = [
       polylineOrigin,
       ...activeRouteStops.map(s => ({ lat: s.lat, lon: s.lng }))
     ];
 
-    const multiStopRoute = await getMultiStopRouteHere(routePoints, effectiveTravelMode, hereApiKey);
+    const multiStopRoute = await getMultiStopRouteHere(routePoints, effectiveTravelMode, hereApiKey).catch((err) => {
+      console.error(`[clientRouteEngine] ${source} — HERE Router v8 THREW:`, err?.message || err);
+      return { sections: [], usedFallbackPolyline: true };
+    });
     const routeSections = multiStopRoute.sections;
+    console.log(`[clientRouteEngine] ${source} — HERE Router v8 returned ${routeSections.length} sections for ${routePoints.length} points (fallback=${multiStopRoute.usedFallbackPolyline})`);
 
     // Map sections to stops (section[0] = origin → stop[0], section[1] = stop[0] → stop[1], etc.)
     activeRouteStops.forEach((stop, index) => {
@@ -723,6 +746,9 @@ export async function optimizeRouteClientSide({
         estimatedDurationMinutes: section?.estimated_duration_minutes ?? null
       });
     });
+
+    const _polylineCount = [...segmentPolylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
+    console.log(`[clientRouteEngine] ${source} — polylines generated: ${_polylineCount}/${activeRouteStops.length} stops have encoded_polyline`);
 
     // Re-sync directionsLegs with actual HERE routing durations if available
     activeRouteStops.forEach((stop, index) => {
@@ -873,6 +899,10 @@ export async function optimizeRouteClientSide({
 
     writeBatch.push({ id: stop.id, data: updateData });
   }
+
+  const _polylineWriteCount = writeBatch.filter(w => w.data?.encoded_polyline != null).length;
+  const _pendingClearCount = writeBatch.filter(w => w.data?.encoded_polyline === null).length;
+  console.log(`[clientRouteEngine] ${source} — WRITE BATCH: ${writeBatch.length} updates, ${_polylineWriteCount} with polylines, ${_pendingClearCount} pending-cleared`);
 
   const orderedDeliveryIds = optimizedRouteStopsForResponse.map(s => s.id);
   const optimizedRoute = optimizedRouteStopsForResponse.map((stop, index) => {

@@ -164,13 +164,17 @@ export async function performRouteOptimization({
       if (!engineResult?.success) {
         console.warn(`[RouteOptimization] ${source} — engine did not succeed:`, engineResult?.error || 'unknown');
         // Non-fatal — fall through and try to fetch whatever exists
+      } else {
+        const _polyCount = (engineResult.writeBatch || []).filter(w => w.data?.encoded_polyline != null).length;
+        console.log(`[RouteOptimization] ${source} — engine SUCCESS: ${engineResult.optimizedCount} stops, routeChanged=${engineResult.routeChanged}, writeBatch=${engineResult.writeBatch?.length}, withPolylines=${_polyCount}, usedFallbackOrdering=${engineResult.usedFallbackOrdering}`);
       }
 
       optimizeData = engineResult;
 
       // ── Step 2: Write results to backend DB ──────────────────────────────
       if (optimizeData?.writeBatch && optimizeData.writeBatch.length > 0) {
-        console.log(`[RouteOptimization] ${source} — writing ${optimizeData.writeBatch.length} updates to DB`);
+        const _polyWrites = optimizeData.writeBatch.filter(w => w.data?.encoded_polyline != null).length;
+        console.log(`[RouteOptimization] ${source} — writing ${optimizeData.writeBatch.length} updates to DB (${_polyWrites} with polylines)`);
         // Chunk writes to avoid rate-limiting (same as backend's processInChunks)
         const CHUNK_SIZE = 12;
         for (let i = 0; i < optimizeData.writeBatch.length; i += CHUNK_SIZE) {
@@ -198,9 +202,13 @@ export async function performRouteOptimization({
     }).catch(() => []);
 
     if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
+      const _freshPolyCount = freshDeliveries.filter(d => d?.encoded_polyline).length;
+      console.log(`[RouteOptimization] ${source} — fresh fetch: ${freshDeliveries.length} deliveries, ${_freshPolyCount} with polylines`);
       await offlineDB.replaceRecordsByIndex(
         offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDate, freshDeliveries
       ).catch(() => {});
+    } else {
+      console.warn(`[RouteOptimization] ${source} — fresh fetch returned empty!`);
     }
 
     const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;

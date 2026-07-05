@@ -825,6 +825,8 @@ export default function useStopCardActions(params) {
               : Array.isArray(refreshedDeliveries?.deliveries)
                 ? refreshedDeliveries.deliveries
                 : null;
+            const _refreshPolyCount = Array.isArray(refreshedList) ? refreshedList.filter(d => d?.encoded_polyline).length : 0;
+            console.log(`[Start bg] forceRefreshDriverDeliveries returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
 
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
               const withNextFlag = refreshedList.map((d) => ({
