@@ -189,8 +189,8 @@ export default function PatientPortal() {
       setDeliveries(allDeliveries);
 
       // Fetch pickup stops so sidebar can show "Picked up at" times.
-      // Fetch by puid + delivery_date so we get the right pickup stop for every date,
-      // even for older deliveries where a limit-of-5 per puid would miss them.
+      // PUIDs are unique per date per pickup, so querying puid + delivery_date gives exactly
+      // the one pickup stop record for that route day — works for all historical dates.
       const puidDatePairs = [
         ...new Map(
           allDeliveries
@@ -202,11 +202,11 @@ export default function PatientPortal() {
         try {
           const results = await Promise.all(
             puidDatePairs.map(({ puid, delivery_date }) =>
-              base44.entities.Delivery.filter({ puid, delivery_date, is_cycling_marker: false }, '-delivery_date', 3)
+              base44.entities.Delivery.filter({ puid, delivery_date }, '-delivery_date', 10)
                 .catch(() => [])
             )
           );
-          // Keep only actual pickup stops (no patient_id, no interstore stops)
+          // The pickup stop is the record with no patient_id and no interstore source
           const allPickups = results.flat().filter((d) => !d.patient_id && !d._interstore_source_id);
           setPickupStops(allPickups);
         } catch (_) {}
