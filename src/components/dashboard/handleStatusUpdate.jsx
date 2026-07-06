@@ -9,7 +9,6 @@ import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineS
 import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
 import { backgroundSyncManager } from '@/components/utils/backgroundSyncManager';
 import { createDeliveryLocal } from '@/components/utils/offlineMutations';
-import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
 import { notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry } from '@/components/utils/deliveryMessaging';
 import { syncFabRefsForPhase } from '@/components/dashboard/handleSimpleDeliveryUpdates';
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
@@ -341,17 +340,10 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       else if (newStatus === 'failed') { notifyDriverFailed({ driver: currentUser, patientName, delivery: targetDelivery, store: deliveryStore, appUsers, failureReason: extraData?.delivery_notes || null }).catch((error) => console.warn('⚠️ Notification failed:', error)); }
     }
 
-    // After terminal status updates, re-optimize remaining stops + polylines via coordinator
-    if (driverId && deliveryDate && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
-      // Fire-and-forget: this re-optimizes the remaining route so the driver's next stop
-      // order and polylines are recalculated using the proven FAB path.
-      performRouteOptimization({
-        driverId,
-        deliveryDate,
-        source: 'status_update',
-        bypassDriverStatus: true,
-      }).catch((error) => console.warn('⚠️ Route optimization after status update failed:', error));
-    }
+    // Route optimization intentionally removed from status update path.
+    // Completing/failing/cancelling a stop does not change the route order —
+    // only the status and completion time of the current stop change.
+    // Re-optimization is handled by the FAB or explicit user action only.
 
   } catch (error) {
     console.error('❌ [STATUS] FINAL ERROR CATCH', error);
