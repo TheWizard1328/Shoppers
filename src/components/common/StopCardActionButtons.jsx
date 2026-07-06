@@ -228,7 +228,7 @@ export default function StopCardActionButtons(props) {
          isMobileDevice() &&
         <>
 
-          <div className="flex flex-col items-end gap-1 mr-2">
+          <div className="relative mr-2 flex-shrink-0">
             <button
               type="button"
               disabled={!hasValidSquareLocation}
@@ -243,9 +243,9 @@ export default function StopCardActionButtons(props) {
                 className="w-6 h-6 md:w-5 md:h-5 rounded-md object-cover" />
             </button>
             {lastCodStoreName && squareLocationName && (
-              <p className="text-amber-600 text-xs font-medium text-right leading-tight">
-                ⚠️ Switch to {squareLocationName}
-              </p>
+              <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold leading-none z-40 pointer-events-none">
+                ⚠
+              </span>
             )}
           </div>
         </>
