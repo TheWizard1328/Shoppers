@@ -102,9 +102,10 @@ export default function SpecialSymbolsBadges({
   const hasMailboxOk = !isPickup && !isInterStore && (delivery.mailbox_ok || patient?.mailbox_ok);
   const hasDriverNotes = !!delivery.delivery_notes;
 
-  // Check if anything should be shown
-  const hasAnyContent = hasCOD || isFirstDelivery || hasOversized || hasSignature || hasFridgeItem ||
-  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+  // Check if anything should be shown (fridge-only doesn't count for card size since F is hidden there)
+  const hasNonFridgeContent = hasCOD || isFirstDelivery || hasOversized || hasSignature ||
+    hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+  const hasAnyContent = hasNonFridgeContent || (hasFridgeItem && size !== 'card');
 
   if (!hasAnyContent) return null;
 
