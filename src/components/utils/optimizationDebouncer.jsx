@@ -65,6 +65,7 @@ export function requestDeferredOptimization(driverId, deliveryDate, needsOptimiz
     emitSpinner(driverId, deliveryDate, false);
     // Signal that optimization is now actively running (KITT bar)
     window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: true } }));
+    window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { driverId, deliveryDate, source: 'edit_form_deferred', showUI: true } }));
 
     // Use the unified coordinator — same FAB path (optimizeRemainingStops → regenerateType1Polyline)
     await performRouteOptimization({

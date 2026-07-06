@@ -1512,21 +1512,29 @@ useEffect(() => {
   useEffect(() => {
     const handleOptStart = (e) => {
       const { source, driverId, deliveryDate } = e.detail || {};
-      // Accept All, Assign All, and Start button all trigger the KITT bar
-      if (!['accept_all', 'assign_all', 'start_button'].includes(source)) return;
+      // Accept All, Assign All, Start button, and deferred edit-form optimization all trigger the KITT bar
+      if (!['accept_all', 'assign_all', 'start_button', 'edit_form_deferred'].includes(source)) return;
       if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
       setOptimizationMessage('Optimizing Route…');
     };
     const handleOptPhase = (e) => {
       const { phase, source } = e.detail || {};
-      if (!['accept_all', 'assign_all', 'start_button'].includes(source)) return;
+      if (!['accept_all', 'assign_all', 'start_button', 'edit_form_deferred'].includes(source)) return;
       if (phase === 'polylines') {
         setOptimizationMessage('Generating Route Lines…');
       }
     };
+    // Listen for the debouncer's optimizationRunning event to show/hide the KITT bar
+    const handleOptRunning = (e) => {
+      const { active } = e.detail || {};
+      if (active) {
+        if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
+        setOptimizationMessage('Optimizing Route…');
+      }
+    };
     const handleOptComplete = (e) => {
       const { source, optimizedCount } = e.detail || {};
-      if (!['accept_all', 'assign_all', 'start_button'].includes(source)) return;
+      if (!['accept_all', 'assign_all', 'start_button', 'edit_form_deferred'].includes(source)) return;
       // If optimizedCount is present, this is from the coordinator (success) — show final message
       // If not present, this is a safety-net from the call site's finally block — just clear
       if (optimizedCount != null) {
@@ -1548,10 +1556,12 @@ useEffect(() => {
     window.addEventListener('routeOptimizationStarted', handleOptStart);
     window.addEventListener('routeOptimizationPhase', handleOptPhase);
     window.addEventListener('routeOptimizationComplete', handleOptComplete);
+    window.addEventListener('optimizationRunning', handleOptRunning);
     return () => {
       window.removeEventListener('routeOptimizationStarted', handleOptStart);
       window.removeEventListener('routeOptimizationPhase', handleOptPhase);
       window.removeEventListener('routeOptimizationComplete', handleOptComplete);
+      window.removeEventListener('optimizationRunning', handleOptRunning);
       if (kittTimeoutRef.current) clearTimeout(kittTimeoutRef.current);
     };
   }, []);
