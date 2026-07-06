@@ -153,6 +153,22 @@ export default function DeliveryFormView({
   const [saveToLibrary, setSaveToLibrary] = React.useState(false);
   const isAdmin = userHasRole(currentUser, 'admin');
   const coordsLocked = !isAdmin && !!selectedCyclingLocation;
+  // Buzzer # inline input toggle
+  const [showBuzzerInput, setShowBuzzerInput] = React.useState(false);
+  const [buzzerValue, setBuzzerValue] = React.useState('');
+  const buzzerInputRef = React.useRef(null);
+
+  const handleBuzzerConfirm = React.useCallback(() => {
+    const buzz = buzzerValue.trim();
+    if (!buzz) { setShowBuzzerInput(false); return; }
+    setFormData((p) => {
+      const base = (p.unit_number || '').replace(/\s*Buzz\s*\S+$/i, '').trim();
+      return { ...p, unit_number: `${base} Buzz ${buzz}`.trim() };
+    });
+    setShowBuzzerInput(false);
+    setBuzzerValue('');
+  }, [buzzerValue, setFormData]);
+
   // InterStore: tracks whether both From + To are selected (gates the Add/Done button)
   const [interStoreReady, setInterStoreReady] = React.useState(false);
   // InterStore: force-open the driver dropdown when both stores selected but no driver
@@ -1213,8 +1229,30 @@ export default function DeliveryFormView({
                                 </div>
 
                                 <div className="flex-[35] space-y-1">
-                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
+                                  <div className="flex items-center justify-between" style={{ height: '1.5rem' }}>
+                                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
+                                    <button
+                                      type="button"
+                                      disabled={!formData.unit_number || isSaving}
+                                      onClick={() => { setShowBuzzerInput((v) => !v); setBuzzerValue(''); setTimeout(() => buzzerInputRef.current?.focus(), 50); }}
+                                      className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                                      Buzzer #
+                                    </button>
+                                  </div>
                                   <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
+                                  {showBuzzerInput && (
+                                    <div className="flex gap-1 mt-1">
+                                      <Input
+                                        ref={buzzerInputRef}
+                                        value={buzzerValue}
+                                        onChange={(e) => setBuzzerValue(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleBuzzerConfirm(); } if (e.key === 'Escape') { setShowBuzzerInput(false); setBuzzerValue(''); } }}
+                                        placeholder="Buzz #"
+                                        className="h-8 text-sm flex-1"
+                                        disabled={isSaving} />
+                                      <button type="button" onClick={handleBuzzerConfirm} className="h-8 px-2 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 flex-shrink-0">OK</button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
@@ -1425,9 +1463,31 @@ export default function DeliveryFormView({
                               </div>
 
                               <div className="flex-[35] space-y-1">
-                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
-                                <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
-                              </div>
+                                 <div className="flex items-center justify-between" style={{ height: '1.5rem' }}>
+                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
+                                   <button
+                                     type="button"
+                                     disabled={!formData.unit_number || isSaving}
+                                     onClick={() => { setShowBuzzerInput((v) => !v); setBuzzerValue(''); setTimeout(() => buzzerInputRef.current?.focus(), 50); }}
+                                     className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                                     Buzzer #
+                                   </button>
+                                 </div>
+                                 <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
+                                 {showBuzzerInput && (
+                                   <div className="flex gap-1 mt-1">
+                                     <Input
+                                       ref={buzzerInputRef}
+                                       value={buzzerValue}
+                                       onChange={(e) => setBuzzerValue(e.target.value)}
+                                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleBuzzerConfirm(); } if (e.key === 'Escape') { setShowBuzzerInput(false); setBuzzerValue(''); } }}
+                                       placeholder="Buzz #"
+                                       className="h-8 text-sm flex-1"
+                                       disabled={isSaving} />
+                                     <button type="button" onClick={handleBuzzerConfirm} className="h-8 px-2 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 flex-shrink-0">OK</button>
+                                   </div>
+                                 )}
+                               </div>
                             </div>
                           </div>
 
