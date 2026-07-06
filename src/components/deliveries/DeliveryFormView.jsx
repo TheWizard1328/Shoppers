@@ -153,18 +153,28 @@ export default function DeliveryFormView({
   const [saveToLibrary, setSaveToLibrary] = React.useState(false);
   const isAdmin = userHasRole(currentUser, 'admin');
   const coordsLocked = !isAdmin && !!selectedCyclingLocation;
-  // Buzzer # inline input toggle
+  // Buzzer # floating dialog
   const [showBuzzerInput, setShowBuzzerInput] = React.useState(false);
   const [buzzerValue, setBuzzerValue] = React.useState('');
+  const [buzzerAnchorRect, setBuzzerAnchorRect] = React.useState(null);
   const buzzerInputRef = React.useRef(null);
+
+  const handleBuzzerOpen = React.useCallback((e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setBuzzerAnchorRect(rect);
+    setBuzzerValue('');
+    setShowBuzzerInput(true);
+    setTimeout(() => buzzerInputRef.current?.focus(), 50);
+  }, []);
 
   const handleBuzzerConfirm = React.useCallback(() => {
     const buzz = buzzerValue.trim();
-    if (!buzz) { setShowBuzzerInput(false); return; }
-    setFormData((p) => {
-      const base = (p.unit_number || '').replace(/\s*Buzz\s*\S+$/i, '').trim();
-      return { ...p, unit_number: `${base} Buzz ${buzz}`.trim() };
-    });
+    if (buzz) {
+      setFormData((p) => {
+        const base = (p.unit_number || '').replace(/\s*Buzz\s*\S+$/i, '').trim();
+        return { ...p, unit_number: `${base} Buzz ${buzz}`.trim() };
+      });
+    }
     setShowBuzzerInput(false);
     setBuzzerValue('');
   }, [buzzerValue, setFormData]);
@@ -1234,25 +1244,12 @@ export default function DeliveryFormView({
                                     <button
                                       type="button"
                                       disabled={!formData.unit_number || isSaving}
-                                      onClick={() => { setShowBuzzerInput((v) => !v); setBuzzerValue(''); setTimeout(() => buzzerInputRef.current?.focus(), 50); }}
+                                      onClick={handleBuzzerOpen}
                                       className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
                                       Buzzer #
                                     </button>
                                   </div>
                                   <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
-                                  {showBuzzerInput && (
-                                    <div className="flex gap-1 mt-1">
-                                      <Input
-                                        ref={buzzerInputRef}
-                                        value={buzzerValue}
-                                        onChange={(e) => setBuzzerValue(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleBuzzerConfirm(); } if (e.key === 'Escape') { setShowBuzzerInput(false); setBuzzerValue(''); } }}
-                                        placeholder="Buzz #"
-                                        className="h-8 text-sm flex-1"
-                                        disabled={isSaving} />
-                                      <button type="button" onClick={handleBuzzerConfirm} className="h-8 px-2 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 flex-shrink-0">OK</button>
-                                    </div>
-                                  )}
                                 </div>
                               </div>
 
@@ -1468,25 +1465,12 @@ export default function DeliveryFormView({
                                    <button
                                      type="button"
                                      disabled={!formData.unit_number || isSaving}
-                                     onClick={() => { setShowBuzzerInput((v) => !v); setBuzzerValue(''); setTimeout(() => buzzerInputRef.current?.focus(), 50); }}
+                                     onClick={handleBuzzerOpen}
                                      className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
                                      Buzzer #
                                    </button>
                                  </div>
                                  <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
-                                 {showBuzzerInput && (
-                                   <div className="flex gap-1 mt-1">
-                                     <Input
-                                       ref={buzzerInputRef}
-                                       value={buzzerValue}
-                                       onChange={(e) => setBuzzerValue(e.target.value)}
-                                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleBuzzerConfirm(); } if (e.key === 'Escape') { setShowBuzzerInput(false); setBuzzerValue(''); } }}
-                                       placeholder="Buzz #"
-                                       className="h-8 text-sm flex-1"
-                                       disabled={isSaving} />
-                                     <button type="button" onClick={handleBuzzerConfirm} className="h-8 px-2 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 flex-shrink-0">OK</button>
-                                   </div>
-                                 )}
                                </div>
                             </div>
                           </div>
@@ -1987,6 +1971,32 @@ export default function DeliveryFormView({
           </CardFooter>
         </Card>
       </motion.div>
+
+      {/* Buzzer # floating dialog */}
+      {showBuzzerInput && buzzerAnchorRect && (
+        <>
+          <div className="fixed inset-0 z-[10030]" onClick={() => { setShowBuzzerInput(false); setBuzzerValue(''); }} />
+          <div
+            className="fixed z-[10031] bg-white rounded-lg shadow-xl border border-slate-200 p-3 w-52"
+            style={{ top: buzzerAnchorRect.bottom + 6, left: Math.min(buzzerAnchorRect.right - 208, window.innerWidth - 216) }}>
+            <p className="text-xs font-semibold text-slate-600 mb-2">Enter Buzzer #</p>
+            <Input
+              ref={buzzerInputRef}
+              value={buzzerValue}
+              onChange={(e) => setBuzzerValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); handleBuzzerConfirm(); }
+                if (e.key === 'Escape') { setShowBuzzerInput(false); setBuzzerValue(''); }
+              }}
+              placeholder="e.g. 223"
+              className="h-8 text-sm mb-2" />
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => { setShowBuzzerInput(false); setBuzzerValue(''); }} className="h-7 px-3 text-xs rounded border border-slate-300 text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={handleBuzzerConfirm} className="h-7 px-3 text-xs rounded bg-blue-600 text-white hover:bg-blue-700">OK</button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Patient Match Popup */}
       {showMatchPopup &&
