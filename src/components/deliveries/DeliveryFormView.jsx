@@ -1249,7 +1249,7 @@ export default function DeliveryFormView({
                                       disabled={!formData.unit_number || isSaving}
                                       onClick={handleBuzzerOpen}
                                       className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
-                                      Buzzer #
+                                      + Buzzer #
                                     </button>
                                   </div>
                                   <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
