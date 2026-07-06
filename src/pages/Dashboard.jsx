@@ -1835,22 +1835,52 @@ useEffect(() => {
     setPatientFormMode(null);
   };
 
-  const triggerPostDeleteOperations = async (driverId, deliveryDate) => {
+  const triggerPostDeleteOperations = async (driverId, deliveryDate, wasNextDelivery) => {
     try {
       setIsEntityUpdating(true); pauseOfflineSync(); await new Promise((r) => setTimeout(r, 100));
       await recalculateStopOrders(driverId, deliveryDate);
-      const now = new Date(); const lt = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-      await base44.functions.invoke('optimizeRemainingStops', { driverId, deliveryDate, currentLocalTime: lt, deviceTime: now.toISOString() }).catch((e) => console.warn('⚠️ optimize failed:', e.message));
-      await base44.functions.invoke('calculateRealTimeETA', { driverId, deliveryDate, currentLocalTime: lt }).catch((e) => console.warn('⚠️ ETA failed:', e.message));
-      invalidate('Delivery'); await refreshData();
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' } }));
+
+      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+      const driverAppUser = appUsers.find((au) => au?.user_id === driverId);
+      const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude
+        ? { lat: driverAppUser.current_latitude, lon: driverAppUser.current_longitude }
+        : null;
+      // Snapshot current deliveries for the engine (excluding the deleted one — already removed locally)
+      const driverDeliveries = (deliveriesRef.current || []).filter(
+        (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
+      );
+
+      const result = await performRouteOptimization({
+        driverId,
+        deliveryDate,
+        currentLocation,
+        deliveries: driverDeliveries,
+        patients: patientsRef.current,
+        stores: storesRef.current,
+        appUsers,
+        source: 'delete_delivery',
+        // If the deleted stop was NOT the next delivery, skip full re-optimization —
+        // just regenerate polylines in existing stop order.
+        skipOptimize: !wasNextDelivery,
+        preserveExistingOrder: !wasNextDelivery,
+      });
+
+      if (result.success && Array.isArray(result.freshDeliveries) && result.freshDeliveries.length > 0) {
+        updateDeliveriesLocally?.(result.freshDeliveries, false);
+      } else {
+        invalidate('Delivery'); await refreshData();
+      }
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery', alreadyOptimized: true } }));
     } catch (e) { console.error('❌ [DELETE] Background ops failed:', e); } finally { resumeOfflineSync(); setIsEntityUpdating(false); }
   };
 
   const handleDeleteDelivery = async (deliveryId) => {
     const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
     if (!targetDelivery) { console.error('❌ [DELETE] Not found'); throw new Error('Delivery not found'); }
-    const { driverId: _did, delivery_date: _dd, patient_id: _pid, stop_id: _sid, status: _st, cod_total_amount_required: _cod } = { driverId: targetDelivery.driver_id, ...targetDelivery };
+    const { driverId: _did, delivery_date: _dd, patient_id: _pid, stop_id: _sid, status: _st, cod_total_amount_required: _cod, isNextDelivery: _isNext } = { driverId: targetDelivery.driver_id, ...targetDelivery };
+    // Only trigger full re-optimization if this was an active (non-pending) stop
+    const _isActive = _st && !['pending', 'completed', 'failed', 'cancelled'].includes(_st);
+    const _wasNext = _isActive && !!_isNext;
     if (!_pid && _sid) {
       const pending = deliveriesWithStopOrder.filter((d) => d && d.puid === _sid && d.status === 'pending' && d.patient_id);
       if (pending.length) { const { deleteDeliveryLocal: ddl } = await import('../components/utils/offlineMutations'); for (const p of pending) await ddl(p.id); }
@@ -1859,7 +1889,7 @@ useEffect(() => {
     const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
     const p = deleteDeliveryLocal(deliveryId);
     if (selectedCardId === deliveryId) setSelectedCardId(null);
-    triggerPostDeleteOperations(_did, _dd);
+    if (_isActive) triggerPostDeleteOperations(_did, _dd, _wasNext);
     await p;
   };
 
