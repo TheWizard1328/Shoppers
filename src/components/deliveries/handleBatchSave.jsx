@@ -173,6 +173,12 @@ export async function handleBatchSave({
       const hasNewActiveSops = newDeliveries.some((d) => d?.status && !['pending', 'Staged'].includes(d.status));
       routeStructureChanged = isActiveRouteMode ? true : hasInTransitTransition;
 
+      // Fire KITT bar immediately — we know optimization will run after save completes
+      if (routeStructureChanged && routeDriverId && routeDeliveryDate) {
+        window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'edit_form_deferred', driverId: routeDriverId, deliveryDate: routeDeliveryDate } }));
+        window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: routeDriverId, deliveryDate: routeDeliveryDate, active: true } }));
+      }
+
       const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
       const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
