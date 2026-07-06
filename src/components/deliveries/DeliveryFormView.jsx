@@ -816,53 +816,53 @@ export default function DeliveryFormView({
                 {/* Library search */}
                 <div className="p-3 rounded-lg border space-y-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <CyclingLocationSearch
-                    cities={cities}
-                    currentUser={currentUser}
-                    appUsers={appUsers}
-                    selectedLocation={selectedCyclingLocation}
-                    disabled={isSaving}
-                    onSelect={(loc) => {
-                      setSelectedCyclingLocation(loc);
-                      setSaveToLibrary(false);
-                      setFormData((prev) => ({
-                        ...prev,
-                        cycling_latitude: loc.latitude,
-                        cycling_longitude: loc.longitude,
-                        cycling_location_id: loc.id,
-                      }));
-                    }}
-                    onClearSelection={() => {
-                      setSelectedCyclingLocation(null);
-                      setFormData((prev) => ({ ...prev, cycling_location_id: null }));
-                    }}
-                  />
+                  cities={cities}
+                  currentUser={currentUser}
+                  appUsers={appUsers}
+                  selectedLocation={selectedCyclingLocation}
+                  disabled={isSaving}
+                  onSelect={(loc) => {
+                    setSelectedCyclingLocation(loc);
+                    setSaveToLibrary(false);
+                    setFormData((prev) => ({
+                      ...prev,
+                      cycling_latitude: loc.latitude,
+                      cycling_longitude: loc.longitude,
+                      cycling_location_id: loc.id
+                    }));
+                  }}
+                  onClearSelection={() => {
+                    setSelectedCyclingLocation(null);
+                    setFormData((prev) => ({ ...prev, cycling_location_id: null }));
+                  }} />
+                
                   {/* Save to library toggle — only when no library location is linked */}
-                  {!selectedCyclingLocation && (
-                    <div className="flex items-center gap-2 pt-1">
+                  {!selectedCyclingLocation &&
+                <div className="flex items-center gap-2 pt-1">
                       <Checkbox
-                        id="save_to_library"
-                        checked={saveToLibrary}
-                        onCheckedChange={setSaveToLibrary}
-                        disabled={isSaving}
-                      />
+                    id="save_to_library"
+                    checked={saveToLibrary}
+                    onCheckedChange={setSaveToLibrary}
+                    disabled={isSaving} />
+                  
                       <Label htmlFor="save_to_library" className="text-sm text-slate-600 cursor-pointer">
                         Save this location for other drivers
                       </Label>
                     </div>
-                  )}
-                  {saveToLibrary && !selectedCyclingLocation && (
-                    <div className="space-y-1">
+                }
+                  {saveToLibrary && !selectedCyclingLocation &&
+                <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-600">Location Name *</Label>
                       <Input
-                        type="text"
-                        value={formData._cycling_location_name || ''}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, _cycling_location_name: e.target.value }))}
-                        placeholder="e.g. Behind Save-On Foods lot"
-                        className="h-9 text-sm"
-                        disabled={isSaving}
-                      />
+                    type="text"
+                    value={formData._cycling_location_name || ''}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, _cycling_location_name: e.target.value }))}
+                    placeholder="e.g. Behind Save-On Foods lot"
+                    className="h-9 text-sm"
+                    disabled={isSaving} />
+                  
                     </div>
-                  )}
+                }
                 </div>
                 {/* Lat / Lng */}
                 <div className="flex gap-3">
@@ -1190,24 +1190,24 @@ export default function DeliveryFormView({
                                   <div className="relative" style={{ height: '1.5rem' }}>
                                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
                                     {delivery && selectedPatient && handleNewAddressPatient && (() => {
-                                     const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
-                                     return isLocked ? (
-                                       <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
+                                    const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
+                                    return isLocked ?
+                                    <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
                                          Change Address
-                                       </span>
-                                     ) : (
-                                       <span
-                                         role="button"
-                                         tabIndex={0}
-                                         onClick={() => handleNewAddressPatient(selectedPatient)}
-                                         onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
-                                         className="absolute right-0 top-0 cursor-pointer select-none">
+                                       </span> :
+
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => handleNewAddressPatient(selectedPatient)}
+                                      onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                      className="absolute right-0 top-0 cursor-pointer select-none">
                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
                                            Change Address
                                          </span>
-                                       </span>
-                                     );
-                                    })()}
+                                       </span>;
+
+                                  })()}
                                   </div>
                                   <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
                                 </div>
@@ -1321,20 +1321,20 @@ export default function DeliveryFormView({
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                                 Latitude {!isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-slate-400 ml-1">(locked)</span> : isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-emerald-600 ml-1">(updates shared library)</span> : null}
                               </Label>
-                              <Input type="number" step="any" value={formData.cycling_latitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_latitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. 53.5461" disabled={isSaving || (!isAdmin && !!delivery?.cycling_location_id)} className="h-9" />
+                              <Input type="number" step="any" value={formData.cycling_latitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_latitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. 53.5461" disabled={isSaving || !isAdmin && !!delivery?.cycling_location_id} className="h-9" />
                             </div>
                             <div className="flex-1 space-y-1">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                                 Longitude {!isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-slate-400 ml-1">(locked)</span> : isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-emerald-600 ml-1">(updates shared library)</span> : null}
                               </Label>
-                              <Input type="number" step="any" value={formData.cycling_longitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_longitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. -113.4938" disabled={isSaving || (!isAdmin && !!delivery?.cycling_location_id)} className="h-9" />
+                              <Input type="number" step="any" value={formData.cycling_longitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_longitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. -113.4938" disabled={isSaving || !isAdmin && !!delivery?.cycling_location_id} className="h-9" />
                             </div>
                           </div>
                         </div> :
 
                       <div className="space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Notes</Label>
-                          <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Notes for this pickup..." className="flex min-h-[85px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                          <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Notes for this pickup..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none min-h-[85px]" disabled={isSaving} />
                         </div>
                       }
                     </div>
@@ -1402,24 +1402,24 @@ export default function DeliveryFormView({
                                 <div className="relative" style={{ height: '1.5rem' }}>
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
                                   {delivery && selectedPatient && handleNewAddressPatient && (() => {
-                                    const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
-                                    return isLocked ? (
-                                      <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
+                                  const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
+                                  return isLocked ?
+                                  <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
                                         Change Address
-                                      </span>
-                                    ) : (
-                                      <span
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => handleNewAddressPatient(selectedPatient)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
-                                        className="absolute right-0 top-0 cursor-pointer select-none">
+                                      </span> :
+
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => handleNewAddressPatient(selectedPatient)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                    className="absolute right-0 top-0 cursor-pointer select-none">
                                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
                                           Change Address
                                         </span>
-                                      </span>
-                                    );
-                                  })()}
+                                      </span>;
+
+                                })()}
                                 </div>
                                 <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
                               </div>
@@ -1635,7 +1635,7 @@ export default function DeliveryFormView({
                       },
                       runOptimizer: true,
                       optimizerContext: { deliveries: allDeliveries || [], patients: [], stores: stores || [], appUsers: appUsers || [] },
-                      applyLocalUI: (records) => applyDeliveryChangesLocally?.({ upserts: records.filter(Boolean), deleteIds: [] }),
+                      applyLocalUI: (records) => applyDeliveryChangesLocally?.({ upserts: records.filter(Boolean), deleteIds: [] })
                     });
 
                     // Now flush the real records to the online DB
@@ -1643,13 +1643,13 @@ export default function DeliveryFormView({
                     if (endPayload) createPromises.push(base44.entities.Delivery.create(endPayload));
                     savedRecords = await Promise.all(createPromises);
                     const startMarker = savedRecords[0] || null;
-                    const endMarker   = isStart ? (savedRecords[1] || null) : null;
+                    const endMarker = isStart ? savedRecords[1] || null : null;
 
                     // ── Cycling library: save new or increment usage_count ───────────
                     if (selectedCyclingLocation?.id) {
                       // Increment usage_count (fire-and-forget)
                       base44.entities.CyclingLocation.update(selectedCyclingLocation.id, {
-                        usage_count: (selectedCyclingLocation.usage_count || 0) + 1,
+                        usage_count: (selectedCyclingLocation.usage_count || 0) + 1
                       }).catch(() => null);
                     } else if (saveToLibrary && formData._cycling_location_name?.trim() && formData.cycling_latitude != null && formData.cycling_longitude != null) {
                       // Resolve city_id from GPS or appUser
@@ -1662,7 +1662,7 @@ export default function DeliveryFormView({
                           longitude: formData.cycling_longitude,
                           city_id: libCityId,
                           created_by_app_user_id: driverAppUser?.id || null,
-                          usage_count: 1,
+                          usage_count: 1
                         }).then((newLoc) => {
                           // Link the start marker to the new library entry
                           if (startMarker?.id && newLoc?.id) {
@@ -1682,20 +1682,20 @@ export default function DeliveryFormView({
                           delivery_date: formData.delivery_date
                         });
                         const withFlagCleared = (allDriverDeliveries || []).filter(
-                          d => d && d.isNextDelivery && d.id !== startMarker.id
+                          (d) => d && d.isNextDelivery && d.id !== startMarker.id
                         );
                         await Promise.all(
-                          withFlagCleared.map(d =>
-                            base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
+                          withFlagCleared.map((d) =>
+                          base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
                           )
                         );
                         // Assign isNextDelivery to the cycling start marker
                         await base44.entities.Delivery.update(startMarker.id, { isNextDelivery: true });
                         // Reflect flag changes locally so UI is immediately consistent
                         const localFlagUpdates = [
-                          ...withFlagCleared.map(d => ({ ...d, isNextDelivery: false })),
-                          { ...startMarker, isNextDelivery: true },
-                        ];
+                        ...withFlagCleared.map((d) => ({ ...d, isNextDelivery: false })),
+                        { ...startMarker, isNextDelivery: true }];
+
                         applyDeliveryChangesLocally?.({ upserts: localFlagUpdates, deleteIds: [] });
                       } catch (flagErr) {
                         console.warn('[CyclingMarker] isNextDelivery assignment failed:', flagErr?.message || flagErr);
@@ -1803,15 +1803,15 @@ export default function DeliveryFormView({
 
                   // Admin: propagate coordinate changes back to the shared CyclingLocation record
                   if (
-                    isAdmin &&
-                    delivery?.is_cycling_marker &&
-                    delivery?.cycling_location_id &&
-                    (formData.cycling_latitude !== delivery.cycling_latitude ||
-                      formData.cycling_longitude !== delivery.cycling_longitude)
-                  ) {
+                  isAdmin &&
+                  delivery?.is_cycling_marker &&
+                  delivery?.cycling_location_id && (
+                  formData.cycling_latitude !== delivery.cycling_latitude ||
+                  formData.cycling_longitude !== delivery.cycling_longitude))
+                  {
                     base44.entities.CyclingLocation.update(delivery.cycling_location_id, {
                       latitude: formData.cycling_latitude,
-                      longitude: formData.cycling_longitude,
+                      longitude: formData.cycling_longitude
                     }).catch(() => null);
                   }
 
