@@ -74,6 +74,12 @@ export async function performRouteOptimization({
     return { success: false, error: 'Missing driverId or deliveryDate' };
   }
 
+  // ── Fire KITT bar immediately so UI responds before any async work ────────
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source, driverId, deliveryDate } }));
+    window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: true } }));
+  }
+
   // ── Resolve HERE API key ──────────────────────────────────────────────────
   let hereApiKey = null;
   try {
@@ -172,6 +178,9 @@ export async function performRouteOptimization({
       optimizeData = engineResult;
 
       // ── Step 2: Write results to backend DB ──────────────────────────────
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { source, driverId, deliveryDate, phase: 'polylines' } }));
+      }
       if (optimizeData?.writeBatch && optimizeData.writeBatch.length > 0) {
         const _polyWrites = optimizeData.writeBatch.filter(w => w.data?.encoded_polyline != null).length;
         console.log(`[RouteOptimization] ${source} — writing ${optimizeData.writeBatch.length} updates to DB (${_polyWrites} with polylines)`);
@@ -218,6 +227,7 @@ export async function performRouteOptimization({
     const _optimizedCount = optimizeData?.optimizedCount || optimizeData?.writeBatch?.length || 0;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source, driverId, deliveryDate, optimizedCount: _optimizedCount } }));
+      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
     }
 
     return {
@@ -231,6 +241,10 @@ export async function performRouteOptimization({
     };
   } catch (error) {
     console.error(`[RouteOptimization] ${source} — Error:`, error);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source, driverId, deliveryDate, optimizedCount: null } }));
+    }
     return { success: false, error: error.message };
   }
 }
