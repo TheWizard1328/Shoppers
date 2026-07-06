@@ -1556,6 +1556,7 @@ export default function DeliveryFormView({
                   if (isSaving || effectiveDeliveryActionBusy) return;
                   if (!formData.delivery_date || !formData.driver_id || !formData.delivery_notes) return;
                   await runLockedAction('add_cycling_marker', async () => {
+                    const { executeOfflineBatchAction: _execBatch } = await import('@/components/utils/offlineBatchAction');
                     const { base44 } = await import('@/api/base44Client');
                     const driver = allDrivers.find((d) => d.id === formData.driver_id);
                     const isStart = (formData.delivery_notes || '').toLowerCase().includes('start');
@@ -1601,34 +1602,46 @@ export default function DeliveryFormView({
                       return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
                     })();
 
-                    const createPromises = [
-                    base44.entities.Delivery.create({
+                    // Build the payloads locally first (no DB writes yet)
+                    const startPayload = {
                       ...basePayload,
                       delivery_notes: formData.delivery_notes,
                       ...(startActualTime && { actual_delivery_time: startActualTime }),
-                      // Start marker: explicit 30-minute delivery window
                       ...(startMarkerTimeStart && { delivery_time_start: startMarkerTimeStart }),
                       ...(startMarkerTimeEnd && { delivery_time_end: startMarkerTimeEnd }),
                       transport_mode: 'driving'
-                    })];
+                    };
+                    const endPayload = isStart ? {
+                      ...basePayload,
+                      delivery_notes: 'Cycling Route End',
+                      ...(endActualTime && { actual_delivery_time: endActualTime }),
+                      ...(endMarkerTimeStart && { delivery_time_start: endMarkerTimeStart }),
+                      ...(endMarkerTimeEnd && { delivery_time_end: endMarkerTimeEnd }),
+                      transport_mode: 'cycling'
+                    } : null;
 
+                    // ── Offline-first batch: save locally → optimize → flush online ──
+                    let savedRecords = [];
+                    await _execBatch({
+                      actionName: 'AddCyclingMarker',
+                      work: async () => {
+                        // Stage locally with temp IDs
+                        const { offlineDB: _odb } = await import('@/components/utils/offlineDatabase');
+                        const tempStart = { ...startPayload, id: `temp_delivery_${Date.now()}_start`, _isLocal: true, created_date: new Date().toISOString(), updated_date: new Date().toISOString() };
+                        const tempEnd = endPayload ? { ...endPayload, id: `temp_delivery_${Date.now()}_end`, _isLocal: true, created_date: new Date().toISOString(), updated_date: new Date().toISOString() } : null;
+                        const tempRecords = [tempStart, tempEnd].filter(Boolean);
+                        await _odb.bulkSave(_odb.STORES.DELIVERIES, tempRecords).catch(() => null);
+                        return { records: tempRecords, driverId: formData.driver_id, deliveryDate: formData.delivery_date };
+                      },
+                      runOptimizer: true,
+                      optimizerContext: { deliveries: allDeliveries || [], patients: [], stores: stores || [], appUsers: appUsers || [] },
+                      applyLocalUI: (records) => applyDeliveryChangesLocally?.({ upserts: records.filter(Boolean), deleteIds: [] }),
+                    });
 
-                    // Auto-create a paired End marker when adding a Start marker
-                    if (isStart) {
-                      createPromises.push(
-                        base44.entities.Delivery.create({
-                          ...basePayload,
-                          delivery_notes: 'Cycling Route End',
-                          ...(endActualTime && { actual_delivery_time: endActualTime }),
-                          // End marker: 30-minute window starting at the form's end time
-                          ...(endMarkerTimeStart && { delivery_time_start: endMarkerTimeStart }),
-                          ...(endMarkerTimeEnd && { delivery_time_end: endMarkerTimeEnd }),
-                          transport_mode: 'cycling'
-                        })
-                      );
-                    }
-
-                    const savedRecords = await Promise.all(createPromises);
+                    // Now flush the real records to the online DB
+                    const createPromises = [base44.entities.Delivery.create(startPayload)];
+                    if (endPayload) createPromises.push(base44.entities.Delivery.create(endPayload));
+                    savedRecords = await Promise.all(createPromises);
                     const startMarker = savedRecords[0] || null;
                     const endMarker   = isStart ? (savedRecords[1] || null) : null;
 

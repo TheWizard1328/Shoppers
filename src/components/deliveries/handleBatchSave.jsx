@@ -5,6 +5,7 @@ import { resetBatchSaveDraftState, closeBatchFormThenResumeManagers, restartBatc
 import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { requestDeferredOptimization } from '../utils/optimizationDebouncer';
+import { executeOfflineBatchAction } from '../utils/offlineBatchAction';
 
 export async function handleBatchSave({
   batchSaveLockRef,
@@ -117,11 +118,19 @@ export async function handleBatchSave({
   setError(null);
   setBatchFormSaving(true);
 
+  // Pause ALL syncs via the unified helper before any writes
   try {
-    const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-    smartRefreshManager.pause();
+    const { pauseAllSyncs: _pause } = await import('../utils/offlineBatchAction').then(m => ({
+      pauseAllSyncs: async () => {
+        try { const { smartRefreshManager } = await import('../utils/smartRefreshManager'); smartRefreshManager.pause(); } catch { /* non-fatal */ }
+        try { const { backgroundSyncManager } = await import('../utils/backgroundSyncManager'); backgroundSyncManager.pause(); } catch { /* non-fatal */ }
+        try { const { pauseRealtimeSync } = await import('../utils/realtimeSync'); pauseRealtimeSync(); } catch { /* non-fatal */ }
+        const { enterBatchSilentMode } = await import('../utils/entityMutations'); enterBatchSilentMode();
+      }
+    }));
+    await _pause();
   } catch (error) {
-    console.warn('⚠️ [AddToRoute] Failed to pause SmartRefresh:', error);
+    console.warn('⚠️ [AddToRoute] Failed to pause syncs:', error);
   }
 
   try {
@@ -472,7 +481,25 @@ export async function handleBatchSave({
 
         if (squarePaymentChangePromises.length > 0) await Promise.allSettled(squarePaymentChangePromises);
 
-        await restartBatchSmartRefresh(() => setBatchFormSaving(false));
+        // Resume ALL syncs via the unified helper
+        try {
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager'); smartRefreshManager.restart();
+        } catch { /* non-fatal */ }
+        try { const { backgroundSyncManager } = await import('../utils/backgroundSyncManager'); backgroundSyncManager.resume(); } catch { /* non-fatal */ }
+        try { const { resumeRealtimeSync } = await import('../utils/realtimeSync'); resumeRealtimeSync(); } catch { /* non-fatal */ }
+        try { const { exitBatchSilentMode } = await import('../utils/entityMutations'); exitBatchSilentMode(); } catch { /* non-fatal */ }
+        setBatchFormSaving(false);
+
+        // Broadcast finalized delivery IDs so all subscribers get a targeted update
+        const finalizedIds = [
+          ...(deliveriesReadyForDB || []).map(d => d?.id),
+          ...(deliveriesToUpdate || []).map(d => d?.id),
+        ].filter(Boolean);
+        if (finalizedIds.length > 0) {
+          window.dispatchEvent(new CustomEvent('deliveriesAffected', {
+            detail: { ids: finalizedIds, action: 'batchSaveDone', driverId: routeDriverId, deliveryDate: routeDeliveryDate }
+          }));
+        }
 
         const hasOnlyPendingOrStagedChanges = [...deliveriesReadyForDB, ...existingDeliveriesWithTRs]
           .filter(Boolean)
@@ -513,7 +540,12 @@ export async function handleBatchSave({
     setError(`Failed to save: ${err.message || 'Unknown error'}`);
     unblockPredictions();
     setIsLoadingPredictions(false);
-    await restartBatchSmartRefresh(() => setBatchFormSaving(false));
+    // Resume ALL syncs on error
+    try { const { smartRefreshManager } = await import('../utils/smartRefreshManager'); smartRefreshManager.restart(); } catch { /* non-fatal */ }
+    try { const { backgroundSyncManager } = await import('../utils/backgroundSyncManager'); backgroundSyncManager.resume(); } catch { /* non-fatal */ }
+    try { const { resumeRealtimeSync } = await import('../utils/realtimeSync'); resumeRealtimeSync(); } catch { /* non-fatal */ }
+    try { const { exitBatchSilentMode } = await import('../utils/entityMutations'); exitBatchSilentMode(); } catch { /* non-fatal */ }
+    setBatchFormSaving(false);
   } finally {
     batchSaveLockRef.current = false;
     setIsSaving(false);
