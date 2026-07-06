@@ -122,7 +122,7 @@ export default function SpecialSymbolsBadges({
         {hasCOD && <span className={isCardSize ? config.text : ''} style={{ color: getCodSymbolColor(delivery) === 'inherit' ? '#0f172a' : getCodSymbolColor(delivery) }}>$</span>}
         {isFirstDelivery && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#1e40af' }}>N</span>}
         {hasOversized && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#9a3412' }}>O</span>}
-        {hasFridgeItem && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#0369a1' }}>F</span>}
+        {hasFridgeItem && size !== 'card' && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#0369a1' }}>F</span>}
         {hasSignature && <PenLine className={config.icon} style={{ color: '#15803d' }} />}
         
         {/* Preference icons - intuitive colors, always forced (no dark mode) */}

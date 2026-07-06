@@ -268,7 +268,7 @@ export default function StopCardHeader({
         <Badge
           variant="secondary"
           className={`bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors justify-center ${bulkSelectionEnabled ? 'gap-1 min-w-[58px]' : 'w-[40px]'}`}
-          style={{ backgroundColor: (delivery?.fridge_item && delivery?.status === 'in_transit') ? '#2563eb' : (storeColor || "#10B981"), color: "white" }}>
+          style={{ backgroundColor: storeColor || "#10B981", color: "white" }}>
           {bulkSelectionEnabled && (
             <div
               data-stopcard-checkbox="true"
