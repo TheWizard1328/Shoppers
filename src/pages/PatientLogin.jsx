@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { verifyPatient } from '@/functions/verifyPatient';
 import { lookupPatientByPhone } from '@/functions/lookupPatientByPhone';
 import { PatientSessionManager } from '@/components/patient-portal/PatientSessionManager';
+import PWAInstallPrompt from '@/components/common/PWAInstallPrompt';
 
 const normalizePhone = (p) => (p || '').replace(/\D/g, '');
 const VALID_PHONE_LENGTH = 10;
@@ -227,6 +228,7 @@ export default function PatientLogin() {
           <a href="/login" className="text-slate-600 hover:underline font-medium">Staff Login →</a>
         </p>
       </div>
+      <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />
     </div>
   );
 }
