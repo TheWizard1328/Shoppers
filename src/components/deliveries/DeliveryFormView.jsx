@@ -162,10 +162,13 @@ export default function DeliveryFormView({
   const handleBuzzerOpen = React.useCallback((e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     setBuzzerAnchorRect(rect);
-    setBuzzerValue('');
+    // Pre-populate with existing buzzer number if present
+    const existing = (e.currentTarget.closest('[data-unit-section]') ? formData.unit_number : formData.unit_number) || '';
+    const match = existing.match(/\bBuzz\s+(\S+)/i);
+    setBuzzerValue(match ? match[1] : '');
     setShowBuzzerInput(true);
     setTimeout(() => buzzerInputRef.current?.focus(), 50);
-  }, []);
+  }, [formData.unit_number]);
 
   const handleBuzzerConfirm = React.useCallback(() => {
     const buzz = buzzerValue.trim();
