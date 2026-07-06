@@ -1685,12 +1685,16 @@ export default function DeliveryFormView({
                       applyLocalUI: (records) => applyDeliveryChangesLocally?.({ upserts: records.filter(Boolean), deleteIds: [] })
                     });
 
-                    // Now flush the real records to the online DB
-                    const createPromises = [base44.entities.Delivery.create(startPayload)];
-                    if (endPayload) createPromises.push(base44.entities.Delivery.create(endPayload));
-                    savedRecords = await Promise.all(createPromises);
-                    const startMarker = savedRecords[0] || null;
-                    const endMarker = isStart ? savedRecords[1] || null : null;
+                    // Records were already created by executeOfflineBatchAction → flushToOnlineDB above.
+                    // Fetch the freshly-created markers from offline DB so we have real IDs.
+                    const { offlineDB: _odbFetch } = await import('@/components/utils/offlineDatabase');
+                    const allLocalDeliveries = await _odbFetch.getAll(_odbFetch.STORES.DELIVERIES).catch(() => []);
+                    const driverDateDeliveries = (allLocalDeliveries || []).filter(
+                      (d) => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date && d.is_cycling_marker && !d._isLocal && !String(d.id || '').startsWith('temp_')
+                    );
+                    savedRecords = driverDateDeliveries;
+                    const startMarker = driverDateDeliveries.find((d) => (d.delivery_notes || '').toLowerCase().includes('start')) || null;
+                    const endMarker = isStart ? driverDateDeliveries.find((d) => (d.delivery_notes || '').toLowerCase().includes('end')) || null : null;
 
                     // ── Cycling library: save new or increment usage_count ───────────
                     if (selectedCyclingLocation?.id) {
