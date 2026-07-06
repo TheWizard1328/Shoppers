@@ -47,22 +47,14 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   console.log('[Square POS] Payload:', payloadJson);
   console.log('[Square POS] Launching URL:', squareUrl);
 
-  // Hidden <a target="_blank"> click: dispatches the custom URI scheme within the
-  // user gesture context without navigating the current PWA page away.
+  // Use window.location.href for custom URI schemes on Android.
+  // target="_blank" on Android Chrome/WebView blocks intent:// and custom schemes;
+  // direct assignment is the reliable way to hand off to another app.
   try {
-    const a = document.createElement('a');
-    a.href = squareUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      try { document.body.removeChild(a); } catch (_) {}
-    }, 1000);
-    remoteLogger.info('[Square POS] Anchor click dispatched successfully');
+    window.location.href = squareUrl;
+    remoteLogger.info('[Square POS] window.location.href set successfully');
   } catch (err) {
-    remoteLogger.error('[Square POS] Anchor click FAILED', String(err));
+    remoteLogger.error('[Square POS] Launch FAILED', String(err));
     console.error('[Square POS] Launch error:', err);
   }
 }

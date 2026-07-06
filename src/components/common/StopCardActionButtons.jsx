@@ -242,11 +242,15 @@ export default function StopCardActionButtons(props) {
                 alt="Square POS"
                 className="w-6 h-6 md:w-5 md:h-5 rounded-md object-cover" />
             </button>
-            {lastCodStoreName && squareLocationName && (
+            {lastCodStoreName && squareLocationName ? (
               <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold leading-none z-40 pointer-events-none">
                 ⚠
               </span>
-            )}
+            ) : hasValidSquareLocation && !lastCodStoreName ? (
+              <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] font-bold leading-none z-40 pointer-events-none">
+                ✓
+              </span>
+            ) : null}
           </div>
         </>
         }
