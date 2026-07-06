@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
-import { RefreshCw, FlaskConical } from 'lucide-react';
+import { RefreshCw, FlaskConical, LogOut } from 'lucide-react';
 import DemoModeDialog from '@/components/demo/DemoModeDialog';
 import {
   DropdownMenuContent,
@@ -15,7 +15,7 @@ import { globalFilters } from '../utils/globalFilters';
 import { clearUserCache, getEffectiveUser } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
-import DeleteAccountMenuItem from '@/components/settings/DeleteAccountMenuItem';
+
 
 export default function SettingsMenu({
   currentUser,
@@ -257,7 +257,15 @@ export default function SettingsMenu({
         <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
         Force Full App Refresh
       </DropdownMenuItem>
-      <DeleteAccountMenuItem />
+      <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+      <DropdownMenuItem
+        onClick={() => base44.auth.logout('/')}
+        className="cursor-pointer text-red-600"
+        style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+      >
+        <LogOut className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+        Log Out
+      </DropdownMenuItem>
     </DropdownMenuContent>
     </>
   );
