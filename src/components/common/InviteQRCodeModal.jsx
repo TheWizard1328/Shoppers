@@ -29,28 +29,17 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
   useEffect(() => {
     if (!isOpen) return;
 
-    // For existing drivers/dispatchers: immediately show the login QR for their role
-    if (isExistingUserOnly) {
-      const loginUrl = `${PRODUCTION_DOMAIN}`;
-      setQrUrl(loginUrl);
-      setInviteUrl(loginUrl);
-      return;
-    }
+    setQrUrl(null);
+    setInviteUrl(null);
 
     if (isDispatcher && !isAdmin) {
       setSelectedRole('dispatcher');
-      setSelectedStores(currentUser.store_ids || []);
     } else if (isDriver && !isAdmin && !isDispatcher) {
       setSelectedRole('driver');
-      setSelectedStores(currentUser.store_ids || []);
     } else {
       setSelectedRole('driver');
-      setSelectedStores([]);
     }
-
-    // Reset QR when reopening for admins
-    setQrUrl(null);
-    setInviteUrl(null);
+    setSelectedStores([]);
   }, [isOpen]);
 
   // Build store options - for drivers, expand stores with AM/PM slots
@@ -93,11 +82,13 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     setSelectedStores([]);
   };
 
-  const availableRoles = isAdmin ? 
-    ['admin', 'dispatcher', 'driver', 'patient'] : 
-    isDispatcher ? 
-      ['dispatcher', 'driver', 'patient'] : 
-      ['driver', 'dispatcher', 'patient'];
+  const availableRoles = isAdmin
+    ? ['admin', 'dispatcher', 'driver', 'patient']
+    : isDriver && !isDispatcher
+      ? ['driver', 'patient']
+      : isDispatcher
+        ? ['dispatcher', 'driver', 'patient']
+        : ['driver', 'patient'];
 
   const handleGenerateQR = async () => {
     if (!selectedRole) {
@@ -105,8 +96,16 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
       return;
     }
 
-    // For dispatcher/driver, require at least one store
-    if ((selectedRole === 'dispatcher' || selectedRole === 'driver') && selectedStores.length === 0) {
+    // For existing driver (non-admin) selecting "driver" role: show login QR
+    if (isExistingUserOnly && selectedRole === 'driver') {
+      const loginUrl = `${PRODUCTION_DOMAIN}`;
+      setInviteUrl(loginUrl);
+      setQrUrl(loginUrl);
+      return;
+    }
+
+    // For dispatcher/driver (admin-generating), require at least one store
+    if (!isExistingUserOnly && (selectedRole === 'dispatcher' || selectedRole === 'driver') && selectedStores.length === 0) {
       toast.error('Please select at least one store');
       return;
     }
@@ -164,7 +163,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-full max-w-md">
         <DialogHeader>
-          <DialogTitle>{isExistingUserOnly ? 'Login on Another Device' : 'Generate Invite QR Code'}</DialogTitle>
+          <DialogTitle>{'Generate QR Code'}</DialogTitle>
         </DialogHeader>
 
         {!qrUrl ? (
@@ -231,18 +230,14 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
               />
             </div>
 
-            {isExistingUserOnly ? (
-              <p className="text-xs text-slate-500 text-center">
-                Scan this QR code to open <span className="font-semibold">wizardworxx.com</span> and log in with your existing account on another device.
-              </p>
-            ) : (
-              <p className="text-xs text-slate-500 text-center">
-                {selectedRole === 'patient'
-                  ? <>Scan to open the <span className="font-semibold">Patient Portal</span> login page.</>
+            <p className="text-xs text-slate-500 text-center">
+              {selectedRole === 'patient'
+                ? <>Scan to open the <span className="font-semibold">Patient Portal</span> login page.</>
+                : isExistingUserOnly && selectedRole === 'driver'
+                  ? <>Scan to log in with your existing account on another device.</>
                   : <>Invite role: <span className="font-semibold">{selectedRole}</span></>
-                }
-              </p>
-            )}
+              }
+            </p>
 
             <div className="space-y-2 w-full">
               <Button
