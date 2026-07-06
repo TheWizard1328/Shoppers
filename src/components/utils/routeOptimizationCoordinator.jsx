@@ -177,24 +177,25 @@ export async function performRouteOptimization({
 
       optimizeData = engineResult;
 
-      // ── Step 2: Write results to backend DB ──────────────────────────────
+      // ── Step 2: Write results to backend DB via single bulk call ─────────
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { source, driverId, deliveryDate, phase: 'polylines' } }));
       }
       if (optimizeData?.writeBatch && optimizeData.writeBatch.length > 0) {
         const _polyWrites = optimizeData.writeBatch.filter(w => w.data?.encoded_polyline != null).length;
-        console.log(`[RouteOptimization] ${source} — writing ${optimizeData.writeBatch.length} updates to DB (${_polyWrites} with polylines)`);
-        // Chunk writes to avoid rate-limiting (same as backend's processInChunks)
-        const CHUNK_SIZE = 12;
-        for (let i = 0; i < optimizeData.writeBatch.length; i += CHUNK_SIZE) {
-          const chunk = optimizeData.writeBatch.slice(i, i + CHUNK_SIZE);
-          await Promise.all(chunk.map(async ({ id, data }) => {
-            try {
-              await base44.entities.Delivery.update(id, data);
-            } catch (e) {
-              console.warn(`[RouteOptimization] ${source} — failed to update delivery ${id}:`, e?.message);
-            }
-          }));
+        console.log(`[RouteOptimization] ${source} — bulk-writing ${optimizeData.writeBatch.length} updates (${_polyWrites} with polylines)`);
+        try {
+          await base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch });
+        } catch (e) {
+          console.warn(`[RouteOptimization] ${source} — bulkUpdateDeliveries failed, falling back to individual writes:`, e?.message);
+          // Fallback: individual writes in parallel batches of 20
+          const CHUNK_SIZE = 20;
+          for (let i = 0; i < optimizeData.writeBatch.length; i += CHUNK_SIZE) {
+            const chunk = optimizeData.writeBatch.slice(i, i + CHUNK_SIZE);
+            await Promise.all(chunk.map(async ({ id, data }) => {
+              try { await base44.entities.Delivery.update(id, data); } catch (_) {}
+            }));
+          }
         }
       }
     } else if (orderedDeliveryIds) {
@@ -202,22 +203,21 @@ export async function performRouteOptimization({
       optimizeData = { success: true, orderedDeliveryIds, optimizedRoute: [], writeBatch: [] };
     }
 
-    // ── Step 3: Fetch fresh deliveries and persist to offline DB ─────────────
-    // Brief delay for DB write consistency
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    invalidate('Delivery');
-    const freshDeliveries = await base44.entities.Delivery.filter({
-      driver_id: driverId, delivery_date: deliveryDate
-    }).catch(() => []);
+    // ── Step 3: Build fresh deliveries from engine write batch (no re-fetch needed) ──
+    // Apply writeBatch onto the resolved local deliveries so caller gets up-to-date records instantly.
+    const writeMap = new Map((optimizeData?.writeBatch || []).map(({ id, data }) => [id, data]));
+    const freshDeliveries = (resolvedDeliveries || []).map(d => {
+      const patch = writeMap.get(d.id);
+      return patch ? { ...d, ...patch } : d;
+    });
 
     if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
       const _freshPolyCount = freshDeliveries.filter(d => d?.encoded_polyline).length;
-      console.log(`[RouteOptimization] ${source} — fresh fetch: ${freshDeliveries.length} deliveries, ${_freshPolyCount} with polylines`);
-      await offlineDB.replaceRecordsByIndex(
+      console.log(`[RouteOptimization] ${source} — local merge: ${freshDeliveries.length} deliveries, ${_freshPolyCount} with polylines`);
+      // Persist to offline DB in the background — don't await
+      offlineDB.replaceRecordsByIndex(
         offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDate, freshDeliveries
       ).catch(() => {});
-    } else {
-      console.warn(`[RouteOptimization] ${source} — fresh fetch returned empty!`);
     }
 
     const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;
