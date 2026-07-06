@@ -164,11 +164,14 @@ export async function handleBatchSave({
 
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
-      // Only mark route structure changed for active (non-pending) new stops.
-      // Adding pending stops must NOT trigger optimization or polyline regeneration.
-      const hasNewActiveSops = newDeliveries.some((d) => d?.status && !['pending', 'Staged'].includes(d.status));
-      routeStructureChanged = hasNewActiveSops;
+      // Determine when to trigger route optimization on Done:
+      // - Options 2/3/4 (interstore, pickup, cycling): ALWAYS optimize — new stops added to active route
+      // - Option 1 (standard adds): only optimize if at least one new stop is in_transit
+      //   (pending-only adds must NOT trigger optimization or polyline regeneration)
       hasInTransitTransition = newDeliveries.some((d) => d?.status === 'in_transit');
+      const isActiveRouteMode = ['interstore', 'pickup', 'cycling'].includes(formData?.openMode);
+      const hasNewActiveSops = newDeliveries.some((d) => d?.status && !['pending', 'Staged'].includes(d.status));
+      routeStructureChanged = isActiveRouteMode ? true : hasInTransitTransition;
 
       const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
@@ -388,7 +391,7 @@ export async function handleBatchSave({
       // when one of the newly staged DELIVERIES itself is genuinely active (e.g. in_transit —
       // the driver is being told to go there right now), which hasNewActiveSops already
       // captures from the user-set status. Pickup-container creation alone must never force it.
-      routeStructureChanged = hasNewActiveSops;
+      // routeStructureChanged is already set correctly above (isActiveRouteMode or hasInTransitTransition).
 
       const ensuredPickupByKey = new Map(
         ensuredPickupRecords
