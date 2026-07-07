@@ -85,7 +85,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
         // Inter-store counts for superscript
-        const isInterStore = (d) => !!d._interstore_source_id;
+        const isInterStore = (d) => !!d._interstore_source_id || !!d._interstore_dest_id;
         const todayInTransitInterStore = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled', 'returned'].includes(d?.status) && isInterStore(d)).length;
         const todayCompletedInterStore = todayPatientDeliveries.filter((d) => d?.status === 'completed' && isInterStore(d)).length;
         const todayReturns = todayPatientDeliveries.reduce((sum, d) => {
