@@ -35,12 +35,21 @@ export default function useDriverLocationSync({
   const storesRef                  = useRef(stores);
   const appUsersRef                = useRef(appUsers);
   const calculateDistanceRef       = useRef(calculateDistance);
+  // CRITICAL: isPrimaryDevice resolves asynchronously (Dashboard.jsx looks it up from the
+  // DB after mount) and is NOT in the GPS-watching effect's dependency array below — that
+  // effect's closure is created once when isDriver/currentUser/isMobile/locationTracker
+  // first become truthy, and would otherwise capture the stale initial `false` forever,
+  // silently disabling the live map-follow trigger on the actual primary device. Reading
+  // it via a ref (kept fresh here) instead of the raw prop fixes that without needing to
+  // tear down and recreate the GPS watcher every time the primary-device status resolves.
+  const isPrimaryDeviceRef         = useRef(isPrimaryDevice);
 
   useEffect(() => { deliveriesWithStopOrderRef.current = deliveriesWithStopOrder; }, [deliveriesWithStopOrder]);
   useEffect(() => { patientsRef.current                = patients;                }, [patients]);
   useEffect(() => { storesRef.current                  = stores;                  }, [stores]);
   useEffect(() => { appUsersRef.current                = appUsers;                }, [appUsers]);
   useEffect(() => { calculateDistanceRef.current       = calculateDistance;       }, [calculateDistance]);
+  useEffect(() => { isPrimaryDeviceRef.current         = isPrimaryDevice;         }, [isPrimaryDevice]);
 
   useEffect(() => {
     if (!isDriver || !currentUser) return;
@@ -106,7 +115,7 @@ export default function useDriverLocationSync({
           // follow is driven exactly by the live GPS marker's own update cadence — every
           // watchPosition tick that reaches here (already the device's real GPS refresh
           // rate) immediately repositions the map, matching the live-location marker 1:1.
-          if (isPrimaryDevice) {
+          if (isPrimaryDeviceRef.current) {
             lastProgrammaticMapMoveRef.current = now;
             window._lastProgrammaticMapMove = now;
             pendingPhaseRef.current = mapViewPhaseRef.current;
@@ -122,7 +131,7 @@ export default function useDriverLocationSync({
         if (isMapViewLockedRef.current || now - lastUserInteractionRef.current < 300000 || now - lastProximitySnapTimeRef.current < 60000) return;
         // CRITICAL: Only trigger proximity phase 2 on the driver's primary mobile device.
         // Secondary/tablet devices should not auto-switch map phases based on proximity.
-        if (!isPrimaryDevice) return;
+        if (!isPrimaryDeviceRef.current) return;
         // Include 'pending' stops so unstarted routes also trigger proximity phase 2
         for (const delivery of deliveriesWithStopOrderRef.current.filter((d) => d && d.isNextDelivery === true && ['in_transit', 'en_route', 'pending'].includes(d.status))) {
           const patient = delivery.patient_id ? patientsRef.current.find((p) => p && p.id === delivery.patient_id) : null;
@@ -238,7 +247,7 @@ export default function useDriverLocationSync({
       // not local GPS — so we must also re-trigger the map for self (targetId === currentUser?.id)
       // and for the "all" case when not on the primary device.
       const isSelfOrAll = !targetId || targetId === 'all' || targetId === currentUser?.id;
-      if (isSelfOrAll && isPrimaryDevice) return; // primary device handles this via live GPS path
+      if (isSelfOrAll && isPrimaryDeviceRef.current) return; // primary device handles this via live GPS path
       if (!isSelfOrAll) {
         // Specific OTHER driver selected — resolve that driver's updated record
       }
@@ -247,7 +256,7 @@ export default function useDriverLocationSync({
       if (!Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) return;
 
       // Resolve the effective target: for self/all on non-primary, use current user's record
-      const resolvedTargetId = (isSelfOrAll && !isPrimaryDevice)
+      const resolvedTargetId = (isSelfOrAll && !isPrimaryDeviceRef.current)
         ? currentUser?.id
         : targetId;
       const targetAppUser = updatedAppUsers.find((au) => au?.user_id === resolvedTargetId);
@@ -266,6 +275,6 @@ export default function useDriverLocationSync({
     window.addEventListener('driverLocationsUpdated', handleSharedLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleSharedLocationUpdate);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, isPrimaryDevice, setMapViewTrigger, mapViewPhaseRef, isMapViewLockedRef,
+  }, [currentUser?.id, setMapViewTrigger, mapViewPhaseRef, isMapViewLockedRef,
       pendingPhaseRef, lastProgrammaticMapMoveRef]);
 }

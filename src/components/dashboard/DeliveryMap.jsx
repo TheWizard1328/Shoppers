@@ -962,11 +962,25 @@ export default function DeliveryMap({
         const alreadyAtOrAboveMaxZoom = currentZoom >= requestedMaxZoom - 0.05 && targetZoomForBounds >= requestedMaxZoom - 0.05;
 
         fitBoundsInFlightRef.current = true;
-        map.once('moveend', () => {
+        let settled = false;
+        let safetyTimer = null;
+        const settle = () => {
+          if (settled) return;
+          settled = true;
+          if (safetyTimer) clearTimeout(safetyTimer);
+          map.off('moveend', settle);
           fitBoundsInFlightRef.current = false;
           const latest = latestFitBoundsRef.current;
           if (latest && latest !== request) runFit(latest);
-        });
+        };
+        map.once('moveend', settle);
+        // Safety net: 'moveend' should always fire (even a zero-distance panBy fires it
+        // synchronously), but a backgrounded tab can pause/delay the animation's
+        // completion indefinitely. Force-clear the in-flight flag after the requested
+        // animation duration (+ margin) so a missed event can never permanently jam
+        // the follow — it just picks up the latest position a little late instead.
+        const animMs = Math.round(((opts.duration != null ? opts.duration : (alreadyAtOrAboveMaxZoom ? 0.5 : 0.9)) * 1000)) + 600;
+        safetyTimer = setTimeout(settle, animMs);
 
         // When the map is already at or above maxZoom AND the new bounds also want that same
         // max zoom, Leaflet's fitBounds clamps the zoom to maxZoom and — since the bounds
