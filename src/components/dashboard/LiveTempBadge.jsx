@@ -2,9 +2,9 @@
  * LiveTempBadge.jsx
  *
  * Floating cooler temperature badge above the stop-card FAB.
- * BLE is handled by useInkbirdSensorBridge which auto-selects:
- *   - Native Capacitor BLE  (isCapacitorNativeApp() === true)
- *   - Web Bluetooth GATT    (browser / PWA)
+ * Uses useInkbirdWorker — the same battle-tested GATT connection logic
+ * as the InkbirdRawDiagnostic page (3-attempt connect, FFF2 poll fallback).
+ * On every reading it persists to RxTempLogs via recordFridgeTemperature.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -12,47 +12,33 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Thermometer, Bluetooth, BluetoothSearching, BluetoothOff, RefreshCw, Check } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { isAdmin, isDriver as checkIsDriver } from '@/components/utils/userRoles';
-import { useInkbirdSensorBridge } from '@/components/common/useInkbirdSensorBridge';
+import { useInkbirdWorker } from '@/components/common/useInkbirdWorker';
 
-// ── Constants ──────────────────────────────────────────────────────────────
-const TEMP_MIN         = 2;
-const TEMP_MAX         = 8;
-const DB_POLL_MS       = 60000;
-const PULSE_MS         = 600;
-const HEARTBEAT_MS     = 60 * 1000; // 1 min — FFF6 flows continuously, persist once/min
-const CHANGE_THRESHOLD = 0.1;       // °C
-const DOUBLE_TAP_MS    = 2000;      // window for double-tap unpair
-const INKBIRD_SERVICE_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
-const INKBIRD_FILTERS  = [
-  { name: 'tps' }, { name: 'sps' },
-  { namePrefix: 'Inkbird' }, { namePrefix: 'IBS' },
-];
+const TEMP_MIN      = 2;
+const TEMP_MAX      = 8;
+const DB_POLL_MS    = 60000;
+const HEARTBEAT_MS  = 60 * 1000;
+const DOUBLE_TAP_MS = 2000;
 
 function localISOString() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, '0');
+  const d = new Date(), pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function formatTimestamp(ts) {
   if (!ts) return null;
   try {
-    const clean = String(ts).replace('Z', '').replace('+00:00', '');
-    return new Date(clean).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return new Date(String(ts).replace('Z','').replace('+00:00','')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   } catch (_) { return ts; }
 }
 
-// ── Tooltip ────────────────────────────────────────────────────────────────
 function Tooltip({ text, children }) {
   const [visible, setVisible] = useState(false);
   if (!text) return <>{children}</>;
   return (
-    <span
-      className="relative inline-flex items-center"
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-      onTouchStart={() => setVisible(v => !v)}
-    >
+    <span className="relative inline-flex items-center"
+      onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}
+      onTouchStart={() => setVisible(v => !v)}>
       {children}
       {visible && (
         <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded text-[11px] font-normal whitespace-nowrap bg-slate-900 text-white shadow-lg pointer-events-none z-[9999]">
@@ -64,7 +50,6 @@ function Tooltip({ text, children }) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════
 export default function LiveTempBadge({
   currentUser,
   selectedDriverId,
@@ -79,55 +64,22 @@ export default function LiveTempBadge({
   const adminMode  = isAdmin(currentUser);
   const driverMode = checkIsDriver(currentUser);
 
-  // ── Bridge: auto-selects native or web BLE ─────────────────────────────
-  // Always pass currentUser — the hook itself decides whether to activate BLE.
-  // Previously passing null when !driverMode caused the hook to initialize dead
-  // and never recover when app_roles loaded later (mount effect runs only once).
-  const { status: bleStatus, reading: bleReading, sensorName, latestReadingRef,
-          setConnectedServer, forget: forgetSensor, forceRead } =
-    useInkbirdSensorBridge(currentUser);
+  // ── Persistence helpers ───────────────────────────────────────────────
+  const lastSavedTempRef = useRef(null);
+  const lastSavedTimeRef = useRef(0);
 
-  // bleReading = { tempC, humidity, timestamp } | null
-  const bleTemp = bleReading?.tempC ?? null;
+  const todayLocal = (() => {
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  })();
 
-  // ── Local state ────────────────────────────────────────────────────────
-  const [lastReading, setLastReading] = useState(null);
-  const [avgReading,  setAvgReading]  = useState(null);
-  const [isPulsing,   setIsPulsing]   = useState(false);
-  const [justSaved,   setJustSaved]   = useState(false);
-
-  const dbPollTimerRef    = useRef(null);
-  const pulseTimerRef     = useRef(null);
-  const savedFlashRef     = useRef(null);
-  const heartbeatTimerRef = useRef(null);  // 1-min save interval — fires regardless of temp change
-  const lastSavedTempRef  = useRef(null);
-  const lastSavedTimeRef  = useRef(0);
-  const prevTempRef       = useRef(null);
-
-  // ── Helpers ───────────────────────────────────────────────────────────
-  const triggerPulse = useCallback(() => {
-    setIsPulsing(true);
-    clearTimeout(pulseTimerRef.current);
-    pulseTimerRef.current = setTimeout(() => setIsPulsing(false), PULSE_MS);
-  }, []);
-
-  const flashSaved = useCallback(() => {
-    setJustSaved(true);
-    clearTimeout(savedFlashRef.current);
-    savedFlashRef.current = setTimeout(() => setJustSaved(false), 1800);
-  }, []);
-
-  // ── Save BLE reading to DB ────────────────────────────────────────────
-  const saveBleReading = useCallback(async (tempC) => {
+  const saveTempToDb = useCallback(async (tempC) => {
     const driverId = currentUser?.id;
     if (!driverId || tempC === null) return;
-    const d = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    const todayLocal = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
     const now = Date.now();
     const lastTemp = lastSavedTempRef.current;
     const timeSinceLast = now - lastSavedTimeRef.current;
-    const tempChanged = lastTemp === null || Math.abs(tempC - lastTemp) >= CHANGE_THRESHOLD;
+    const tempChanged = lastTemp === null || Math.abs(tempC - lastTemp) >= 0.1;
     const heartbeatDue = timeSinceLast >= HEARTBEAT_MS;
     if (!tempChanged && !heartbeatDue) return;
     lastSavedTempRef.current = tempC;
@@ -141,67 +93,45 @@ export default function LiveTempBadge({
         timestamp: localISOString(),
         trigger,
         input_method: 'ble',
-        sensor_mac: sensorName || null,
+        sensor_mac: workerSensorName || null,
       });
       const ts = localISOString();
       setLastReading({ temperature_celsius: tempC, timestamp: ts });
       window.dispatchEvent(new CustomEvent('fridgeTempRecorded', {
         detail: { temperature: tempC, timestamp: ts, driverId },
       }));
-      flashSaved();
+      setJustSaved(true);
+      clearTimeout(savedFlashRef.current);
+      savedFlashRef.current = setTimeout(() => setJustSaved(false), 1800);
     } catch (_) {}
-  }, [currentUser?.id, sensorName, flashSaved]);
+  }, [currentUser?.id, todayLocal]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── React to new BLE readings — pulse animation + localStorage only ────
-  // DB save is handled by the heartbeat interval below so it fires even when
-  // temperature is perfectly stable and bleTemp never changes value.
-  useEffect(() => {
-    if (bleTemp === null) return;
-    if (prevTempRef.current !== bleTemp) {
-      triggerPulse();
-      prevTempRef.current = bleTemp;
-    }
-    // Persist last known temp to localStorage so it survives BLE disconnects
-    try { localStorage.setItem('rxdeliver_last_ble_temp', JSON.stringify({ tempC: bleTemp, timestamp: new Date().toISOString() })); } catch (_) {}
-  }, [bleTemp, triggerPulse]);
+  // ── BLE Worker ─────────────────────────────────────────────────────────
+  // onReading fires on every reading from the worker (poll + notify)
+  const { status: bleStatus, temp: bleTemp, sensorName: workerSensorName,
+          connect, disconnect, forget } = useInkbirdWorker({
+    onReading: useCallback((tempC) => {
+      saveTempToDb(tempC);
+      try { localStorage.setItem('rxdeliver_last_ble_temp', JSON.stringify({ tempC, timestamp: new Date().toISOString() })); } catch (_) {}
+      setIsPulsing(true);
+      clearTimeout(pulseTimerRef.current);
+      pulseTimerRef.current = setTimeout(() => setIsPulsing(false), 600);
+    }, [saveTempToDb]),
+  });
 
-  // ── 1-minute heartbeat save — completely decoupled from temp changes ───
-  // Notifications flow continuously every 1-2s. This interval fires every
-  // minute and saves whatever latestReadingRef.current holds — even if tempC
-  // has been rock-steady and bleTemp never caused a re-render.
-  useEffect(() => {
-    // Kick off an immediate save on first connect so we don't wait a full minute
-    if (bleStatus === 'connected' && latestReadingRef.current) {
-      saveBleReading(latestReadingRef.current.tempC);
-    }
-    clearInterval(heartbeatTimerRef.current);
-    if (bleStatus === 'connected') {
-      heartbeatTimerRef.current = setInterval(() => {
-        const latest = latestReadingRef.current;
-        if (latest?.tempC != null) saveBleReading(latest.tempC);
-      }, HEARTBEAT_MS);
-    }
-    return () => clearInterval(heartbeatTimerRef.current);
-  }, [bleStatus, latestReadingRef, saveBleReading]);
+  // ── Local UI state ──────────────────────────────────────────────────────
+  const [lastReading, setLastReading] = useState(null);
+  const [avgReading,  setAvgReading]  = useState(null);
+  const [isPulsing,   setIsPulsing]   = useState(false);
+  const [justSaved,   setJustSaved]   = useState(false);
+  const [isUnpairing, setIsUnpairing] = useState(false);
 
-  // ── Computed date values ──────────────────────────────────────────────
-  const todayLocal = (() => {
-    const d = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  })();
+  const dbPollTimerRef = useRef(null);
+  const pulseTimerRef  = useRef(null);
+  const savedFlashRef  = useRef(null);
+  const lastTapTimeRef = useRef(0);
 
-  // selectedDriverId may be the AppUser record ID or the auth user ID — check both.
-  // For admin+driver users, always treat as "self" — they carry the sensor regardless
-  // of which driver route they're currently viewing on screen.
-  const selectedDriverIsMe = !selectedDriverId || selectedDriverId === 'all' ||
-    selectedDriverId === currentUser?.id ||
-    selectedDriverId === currentUser?.user_id ||
-    !adminMode || // pure driver: always self
-    driverMode;   // admin+driver: always self (they have the sensor)
-  const isPastDate = selectedDate && selectedDate < todayLocal;
-
-  // ── DB poll ───────────────────────────────────────────────────────────
+  // ── DB poll — loads persisted readings for display ──────────────────────
   const loadFromDb = useCallback(async () => {
     if (!selectedDriverId || !selectedDate) return;
     try {
@@ -223,39 +153,12 @@ export default function LiveTempBadge({
 
       if (selectedDate < todayLocal) {
         const allReadings = logRecord.temperature_readings || [];
-        if (allReadings.length === 0) { setAvgReading(null); setLastReading(null); return; }
-
-        let routeStart = null, routeEnd = null;
-        try {
-          const DONE = new Set(['completed', 'failed']);
-          let delivs = [];
-          try {
-            const { offlineDB: odb } = await import('@/components/utils/offlineDatabase');
-            const cached = await odb.getAll(odb.STORES.DELIVERIES);
-            delivs = (cached || []).filter(d => d?.driver_id === driverId && d?.delivery_date === selectedDate && DONE.has(d.status) && d.actual_delivery_time);
-          } catch (_) {}
-          if (!delivs.length) {
-            const fresh = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: selectedDate });
-            delivs = (fresh || []).filter(d => DONE.has(d.status) && d.actual_delivery_time);
-          }
-          if (delivs.length) {
-            const times = delivs
-              .map(d => String(d.actual_delivery_time).replace('Z','').replace(/\+.*$/,'').slice(11, 16))
-              .filter(t => /^\d{2}:\d{2}$/.test(t))
-              .sort();
-            if (times.length) { routeStart = times[0]; routeEnd = times[times.length - 1]; }
-          }
-        } catch (_) {}
-
-        const sorted = [...allReadings].sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
-        const windowReadings = (routeStart && routeEnd)
-          ? sorted.filter(r => { const hhmm = String(r.timestamp || '').replace('Z','').slice(11, 16); return hhmm >= routeStart && hhmm <= routeEnd; })
-          : sorted;
-        const source = windowReadings.length ? windowReadings : sorted;
-        const temps = source.map(r => r.temperature_celsius).filter(t => typeof t === 'number');
-        if (temps.length === 0) { setAvgReading(null); setLastReading(null); return; }
+        if (!allReadings.length) { setAvgReading(null); setLastReading(null); return; }
+        const temps = allReadings.map(r => r.temperature_celsius).filter(t => typeof t === 'number');
+        if (!temps.length) { setAvgReading(null); setLastReading(null); return; }
         const avg = Math.round((temps.reduce((s, t) => s + t, 0) / temps.length) * 10) / 10;
-        setAvgReading({ avg, count: temps.length, from: source[0].timestamp, to: source[source.length - 1].timestamp });
+        const sorted = [...allReadings].sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
+        setAvgReading({ avg, count: temps.length, from: sorted[0].timestamp, to: sorted[sorted.length - 1].timestamp });
         setLastReading(null);
       } else {
         setAvgReading(null);
@@ -268,9 +171,7 @@ export default function LiveTempBadge({
   const prevDriverRef = useRef(selectedDriverId);
   const prevDateRef   = useRef(selectedDate);
   useEffect(() => {
-    const driverChanged = prevDriverRef.current !== selectedDriverId;
-    const dateChanged   = prevDateRef.current   !== selectedDate;
-    if (driverChanged || dateChanged) {
+    if (prevDriverRef.current !== selectedDriverId || prevDateRef.current !== selectedDate) {
       prevDriverRef.current = selectedDriverId;
       prevDateRef.current   = selectedDate;
       setLastReading(null);
@@ -285,202 +186,37 @@ export default function LiveTempBadge({
     return () => clearInterval(dbPollTimerRef.current);
   }, [loadFromDb]);
 
-  // ── WS / custom event listeners ───────────────────────────────────────
+  // WS / custom event listeners
   useEffect(() => {
     const onRecorded = (e) => {
       const { temperature, timestamp, driverId } = e.detail || {};
       const eid = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
       if (driverId !== eid) return;
       setLastReading({ temperature_celsius: temperature, timestamp });
-      triggerPulse();
     };
-    const onWs = async (e) => {
-      const { data, id: recordId } = e.detail || {};
-      if (!data && !recordId) return;
-      const eid = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-      if (data?.driver_id !== eid) return;
-      if (!data.latest_reading && recordId) {
-        try {
-          const full = await base44.entities.RxTempLogs.get(recordId);
-          if (full?.latest_reading) { setLastReading(full.latest_reading); triggerPulse(); }
-        } catch (_) {}
-        return;
-      }
-      if (data.latest_reading) { setLastReading(data.latest_reading); triggerPulse(); }
-    };
-    const onVisibilityRestored = () => {
-      // App regained focus — take a fresh reading if already connected
-      forceRead();
-      // Reset the DB poll timer so a fresh read fires immediately
-      clearInterval(dbPollTimerRef.current);
-      loadFromDb();
-      dbPollTimerRef.current = setInterval(loadFromDb, DB_POLL_MS);
-    };
-
+    const onVisibilityRestored = () => { loadFromDb(); };
     window.addEventListener('fridgeTempRecorded', onRecorded);
-    window.addEventListener('rxTempLogsUpdated', onWs);
     window.addEventListener('appVisibilityRestored', onVisibilityRestored);
     return () => {
       window.removeEventListener('fridgeTempRecorded', onRecorded);
-      window.removeEventListener('rxTempLogsUpdated', onWs);
       window.removeEventListener('appVisibilityRestored', onVisibilityRestored);
     };
-  }, [selectedDriverId, currentUser?.id, triggerPulse, forceRead, loadFromDb]);
+  }, [selectedDriverId, currentUser?.id, loadFromDb]);
 
-
-  // Cleanup on unmount
   useEffect(() => () => {
     clearTimeout(pulseTimerRef.current);
     clearTimeout(savedFlashRef.current);
     clearInterval(dbPollTimerRef.current);
   }, []);
 
+  // ── Derived values ──────────────────────────────────────────────────────
+  const isPastDate = selectedDate && selectedDate < todayLocal;
+  const selectedDriverIsMe = !selectedDriverId || selectedDriverId === 'all' ||
+    selectedDriverId === currentUser?.id || selectedDriverId === currentUser?.user_id ||
+    !adminMode || driverMode;
+
   const showLiveBle = !isPastDate && selectedDriverIsMe && driverMode;
 
-  // ── BLE connect state ────────────────────────────────────────────────
-  const bleConnectingRef    = useRef(false);  // guard: prevent concurrent connects
-  const [bleConnecting, setBleConnecting] = useState(false); // drives UI re-render
-  const blePermittedDevice  = useRef(null);  // cached from getDevices() on mount
-  const lastTapTimeRef      = useRef(0);     // for double-tap detection
-  const [isUnpairing, setIsUnpairing] = useState(false);
-
-  // On mount: find any already-permitted Inkbird so reconnect needs no picker
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.bluetooth) return;
-    if (typeof navigator.bluetooth.getDevices !== 'function') return;
-    navigator.bluetooth.getDevices().then(devices => {
-      const inkbird = devices.find(d =>
-        d.name === 'tps' || d.name === 'sps' ||
-        (d.name || '').startsWith('Inkbird') || (d.name || '').startsWith('IBS'));
-      if (inkbird) blePermittedDevice.current = inkbird;
-    }).catch(() => {});
-  }, []);
-
-  // ── Tap handler ────────────────────────────────────────────────────────
-  // Double-tap within DOUBLE_TAP_MS → unpair and forget the current sensor.
-  // Single tap:
-  //   • Already connected → forceRead + pulse
-  //   • Has permitted device → silent GATT reconnect (no picker)
-  //   • No device yet → OS requestDevice picker
-  // After connecting, passes (server, device) to the hook which starts
-  // FFF6 streaming. The hook also runs a 10s stale-data timer — if no
-  // reading arrives it marks 'error' and disconnects automatically.
-  const handleTap = useCallback(async () => {
-    if (isPastDate || !selectedDriverIsMe) { loadFromDb(); triggerPulse(); return; }
-    if (adminMode && !driverMode)          { loadFromDb(); triggerPulse(); return; }
-
-    const now = Date.now();
-
-    // ── Double-tap: unpair ──────────────────────────────────────────────
-    if (now - lastTapTimeRef.current < DOUBLE_TAP_MS && (bleStatus === 'connected' || sensorName)) {
-      lastTapTimeRef.current = 0;
-      setIsUnpairing(true);
-      blePermittedDevice.current = null;
-      forgetSensor();
-      setTimeout(() => setIsUnpairing(false), 1200);
-      return;
-    }
-    lastTapTimeRef.current = now;
-
-    // ── Already connected → refresh ─────────────────────────────────────
-    if (bleStatus === 'connected') {
-      forceRead();
-      loadFromDb();
-      triggerPulse();
-      return;
-    }
-
-    if (bleConnectingRef.current) return; // in-flight
-    if (!navigator?.bluetooth) return;
-
-    bleConnectingRef.current = true;
-    setBleConnecting(true);
-    triggerPulse();
-
-    try {
-      let device = null;
-      let server = null;
-
-      // Step 1: reuse already-permitted device — no picker needed
-      const permitted = blePermittedDevice.current;
-      if (permitted) {
-        try {
-          server = await permitted.gatt.connect();
-          device = permitted;
-        } catch (_) {
-          blePermittedDevice.current = null;
-          device = null;
-          server = null;
-        }
-      }
-
-      // Step 2: OS picker for first-time pair or stale ref
-      if (!device) {
-        device = await navigator.bluetooth.requestDevice({
-          filters: INKBIRD_FILTERS,
-          optionalServices: [INKBIRD_SERVICE_UUID],
-        });
-        server = await device.gatt.connect();
-        blePermittedDevice.current = device;
-      }
-
-      // Hand server + device to hook — it subscribes FFF6 and starts streaming
-      await setConnectedServer(server, device);
-
-    } catch (err) {
-      if (err?.name !== 'NotFoundError' && err?.name !== 'AbortError') {
-        console.warn('[LiveTempBadge] BLE connect failed:', err?.message);
-      }
-    } finally {
-      bleConnectingRef.current = false;
-      setBleConnecting(false);
-    }
-  }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus, sensorName,
-      loadFromDb, triggerPulse, forceRead, setConnectedServer, forgetSensor]);
-  // ── Silent BLE reconnect — fired by StopCard button/menu interactions ──────
-  // Any fridge-item stop card fires 'inkbirdReconnectRequest' on user tap.
-  // We attempt a silent GATT reconnect only when not already connected and a
-  // previously-paired device is cached in blePermittedDevice.current.
-  // No picker — this only works for already-permitted devices.
-  useEffect(() => {
-    const onReconnectRequest = async () => {
-      if (!showLiveBle) return;                        // only for this driver today
-      if (bleStatus === 'connected') return;           // already streaming — no-op
-      if (bleConnectingRef.current) return;            // mid-connect — no-op
-
-      // Try to get a permitted device — use cached ref first, then re-query getDevices()
-      let permitted = blePermittedDevice.current;
-      if (!permitted && typeof navigator?.bluetooth?.getDevices === 'function') {
-        try {
-          const devices = await navigator.bluetooth.getDevices();
-          permitted = devices.find(d =>
-            d.name === 'tps' || d.name === 'sps' ||
-            (d.name || '').startsWith('Inkbird') || (d.name || '').startsWith('IBS')) || null;
-          if (permitted) blePermittedDevice.current = permitted;
-        } catch (_) {}
-      }
-      if (!permitted) return;                          // no known device — no-op
-
-      bleConnectingRef.current = true;
-      setBleConnecting(true);
-      try {
-        const server = await permitted.gatt.connect();
-        await setConnectedServer(server, permitted);
-      } catch (err) {
-        // Don't clear the ref permanently — it may recover on the next attempt
-        console.warn('[LiveTempBadge] Silent reconnect failed:', err?.message);
-      } finally {
-        bleConnectingRef.current = false;
-        setBleConnecting(false);
-      }
-    };
-    window.addEventListener('inkbirdReconnectRequest', onReconnectRequest);
-    return () => window.removeEventListener('inkbirdReconnectRequest', onReconnectRequest);
-  }, [bleStatus, showLiveBle, setConnectedServer, sensorName]);
-
-  // ── Display values ────────────────────────────────────────────────────
-
-  // Fallback: last BLE reading saved to localStorage (survives BLE disconnects between sessions)
   const localStorageFallbackTemp = (() => {
     if (bleTemp !== null || lastReading?.temperature_celsius != null) return null;
     try {
@@ -497,7 +233,61 @@ export default function LiveTempBadge({
 
   const isOut     = displayTemp !== null && (displayTemp < TEMP_MIN || displayTemp > TEMP_MAX);
   const isWarning = displayTemp !== null && !isOut && (displayTemp < TEMP_MIN + 1 || displayTemp > TEMP_MAX - 1);
-  const isLive    = showLiveBle && bleStatus === 'connected' && bleTemp !== null;
+  const isLive    = showLiveBle && bleStatus === 'active' && bleTemp !== null;
+
+  // ── Tap handler ─────────────────────────────────────────────────────────
+  const handleTap = useCallback(async () => {
+    if (isPastDate || !selectedDriverIsMe || (adminMode && !driverMode)) {
+      loadFromDb();
+      return;
+    }
+
+    const now = Date.now();
+
+    // Double-tap to unpair
+    if (now - lastTapTimeRef.current < DOUBLE_TAP_MS &&
+        (bleStatus === 'active' || workerSensorName)) {
+      lastTapTimeRef.current = 0;
+      setIsUnpairing(true);
+      forget();
+      setTimeout(() => setIsUnpairing(false), 1200);
+      return;
+    }
+    lastTapTimeRef.current = now;
+
+    if (bleStatus === 'active') {
+      loadFromDb();
+      return;
+    }
+
+    if (!navigator?.bluetooth) return;
+    connect();
+  }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus, workerSensorName,
+      loadFromDb, connect, forget]);
+
+  // Silent reconnect on stop-card interactions
+  useEffect(() => {
+    const onReconnectRequest = async () => {
+      if (!showLiveBle) return;
+      if (bleStatus === 'active' || bleStatus === 'connecting') return;
+      connect();
+    };
+    window.addEventListener('inkbirdReconnectRequest', onReconnectRequest);
+    return () => window.removeEventListener('inkbirdReconnectRequest', onReconnectRequest);
+  }, [bleStatus, showLiveBle, connect]);
+
+  // ── Display text ────────────────────────────────────────────────────────
+  const labelText = (() => {
+    if (isUnpairing)                              return 'Unpaired';
+    if (!isPastDate && showLiveBle && bleStatus === 'connecting') return 'Connecting…';
+    if (!isPastDate && showLiveBle && bleStatus === 'error')      return 'Tap to retry';
+    if (!isPastDate && showLiveBle && (bleStatus === 'disconnected' || bleStatus === 'idle') && displayTemp === null)
+      return workerSensorName ? 'Tap to reconnect' : 'Tap to pair';
+    if (displayTemp !== null) return isPastDate ? `∅ ${displayTemp}°C` : `${displayTemp}°C`;
+    if (isPastDate)           return 'No data';
+    if (!driverMode || !selectedDriverIsMe) return 'No reading';
+    return workerSensorName ? 'Tap to reconnect' : 'Tap to pair';
+  })();
 
   const tempTooltip = (() => {
     if (isPastDate && avgReading) {
@@ -509,26 +299,7 @@ export default function LiveTempBadge({
     return ts ? `Last reading: ${formatTimestamp(ts)}` : null;
   })();
 
-  const labelText = (() => {
-    if (isUnpairing) return 'Unpaired';
-    if (!isPastDate && showLiveBle && bleConnecting) return 'Connecting…';
-    if (!isPastDate && showLiveBle && bleStatus === 'error') return 'Tap to retry';
-    if (!isPastDate && showLiveBle && bleStatus === 'disconnected' && displayTemp === null) return sensorName ? 'Tap to reconnect' : 'Tap to pair';
-    if (displayTemp !== null) return isPastDate ? `∅ ${displayTemp}°C` : `${displayTemp}°C`;
-    if (isPastDate)           return 'No data';
-    if (!driverMode || !selectedDriverIsMe) return 'No reading';
-    return sensorName ? 'Tap to reconnect' : 'Tap to pair';
-  })();
-
-  // Blue border when a sensor is paired — sensorName in localStorage means the
-  // driver has previously paired, regardless of current connection status.
-  // This persists even through page reloads (sensorName comes from localStorage).
-  const isPaired = !isUnpairing && !!sensorName;
-  // Blue ring only when actively connected via BLE — not just because a device was
-  // previously paired. isPaired (sensorName exists) is intentionally NOT used here.
-  const pairedRing = isLive ? '0 0 0 2.5px #3b82f6' : 'none';
-
-  // Badge color
+  // Badge colors
   const badgeStyle = (() => {
     const ring = isLive ? ', 0 0 0 2.5px #3b82f6' : '';
     if (isUnpairing)          return { background: '#475569', border: '1px solid #334155', color: '#ffffff', boxShadow: `0 2px 8px rgba(0,0,0,0.3)${ring}` };
@@ -539,16 +310,15 @@ export default function LiveTempBadge({
   })();
   const iconColor = isWarning ? '#000000' : '#ffffff';
 
-  // Right icon
   const rightIcon = (() => {
     if (isUnpairing)
       return <BluetoothOff className="w-3 h-3 flex-shrink-0" style={{ color: iconColor, opacity: 0.7 }} />;
     if (justSaved)
       return <Check className="w-3 h-3 flex-shrink-0" style={{ color: isWarning ? '#166534' : '#86efac' }} />;
     if (!driverMode) return null;
-    if (bleConnecting)
+    if (bleStatus === 'connecting')
       return <BluetoothSearching className="w-3.5 h-3.5 animate-pulse flex-shrink-0" style={{ color: iconColor }} />;
-    if (bleStatus === 'connected')
+    if (bleStatus === 'active')
       return <Bluetooth className="w-3 h-3 flex-shrink-0" style={{ color: isWarning ? '#166534' : '#86efac' }} />;
     if (bleStatus === 'error')
       return <RefreshCw className="w-3 h-3 flex-shrink-0" style={{ color: '#f87171', opacity: 0.9 }} />;
@@ -557,12 +327,11 @@ export default function LiveTempBadge({
     return <Bluetooth className="w-3 h-3 flex-shrink-0" style={{ color: iconColor, opacity: 0.3 }} />;
   })();
 
-  // ── Visibility guard ──────────────────────────────────────────────────
+  // ── Visibility guard ────────────────────────────────────────────────────
   const isVisibleRole = adminMode || driverMode;
   if (!isVisibleRole) return null;
   if (driverMode && !adminMode) {
-    const bleActive = bleStatus === 'connected' || bleStatus === 'connecting' || bleStatus === 'scanning';
-    // Always show badge for the driver's own route/today so they can tap to pair
+    const bleActive = bleStatus === 'active' || bleStatus === 'connecting';
     if (!bleActive && displayTemp === null && (!selectedDriverIsMe || isPastDate)) return null;
   }
 
@@ -576,14 +345,13 @@ export default function LiveTempBadge({
         transition={{ duration: 0.2 }}
         className="flex justify-center z-[100] pointer-events-none"
         style={(() => {
-            const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
-            // In immersive mode: match the FABs — sit 10px from the bottom with no stop cards offset
-            const bottom = immersiveHidden
-              ? bottomNavHeight + 10
-              : ((hasVisibleCards) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
-            return { position: fabPosition, bottom: `${bottom}px`,
-              left: fabPosition === 'fixed' ? 'var(--sidebar-width)' : 0, right: 0 };
-          })()}
+          const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
+          const bottom = immersiveHidden
+            ? bottomNavHeight + 10
+            : ((hasVisibleCards) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
+          return { position: fabPosition, bottom: `${bottom}px`,
+            left: fabPosition === 'fixed' ? 'var(--sidebar-width)' : 0, right: 0 };
+        })()}
       >
         <div
           role="button"
