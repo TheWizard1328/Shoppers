@@ -51,6 +51,7 @@ import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboar
 import { handleStatusUpdate as _handleStatusUpdateImpl } from '@/components/dashboard/handleStatusUpdate';
 import { useFabControlEventHandler } from '@/components/dashboard/useFabControlEventHandler';
 import { useStopCardsBaseHeight } from '@/components/dashboard/useStopCardsBaseHeight';
+import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';
 
 const getEdmDate=()=>{const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Edmonton',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return`${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`;};const centerNextDeliveryCard=()=>{window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));};
 function Dashboard() {
@@ -1324,28 +1325,8 @@ useEffect(() => {
 
   useEffect(() => { window._mapViewPhaseRef = mapViewPhaseRef; window._pendingPhaseRef = pendingPhaseRef; window._selectedDriverIdRef = selectedDriverIdRef; }, []);
 
-  // Auto-collapse card after 2 minutes
-  useEffect(() => {
-    if (!selectedCardId || !cardExpandedAtRef.current) return;
-
-    const expandedAt = cardExpandedAtRef.current;
-    const twoMinutes = 120000;
-    const elapsed = Date.now() - expandedAt;
-    const remaining = twoMinutes - elapsed;
-
-    if (remaining <= 0) {
-      setSelectedCardId(null);
-      cardExpandedAtRef.current = null;
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setSelectedCardId(null);
-      cardExpandedAtRef.current = null;
-    }, remaining);
-
-    return () => clearTimeout(timer);
-  }, [selectedCardId]);
+  // Auto-collapse card after 2 minutes (or 500ms on terminal action / outside click)
+  useStopCardCollapseTimer({ selectedCardId, cardExpandedAtRef, setSelectedCardId });
 
 
   // Unified initial driver selection per role rules

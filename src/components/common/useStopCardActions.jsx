@@ -27,6 +27,7 @@ import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 import { updatePreferredTravelMode } from '../dashboard/travelModeHelpers';
+import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 
 const START_ACTION_NAME = 'start_delivery';
 
@@ -498,6 +499,7 @@ export default function useStopCardActions(params) {
       createdReturnDelivery = await onCreateReturn({ originalDelivery: delivery, returnPatient: selectedReturnPatient, store: resolvedStore, _skipPickupCreation: true });
       setShowReturnConfirm(false);
       setReturnPatient(null);
+      dispatchStopCardActionCollapse();
       onClick?.(null);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       Promise.resolve().then(async () => {
@@ -1200,6 +1202,7 @@ export default function useStopCardActions(params) {
           }
         } catch (_) {}
 
+        dispatchStopCardActionCollapse();
         onClick?.(null);
         queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status: 'completed' });
 
@@ -1318,6 +1321,7 @@ export default function useStopCardActions(params) {
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         // Only prompt if no arrival_time reading was already taken for this fridge stop
         if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded(status === 'failed' ? 'Failed' : 'Cancelled');
+        dispatchStopCardActionCollapse();
         onClick?.(null);
         queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status });
         if (userHasRole(currentUser, 'driver')) {
