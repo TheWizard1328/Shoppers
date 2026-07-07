@@ -267,7 +267,7 @@ export default function StopCardHeader({
       <div className="mt-0 mb-1 my-0.5 py-0.5 flex flex-col items-center gap-1.0 min-w-[50px]">
         <Badge
           variant="secondary"
-          className={`bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors justify-center ${bulkSelectionEnabled ? 'gap-1 min-w-[58px]' : 'w-[40px]'}`}
+          className={`bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold ${delivery?.ampm_deliveries === 'PM' ? 'rounded-md' : 'rounded-full'} inline-flex items-center border transition-colors justify-center ${bulkSelectionEnabled ? 'gap-1 min-w-[58px]' : 'w-[40px]'}`}
           style={{ backgroundColor: storeColor || "#10B981", color: "white" }}>
           {bulkSelectionEnabled && (
             <div
