@@ -17,7 +17,6 @@ import { useInkbirdWorker } from '@/components/common/useInkbirdWorker';
 const TEMP_MIN      = 2;
 const TEMP_MAX      = 8;
 const DB_POLL_MS    = 60000;
-const HEARTBEAT_MS  = 60 * 1000;
 const DOUBLE_TAP_MS = 2000;
 
 function localISOString() {
@@ -64,10 +63,6 @@ export default function LiveTempBadge({
   const adminMode  = isAdmin(currentUser);
   const driverMode = checkIsDriver(currentUser);
 
-  // ── Persistence helpers ───────────────────────────────────────────────
-  const lastSavedTempRef = useRef(null);
-  const lastSavedTimeRef = useRef(0);
-
   const todayLocal = (() => {
     const d = new Date(), pad = n => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -76,22 +71,13 @@ export default function LiveTempBadge({
   const saveTempToDb = useCallback(async (tempC) => {
     const driverId = currentUser?.id;
     if (!driverId || tempC === null) return;
-    const now = Date.now();
-    const lastTemp = lastSavedTempRef.current;
-    const timeSinceLast = now - lastSavedTimeRef.current;
-    const tempChanged = lastTemp === null || Math.abs(tempC - lastTemp) >= 0.1;
-    const heartbeatDue = timeSinceLast >= HEARTBEAT_MS;
-    if (!tempChanged && !heartbeatDue) return;
-    lastSavedTempRef.current = tempC;
-    lastSavedTimeRef.current = now;
-    const trigger = heartbeatDue && !tempChanged ? 'heartbeat' : 'change';
     try {
       await base44.functions.invoke('recordFridgeTemperature', {
         temperatureCelsius: tempC,
         deliveryDate: todayLocal,
         driverId,
         timestamp: localISOString(),
-        trigger,
+        trigger: 'ble',
         input_method: 'ble',
         sensor_mac: workerSensorName || null,
       });

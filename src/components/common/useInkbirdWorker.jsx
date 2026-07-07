@@ -17,7 +17,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 
 const INKBIRD_SERVICE  = '0000fff0-0000-1000-8000-00805f9b34fb';
 const INKBIRD_NAMES    = ['tps', 'sps'];
-const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = 60000; // Check once per minute
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
