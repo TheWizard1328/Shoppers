@@ -101,6 +101,55 @@ function resolveStopCoords(delivery, patients = [], stores = []) {
  *   unfinishedCyclingStopIds, // IDs of unfinished regular cycling stops (not markers)
  * }
  */
+
+/**
+ * Ensure the cycling start marker has isNextDelivery=true if it is the next unfinished
+ * stop in the route (i.e. no other non-pending, non-finished stop comes before it).
+ * Call this after creating cycling markers or after any stop completion.
+ */
+export async function syncCyclingMarkerNextDeliveryFlag(deliveries, driverId, deliveryDate) {
+  if (!Array.isArray(deliveries) || deliveries.length === 0) return;
+
+  const driverDeliveries = deliveries.filter(
+    (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
+  );
+
+  const startMarker = driverDeliveries.find(
+    (d) => d?.is_cycling_marker && d?.delivery_notes === 'Cycling Route Start'
+  );
+  if (!startMarker) return; // No cycling segment
+
+  // Skip if start marker is already finished
+  if (FINISHED_STATUSES.has(startMarker.status)) return;
+
+  // Find all incomplete, non-pending stops sorted by stop_order
+  const incompleteStops = driverDeliveries
+    .filter((d) => d && !FINISHED_STATUSES.has(d.status) && d.status !== 'pending')
+    .sort((a, b) => (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999));
+
+  if (incompleteStops.length === 0) return;
+
+  const firstIncomplete = incompleteStops[0];
+  const shouldBeNext = firstIncomplete.id === startMarker.id;
+
+  // Only update if the start marker should be next but isn't, or vice versa
+  if (shouldBeNext && !startMarker.isNextDelivery) {
+    console.log(`[cyclingAwareOptimizer] Setting isNextDelivery=true on cycling start marker ${startMarker.id}`);
+    try {
+      await Delivery.update(startMarker.id, { isNextDelivery: true });
+      // Also clear any other stop that may have the flag
+      const otherNextStops = driverDeliveries.filter(
+        (d) => d.id !== startMarker.id && d.isNextDelivery === true
+      );
+      await Promise.all(
+        otherNextStops.map((d) => Delivery.update(d.id, { isNextDelivery: false }).catch(() => {}))
+      );
+    } catch (e) {
+      console.warn(`[cyclingAwareOptimizer] Failed to set isNextDelivery on start marker:`, e?.message);
+    }
+  }
+}
+
 export function detectActiveCyclingSegment(deliveries, patients = [], stores = []) {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return null;
 
@@ -139,14 +188,19 @@ export function detectActiveCyclingSegment(deliveries, patients = [], stores = [
   const unfinishedCyclingStopIds = unfinishedCyclingStops.map((d) => d.id);
 
   // ── Determine cycling origin ──────────────────────────────────────────────
-  // Walk stops in stop_order from startMarkerOrder onward; pick the first
-  // unfinished entry that is either:
-  //   a) the Start marker itself (route not yet entered the cycling loop), or
-  //   b) the first unfinished regular cycling stop (mid-loop).
-  //   c) fall back to End marker if all cycling stops are done but End marker isn't.
+  // Priority:
+  //   a) Start marker itself, if unfinished (route hasn't entered the loop)
+  //   b) isNextDelivery stop, if no start marker active but cycling is configured
+  //      (dispatcher manually set cycling stops without a start marker)
+  //   c) First unfinished regular cycling stop (mid-loop)
+  //   d) End marker as last resort
 
-  // Check if Start marker is still unfinished → cycling hasn't begun yet
   const startMarkerUnfinished = startMarker && !FINISHED_STATUSES.has(startMarker.status);
+
+  // Find the isNextDelivery stop that is NOT a cycling marker (current active stop)
+  const isNextDeliveryStop = deliveries.find(
+    (d) => d?.isNextDelivery === true && !d?.is_cycling_marker && !FINISHED_STATUSES.has(d?.status)
+  ) || null;
 
   let cyclingOriginStop = null;
   let cyclingOriginCoords = null;
@@ -159,6 +213,10 @@ export function detectActiveCyclingSegment(deliveries, patients = [], stores = [
     // Mid-loop — origin is the first unfinished regular cycling stop
     cyclingOriginStop = unfinishedCyclingStops[0];
     cyclingOriginCoords = resolveStopCoords(cyclingOriginStop, patients, stores);
+  } else if (isNextDeliveryStop) {
+    // No start marker active, but isNextDelivery stop exists — use it as origin
+    cyclingOriginStop = isNextDeliveryStop;
+    cyclingOriginCoords = resolveStopCoords(isNextDeliveryStop, patients, stores);
   } else {
     // All cycling stops done but End marker still pending — sequence from End marker itself
     // (nothing to resequence for Stage 1, but we still need Stage 2 to run)
@@ -305,7 +363,7 @@ export async function invokeOptimizeAwareCycling({
     }
   }
 
-  // ── Sync cycling marker stop_orders ────────────────────────────────────
+  // ── Sync cycling marker stop_orders + isNextDelivery ──────────────────
   // After stages 1/2, explicitly re-anchor unfinished cycling markers so their
   // stop_order numbers reflect the current route state. The backend never writes
   // cycling markers during optimize passes (they are routing anchors, not waypoints).
@@ -318,14 +376,36 @@ export async function invokeOptimizeAwareCycling({
     const markerUpdates = [];
 
     // Start marker: if still unfinished, it must sit at completedCount + 1
+    // AND must carry isNextDelivery=true (it is the next stop in the route)
     if (startMarker && !FINISHED_STATUSES.has(startMarker.status)) {
       const correctOrder = completedCount + 1;
-      if (Number(startMarker.stop_order) !== correctOrder) {
-        console.log(`[cyclingAwareOptimizer] Updating startMarker stop_order: ${startMarker.stop_order} → ${correctOrder}`);
+      const orderNeedsUpdate = Number(startMarker.stop_order) !== correctOrder;
+      const nextFlagNeedsUpdate = !startMarker.isNextDelivery;
+
+      if (orderNeedsUpdate || nextFlagNeedsUpdate) {
+        const patch = {};
+        if (orderNeedsUpdate) {
+          patch.stop_order = correctOrder;
+          patch.display_stop_order = correctOrder;
+          console.log(`[cyclingAwareOptimizer] Updating startMarker stop_order: ${startMarker.stop_order} → ${correctOrder}`);
+        }
+        if (nextFlagNeedsUpdate) {
+          patch.isNextDelivery = true;
+          console.log(`[cyclingAwareOptimizer] Setting isNextDelivery=true on cycling start marker ${startMarker.id}`);
+        }
         markerUpdates.push(
-          Delivery.update(startMarker.id, { stop_order: correctOrder, display_stop_order: correctOrder }).catch(() => {})
+          Delivery.update(startMarker.id, patch).catch(() => {})
         );
       }
+
+      // Clear isNextDelivery on any other stop that may have the flag
+      const otherNextStops = deliveriesWithStopOrder.filter(
+        (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate &&
+          d.id !== startMarker.id && d.isNextDelivery === true
+      );
+      otherNextStops.forEach((d) => {
+        markerUpdates.push(Delivery.update(d.id, { isNextDelivery: false }).catch(() => {}));
+      });
     }
 
     if (markerUpdates.length > 0) {
@@ -355,6 +435,15 @@ export async function invokeOptimizeAwareCycling({
     });
   } catch (e) {
     console.warn(`[cyclingAwareOptimizer] Stage 3 polyline regen failed: ${e?.message}`);
+  }
+
+  // ── Sync isNextDelivery flag for cycling markers after all optimization ──
+  // This ensures the cycling start marker always carries isNextDelivery=true
+  // when it is the next stop in line after route optimization completes.
+  try {
+    await syncCyclingMarkerNextDeliveryFlag(deliveriesWithStopOrder, driverId, deliveryDate);
+  } catch (e) {
+    console.warn(`[cyclingAwareOptimizer] syncCyclingMarkerNextDeliveryFlag failed (non-fatal):`, e?.message);
   }
 
   return finalOptimizeData;

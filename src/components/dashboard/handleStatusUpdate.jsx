@@ -185,8 +185,23 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
       const allDDF = deliveriesWithStopOrder.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate);
       allDDF.filter((d) => d.isNextDelivery && d.id !== deliveryId).forEach((d) => { siblingUpdates.push({ id: d.id, record: { ...d, isNextDelivery: false } }); });
-      const inc = allDDF.filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled'].includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-      if (inc.length > 0) { const existingIdx = siblingUpdates.findIndex((s) => s.id === inc[0].id); if (existingIdx >= 0) { siblingUpdates[existingIdx].record.isNextDelivery = true; } else { siblingUpdates.push({ id: inc[0].id, record: { ...inc[0], isNextDelivery: true } }); } }
+      // Sort incomplete non-pending stops by stop_order — cycling markers are eligible here too
+      const inc = allDDF
+        .filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled'].includes(d.status) && d.status !== 'pending')
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      if (inc.length > 0) {
+        const nextStop = inc[0];
+        const existingIdx = siblingUpdates.findIndex((s) => s.id === nextStop.id);
+        if (existingIdx >= 0) {
+          siblingUpdates[existingIdx].record.isNextDelivery = true;
+        } else {
+          siblingUpdates.push({ id: nextStop.id, record: { ...nextStop, isNextDelivery: true } });
+        }
+        // Log when a cycling marker is promoted to next stop
+        if (nextStop.is_cycling_marker) {
+          console.log(`[handleStatusUpdate] Promoting cycling marker ${nextStop.id} (${nextStop.delivery_notes}) to isNextDelivery=true`);
+        }
+      }
     }
 
     const allAffectedRecords = [targetRecord, ...siblingUpdates.map((s) => s.record)];

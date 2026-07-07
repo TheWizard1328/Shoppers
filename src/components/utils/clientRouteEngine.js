@@ -474,10 +474,16 @@ export async function optimizeRouteClientSide({
   let optimizableDeliveries = [...activeRouteDeliveries, ...filteredPendingRouteDeliveries];
 
   if (cyclingSegmentOnly && cyclingStopIds.length > 0) {
+    // Cycling segment: only the specified cycling stops (no markers — they are anchors)
     optimizableDeliveries = optimizableDeliveries.filter(d => cyclingStopIds.includes(d.id) && !d.is_cycling_marker);
-  }
-  if (drivingSegmentOnly && excludeStopIds.length > 0) {
+  } else if (drivingSegmentOnly && excludeStopIds.length > 0) {
+    // Driving segment: exclude cycling stops + both cycling markers
     optimizableDeliveries = optimizableDeliveries.filter(d => !excludeStopIds.includes(d.id) && !d.is_cycling_marker);
+  } else if (!cyclingSegmentOnly && !drivingSegmentOnly) {
+    // Full optimization: always exclude cycling markers from the sequencing pool —
+    // they are fixed anchors, not routable waypoints. They keep their stop_order from
+    // the cyclingAwareOptimizer sync step.
+    optimizableDeliveries = optimizableDeliveries.filter(d => !d.is_cycling_marker);
   }
 
   if (optimizableDeliveries.length === 0) {
@@ -879,8 +885,17 @@ export async function optimizeRouteClientSide({
   // Only fall back to activeStops[0] when NO stop currently has isNextDelivery=true AND
   // the route hasn't started yet (no completed stops). Once a route is in progress,
   // the existing isNextDelivery stop must remain — never promote a freshly-added stop.
+  // CYCLING: If a cycling start marker has isNextDelivery=true in the full deliveries list
+  // (set by cyclingAwareOptimizer or handleStatusUpdate), respect it even though cycling
+  // markers are excluded from optimizableDeliveries — use the first active non-pending stop.
   const routeInProgress = completedDeliveries.length > 0;
-  const nextStopId = explicitNextDelivery?.id || (!routeInProgress ? (activeStops[0]?.id || null) : null);
+  // Check if the explicitNextDelivery was a cycling marker (excluded from optimizableDeliveries)
+  const cyclingStartMarkerNext = driverDeliveries.find(
+    (d) => d?.is_cycling_marker && d?.isNextDelivery === true && !FINISHED_STATUSES.has(d.status)
+  ) || null;
+  const nextStopId = cyclingStartMarkerNext?.id
+    || explicitNextDelivery?.id
+    || (!routeInProgress ? (activeStops[0]?.id || null) : null);
   const finalizedById = new Map(activeStops.map(s => [s.id, s]));
   const writeBatch = [];
 

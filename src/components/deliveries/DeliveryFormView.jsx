@@ -1723,33 +1723,49 @@ export default function DeliveryFormView({
                       }
                     }
 
-                    // ── Clear all isNextDelivery flags for this driver/date, then assign ──
-                    // to the cycling start marker so the optimizer anchors the route correctly.
+                    // ── Clear all isNextDelivery flags for this driver/date, assign to start marker ──
+                    // Also set the start marker's stop_order to sit immediately after the last
+                    // finished stop so it becomes the next stop in line in the sorted route.
                     if (startMarker?.id) {
                       try {
-                        // Fetch all deliveries for this driver/date and bulk-clear isNextDelivery
+                        // Fetch all deliveries for this driver/date
                         const allDriverDeliveries = await base44.entities.Delivery.filter({
                           driver_id: formData.driver_id,
                           delivery_date: formData.delivery_date
                         });
+
+                        const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
+                        const finishedCount = (allDriverDeliveries || []).filter(
+                          (d) => d && FINISHED.has(d.status)
+                        ).length;
+                        // Start marker sits right after the last finished stop
+                        const startMarkerOrder = finishedCount + 1;
+
+                        // Clear isNextDelivery from all other stops
                         const withFlagCleared = (allDriverDeliveries || []).filter(
                           (d) => d && d.isNextDelivery && d.id !== startMarker.id
                         );
                         await Promise.all(
                           withFlagCleared.map((d) =>
-                          base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
+                            base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
                           )
                         );
-                        // Assign isNextDelivery to the cycling start marker
-                        await base44.entities.Delivery.update(startMarker.id, { isNextDelivery: true });
-                        // Reflect flag changes locally so UI is immediately consistent
-                        const localFlagUpdates = [
-                        ...withFlagCleared.map((d) => ({ ...d, isNextDelivery: false })),
-                        { ...startMarker, isNextDelivery: true }];
 
+                        // Assign isNextDelivery + correct stop_order to the cycling start marker
+                        await base44.entities.Delivery.update(startMarker.id, {
+                          isNextDelivery: true,
+                          stop_order: startMarkerOrder,
+                          display_stop_order: startMarkerOrder
+                        });
+
+                        // Reflect flag + order changes locally so UI is immediately consistent
+                        const localFlagUpdates = [
+                          ...withFlagCleared.map((d) => ({ ...d, isNextDelivery: false })),
+                          { ...startMarker, isNextDelivery: true, stop_order: startMarkerOrder, display_stop_order: startMarkerOrder }
+                        ];
                         applyDeliveryChangesLocally?.({ upserts: localFlagUpdates, deleteIds: [] });
                       } catch (flagErr) {
-                        console.warn('[CyclingMarker] isNextDelivery assignment failed:', flagErr?.message || flagErr);
+                        console.warn('[CyclingMarker] isNextDelivery/stop_order assignment failed:', flagErr?.message || flagErr);
                       }
                     }
 
