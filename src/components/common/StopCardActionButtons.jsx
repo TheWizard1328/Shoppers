@@ -108,14 +108,21 @@ export default function StopCardActionButtons(props) {
     return !!(matched?.square_location_id);
   }, [store, reactiveSquareLocationConfigs]);
 
-  // Find the store name of the last completed COD delivery that:
-  // 1. Is from a different store than the current delivery
-  // 2. That store has a valid Square location ID configured
-  // Searches back through stop_order descending until it finds one that qualifies
+  // Current delivery's Square location_id (the one the driver needs to be on)
+  const currentSquareLocationId = useMemo(() => {
+    const storeConfigId = store?.square_location_config_id || null;
+    if (!storeConfigId) return null;
+    const matched = reactiveSquareLocationConfigs.find((c) => c?.id === storeConfigId);
+    return matched?.square_location_id || null;
+  }, [store, reactiveSquareLocationConfigs]);
+
+  // Find a recently completed COD stop on this route that used a DIFFERENT Square location_id.
+  // Only triggers a warning if the last COD stop used a different square_location_id than
+  // the current delivery's store — meaning the driver needs to switch locations in the POS app.
   const lastCodStoreName = useMemo(() => {
     if (!allDeliveries || !delivery?.driver_id || !delivery?.delivery_date) return null;
+    if (!currentSquareLocationId) return null;
     const configs = reactiveSquareLocationConfigs;
-    const currentStoreName = squareLocationName || store?.name || null;
 
     const candidates = (allDeliveries || [])
       .filter((d) =>
@@ -125,26 +132,23 @@ export default function StopCardActionButtons(props) {
         d.delivery_date === delivery.delivery_date &&
         d.status === 'completed' &&
         d.cod_total_amount_required > 0 &&
-        Array.isArray(d.cod_payments) && d.cod_payments.length > 0 &&
-        d.store_id !== delivery.store_id
+        Array.isArray(d.cod_payments) && d.cod_payments.length > 0
       )
       .sort((a, b) => (b.stop_order || 0) - (a.stop_order || 0));
 
     for (const d of candidates) {
       const prevStore = (stores || []).find((s) => s?.id === d.store_id);
       if (!prevStore) continue;
-      // Must have a valid Square location config
       const configId = prevStore.square_location_config_id;
       if (!configId) continue;
       const matched = configs.find((c) => c?.id === configId);
       if (!matched?.square_location_id) continue;
-      // Must be a different location name than the current delivery's target
-      const prevStoreName = matched?.store_name || matched?.name || prevStore.name;
-      if (currentStoreName && prevStoreName === currentStoreName) continue;
-      return prevStoreName || prevStore.name;
+      // Only warn if the Square location_id is actually different
+      if (matched.square_location_id === currentSquareLocationId) return null;
+      return matched?.store_name || matched?.name || prevStore.name;
     }
     return null;
-  }, [allDeliveries, delivery, stores, squareLocationName, store]);
+  }, [allDeliveries, delivery, stores, currentSquareLocationId, reactiveSquareLocationConfigs]);
 
   // Direct synchronous Square POS launch — no modal, no state change before dispatch.
   // CRITICAL: Must stay synchronous within the gesture handler to preserve gesture trust
