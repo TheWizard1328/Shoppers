@@ -84,6 +84,10 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const todayActiveStops = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled', 'returned'].includes(d?.status)).length;
         const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
+        // Inter-store counts for superscript
+        const isInterStore = (d) => !!d._interstore_source_id;
+        const todayInTransitInterStore = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled', 'returned'].includes(d?.status) && isInterStore(d)).length;
+        const todayCompletedInterStore = todayPatientDeliveries.filter((d) => d?.status === 'completed' && isInterStore(d)).length;
         const todayReturns = todayPatientDeliveries.reduce((sum, d) => {
           const isFinishedReturn = d?.status === 'completed' && getReturnCountFromPatientId(d, allPatients) > 0;
           return sum + (isFinishedReturn ? 1 : 0);
@@ -104,7 +108,9 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
             activeStops: todayActiveStops,
             completed: todayCompleted,
             failed: todayFailed,
-            returns: todayReturns
+            returns: todayReturns,
+            inTransitInterStore: todayInTransitInterStore,
+            completedInterStore: todayCompletedInterStore
           },
           month: {
             completed: monthCompleted,
@@ -138,13 +144,15 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
     };
   }, [currentUser, selectedDateStr, selectedDriverId]);
 
-  const StatItem = ({ icon: Icon, label, value, colorClass }) =>
+  const StatItem = ({ icon: Icon, label, value, colorClass, superscript }) =>
   <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500'}`} />
           <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>{label}</span>
         </div>
-        <Badge variant="secondary" className="items-center bg-secondary text-secondary-foreground inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[65px] rounded-[10px]" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>{value}</Badge>
+        <Badge variant="secondary" className="items-center bg-secondary text-secondary-foreground inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[65px] rounded-[10px]" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+          {value}{superscript > 0 && <sup className="ml-0.5 text-[9px] font-bold" style={{ color: 'var(--text-slate-400)' }}>{superscript}</sup>}
+        </Badge>
       </div>;
 
   if (!currentUser) return null;
@@ -194,8 +202,8 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         </h4>
         <div className="space-y-1">
           {!userHasRole(currentUser, 'driver') && <StatItem icon={Truck} label="Active Drivers" value={stats.today.activeDrivers} colorClass="text-blue-600" />}
-          <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} colorClass="text-slate-600" />
-          <StatItem icon={CheckCircle} label="Completed" value={stats.today.completed} colorClass="text-green-600" />
+          <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} superscript={stats.today.inTransitInterStore} colorClass="text-slate-600" />
+          <StatItem icon={CheckCircle} label="Completed" value={stats.today.completed} superscript={stats.today.completedInterStore} colorClass="text-green-600" />
           {(stats.today.failed > 0 || stats.today.returns > 0) &&
           <StatItem
             icon={AlertCircle}
