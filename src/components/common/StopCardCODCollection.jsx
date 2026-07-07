@@ -10,6 +10,7 @@ import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import { base44 } from "@/api/base44Client";
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
+import { collapseExpandedStopCardsForDriver } from './stopCardActionHelpers';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 
 export default function StopCardCODCollection({
@@ -210,6 +211,10 @@ export default function StopCardCODCollection({
                 }
 
                 if (isAlreadyCompleted) {
+                  // Collapse the expanded card as part of the Save action, matching the
+                  // same collapse-on-action pattern used by the regular Complete/Fail/Cancel
+                  // flows in useStopCardActions.jsx's executeTerminalAction.
+                  await collapseExpandedStopCardsForDriver(delivery?.driver_id);
                   // Also sync Square catalog item when editing a completed delivery's COD
                   if (hasCashCheck && totalAmount > 0) {
                     const store = delivery.store_id
@@ -233,6 +238,10 @@ export default function StopCardCODCollection({
                   return;
                 } else {
                   fabControlEvents.deactivateFAB();
+                  // Collapse the expanded card as part of the Save & Complete action —
+                  // same collapse-on-action pattern used by the regular Complete/Fail/Cancel
+                  // flows in useStopCardActions.jsx's executeTerminalAction.
+                  await collapseExpandedStopCardsForDriver(delivery?.driver_id);
                   const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                   driverLocationPoller.pause();
 
