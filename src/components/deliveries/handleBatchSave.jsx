@@ -5,6 +5,7 @@ import { resetBatchSaveDraftState, closeBatchFormThenResumeManagers, restartBatc
 import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { requestDeferredOptimization } from '../utils/optimizationDebouncer';
+import { executeOfflineBatchAction } from '../utils/offlineBatchAction';
 
 export async function handleBatchSave({
   batchSaveLockRef,
@@ -117,11 +118,19 @@ export async function handleBatchSave({
   setError(null);
   setBatchFormSaving(true);
 
+  // Pause ALL syncs via the unified helper before any writes
   try {
-    const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-    smartRefreshManager.pause();
+    const { pauseAllSyncs: _pause } = await import('../utils/offlineBatchAction').then(m => ({
+      pauseAllSyncs: async () => {
+        try { const { smartRefreshManager } = await import('../utils/smartRefreshManager'); smartRefreshManager.pause(); } catch { /* non-fatal */ }
+        try { const { backgroundSyncManager } = await import('../utils/backgroundSyncManager'); backgroundSyncManager.pause(); } catch { /* non-fatal */ }
+        try { const { pauseRealtimeSync } = await import('../utils/realtimeSync'); pauseRealtimeSync(); } catch { /* non-fatal */ }
+        const { enterBatchSilentMode } = await import('../utils/entityMutations'); enterBatchSilentMode();
+      }
+    }));
+    await _pause();
   } catch (error) {
-    console.warn('⚠️ [AddToRoute] Failed to pause SmartRefresh:', error);
+    console.warn('⚠️ [AddToRoute] Failed to pause syncs:', error);
   }
 
   try {
@@ -155,15 +164,23 @@ export async function handleBatchSave({
 
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
-      // Only mark route structure changed for active (non-pending) new stops.
-      // Adding pending stops must NOT trigger optimization or polyline regeneration.
-      const hasNewActiveSops = newDeliveries.some((d) => d?.status && !['pending', 'Staged'].includes(d.status));
-      routeStructureChanged = hasNewActiveSops;
+      // Determine when to trigger route optimization on Done:
+      // - Options 2/3/4 (interstore, pickup, cycling): ALWAYS optimize — new stops added to active route
+      // - Option 1 (standard adds): only optimize if at least one new stop is in_transit
+      //   (pending-only adds must NOT trigger optimization or polyline regeneration)
       hasInTransitTransition = newDeliveries.some((d) => d?.status === 'in_transit');
+      const isActiveRouteMode = ['interstore', 'pickup', 'cycling'].includes(formData?.openMode);
+      const hasNewActiveSops = newDeliveries.some((d) => d?.status && !['pending', 'Staged'].includes(d.status));
+      routeStructureChanged = isActiveRouteMode ? true : hasInTransitTransition;
+
+      // Fire KITT bar immediately — we know optimization will run after save completes
+      if (routeStructureChanged && routeDriverId && routeDeliveryDate) {
+        window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'edit_form_deferred', driverId: routeDriverId, deliveryDate: routeDeliveryDate } }));
+        window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId: routeDriverId, deliveryDate: routeDeliveryDate, active: true } }));
+      }
 
       const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
-      const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
       const groupedEnsureKeys = new Map();
       const defaultPickupDriverDateKeys = new Set();
       const existingStopCountByDriverDate = new Map();
@@ -183,10 +200,8 @@ export async function handleBatchSave({
           existingStopCountByDriverDate.set(driverDateKey, count);
         }
 
-        const store = stores?.find((item) => item && item.id === delivery.store_id);
-        const isSpecialStore = specialStoreNames.includes(store?.name || '');
         const existingStopCount = existingStopCountByDriverDate.get(driverDateKey) || 0;
-        if (!isSpecialStore && existingStopCount === 0) {
+        if (existingStopCount === 0) {
           defaultPickupDriverDateKeys.add(driverDateKey);
         }
       });
@@ -379,7 +394,7 @@ export async function handleBatchSave({
       // when one of the newly staged DELIVERIES itself is genuinely active (e.g. in_transit —
       // the driver is being told to go there right now), which hasNewActiveSops already
       // captures from the user-set status. Pickup-container creation alone must never force it.
-      routeStructureChanged = hasNewActiveSops;
+      // routeStructureChanged is already set correctly above (isActiveRouteMode or hasInTransitTransition).
 
       const ensuredPickupByKey = new Map(
         ensuredPickupRecords
@@ -472,7 +487,25 @@ export async function handleBatchSave({
 
         if (squarePaymentChangePromises.length > 0) await Promise.allSettled(squarePaymentChangePromises);
 
-        await restartBatchSmartRefresh(() => setBatchFormSaving(false));
+        // Resume ALL syncs via the unified helper
+        try {
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager'); smartRefreshManager.restart();
+        } catch { /* non-fatal */ }
+        try { const { backgroundSyncManager } = await import('../utils/backgroundSyncManager'); backgroundSyncManager.resume(); } catch { /* non-fatal */ }
+        try { const { resumeRealtimeSync } = await import('../utils/realtimeSync'); resumeRealtimeSync(); } catch { /* non-fatal */ }
+        try { const { exitBatchSilentMode } = await import('../utils/entityMutations'); exitBatchSilentMode(); } catch { /* non-fatal */ }
+        setBatchFormSaving(false);
+
+        // Broadcast finalized delivery IDs so all subscribers get a targeted update
+        const finalizedIds = [
+          ...(deliveriesReadyForDB || []).map(d => d?.id),
+          ...(deliveriesToUpdate || []).map(d => d?.id),
+        ].filter(Boolean);
+        if (finalizedIds.length > 0) {
+          window.dispatchEvent(new CustomEvent('deliveriesAffected', {
+            detail: { ids: finalizedIds, action: 'batchSaveDone', driverId: routeDriverId, deliveryDate: routeDeliveryDate }
+          }));
+        }
 
         const hasOnlyPendingOrStagedChanges = [...deliveriesReadyForDB, ...existingDeliveriesWithTRs]
           .filter(Boolean)
@@ -513,7 +546,12 @@ export async function handleBatchSave({
     setError(`Failed to save: ${err.message || 'Unknown error'}`);
     unblockPredictions();
     setIsLoadingPredictions(false);
-    await restartBatchSmartRefresh(() => setBatchFormSaving(false));
+    // Resume ALL syncs on error
+    try { const { smartRefreshManager } = await import('../utils/smartRefreshManager'); smartRefreshManager.restart(); } catch { /* non-fatal */ }
+    try { const { backgroundSyncManager } = await import('../utils/backgroundSyncManager'); backgroundSyncManager.resume(); } catch { /* non-fatal */ }
+    try { const { resumeRealtimeSync } = await import('../utils/realtimeSync'); resumeRealtimeSync(); } catch { /* non-fatal */ }
+    try { const { exitBatchSilentMode } = await import('../utils/entityMutations'); exitBatchSilentMode(); } catch { /* non-fatal */ }
+    setBatchFormSaving(false);
   } finally {
     batchSaveLockRef.current = false;
     setIsSaving(false);

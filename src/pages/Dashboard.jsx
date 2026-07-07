@@ -51,6 +51,7 @@ import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboar
 import { handleStatusUpdate as _handleStatusUpdateImpl } from '@/components/dashboard/handleStatusUpdate';
 import { useFabControlEventHandler } from '@/components/dashboard/useFabControlEventHandler';
 import { useStopCardsBaseHeight } from '@/components/dashboard/useStopCardsBaseHeight';
+import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';
 
 const getEdmDate=()=>{const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Edmonton',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return`${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`;};const centerNextDeliveryCard=()=>{window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));};
 function Dashboard() {
@@ -304,6 +305,7 @@ function Dashboard() {
     const isRtn=(d)=>d&&d.status==='completed'&&(pm.get(d.patient_id)?.address||'').toUpperCase().includes('(RTN)');
     const total=sd.length+ap.filter((d)=>d&&(d.after_hours_pickup||isISP(d))).length;
     const inTransitIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&(d.status==='in_transit'||d.status==='en_route')).length;
+    const completedIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&d.status==='completed').length;
     const inTransit=sd.filter((d)=>d&&d.status==='in_transit').length+inTransitIsdIsp; const enRoute=ap.filter((d)=>d&&!isISP(d)&&d.status==='en_route').length;
     const completed=sd.filter((d)=>d&&d.status==='completed'&&!isRtn(d)).length+rd.filter((d)=>d&&!d.patient_id&&(d.after_hours_pickup||isISP(d))&&(d.status==='completed'||d.status==='cancelled')).length;
     const returned=sd.filter(isRtn).length; const failed=sd.filter((d)=>d&&((d.status==='failed'&&!isRtn(d))||(d.status==='cancelled'&&!d.patient_id))).length+ap.filter((d)=>d&&isISP(d)&&d.status==='failed').length;
@@ -312,7 +314,7 @@ function Dashboard() {
     const isdIspCount=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))).length;
     let totalDrivers=0,inTransitDrivers=0,completedDrivers=0;
     if(isDispatcher||isAdmin){const aids=new Set(rd.map((d)=>d?.driver_id).filter(Boolean));totalDrivers=aids.size;inTransitDrivers=new Set(rd.filter((d)=>d&&(d.status==='in_transit'||d.status==='en_route')).map((d)=>d?.driver_id).filter(Boolean)).size;aids.forEach((did)=>{const ds=rd.filter((d)=>d?.driver_id===did);if(ds.some((d)=>d&&d.status==='completed')&&ds.every((d)=>d&&['completed','failed','cancelled'].includes(d.status)))completedDrivers++;});}
-    return {total,inTransit,enRoute,activePickupsEnRoute:enRoute,completed,failed,returned,totalDrivers,inTransitDrivers,completedDrivers,totalPickups,completedPickups,isdIspCount,inTransitIsdIsp};
+    return {total,inTransit,enRoute,activePickupsEnRoute:enRoute,completed,failed,returned,totalDrivers,inTransitDrivers,completedDrivers,totalPickups,completedPickups,isdIspCount,inTransitIsdIsp,completedIsdIsp};
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids, isAdmin]);
 
   const isDateFinished = useMemo(() => { const tod = startOfDay(new Date()); const sel = startOfDay(selectedDate); if (sel >= tod) return false; return filteredDeliveries.length > 0 && filteredDeliveries.every((d) => d && ['completed','failed','cancelled'].includes(d.status)); }, [selectedDate, filteredDeliveries]);
@@ -1323,28 +1325,8 @@ useEffect(() => {
 
   useEffect(() => { window._mapViewPhaseRef = mapViewPhaseRef; window._pendingPhaseRef = pendingPhaseRef; window._selectedDriverIdRef = selectedDriverIdRef; }, []);
 
-  // Auto-collapse card after 2 minutes
-  useEffect(() => {
-    if (!selectedCardId || !cardExpandedAtRef.current) return;
-
-    const expandedAt = cardExpandedAtRef.current;
-    const twoMinutes = 120000;
-    const elapsed = Date.now() - expandedAt;
-    const remaining = twoMinutes - elapsed;
-
-    if (remaining <= 0) {
-      setSelectedCardId(null);
-      cardExpandedAtRef.current = null;
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setSelectedCardId(null);
-      cardExpandedAtRef.current = null;
-    }, remaining);
-
-    return () => clearTimeout(timer);
-  }, [selectedCardId]);
+  // Auto-collapse card after 2 minutes (or 500ms on terminal action / outside click)
+  useStopCardCollapseTimer({ selectedCardId, cardExpandedAtRef, setSelectedCardId });
 
 
   // Unified initial driver selection per role rules
@@ -1511,22 +1493,30 @@ useEffect(() => {
   const kittTimeoutRef = useRef(null);
   useEffect(() => {
     const handleOptStart = (e) => {
-      const { source, driverId, deliveryDate } = e.detail || {};
-      // Accept All, Assign All, and Start button all trigger the KITT bar
-      if (!['accept_all', 'assign_all', 'start_button'].includes(source)) return;
+      // All sources now fire through the coordinator — no source filter needed
       if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
       setOptimizationMessage('Optimizing Route…');
     };
     const handleOptPhase = (e) => {
-      const { phase, source } = e.detail || {};
-      if (!['accept_all', 'assign_all', 'start_button'].includes(source)) return;
+      const { phase } = e.detail || {};
       if (phase === 'polylines') {
         setOptimizationMessage('Generating Route Lines…');
       }
     };
+    // Listen for the coordinator/debouncer's optimizationRunning event to show/hide the KITT bar
+    const handleOptRunning = (e) => {
+      const { active } = e.detail || {};
+      if (active) {
+        if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
+        setOptimizationMessage('Optimizing Route…');
+      } else {
+        // active=false means the debouncer finished — clear if coordinator didn't already
+        if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
+        setOptimizationMessage(null);
+      }
+    };
     const handleOptComplete = (e) => {
       const { source, optimizedCount } = e.detail || {};
-      if (!['accept_all', 'assign_all', 'start_button'].includes(source)) return;
       // If optimizedCount is present, this is from the coordinator (success) — show final message
       // If not present, this is a safety-net from the call site's finally block — just clear
       if (optimizedCount != null) {
@@ -1548,10 +1538,12 @@ useEffect(() => {
     window.addEventListener('routeOptimizationStarted', handleOptStart);
     window.addEventListener('routeOptimizationPhase', handleOptPhase);
     window.addEventListener('routeOptimizationComplete', handleOptComplete);
+    window.addEventListener('optimizationRunning', handleOptRunning);
     return () => {
       window.removeEventListener('routeOptimizationStarted', handleOptStart);
       window.removeEventListener('routeOptimizationPhase', handleOptPhase);
       window.removeEventListener('routeOptimizationComplete', handleOptComplete);
+      window.removeEventListener('optimizationRunning', handleOptRunning);
       if (kittTimeoutRef.current) clearTimeout(kittTimeoutRef.current);
     };
   }, []);
@@ -1652,6 +1644,7 @@ useEffect(() => {
       setSelectedCardId(null); setHighlightedCardId(null); cardExpandedAtRef.current = null;
       if (previousMapState?.center && previousMapState?.zoom) { setMapCenter(previousMapState.center); setMapZoom(previousMapState.zoom); setShouldFitBounds(null); }
       setPreviousMapState(null);
+      window.dispatchEvent(new CustomEvent('collapseStatsCard'));
       return;
     } else {
       // Card is being expanded
@@ -1660,6 +1653,9 @@ useEffect(() => {
       }
       setPreviousMapState({ center: Array.isArray(mapCenter) ? [...mapCenter] : null, zoom: mapZoom });
 
+      // Collapse the stats card when a stop card expands or collapses (mutual exclusion)
+      if (isExpanded) setIsExpanded(false);
+      window.dispatchEvent(new CustomEvent('collapseStatsCard'));
       setSelectedCardId(delivery.id);
       setHighlightedCardId(delivery.id);
       cardExpandedAtRef.current = Date.now();
@@ -1825,22 +1821,52 @@ useEffect(() => {
     setPatientFormMode(null);
   };
 
-  const triggerPostDeleteOperations = async (driverId, deliveryDate) => {
+  const triggerPostDeleteOperations = async (driverId, deliveryDate, wasNextDelivery) => {
     try {
       setIsEntityUpdating(true); pauseOfflineSync(); await new Promise((r) => setTimeout(r, 100));
       await recalculateStopOrders(driverId, deliveryDate);
-      const now = new Date(); const lt = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-      await base44.functions.invoke('optimizeRemainingStops', { driverId, deliveryDate, currentLocalTime: lt, deviceTime: now.toISOString() }).catch((e) => console.warn('⚠️ optimize failed:', e.message));
-      await base44.functions.invoke('calculateRealTimeETA', { driverId, deliveryDate, currentLocalTime: lt }).catch((e) => console.warn('⚠️ ETA failed:', e.message));
-      invalidate('Delivery'); await refreshData();
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' } }));
+
+      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+      const driverAppUser = appUsers.find((au) => au?.user_id === driverId);
+      const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude
+        ? { lat: driverAppUser.current_latitude, lon: driverAppUser.current_longitude }
+        : null;
+      // Snapshot current deliveries for the engine (excluding the deleted one — already removed locally)
+      const driverDeliveries = (deliveriesRef.current || []).filter(
+        (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
+      );
+
+      const result = await performRouteOptimization({
+        driverId,
+        deliveryDate,
+        currentLocation,
+        deliveries: driverDeliveries,
+        patients: patientsRef.current,
+        stores: storesRef.current,
+        appUsers,
+        source: 'delete_delivery',
+        // If the deleted stop was NOT the next delivery, skip full re-optimization —
+        // just regenerate polylines in existing stop order.
+        skipOptimize: !wasNextDelivery,
+        preserveExistingOrder: !wasNextDelivery,
+      });
+
+      if (result.success && Array.isArray(result.freshDeliveries) && result.freshDeliveries.length > 0) {
+        updateDeliveriesLocally?.(result.freshDeliveries, false);
+      } else {
+        invalidate('Delivery'); await refreshData();
+      }
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery', alreadyOptimized: true } }));
     } catch (e) { console.error('❌ [DELETE] Background ops failed:', e); } finally { resumeOfflineSync(); setIsEntityUpdating(false); }
   };
 
   const handleDeleteDelivery = async (deliveryId) => {
     const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
     if (!targetDelivery) { console.error('❌ [DELETE] Not found'); throw new Error('Delivery not found'); }
-    const { driverId: _did, delivery_date: _dd, patient_id: _pid, stop_id: _sid, status: _st, cod_total_amount_required: _cod } = { driverId: targetDelivery.driver_id, ...targetDelivery };
+    const { driverId: _did, delivery_date: _dd, patient_id: _pid, stop_id: _sid, status: _st, cod_total_amount_required: _cod, isNextDelivery: _isNext } = { driverId: targetDelivery.driver_id, ...targetDelivery };
+    // Only trigger full re-optimization if this was an active (non-pending) stop
+    const _isActive = _st && !['pending', 'completed', 'failed', 'cancelled'].includes(_st);
+    const _wasNext = _isActive && !!_isNext;
     if (!_pid && _sid) {
       const pending = deliveriesWithStopOrder.filter((d) => d && d.puid === _sid && d.status === 'pending' && d.patient_id);
       if (pending.length) { const { deleteDeliveryLocal: ddl } = await import('../components/utils/offlineMutations'); for (const p of pending) await ddl(p.id); }
@@ -1849,7 +1875,7 @@ useEffect(() => {
     const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
     const p = deleteDeliveryLocal(deliveryId);
     if (selectedCardId === deliveryId) setSelectedCardId(null);
-    triggerPostDeleteOperations(_did, _dd);
+    if (_isActive) triggerPostDeleteOperations(_did, _dd, _wasNext);
     await p;
   };
 

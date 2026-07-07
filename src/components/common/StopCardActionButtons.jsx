@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useCallback } from "react";
+import React, { useMemo, useCallback } from "react";
 import { isMobileDevice } from '../utils/deviceUtils';
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Clock, Loader2, RotateCcw, Undo2 } from "lucide-react";
@@ -6,7 +6,6 @@ import StopCardPOD from "./StopCardPOD";
 import StopCardFooterMenu from "./StopCardFooterMenu";
 import { _cachedSquareAppId as _sharedSquareAppIdCache } from "./StopCard";
 import { toast } from "sonner";
-import { createPortal } from "react-dom";
 import { useAppData } from "../utils/AppDataContext";
 import { launchSquarePOS } from "../utils/squarePOSLauncher";
 import { remoteLogger } from "../utils/remoteLogger";
@@ -109,14 +108,21 @@ export default function StopCardActionButtons(props) {
     return !!(matched?.square_location_id);
   }, [store, reactiveSquareLocationConfigs]);
 
-  // Find the store name of the last completed COD delivery that:
-  // 1. Is from a different store than the current delivery
-  // 2. That store has a valid Square location ID configured
-  // Searches back through stop_order descending until it finds one that qualifies
+  // Current delivery's Square location_id (the one the driver needs to be on)
+  const currentSquareLocationId = useMemo(() => {
+    const storeConfigId = store?.square_location_config_id || null;
+    if (!storeConfigId) return null;
+    const matched = reactiveSquareLocationConfigs.find((c) => c?.id === storeConfigId);
+    return matched?.square_location_id || null;
+  }, [store, reactiveSquareLocationConfigs]);
+
+  // Find a recently completed COD stop on this route that used a DIFFERENT Square location_id.
+  // Only triggers a warning if the last COD stop used a different square_location_id than
+  // the current delivery's store — meaning the driver needs to switch locations in the POS app.
   const lastCodStoreName = useMemo(() => {
     if (!allDeliveries || !delivery?.driver_id || !delivery?.delivery_date) return null;
+    if (!currentSquareLocationId) return null;
     const configs = reactiveSquareLocationConfigs;
-    const currentStoreName = squareLocationName || store?.name || null;
 
     const candidates = (allDeliveries || [])
       .filter((d) =>
@@ -126,88 +132,47 @@ export default function StopCardActionButtons(props) {
         d.delivery_date === delivery.delivery_date &&
         d.status === 'completed' &&
         d.cod_total_amount_required > 0 &&
-        Array.isArray(d.cod_payments) && d.cod_payments.length > 0 &&
-        d.store_id !== delivery.store_id
+        Array.isArray(d.cod_payments) && d.cod_payments.length > 0
       )
       .sort((a, b) => (b.stop_order || 0) - (a.stop_order || 0));
 
     for (const d of candidates) {
       const prevStore = (stores || []).find((s) => s?.id === d.store_id);
       if (!prevStore) continue;
-      // Must have a valid Square location config
       const configId = prevStore.square_location_config_id;
       if (!configId) continue;
       const matched = configs.find((c) => c?.id === configId);
       if (!matched?.square_location_id) continue;
-      // Must be a different location name than the current delivery's target
-      const prevStoreName = matched?.store_name || matched?.name || prevStore.name;
-      if (currentStoreName && prevStoreName === currentStoreName) continue;
-      return prevStoreName || prevStore.name;
+      // Only warn if the Square location_id is actually different
+      if (matched.square_location_id === currentSquareLocationId) return null;
+      return matched?.store_name || matched?.name || prevStore.name;
     }
     return null;
-  }, [allDeliveries, delivery, stores, squareLocationName, store]);
+  }, [allDeliveries, delivery, stores, currentSquareLocationId, reactiveSquareLocationConfigs]);
 
-  const [showSquareConfirm, setShowSquareConfirm] = useState(false);
-
-  // Fire Square POS via the shared launcher utility.
-  // CRITICAL: launchSquarePOS must be called synchronously within the gesture handler.
-  // Call it BEFORE setShowSquareConfirm(false) — dismissing the portal triggers a React
-  // re-render which can break the gesture trust chain on Android WebView.
-  const handleSquareConfirmed = useCallback(() => {
+  // Direct synchronous Square POS launch — no modal, no state change before dispatch.
+  // CRITICAL: Must stay synchronous within the gesture handler to preserve gesture trust
+  // on Android WebView. Any React state update before launchSquarePOS breaks the chain.
+  const handleSquareButtonTap = useCallback((e) => {
+    e.stopPropagation();
     const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
     const codAmount = delivery?.cod_total_amount_required;
-    remoteLogger.info('[Square] Confirm button tapped', JSON.stringify({
-      hasAppId: !!effectiveAppId,
-      appIdSource: effectiveAppId === squareAppId ? 'prop' : 'cache',
-      codAmount,
-      deliveryId: delivery?.id,
-      storeId: store?.id,
-      storeName: store?.name,
+    remoteLogger.info('[Square] Button tapped (direct launch)', JSON.stringify({
+      hasAppId: !!effectiveAppId, codAmount, deliveryId: delivery?.id, storeId: store?.id,
     }));
-    console.log('[Square] handleSquareConfirmed fired', { effectiveAppId, cod: codAmount });
     if (!effectiveAppId) {
-      remoteLogger.error('[Square] BLOCKED — effectiveAppId missing. squareAppId prop:', String(squareAppId), 'cache:', String(_sharedSquareAppIdCache));
-      setShowSquareConfirm(false);
       toast.error('Square not ready yet — App ID missing.');
       return;
     }
     const amountCents = Math.round(Number(codAmount || 0) * 100);
     if (amountCents <= 0) {
-      remoteLogger.error('[Square] BLOCKED — amountCents is 0. cod_total_amount_required:', String(codAmount));
-      setShowSquareConfirm(false);
       toast.error('No COD amount set for this delivery.');
       return;
     }
     const notes = generateSquareItemName(delivery, patient, store);
     const callbackUrl = window.location.origin + window.location.pathname;
-    remoteLogger.info('[Square] Calling launchSquarePOS', JSON.stringify({ amountCents, notes, callbackUrl }));
-    // Launch first — dismiss after so gesture context is not broken by a re-render
     launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', callbackUrl, notes });
-    setShowSquareConfirm(false);
   }, [delivery, patient, store, squareAppId]);
-
-  const handleSquareButtonTap = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Show the confirmation dialog so the driver can confirm they are on the correct
-    // Square location before the payload fires. The location_id is now included in
-    // the payload, so Square will validate it — driver must be on the right location.
-    setShowSquareConfirm(true);
-  }, []);
-
-  // Opens Square POS with no transaction payload — driver switches location manually
-  const handleSquareManual = useCallback((e) => {
-    if (e) { e.stopPropagation(); e.preventDefault(); }
-    setShowSquareConfirm(false);
-    const isNative = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
-    if (isNative) {
-      window.open('square-commerce-v1://', '_system');
-      return;
-    }
-    const fallbackUri = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup');
-    const openUri = 'intent:#Intent;action=android.intent.action.MAIN;package=com.squareup;S.browser_fallback_url=' + fallbackUri + ';end';
-    window.location.href = openUri;
-  }, [squareAppId]);
 
 
 
@@ -266,72 +231,31 @@ export default function StopCardActionButtons(props) {
          isMobileDevice() &&
         <>
 
-          <button
-            type="button"
-            disabled={!hasValidSquareLocation}
-            onTouchEnd={(e) => { if (!hasValidSquareLocation) return; e.stopPropagation(); e.preventDefault(); handleSquareButtonTap(e); }}
-            onClick={(e) => { if (!hasValidSquareLocation) return; e.stopPropagation(); e.preventDefault(); handleSquareButtonTap(e); }}
-            style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
-            className={`inline-flex items-center justify-center rounded-md border transition-colors mr-2 flex-shrink-0 relative z-30 min-h-11 min-w-11 h-10 md:h-8 w-10 md:w-8 pointer-events-auto ${hasValidSquareLocation ? 'border-slate-400 bg-slate-100 hover:bg-slate-200' : 'border-slate-300 bg-slate-50 opacity-40 cursor-not-allowed'}`}
-            title={hasValidSquareLocation ? 'Collect COD with Square POS' : 'No Square location configured for this store'}>
-            <img
-              src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/cc4cb3e37_Screenshot_20260605_155930_OneUIHome.png"
-              alt="Square POS"
-              className="w-6 h-6 md:w-5 md:h-5 rounded-md object-cover" />
-          </button>
-          {showSquareConfirm && createPortal(
-            <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
-            onPointerDown={(e) => e.stopPropagation()}>
-              <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-5 max-w-sm w-full border border-transparent dark:border-gray-700 relative">
-                <button
-                  type="button"
-                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowSquareConfirm(false); }}
-                  className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1">
-                  ✕
-                </button>
-                <div className="flex items-start gap-3 mb-5">
-                  <span className="text-2xl leading-none mt-0.5">⚠️</span>
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-gray-100 text-base">Switch Square Location First</p>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">This delivery requires Square to be set to:</p>
-                    <p className="font-bold text-gray-900 dark:text-white text-xl mt-1">
-                      {squareLocationName || store?.name || 'the correct location'}
-                    </p>
-                    {lastCodStoreName && (
-                      <p className="text-amber-600 dark:text-amber-400 text-sm mt-1 font-medium">
-                        Last COD collected was from: <span className="font-bold">{lastCodStoreName}</span>
-                      </p>
-                    )}
-                    <p className="text-gray-400 dark:text-gray-500 text-xs mt-2 leading-relaxed">
-                      Square always processes under its active location — not the one passed by the app.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handleSquareConfirmed(); }}
-                    className="w-full py-3 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white font-semibold text-sm">
-                    ✅ I'm on the right location — Charge
-                  </button>
-                  <button
-                    type="button"
-                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handleSquareManual(e); }}
-                    className="w-full py-3 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-medium text-sm">
-                    🔀 Open Square — switch location &amp; select manually
-                  </button>
-                  <button
-                    type="button"
-                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowSquareConfirm(false); }}
-                    className="w-full py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 font-medium text-sm active:bg-gray-50 dark:active:bg-gray-800">
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
+          <div className="relative mr-2 flex-shrink-0">
+            <button
+              type="button"
+              disabled={!hasValidSquareLocation}
+              onPointerDown={(e) => { e.stopPropagation(); }}
+              onTouchStart={(e) => { e.stopPropagation(); }}
+              onClick={(e) => { e.stopPropagation(); if (!hasValidSquareLocation) return; handleSquareButtonTap(e); }}
+              style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+              className={`inline-flex items-center justify-center rounded-md border transition-colors flex-shrink-0 relative z-30 min-h-11 min-w-11 h-10 md:h-8 w-10 md:w-8 pointer-events-auto ${hasValidSquareLocation ? 'border-slate-400 bg-slate-100 hover:bg-slate-200' : 'border-slate-300 bg-slate-50 opacity-40 cursor-not-allowed'}`}
+              title={hasValidSquareLocation ? 'Collect COD with Square POS' : 'No Square location configured for this store'}>
+              <img
+                src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/cc4cb3e37_Screenshot_20260605_155930_OneUIHome.png"
+                alt="Square POS"
+                className="w-6 h-6 md:w-5 md:h-5 rounded-md object-cover" />
+            </button>
+            {lastCodStoreName && squareLocationName ? (
+              <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold leading-none z-40 pointer-events-none">
+                ⚠
+              </span>
+            ) : hasValidSquareLocation && !lastCodStoreName ? (
+              <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] font-bold leading-none z-40 pointer-events-none">
+                ✓
+              </span>
+            ) : null}
+          </div>
         </>
         }
         {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (

@@ -27,6 +27,7 @@ import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 import { updatePreferredTravelMode } from '../dashboard/travelModeHelpers';
+import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 
 const START_ACTION_NAME = 'start_delivery';
 
@@ -456,6 +457,7 @@ export default function useStopCardActions(params) {
       smartRefreshManager.resume();
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
+      dispatchStopCardActionCollapse();
       onClick?.(null);
     }
   }, [allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
@@ -498,6 +500,7 @@ export default function useStopCardActions(params) {
       createdReturnDelivery = await onCreateReturn({ originalDelivery: delivery, returnPatient: selectedReturnPatient, store: resolvedStore, _skipPickupCreation: true });
       setShowReturnConfirm(false);
       setReturnPatient(null);
+      dispatchStopCardActionCollapse();
       onClick?.(null);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       Promise.resolve().then(async () => {
@@ -566,6 +569,7 @@ export default function useStopCardActions(params) {
             await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: retryDate, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, runOptimization: false });
           } catch {}
           if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
+          dispatchStopCardActionCollapse();
         });
       } finally {
         resumeOfflineSync('delivery_actions');
@@ -629,6 +633,7 @@ export default function useStopCardActions(params) {
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, suppressFabIfPhase1: true } }));
           window.dispatchEvent(new CustomEvent('deliveryStatusChanged', { detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, maxStops: 5 } }));
           if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
+          dispatchStopCardActionCollapse();
         });
       } finally {
         resumeOfflineSync('delivery_actions');
@@ -1078,7 +1083,6 @@ export default function useStopCardActions(params) {
           return;
         }
         if (currentUser?.driver_status !== 'on_duty') await ensureDriverOnline();
-        await syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId: delivery.driver_id });
 
         const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate
           ? [{ type: 'Cash', amount: codTotalRequired }] : null;
@@ -1200,6 +1204,7 @@ export default function useStopCardActions(params) {
           }
         } catch (_) {}
 
+        dispatchStopCardActionCollapse();
         onClick?.(null);
         queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status: 'completed' });
 
@@ -1260,8 +1265,6 @@ export default function useStopCardActions(params) {
           toast.error('This delivery has been deleted. Please refresh the page.');
           return;
         }
-        await syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId: delivery.driver_id });
-
         // Breadcrumbs
         let pendingBreadcrumbsString = null;
         try {
@@ -1318,6 +1321,7 @@ export default function useStopCardActions(params) {
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         // Only prompt if no arrival_time reading was already taken for this fridge stop
         if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded(status === 'failed' ? 'Failed' : 'Cancelled');
+        dispatchStopCardActionCollapse();
         onClick?.(null);
         queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status });
         if (userHasRole(currentUser, 'driver')) {

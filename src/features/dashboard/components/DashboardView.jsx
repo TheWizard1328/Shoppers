@@ -131,6 +131,27 @@ export default function DashboardView({
   const [showStopCardCheckboxes, setShowStopCardCheckboxes] = useState(false);
   const [selectedDeliveryIds, setSelectedDeliveryIds] = useState({});
   const initialFabRetriggeredRef = useRef(false);
+  // Collapse both expanded panels when the map background is tapped/clicked
+  useEffect(() => {
+    const handleMapBackgroundClick = () => {
+      if (isExpanded) setIsExpanded(false);
+      if (selectedCardId) handleCardClick({ id: selectedCardId });
+    };
+    window.addEventListener('mapBackgroundClick', handleMapBackgroundClick);
+    return () => window.removeEventListener('mapBackgroundClick', handleMapBackgroundClick);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded, selectedCardId]);
+
+  // Collapse selected stop card when StatsCard requests it (mutual exclusion)
+  useEffect(() => {
+    const handleCollapse = () => {
+      if (selectedCardId) handleCardClick({ id: selectedCardId });
+    };
+    window.addEventListener('collapseSelectedStopCard', handleCollapse);
+    return () => window.removeEventListener('collapseSelectedStopCard', handleCollapse);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCardId]);
+
   // Track when a map marker was clicked so handleCenteredCardChange can skip its fitBounds
   const markerClickedAtRef = useRef(0);
 

@@ -80,7 +80,10 @@ export function useInkbirdSensor(currentUser) {
   const notifyHandlerRef = useRef(null);
   const latestReadingRef = useRef(null);
   const mountedRef       = useRef(true);
-  const staleTimerRef    = useRef(null);   // auto-forget if no reading arrives
+  const staleTimerRef    = useRef(null);
+  // Tracks the "session ID" of the current connection so stale disconnect
+  // listeners from previous connections don't fire on newer ones.
+  const connectionIdRef  = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -104,10 +107,12 @@ export function useInkbirdSensor(currentUser) {
   }
 
   // ── Called by the badge with an already-open GATT server ────────────
-  // The badge does: device.gatt.connect() → gets back a server object
-  // and passes BOTH server + device here.
   const setConnectedServer = useCallback(async (server, device) => {
     if (!mountedRef.current) return;
+
+    // Bump session ID — any listener from a previous connection sees a different
+    // ID and ignores its gattserverdisconnected event.
+    const myConnectionId = ++connectionIdRef.current;
 
     clearTimeout(staleTimerRef.current);
     _cleanupNotify();
@@ -119,15 +124,14 @@ export function useInkbirdSensor(currentUser) {
     saveSensorNameLocally(name);
     persistSensorToUserDevice(currentUser, name);
 
-    // Stale guard: if no reading arrives within 10s, mark error and disconnect
+    // Stale guard: 60s without a reading → mark error but keep GATT alive
     staleTimerRef.current = setTimeout(() => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || connectionIdRef.current !== myConnectionId) return;
       if (!latestReadingRef.current) {
-        console.warn('[useInkbirdSensor] No reading received within 10s — disconnecting');
+        console.warn('[useInkbirdSensor] No reading in 60s — marking error (GATT kept alive)');
         setStatus('error');
-        try { server.disconnect(); } catch (_) {}
       }
-    }, 20000);
+    }, 60000);
 
     try {
       const service = await server.getPrimaryService(INKBIRD_SERVICE_UUID);
@@ -137,24 +141,24 @@ export function useInkbirdSensor(currentUser) {
         const readChar = await service.getCharacteristic(INKBIRD_READ_UUID);
         const dv = await readChar.readValue();
         const parsed = decodeReading(dv);
-        if (parsed && mountedRef.current) {
-          clearTimeout(staleTimerRef.current); // got a reading — cancel stale timer
+        if (parsed && mountedRef.current && connectionIdRef.current === myConnectionId) {
+          clearTimeout(staleTimerRef.current);
           latestReadingRef.current = parsed;
           setReading(parsed);
           setStatus('connected');
           window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'gatt-read' } }));
         }
-      } catch (_) { /* FFF2 not supported on this firmware — rely on FFF6 */ }
+      } catch (_) { /* FFF2 not available — rely on FFF6 */ }
 
       // Subscribe FFF6 notifications
       const notifyChar = await service.getCharacteristic(INKBIRD_NOTIFY_UUID);
       notifyRef.current = notifyChar;
 
       const handler = (evt) => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || connectionIdRef.current !== myConnectionId) return;
         const parsed = decodeReading(evt.target.value);
         if (!parsed) return;
-        clearTimeout(staleTimerRef.current); // first notification cancels stale timer
+        clearTimeout(staleTimerRef.current);
         latestReadingRef.current = parsed;
         setReading(parsed);
         setStatus('connected');
@@ -164,26 +168,57 @@ export function useInkbirdSensor(currentUser) {
       notifyChar.addEventListener('characteristicvaluechanged', handler);
       await notifyChar.startNotifications();
 
-      if (mountedRef.current) setStatus('connected');
+      if (mountedRef.current && connectionIdRef.current === myConnectionId) {
+        setStatus('connected');
+      }
 
     } catch (err) {
       console.warn('[useInkbirdSensor] GATT setup failed:', err?.message);
       clearTimeout(staleTimerRef.current);
-      if (mountedRef.current) setStatus('error');
+      if (mountedRef.current && connectionIdRef.current === myConnectionId) setStatus('error');
       return;
     }
 
-    // Watch for unexpected GATT disconnect
+    // Watch for GATT disconnect — scoped to this session only
     device.addEventListener('gattserverdisconnected', () => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || connectionIdRef.current !== myConnectionId) return;
       serverRef.current = null;
       setStatus('disconnected');
     });
 
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Forget / unpair — called on double-tap ───────────────────────────
+  // ── Visibility recovery — when PWA returns to foreground ────────────
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      const server = serverRef.current;
+      if (!server?.connected) return;
+      // Attempt a fresh FFF2 read to wake the notification stream
+      const recover = async () => {
+        try {
+          const service = await server.getPrimaryService(INKBIRD_SERVICE_UUID);
+          const readChar = await service.getCharacteristic(INKBIRD_READ_UUID);
+          const dv = await readChar.readValue();
+          const parsed = decodeReading(dv);
+          if (parsed && mountedRef.current) {
+            clearTimeout(staleTimerRef.current);
+            latestReadingRef.current = parsed;
+            setReading(parsed);
+            setStatus('connected');
+            window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'visibility-recovery' } }));
+          }
+        } catch (_) {}
+      };
+      recover();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Forget / unpair ──────────────────────────────────────────────────
   const forget = useCallback(() => {
+    connectionIdRef.current++; // invalidate any active session
     clearTimeout(staleTimerRef.current);
     _cleanupNotify();
     try { serverRef.current?.disconnect(); } catch (_) {}
@@ -219,8 +254,8 @@ export function useInkbirdSensor(currentUser) {
     reading,
     sensorName,
     latestReadingRef,
-    setConnectedServer,  // badge calls this with (server, device)
-    forget,              // badge calls this on double-tap
+    setConnectedServer,
+    forget,
     forceRead,
     // Legacy shims
     setConnectedDevice: () => {},

@@ -243,6 +243,13 @@ export default function StatsPanel({
     }
   }, [showExpandedContent]);
 
+  // Collapse when a stop card is expanded/collapsed (mutual exclusion)
+  useEffect(() => {
+    const handleCollapse = () => { if (isExpanded) setIsExpanded(false); };
+    window.addEventListener('collapseStatsCard', handleCollapse);
+    return () => window.removeEventListener('collapseStatsCard', handleCollapse);
+  }, [isExpanded, setIsExpanded]);
+
   // Auto-lock to polylines mode when route is finished
   useEffect(() => {
     if (isDateFinished && isDriver && !isAllDriversMode) {
@@ -408,7 +415,7 @@ export default function StatsPanel({
                   } : undefined} />
                 
             {!isDispatcherLockedExpanded &&
-                <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin} className={`h-8 w-8 p-0 flex-shrink-0 ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();if (!isExpanded) window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));setIsExpanded(!isExpanded);}} disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin} className={`h-8 w-8 p-0 flex-shrink-0 ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
                 }

@@ -1076,10 +1076,14 @@ export default function Patients() {
     store.sunday_pm_driver_id :
     store.weekday_pm_driver_id;
 
+    // Pre-select the scheduled driver; if none exists, force the dropdown open
+    const resolvedDriverId = amDriverId || pmDriverId || null;
+
     setPatientForNewDelivery({
       ...patient,
       suggestedDate: suggestedDate,
-      forceOpenDriverOnLoad: !amDriverId && !pmDriverId
+      initialDriverId: resolvedDriverId,
+      forceOpenDriverOnLoad: !resolvedDriverId
     });
 
     setShowDeliveryForm(true);
@@ -1958,6 +1962,7 @@ export default function Patients() {
           delivery={editingDeliveryId ? allDriverDeliveries.find((d) => d.id === editingDeliveryId) || deliveries.find((d) => d.id === editingDeliveryId) || null : null}
           initialPatientId={!editingDeliveryId ? patientForNewDelivery?.id : undefined}
           suggestedDate={!editingDeliveryId ? patientForNewDelivery?.suggestedDate : undefined}
+          initialDriverId={!editingDeliveryId ? patientForNewDelivery?.initialDriverId : undefined}
           forceOpenDriverOnLoad={!editingDeliveryId && patientForNewDelivery?.forceOpenDriverOnLoad === true}
           patients={allPatients}
           stores={stores}

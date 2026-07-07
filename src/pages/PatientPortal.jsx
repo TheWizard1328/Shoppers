@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import PWAInstallPrompt from '@/components/common/PWAInstallPrompt';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -503,6 +504,7 @@ export default function PatientPortal() {
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden">
       <PatientPortalGuard />
+      <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />
 
       {/* Sidebar */}
       <PatientSidebar

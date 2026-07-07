@@ -97,11 +97,9 @@ Deno.serve(async (req) => {
     const targetStore = (stores || []).find((store) => store?.id === targetStoreId);
     const requestedSlot = ampmDeliveries === 'PM' ? 'PM' : 'AM';
     const dayOfWeek = new Date(`${effectiveDate}T00:00:00`).getDay();
-    const specialStoreNames = new Set(['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark']);
-
     if ((dateDeliveries || []).filter((delivery) => !delivery?.patient_id).length === 0) {
       const assignedStores = (stores || [])
-        .filter((store) => store && !specialStoreNames.has(store.name))
+        .filter((store) => !!store)
         .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
 
       let pickupCounter = 0;

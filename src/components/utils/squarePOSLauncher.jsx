@@ -47,19 +47,17 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   console.log('[Square POS] Payload:', payloadJson);
   console.log('[Square POS] Launching URL:', squareUrl);
 
-  // Hidden <a target="_blank"> click: dispatches the custom URI scheme within the
-  // user gesture context without navigating the current PWA page away.
+  // Hidden anchor click WITHOUT target="_blank": custom URI schemes work on Android
+  // Chrome/PWA when the anchor has no target (same-frame navigation attempt), which
+  // Android intercepts and routes to the registered app instead of navigating.
+  // target="_blank" was blocking the intent — removing it is the fix.
   try {
     const a = document.createElement('a');
     a.href = squareUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => {
-      try { document.body.removeChild(a); } catch (_) {}
-    }, 1000);
+    setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} }, 1000);
     remoteLogger.info('[Square POS] Anchor click dispatched successfully');
   } catch (err) {
     remoteLogger.error('[Square POS] Anchor click FAILED', String(err));

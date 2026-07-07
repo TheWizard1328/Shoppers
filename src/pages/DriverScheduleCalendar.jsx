@@ -1179,7 +1179,23 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
         </Popover> :
       header}
       <div className="p-1 space-y-1">
-        {entries.map(({ store, slotKey, isDeliveryDriven }) =>
+        {[...entries].sort((a, b) => {
+          const ampm = (sk) => sk.endsWith('_am') ? 'AM' : 'PM';
+          const dateKey = format(date, 'yyyy-MM-dd');
+          const getEarliestActual = (entry) => {
+            const dayDelivs = deliveriesByDay[dateKey] || [];
+            const completed = dayDelivs.filter((d) =>
+              d.store_id === entry.store.id &&
+              (!d.ampm_deliveries || d.ampm_deliveries === ampm(entry.slotKey)) &&
+              d.actual_delivery_time
+            );
+            if (!completed.length) return null;
+            return completed.reduce((min, d) => d.actual_delivery_time < min ? d.actual_delivery_time : min, completed[0].actual_delivery_time);
+          };
+          const ta = getEarliestActual(a) || a.startTime || '';
+          const tb = getEarliestActual(b) || b.startTime || '';
+          return ta.localeCompare(tb);
+        }).map(({ store, slotKey, isDeliveryDriven }) =>
         <DriverSlotCell
           key={`${store.id}-${slotKey}`}
           date={date} slotKey={slotKey} store={store}
@@ -1338,7 +1354,22 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
           </div>;
       })()}
       <div className="p-1 space-y-1">
-        {[...entries].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')).map(({ store, slotKey, isDeliveryDriven }) => {
+        {[...entries].sort((a, b) => {
+          const ampm = (sk) => sk.endsWith('_am') ? 'AM' : 'PM';
+          const getEarliestActual = (entry) => {
+            const dayDelivs = deliveriesByDay[dateStr] || [];
+            const completed = dayDelivs.filter((d) =>
+              d.store_id === entry.store.id &&
+              (!d.ampm_deliveries || d.ampm_deliveries === ampm(entry.slotKey)) &&
+              d.actual_delivery_time
+            );
+            if (!completed.length) return null;
+            return completed.reduce((min, d) => d.actual_delivery_time < min ? d.actual_delivery_time : min, completed[0].actual_delivery_time);
+          };
+          const ta = getEarliestActual(a) || a.startTime || '';
+          const tb = getEarliestActual(b) || b.startTime || '';
+          return ta.localeCompare(tb);
+        }).map(({ store, slotKey, isDeliveryDriven }) => {
           const lockKey = slotLockKey(dateStr, store.id, slotKey);
           const adminUnlocked = isAdmin && unlockedSlots.has(lockKey);
           const isAMSlot = slotKey.endsWith('_am');

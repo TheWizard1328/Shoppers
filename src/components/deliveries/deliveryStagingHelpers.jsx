@@ -71,9 +71,13 @@ export const buildPatientStagedDelivery = ({
   puid: puid || '',
   ampm_deliveries: timeSlot,
   // ISP/ISD patient deliveries are always in_transit when created.
-  // All other new staged deliveries MUST use 'Staged' — never inherit formData.status
-  // (which may carry a 'pending' value from a prior pending-delivery edit session).
-  status: (formData._interstore_source_id || formData._interstore_dest_id) ? 'in_transit' : 'Staged',
+  // Preserve any status the user explicitly set (not the default 'Staged');
+  // only fall back to 'Staged' when formData.status is still at its default value.
+  status: (formData._interstore_source_id || formData._interstore_dest_id)
+    ? 'in_transit'
+    : (formData.status && formData.status !== 'Staged')
+      ? formData.status
+      : 'Staged',
   _tempId: Date.now() + Math.random(),
   patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
   store_name: store.name,

@@ -876,7 +876,11 @@ export async function optimizeRouteClientSide({
     : originalActiveOrder.length !== optimizedActiveOrder.length
       || originalActiveOrder.some((id, index) => id !== optimizedActiveOrder[index]);
 
-  const nextStopId = explicitNextDelivery?.id || activeStops[0]?.id || null;
+  // Only fall back to activeStops[0] when NO stop currently has isNextDelivery=true AND
+  // the route hasn't started yet (no completed stops). Once a route is in progress,
+  // the existing isNextDelivery stop must remain — never promote a freshly-added stop.
+  const routeInProgress = completedDeliveries.length > 0;
+  const nextStopId = explicitNextDelivery?.id || (!routeInProgress ? (activeStops[0]?.id || null) : null);
   const finalizedById = new Map(activeStops.map(s => [s.id, s]));
   const writeBatch = [];
 

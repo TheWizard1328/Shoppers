@@ -102,9 +102,10 @@ export default function SpecialSymbolsBadges({
   const hasMailboxOk = !isPickup && !isInterStore && (delivery.mailbox_ok || patient?.mailbox_ok);
   const hasDriverNotes = !!delivery.delivery_notes;
 
-  // Check if anything should be shown
-  const hasAnyContent = hasCOD || isFirstDelivery || hasOversized || hasSignature || hasFridgeItem ||
-  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+  // Check if anything should be shown (fridge-only doesn't count for card size since F is hidden there)
+  const hasNonFridgeContent = hasCOD || isFirstDelivery || hasOversized || hasSignature ||
+    hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+  const hasAnyContent = hasNonFridgeContent || (hasFridgeItem && size !== 'card');
 
   if (!hasAnyContent) return null;
 
@@ -122,7 +123,7 @@ export default function SpecialSymbolsBadges({
         {hasCOD && <span className={isCardSize ? config.text : ''} style={{ color: getCodSymbolColor(delivery) === 'inherit' ? '#0f172a' : getCodSymbolColor(delivery) }}>$</span>}
         {isFirstDelivery && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#1e40af' }}>N</span>}
         {hasOversized && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#9a3412' }}>O</span>}
-        {hasFridgeItem && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#0369a1' }}>F</span>}
+        {hasFridgeItem && size !== 'card' && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#0369a1' }}>F</span>}
         {hasSignature && <PenLine className={config.icon} style={{ color: '#15803d' }} />}
         
         {/* Preference icons - intuitive colors, always forced (no dark mode) */}

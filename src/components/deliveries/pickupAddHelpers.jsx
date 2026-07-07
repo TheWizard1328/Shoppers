@@ -6,9 +6,9 @@
 
 import { resolvePickupTimeWindow } from './deliveryAddHelpers';
 import { buildPickupStagedDelivery } from './deliveryStagingHelpers';
-import { createDelivery as createDeliveryLocal, setBatchFormSaving } from '../utils/entityMutations';
-import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { loadStatHolidays, isStatHoliday } from '../utils/statHolidayResolver';
+import { executeOfflineBatchAction } from '../utils/offlineBatchAction';
+import { offlineDB } from '../utils/offlineDatabase';
 
 /**
  * Returns true if the pickup should be flagged as after_hours:
@@ -114,13 +114,7 @@ export const addPickupToRoute = async ({
 
   const afterHours = await shouldBeAfterHours(formData, store);
 
-  // CRITICAL: defer polyline regeneration — handleBatchSave runs a single
-  // optimizeRemainingStops + purgeAndRegeneratePolylines at the end, so we
-  // must NOT trigger one per pickup or it causes duplicate records + ~15s delay.
-  // Pause realtime broadcast so the WebSocket echo doesn't cause a duplicate UI render.
-  setBatchFormSaving(true);
-  pauseRealtimeSync();
-  const createdPickup = await createDeliveryLocal({
+  const pickupPayload = {
     ...pickupToCreate,
     patient_id: null,
     status: 'en_route',
@@ -131,23 +125,37 @@ export const addPickupToRoute = async ({
     time_window_start: resolvedTimeStart,
     time_window_end: resolvedTimeEnd,
     after_hours_pickup: afterHours,
-  }, { deferPolylineRefresh: true });
-  setBatchFormSaving(false);
-  resumeRealtimeSync();
+  };
 
-  const routeDriverId = createdPickup?.driver_id || formData.driver_id;
-  const routeDeliveryDate = createdPickup?.delivery_date || formData.delivery_date;
+  let createdPickup = null;
+
+  await executeOfflineBatchAction({
+    actionName: 'AddPickup',
+    work: async () => {
+      // Stage to offlineDB immediately with a temp ID
+      const tempId = `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const localRecord = { ...pickupPayload, id: tempId, _isLocal: true, created_date: new Date().toISOString(), updated_date: new Date().toISOString() };
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [localRecord]).catch(() => null);
+      createdPickup = localRecord;
+      return { records: [localRecord], driverId: formData.driver_id, deliveryDate: formData.delivery_date };
+    },
+    runOptimizer: true,
+    optimizerContext: {
+      deliveries: [...(allDeliveries || []), ...(stagedDeliveries || [])],
+      patients: [],
+      stores: store ? [store] : [],
+      appUsers: [],
+    },
+    applyLocalUI: null, // pickup is reflected via the deliveriesUpdated broadcast in the wrapper
+  });
+
+  const routeDriverId = formData.driver_id;
+  const routeDeliveryDate = formData.delivery_date;
 
   setHasChanges(false);
   setPickupsAddedCount((prev) => prev + 1);
   addedPickupRoutesRef.current.push({ driverId: routeDriverId, deliveryDate: routeDeliveryDate });
   setError(null);
-
-  // NOTE: Do NOT dispatch 'deliveriesUpdated' per-pickup — it triggers a full
-  // smart-refresh + polyline cycle for every pickup, causing duplicate records
-  // and ~15s delays. handleBatchSave fires a single optimizeRemainingStops +
-  // purgeAndRegeneratePolylines when the user clicks Done.
-  window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
   // Clear form so user can add another pickup without reopening
   handleClearForm();

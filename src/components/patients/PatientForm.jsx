@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import ReactDOM from "react-dom";
 import { useDevice } from '@/components/utils/DeviceContext';
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -712,6 +713,29 @@ export default function PatientForm({
   const storeSelectRef = useRef(null);
   const addressInputRef = useRef(null);
   const unitNumberRef = useRef(null);
+
+  // ── Buzzer dialog state ────────────────────────────────────────────────
+  const [showBuzzerInput, setShowBuzzerInput] = useState(false);
+  const [buzzerValue, setBuzzerValue] = useState('');
+  const [buzzerAnchorRect, setBuzzerAnchorRect] = useState(null);
+  const buzzerInputRef = useRef(null);
+
+  const handleBuzzerOpen = useCallback((e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setBuzzerAnchorRect(rect);
+    const match = (formData.unit_number || '').match(/\bBuzz\s+(\S+)/i);
+    setBuzzerValue(match ? match[1] : '');
+    setShowBuzzerInput(true);
+    setTimeout(() => buzzerInputRef.current?.focus(), 50);
+  }, [formData.unit_number]);
+
+  const handleBuzzerConfirm = useCallback(() => {
+    if (!buzzerValue.trim()) { setShowBuzzerInput(false); return; }
+    const base = (formData.unit_number || '').replace(/\s*Buzz\s*\S+/i, '').trim();
+    const newUnit = base ? `${base} Buzz ${buzzerValue.trim()}` : `Buzz ${buzzerValue.trim()}`;
+    setFormData((prev) => ({ ...prev, unit_number: newUnit }));
+    setShowBuzzerInput(false);
+  }, [buzzerValue, formData.unit_number]);
   const shouldAutoFocusFields = canAutoFocusFormFields();
   const { isMobile } = useDevice();
 
@@ -1016,7 +1040,16 @@ export default function PatientForm({
                     }
                   </div>
                   <div className="col-span-4 pb-3" style={{ height: '2rem' }}>
-                    <Label htmlFor="unit_number" className="text-sm font-medium leading-none" style={{ color: 'var(--text-slate-900)' }}>Unit/Apt #</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="unit_number" className="text-sm font-medium leading-none" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
+                      <button
+                        type="button"
+                        disabled={!formData.unit_number || disableOtherFieldsDuringAddressLookup}
+                        onClick={handleBuzzerOpen}
+                        className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number && !disableOtherFieldsDuringAddressLookup ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                        + Buzzer #
+                      </button>
+                    </div>
                   </div>
                   {/* Input row */}
                   <div className="col-span-8">
@@ -1041,6 +1074,31 @@ export default function PatientForm({
                       className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
+
+                  {/* Buzzer portal dialog */}
+                  {showBuzzerInput && buzzerAnchorRect && ReactDOM.createPortal(
+                    <>
+                      <div className="fixed inset-0 z-[10050]" onClick={() => setShowBuzzerInput(false)} />
+                      <div
+                        className="fixed z-[10051] bg-white border border-slate-200 rounded-xl shadow-xl p-3 w-52"
+                        style={{ top: buzzerAnchorRect.bottom + 6, left: Math.min(buzzerAnchorRect.left, window.innerWidth - 216) }}>
+                        <p className="text-xs font-semibold text-slate-700 mb-2">Buzzer #</p>
+                        <input
+                          ref={buzzerInputRef}
+                          type="text"
+                          value={buzzerValue}
+                          onChange={(e) => setBuzzerValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleBuzzerConfirm(); if (e.key === 'Escape') setShowBuzzerInput(false); }}
+                          placeholder="e.g. 223"
+                          className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm mb-2 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setShowBuzzerInput(false)} className="flex-1 text-xs py-1.5 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50">Cancel</button>
+                          <button type="button" onClick={handleBuzzerConfirm} className="flex-1 text-xs py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700">OK</button>
+                        </div>
+                      </div>
+                    </>,
+                    document.body
+                  )}
                 </div>
 
                 {/* Row 1: Full Name + Email (50/50) */}

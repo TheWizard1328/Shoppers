@@ -108,6 +108,7 @@ export default function ActivePayStats({
 
   const isdIspCount = stats.isdIspCount || 0;
   const inTransitIsdIsp = stats.inTransitIsdIsp || 0;
+  const completedIsdIsp = stats.completedIsdIsp || 0;
 
   return (
     <div
@@ -139,9 +140,10 @@ export default function ActivePayStats({
           icon={CheckCircle}
           value={stats.completed}
           driverCount={isDispatcher && stats.completed > 0 ? stats.completedDrivers : (isDriver || isAdmin) && stats.completedPickups > 0 ? stats.completedPickups : undefined}
+          superscript={completedIsdIsp > 0 ? completedIsdIsp : undefined}
           color="green"
           label="Completed"
-          tooltip={tooltipValues.completed} />
+          tooltip={`${tooltipValues.completed}${completedIsdIsp > 0 ? `, ISD/ISP: ${completedIsdIsp}` : ''}`} />
 
         <StatBadge
           icon={XCircle}

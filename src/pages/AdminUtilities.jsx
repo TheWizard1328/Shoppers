@@ -1893,7 +1893,7 @@ export default function AdminUtilities() {
             
           </TabsContent>
 
-          <TabsContent value="polylines" className="mt-6">
+          <TabsContent value="polylines" className="mt-4" style={{ height: 'calc(100vh - 180px)' }}>
             <PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} />
           </TabsContent>
 

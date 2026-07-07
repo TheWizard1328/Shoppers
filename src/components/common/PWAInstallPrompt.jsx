@@ -3,13 +3,13 @@ import { Button } from '@/components/ui/button';
 import { X, Download, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function PWAInstallPrompt() {
+export default function PWAInstallPrompt({ storageKey = 'pwa_install_dismissed' }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
     // Check if already dismissed
-    const dismissed = localStorage.getItem('pwa_install_dismissed');
+    const dismissed = localStorage.getItem(storageKey);
     if (dismissed === 'true') return;
 
     // Listen for install prompt
@@ -46,7 +46,7 @@ export default function PWAInstallPrompt() {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    localStorage.setItem('pwa_install_dismissed', 'true');
+    localStorage.setItem(storageKey, 'true');
   };
 
   return (

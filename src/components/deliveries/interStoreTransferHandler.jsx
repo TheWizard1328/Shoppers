@@ -5,6 +5,8 @@
 
 import { base44 } from '@/api/base44Client';
 import { ensureInterStoreCoords } from '@/components/utils/interStoreGeocode';
+import { executeOfflineBatchAction } from '@/components/utils/offlineBatchAction';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 
 /**
  * Creates an InterStore transfer delivery with all required system fields populated.
@@ -271,30 +273,32 @@ export async function createInterStoreTransfer({
     ...(estimated_distance_km != null ? { paid_km_override: estimated_distance_km } : {}),
   };
 
-  const created = await base44.entities.Delivery.create(payload);
+  // ── Offline-first batch action ────────────────────────────────────────────
+  // Build the record locally, save to offlineDB, run optimizer, then flush online.
+  let created = null;
 
-  const { offlineDB } = await import('@/components/utils/offlineDatabase');
-  offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [created].filter(Boolean)).catch(() => null);
-  applyDeliveryChangesLocally?.({ upserts: [created].filter(Boolean), deleteIds: [] });
-
-  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-    detail: {
-      deliveryId: created?.id,
-      deliveryDate: formData.delivery_date,
-      driverId: formData.driver_id,
-      triggeredBy: 'interStoreTransfer',
+  const batchResult = await executeOfflineBatchAction({
+    actionName: isDropOff ? 'AddInterStoreDropoff' : 'AddInterStorePickup',
+    work: async () => {
+      // Save a local temp record to offlineDB immediately so the UI is responsive
+      const tempId = `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const localRecord = { ...payload, id: tempId, _isLocal: true, created_date: new Date().toISOString(), updated_date: new Date().toISOString() };
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [localRecord]).catch(() => null);
+      return { records: [localRecord], driverId: formData.driver_id, deliveryDate: formData.delivery_date };
     },
-  }));
-  window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    runOptimizer: true,
+    optimizerContext: {
+      deliveries: [], // optimizer will use offlineDB snapshot merged with the new record
+      patients: [],
+      stores,
+      appUsers: appUsers || [],
+    },
+    applyLocalUI: (records) => {
+      applyDeliveryChangesLocally?.({ upserts: records.filter(Boolean), deleteIds: [] });
+    },
+  });
 
-  // Trigger the reoptimize FAB — it handles optimization + polyline regeneration
-  const _driverId = formData.driver_id;
-  const _deliveryDate = formData.delivery_date;
-  if (_driverId && _deliveryDate) {
-    window.dispatchEvent(new CustomEvent('triggerReoptimizeRoute', {
-      detail: { driverId: _driverId, deliveryDate: _deliveryDate }
-    }));
-  }
-
+  // The real backend record is the finalized one from the batch flush
+  created = batchResult?.records?.[0] || null;
   return created;
 }

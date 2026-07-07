@@ -153,6 +153,35 @@ export default function DeliveryFormView({
   const [saveToLibrary, setSaveToLibrary] = React.useState(false);
   const isAdmin = userHasRole(currentUser, 'admin');
   const coordsLocked = !isAdmin && !!selectedCyclingLocation;
+  // Buzzer # floating dialog
+  const [showBuzzerInput, setShowBuzzerInput] = React.useState(false);
+  const [buzzerValue, setBuzzerValue] = React.useState('');
+  const [buzzerAnchorRect, setBuzzerAnchorRect] = React.useState(null);
+  const buzzerInputRef = React.useRef(null);
+
+  const handleBuzzerOpen = React.useCallback((e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setBuzzerAnchorRect(rect);
+    // Pre-populate with existing buzzer number if present
+    const existing = (e.currentTarget.closest('[data-unit-section]') ? formData.unit_number : formData.unit_number) || '';
+    const match = existing.match(/\bBuzz\s+(\S+)/i);
+    setBuzzerValue(match ? match[1] : '');
+    setShowBuzzerInput(true);
+    setTimeout(() => buzzerInputRef.current?.focus(), 50);
+  }, [formData.unit_number]);
+
+  const handleBuzzerConfirm = React.useCallback(() => {
+    const buzz = buzzerValue.trim();
+    if (buzz) {
+      setFormData((p) => {
+        const base = (p.unit_number || '').replace(/\s*Buzz\s*\S+$/i, '').trim();
+        return { ...p, unit_number: `${base} Buzz ${buzz}`.trim() };
+      });
+    }
+    setShowBuzzerInput(false);
+    setBuzzerValue('');
+  }, [buzzerValue, setFormData]);
+
   // InterStore: tracks whether both From + To are selected (gates the Add/Done button)
   const [interStoreReady, setInterStoreReady] = React.useState(false);
   // InterStore: force-open the driver dropdown when both stores selected but no driver
@@ -816,53 +845,53 @@ export default function DeliveryFormView({
                 {/* Library search */}
                 <div className="p-3 rounded-lg border space-y-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <CyclingLocationSearch
-                    cities={cities}
-                    currentUser={currentUser}
-                    appUsers={appUsers}
-                    selectedLocation={selectedCyclingLocation}
-                    disabled={isSaving}
-                    onSelect={(loc) => {
-                      setSelectedCyclingLocation(loc);
-                      setSaveToLibrary(false);
-                      setFormData((prev) => ({
-                        ...prev,
-                        cycling_latitude: loc.latitude,
-                        cycling_longitude: loc.longitude,
-                        cycling_location_id: loc.id,
-                      }));
-                    }}
-                    onClearSelection={() => {
-                      setSelectedCyclingLocation(null);
-                      setFormData((prev) => ({ ...prev, cycling_location_id: null }));
-                    }}
-                  />
+                  cities={cities}
+                  currentUser={currentUser}
+                  appUsers={appUsers}
+                  selectedLocation={selectedCyclingLocation}
+                  disabled={isSaving}
+                  onSelect={(loc) => {
+                    setSelectedCyclingLocation(loc);
+                    setSaveToLibrary(false);
+                    setFormData((prev) => ({
+                      ...prev,
+                      cycling_latitude: loc.latitude,
+                      cycling_longitude: loc.longitude,
+                      cycling_location_id: loc.id
+                    }));
+                  }}
+                  onClearSelection={() => {
+                    setSelectedCyclingLocation(null);
+                    setFormData((prev) => ({ ...prev, cycling_location_id: null }));
+                  }} />
+                
                   {/* Save to library toggle — only when no library location is linked */}
-                  {!selectedCyclingLocation && (
-                    <div className="flex items-center gap-2 pt-1">
+                  {!selectedCyclingLocation &&
+                <div className="flex items-center gap-2 pt-1">
                       <Checkbox
-                        id="save_to_library"
-                        checked={saveToLibrary}
-                        onCheckedChange={setSaveToLibrary}
-                        disabled={isSaving}
-                      />
+                    id="save_to_library"
+                    checked={saveToLibrary}
+                    onCheckedChange={setSaveToLibrary}
+                    disabled={isSaving} />
+                  
                       <Label htmlFor="save_to_library" className="text-sm text-slate-600 cursor-pointer">
                         Save this location for other drivers
                       </Label>
                     </div>
-                  )}
-                  {saveToLibrary && !selectedCyclingLocation && (
-                    <div className="space-y-1">
+                }
+                  {saveToLibrary && !selectedCyclingLocation &&
+                <div className="space-y-1">
                       <Label className="text-xs font-medium text-slate-600">Location Name *</Label>
                       <Input
-                        type="text"
-                        value={formData._cycling_location_name || ''}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, _cycling_location_name: e.target.value }))}
-                        placeholder="e.g. Behind Save-On Foods lot"
-                        className="h-9 text-sm"
-                        disabled={isSaving}
-                      />
+                    type="text"
+                    value={formData._cycling_location_name || ''}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, _cycling_location_name: e.target.value }))}
+                    placeholder="e.g. Behind Save-On Foods lot"
+                    className="h-9 text-sm"
+                    disabled={isSaving} />
+                  
                     </div>
-                  )}
+                }
                 </div>
                 {/* Lat / Lng */}
                 <div className="flex gap-3">
@@ -1190,30 +1219,39 @@ export default function DeliveryFormView({
                                   <div className="relative" style={{ height: '1.5rem' }}>
                                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
                                     {delivery && selectedPatient && handleNewAddressPatient && (() => {
-                                     const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
-                                     return isLocked ? (
-                                       <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
+                                    const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
+                                    return isLocked ?
+                                    <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
                                          Change Address
-                                       </span>
-                                     ) : (
-                                       <span
-                                         role="button"
-                                         tabIndex={0}
-                                         onClick={() => handleNewAddressPatient(selectedPatient)}
-                                         onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
-                                         className="absolute right-0 top-0 cursor-pointer select-none">
+                                       </span> :
+
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => handleNewAddressPatient(selectedPatient)}
+                                      onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                      className="absolute right-0 top-0 cursor-pointer select-none">
                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
                                            Change Address
                                          </span>
-                                       </span>
-                                     );
-                                    })()}
+                                       </span>;
+
+                                  })()}
                                   </div>
                                   <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
                                 </div>
 
                                 <div className="flex-[35] space-y-1">
-                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
+                                  <div className="flex items-center justify-between" style={{ height: '1.5rem' }}>
+                                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
+                                    <button
+                                      type="button"
+                                      disabled={!formData.unit_number || isSaving}
+                                      onClick={handleBuzzerOpen}
+                                      className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                                      + Buzzer #
+                                    </button>
+                                  </div>
                                   <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                               </div>
@@ -1321,20 +1359,20 @@ export default function DeliveryFormView({
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                                 Latitude {!isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-slate-400 ml-1">(locked)</span> : isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-emerald-600 ml-1">(updates shared library)</span> : null}
                               </Label>
-                              <Input type="number" step="any" value={formData.cycling_latitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_latitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. 53.5461" disabled={isSaving || (!isAdmin && !!delivery?.cycling_location_id)} className="h-9" />
+                              <Input type="number" step="any" value={formData.cycling_latitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_latitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. 53.5461" disabled={isSaving || !isAdmin && !!delivery?.cycling_location_id} className="h-9" />
                             </div>
                             <div className="flex-1 space-y-1">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                                 Longitude {!isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-slate-400 ml-1">(locked)</span> : isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-emerald-600 ml-1">(updates shared library)</span> : null}
                               </Label>
-                              <Input type="number" step="any" value={formData.cycling_longitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_longitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. -113.4938" disabled={isSaving || (!isAdmin && !!delivery?.cycling_location_id)} className="h-9" />
+                              <Input type="number" step="any" value={formData.cycling_longitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_longitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. -113.4938" disabled={isSaving || !isAdmin && !!delivery?.cycling_location_id} className="h-9" />
                             </div>
                           </div>
                         </div> :
 
                       <div className="space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Notes</Label>
-                          <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Notes for this pickup..." className="flex min-h-[85px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                          <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Notes for this pickup..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none min-h-[85px]" disabled={isSaving} />
                         </div>
                       }
                     </div>
@@ -1402,32 +1440,41 @@ export default function DeliveryFormView({
                                 <div className="relative" style={{ height: '1.5rem' }}>
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
                                   {delivery && selectedPatient && handleNewAddressPatient && (() => {
-                                    const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
-                                    return isLocked ? (
-                                      <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
+                                  const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
+                                  return isLocked ?
+                                  <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
                                         Change Address
-                                      </span>
-                                    ) : (
-                                      <span
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => handleNewAddressPatient(selectedPatient)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
-                                        className="absolute right-0 top-0 cursor-pointer select-none">
+                                      </span> :
+
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => handleNewAddressPatient(selectedPatient)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                    className="absolute right-0 top-0 cursor-pointer select-none">
                                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
                                           Change Address
                                         </span>
-                                      </span>
-                                    );
-                                  })()}
+                                      </span>;
+
+                                })()}
                                 </div>
                                 <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
                               </div>
 
                               <div className="flex-[35] space-y-1">
-                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
-                                <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
-                              </div>
+                                 <div className="flex items-center justify-between" style={{ height: '1.5rem' }}>
+                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
+                                   <button
+                                     type="button"
+                                     disabled={!formData.unit_number || isSaving}
+                                     onClick={handleBuzzerOpen}
+                                     className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                                     Buzzer #
+                                   </button>
+                                 </div>
+                                 <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" disabled={isSaving} className="h-9 text-sm" />
+                               </div>
                             </div>
                           </div>
 
@@ -1556,6 +1603,7 @@ export default function DeliveryFormView({
                   if (isSaving || effectiveDeliveryActionBusy) return;
                   if (!formData.delivery_date || !formData.driver_id || !formData.delivery_notes) return;
                   await runLockedAction('add_cycling_marker', async () => {
+                    const { executeOfflineBatchAction: _execBatch } = await import('@/components/utils/offlineBatchAction');
                     const { base44 } = await import('@/api/base44Client');
                     const driver = allDrivers.find((d) => d.id === formData.driver_id);
                     const isStart = (formData.delivery_notes || '').toLowerCase().includes('start');
@@ -1601,42 +1649,58 @@ export default function DeliveryFormView({
                       return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
                     })();
 
-                    const createPromises = [
-                    base44.entities.Delivery.create({
+                    // Build the payloads locally first (no DB writes yet)
+                    const startPayload = {
                       ...basePayload,
                       delivery_notes: formData.delivery_notes,
                       ...(startActualTime && { actual_delivery_time: startActualTime }),
-                      // Start marker: explicit 30-minute delivery window
                       ...(startMarkerTimeStart && { delivery_time_start: startMarkerTimeStart }),
                       ...(startMarkerTimeEnd && { delivery_time_end: startMarkerTimeEnd }),
                       transport_mode: 'driving'
-                    })];
+                    };
+                    const endPayload = isStart ? {
+                      ...basePayload,
+                      delivery_notes: 'Cycling Route End',
+                      ...(endActualTime && { actual_delivery_time: endActualTime }),
+                      ...(endMarkerTimeStart && { delivery_time_start: endMarkerTimeStart }),
+                      ...(endMarkerTimeEnd && { delivery_time_end: endMarkerTimeEnd }),
+                      transport_mode: 'cycling'
+                    } : null;
 
+                    // ── Offline-first batch: save locally → optimize → flush online ──
+                    let savedRecords = [];
+                    await _execBatch({
+                      actionName: 'AddCyclingMarker',
+                      work: async () => {
+                        // Stage locally with temp IDs
+                        const { offlineDB: _odb } = await import('@/components/utils/offlineDatabase');
+                        const tempStart = { ...startPayload, id: `temp_delivery_${Date.now()}_start`, _isLocal: true, created_date: new Date().toISOString(), updated_date: new Date().toISOString() };
+                        const tempEnd = endPayload ? { ...endPayload, id: `temp_delivery_${Date.now()}_end`, _isLocal: true, created_date: new Date().toISOString(), updated_date: new Date().toISOString() } : null;
+                        const tempRecords = [tempStart, tempEnd].filter(Boolean);
+                        await _odb.bulkSave(_odb.STORES.DELIVERIES, tempRecords).catch(() => null);
+                        return { records: tempRecords, driverId: formData.driver_id, deliveryDate: formData.delivery_date };
+                      },
+                      runOptimizer: true,
+                      optimizerContext: { deliveries: allDeliveries || [], patients: [], stores: stores || [], appUsers: appUsers || [] },
+                      applyLocalUI: (records) => applyDeliveryChangesLocally?.({ upserts: records.filter(Boolean), deleteIds: [] })
+                    });
 
-                    // Auto-create a paired End marker when adding a Start marker
-                    if (isStart) {
-                      createPromises.push(
-                        base44.entities.Delivery.create({
-                          ...basePayload,
-                          delivery_notes: 'Cycling Route End',
-                          ...(endActualTime && { actual_delivery_time: endActualTime }),
-                          // End marker: 30-minute window starting at the form's end time
-                          ...(endMarkerTimeStart && { delivery_time_start: endMarkerTimeStart }),
-                          ...(endMarkerTimeEnd && { delivery_time_end: endMarkerTimeEnd }),
-                          transport_mode: 'cycling'
-                        })
-                      );
-                    }
-
-                    const savedRecords = await Promise.all(createPromises);
-                    const startMarker = savedRecords[0] || null;
-                    const endMarker   = isStart ? (savedRecords[1] || null) : null;
+                    // Records were already created by executeOfflineBatchAction → flushToOnlineDB above.
+                    // Fetch the freshly-created markers from offline DB so we have real IDs.
+                    const { offlineDB: _odbFetch } = await import('@/components/utils/offlineDatabase');
+                    const allLocalDeliveries = await _odbFetch.getAll(_odbFetch.STORES.DELIVERIES).catch(() => []);
+                    const driverDateDeliveries = (allLocalDeliveries || []).filter(
+                      (d) => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date && d.is_cycling_marker && !d._isLocal && !String(d.id || '').startsWith('temp_')
+                    );
+                    savedRecords = driverDateDeliveries;
+                    const startMarker = driverDateDeliveries.find((d) => (d.delivery_notes || '').toLowerCase().includes('start')) || null;
+                    const endMarker = isStart ? driverDateDeliveries.find((d) => (d.delivery_notes || '').toLowerCase().includes('end')) || null : null;
 
                     // ── Cycling library: save new or increment usage_count ───────────
                     if (selectedCyclingLocation?.id) {
                       // Increment usage_count (fire-and-forget)
                       base44.entities.CyclingLocation.update(selectedCyclingLocation.id, {
-                        usage_count: (selectedCyclingLocation.usage_count || 0) + 1,
+                        usage_count: (selectedCyclingLocation.usage_count || 0) + 1
                       }).catch(() => null);
                     } else if (saveToLibrary && formData._cycling_location_name?.trim() && formData.cycling_latitude != null && formData.cycling_longitude != null) {
                       // Resolve city_id from GPS or appUser
@@ -1649,7 +1713,7 @@ export default function DeliveryFormView({
                           longitude: formData.cycling_longitude,
                           city_id: libCityId,
                           created_by_app_user_id: driverAppUser?.id || null,
-                          usage_count: 1,
+                          usage_count: 1
                         }).then((newLoc) => {
                           // Link the start marker to the new library entry
                           if (startMarker?.id && newLoc?.id) {
@@ -1669,20 +1733,20 @@ export default function DeliveryFormView({
                           delivery_date: formData.delivery_date
                         });
                         const withFlagCleared = (allDriverDeliveries || []).filter(
-                          d => d && d.isNextDelivery && d.id !== startMarker.id
+                          (d) => d && d.isNextDelivery && d.id !== startMarker.id
                         );
                         await Promise.all(
-                          withFlagCleared.map(d =>
-                            base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
+                          withFlagCleared.map((d) =>
+                          base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
                           )
                         );
                         // Assign isNextDelivery to the cycling start marker
                         await base44.entities.Delivery.update(startMarker.id, { isNextDelivery: true });
                         // Reflect flag changes locally so UI is immediately consistent
                         const localFlagUpdates = [
-                          ...withFlagCleared.map(d => ({ ...d, isNextDelivery: false })),
-                          { ...startMarker, isNextDelivery: true },
-                        ];
+                        ...withFlagCleared.map((d) => ({ ...d, isNextDelivery: false })),
+                        { ...startMarker, isNextDelivery: true }];
+
                         applyDeliveryChangesLocally?.({ upserts: localFlagUpdates, deleteIds: [] });
                       } catch (flagErr) {
                         console.warn('[CyclingMarker] isNextDelivery assignment failed:', flagErr?.message || flagErr);
@@ -1790,15 +1854,15 @@ export default function DeliveryFormView({
 
                   // Admin: propagate coordinate changes back to the shared CyclingLocation record
                   if (
-                    isAdmin &&
-                    delivery?.is_cycling_marker &&
-                    delivery?.cycling_location_id &&
-                    (formData.cycling_latitude !== delivery.cycling_latitude ||
-                      formData.cycling_longitude !== delivery.cycling_longitude)
-                  ) {
+                  isAdmin &&
+                  delivery?.is_cycling_marker &&
+                  delivery?.cycling_location_id && (
+                  formData.cycling_latitude !== delivery.cycling_latitude ||
+                  formData.cycling_longitude !== delivery.cycling_longitude))
+                  {
                     base44.entities.CyclingLocation.update(delivery.cycling_location_id, {
                       latitude: formData.cycling_latitude,
-                      longitude: formData.cycling_longitude,
+                      longitude: formData.cycling_longitude
                     }).catch(() => null);
                   }
 
@@ -1914,6 +1978,32 @@ export default function DeliveryFormView({
           </CardFooter>
         </Card>
       </motion.div>
+
+      {/* Buzzer # floating dialog */}
+      {showBuzzerInput && buzzerAnchorRect && (
+        <>
+          <div className="fixed inset-0 z-[10030]" onClick={() => { setShowBuzzerInput(false); setBuzzerValue(''); }} />
+          <div
+            className="fixed z-[10031] bg-white rounded-lg shadow-xl border border-slate-200 p-3 w-52"
+            style={{ top: buzzerAnchorRect.bottom + 6, left: Math.min(buzzerAnchorRect.right - 208, window.innerWidth - 216) }}>
+            <p className="text-xs font-semibold text-slate-600 mb-2">Enter Buzzer #</p>
+            <Input
+              ref={buzzerInputRef}
+              value={buzzerValue}
+              onChange={(e) => setBuzzerValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); handleBuzzerConfirm(); }
+                if (e.key === 'Escape') { setShowBuzzerInput(false); setBuzzerValue(''); }
+              }}
+              placeholder="e.g. 223"
+              className="h-8 text-sm mb-2" />
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => { setShowBuzzerInput(false); setBuzzerValue(''); }} className="h-7 px-3 text-xs rounded border border-slate-300 text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={handleBuzzerConfirm} className="h-7 px-3 text-xs rounded bg-blue-600 text-white hover:bg-blue-700">OK</button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Patient Match Popup */}
       {showMatchPopup &&

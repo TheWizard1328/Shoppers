@@ -209,9 +209,9 @@ function HereType1Polylines({
                 ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75, next),
                 dashArray: coords ? getDriverRouteStyle(driverId, 0.95, next).dashArray : '8,8'
               }}
-              pane="activeRoutePane"
+              pane="currentLegPane"
             />,
-            <RouteDirectionDecorator key={`type1-pre-home-arrow-${driverId}-${getDeliveryMode(next, driverId)}`} positions={segmentPositions} color={CURRENT_LEG_COLOR} />
+            <RouteDirectionDecorator key={`type1-pre-home-arrow-${driverId}-${getDeliveryMode(next, driverId)}`} positions={segmentPositions} color={CURRENT_LEG_COLOR} pane="currentLegPane" />
           );
         }
       }
@@ -280,12 +280,13 @@ function HereType1Polylines({
           ...getDriverRouteStyle(driverId, shouldUseFallback ? 0.75 : 0.95, currentStop),
           dashArray: shouldUseFallback ? '8,8' : getDriverRouteStyle(driverId, 0.95, currentStop).dashArray
         }}
-        pane="activeRoutePane"
+        pane="currentLegPane"
       />,
       <RouteDirectionDecorator
         key={`type1-active-arrow-${driverId}-${currentStop.id}`}
         positions={coords}
         color={CURRENT_LEG_COLOR}
+        pane="currentLegPane"
       />
     );
   });

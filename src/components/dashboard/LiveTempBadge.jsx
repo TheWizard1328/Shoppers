@@ -447,15 +447,27 @@ export default function LiveTempBadge({
       if (!showLiveBle) return;                        // only for this driver today
       if (bleStatus === 'connected') return;           // already streaming — no-op
       if (bleConnectingRef.current) return;            // mid-connect — no-op
-      const permitted = blePermittedDevice.current;
+
+      // Try to get a permitted device — use cached ref first, then re-query getDevices()
+      let permitted = blePermittedDevice.current;
+      if (!permitted && typeof navigator?.bluetooth?.getDevices === 'function') {
+        try {
+          const devices = await navigator.bluetooth.getDevices();
+          permitted = devices.find(d =>
+            d.name === 'tps' || d.name === 'sps' ||
+            (d.name || '').startsWith('Inkbird') || (d.name || '').startsWith('IBS')) || null;
+          if (permitted) blePermittedDevice.current = permitted;
+        } catch (_) {}
+      }
       if (!permitted) return;                          // no known device — no-op
+
       bleConnectingRef.current = true;
       setBleConnecting(true);
       try {
         const server = await permitted.gatt.connect();
         await setConnectedServer(server, permitted);
       } catch (err) {
-        blePermittedDevice.current = null; // stale ref — clear so next tap opens picker
+        // Don't clear the ref permanently — it may recover on the next attempt
         console.warn('[LiveTempBadge] Silent reconnect failed:', err?.message);
       } finally {
         bleConnectingRef.current = false;
@@ -464,7 +476,7 @@ export default function LiveTempBadge({
     };
     window.addEventListener('inkbirdReconnectRequest', onReconnectRequest);
     return () => window.removeEventListener('inkbirdReconnectRequest', onReconnectRequest);
-  }, [bleStatus, showLiveBle, setConnectedServer]);
+  }, [bleStatus, showLiveBle, setConnectedServer, sensorName]);
 
   // ── Display values ────────────────────────────────────────────────────
 

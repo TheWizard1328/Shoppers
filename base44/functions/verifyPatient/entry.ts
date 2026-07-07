@@ -60,6 +60,9 @@ Deno.serve(async (req) => {
     // Update patient record asynchronously
     base44.asServiceRole.entities.Patient.update(match.id, updatePayload).catch(() => {});
 
+    // Use the newly provided email if this was a first-login email save
+    const resolvedEmail = (!hasEmail && inputEmail) ? inputEmail : (match.email || null);
+
     return Response.json({
       success: true,
       is_first_login: !hasEmail,
@@ -67,7 +70,7 @@ Deno.serve(async (req) => {
         id: match.id,
         full_name: match.full_name,
         phone: match.phone,
-        email: match.email || null,
+        email: resolvedEmail,
         address: match.address,
         latitude: match.latitude,
         longitude: match.longitude,
