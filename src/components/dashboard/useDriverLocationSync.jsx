@@ -25,9 +25,6 @@ export default function useDriverLocationSync({
   selectedDriverId, // needed to re-trigger map when viewing another driver's location
 }) {
   const lastLiveDriverLocationRef = useRef(null);
-  // Tracks the driver's coordinates at the time of the last phase-2 map reposition
-  // so we can distance-gate updates and match the live-marker update cadence.
-  const lastMapPositionRef = useRef(null);
 
   // ── Live data refs ────────────────────────────────────────────────────────
   // These let syncMobileLocation always read current data without the effect
@@ -98,7 +95,6 @@ export default function useDriverLocationSync({
           if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
           const selectedId = window._selectedDriverIdRef?.current;
           if (selectedId && selectedId !== 'all' && selectedId !== currentUser.id) return;
-          const minIntervalMs = mapViewPhaseRef.current === 2 ? 1200 : 1800;
           // Phase 2: always try to scroll the next card into view on every GPS tick,
           // regardless of whether the map itself repositions.
           if (mapViewPhaseRef.current === 2) {
@@ -106,22 +102,13 @@ export default function useDriverLocationSync({
             if (nextCard) document.getElementById(`stop-card-${nextCard.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
           }
 
-          // Phase 2 on primary device: require ≥15m of movement since the last
-          // map reposition so the view follows the live-location marker cadence.
-          // Fallback: if we haven't repositioned in 6s regardless of distance, allow it.
-          if (mapViewPhaseRef.current === 2 && isPrimaryDevice && lastMapPositionRef.current) {
-            const movedKm = calculateDistanceRef.current(
-              newLocation.latitude, newLocation.longitude,
-              lastMapPositionRef.current.latitude, lastMapPositionRef.current.longitude
-            );
-            const PHASE2_MIN_DIST_KM = 0.015; // 15 metres
-            const timeFallbackMs = minIntervalMs * 5; // ~6s — ensures map catches up if driver is slow
-            if (movedKm < PHASE2_MIN_DIST_KM && now - lastProgrammaticMapMoveRef.current < timeFallbackMs) return;
-          }
-          if (now - lastProgrammaticMapMoveRef.current >= minIntervalMs) {
+          // No update timer / distance-gate here anymore: on the primary device the map
+          // follow is driven exactly by the live GPS marker's own update cadence — every
+          // watchPosition tick that reaches here (already the device's real GPS refresh
+          // rate) immediately repositions the map, matching the live-location marker 1:1.
+          if (isPrimaryDevice) {
             lastProgrammaticMapMoveRef.current = now;
             window._lastProgrammaticMapMove = now;
-            if (mapViewPhaseRef.current === 2) lastMapPositionRef.current = { latitude: newLocation.latitude, longitude: newLocation.longitude };
             pendingPhaseRef.current = mapViewPhaseRef.current;
             setMapViewTrigger((prev) => prev + 1);
           }
@@ -266,9 +253,10 @@ export default function useDriverLocationSync({
       const targetAppUser = updatedAppUsers.find((au) => au?.user_id === resolvedTargetId);
       if (!targetAppUser?.current_latitude || !targetAppUser?.current_longitude) return;
 
-      const minIntervalMs = mapViewPhaseRef.current === 2 ? 1200 : 1800;
-      if (now - lastProgrammaticMapMoveRef.current < minIntervalMs) return;
-
+      // No update timer here either: on non-primary devices the map follow is driven
+      // exactly by the shared/broadcast location marker's own update cadence — every
+      // 'driverLocationsUpdated' event for the target driver immediately repositions
+      // the map, matching the shared marker 1:1 instead of polling on an interval.
       lastProgrammaticMapMoveRef.current = now;
       window._lastProgrammaticMapMove = now;
       pendingPhaseRef.current = mapViewPhaseRef.current;
