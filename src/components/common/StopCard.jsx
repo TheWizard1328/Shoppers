@@ -47,6 +47,7 @@ import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocal
 import { runTerminalDeliverySideEffects, triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { getActiveDeliveryAction, runWithDeliveryActionLock, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
+import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 
 const START_ACTION_NAME = 'start_delivery';
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
@@ -888,7 +889,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                     {!isAtPickupLocation && finalDisplayPhone &&
                 <a
                   href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); dispatchStopCardActionCollapse(); }}
                   className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200">
                   
                         <Phone className="w-6 h-6" />
@@ -908,6 +909,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   type="button"
                   onClick={(e) => {
                   e.stopPropagation();
+                  dispatchStopCardActionCollapse();
                   const isNative = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
                   if (isNative) {
                     window.open(navigationHref, '_system');

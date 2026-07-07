@@ -457,6 +457,7 @@ export default function useStopCardActions(params) {
       smartRefreshManager.resume();
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
+      dispatchStopCardActionCollapse();
       onClick?.(null);
     }
   }, [allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
@@ -568,6 +569,7 @@ export default function useStopCardActions(params) {
             await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: retryDate, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, runOptimization: false });
           } catch {}
           if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
+          dispatchStopCardActionCollapse();
         });
       } finally {
         resumeOfflineSync('delivery_actions');
@@ -631,6 +633,7 @@ export default function useStopCardActions(params) {
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, suppressFabIfPhase1: true } }));
           window.dispatchEvent(new CustomEvent('deliveryStatusChanged', { detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, maxStops: 5 } }));
           if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
+          dispatchStopCardActionCollapse();
         });
       } finally {
         resumeOfflineSync('delivery_actions');
