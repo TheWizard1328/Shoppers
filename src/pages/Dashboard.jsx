@@ -1631,6 +1631,37 @@ useEffect(() => {
     return () => window.removeEventListener('patientHistoryPanelClosed', handlePatientHistoryPanelClosed);
   }, [previousMapState]);
 
+  // BUG FIX: collapseExpandedStopCardsForDriver()/collapseAllStopCards() only ever reached
+  // HorizontalStopCards.jsx's local handler, which forwards to the onSelectionChange prop
+  // (DashboardView.jsx's handleStopCardSelectionChange — the BULK CHECKBOX selection map,
+  // which no-ops on a null id) instead of ever touching Dashboard's own `selectedCardId`.
+  // So any caller relying purely on that event (e.g. the COD Save/Save & Complete flow,
+  // which never goes through handleStatusUpdate.jsx's direct setSelectedCardId(null) call)
+  // never actually collapsed the card — it looked like a timing issue but the event simply
+  // never reached the real state. Listen for it here too so the event is a real, authoritative
+  // collapse regardless of which flow dispatches it.
+  useEffect(() => {
+    const handleCollapseAllStopCardsEvent = (event) => {
+      if (!selectedCardId) return;
+      const targetDriverId = event?.detail?.driverId;
+      if (targetDriverId) {
+        const selectedDelivery = (deliveries || []).find((d) => d?.id === selectedCardId);
+        if (selectedDelivery?.driver_id && selectedDelivery.driver_id !== targetDriverId) return;
+      }
+      setSelectedCardId(null);
+      setHighlightedCardId(null);
+      cardExpandedAtRef.current = null;
+      if (previousMapState?.center && previousMapState?.zoom) {
+        setMapCenter(previousMapState.center);
+        setMapZoom(previousMapState.zoom);
+        setShouldFitBounds(null);
+      }
+      setPreviousMapState(null);
+    };
+    window.addEventListener('collapseAllStopCards', handleCollapseAllStopCardsEvent);
+    return () => window.removeEventListener('collapseAllStopCards', handleCollapseAllStopCardsEvent);
+  }, [selectedCardId, deliveries, previousMapState]);
+
   const handleCardClick = (delivery) => {
     if (!delivery || !delivery.id) {
       return;
