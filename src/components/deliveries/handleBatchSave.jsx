@@ -181,7 +181,6 @@ export async function handleBatchSave({
 
       const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
-      const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
       const groupedEnsureKeys = new Map();
       const defaultPickupDriverDateKeys = new Set();
       const existingStopCountByDriverDate = new Map();
@@ -201,10 +200,8 @@ export async function handleBatchSave({
           existingStopCountByDriverDate.set(driverDateKey, count);
         }
 
-        const store = stores?.find((item) => item && item.id === delivery.store_id);
-        const isSpecialStore = specialStoreNames.includes(store?.name || '');
         const existingStopCount = existingStopCountByDriverDate.get(driverDateKey) || 0;
-        if (!isSpecialStore && existingStopCount === 0) {
+        if (existingStopCount === 0) {
           defaultPickupDriverDateKeys.add(driverDateKey);
         }
       });

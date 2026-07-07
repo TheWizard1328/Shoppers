@@ -1,7 +1,7 @@
 // Redeployed on 2026-05-01
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const SPECIAL_STORE_NAMES = new Set(['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint']);
+
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
 function generateShortStopId() {
@@ -313,7 +313,7 @@ Deno.serve(async (req) => {
     const ensuredPickups = [];
 
     for (const store of filteredStores) {
-      if (!store || SPECIAL_STORE_NAMES.has(store.name || '')) continue;
+      if (!store) continue;
       const slots = await getAssignedSlotsForStoreWithOverrides(base44, store, deliveryDate, driverId, driverUserId, dateOverrides || []);
 
       for (const slot of slots) {

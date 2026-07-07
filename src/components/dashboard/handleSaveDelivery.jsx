@@ -204,9 +204,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       String(deliveryData.delivery_id || '').toUpperCase().startsWith('ISP-') ||
       String(deliveryData.delivery_id || '').toUpperCase().startsWith('ISD-')
     );
-    const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark'];
-    const isSpecialStore = deliveryStore && specialStoreNames.includes(deliveryStore.name);
-    const storesToCheck = isInterStore ? [] : isSpecialStore ? (deliveryStore ? [deliveryStore] : []) : isFirstStop ? assignedStores : (deliveryStore ? [deliveryStore] : []);
+    const storesToCheck = isInterStore ? [] : isFirstStop ? assignedStores : (deliveryStore ? [deliveryStore] : []);
 
     for (const store of storesToCheck) {
       const isAM = isSaturday ? isDriverAssignedToSlot(store, 'saturday_am') : isSunday ? isDriverAssignedToSlot(store, 'sunday_am') : isDriverAssignedToSlot(store, 'weekday_am');
