@@ -907,71 +907,100 @@ export default function DeliveryMap({
     setLegendLeft(legendRef.current ? centerX - legendRef.current.offsetWidth / 2 : centerX);
   }, [statsCardRect, driverRoutes.length, isStatsCardExpanded]);
 
+  // Guards against overlapping animated fitBounds calls: if GPS/shared-marker ticks
+  // arrive faster than the current pan/zoom animation can finish, calling fitBounds
+  // again immediately makes Leaflet cancel and restart the transition mid-flight —
+  // which visually looks like the map freezing/stuttering instead of following.
+  // Fix: never start a second animation while one is in flight. Instead, remember
+  // the newest request and apply it the instant the in-flight one settles (via
+  // Leaflet's own 'moveend' event) — so the map always converges on the truly
+  // latest position with zero dropped updates and no artificial delay/timer.
+  const fitBoundsInFlightRef = useRef(false);
+  const latestFitBoundsRef = useRef(null);
+
   useEffect(() => {
     if (!map || !shouldFitBounds) return;
-    try {
-      const bounds = L.latLngBounds((Array.isArray(shouldFitBounds.bounds) ? shouldFitBounds.bounds : []).filter((point) => Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1])));
-      if (!bounds.isValid()) return;
+    latestFitBoundsRef.current = shouldFitBounds;
 
-      const opts = shouldFitBounds.options || {};
-      const requestedMaxZoom = typeof opts.maxZoom === 'number' ? opts.maxZoom : 17.5;
-      const paddingTopLeft    = opts.paddingTopLeft    || [60, 60];
-      const paddingBottomRight= opts.paddingBottomRight|| [60, 60];
-      const currentZoom = map.getZoom();
-
-      // BUG FIX: the old check only asked "is the map CURRENTLY zoomed in near max?" —
-      // it never asked "do the NEW bounds actually need that same tight zoom?". That meant
-      // cycling from a tight Phase 2/3 view (e.g. zoom 17.9 on one stop) to Phase 1 (which
-      // needs to zoom OUT to fit the whole city) would wrongly take the "just pan, keep zoom"
-      // shortcut below — recentering correctly but leaving the zoom stuck at the old tight level.
-      // Fix: compute what zoom Leaflet would ACTUALLY pick for the new bounds (via
-      // getBoundsZoom, which is a pure calculation — it doesn't move the map), clamped to
-      // requestedMaxZoom. Only take the "skip fitBounds" shortcut when that computed zoom is
-      // ALSO already at/above max — i.e. the new bounds genuinely want the same tight zoom we're
-      // already at, so a real fitBounds call would get clamped and silently skip the pan anyway.
-      let targetZoomForBounds = requestedMaxZoom;
-      try {
-        const avgPadding = L.point(
-          (paddingTopLeft[0] + paddingBottomRight[0]) / 2,
-          (paddingTopLeft[1] + paddingBottomRight[1]) / 2
-        );
-        targetZoomForBounds = Math.min(map.getBoundsZoom(bounds, false, avgPadding), requestedMaxZoom);
-      } catch {}
-
-      const alreadyAtOrAboveMaxZoom = currentZoom >= requestedMaxZoom - 0.05 && targetZoomForBounds >= requestedMaxZoom - 0.05;
-
-      // When the map is already at or above maxZoom AND the new bounds also want that same
-      // max zoom, Leaflet's fitBounds clamps the zoom to maxZoom and — since the bounds
-      // already fit within the current viewport at that zoom — silently skips the pan entirely.
-      // Phase 2 and Phase 3 both hit this when the driver is zoomed all the way in. Fix: detect
-      // that case and do a direct setView to the padding-adjusted center of the bounds instead
-      // of calling fitBounds.
-      if (alreadyAtOrAboveMaxZoom) {
-        const center = bounds.getCenter();
-        const size = map.getSize();
-        // Adjust center to compensate for asymmetric padding so the bounds center
-        // appears visually centred within the padded viewport area
-        const totalHorizPad = paddingTopLeft[0] + paddingBottomRight[0];
-        const totalVertPad  = paddingTopLeft[1] + paddingBottomRight[1];
-        const horizShift = (paddingTopLeft[0] - paddingBottomRight[0]) / 2;
-        const vertShift  = (paddingTopLeft[1] - paddingBottomRight[1]) / 2;
-        const projected = map.project(center, currentZoom);
-        const adjusted  = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), currentZoom);
-        map.setView(adjusted, currentZoom, { animate: opts.animate !== false, duration: opts.duration || 0.5 });
-        // Stamp so moveend/zoomend guards don't treat this as a user-gesture unlock
-        window._lastProgrammaticMapMove = Date.now() + 1500;
-      } else {
-        // Normal path — zoom out (or stay) and pan to fit all bounds points
-        map.fitBounds(bounds, { ...opts, paddingTopLeft, paddingBottomRight, animate: true });
-        // Apply the -0.1 reduction to the zoom Leaflet actually chose so the final
-        // render is always slightly zoomed out from the computed best-fit level
-        const fittedZoom = map.getZoom();
-        map.setZoom(fittedZoom, { animate: true });
-        window._lastProgrammaticMapMove = Date.now() + 1500;
-      }
-
+    if (fitBoundsInFlightRef.current) {
+      // An animation from a very recent tick is still playing — the in-flight
+      // handler below will pick up this newer target the moment it settles.
       onBoundsFitted?.();
-    } catch {}
+      return;
+    }
+
+    const runFit = (request) => {
+      try {
+        const bounds = L.latLngBounds((Array.isArray(request.bounds) ? request.bounds : []).filter((point) => Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1])));
+        if (!bounds.isValid()) return;
+
+        const opts = request.options || {};
+        const requestedMaxZoom = typeof opts.maxZoom === 'number' ? opts.maxZoom : 17.5;
+        const paddingTopLeft    = opts.paddingTopLeft    || [60, 60];
+        const paddingBottomRight= opts.paddingBottomRight|| [60, 60];
+        const currentZoom = map.getZoom();
+
+        // BUG FIX: the old check only asked "is the map CURRENTLY zoomed in near max?" —
+        // it never asked "do the NEW bounds actually need that same tight zoom?". That meant
+        // cycling from a tight Phase 2/3 view (e.g. zoom 17.9 on one stop) to Phase 1 (which
+        // needs to zoom OUT to fit the whole city) would wrongly take the "just pan, keep zoom"
+        // shortcut below — recentering correctly but leaving the zoom stuck at the old tight level.
+        // Fix: compute what zoom Leaflet would ACTUALLY pick for the new bounds (via
+        // getBoundsZoom, which is a pure calculation — it doesn't move the map), clamped to
+        // requestedMaxZoom. Only take the "skip fitBounds" shortcut when that computed zoom is
+        // ALSO already at/above max — i.e. the new bounds genuinely want the same tight zoom we're
+        // already at, so a real fitBounds call would get clamped and silently skip the pan anyway.
+        let targetZoomForBounds = requestedMaxZoom;
+        try {
+          const avgPadding = L.point(
+            (paddingTopLeft[0] + paddingBottomRight[0]) / 2,
+            (paddingTopLeft[1] + paddingBottomRight[1]) / 2
+          );
+          targetZoomForBounds = Math.min(map.getBoundsZoom(bounds, false, avgPadding), requestedMaxZoom);
+        } catch {}
+
+        const alreadyAtOrAboveMaxZoom = currentZoom >= requestedMaxZoom - 0.05 && targetZoomForBounds >= requestedMaxZoom - 0.05;
+
+        fitBoundsInFlightRef.current = true;
+        map.once('moveend', () => {
+          fitBoundsInFlightRef.current = false;
+          const latest = latestFitBoundsRef.current;
+          if (latest && latest !== request) runFit(latest);
+        });
+
+        // When the map is already at or above maxZoom AND the new bounds also want that same
+        // max zoom, Leaflet's fitBounds clamps the zoom to maxZoom and — since the bounds
+        // already fit within the current viewport at that zoom — silently skips the pan entirely.
+        // Phase 2 and Phase 3 both hit this when the driver is zoomed all the way in. Fix: detect
+        // that case and do a direct setView to the padding-adjusted center of the bounds instead
+        // of calling fitBounds.
+        if (alreadyAtOrAboveMaxZoom) {
+          const center = bounds.getCenter();
+          // Adjust center to compensate for asymmetric padding so the bounds center
+          // appears visually centred within the padded viewport area
+          const horizShift = (paddingTopLeft[0] - paddingBottomRight[0]) / 2;
+          const vertShift  = (paddingTopLeft[1] - paddingBottomRight[1]) / 2;
+          const projected = map.project(center, currentZoom);
+          const adjusted  = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), currentZoom);
+          map.setView(adjusted, currentZoom, { animate: opts.animate !== false, duration: opts.duration || 0.5 });
+          // Stamp so moveend/zoomend guards don't treat this as a user-gesture unlock
+          window._lastProgrammaticMapMove = Date.now() + 1500;
+        } else {
+          // Normal path — zoom out (or stay) and pan to fit all bounds points
+          map.fitBounds(bounds, { ...opts, paddingTopLeft, paddingBottomRight, animate: true });
+          // Apply the -0.1 reduction to the zoom Leaflet actually chose so the final
+          // render is always slightly zoomed out from the computed best-fit level
+          const fittedZoom = map.getZoom();
+          map.setZoom(fittedZoom, { animate: true });
+          window._lastProgrammaticMapMove = Date.now() + 1500;
+        }
+      } catch {
+        fitBoundsInFlightRef.current = false;
+      }
+    };
+
+    runFit(shouldFitBounds);
+    onBoundsFitted?.();
   }, [map, shouldFitBounds, onBoundsFitted]);
 
   const phase2FollowKeyRef = useRef("");
