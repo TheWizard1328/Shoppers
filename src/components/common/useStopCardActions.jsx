@@ -1083,7 +1083,6 @@ export default function useStopCardActions(params) {
           return;
         }
         if (currentUser?.driver_status !== 'on_duty') await ensureDriverOnline();
-        await syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId: delivery.driver_id });
 
         const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate
           ? [{ type: 'Cash', amount: codTotalRequired }] : null;
@@ -1266,8 +1265,6 @@ export default function useStopCardActions(params) {
           toast.error('This delivery has been deleted. Please refresh the page.');
           return;
         }
-        await syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId: delivery.driver_id });
-
         // Breadcrumbs
         let pendingBreadcrumbsString = null;
         try {
