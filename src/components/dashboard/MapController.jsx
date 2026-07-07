@@ -75,6 +75,8 @@ export default function MapController({
           if (onMapInteraction) {
             onMapInteraction(true);
           }
+          // Collapse any expanded cards when user pans the map
+          window.dispatchEvent(new CustomEvent('mapBackgroundClick'));
         }
       }
     },

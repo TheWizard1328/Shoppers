@@ -243,6 +243,13 @@ export default function StatsPanel({
     }
   }, [showExpandedContent]);
 
+  // Collapse when a stop card is expanded/collapsed (mutual exclusion)
+  useEffect(() => {
+    const handleCollapse = () => { if (isExpanded) setIsExpanded(false); };
+    window.addEventListener('collapseStatsCard', handleCollapse);
+    return () => window.removeEventListener('collapseStatsCard', handleCollapse);
+  }, [isExpanded, setIsExpanded]);
+
   // Auto-lock to polylines mode when route is finished
   useEffect(() => {
     if (isDateFinished && isDriver && !isAllDriversMode) {

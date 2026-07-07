@@ -1663,6 +1663,7 @@ useEffect(() => {
       setSelectedCardId(null); setHighlightedCardId(null); cardExpandedAtRef.current = null;
       if (previousMapState?.center && previousMapState?.zoom) { setMapCenter(previousMapState.center); setMapZoom(previousMapState.zoom); setShouldFitBounds(null); }
       setPreviousMapState(null);
+      window.dispatchEvent(new CustomEvent('collapseStatsCard'));
       return;
     } else {
       // Card is being expanded
@@ -1671,8 +1672,9 @@ useEffect(() => {
       }
       setPreviousMapState({ center: Array.isArray(mapCenter) ? [...mapCenter] : null, zoom: mapZoom });
 
-      // Collapse the stats card when a stop card expands (mutual exclusion)
+      // Collapse the stats card when a stop card expands or collapses (mutual exclusion)
       if (isExpanded) setIsExpanded(false);
+      window.dispatchEvent(new CustomEvent('collapseStatsCard'));
       setSelectedCardId(delivery.id);
       setHighlightedCardId(delivery.id);
       cardExpandedAtRef.current = Date.now();
