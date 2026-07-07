@@ -304,6 +304,7 @@ function Dashboard() {
     const isRtn=(d)=>d&&d.status==='completed'&&(pm.get(d.patient_id)?.address||'').toUpperCase().includes('(RTN)');
     const total=sd.length+ap.filter((d)=>d&&(d.after_hours_pickup||isISP(d))).length;
     const inTransitIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&(d.status==='in_transit'||d.status==='en_route')).length;
+    const completedIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&d.status==='completed').length;
     const inTransit=sd.filter((d)=>d&&d.status==='in_transit').length+inTransitIsdIsp; const enRoute=ap.filter((d)=>d&&!isISP(d)&&d.status==='en_route').length;
     const completed=sd.filter((d)=>d&&d.status==='completed'&&!isRtn(d)).length+rd.filter((d)=>d&&!d.patient_id&&(d.after_hours_pickup||isISP(d))&&(d.status==='completed'||d.status==='cancelled')).length;
     const returned=sd.filter(isRtn).length; const failed=sd.filter((d)=>d&&((d.status==='failed'&&!isRtn(d))||(d.status==='cancelled'&&!d.patient_id))).length+ap.filter((d)=>d&&isISP(d)&&d.status==='failed').length;
@@ -312,7 +313,7 @@ function Dashboard() {
     const isdIspCount=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))).length;
     let totalDrivers=0,inTransitDrivers=0,completedDrivers=0;
     if(isDispatcher||isAdmin){const aids=new Set(rd.map((d)=>d?.driver_id).filter(Boolean));totalDrivers=aids.size;inTransitDrivers=new Set(rd.filter((d)=>d&&(d.status==='in_transit'||d.status==='en_route')).map((d)=>d?.driver_id).filter(Boolean)).size;aids.forEach((did)=>{const ds=rd.filter((d)=>d?.driver_id===did);if(ds.some((d)=>d&&d.status==='completed')&&ds.every((d)=>d&&['completed','failed','cancelled'].includes(d.status)))completedDrivers++;});}
-    return {total,inTransit,enRoute,activePickupsEnRoute:enRoute,completed,failed,returned,totalDrivers,inTransitDrivers,completedDrivers,totalPickups,completedPickups,isdIspCount,inTransitIsdIsp};
+    return {total,inTransit,enRoute,activePickupsEnRoute:enRoute,completed,failed,returned,totalDrivers,inTransitDrivers,completedDrivers,totalPickups,completedPickups,isdIspCount,inTransitIsdIsp,completedIsdIsp};
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids, isAdmin]);
 
   const isDateFinished = useMemo(() => { const tod = startOfDay(new Date()); const sel = startOfDay(selectedDate); if (sel >= tod) return false; return filteredDeliveries.length > 0 && filteredDeliveries.every((d) => d && ['completed','failed','cancelled'].includes(d.status)); }, [selectedDate, filteredDeliveries]);
