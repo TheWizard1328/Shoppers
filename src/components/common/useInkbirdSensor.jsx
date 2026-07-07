@@ -119,15 +119,18 @@ export function useInkbirdSensor(currentUser) {
     saveSensorNameLocally(name);
     persistSensorToUserDevice(currentUser, name);
 
-    // Stale guard: if no reading arrives within 10s, mark error and disconnect
+    // Stale guard: if no reading arrives within 60s, mark error but do NOT disconnect.
+    // The GATT connection may still be valid — just the notification pipe was throttled
+    // by the browser (e.g. PWA backgrounded). We keep the server alive so a forceRead()
+    // or visibilitychange can recover without a full re-pair.
     staleTimerRef.current = setTimeout(() => {
       if (!mountedRef.current) return;
       if (!latestReadingRef.current) {
-        console.warn('[useInkbirdSensor] No reading received within 10s — disconnecting');
+        console.warn('[useInkbirdSensor] No reading received within 60s — marking error (connection kept)');
         setStatus('error');
-        try { server.disconnect(); } catch (_) {}
+        // Do NOT call server.disconnect() — keep the GATT handle alive for recovery
       }
-    }, 20000);
+    }, 60000);
 
     try {
       const service = await server.getPrimaryService(INKBIRD_SERVICE_UUID);
@@ -181,6 +184,39 @@ export function useInkbirdSensor(currentUser) {
     });
 
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Visibility recovery — when PWA returns to foreground ────────────────
+  // If the browser throttled the BLE notification pipe while backgrounded,
+  // attempt a forceRead on app resume so the status recovers without user action.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      const server = serverRef.current;
+      if (!server) return;
+      // If the GATT server is still open, try a fresh read to wake the stream
+      if (server.connected) {
+        // Re-subscribe notifications in case the stream was silently dropped
+        const resubscribe = async () => {
+          try {
+            const service = await server.getPrimaryService(INKBIRD_SERVICE_UUID);
+            const readChar = await service.getCharacteristic(INKBIRD_READ_UUID);
+            const dv = await readChar.readValue();
+            const parsed = decodeReading(dv);
+            if (parsed && mountedRef.current) {
+              clearTimeout(staleTimerRef.current);
+              latestReadingRef.current = parsed;
+              setReading(parsed);
+              setStatus('connected');
+              window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'visibility-recovery' } }));
+            }
+          } catch (_) {}
+        };
+        resubscribe();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Forget / unpair — called on double-tap ───────────────────────────
   const forget = useCallback(() => {
