@@ -153,14 +153,15 @@ const mergeVisibleDriversByFreshness = (current = [], incoming = []) => {
     // stale cached value (e.g. an un-invalidated offline-DB record arriving after the
     // WebSocket update). Equal-or-newer incoming data is always accepted.
     const incomingHasCoords = user?.current_latitude && user?.current_longitude;
-    const incomingIsNewerOrEqual = nextTs >= existingTs;
-    const useIncomingCoords = incomingHasCoords && incomingIsNewerOrEqual;
+    // STRICT: incoming must be STRICTLY newer — equal timestamps keep existing to prevent flicker
+    const incomingIsStrictlyNewer = nextTs > existingTs;
+    const useIncomingCoords = incomingHasCoords && incomingIsStrictlyNewer;
     merged.set(key, {
       ...existing,
       ...user,
       current_latitude: useIncomingCoords ? user.current_latitude : existing?.current_latitude,
       current_longitude: useIncomingCoords ? user.current_longitude : existing?.current_longitude,
-      location_updated_at: incomingIsNewerOrEqual
+      location_updated_at: incomingIsStrictlyNewer
         ? (user?.location_updated_at || existing?.location_updated_at || user?.updated_date || existing?.updated_date)
         : (existing?.location_updated_at || existing?.updated_date || user?.location_updated_at)
     });

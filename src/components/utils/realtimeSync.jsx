@@ -607,7 +607,25 @@ const subscribeToEntity = (entityName) => {
       // CRITICAL: Save to offline DB immediately on WebSocket update
       try {
         const { offlineDB } = await import('./offlineDatabase');
-        
+
+        // LOCATION STALENESS GUARD (AppUser only):
+        // Before saving or broadcasting, check whether the incoming location timestamp
+        // is strictly newer than what the offline DB already holds.
+        // This prevents ghost/slingshot markers caused by out-of-order WS events.
+        if (entityName === 'AppUser' && type === 'update' && data?.location_updated_at) {
+          try {
+            const existingAU = await offlineDB.getById(offlineDB.STORES.APP_USERS, data.id || id);
+            if (existingAU?.location_updated_at) {
+              const existingTs = new Date(existingAU.location_updated_at).getTime();
+              const incomingTs = new Date(data.location_updated_at).getTime();
+              if (incomingTs <= existingTs) {
+                console.log(`🔇 [RealtimeSync] Dropped stale AppUser location for ${data.user_id || id} — incoming ${incomingTs} <= existing ${existingTs}`);
+                return; // Drop entirely — stale location update
+              }
+            }
+          } catch (_) { /* non-critical — proceed on error */ }
+        }
+
         if (type === 'create' || type === 'update') {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                             entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
