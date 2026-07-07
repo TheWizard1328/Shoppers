@@ -47,14 +47,20 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   console.log('[Square POS] Payload:', payloadJson);
   console.log('[Square POS] Launching URL:', squareUrl);
 
-  // Use window.location.href for custom URI schemes on Android.
-  // target="_blank" on Android Chrome/WebView blocks intent:// and custom schemes;
-  // direct assignment is the reliable way to hand off to another app.
+  // Hidden anchor click WITHOUT target="_blank": custom URI schemes work on Android
+  // Chrome/PWA when the anchor has no target (same-frame navigation attempt), which
+  // Android intercepts and routes to the registered app instead of navigating.
+  // target="_blank" was blocking the intent — removing it is the fix.
   try {
-    window.location.href = squareUrl;
-    remoteLogger.info('[Square POS] window.location.href set successfully');
+    const a = document.createElement('a');
+    a.href = squareUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} }, 1000);
+    remoteLogger.info('[Square POS] Anchor click dispatched successfully');
   } catch (err) {
-    remoteLogger.error('[Square POS] Launch FAILED', String(err));
+    remoteLogger.error('[Square POS] Anchor click FAILED', String(err));
     console.error('[Square POS] Launch error:', err);
   }
 }

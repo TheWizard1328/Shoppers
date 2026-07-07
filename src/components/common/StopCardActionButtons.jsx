@@ -235,11 +235,9 @@ export default function StopCardActionButtons(props) {
             <button
               type="button"
               disabled={!hasValidSquareLocation}
-              onPointerDownCapture={(e) => { if (!hasValidSquareLocation) return; e.stopPropagation(); handleSquareButtonTap(e); }}
-              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onPointerDown={(e) => { e.stopPropagation(); }}
               onTouchStart={(e) => { e.stopPropagation(); }}
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onClick={(e) => { e.stopPropagation(); if (!hasValidSquareLocation) return; handleSquareButtonTap(e); }}
               style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
               className={`inline-flex items-center justify-center rounded-md border transition-colors flex-shrink-0 relative z-30 min-h-11 min-w-11 h-10 md:h-8 w-10 md:w-8 pointer-events-auto ${hasValidSquareLocation ? 'border-slate-400 bg-slate-100 hover:bg-slate-200' : 'border-slate-300 bg-slate-50 opacity-40 cursor-not-allowed'}`}
               title={hasValidSquareLocation ? 'Collect COD with Square POS' : 'No Square location configured for this store'}>
