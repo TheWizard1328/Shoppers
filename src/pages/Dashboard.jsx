@@ -1671,6 +1671,8 @@ useEffect(() => {
       }
       setPreviousMapState({ center: Array.isArray(mapCenter) ? [...mapCenter] : null, zoom: mapZoom });
 
+      // Collapse the stats card when a stop card expands (mutual exclusion)
+      if (isExpanded) setIsExpanded(false);
       setSelectedCardId(delivery.id);
       setHighlightedCardId(delivery.id);
       cardExpandedAtRef.current = Date.now();
