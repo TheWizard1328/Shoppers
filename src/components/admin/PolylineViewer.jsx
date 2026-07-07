@@ -781,7 +781,7 @@ export default function PolylineViewer({ users = [] }) {
             {/* Main content: list + map */}
             <div className="flex flex-col md:flex-row gap-3 flex-1 min-h-0">
               {/* List — desktop only */}
-              <div className="hidden md:flex md:w-72 xl:w-80 flex-col border rounded-lg overflow-hidden flex-shrink-0">
+              <div className="hidden md:flex md:w-72 xl:w-80 flex-col border rounded-lg overflow-hidden flex-shrink-0 min-h-0">
                 <div className="bg-slate-100 px-3 py-2 border-b flex items-center gap-2 flex-shrink-0">
                   <Checkbox
                     checked={isAllSelected}
