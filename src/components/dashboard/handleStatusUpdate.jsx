@@ -15,6 +15,7 @@ import { fabControlEvents } from '@/components/utils/fabControlEvents';
 import { calculateDistance } from '@/components/dashboard/DashboardHelpers';
 import { roundCompletionTime } from '@/components/dashboard/DashboardHelpers';
 import { lockDeliveryFields } from '@/components/utils/completionLockout';
+import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 
 const getEdmDate = () => {
   const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -31,7 +32,7 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     setMapViewPhase, setMapViewTrigger, lastProgrammaticMapMoveRef,
     updateDeliveriesLocally, currentUser, patients, stores, appUsers, drivers,
     isDispatcher, isAdmin, saveSetting, setEndOfDayDriver, setShowEndOfDayStats,
-    hasShownSummaryRef, setMapViewPhaseRef,
+    hasShownSummaryRef, setMapViewPhaseRef, setPreferredTravelMode,
   } = ctx;
 
   const statusLockKey = `${deliveryId}:${newStatus}`;
@@ -190,6 +191,14 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     } else { updateData.actual_delivery_time = null; }
 
     if (['completed', 'failed', 'cancelled'].includes(newStatus)) { setSelectedCardId(null); setHighlightedCardId(null); cardExpandedAtRef.current = null; }
+
+    // When a Cycling Route End marker is completed, revert travel mode to driving
+    if (newStatus === 'completed' && targetDelivery.is_cycling_marker &&
+        (targetDelivery.delivery_notes || '').toLowerCase().includes('end')) {
+      updatePreferredTravelMode(appUsers, driverId, 'driving').catch(() => {});
+      const { setPreferredTravelMode } = ctx;
+      setPreferredTravelMode?.('driving');
+    }
 
     const targetRecord = { ...targetDelivery, ...updateData };
     const siblingUpdates = [];

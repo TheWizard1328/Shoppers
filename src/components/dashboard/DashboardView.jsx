@@ -525,6 +525,7 @@ export default function DashboardView({
         localStats={stats}
         isAIEnabled={isAIEnabled}
         refreshUser={refreshUser}
+        setPreferredTravelMode={onTravelModeChange}
       />
     </div>
   );
