@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, CheckCircle2, RotateCcw, Play } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 
@@ -85,7 +85,8 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   // Jump-queue Start: routes through handleStartDelivery (same as regular stop cards)
   // so the full isNextDelivery promotion/demotion flow runs correctly.
   const handleStart = (e) => {
-    e.stopPropagation();
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
     if (!delivery?.id) return;
     if (onStartDelivery) {
       onStartDelivery(delivery.id);
@@ -267,11 +268,15 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             ) : (
               <button
                 ref={btnRef}
-                onClick={handleStart}
                 data-stopcard-action="start"
+                onPointerDownCapture={handleStart}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-                style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                <Play size={12} />
+                style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <Clock size={12} />
                 Start
               </button>
             )
