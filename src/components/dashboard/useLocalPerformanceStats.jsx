@@ -78,6 +78,12 @@ export function useLocalPerformanceStats({
     let totalDutyMinutes = 0;
     let singleDriverExtraKmLimit = 0;
 
+    // For "all drivers" mode we track the earliest and latest finished-stop times
+    // across all drivers so the duty window is overall span, not a sum.
+    let allDriversEarliestMinutes = null;
+    let allDriversLatestMinutes = null;
+    const isAllDrivers = driverIds.length > 1;
+
     driverIds.forEach((driverId) => {
       const driverAppUser = driverAppUserMap.get(driverId);
       const payRatePerDelivery = driverAppUser?.pay_rate_per_delivery || 0;
@@ -169,11 +175,28 @@ export function useLocalPerformanceStats({
           endMinutes = now.getHours() * 60 + now.getMinutes();
         }
 
-        let rawDurationMinutes = endMinutes - firstMinutes;
-        if (rawDurationMinutes < 0) rawDurationMinutes += 24 * 60;
-        totalDutyMinutes += Math.max(0, rawDurationMinutes);
+        if (isAllDrivers) {
+          // Track overall span across all drivers
+          if (allDriversEarliestMinutes === null || firstMinutes < allDriversEarliestMinutes) {
+            allDriversEarliestMinutes = firstMinutes;
+          }
+          if (allDriversLatestMinutes === null || endMinutes > allDriversLatestMinutes) {
+            allDriversLatestMinutes = endMinutes;
+          }
+        } else {
+          let rawDurationMinutes = endMinutes - firstMinutes;
+          if (rawDurationMinutes < 0) rawDurationMinutes += 24 * 60;
+          totalDutyMinutes += Math.max(0, rawDurationMinutes);
+        }
       }
     });
+
+    // For all-drivers mode, compute duty span from earliest first stop to latest last stop
+    if (isAllDrivers && allDriversEarliestMinutes !== null && allDriversLatestMinutes !== null) {
+      let span = allDriversLatestMinutes - allDriversEarliestMinutes;
+      if (span < 0) span += 24 * 60;
+      totalDutyMinutes = Math.max(0, span);
+    }
 
     setPerformanceStats({
       totalPay,
