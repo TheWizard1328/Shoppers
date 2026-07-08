@@ -716,8 +716,47 @@ export default function DeliveryMetrics() {
       }
       currentPeriodDailyData = Array.from(weeklyDataMap.values()); // This will be the merged data for weekly views
       previousPeriodDailyData = []; // Not needed as it's merged into currentPeriodDailyData
+    } else if (dateRange === 'year') {
+      // For Full Year: aggregate into monthly buckets
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthlyStats = {};
+      monthNames.forEach((m, i) => {
+        monthlyStats[i] = { date: m, completed: 0, failed: 0, returned: 0, total: 0 };
+      });
+
+      relevantDeliveries.forEach((delivery) => {
+        if (!delivery.delivery_date) return;
+        const monthIndex = parseInt(delivery.delivery_date.split('-')[1], 10) - 1;
+        const bucket = monthlyStats[monthIndex];
+        if (!bucket) return;
+        bucket.total++;
+        const isReturned = getReturnCountFromPatientId(delivery, patients) > 0;
+        if (isReturned) bucket.returned++;
+        else if (delivery.status === 'completed') bucket.completed++;
+        if (delivery.status === 'failed') bucket.failed++;
+      });
+
+      const prevMonthlyStats = {};
+      monthNames.forEach((m, i) => {
+        prevMonthlyStats[i] = { date: m, completed: 0, failed: 0, returned: 0, total: 0 };
+      });
+
+      prevRelevantDeliveries.forEach((delivery) => {
+        if (!delivery.delivery_date) return;
+        const monthIndex = parseInt(delivery.delivery_date.split('-')[1], 10) - 1;
+        const bucket = prevMonthlyStats[monthIndex];
+        if (!bucket) return;
+        bucket.total++;
+        const isReturned = getReturnCountFromPatientId(delivery, patients) > 0;
+        if (isReturned) bucket.returned++;
+        else if (delivery.status === 'completed') bucket.completed++;
+        if (delivery.status === 'failed') bucket.failed++;
+      });
+
+      currentPeriodDailyData = Object.values(monthlyStats);
+      previousPeriodDailyData = Object.values(prevMonthlyStats);
     } else {
-      // For monthly/quarterly/yearly ranges, use date-based breakdown
+      // For monthly/quarterly ranges, use date-based breakdown
       // CRITICAL: Generate entries for ALL dates in the range, even if no data
       const dailyStats = {};
       
@@ -1089,7 +1128,10 @@ export default function DeliveryMetrics() {
             )}
             <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
               <CardHeader>
-                <CardTitle style={{ color: 'var(--text-slate-900)' }}>Daily Delivery Performance {isWeeklyRangeForChart && showComparison ? "(Current vs. Previous Week)" : ""}</CardTitle>
+                <CardTitle style={{ color: 'var(--text-slate-900)' }}>
+                  {dateRange === 'year' ? 'Monthly Delivery Performance' : 'Daily Delivery Performance'}
+                  {isWeeklyRangeForChart && showComparison ? " (Current vs. Previous Week)" : ""}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
