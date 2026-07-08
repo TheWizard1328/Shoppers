@@ -19,15 +19,29 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const btnRef = useRef(null);
   const [matchedHeight, setMatchedHeight] = useState(null);
 
+  const [locationName, setLocationName] = useState(null);
+
+  // Load the CyclingLocation name if a library entry is linked
+  useEffect(() => {
+    const locId = delivery?.cycling_location_id;
+    if (!locId) { setLocationName(null); return; }
+    import('@/api/base44Client').then(({ base44 }) =>
+      base44.entities.CyclingLocation.filter({ id: locId })
+        .then((results) => {
+          const name = results?.[0]?.name || null;
+          setLocationName(name);
+        })
+        .catch(() => null)
+    );
+  }, [delivery?.cycling_location_id]);
+
   const type = getCyclingType(delivery);
   const isCompleted = delivery?.status === 'completed';
   const isInTransit = delivery?.status === 'in_transit' || delivery?.status === 'en_route';
   const accentColor = type === 'end' ? END_COLOR : START_COLOR;
   const stopNum = delivery?.stop_order ?? stopOrder ?? '?';
   const cyclingLabel = type === 'end' ? 'Cycling End' : 'Cycling Start';
-  const markerName = delivery?.delivery_notes
-    ? delivery.delivery_notes.replace(/^(start|end)\s*/i, '').trim() || cyclingLabel
-    : cyclingLabel;
+  const markerName = locationName || cyclingLabel;
 
   // Status label
   const statusLabel = isCompleted ? 'Done' : isInTransit ? 'In Transit' : 'Pending';
