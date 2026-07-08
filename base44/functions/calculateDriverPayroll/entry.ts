@@ -213,9 +213,13 @@ Deno.serve(async (req) => {
     const gstRate = 0.05;
     const taxAmount = gstHstEnabled ? round2(grossPay * gstRate) : 0;
 
-    const netPay = round2(grossPay + taxAmount);
+    // --- Deductions (only applied when creating a new record; existing records keep their own) ---
+    const driverDeductions = Array.isArray(appUser.deductions) ? appUser.deductions : [];
+    const totalDeductions = round2(driverDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0));
 
-    console.log(`💰 [PayrollCalc] Totals — deliveries: ${countableDeliveries.length}, grossPay: $${grossPay}, extraKm: ${round2(totalExtraKm)}km, oversized: ${oversizedCount}, afterHours: ${afterHoursCount}`);
+    const netPay = round2(grossPay + taxAmount - totalDeductions);
+
+    console.log(`💰 [PayrollCalc] Totals — deliveries: ${countableDeliveries.length}, grossPay: $${grossPay}, extraKm: ${round2(totalExtraKm)}km, oversized: ${oversizedCount}, afterHours: ${afterHoursCount}, deductions: $${totalDeductions}`);
 
     // --- Find or create Payroll record ---
     const existingRecords = await base44.asServiceRole.entities.Payroll.filter({
@@ -250,7 +254,16 @@ Deno.serve(async (req) => {
 
     let recordId;
     if (existingRecord) {
-      await base44.asServiceRole.entities.Payroll.update(existingRecord.id, payrollFields);
+      // Preserve existing deductions on the record (admin may have adjusted them manually)
+      // Recalculate net_pay using the record's existing deductions
+      const existingDeductions = Array.isArray(existingRecord.deductions) ? existingRecord.deductions : driverDeductions;
+      const existingTotalDeductions = round2(existingDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0));
+      const updatedNetPay = round2(grossPay + taxAmount - existingTotalDeductions);
+      await base44.asServiceRole.entities.Payroll.update(existingRecord.id, {
+        ...payrollFields,
+        net_pay: updatedNetPay,
+        total_deductions: existingTotalDeductions,
+      });
       recordId = existingRecord.id;
       console.log(`✅ [PayrollCalc] Updated Payroll record ${recordId} for driver ${appUser.user_name || driverId}`);
     } else if (countableDeliveries.length > 0) {
@@ -263,6 +276,8 @@ Deno.serve(async (req) => {
         pay_period_end: period.end,
         pay_period_type: payCycleType,
         status: 'draft',
+        deductions: driverDeductions,
+        total_deductions: totalDeductions,
         ...payrollFields
       });
       recordId = newRecord.id;
