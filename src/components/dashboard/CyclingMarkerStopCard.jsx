@@ -161,10 +161,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             #{stopNum}
           </Badge>
 
-          {/* Cycling label - center */}
+          {/* Cycling label - center — matches patient name: text-xl font-semibold */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, justifyContent: 'center' }}>
-            
-            <span style={{ fontSize: '11px', fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
+            <span className="text-xl font-semibold truncate" style={{ color: accentColor }}>
               {cyclingLabel}
             </span>
           </div>
@@ -183,27 +182,15 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           </Badge>
         </div>
 
-        {/* Row 2: Marker name - center */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          fontSize: '12px',
-          fontWeight: 600,
-          color: '#1e293b',
-          lineHeight: 1.3,
-          padding: '2px 0'
-        }}>
+        {/* Row 2: Marker name — matches address style: text-xs font-bold */}
+        <div className="flex-1 flex items-center justify-center text-center text-xs font-bold" style={{ color: 'var(--text-slate-500)', lineHeight: 1.3, padding: '2px 0' }}>
           {markerName}
         </div>
 
-        {/* Row 3: Time info */}
+        {/* Row 3: Time info — matches regular stop card timing layout */}
         {(() => {
           const fmt = (dt) => {
             if (!dt) return null;
-            // Handle both "HH:mm" and full datetime strings
             const s = String(dt);
             if (s.includes('T')) return s.substring(11, 16);
             return s.substring(0, 5);
@@ -213,9 +200,8 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             const completion = fmt(delivery?.actual_delivery_time);
             if (!arrival && !completion) return null;
             return (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>
-                {arrival && <span>🕐 {arrival}</span>}
-                {completion && <span>✅ {completion}</span>}
+              <div className="flex items-center justify-center text-sm font-bold mb-1" style={{ color: 'var(--text-slate-600)' }}>
+                {arrival && completion ? `${arrival} → ${completion}` : arrival || completion}
               </div>
             );
           }
@@ -224,33 +210,36 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             const end = fmt(delivery?.delivery_time_end);
             if (!start && !end) return null;
             return (
-              <div style={{ display: 'flex', justifyContent: 'center', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>
-                <span>⏰ {[start, end].filter(Boolean).join(' – ')}</span>
+              <div className="flex items-center justify-center text-xs font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>
+                {start && end ? `${start} → ${end}` : start ? `${start} →` : `← ${end}`}
               </div>
             );
           }
           return null;
         })()}
 
-        {/* Bottom row: Action button - hidden when completed (Restart moves to menu) */}
-        {!isCompleted && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+        {/* Bottom row: action buttons — Restart in footer when completed, matching regular stop card rules */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '6px' }}>
+          {isCompleted ? (
+            <button
+              ref={btnRef}
+              onClick={handleRestart}
+              className="flex items-center gap-1.5 rounded-l-lg px-2.5 py-1.5 text-xs font-semibold"
+              style={{ backgroundColor: '#ff0000', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <RotateCcw size={12} />
+              Restart
+            </button>
+          ) : (
             <button
               ref={btnRef}
               onClick={handleAction}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-              style={{
-                backgroundColor: accentColor,
-                color: 'white',
-                border: 'none',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}>
+              className="flex items-center gap-1.5 rounded-l-lg px-2.5 py-1.5 text-xs font-semibold"
+              style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <ActionIcon size={12} />
               {actionLabel}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Dropdown menu — anchored above the action button */}
@@ -284,16 +273,6 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             borderTop: '6px solid white',
             filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.08))'
           }} />
-
-            {isCompleted && (
-              <button
-                onClick={(e) => { setMenuOpen(false); handleRestart(e); }}
-                className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-red-50"
-                style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>
-                <RotateCcw size={13} />
-                Restart
-              </button>
-            )}
 
             <button
             onClick={() => {setMenuOpen(false);onEdit?.(delivery);}}
