@@ -318,29 +318,30 @@ export default function DeliveryMetrics() {
           console.log('👥 [DeliveryMetrics] Fallback drivers from AppUser:', allDrivers.length);
         }
       } else if (isDispatcher) {
-        // Dispatchers: show all drivers (so they can see all-driver metrics for their stores)
+        // Dispatchers: show all drivers (active AND inactive) for their city's stores
         // Default to This Month view for dispatchers
         setDateRange('month');
         // selectedDriver defaults to 'all'
         try {
-          const usersData = await getData('User');
+          // Fetch ALL AppUsers directly (bypassing cache which may filter active-only)
+          const [usersData, allAppUsers] = await Promise.all([
+            getData('User'),
+            base44.entities.AppUser.list()
+          ]);
           const allAuthUsers = (usersData || []).filter((u) => u.role === 'admin' || u.role === 'user');
-          allDrivers = allAuthUsers.map((authUser) => {
-            const appUser = (appUsersData || []).find((au) => au.user_id === authUser.id);
-            if (appUser) {
+          allDrivers = (allAppUsers || [])
+            .filter(au => au.app_roles?.includes('driver') || au.app_roles?.includes('admin'))
+            .map(au => {
+              const authUser = allAuthUsers.find(u => u.id === au.user_id);
               return {
-                ...authUser,
-                ...appUser,
-                user_name: appUser.user_name || authUser.full_name,
-                app_role: appUser.app_roles?.[0] || 'driver',
-                display_name: appUser.user_name || authUser.full_name
+                ...(authUser || {}),
+                ...au,
+                id: au.user_id,
+                user_name: au.user_name || authUser?.full_name,
+                app_role: au.app_roles?.[0] || 'driver',
+                display_name: au.user_name || authUser?.full_name
               };
-            }
-            return authUser;
-          }).filter((u) => {
-            const appRole = u.app_role || u.app_roles?.[0];
-            return appRole === 'driver' || appRole === 'admin';
-          });
+            });
         } catch {
           allDrivers = (appUsersData || [])
             .filter(au => au.app_roles?.includes('driver') || au.app_roles?.includes('admin'))
