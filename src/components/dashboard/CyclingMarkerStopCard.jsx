@@ -21,19 +21,24 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
   const [locationName, setLocationName] = useState(null);
 
-  // Load the CyclingLocation name if a library entry is linked
+  // Look up CyclingLocation name by matching GPS coords (lat/lng)
   useEffect(() => {
-    const locId = delivery?.cycling_location_id;
-    if (!locId) {setLocationName(null);return;}
+    const lat = delivery?.cycling_latitude;
+    const lng = delivery?.cycling_longitude;
+    if (lat == null || lng == null) { setLocationName(null); return; }
     import('@/api/base44Client').then(({ base44 }) =>
-    base44.entities.CyclingLocation.filter({ id: locId }).
-    then((results) => {
-      const name = results?.[0]?.name || null;
-      setLocationName(name);
-    }).
-    catch(() => null)
+      base44.entities.CyclingLocation.list()
+        .then((results) => {
+          // Find closest location within ~50m
+          const THRESH = 0.0005; // ~50m in degrees
+          const match = (results || []).find((loc) =>
+            Math.abs(loc.latitude - lat) < THRESH && Math.abs(loc.longitude - lng) < THRESH
+          );
+          setLocationName(match?.name || null);
+        })
+        .catch(() => null)
     );
-  }, [delivery?.cycling_location_id]);
+  }, [delivery?.cycling_latitude, delivery?.cycling_longitude]);
 
   const type = getCyclingType(delivery);
   const isCompleted = delivery?.status === 'completed';
@@ -199,6 +204,39 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         }}>
           {markerName}
         </div>
+
+        {/* Row 3: Time info */}
+        {(() => {
+          const fmt = (dt) => {
+            if (!dt) return null;
+            // Handle both "HH:mm" and full datetime strings
+            const s = String(dt);
+            if (s.includes('T')) return s.substring(11, 16);
+            return s.substring(0, 5);
+          };
+          if (isCompleted) {
+            const arrival = fmt(delivery?.arrival_time);
+            const completion = fmt(delivery?.actual_delivery_time);
+            if (!arrival && !completion) return null;
+            return (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>
+                {arrival && <span>🕐 {arrival}</span>}
+                {completion && <span>✅ {completion}</span>}
+              </div>
+            );
+          }
+          if (isInTransit) {
+            const start = fmt(delivery?.delivery_time_start);
+            const end = fmt(delivery?.delivery_time_end);
+            if (!start && !end) return null;
+            return (
+              <div style={{ display: 'flex', justifyContent: 'center', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>
+                <span>⏰ {[start, end].filter(Boolean).join(' – ')}</span>
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         {/* Bottom row: Action button - bottom right */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
