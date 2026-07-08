@@ -47,7 +47,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   return (
     <div
       ref={cardRef}
-      style={{ width: '112px', flexShrink: 0, position: 'relative', alignSelf: 'stretch', display: 'flex', flexDirection: 'column' }}
+      style={{ width: '200px', flexShrink: 0, position: 'relative', alignSelf: 'stretch', display: 'flex', flexDirection: 'column' }}
       onClick={() => {
         setMenuOpen((v) => !v);
         window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery?.id } }));
@@ -65,7 +65,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           flexDirection: 'column',
           alignItems: 'center',
           gap: '5px',
-          minHeight: '90px',
+          minHeight: '110px',
           height: '100%',
           justifyContent: 'space-between',
         }}
