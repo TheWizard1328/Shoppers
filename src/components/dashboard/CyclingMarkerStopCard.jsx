@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 
@@ -15,6 +15,8 @@ const END_COLOR = '#dc2626';
 export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const cardRef = useRef(null);
   const wrapperRef = useRef(null);
   const btnRef = useRef(null);
@@ -75,11 +77,18 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const ActionIcon = CheckCircle2;
 
   const handleAction = (e) => {
-    e.stopPropagation();
-    if (!delivery?.id) return;
-    const now = new Date(),pad = (n) => String(n).padStart(2, '0');
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (!delivery?.id || isCompleting || isStarting) return;
+    setIsCompleting(true);
+    const now = new Date(), pad = (n) => String(n).padStart(2, '0');
     const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-    onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
+    try {
+      onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
+    } finally {
+      // Reset after a delay — the parent re-renders with completed status which unmounts/hides the button
+      setTimeout(() => setIsCompleting(false), 8000);
+    }
   };
 
   // Jump-queue Start: routes through handleStartDelivery (same as regular stop cards)
@@ -87,11 +96,17 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const handleStart = (e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
-    if (!delivery?.id) return;
-    if (onStartDelivery) {
-      onStartDelivery(delivery.id);
-    } else {
-      onComplete?.(delivery.id, 'in_transit', {});
+    if (!delivery?.id || isStarting || isCompleting) return;
+    setIsStarting(true);
+    try {
+      if (onStartDelivery) {
+        onStartDelivery(delivery.id);
+      } else {
+        onComplete?.(delivery.id, 'in_transit', {});
+      }
+    } finally {
+      // Reset after a delay — the parent re-renders which updates the card state
+      setTimeout(() => setIsStarting(false), 8000);
     }
   };
 
@@ -258,26 +273,32 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             isActionable ? (
               <button
                 ref={btnRef}
-                onClick={handleAction}
                 data-stopcard-action="complete"
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+                disabled={isCompleting || isStarting}
+                onPointerDownCapture={handleAction}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{ backgroundColor: '#16a34a', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                <ActionIcon size={12} />
-                {actionLabel}
+                {isCompleting ? <Loader2 size={12} className="animate-spin" /> : <ActionIcon size={12} />}
+                {isCompleting ? 'Working...' : actionLabel}
               </button>
             ) : (
               <button
                 ref={btnRef}
                 data-stopcard-action="start"
+                disabled={isStarting || isCompleting}
                 onPointerDownCapture={handleStart}
                 onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                <Clock size={12} />
-                Start
+                {isStarting ? <Loader2 size={12} className="animate-spin" /> : <Clock size={12} />}
+                {isStarting ? 'Working...' : 'Start'}
               </button>
             )
           )}
