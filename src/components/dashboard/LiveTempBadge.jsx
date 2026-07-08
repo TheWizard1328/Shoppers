@@ -98,7 +98,6 @@ export default function LiveTempBadge({
           connect, disconnect, forget } = useInkbirdWorker({
     onReading: useCallback((tempC) => {
       saveTempToDb(tempC);
-      try { localStorage.setItem('rxdeliver_last_ble_temp', JSON.stringify({ tempC, timestamp: new Date().toISOString() })); } catch (_) {}
       setIsPulsing(true);
       clearTimeout(pulseTimerRef.current);
       pulseTimerRef.current = setTimeout(() => setIsPulsing(false), 600);
@@ -203,19 +202,11 @@ export default function LiveTempBadge({
 
   const showLiveBle = !isPastDate && selectedDriverIsMe && driverMode;
 
-  const localStorageFallbackTemp = (() => {
-    if (bleTemp !== null || lastReading?.temperature_celsius != null) return null;
-    try {
-      const saved = JSON.parse(localStorage.getItem('rxdeliver_last_ble_temp') || 'null');
-      return saved?.tempC ?? null;
-    } catch (_) { return null; }
-  })();
-
   const displayTemp = isPastDate
     ? (avgReading?.avg ?? null)
     : (showLiveBle && bleTemp !== null
         ? bleTemp
-        : (lastReading?.temperature_celsius ?? localStorageFallbackTemp ?? null));
+        : (lastReading?.temperature_celsius ?? null));
 
   const isOut     = displayTemp !== null && (displayTemp < TEMP_MIN || displayTemp > TEMP_MAX);
   const isWarning = displayTemp !== null && !isOut && (displayTemp < TEMP_MIN + 1 || displayTemp > TEMP_MAX - 1);
