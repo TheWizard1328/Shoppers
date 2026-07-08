@@ -905,65 +905,69 @@ class LocationTracker {
 
         if (!useNativeBackgroundWatcher) {
           this._clearHeartbeat(); // Guard: ensure no stale interval before starting a new one
-          this.heartbeatInterval = setInterval(() => {
-            if (this.isTracking) {
-              if (this.lastPosition) {
-                console.log(`💓 [${providerName} PROVIDER] Poll interval - uploading location`, {
-                  lat: this.lastPosition.latitude.toFixed(6),
-                  lng: this.lastPosition.longitude.toFixed(6),
-                  accuracy: this.lastPosition.accuracy?.toFixed(0) + 'm',
-                  appUserId: this.appUserId
-                });
-
-                this._pendingEventUpdate = false;
-                this.updateLocationInDatabase(
-                  this.lastPosition.latitude,
-                  this.lastPosition.longitude,
-                  this.lastPosition.accuracy,
-                  false,
-                  true,
-                  this.isPrimaryDevice
-                );
-              } else {
-                console.log(`⏭️ [${providerName} PROVIDER] Poll: No cached GPS position - requesting fresh fix...`);
-                this.locationProvider.getCurrentPosition({
-                  enableHighAccuracy: true,
-                  timeout: 5000,
-                  maximumAge: 0,
-                  requestPermissions: true
-                }).then((pos) => {
-                  this.lastPosition = {
-                    latitude: pos.coords.latitude,
-                    longitude: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy
-                  };
-                  console.log(`📍 [${providerName} PROVIDER] Got fresh GPS fix on demand:`, this.lastPosition.latitude.toFixed(6), this.lastPosition.longitude.toFixed(6));
-                  this.updateLocationInDatabase(
-                    pos.coords.latitude,
-                    pos.coords.longitude,
-                    pos.coords.accuracy,
-                    false,
-                    false,
-                    this.isPrimaryDevice
-                  );
-                }).catch((err) => console.warn(`⚠️ [${providerName} PROVIDER] On-demand GPS fix failed:`, err.message));
-              }
+          this.heartbeatInterval = setInterval(async () => {
+            if (!this.isTracking) return;
+            // ALWAYS request a fresh GPS fix directly from the antenna — never use stale lastPosition
+            try {
+              const freshPos = await this.locationProvider.getCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 8000,
+                maximumAge: 0, // Never accept cached position
+                requestPermissions: false
+              });
+              this.lastPosition = {
+                latitude: freshPos.coords.latitude,
+                longitude: freshPos.coords.longitude,
+                accuracy: freshPos.coords.accuracy
+              };
+              console.log(`💓 [${providerName} PROVIDER] Fresh GPS fix — uploading`, {
+                lat: freshPos.coords.latitude.toFixed(6),
+                lng: freshPos.coords.longitude.toFixed(6),
+                accuracy: freshPos.coords.accuracy?.toFixed(0) + 'm'
+              });
+              this._pendingEventUpdate = false;
+              await this.updateLocationInDatabase(
+                freshPos.coords.latitude,
+                freshPos.coords.longitude,
+                freshPos.coords.accuracy,
+                false,
+                false,
+                this.isPrimaryDevice
+              );
+            } catch (err) {
+              console.warn(`⚠️ [${providerName} PROVIDER] Fresh GPS fix failed on heartbeat:`, err.message);
             }
           }, this.updateInterval);
         }
 
-        // Independent 5s breadcrumb collection timer — decoupled from GPS upload cycle
+        // Independent 5s breadcrumb collection timer — always grabs a fresh GPS fix
         if (this.breadcrumbInterval) {
           clearInterval(this.breadcrumbInterval);
           this.breadcrumbInterval = null;
         }
-        this.breadcrumbInterval = setInterval(() => {
-          if (!this.isTracking || this.driverStatus !== 'on_duty' || !this.lastPosition) return;
-          this.collectBreadcrumb(
-            this.lastPosition.latitude,
-            this.lastPosition.longitude,
-            Date.now()
-          ).catch((e) => console.warn('⚠️ [Breadcrumb Timer] collectBreadcrumb failed:', e?.message));
+        this.breadcrumbInterval = setInterval(async () => {
+          if (!this.isTracking || this.driverStatus !== 'on_duty') return;
+          try {
+            const freshPos = await this.locationProvider.getCurrentPosition({
+              enableHighAccuracy: true,
+              timeout: 4000,
+              maximumAge: 0, // Always fresh from antenna
+              requestPermissions: false
+            });
+            // Keep lastPosition in sync so watchPosition callbacks have a recent baseline
+            this.lastPosition = {
+              latitude: freshPos.coords.latitude,
+              longitude: freshPos.coords.longitude,
+              accuracy: freshPos.coords.accuracy
+            };
+            await this.collectBreadcrumb(
+              freshPos.coords.latitude,
+              freshPos.coords.longitude,
+              Date.now()
+            );
+          } catch (e) {
+            console.warn('⚠️ [Breadcrumb Timer] Fresh GPS fix failed:', e?.message);
+          }
         }, this.breadcrumbSaveInterval);
 
         console.log(`✅ [${providerName} PROVIDER] Location tracking started${useNativeBackgroundWatcher ? ' - streaming native updates' : ` - uploads every ${this.updateInterval/1000}s`} | Breadcrumbs every ${this.breadcrumbSaveInterval/1000}s`);
@@ -1226,13 +1230,24 @@ class LocationTracker {
       clearInterval(this.breadcrumbInterval);
       this.breadcrumbInterval = null;
     }
-    this.breadcrumbInterval = setInterval(() => {
-      if (!this.isTracking || this.driverStatus !== 'on_duty' || !this.lastPosition) return;
-      this.collectBreadcrumb(
-        this.lastPosition.latitude,
-        this.lastPosition.longitude,
-        Date.now()
-      ).catch((e) => console.warn('⚠️ [Breadcrumb Timer] collectBreadcrumb failed:', e?.message));
+    this.breadcrumbInterval = setInterval(async () => {
+      if (!this.isTracking || this.driverStatus !== 'on_duty') return;
+      try {
+        const freshPos = await this.locationProvider.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 4000,
+          maximumAge: 0,
+          requestPermissions: false
+        });
+        this.lastPosition = {
+          latitude: freshPos.coords.latitude,
+          longitude: freshPos.coords.longitude,
+          accuracy: freshPos.coords.accuracy
+        };
+        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now());
+      } catch (e) {
+        console.warn('⚠️ [Breadcrumb Timer] Fresh GPS fix failed on resume:', e?.message);
+      }
     }, this.breadcrumbSaveInterval);
 
     console.log(`🍞 [LocationTracker] Breadcrumb timer restarted after resume`);

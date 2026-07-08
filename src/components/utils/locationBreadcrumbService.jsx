@@ -7,9 +7,10 @@ import { getLocalDateString } from './localTimeHelper';
 // slices the master timeline into per-stop segments using delivery_time_end values.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// Online sync throttle: push the full 'TODAY' record to the server once per 60 seconds
+// Online sync throttle: push the full 'TODAY' record to the server every 3rd offline save (15s)
 let _lastOnlineSyncTime = 0;
-const ONLINE_SYNC_INTERVAL_MS = 60000; // 60 seconds
+let _breadcrumbSaveCount = 0;
+const ONLINE_SYNC_EVERY_N_SAVES = 3; // Sync on every 3rd offline save (3 × 5s = 15s)
 
 // MAX DISTANCE FILTER: 250m max between consecutive breadcrumb points
 // At 110 km/h over 5 seconds, max legitimate travel is ~153m. 250m gives a safe buffer.
@@ -142,9 +143,12 @@ export const collectBreadcrumbForTracker = async ({
   };
   await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineRecord);
 
-  // Sync the full 'TODAY' master record to the backend — throttled to once per 60 seconds
+  // Always save to offline DB first, then sync to server every 3rd save (15s)
+  _breadcrumbSaveCount++;
   const now = Date.now();
-  if (now - _lastOnlineSyncTime >= ONLINE_SYNC_INTERVAL_MS) {
+  if (_breadcrumbSaveCount >= ONLINE_SYNC_EVERY_N_SAVES) {
+    _breadcrumbSaveCount = 0;
+    _lastOnlineSyncTime = now;
     try {
       await base44.functions.invoke('syncPendingBreadcrumbs', {
         driver_id: currentUser.id,
@@ -153,8 +157,7 @@ export const collectBreadcrumbForTracker = async ({
         timestamps,
         point_count: allPoints.length,
       });
-      _lastOnlineSyncTime = now;
-      console.log(`☁️ [Breadcrumbs] Master timeline synced to server (${allPoints.length} points)`);
+      console.log(`☁️ [Breadcrumbs] Master timeline synced to server (${allPoints.length} points, save #${_breadcrumbSaveCount + ONLINE_SYNC_EVERY_N_SAVES})`);
     } catch (error) {
       const isRateLimited = error?.response?.status === 429 || error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase?.().includes('rate limit');
       if (!isRateLimited) {
@@ -162,7 +165,7 @@ export const collectBreadcrumbForTracker = async ({
       }
     }
   } else {
-    console.log(`🍞 [Breadcrumbs] Offline-only save (${allPoints.length} pts) — server sync in ${Math.ceil((ONLINE_SYNC_INTERVAL_MS - (now - _lastOnlineSyncTime)) / 1000)}s`);
+    console.log(`🍞 [Breadcrumbs] Offline save ${_breadcrumbSaveCount}/${ONLINE_SYNC_EVERY_N_SAVES} (${allPoints.length} pts) — server sync on save #${ONLINE_SYNC_EVERY_N_SAVES}`);
   }
 
   // Dispatch event for live map display (stop_order = -1 means "live, unsliced")
