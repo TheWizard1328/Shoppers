@@ -246,7 +246,10 @@ export default function EndOfDayStatsDialog({
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold text-emerald-700">{stats.completed}</div>
+                  <div className="flex justify-center items-baseline gap-1.5">
+                    <span className="text-2xl font-bold text-emerald-700">{stats.completed}</span>
+                    <span className="text-sm font-semibold text-emerald-500">/ {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%</span>
+                  </div>
                   <div className="text-xs text-emerald-600">Completed</div>
                 </>
               )}
