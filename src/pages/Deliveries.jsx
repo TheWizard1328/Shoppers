@@ -546,20 +546,16 @@ export default function DeliveriesPage() {
         const startDateStr = format(rangeStart, 'yyyy-MM-dd');
         const endDateStr = format(rangeEnd, 'yyyy-MM-dd');
 
-        console.log('📅 [Deliveries] Fetching current month → end of year:', `(${startDateStr} to ${endDateStr})`);
-
-        // CRITICAL: Always fetch fresh from server for Route Management (don't rely on offline DB which may be stale)
-        try {
-          deliveriesData = await getData(
-            'Delivery',
-            '-delivery_date',
-            { delivery_date: { $gte: startDateStr, $lte: endDateStr } },
-            true // Force refresh to ensure we get complete data
-          );
-          console.log(`✅ [Deliveries] Fetched ${deliveriesData?.length || 0} deliveries from server for range`);
-        } catch (error) {
-          console.error('❌ [Deliveries] Error fetching deliveries:', error.message);
-          deliveriesData = [];
+        // Skip network fetch if we already have data and this isn't a forced refresh
+        if (allDeliveries && allDeliveries.length > 0 && !forceRefresh) {
+          deliveriesData = allDeliveries;
+        } else {
+          try {
+            deliveriesData = await getData('Delivery', '-delivery_date', { delivery_date: { $gte: startDateStr, $lte: endDateStr } }, forceRefresh);
+          } catch (error) {
+            console.error('❌ [Deliveries] Error fetching deliveries:', error.message);
+            deliveriesData = allDeliveries.length > 0 ? allDeliveries : [];
+          }
         }
       }
 
@@ -806,7 +802,7 @@ export default function DeliveriesPage() {
   const prevYMRef = useRef({ y: selectedYear, m: selectedMonth });
   useEffect(() => {
     if (prevModeRef.current === null) return;
-    if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') {loadData(true).catch(() => {});prevYMRef.current = { y: selectedYear, m: selectedMonth };return;}
+    if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') {loadData(false).catch(() => {});prevYMRef.current = { y: selectedYear, m: selectedMonth };return;}
     if (isDriverOverviewMode || !initialLoadDone.current) return;
     if (prevYMRef.current.y === selectedYear && prevYMRef.current.m === selectedMonth) return;
     prevYMRef.current = { y: selectedYear, m: selectedMonth };
