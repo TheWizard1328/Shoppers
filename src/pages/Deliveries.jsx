@@ -1247,9 +1247,9 @@ export default function DeliveriesPage() {
 
   const filteredDatesByMonth = useMemo(() => {
     if (!sortedDates) return [];
-    if (userHasRole(currentUser,'dispatcher')&&!userHasRole(currentUser,'admin')) return sortedDates.filter((d)=>{const dt=new Date(d.replace(/-/g,'/'));return dt.getFullYear()===selectedYear&&dt.getMonth()===selectedMonth;});
+    // Show all available dates (current month through end of year, plus any past dates in loaded data)
     return sortedDates;
-  }, [sortedDates,currentUser,selectedYear,selectedMonth]);
+  }, [sortedDates]);
 
   const dateListWithStats = useMemo(() => {
     const patientMap = new Map((effectivePatients || []).map((p) => [p.id, p]));
