@@ -25,18 +25,18 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   useEffect(() => {
     const lat = delivery?.cycling_latitude;
     const lng = delivery?.cycling_longitude;
-    if (lat == null || lng == null) {setLocationName(null);return;}
+    if (lat == null || lng == null) { setLocationName(null); return; }
     import('@/api/base44Client').then(({ base44 }) =>
-    base44.entities.CyclingLocation.list().
-    then((results) => {
-      // Find closest location within ~50m
-      const THRESH = 0.0005; // ~50m in degrees
-      const match = (results || []).find((loc) =>
-      Math.abs(loc.latitude - lat) < THRESH && Math.abs(loc.longitude - lng) < THRESH
-      );
-      setLocationName(match?.name || null);
-    }).
-    catch(() => null)
+      base44.entities.CyclingLocation.list()
+        .then((results) => {
+          // Find closest location within ~50m
+          const THRESH = 0.0005; // ~50m in degrees
+          const match = (results || []).find((loc) =>
+            Math.abs(loc.latitude - lat) < THRESH && Math.abs(loc.longitude - lng) < THRESH
+          );
+          setLocationName(match?.name || null);
+        })
+        .catch(() => null)
     );
   }, [delivery?.cycling_latitude, delivery?.cycling_longitude]);
 
@@ -60,7 +60,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const handleAction = (e) => {
     e.stopPropagation();
     if (!delivery?.id) return;
-    const now = new Date(),pad = (n) => String(n).padStart(2, '0');
+    const now = new Date(), pad = (n) => String(n).padStart(2, '0');
     const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
   };
@@ -122,7 +122,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     <div
       ref={wrapperRef}
       style={{
-        width: '200px',
+        width: '250px',
         flexShrink: 0,
         position: 'relative',
         display: 'flex',
@@ -164,7 +164,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           {/* Cycling label - center */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, justifyContent: 'center' }}>
             
-            <span style={{ fontSize: '11px', fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }} className="text-base text-center">
+            <span style={{ fontSize: '11px', fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
               {cyclingLabel}
             </span>
           </div>
@@ -216,8 +216,8 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
               <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>
                 {arrival && <span>🕐 {arrival}</span>}
                 {completion && <span>✅ {completion}</span>}
-              </div>);
-
+              </div>
+            );
           }
           if (isInTransit) {
             const start = fmt(delivery?.delivery_time_start);
@@ -226,31 +226,31 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             return (
               <div style={{ display: 'flex', justifyContent: 'center', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>
                 <span>⏰ {[start, end].filter(Boolean).join(' – ')}</span>
-              </div>);
-
+              </div>
+            );
           }
           return null;
         })()}
 
         {/* Bottom row: Action button - hidden when completed (Restart moves to menu) */}
-        {!isCompleted &&
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+        {!isCompleted && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
             <button
-            ref={btnRef}
-            onClick={handleAction}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-            style={{
-              backgroundColor: accentColor,
-              color: 'white',
-              border: 'none',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap'
-            }}>
+              ref={btnRef}
+              onClick={handleAction}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+              style={{
+                backgroundColor: accentColor,
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}>
               <ActionIcon size={12} />
               {actionLabel}
             </button>
           </div>
-        }
+        )}
       </div>
 
       {/* Dropdown menu — anchored above the action button */}
@@ -285,15 +285,15 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.08))'
           }} />
 
-            {isCompleted &&
-          <button
-            onClick={(e) => {setMenuOpen(false);handleRestart(e);}}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-red-50"
-            style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>
+            {isCompleted && (
+              <button
+                onClick={(e) => { setMenuOpen(false); handleRestart(e); }}
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-red-50"
+                style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>
                 <RotateCcw size={13} />
                 Restart
               </button>
-          }
+            )}
 
             <button
             onClick={() => {setMenuOpen(false);onEdit?.(delivery);}}
