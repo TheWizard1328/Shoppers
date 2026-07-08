@@ -171,8 +171,8 @@ export default function StopCardActionButtons(props) {
     }
     const notes = generateSquareItemName(delivery, patient, store);
     const callbackUrl = window.location.origin + window.location.pathname;
-    launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', callbackUrl, notes });
-  }, [delivery, patient, store, squareAppId]);
+    launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', callbackUrl, notes, locationId: currentSquareLocationId });
+  }, [delivery, patient, store, squareAppId, currentSquareLocationId]);
 
 
 
