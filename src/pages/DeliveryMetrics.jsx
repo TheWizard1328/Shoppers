@@ -319,6 +319,8 @@ export default function DeliveryMetrics() {
         }
       } else if (isDispatcher) {
         // Dispatchers: show all drivers (so they can see all-driver metrics for their stores)
+        // Default to This Month view for dispatchers
+        setDateRange('month');
         // selectedDriver defaults to 'all'
         try {
           const usersData = await getData('User');
