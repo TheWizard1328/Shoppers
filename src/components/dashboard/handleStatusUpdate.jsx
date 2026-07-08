@@ -66,9 +66,9 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
     if (!targetDelivery) throw new Error('Delivery not found');
 
-    // Cycling markers only support in_transit and completed — guard all other status transitions
-    if (targetDelivery.is_cycling_marker && newStatus !== 'in_transit' && newStatus !== 'completed') {
-      console.warn(`[handleStatusUpdate] Cycling marker ${deliveryId} cannot be set to status "${newStatus}" — only in_transit and completed are allowed.`);
+    // Cycling markers only support in_transit, completed, and pending (restart) — guard all other transitions
+    if (targetDelivery.is_cycling_marker && newStatus !== 'in_transit' && newStatus !== 'completed' && newStatus !== 'pending') {
+      console.warn(`[handleStatusUpdate] Cycling marker ${deliveryId} cannot be set to status "${newStatus}" — only in_transit, completed, and pending are allowed.`);
       return;
     }
 

@@ -12,7 +12,7 @@ const getCyclingType = (delivery) => {
 const START_COLOR = '#16a34a';
 const END_COLOR = '#dc2626';
 
-export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery = true }) {
+export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const cardRef = useRef(null);
@@ -83,13 +83,16 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
   };
 
-  // Jump-queue Start: promotes this (not-yet-active) cycling marker to isNextDelivery
-  // instead of completing it directly. Routes through the same onStatusUpdate handler,
-  // which now knows how to reassign isNextDelivery for cycling markers on 'in_transit'.
+  // Jump-queue Start: routes through handleStartDelivery (same as regular stop cards)
+  // so the full isNextDelivery promotion/demotion flow runs correctly.
   const handleStart = (e) => {
     e.stopPropagation();
     if (!delivery?.id) return;
-    onComplete?.(delivery.id, 'in_transit', {});
+    if (onStartDelivery) {
+      onStartDelivery(delivery.id);
+    } else {
+      onComplete?.(delivery.id, 'in_transit', {});
+    }
   };
 
   const handleRestart = (e) => {
@@ -256,16 +259,17 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
               <button
                 ref={btnRef}
                 onClick={handleAction}
+                data-stopcard-action="complete"
                 className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-                style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                style={{ backgroundColor: '#16a34a', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <ActionIcon size={12} />
                 {actionLabel}
               </button>
             ) : (
-              onStartDelivery &&
               <button
                 ref={btnRef}
                 onClick={handleStart}
+                data-stopcard-action="start"
                 className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
                 style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <Play size={12} />
