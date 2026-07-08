@@ -41,10 +41,10 @@ export default function SquareSyncAudit() {
     setIsLoading(true);
 
     try {
-      // Step 1: Pull live Square catalog → SquareCatalogItems DB and purge any DB records not on Square
-      await base44.functions.invoke("squareCodCore", { action: "mirrorCatalogFromSquare" });
+      // Step 1: Wipe SquareCatalogItems DB entirely, then repopulate fresh from live Square catalog
+      await base44.functions.invoke("squareCodCore", { action: "purgeAndRebuildCatalog" });
 
-      // Step 2 & 3: Now that the DB mirrors Square exactly, push any missing/new items up to Square
+      // Step 2: With DB now a clean mirror of Square, push any missing deliveries up to Square
       const syncResponse = await squareSyncCatalogItems({ skipLock: true });
       const syncData = syncResponse?.data || syncResponse || {};
       if (syncData?.success === false) {

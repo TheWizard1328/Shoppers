@@ -612,6 +612,15 @@ async function handleSyncCatalogItems(base44, payload={}) {
   return{success:true,scanned_deliveries:allCodDeliveries.length,catalog_items_seen:recentCatalogItems.length,paid_order_items_seen:paidOrderItems.length,deleted_catalog_items:deleteResult.deleted.length+extraDel.deleted.length,cancelled_transactions:Array.from(new Set(txToCancel.filter(Boolean))).length,completed_transactions:Array.from(new Set(txToComplete.filter(Boolean))).length,created_catalog_items:createdCount,updated_pending_transactions:updatedCount,pruned_transactions:stale.length,synced_square_catalog_items:0};
 }
 
+// Wipes the entire SquareCatalogItems DB then repopulates it fresh from the live Square catalog.
+async function handlePurgeAndRebuildCatalog(base44) {
+  // Step 1: Delete ALL existing SquareCatalogItems records
+  await base44.asServiceRole.entities.SquareCatalogItems.deleteMany({}).catch(() => null);
+
+  // Step 2: Rebuild from live Square API
+  return handleMirrorCatalogFromSquare(base44);
+}
+
 // Fetches the live Square catalog and replaces SquareCatalogItems DB to exactly mirror it.
 // Any DB records not present in the live Square catalog are purged.
 async function handleMirrorCatalogFromSquare(base44) {
@@ -945,6 +954,7 @@ Deno.serve(async (req) => {
     if(action==='cleanupCollectedCatalogItems'){await requireAdminIfAuthenticated(base44);return Response.json(await handleCleanupCollectedCatalogItems(base44,payload));}
     if(action==='reconcile'){await requireUser(base44);return Response.json(await handleReconcile(base44,payload));}
     if(action==='mirrorCatalogFromSquare'){await requireAdminIfAuthenticated(base44);return Response.json(await handleMirrorCatalogFromSquare(base44));}
+    if(action==='purgeAndRebuildCatalog'){await requireAdminIfAuthenticated(base44);return Response.json(await handlePurgeAndRebuildCatalog(base44));}
     throw new HttpError(400,'Missing or invalid action');
   } catch(error){const status=error?.status||500;return Response.json({error:error?.message||'Internal Server Error'},{status});}
 });
