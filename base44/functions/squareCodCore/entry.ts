@@ -612,6 +612,83 @@ async function handleSyncCatalogItems(base44, payload={}) {
   return{success:true,scanned_deliveries:allCodDeliveries.length,catalog_items_seen:recentCatalogItems.length,paid_order_items_seen:paidOrderItems.length,deleted_catalog_items:deleteResult.deleted.length+extraDel.deleted.length,cancelled_transactions:Array.from(new Set(txToCancel.filter(Boolean))).length,completed_transactions:Array.from(new Set(txToComplete.filter(Boolean))).length,created_catalog_items:createdCount,updated_pending_transactions:updatedCount,pruned_transactions:stale.length,synced_square_catalog_items:0};
 }
 
+// Fetches the live Square catalog and replaces SquareCatalogItems DB to exactly mirror it.
+// Any DB records not present in the live Square catalog are purged.
+async function handleMirrorCatalogFromSquare(base44) {
+  const accessToken = ensureSquareToken();
+  const [allLocationConfigs, stores] = await Promise.all([
+    base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []),
+    base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
+  ]);
+  const safeConfigs = (Array.isArray(allLocationConfigs) ? allLocationConfigs : []).map(unwrapEntityRecord).filter(Boolean);
+  const safeStores = (Array.isArray(stores) ? stores : []).map(unwrapEntityRecord).filter(Boolean);
+  const activeConfigById = new Map(safeConfigs.filter((c) => c?.status === 'active').map((c) => [c.id, c]));
+  const storesByLocationId = buildStoresByLocationId(safeStores, activeConfigById);
+
+  // Fetch live catalog from Square
+  const liveCatalogItems = await listActiveCatalogItems(accessToken);
+
+  // Build canonical DB records from live Square data
+  const liveRecords = (liveCatalogItems || []).reduce((acc, item) => {
+    const ac = getCatalogItemAmountCents(item);
+    const itemName = item?.item_data?.name || '';
+    if (!itemName) return acc;
+    const lids = getCatalogItemLocationIds(item);
+    if (!lids.length) return acc;
+    const rl = lids.find((l) => storesByLocationId.has(l)) || lids[0];
+    const store = resolveStoreForItem(itemName, rl, storesByLocationId);
+    acc.push({
+      square_catalog_object_id: item.id,
+      square_catalog_version: item.version || null,
+      item_name: itemName,
+      description: item?.item_data?.description || '',
+      amount: ac / 100,
+      amount_cents: ac,
+      delivery_id: null,
+      delivery_date: toIsoDate(itemName),
+      patient_id: null,
+      store_id: store?.id || null,
+      location_id: rl,
+      status: 'active',
+    });
+    return acc;
+  }, []);
+
+  // Get all existing DB records
+  const existingDbRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
+  const liveObjectIds = new Set(liveRecords.map((r) => r.square_catalog_object_id));
+
+  // Purge DB records not in live Square catalog
+  const toDelete = (existingDbRecords || []).filter((r) => {
+    const id = r?.square_catalog_object_id || r?.data?.square_catalog_object_id;
+    return id && !liveObjectIds.has(id);
+  });
+  for (let i = 0; i < toDelete.length; i += 10) {
+    const chunk = toDelete.slice(i, i + 10);
+    await Promise.all(chunk.map((r) => base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null)));
+    if (i + 10 < toDelete.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
+  }
+
+  // Upsert all live records into DB
+  const existingByObjectId = new Map((existingDbRecords || []).map((r) => {
+    const id = r?.square_catalog_object_id || r?.data?.square_catalog_object_id;
+    return [id, r];
+  }));
+  let upserted = 0;
+  for (const record of liveRecords) {
+    const existing = existingByObjectId.get(record.square_catalog_object_id);
+    if (existing) {
+      await base44.asServiceRole.entities.SquareCatalogItems.update(existing.id, record).catch(() => null);
+    } else {
+      await base44.asServiceRole.entities.SquareCatalogItems.create(record).catch(() => null);
+    }
+    upserted++;
+    if (upserted % 10 === 0) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
+  }
+
+  return { success: true, live_catalog_count: liveRecords.length, purged: toDelete.length, upserted };
+}
+
 async function handleSyncOnlineSquareEntities(base44, payload) {
   const catalogRecords=Array.isArray(payload?.catalogRecords)?payload.catalogRecords.filter(Boolean):[];
   const transactionRecords=Array.isArray(payload?.transactionRecords)?payload.transactionRecords.filter(Boolean):[];
@@ -867,6 +944,7 @@ Deno.serve(async (req) => {
     if(action==='deleteCodItemsByNameAmount'){await requireUser(base44);return Response.json(await handleDeleteCodItemsByNameAmount(base44,payload));}
     if(action==='cleanupCollectedCatalogItems'){await requireAdminIfAuthenticated(base44);return Response.json(await handleCleanupCollectedCatalogItems(base44,payload));}
     if(action==='reconcile'){await requireUser(base44);return Response.json(await handleReconcile(base44,payload));}
+    if(action==='mirrorCatalogFromSquare'){await requireAdminIfAuthenticated(base44);return Response.json(await handleMirrorCatalogFromSquare(base44));}
     throw new HttpError(400,'Missing or invalid action');
   } catch(error){const status=error?.status||500;return Response.json({error:error?.message||'Internal Server Error'},{status});}
 });

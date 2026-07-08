@@ -48,9 +48,8 @@ export default function SquareSyncAudit() {
         throw new Error(syncData.error || "Square reconciliation failed");
       }
 
-      // Step 2: Pull the live Square catalog back into the DB so SquareCatalogItems
-      // exactly mirrors what is actually on Square (handles manual deletions from Square side)
-      await base44.functions.invoke("squareCodCore", { action: "getCodData", daysBack: 90 }).catch(() => null);
+      // Step 2: Mirror live Square catalog → SquareCatalogItems DB (purges stale, upserts live)
+      await base44.functions.invoke("squareCodCore", { action: "mirrorCatalogFromSquare" }).catch(() => null);
 
       const [locationConfigsResponse, storesResponse, patientsResponse, deliveriesResponse, squareTransactionsResponse, squareCatalogItemsResponse, syncHealthResponse] = await Promise.all([
         base44.entities.SquareLocationConfig.filter({ status: "active" }),
