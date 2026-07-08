@@ -1227,13 +1227,20 @@ export default function DeliveryMetrics() {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={[
-                      { name: 'Completed', value: metrics.statusCounts.completed },
-                      { name: 'In Transit', value: metrics.statusCounts.inTransit },
-                      { name: 'Pending', value: metrics.statusCounts.pending },
-                      { name: 'Failed', value: metrics.statusCounts.failed },
-                      { name: 'Returned', value: metrics.statusCounts.returned }]
-                      }
+                      data={(() => {
+                        const isAdmin = currentUser?.role === 'admin' || currentAppUser?.app_roles?.includes('admin');
+                        const isDispatcher = currentAppUser?.app_roles?.includes('dispatcher') && !isAdmin;
+                        const base = [
+                          { name: 'Completed', value: metrics.statusCounts.completed },
+                          { name: 'Failed', value: metrics.statusCounts.failed },
+                          { name: 'Returned', value: metrics.statusCounts.returned },
+                        ];
+                        if (!isDispatcher) {
+                          base.splice(1, 0, { name: 'In Transit', value: metrics.statusCounts.inTransit });
+                          base.splice(2, 0, { name: 'Pending', value: metrics.statusCounts.pending });
+                        }
+                        return base;
+                      })()}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -1242,11 +1249,16 @@ export default function DeliveryMetrics() {
                       fill="#8884d8"
                       dataKey="value">
 
-                      <Cell key={`cell-0`} fill={COLORS[0]} />
-                      <Cell key={`cell-1`} fill={COLORS[1]} />
-                      <Cell key={`cell-2`} fill="#f59e0b" /> {/* Specific color for pending/returned */}
-                      <Cell key={`cell-3`} fill={COLORS[3]} />
-                      <Cell key={`cell-4`} fill="#eab308" /> {/* Another distinct color for returned */}
+                      {(() => {
+                        const isAdmin = currentUser?.role === 'admin' || currentAppUser?.app_roles?.includes('admin');
+                        const isDispatcher = currentAppUser?.app_roles?.includes('dispatcher') && !isAdmin;
+                        if (isDispatcher) {
+                          // Completed, Failed, Returned
+                          return [COLORS[0], COLORS[3], '#f59e0b'].map((fill, i) => <Cell key={`cell-${i}`} fill={fill} />);
+                        }
+                        // Completed, In Transit, Pending, Failed, Returned
+                        return [COLORS[0], COLORS[1], '#f59e0b', COLORS[3], '#eab308'].map((fill, i) => <Cell key={`cell-${i}`} fill={fill} />);
+                      })()}
                     </Pie>
                     <Tooltip />
                     <Legend />
