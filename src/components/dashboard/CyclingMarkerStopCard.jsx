@@ -183,7 +183,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         </div>
 
         {/* Row 2: Marker name — matches address style: text-xs font-bold */}
-        <div className="flex-1 flex items-center justify-center text-center font-bold text-md" style={{ color: 'var(--text-slate-500)', lineHeight: 1.3, padding: '2px 0' }}>
+        <div className="flex-1 flex items-center justify-center text-center font-bold text-xl" style={{ color: 'var(--text-slate-500)', lineHeight: 1.3, padding: '2px 0' }}>
           {markerName}
         </div>
 
