@@ -128,6 +128,14 @@ function compareAgainst(row, otherRows, otherLabel) {
   );
   if (fuzzy) return [];
 
+  // 3. Amount + Date Match (with optional locationId bonus) — amount and same date is considered a match
+  const amountAndDate = otherRows.some(
+    (other) =>
+      other.amountCents === row.amountCents &&
+      other.date === row.date
+  );
+  if (amountAndDate) return [];
+
   const issues = [];
 
   const sameDateAndLocation = otherRows.some(
