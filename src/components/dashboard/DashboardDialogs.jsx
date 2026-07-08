@@ -114,11 +114,12 @@ export default function DashboardDialogs({
 
       <AnimatePresence>
         {showEndOfDayStats && (() => {
+          const isAllDrivers = !selectedDriverId || selectedDriverId === 'all';
           const selectedDriver = endOfDayDriver ||
-            (selectedDriverId && selectedDriverId !== 'all'
+            (!isAllDrivers
               ? (appUsers.find(au => au?.user_id === selectedDriverId) || drivers.find(d => d?.id === selectedDriverId))
               : null) ||
-            currentUser;
+            (isAllDrivers ? { user_name: 'All Drivers' } : currentUser);
           return (
             <EndOfDayStatsDialog
               isOpen={showEndOfDayStats}
