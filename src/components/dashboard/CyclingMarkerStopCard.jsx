@@ -12,7 +12,7 @@ const getCyclingType = (delivery) => {
 const START_COLOR = '#16a34a';
 const END_COLOR = '#dc2626';
 
-export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, allDeliveries = [], isSelected = false }) {
+export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const cardRef = useRef(null);
@@ -47,6 +47,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     (d) => d && d.driver_id === delivery?.driver_id && d.delivery_date === delivery?.delivery_date &&
     !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
   );
+  const routeCompleted = (allDeliveries || []).filter(
+    (d) => d && d.driver_id === delivery?.driver_id && d.delivery_date === delivery?.delivery_date
+  ).every((d) => FINISHED_STATUSES.includes(d.status));
   const shouldFade = isFinishedDelivery && routeHasIncompleteStops && !isSelected && !isHovered;
 
   const type = getCyclingType(delivery);
@@ -231,27 +234,28 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           return null;
         })()}
 
-        {/* Bottom row: action buttons — Restart in footer when completed, matching regular stop card rules */}
+        {/* Bottom row: action buttons — matches exact same rules as regular stop card */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '6px' }}>
-          {isCompleted ?
-          <button
-            ref={btnRef}
-            onClick={handleRestart}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-            style={{ backgroundColor: '#ff0000', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              <RotateCcw size={12} />
-              Restart
-            </button> :
-
-          <button
-            ref={btnRef}
-            onClick={handleAction}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-            style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          {!isCompleted && delivery?.status !== 'cancelled' && (
+            <button
+              ref={btnRef}
+              onClick={handleAction}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+              style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <ActionIcon size={12} />
               {actionLabel}
             </button>
-          }
+          )}
+          {['completed', 'cancelled'].includes(delivery?.status) && onRestart && !routeCompleted && (
+            <button
+              ref={btnRef}
+              onClick={handleRestart}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+              style={{ backgroundColor: '#ff0000', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <RotateCcw size={12} />
+              Restart
+            </button>
+          )}
         </div>
       </div>
 
