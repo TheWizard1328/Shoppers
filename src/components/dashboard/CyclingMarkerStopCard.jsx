@@ -85,8 +85,17 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     try {
       onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
+      // Center the next isNextDelivery card after a brief delay for state to settle
+      setTimeout(() => {
+        const nextCard = (allDeliveries || []).find(
+          (d) => d && d.id !== delivery.id && d.isNextDelivery === true &&
+                 d.driver_id === delivery?.driver_id && d.delivery_date === delivery?.delivery_date
+        );
+        if (nextCard?.id) {
+          window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: nextCard.id } }));
+        }
+      }, 800);
     } finally {
-      // Reset after a delay — the parent re-renders with completed status which unmounts/hides the button
       setTimeout(() => setIsCompleting(false), 8000);
     }
   };

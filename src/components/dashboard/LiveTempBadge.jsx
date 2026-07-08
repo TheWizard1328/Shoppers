@@ -82,6 +82,13 @@ export default function LiveTempBadge({
         sensor_mac: workerSensorName || null,
       });
       const ts = localISOString();
+      // Update direction indicator based on previous reading
+      if (prevTempRef.current !== null) {
+        if (tempC > prevTempRef.current) setTempDirection('up');
+        else if (tempC < prevTempRef.current) setTempDirection('down');
+        else setTempDirection('right');
+      }
+      prevTempRef.current = tempC;
       setLastReading({ temperature_celsius: tempC, timestamp: ts });
       window.dispatchEvent(new CustomEvent('fridgeTempRecorded', {
         detail: { temperature: tempC, timestamp: ts, driverId },
@@ -105,11 +112,13 @@ export default function LiveTempBadge({
   });
 
   // ── Local UI state ──────────────────────────────────────────────────────
-  const [lastReading, setLastReading] = useState(null);
-  const [avgReading,  setAvgReading]  = useState(null);
-  const [isPulsing,   setIsPulsing]   = useState(false);
-  const [justSaved,   setJustSaved]   = useState(false);
-  const [isUnpairing, setIsUnpairing] = useState(false);
+  const [lastReading,   setLastReading]   = useState(null);
+  const [avgReading,    setAvgReading]    = useState(null);
+  const [isPulsing,     setIsPulsing]     = useState(false);
+  const [justSaved,     setJustSaved]     = useState(false);
+  const [isUnpairing,   setIsUnpairing]   = useState(false);
+  const [tempDirection, setTempDirection] = useState('right'); // 'up' | 'down' | 'right'
+  const prevTempRef = useRef(null);
 
   const dbPollTimerRef = useRef(null);
   const pulseTimerRef  = useRef(null);
@@ -349,7 +358,18 @@ export default function LiveTempBadge({
             <span style={{ color: iconColor }}>{labelText}</span>
           </Tooltip>
 
-          {(isOut || isWarning) && <span className="text-xs font-bold opacity-90" style={{ color: iconColor }}>⚠</span>}
+          {(isOut || isWarning) && (
+            <span
+              className="text-xs font-bold flex-shrink-0"
+              style={{
+                color: iconColor,
+                display: 'inline-block',
+                transition: 'transform 0.4s ease',
+                transform: tempDirection === 'up' ? 'rotate(0deg)' : tempDirection === 'down' ? 'rotate(180deg)' : 'rotate(90deg)',
+                lineHeight: 1,
+              }}
+            >▲</span>
+          )}
           {rightIcon}
 
           {isLive && (
