@@ -24,14 +24,14 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   // Load the CyclingLocation name if a library entry is linked
   useEffect(() => {
     const locId = delivery?.cycling_location_id;
-    if (!locId) { setLocationName(null); return; }
+    if (!locId) {setLocationName(null);return;}
     import('@/api/base44Client').then(({ base44 }) =>
-      base44.entities.CyclingLocation.filter({ id: locId })
-        .then((results) => {
-          const name = results?.[0]?.name || null;
-          setLocationName(name);
-        })
-        .catch(() => null)
+    base44.entities.CyclingLocation.filter({ id: locId }).
+    then((results) => {
+      const name = results?.[0]?.name || null;
+      setLocationName(name);
+    }).
+    catch(() => null)
     );
   }, [delivery?.cycling_location_id]);
 
@@ -50,18 +50,18 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
   // Action button: only one shows at a time
   // completed → no action button | pending → Start/Complete | in_transit → Complete | can restart if completed
-  const actionLabel = isCompleted
-    ? 'Restart'
-    : isInTransit
-    ? 'Complete'
-    : (type === 'end' ? 'Complete' : 'Start');
+  const actionLabel = isCompleted ?
+  'Restart' :
+  isInTransit ?
+  'Complete' :
+  type === 'end' ? 'Complete' : 'Start';
   const actionIcon = isCompleted ? RotateCcw : isInTransit ? CheckCircle2 : Play;
   const ActionIcon = actionIcon;
 
   const handleAction = (e) => {
     e.stopPropagation();
     if (!delivery?.id) return;
-    const now = new Date(), pad = (n) => String(n).padStart(2, '0');
+    const now = new Date(),pad = (n) => String(n).padStart(2, '0');
     const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
     if (isCompleted) {
@@ -80,7 +80,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     const getSiblingHeight = () => {
       const parent = el.parentElement;
       if (!parent) return null;
-      const siblings = Array.from(parent.children).filter(c => c !== el);
+      const siblings = Array.from(parent.children).filter((c) => c !== el);
       // Prefer left sibling, fall back to right
       const elIdx = Array.from(parent.children).indexOf(el);
       const leftSibling = siblings.filter((_, i) => Array.from(parent.children).indexOf(siblings[i]) < elIdx).pop();
@@ -98,7 +98,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     const observer = new ResizeObserver(update);
     const parent = el.parentElement;
     if (parent) {
-      Array.from(parent.children).forEach(child => {
+      Array.from(parent.children).forEach((child) => {
         if (child !== el) observer.observe(child);
       });
     }
@@ -129,9 +129,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         display: 'flex',
         flexDirection: 'column',
         height: matchedHeight ? `${matchedHeight}px` : undefined,
-        alignSelf: matchedHeight ? undefined : 'stretch',
-      }}
-    >
+        alignSelf: matchedHeight ? undefined : 'stretch'
+      }}>
+      
       {/* Card */}
       <div
         ref={cardRef}
@@ -145,26 +145,26 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           flexDirection: 'column',
           height: '100%',
           position: 'relative',
-          overflow: 'visible',
+          overflow: 'visible'
         }}
         onClick={() => {
           setMenuOpen((v) => !v);
           window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery?.id } }));
-        }}
-      >
+        }}>
+        
         {/* Row 1: Stop # (top-left) | Cycling Start/End (center) | Status (top-right) */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginBottom: '6px' }}>
           {/* Stop number badge - top left */}
           <Badge
             className="text-xs font-bold px-1.5 py-0.5 rounded-full shrink-0"
-            style={{ backgroundColor: accentColor, color: 'white', border: 'none', fontSize: '11px' }}
-          >
+            style={{ backgroundColor: accentColor, color: 'white', border: 'none', fontSize: '11px' }}>
+            
             #{stopNum}
           </Badge>
 
           {/* Cycling label - center */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, justifyContent: 'center' }}>
-            <Bike size={13} color={accentColor} strokeWidth={2.2} />
+            <Bike size={13} color={accentColor} strokeWidth={2.2} className="hidden" />
             <span style={{ fontSize: '11px', fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
               {cyclingLabel}
             </span>
@@ -177,9 +177,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
               backgroundColor: statusBg,
               color: statusColor,
               border: `1px solid ${accentColor}55`,
-              fontSize: '10px',
-            }}
-          >
+              fontSize: '10px'
+            }}>
+            
             {statusLabel}
           </Badge>
         </div>
@@ -195,7 +195,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           fontWeight: 600,
           color: '#1e293b',
           lineHeight: 1.3,
-          padding: '2px 0',
+          padding: '2px 0'
         }}>
           {markerName}
         </div>
@@ -211,9 +211,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
               color: isCompleted ? '#64748b' : 'white',
               border: isCompleted ? '1px solid #e2e8f0' : 'none',
               cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
+              whiteSpace: 'nowrap'
+            }}>
+            
             <ActionIcon size={12} />
             {actionLabel}
           </button>
@@ -222,56 +222,56 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
       {/* Dropdown menu — anchored above the action button */}
       <AnimatePresence>
-        {menuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 4, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.96 }}
-            transition={{ duration: 0.13 }}
-            style={{
-              position: 'absolute',
-              bottom: '44px', // just above the action button area
-              right: '8px',
-              zIndex: 99999,
-              background: 'white',
-              borderRadius: '10px',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.22)',
-              border: '1px solid #e2e8f0',
-              padding: '4px',
-              minWidth: '160px',
-              whiteSpace: 'nowrap',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
+        {menuOpen &&
+        <motion.div
+          initial={{ opacity: 0, y: 4, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 4, scale: 0.96 }}
+          transition={{ duration: 0.13 }}
+          style={{
+            position: 'absolute',
+            bottom: '44px', // just above the action button area
+            right: '8px',
+            zIndex: 99999,
+            background: 'white',
+            borderRadius: '10px',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.22)',
+            border: '1px solid #e2e8f0',
+            padding: '4px',
+            minWidth: '160px',
+            whiteSpace: 'nowrap'
+          }}
+          onClick={(e) => e.stopPropagation()}>
+          
             {/* Caret pointing down toward button */}
             <div style={{
-              position: 'absolute', bottom: '-6px', right: '18px',
-              width: 0, height: 0,
-              borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
-              borderTop: '6px solid white',
-              filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.08))'
-            }} />
+            position: 'absolute', bottom: '-6px', right: '18px',
+            width: 0, height: 0,
+            borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
+            borderTop: '6px solid white',
+            filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.08))'
+          }} />
 
             <button
-              onClick={() => { setMenuOpen(false); onEdit?.(delivery); }}
-              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-slate-50"
-              style={{ color: '#1e293b', background: 'none', border: 'none', cursor: 'pointer' }}
-            >
+            onClick={() => {setMenuOpen(false);onEdit?.(delivery);}}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-slate-50"
+            style={{ color: '#1e293b', background: 'none', border: 'none', cursor: 'pointer' }}>
+            
               <Pencil size={13} color="#64748b" />
               Edit Marker
             </button>
 
             <button
-              onClick={() => { setMenuOpen(false); onDelete?.(delivery.id); }}
-              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-red-50"
-              style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}
-            >
+            onClick={() => {setMenuOpen(false);onDelete?.(delivery.id);}}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-red-50"
+            style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>
+            
               <Trash2 size={13} />
               Delete Marker
             </button>
           </motion.div>
-        )}
+        }
       </AnimatePresence>
-    </div>
-  );
+    </div>);
+
 }
