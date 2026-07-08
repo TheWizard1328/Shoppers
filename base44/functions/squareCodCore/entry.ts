@@ -613,12 +613,69 @@ async function handleSyncCatalogItems(base44, payload={}) {
 }
 
 // Wipes the entire SquareCatalogItems DB then repopulates it fresh from the live Square catalog.
+// Returns the full list of inserted records so the caller can sync them to the offline DB too.
 async function handlePurgeAndRebuildCatalog(base44) {
-  // Step 1: Delete ALL existing SquareCatalogItems records
-  await base44.asServiceRole.entities.SquareCatalogItems.deleteMany({}).catch(() => null);
+  const accessToken = ensureSquareToken();
+  const [allLocationConfigs, stores] = await Promise.all([
+    base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []),
+    base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
+  ]);
+  const safeConfigs = (Array.isArray(allLocationConfigs) ? allLocationConfigs : []).map(unwrapEntityRecord).filter(Boolean);
+  const safeStores = (Array.isArray(stores) ? stores : []).map(unwrapEntityRecord).filter(Boolean);
+  const activeConfigById = new Map(safeConfigs.filter((c) => c?.status === 'active').map((c) => [c.id, c]));
+  const storesByLocationId = buildStoresByLocationId(safeStores, activeConfigById);
 
-  // Step 2: Rebuild from live Square API
-  return handleMirrorCatalogFromSquare(base44);
+  // Step 1: Fetch live catalog from Square FIRST (before touching the DB)
+  const liveCatalogItems = await listActiveCatalogItems(accessToken);
+
+  // Step 2: Build canonical records from live Square data
+  const liveRecords = (liveCatalogItems || []).reduce((acc, item) => {
+    const ac = getCatalogItemAmountCents(item);
+    const itemName = item?.item_data?.name || '';
+    if (!itemName) return acc;
+    const lids = getCatalogItemLocationIds(item);
+    if (!lids.length) return acc;
+    const rl = lids.find((l) => storesByLocationId.has(l)) || lids[0];
+    const store = resolveStoreForItem(itemName, rl, storesByLocationId);
+    acc.push({
+      square_catalog_object_id: item.id,
+      square_catalog_version: item.version || null,
+      item_name: itemName,
+      description: item?.item_data?.description || '',
+      amount: ac / 100,
+      amount_cents: ac,
+      delivery_id: null,
+      delivery_date: toIsoDate(itemName),
+      patient_id: null,
+      store_id: store?.id || null,
+      location_id: rl,
+      status: 'active',
+    });
+    return acc;
+  }, []);
+
+  // Step 3: Hard wipe the entire online DB
+  await base44.asServiceRole.entities.SquareCatalogItems.deleteMany({}).catch(() => null);
+  // Brief pause to ensure deleteMany propagates before inserts
+  await sleep(500);
+
+  // Step 4: Bulk insert all live records into the now-empty DB
+  const chunkSize = 20;
+  const insertedRecords = [];
+  for (let i = 0; i < liveRecords.length; i += chunkSize) {
+    const chunk = liveRecords.slice(i, i + chunkSize);
+    const created = await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(chunk).catch(() => []);
+    insertedRecords.push(...(created || []));
+    if (i + chunkSize < liveRecords.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
+  }
+
+  return {
+    success: true,
+    live_catalog_count: liveRecords.length,
+    inserted: insertedRecords.length,
+    // Return the records so the frontend can replace the offline DB too
+    catalogRecords: liveRecords,
+  };
 }
 
 // Fetches the live Square catalog and replaces SquareCatalogItems DB to exactly mirror it.

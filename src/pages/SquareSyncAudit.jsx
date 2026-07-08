@@ -21,7 +21,7 @@ import {
   parseSquareItemName,
   toAmountCents,
 } from "@/components/square-audit/squareAuditHelpers";
-import { syncSquareCODSnapshotOffline } from "@/components/utils/squareCODOfflineManager";
+import { clearSquareCODOfflineData, saveCatalogItemsOffline, syncSquareCODSnapshotOffline } from "@/components/utils/squareCODOfflineManager";
 import { squareSyncCatalogItems } from "@/functions/squareSyncCatalogItems";
 
 export default function SquareSyncAudit() {
@@ -41,10 +41,19 @@ export default function SquareSyncAudit() {
     setIsLoading(true);
 
     try {
-      // Step 1: Wipe SquareCatalogItems DB entirely, then repopulate fresh from live Square catalog
-      await base44.functions.invoke("squareCodCore", { action: "purgeAndRebuildCatalog" });
+      // Step 1: Wipe the offline catalog DB immediately — before any API calls — so no ghost records linger
+      await clearSquareCODOfflineData();
 
-      // Step 2: With DB now a clean mirror of Square, push any missing deliveries up to Square
+      // Step 2: Wipe the online SquareCatalogItems DB and rebuild it fresh from the live Square catalog API
+      const purgeResult = await base44.functions.invoke("squareCodCore", { action: "purgeAndRebuildCatalog" });
+      const purgeData = purgeResult?.data || purgeResult || {};
+
+      // Step 3: Immediately populate the offline DB with exactly what Square has (no ghost records possible)
+      if (Array.isArray(purgeData?.catalogRecords) && purgeData.catalogRecords.length > 0) {
+        await saveCatalogItemsOffline(purgeData.catalogRecords);
+      }
+
+      // Step 4: With both DBs now a clean mirror of Square, push any missing deliveries up to Square
       const syncResponse = await squareSyncCatalogItems({ skipLock: true });
       const syncData = syncResponse?.data || syncResponse || {};
       if (syncData?.success === false) {
