@@ -1625,6 +1625,7 @@ export default function DeliveryFormView({
                       driver_name: driver ? getDriverNameForStorage(driver) : formData.driver_name,
                       is_cycling_marker: true,
                       status: formData.status || 'in_transit',
+                      delivery_id: formData.delivery_id || null,
                       ...(formData.arrival_time && { arrival_time: `${formData.delivery_date}T${formData.arrival_time}:00` }),
                       ...(formData.cycling_latitude != null && { cycling_latitude: formData.cycling_latitude }),
                       ...(formData.cycling_longitude != null && { cycling_longitude: formData.cycling_longitude })
@@ -1661,6 +1662,10 @@ export default function DeliveryFormView({
                     const endPayload = isStart ? {
                       ...basePayload,
                       delivery_notes: 'Cycling Route End',
+                      delivery_id: generateBikDeliveryId(
+                        [...(allDeliveries || []).filter((d) => d?.delivery_id?.startsWith('BIK-')).map((d) => d.delivery_id),
+                         ...(formData.delivery_id ? [formData.delivery_id] : [])]
+                      ),
                       ...(endActualTime && { actual_delivery_time: endActualTime }),
                       ...(endMarkerTimeStart && { delivery_time_start: endMarkerTimeStart }),
                       ...(endMarkerTimeEnd && { delivery_time_end: endMarkerTimeEnd }),

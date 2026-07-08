@@ -56,11 +56,10 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const isCompleted = delivery?.status === 'completed';
   const isInTransit = delivery?.status === 'in_transit' || delivery?.status === 'en_route';
   const isNextDelivery = delivery?.isNextDelivery || false;
-  // Only the active/next-delivery cycling marker can be one-tap completed. A cycling
-  // marker further down the route hasn't been "arrived at" yet — it needs a real Start
-  // button (like a regular stop card) so tapping it properly jumps the queue instead of
-  // silently marking a future checkpoint done out of order.
-  const isActionable = isNextDelivery || isInTransit;
+  // A cycling marker shows Complete only when it IS the active/next stop.
+  // If isNextDelivery is false, always show the Start button regardless of status —
+  // the driver needs to explicitly activate it (jump-queue), same as regular stop cards.
+  const isActionable = isNextDelivery;
   const accentColor = type === 'end' ? END_COLOR : START_COLOR;
   const stopNum = delivery?.stop_order ?? stopOrder ?? '?';
   const cyclingLabel = type === 'end' ? 'Cycling End' : 'Cycling Start';
@@ -71,9 +70,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const statusBg = isCompleted ? '#16a34a' : isInTransit ? '#2563eb' : accentColor + '22';
   const statusColor = isCompleted || isInTransit ? 'white' : accentColor;
 
-  // Action button: Restart moves to menu when completed; only Start/Complete shown in footer
-  const actionLabel = isInTransit ? 'Complete' : type === 'end' ? 'Complete' : 'Start';
-  const ActionIcon = isInTransit ? CheckCircle2 : Play;
+  // Action button: once isNextDelivery (active), show Complete regardless of notes type.
+  const actionLabel = 'Complete';
+  const ActionIcon = CheckCircle2;
 
   const handleAction = (e) => {
     e.stopPropagation();
