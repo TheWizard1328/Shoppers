@@ -1810,7 +1810,6 @@ export default function DeliveryFormView({
                   if (isInterStoreMode && interStoreReady) {
                     runLockedAction('add_interstore_transfer', async () => {await handleAddInterStoreTransfer();});
                   } else {
-                    onCancel?.();
                     runLockedAction('batch_save', async () => {await handleBatchSave();fabControlEvents.resetToPhaseOneAfterDone(500);});
                   }
                 }} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || isInterStoreMode && interStoreReady || !isInterStoreMode && openMode !== 'add_to_route' && !hasChanges && pickupsAddedCount === 0}>
