@@ -142,6 +142,17 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       updateData.delivery_time_start = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
     }
 
+    // Cycling marker "Start" (jump-queue): regular deliveries always start via
+    // handleStartAction (which reorders the route and reassigns isNextDelivery), but
+    // cycling markers only ever route through this generic handler. Without this, tapping
+    // Start on a cycling marker that isn't already the active stop would leave isNextDelivery
+    // untouched — fill that gap here, mirroring the same promote/demote pattern used below
+    // for the completed/failed/cancelled path.
+    const isCyclingMarkerStart = targetDelivery.is_cycling_marker && (newStatus === 'in_transit' || newStatus === 'en_route');
+    if (isCyclingMarkerStart) {
+      updateData.isNextDelivery = true;
+    }
+
     if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
       updateData.isNextDelivery = false;
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
@@ -182,6 +193,12 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
 
     const targetRecord = { ...targetDelivery, ...updateData };
     const siblingUpdates = [];
+    if (isCyclingMarkerStart) {
+      const allDDFStart = deliveriesWithStopOrder.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate);
+      allDDFStart.filter((d) => d.isNextDelivery && d.id !== deliveryId).forEach((d) => {
+        siblingUpdates.push({ id: d.id, record: { ...d, isNextDelivery: false } });
+      });
+    }
     if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
       const allDDF = deliveriesWithStopOrder.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate);
       allDDF.filter((d) => d.isNextDelivery && d.id !== deliveryId).forEach((d) => { siblingUpdates.push({ id: d.id, record: { ...d, isNextDelivery: false } }); });

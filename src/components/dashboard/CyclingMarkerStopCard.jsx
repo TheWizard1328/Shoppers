@@ -12,7 +12,7 @@ const getCyclingType = (delivery) => {
 const START_COLOR = '#16a34a';
 const END_COLOR = '#dc2626';
 
-export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false }) {
+export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery = true }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const cardRef = useRef(null);
@@ -55,6 +55,12 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const type = getCyclingType(delivery);
   const isCompleted = delivery?.status === 'completed';
   const isInTransit = delivery?.status === 'in_transit' || delivery?.status === 'en_route';
+  const isNextDelivery = delivery?.isNextDelivery || false;
+  // Only the active/next-delivery cycling marker can be one-tap completed. A cycling
+  // marker further down the route hasn't been "arrived at" yet — it needs a real Start
+  // button (like a regular stop card) so tapping it properly jumps the queue instead of
+  // silently marking a future checkpoint done out of order.
+  const isActionable = isNextDelivery || isInTransit;
   const accentColor = type === 'end' ? END_COLOR : START_COLOR;
   const stopNum = delivery?.stop_order ?? stopOrder ?? '?';
   const cyclingLabel = type === 'end' ? 'Cycling End' : 'Cycling Start';
@@ -75,6 +81,15 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     const now = new Date(),pad = (n) => String(n).padStart(2, '0');
     const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
+  };
+
+  // Jump-queue Start: promotes this (not-yet-active) cycling marker to isNextDelivery
+  // instead of completing it directly. Routes through the same onStatusUpdate handler,
+  // which now knows how to reassign isNextDelivery for cycling markers on 'in_transit'.
+  const handleStart = (e) => {
+    e.stopPropagation();
+    if (!delivery?.id) return;
+    onComplete?.(delivery.id, 'in_transit', {});
   };
 
   const handleRestart = (e) => {
@@ -237,14 +252,26 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         {/* Bottom row: action buttons — matches exact same rules as regular stop card */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '6px' }}>
           {!isCompleted && delivery?.status !== 'cancelled' && (
-            <button
-              ref={btnRef}
-              onClick={handleAction}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-              style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              <ActionIcon size={12} />
-              {actionLabel}
-            </button>
+            isActionable ? (
+              <button
+                ref={btnRef}
+                onClick={handleAction}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+                style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <ActionIcon size={12} />
+                {actionLabel}
+              </button>
+            ) : (
+              onStartDelivery &&
+              <button
+                ref={btnRef}
+                onClick={handleStart}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+                style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <Play size={12} />
+                Start
+              </button>
+            )
           )}
           {['completed', 'cancelled'].includes(delivery?.status) && onRestart && !routeCompleted && (
             <button
