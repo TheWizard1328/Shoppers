@@ -15,7 +15,7 @@ const getEdmDate = () => {
 };
 
 export async function handleCreateReturn({ originalDelivery, returnPatient, store }, {
-  currentUser, deliveries, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries
+  currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries
 }) {
   setIsEntityUpdating(true);
   pauseOfflineSync();
@@ -43,7 +43,7 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
 
     const returnDeliveryData = buildReturnDeliveryData({
       originalDelivery, returnPatient, store, routeDate, routeDateDeliveries,
-      finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber
+      finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber, patients
     });
 
     await createDeliveryLocal(returnDeliveryData);

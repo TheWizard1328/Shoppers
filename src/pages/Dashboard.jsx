@@ -1947,7 +1947,7 @@ useEffect(() => {
   const handleNotesUpdate = (deliveryId, notes) => _handleNotesUpdate(deliveryId, notes, { refreshData });
   const handleCODUpdate = (deliveryId, codPayments) => _handleCODUpdate(deliveryId, codPayments, { deliveriesWithStopOrder, updateDeliveriesLocally, setIsEntityUpdating });
 
-  const handleCreateReturn = (args) => _handleCreateReturn(args, { currentUser, deliveries, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries });
+  const handleCreateReturn = (args) => _handleCreateReturn(args, { currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries });
 
   const handleStartDelivery = async (deliveryId) => {
     const { handleStartDelivery: _doStart } = await import('@/components/dashboard/handleStartDelivery');
