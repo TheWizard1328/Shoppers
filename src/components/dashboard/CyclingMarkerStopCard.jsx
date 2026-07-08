@@ -164,7 +164,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
           {/* Cycling label - center */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, justifyContent: 'center' }}>
-            <Bike size={13} color={accentColor} strokeWidth={2.2} className="hidden" />
+            
             <span style={{ fontSize: '11px', fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
               {cyclingLabel}
             </span>
