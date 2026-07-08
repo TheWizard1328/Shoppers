@@ -41,11 +41,16 @@ export default function SquareSyncAudit() {
     setIsLoading(true);
 
     try {
+      // Step 1: Push missing items TO Square and clean up collected ones
       const syncResponse = await squareSyncCatalogItems({ skipLock: true });
       const syncData = syncResponse?.data || syncResponse || {};
       if (syncData?.success === false) {
         throw new Error(syncData.error || "Square reconciliation failed");
       }
+
+      // Step 2: Pull the live Square catalog back into the DB so SquareCatalogItems
+      // exactly mirrors what is actually on Square (handles manual deletions from Square side)
+      await base44.functions.invoke("squareCodCore", { action: "getCodData", daysBack: 90 }).catch(() => null);
 
       const [locationConfigsResponse, storesResponse, patientsResponse, deliveriesResponse, squareTransactionsResponse, squareCatalogItemsResponse, syncHealthResponse] = await Promise.all([
         base44.entities.SquareLocationConfig.filter({ status: "active" }),
