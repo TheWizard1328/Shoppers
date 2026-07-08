@@ -702,14 +702,13 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
             <div
               key={card.id}
               id={`stop-card-${card.id}`}
-              className="flex-shrink-0 pointer-events-auto flex items-end"
+              className="flex-shrink-0 pointer-events-auto flex items-stretch"
               style={{
                 scrollSnapAlign: isMobile ? 'center' : 'none',
                 scrollSnapStop: isMobile ? 'always' : 'normal',
                 zIndex: sequentialCardZIndex,
                 position: 'relative',
                 overflow: 'visible',
-                paddingBottom: '4px'
               }}
               data-is-next-delivery={card.isNextDelivery ? "true" : undefined}
             >
