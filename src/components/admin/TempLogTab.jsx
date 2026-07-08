@@ -591,15 +591,14 @@ export default function TempLogTab({ drivers = [], currentUser }) {
               const renderDot = (props) => {
                 const { cx, cy, payload } = props;
                 const hasFridge = isInFridgeRange(driverId, payload?.label);
+                if (!hasFridge) return null;
                 return (
                   <circle
                     key={`dot-${driverId}-${payload?.label}`}
-                    cx={cx} cy={cy} r={hasFridge ? 5 : 3}
-                    fill={hasFridge ? color : 'white'}
+                    cx={cx} cy={cy} r={5}
+                    fill={color}
                     stroke={color}
-                    strokeWidth={hasFridge ? 2 : 1.5} />);
-
-
+                    strokeWidth={2} />);
               };
               return (
                 <Line
