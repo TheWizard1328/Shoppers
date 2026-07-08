@@ -105,16 +105,17 @@ export default function useModeRouteDialog({
       await updatePreferredTravelMode(appUsers, currentUser.id, 'cycling');
       setPreferredTravelMode('cycling');
 
-      // ── 4. Tag selected stops as cycling transport mode ───────────────────
-      // NOTE: Start/End cycling markers are NOT created here — those come only
-      // from the delivery form. This dialog just tags the selected stops and optimizes.
-      const updatedStops = await Promise.all(
-        selectedDeliveries.map((d) =>
-          base44.entities.Delivery.update(d.id, { transport_mode: 'cycling' })
-            .then((updated) => updated || { ...d, transport_mode: 'cycling' })
-            .catch(() => ({ ...d, transport_mode: 'cycling' }))
-        )
-      );
+      // ── 4. Tag selected stops as cycling transport mode + fetch HERE key (parallel) ──
+      const [updatedStops, hereKeyResp] = await Promise.all([
+        Promise.all(
+          selectedDeliveries.map((d) =>
+            base44.entities.Delivery.update(d.id, { transport_mode: 'cycling' })
+              .then((updated) => updated || { ...d, transport_mode: 'cycling' })
+              .catch(() => ({ ...d, transport_mode: 'cycling' }))
+          )
+        ),
+        base44.functions.invoke('getActiveHereApiKey', {}).catch(() => null),
+      ]);
 
       // ── 5. Persist to IDB + merge into local React state immediately ──────
       const allUpserts = [...updatedStops].filter(Boolean);
@@ -124,60 +125,30 @@ export default function useModeRouteDialog({
       } catch { /* offlineDB optional */ }
       applyDeliveryChangesLocally?.({ upserts: allUpserts, deleteIds: [] });
 
-      // ── 6. Fetch the HERE API key ─────────────────────────────────────────
-      const hereKeyResp = await base44.functions.invoke('getActiveHereApiKey', {}).catch(() => null);
       const hereApiKey = hereKeyResp?.data?.apiKey || hereKeyResp?.apiKey || null;
-
       const markerCoords = { lat: loc.latitude, lon: loc.longitude };
+      const excludeIds = [...selectedModeStopIds].filter(Boolean);
 
-      // ────────────────────────────────────────────────────────────────────
-      // STAGE 1 — Optimize cycling segment
-      // Origin: Cycling Route Start (driver GPS)
-      // Destination: Cycling Route End (same driver GPS — loop)
-      // Waypoints: only the selected cycling stops
-      // HERE mode: bicycle
-      // stop_order written starting from startMarkerOrder + 1
-      // ────────────────────────────────────────────────────────────────────
-      let stage1OrderedIds = [];
-      try {
-        const resp = await base44.functions.invoke('optimizeRemainingStops', {
+      // ── 6. Stage 1 + Stage 2 optimization in parallel ────────────────────
+      // Stage 1: optimize the cycling segment (bicycle mode)
+      // Stage 2: optimize remaining driving stops (car mode)
+      // They write to non-overlapping stop_order ranges so they are safe to run concurrently.
+      const [stage1Result] = await Promise.all([
+        base44.functions.invoke('optimizeRemainingStops', {
           driverId: currentUser.id,
           deliveryDate: deliveryDateStr,
           currentLocalTime,
           bypassDriverStatus: true,
           triggerSource: 'cyclingMode:stage1',
           hereApiKey,
-          // Cycling segment params
           cyclingSegmentOnly: true,
           cyclingOrigin: markerCoords,
           cyclingDestination: markerCoords,
           cyclingStopIds: selectedModeStopIds,
-          // Write stop_order starting at the first selected cycling stop's position
           startingStopOrder: Math.max(1, Math.ceil(minSelectedOrder)),
-        });
-        stage1OrderedIds = (resp?.data || resp)?.optimizedRoute?.map((s) => s.deliveryId) || [];
-        console.log('[useModeRouteDialog] Stage 1 cycling optimization complete:', stage1OrderedIds.length, 'stops');
-      } catch (e) {
-        console.warn('[useModeRouteDialog] Stage 1 cycling optimization failed:', e?.message);
-      }
+        }).catch((e) => { console.warn('[useModeRouteDialog] Stage 1 failed:', e?.message); return null; }),
 
-      // Small gap so dedupe window doesn't block Stage 2
-      await new Promise((r) => setTimeout(r, 1200));
-
-      // ────────────────────────────────────────────────────────────────────
-      // STAGE 2 — Optimize remaining driving stops
-      // Origin: Cycling Route End (driver GPS — same loop point)
-      // Destination: Driver home (handled by optimizer automatically)
-      // Waypoints: all remaining active stops excluding cycling stops + both markers
-      // HERE mode: car (driver's normal mode)
-      // stop_order written starting from endMarkerOrder + 1
-      // ────────────────────────────────────────────────────────────────────
-      const excludeIds = [
-        ...selectedModeStopIds,
-      ].filter(Boolean);
-
-      try {
-        await base44.functions.invoke('optimizeRemainingStops', {
+        base44.functions.invoke('optimizeRemainingStops', {
           driverId: currentUser.id,
           deliveryDate: deliveryDateStr,
           currentLocalTime,
@@ -185,17 +156,14 @@ export default function useModeRouteDialog({
           forceFullRemainingRouteOptimization: true,
           triggerSource: 'cyclingMode:stage2',
           hereApiKey,
-          // Driving segment params
           drivingSegmentOnly: true,
           drivingOrigin: markerCoords,
           excludeStopIds: excludeIds,
-          // Write stop_order starting right after the selected cycling stops
           startingStopOrder: Math.ceil(minSelectedOrder) + selectedDeliveries.length,
-        });
-        console.log('[useModeRouteDialog] Stage 2 driving optimization complete');
-      } catch (e) {
-        console.warn('[useModeRouteDialog] Stage 2 driving optimization failed:', e?.message);
-      }
+        }).catch((e) => { console.warn('[useModeRouteDialog] Stage 2 failed:', e?.message); return null; }),
+      ]);
+
+      console.log('[useModeRouteDialog] Stage 1+2 optimization complete');
 
       // ────────────────────────────────────────────────────────────────────
       // STAGE 3 — Regenerate all polylines
