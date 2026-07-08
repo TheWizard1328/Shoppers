@@ -25,18 +25,18 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   useEffect(() => {
     const lat = delivery?.cycling_latitude;
     const lng = delivery?.cycling_longitude;
-    if (lat == null || lng == null) { setLocationName(null); return; }
+    if (lat == null || lng == null) {setLocationName(null);return;}
     import('@/api/base44Client').then(({ base44 }) =>
-      base44.entities.CyclingLocation.list()
-        .then((results) => {
-          // Find closest location within ~50m
-          const THRESH = 0.0005; // ~50m in degrees
-          const match = (results || []).find((loc) =>
-            Math.abs(loc.latitude - lat) < THRESH && Math.abs(loc.longitude - lng) < THRESH
-          );
-          setLocationName(match?.name || null);
-        })
-        .catch(() => null)
+    base44.entities.CyclingLocation.list().
+    then((results) => {
+      // Find closest location within ~50m
+      const THRESH = 0.0005; // ~50m in degrees
+      const match = (results || []).find((loc) =>
+      Math.abs(loc.latitude - lat) < THRESH && Math.abs(loc.longitude - lng) < THRESH
+      );
+      setLocationName(match?.name || null);
+    }).
+    catch(() => null)
     );
   }, [delivery?.cycling_latitude, delivery?.cycling_longitude]);
 
@@ -60,7 +60,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const handleAction = (e) => {
     e.stopPropagation();
     if (!delivery?.id) return;
-    const now = new Date(), pad = (n) => String(n).padStart(2, '0');
+    const now = new Date(),pad = (n) => String(n).padStart(2, '0');
     const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
   };
@@ -183,7 +183,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         </div>
 
         {/* Row 2: Marker name — matches address style: text-xs font-bold */}
-        <div className="flex-1 flex items-center justify-center text-center text-xs font-bold" style={{ color: 'var(--text-slate-500)', lineHeight: 1.3, padding: '2px 0' }}>
+        <div className="flex-1 flex items-center justify-center text-center font-bold text-md" style={{ color: 'var(--text-slate-500)', lineHeight: 1.3, padding: '2px 0' }}>
           {markerName}
         </div>
 
@@ -202,8 +202,8 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             return (
               <div className="flex items-center justify-center text-sm font-bold mb-1" style={{ color: 'var(--text-slate-600)' }}>
                 {arrival && completion ? `${arrival} → ${completion}` : arrival || completion}
-              </div>
-            );
+              </div>);
+
           }
           if (isInTransit) {
             const start = fmt(delivery?.delivery_time_start);
@@ -212,33 +212,33 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             return (
               <div className="flex items-center justify-center text-xs font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>
                 {start && end ? `${start} → ${end}` : start ? `${start} →` : `← ${end}`}
-              </div>
-            );
+              </div>);
+
           }
           return null;
         })()}
 
         {/* Bottom row: action buttons — Restart in footer when completed, matching regular stop card rules */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '6px' }}>
-          {isCompleted ? (
-            <button
-              ref={btnRef}
-              onClick={handleRestart}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-              style={{ backgroundColor: '#ff0000', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          {isCompleted ?
+          <button
+            ref={btnRef}
+            onClick={handleRestart}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+            style={{ backgroundColor: '#ff0000', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <RotateCcw size={12} />
               Restart
-            </button>
-          ) : (
-            <button
-              ref={btnRef}
-              onClick={handleAction}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-              style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            </button> :
+
+          <button
+            ref={btnRef}
+            onClick={handleAction}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+            style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <ActionIcon size={12} />
               {actionLabel}
             </button>
-          )}
+          }
         </div>
       </div>
 
