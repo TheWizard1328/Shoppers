@@ -224,7 +224,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             <button
               ref={btnRef}
               onClick={handleRestart}
-              className="flex items-center gap-1.5 rounded-l-lg px-2.5 py-1.5 text-xs font-semibold"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
               style={{ backgroundColor: '#ff0000', color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <RotateCcw size={12} />
               Restart
@@ -233,7 +233,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             <button
               ref={btnRef}
               onClick={handleAction}
-              className="flex items-center gap-1.5 rounded-l-lg px-2.5 py-1.5 text-xs font-semibold"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
               style={{ backgroundColor: accentColor, color: 'white', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <ActionIcon size={12} />
               {actionLabel}
