@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, CheckCircle2, Bike, RotateCcw, Play } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, RotateCcw, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 
@@ -53,28 +53,22 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   const statusBg = isCompleted ? '#16a34a' : isInTransit ? '#2563eb' : accentColor + '22';
   const statusColor = isCompleted || isInTransit ? 'white' : accentColor;
 
-  // Action button: only one shows at a time
-  // completed → no action button | pending → Start/Complete | in_transit → Complete | can restart if completed
-  const actionLabel = isCompleted ?
-  'Restart' :
-  isInTransit ?
-  'Complete' :
-  type === 'end' ? 'Complete' : 'Start';
-  const actionIcon = isCompleted ? RotateCcw : isInTransit ? CheckCircle2 : Play;
-  const ActionIcon = actionIcon;
+  // Action button: Restart moves to menu when completed; only Start/Complete shown in footer
+  const actionLabel = isInTransit ? 'Complete' : type === 'end' ? 'Complete' : 'Start';
+  const ActionIcon = isInTransit ? CheckCircle2 : Play;
 
   const handleAction = (e) => {
     e.stopPropagation();
     if (!delivery?.id) return;
-    const now = new Date(),pad = (n) => String(n).padStart(2, '0');
+    const now = new Date(), pad = (n) => String(n).padStart(2, '0');
     const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
+  };
 
-    if (isCompleted) {
-      // Restart → back to pending
-      onComplete?.(delivery.id, 'pending', {});
-    } else {
-      onComplete?.(delivery.id, 'completed', { actual_delivery_time: localNow, arrival_time: localNow });
-    }
+  const handleRestart = (e) => {
+    e.stopPropagation();
+    if (!delivery?.id) return;
+    onComplete?.(delivery.id, 'pending', {});
   };
 
   // Match height to adjacent sibling card
@@ -159,11 +153,11 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         
         {/* Row 1: Stop # (top-left) | Cycling Start/End (center) | Status (top-right) */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginBottom: '6px' }}>
-          {/* Stop number badge - top left */}
+          {/* Stop number badge - matches regular stop card style */}
           <Badge
-            className="text-xs font-bold px-1.5 py-0.5 rounded-full shrink-0"
-            style={{ backgroundColor: accentColor, color: 'white', border: 'none', fontSize: '11px' }}>
-            
+            variant="secondary"
+            className="px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors justify-center shrink-0"
+            style={{ backgroundColor: accentColor, color: 'white', width: '40px' }}>
             #{stopNum}
           </Badge>
 
@@ -238,24 +232,25 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           return null;
         })()}
 
-        {/* Bottom row: Action button - bottom right */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-          <button
-            ref={btnRef}
-            onClick={handleAction}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-            style={{
-              backgroundColor: isCompleted ? '#f1f5f9' : accentColor,
-              color: isCompleted ? '#64748b' : 'white',
-              border: isCompleted ? '1px solid #e2e8f0' : 'none',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap'
-            }}>
-            
-            <ActionIcon size={12} />
-            {actionLabel}
-          </button>
-        </div>
+        {/* Bottom row: Action button - hidden when completed (Restart moves to menu) */}
+        {!isCompleted && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+            <button
+              ref={btnRef}
+              onClick={handleAction}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+              style={{
+                backgroundColor: accentColor,
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}>
+              <ActionIcon size={12} />
+              {actionLabel}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Dropdown menu — anchored above the action button */}
@@ -289,6 +284,16 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             borderTop: '6px solid white',
             filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.08))'
           }} />
+
+            {isCompleted && (
+              <button
+                onClick={(e) => { setMenuOpen(false); handleRestart(e); }}
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-red-50"
+                style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>
+                <RotateCcw size={13} />
+                Restart
+              </button>
+            )}
 
             <button
             onClick={() => {setMenuOpen(false);onEdit?.(delivery);}}
