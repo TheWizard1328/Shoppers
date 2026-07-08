@@ -820,7 +820,7 @@ Deno.serve(async (req) => {
         appUserId: appUser?.id,
         appUserName: appUser?.user_name || user.full_name,
         provider: 'here',
-        apiType: 'Directions',
+        apiType: 'Directions (HERE)',
         purpose: 'Route optimization / ETA update / polyline update',
         functionName: 'HERE API call 1',
         success: false,
@@ -828,6 +828,7 @@ Deno.serve(async (req) => {
         errorMessage: details || `HTTP ${resp.status}`,
         callCount: routeCallCount,
         metadata: {
+          api_provider: 'here',
           status_code: resp.status,
           transport_mode: normalizedTransportMode,
           waypoint_count: waypoints.length,
@@ -845,7 +846,7 @@ Deno.serve(async (req) => {
         appUserId: appUser?.id,
         appUserName: appUser?.user_name || user.full_name,
         provider: 'here',
-        apiType: 'Directions',
+        apiType: 'Directions (HERE)',
         purpose: 'Route optimization / ETA update / polyline update',
         functionName: 'HERE API call 2',
         success: false,
@@ -853,6 +854,7 @@ Deno.serve(async (req) => {
         errorMessage: 'No sequence returned',
         callCount: routeCallCount,
         metadata: {
+          api_provider: 'here',
           transport_mode: normalizedTransportMode,
           waypoint_count: waypoints.length,
           stops_count: sequenceStops.length + 1,
@@ -903,6 +905,7 @@ Deno.serve(async (req) => {
         durationMs: Date.now() - startedAt,
         callCount: routeCallCount,
         metadata: {
+          api_provider: 'here',
           transport_mode: normalizedTransportMode,
           waypoint_count: waypoints.length,
           stops_count: sequenceStops.length + 1,
@@ -972,28 +975,29 @@ Deno.serve(async (req) => {
       : normalizedSections.reduce((sum, section) => sum + Number(section.estimated_duration_minutes || 0), 0);
 
     await logApiUsage({
-      base44,
-      appUserId: appUser?.id,
-      appUserName: appUser?.user_name || user.full_name,
-      provider: 'here',
-      apiType: 'Directions',
-      purpose: `Calculate route directions${caller !== 'unknown_here_caller' ? ` (${caller})` : ''}`,
-      functionName: `getHereDirections:${caller}`,
-      success: true,
-      durationMs: Date.now() - startedAt,
-      callCount: routeCallCount,
-      metadata: {
-        transport_mode: normalizedTransportMode,
-        waypoint_count: waypoints.length,
-        stops_count: sequenceStops.length + 1,
-        estimated_distance_km,
-        estimated_duration_minutes,
-        optimized_sequence: orderedWaypoints.map((waypoint) => waypoint.id),
-        real_road_polylines: normalizedSections.filter((section) => !!section?.encoded_polyline).length,
-        caller,
-        caller_context: callerContext
-      },
-    });
+        base44,
+        appUserId: appUser?.id,
+        appUserName: appUser?.user_name || user.full_name,
+        provider: 'here',
+        apiType: 'Directions (HERE)',
+        purpose: `Calculate route directions${caller !== 'unknown_here_caller' ? ` (${caller})` : ''}`,
+        functionName: `getHereDirections:${caller}`,
+        success: true,
+        durationMs: Date.now() - startedAt,
+        callCount: routeCallCount,
+        metadata: {
+          api_provider: 'here',
+          transport_mode: normalizedTransportMode,
+          waypoint_count: waypoints.length,
+          stops_count: sequenceStops.length + 1,
+          estimated_distance_km,
+          estimated_duration_minutes,
+          optimized_sequence: orderedWaypoints.map((waypoint) => waypoint.id),
+          real_road_polylines: normalizedSections.filter((section) => !!section?.encoded_polyline).length,
+          caller,
+          caller_context: callerContext
+        },
+      });
 
     return Response.json({
       polyline_format: 'google',
@@ -1016,7 +1020,7 @@ Deno.serve(async (req) => {
       appUserId: appUser?.id,
       appUserName: appUser?.user_name || null,
       provider: 'here',
-      apiType: 'Directions',
+      apiType: 'Directions (HERE)',
       purpose: `Calculate route directions${caller !== 'unknown_here_caller' ? ` (${caller})` : ''}`,
       functionName: `getHereDirections:${caller}`,
       success: false,
@@ -1024,6 +1028,7 @@ Deno.serve(async (req) => {
       errorMessage: err?.message || 'Unknown error',
       callCount: routeCallCount || 1,
       metadata: {
+        api_provider: 'here',
         caller,
         caller_context: callerContext
       }

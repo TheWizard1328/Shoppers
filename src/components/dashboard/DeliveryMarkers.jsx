@@ -53,14 +53,15 @@ function DeliveryMarkers({
     return () => window.removeEventListener('patientGpsUpdated', handlePatientGpsUpdated);
   }, []);
 
-  // Pre-index cycling markers by driver so we can pair start+end for the split icon
+  // Pre-index cycling markers by driver+date so each day's pair is independent
   const cyclingByDriver = React.useMemo(() => {
     const map = new Map();
     deliveryMarkers.forEach((d) => {
       if (!d?.is_cycling_marker) return;
-      if (!map.has(d.driver_id)) map.set(d.driver_id, { start: null, end: null });
-      if (d.delivery_notes === 'Cycling Route Start') map.get(d.driver_id).start = d;
-      else map.get(d.driver_id).end = d;
+      const key = `${d.driver_id}|${d.delivery_date}`;
+      if (!map.has(key)) map.set(key, { start: null, end: null });
+      if (d.delivery_notes === 'Cycling Route Start') map.get(key).start = d;
+      else map.get(key).end = d;
     });
     return map;
   }, [deliveryMarkers]);
@@ -78,7 +79,7 @@ function DeliveryMarkers({
       // At or above zoom 16: show separate start/end pins (fanned out)
       if (currentZoom >= 16) {
         const cycIcon = isStart ? createCyclingStartIcon(isMobile) : createCyclingEndIcon(isMobile);
-        const pair = cyclingByDriver.get(delivery.driver_id) || {};
+        const pair = cyclingByDriver.get(`${delivery.driver_id}|${delivery.delivery_date}`) || {};
         const thisTime = delivery.arrival_time
           ? new Date(delivery.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
           : delivery.actual_delivery_time
@@ -107,7 +108,7 @@ function DeliveryMarkers({
 
       // Below FULL_DETAIL zoom: collapse to single split icon (start marker only)
       if (!isStart) return null;
-      const pair = cyclingByDriver.get(delivery.driver_id) || {};
+      const pair = cyclingByDriver.get(`${delivery.driver_id}|${delivery.delivery_date}`) || {};
       const startTime = pair.start?.arrival_time
         ? new Date(pair.start.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
         : pair.start?.actual_delivery_time
