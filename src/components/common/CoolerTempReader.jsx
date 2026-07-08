@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -99,8 +100,8 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[9500] flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
 
         {/* Header */}
@@ -261,6 +262,7 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
