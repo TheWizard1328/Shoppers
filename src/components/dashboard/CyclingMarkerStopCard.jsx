@@ -12,8 +12,9 @@ const getCyclingType = (delivery) => {
 const START_COLOR = '#16a34a';
 const END_COLOR = '#dc2626';
 
-export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete }) {
+export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, allDeliveries = [], isSelected = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const cardRef = useRef(null);
   const wrapperRef = useRef(null);
   const btnRef = useRef(null);
@@ -39,6 +40,14 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     catch(() => null)
     );
   }, [delivery?.cycling_latitude, delivery?.cycling_longitude]);
+
+  const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+  const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);
+  const routeHasIncompleteStops = (allDeliveries || []).some(
+    (d) => d && d.driver_id === delivery?.driver_id && d.delivery_date === delivery?.delivery_date &&
+    !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+  );
+  const shouldFade = isFinishedDelivery && routeHasIncompleteStops && !isSelected && !isHovered;
 
   const type = getCyclingType(delivery);
   const isCompleted = delivery?.status === 'completed';
@@ -121,6 +130,8 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
   return (
     <div
       ref={wrapperRef}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         width: '250px',
         flexShrink: 0,
@@ -128,7 +139,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         display: 'flex',
         flexDirection: 'column',
         height: matchedHeight ? `${matchedHeight}px` : undefined,
-        alignSelf: matchedHeight ? undefined : 'stretch'
+        alignSelf: matchedHeight ? undefined : 'stretch',
+        opacity: shouldFade ? 0.4 : 1,
+        transition: 'opacity 0.2s ease-in-out'
       }}>
       
       {/* Card */}

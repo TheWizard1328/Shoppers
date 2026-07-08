@@ -718,6 +718,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onComplete={onStatusUpdate}
+                allDeliveries={allDeliveries}
+                isSelected={isSelected}
               />
             </div>
           );
