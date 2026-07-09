@@ -1603,20 +1603,17 @@ export default function DeliveryFormView({
                   if (isSaving || effectiveDeliveryActionBusy) return;
                   if (!formData.delivery_date || !formData.driver_id || !formData.delivery_notes) return;
                   await runLockedAction('add_cycling_marker', async () => {
-                    const { executeOfflineBatchAction: _execBatch } = await import('@/components/utils/offlineBatchAction');
                     const { base44 } = await import('@/api/base44Client');
                     const driver = allDrivers.find((d) => d.id === formData.driver_id);
                     const isStart = (formData.delivery_notes || '').toLowerCase().includes('start');
-                    const startActualTime = completionTime && formData.status === 'completed' ?
-                    `${formData.delivery_date}T${completionTime}:00` :
-                    null;
-
-                    // Compute End marker time: start actual_delivery_time + 1 hour
+                    const startActualTime = completionTime && formData.status === 'completed'
+                      ? `${formData.delivery_date}T${completionTime}:00`
+                      : null;
                     const endActualTime = (() => {
                       if (!startActualTime) return null;
                       const d = new Date(startActualTime);
                       d.setHours(d.getHours() + 1);
-                      return d.toISOString().slice(0, 19); // YYYY-MM-DDTHH:MM:SS
+                      return d.toISOString().slice(0, 19);
                     })();
 
                     const basePayload = {
@@ -1628,11 +1625,10 @@ export default function DeliveryFormView({
                       delivery_id: formData.delivery_id || null,
                       ...(formData.arrival_time && { arrival_time: `${formData.delivery_date}T${formData.arrival_time}:00` }),
                       ...(formData.cycling_latitude != null && { cycling_latitude: formData.cycling_latitude }),
-                      ...(formData.cycling_longitude != null && { cycling_longitude: formData.cycling_longitude })
+                      ...(formData.cycling_longitude != null && { cycling_longitude: formData.cycling_longitude }),
                     };
 
-                    // ── Compute 30-minute delivery windows for both markers ─────────────
-                    // Start marker: delivery_time_end = delivery_time_start + 30 min
+                    // ── Time windows ──────────────────────────────────────────
                     const startMarkerTimeStart = formData.delivery_time_start || null;
                     const startMarkerTimeEnd = (() => {
                       if (!startMarkerTimeStart) return null;
@@ -1640,8 +1636,6 @@ export default function DeliveryFormView({
                       const total = h * 60 + m + 30;
                       return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
                     })();
-                    // End marker: its delivery_time_start = form's delivery_time_end,
-                    // its delivery_time_end = that + 30 min
                     const endMarkerTimeStart = formData.delivery_time_end || null;
                     const endMarkerTimeEnd = (() => {
                       if (!endMarkerTimeStart) return null;
@@ -1650,14 +1644,13 @@ export default function DeliveryFormView({
                       return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
                     })();
 
-                    // Build the payloads locally first (no DB writes yet)
                     const startPayload = {
                       ...basePayload,
                       delivery_notes: formData.delivery_notes,
                       ...(startActualTime && { actual_delivery_time: startActualTime }),
                       ...(startMarkerTimeStart && { delivery_time_start: startMarkerTimeStart }),
                       ...(startMarkerTimeEnd && { delivery_time_end: startMarkerTimeEnd }),
-                      transport_mode: 'driving'
+                      transport_mode: 'driving',
                     };
                     const endPayload = isStart ? {
                       ...basePayload,
@@ -1669,46 +1662,63 @@ export default function DeliveryFormView({
                       ...(endActualTime && { actual_delivery_time: endActualTime }),
                       ...(endMarkerTimeStart && { delivery_time_start: endMarkerTimeStart }),
                       ...(endMarkerTimeEnd && { delivery_time_end: endMarkerTimeEnd }),
-                      transport_mode: 'cycling'
+                      transport_mode: 'cycling',
                     } : null;
 
-                    // ── Offline-first batch: save locally → optimize → flush online ──
-                    let savedRecords = [];
-                    await _execBatch({
-                      actionName: 'AddCyclingMarker',
-                      work: async () => {
-                        // Stage locally with temp IDs
-                        const { offlineDB: _odb } = await import('@/components/utils/offlineDatabase');
-                        const tempStart = { ...startPayload, id: `temp_delivery_${Date.now()}_start`, _isLocal: true, created_date: new Date().toISOString(), updated_date: new Date().toISOString() };
-                        const tempEnd = endPayload ? { ...endPayload, id: `temp_delivery_${Date.now()}_end`, _isLocal: true, created_date: new Date().toISOString(), updated_date: new Date().toISOString() } : null;
-                        const tempRecords = [tempStart, tempEnd].filter(Boolean);
-                        await _odb.bulkSave(_odb.STORES.DELIVERIES, tempRecords).catch(() => null);
-                        return { records: tempRecords, driverId: formData.driver_id, deliveryDate: formData.delivery_date };
-                      },
-                      runOptimizer: true,
-                      optimizerContext: { deliveries: allDeliveries || [], patients: [], stores: stores || [], appUsers: appUsers || [] },
-                      applyLocalUI: (records) => applyDeliveryChangesLocally?.({ upserts: records.filter(Boolean), deleteIds: [] })
-                    });
+                    // ── Step 1: Write both markers to local UI immediately ────
+                    // Show them in the stop card list right away — no waiting for DB.
+                    const { offlineDB: _odb } = await import('@/components/utils/offlineDatabase');
+                    const now = new Date().toISOString();
+                    const tempStart = { ...startPayload, id: `temp_delivery_${Date.now()}_start`, _isLocal: true, created_date: now, updated_date: now };
+                    const tempEnd = endPayload ? { ...endPayload, id: `temp_delivery_${Date.now() + 1}_end`, _isLocal: true, created_date: now, updated_date: now } : null;
+                    const tempRecords = [tempStart, tempEnd].filter(Boolean);
+                    await _odb.bulkSave(_odb.STORES.DELIVERIES, tempRecords).catch(() => null);
+                    applyDeliveryChangesLocally?.({ upserts: tempRecords, deleteIds: [] });
 
-                    // Records were already created by executeOfflineBatchAction → flushToOnlineDB above.
-                    // Fetch the freshly-created markers from offline DB so we have real IDs.
-                    const { offlineDB: _odbFetch } = await import('@/components/utils/offlineDatabase');
-                    const allLocalDeliveries = await _odbFetch.getAll(_odbFetch.STORES.DELIVERIES).catch(() => []);
-                    const driverDateDeliveries = (allLocalDeliveries || []).filter(
-                      (d) => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date && d.is_cycling_marker && !d._isLocal && !String(d.id || '').startsWith('temp_')
+                    // ── Step 2: Close form + open stop-selection dialog immediately ──
+                    // Driver sees the dialog while DB writes happen in the background.
+                    handleCancelClick();
+                    if (isStart) {
+                      const _today = new Date().toISOString().split('T')[0];
+                      const _isHistorical = formData.delivery_date && formData.delivery_date < _today;
+                      if (!_isHistorical) {
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('openCyclingModeDialog', {
+                            detail: { driverId: formData.driver_id, deliveryDate: formData.delivery_date }
+                          }));
+                        }, 50);
+                      }
+                    }
+
+                    // ── Step 3: Persist both markers to DB in parallel (background) ──
+                    const payloadsToCreate = [startPayload, endPayload].filter(Boolean);
+                    const createdMarkers = await Promise.all(
+                      payloadsToCreate.map((p) =>
+                        base44.entities.Delivery.create(p).catch(() => null)
+                      )
                     );
-                    savedRecords = driverDateDeliveries;
-                    const startMarker = driverDateDeliveries.find((d) => (d.delivery_notes || '').toLowerCase().includes('start')) || null;
-                    const endMarker = isStart ? driverDateDeliveries.find((d) => (d.delivery_notes || '').toLowerCase().includes('end')) || null : null;
+                    const realStart = createdMarkers.find((m) => m && (m.delivery_notes || '').toLowerCase().includes('start')) || null;
+                    const realEnd   = createdMarkers.find((m) => m && (m.delivery_notes || '').toLowerCase().includes('end'))   || null;
+                    const realRecords = createdMarkers.filter(Boolean);
 
-                    // ── Cycling library: save new or increment usage_count ───────────
+                    // Replace temp records in IDB with real records
+                    if (realRecords.length > 0) {
+                      const db = await _odb.openDatabase();
+                      await Promise.all(tempRecords.map((t) => new Promise((res) => {
+                        const tx = db.transaction([_odb.STORES.DELIVERIES], 'readwrite');
+                        tx.objectStore(_odb.STORES.DELIVERIES).delete(t.id);
+                        tx.oncomplete = res; tx.onerror = res;
+                      })));
+                      await _odb.bulkSave(_odb.STORES.DELIVERIES, realRecords);
+                      applyDeliveryChangesLocally?.({ upserts: realRecords, deleteIds: tempRecords.map((t) => t.id) });
+                    }
+
+                    // ── Step 4: Library save / usage increment (fire-and-forget) ──
                     if (selectedCyclingLocation?.id) {
-                      // Increment usage_count (fire-and-forget)
                       base44.entities.CyclingLocation.update(selectedCyclingLocation.id, {
                         usage_count: (selectedCyclingLocation.usage_count || 0) + 1
                       }).catch(() => null);
                     } else if (saveToLibrary && formData._cycling_location_name?.trim() && formData.cycling_latitude != null && formData.cycling_longitude != null) {
-                      // Resolve city_id from GPS or appUser
                       const driverAppUser = (appUsers || []).find((au) => au?.user_id === formData.driver_id);
                       const libCityId = driverAppUser?.city_id || driverAppUser?.city_ids?.[0] || null;
                       if (libCityId) {
@@ -1718,86 +1728,12 @@ export default function DeliveryFormView({
                           longitude: formData.cycling_longitude,
                           city_id: libCityId,
                           created_by_app_user_id: driverAppUser?.id || null,
-                          usage_count: 1
+                          usage_count: 1,
                         }).then((newLoc) => {
-                          // Link the start marker to the new library entry
-                          if (startMarker?.id && newLoc?.id) {
-                            base44.entities.Delivery.update(startMarker.id, { cycling_location_id: newLoc.id }).catch(() => null);
+                          if (realStart?.id && newLoc?.id) {
+                            base44.entities.Delivery.update(realStart.id, { cycling_location_id: newLoc.id }).catch(() => null);
                           }
                         }).catch(() => null);
-                      }
-                    }
-
-                    // ── Clear all isNextDelivery flags for this driver/date, assign to start marker ──
-                    // Also set the start marker's stop_order to sit immediately after the last
-                    // finished stop so it becomes the next stop in line in the sorted route.
-                    if (startMarker?.id) {
-                      try {
-                        // Fetch all deliveries for this driver/date
-                        const allDriverDeliveries = await base44.entities.Delivery.filter({
-                          driver_id: formData.driver_id,
-                          delivery_date: formData.delivery_date
-                        });
-
-                        const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
-                        const finishedCount = (allDriverDeliveries || []).filter(
-                          (d) => d && FINISHED.has(d.status)
-                        ).length;
-                        // Start marker sits right after the last finished stop
-                        const startMarkerOrder = finishedCount + 1;
-
-                        // Clear isNextDelivery from all other stops
-                        const withFlagCleared = (allDriverDeliveries || []).filter(
-                          (d) => d && d.isNextDelivery && d.id !== startMarker.id
-                        );
-                        await Promise.all(
-                          withFlagCleared.map((d) =>
-                            base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
-                          )
-                        );
-
-                        // Assign isNextDelivery + correct stop_order to the cycling start marker
-                        await base44.entities.Delivery.update(startMarker.id, {
-                          isNextDelivery: true,
-                          stop_order: startMarkerOrder,
-                          display_stop_order: startMarkerOrder
-                        });
-
-                        // Reflect flag + order changes locally so UI is immediately consistent
-                        const localFlagUpdates = [
-                          ...withFlagCleared.map((d) => ({ ...d, isNextDelivery: false })),
-                          { ...startMarker, isNextDelivery: true, stop_order: startMarkerOrder, display_stop_order: startMarkerOrder }
-                        ];
-                        applyDeliveryChangesLocally?.({ upserts: localFlagUpdates, deleteIds: [] });
-                      } catch (flagErr) {
-                        console.warn('[CyclingMarker] isNextDelivery/stop_order assignment failed:', flagErr?.message || flagErr);
-                      }
-                    }
-
-                    // ── Offline DB save (parallel with UI update) ────────────
-                    const { offlineDB } = await import('@/components/utils/offlineDatabase');
-                    offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, savedRecords.filter(Boolean)).catch(() => null);
-
-                    // ── Immediate local UI update ─────────────────────────────
-                    applyDeliveryChangesLocally?.({ upserts: savedRecords.filter(Boolean), deleteIds: [] });
-
-                    // Sort stops: finished by actual_delivery_time, incomplete by ETA
-                    recalculateAndUpdateStopOrders(formData.driver_id, formData.delivery_date);
-
-                    // Close the form first, then open the cycling mode dialog
-                    handleCancelClick();
-
-                    // Open ModeSelectionDialog for stop selection if a Start marker was added.
-                    // Skip entirely for historical dates — there are no future stops to tag.
-                    if (isStart) {
-                      const _today = new Date().toISOString().split('T')[0];
-                      const _isHistorical = formData.delivery_date && formData.delivery_date < _today;
-                      if (!_isHistorical) {
-                        setTimeout(() => {
-                          window.dispatchEvent(new CustomEvent('openCyclingModeDialog', {
-                            detail: { driverId: formData.driver_id, deliveryDate: formData.delivery_date }
-                          }));
-                        }, 150);
                       }
                     }
                   });

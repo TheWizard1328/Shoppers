@@ -68,32 +68,47 @@ export default function useModeRouteDialog({
     isRunningRef.current = true;
     setIsOptimizingModeRoute(true);
 
+    // Close the dialog immediately — driver should not be blocked waiting
+    setModeDialogOpen(false);
+
     try {
       const now = new Date();
       const deliveryDateStr = selectedDate
         ? (typeof selectedDate === 'string' ? selectedDate : format(selectedDate, 'yyyy-MM-dd'))
         : format(now, 'yyyy-MM-dd');
-      const currentLocalTime = format(now, 'HH:mm');
 
-      // ── 0. Resolve Start and End markers ─────────────────────────────────
-      // These were already created and persisted by DeliveryFormView before
-      // the dialog opened. We must resolve them from the current delivery list.
       const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
 
-      const startMarker = deliveriesWithStopOrder.find(
+      // ── 0. Wait briefly for real marker IDs to land in local state ────────
+      // DeliveryFormView creates markers in parallel and swaps temp→real IDs.
+      // Give that a moment to settle so we read real IDs, not temp_ ones.
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // Re-read from offline DB to get the authoritative post-flush state
+      let freshDeliveries = deliveriesWithStopOrder;
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const allLocal = await offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []);
+        const driverDateLocal = (allLocal || []).filter(
+          (d) => d && d.driver_id === currentUser.id && d.delivery_date === deliveryDateStr && !d._isLocal && !String(d.id || '').startsWith('temp_')
+        );
+        if (driverDateLocal.length > 0) freshDeliveries = driverDateLocal;
+      } catch { /* use deliveriesWithStopOrder as fallback */ }
+
+      // ── 1. Resolve Start and End markers ──────────────────────────────────
+      const startMarker = freshDeliveries.find(
         (d) => d?.is_cycling_marker && (d.delivery_notes || '').toLowerCase().includes('start')
       ) || null;
-
-      const endMarker = deliveriesWithStopOrder.find(
+      const endMarker = freshDeliveries.find(
         (d) => d?.is_cycling_marker && (d.delivery_notes || '').toLowerCase().includes('end')
       ) || null;
 
       if (!startMarker || !endMarker) {
-        toast.error('Cycling markers not found. Please add them first.');
+        toast.error('Cycling markers not found — please try again.');
         return;
       }
 
-      // ── 1. Resolve marker GPS coords ──────────────────────────────────────
+      // ── 2. Resolve marker GPS coords ──────────────────────────────────────
       const startCoords = {
         lat: Number(startMarker.cycling_latitude),
         lon: Number(startMarker.cycling_longitude),
@@ -108,8 +123,8 @@ export default function useModeRouteDialog({
         return;
       }
 
-      // ── 2. Resolve selected cycling stop deliveries ───────────────────────
-      const selectedDeliveries = deliveriesWithStopOrder.filter(
+      // ── 3. Resolve selected cycling stops ─────────────────────────────────
+      const selectedDeliveries = freshDeliveries.filter(
         (d) => d && selectedModeStopIds.includes(d.id) && !d.is_cycling_marker
       );
 
@@ -118,46 +133,34 @@ export default function useModeRouteDialog({
         return;
       }
 
-      // ── 3. Crow-flies sort selected stops from the Start marker ───────────
-      // This gives HERE a good warm-start sequence so the bicycle optimizer
-      // doesn't need to untangle a pathologically bad initial order.
+      // ── 4. Crow-flies sort selected stops from the Start marker ───────────
       const crowSorted = [...selectedDeliveries].sort((a, b) => {
-        const coordsA = (() => {
-          if (a.patient_id) {
-            const p = patients.find((x) => x?.id === a.patient_id);
+        const getCoords = (d) => {
+          if (d.patient_id) {
+            const p = patients.find((x) => x?.id === d.patient_id);
             return p ? { lat: Number(p.latitude), lon: Number(p.longitude) } : null;
           }
-          const s = stores.find((x) => x?.id === a.store_id);
+          const s = stores.find((x) => x?.id === d.store_id);
           return s ? { lat: Number(s.latitude), lon: Number(s.longitude) } : null;
-        })();
-        const coordsB = (() => {
-          if (b.patient_id) {
-            const p = patients.find((x) => x?.id === b.patient_id);
-            return p ? { lat: Number(p.latitude), lon: Number(p.longitude) } : null;
-          }
-          const s = stores.find((x) => x?.id === b.store_id);
-          return s ? { lat: Number(s.latitude), lon: Number(s.longitude) } : null;
-        })();
-        const distA = coordsA ? haversineKm(startCoords.lat, startCoords.lon, coordsA.lat, coordsA.lon) : 9999;
-        const distB = coordsB ? haversineKm(startCoords.lat, startCoords.lon, coordsB.lat, coordsB.lon) : 9999;
-        return distA - distB;
+        };
+        const ca = getCoords(a), cb = getCoords(b);
+        const da = ca ? haversineKm(startCoords.lat, startCoords.lon, ca.lat, ca.lon) : 9999;
+        const db = cb ? haversineKm(startCoords.lat, startCoords.lon, cb.lat, cb.lon) : 9999;
+        return da - db;
       });
-
       const crowSortedIds = crowSorted.map((d) => d.id);
 
-      // ── 4. Compute stop_order slots ───────────────────────────────────────
-      // Sequence: [finished] → startMarker → [cycling stops] → endMarker → [driving stops]
-      // We anchor everything off the finished-stop count so the sequence is always correct
-      // regardless of what stop_orders were previously in the DB.
-      const finishedCount = deliveriesWithStopOrder.filter(
+      // ── 5. Compute authoritative stop_order layout ────────────────────────
+      // [finished] → startMarker → [cycling stops] → endMarker → [driving stops]
+      const finishedCount = freshDeliveries.filter(
         (d) => d && d.driver_id === currentUser.id && d.delivery_date === deliveryDateStr && FINISHED.has(d.status)
       ).length;
 
       const startMarkerOrder  = finishedCount + 1;
-      const cyclingStartOrder = startMarkerOrder + 1;                          // first cycling stop
-      const endMarkerOrder    = cyclingStartOrder + selectedDeliveries.length; // end marker
-      // Driving stops keep their existing relative order, renumbered from endMarkerOrder + 1
-      const drivingStops = deliveriesWithStopOrder
+      const cyclingStartOrder = startMarkerOrder + 1;
+      const endMarkerOrder    = cyclingStartOrder + selectedDeliveries.length;
+
+      const drivingStops = freshDeliveries
         .filter(
           (d) =>
             d &&
@@ -169,168 +172,98 @@ export default function useModeRouteDialog({
         )
         .sort((a, b) => (Number(a.stop_order) || 999) - (Number(b.stop_order) || 999));
 
-      // ── 5. Atomic stop_order + isNextDelivery writes ──────────────────────
-      // Order: set new isNextDelivery on start marker first, then clear all others,
-      // then write stop_orders — all in parallel for speed.
-      const stopOrderWrites = [];
-
-      // Start marker: driving mode, isNextDelivery=true, anchored order
-      stopOrderWrites.push(
-        base44.entities.Delivery.update(startMarker.id, {
-          stop_order: startMarkerOrder,
-          display_stop_order: startMarkerOrder,
-          isNextDelivery: true,
-          transport_mode: 'driving',
-        }).catch(() => null)
+      // ── 6. Build the full local delivery list the optimizer will run on ───
+      // Apply all the stop_order + transport_mode + isNextDelivery changes
+      // directly to the in-memory array so the client engine sees fresh state.
+      const otherNextStops = freshDeliveries.filter(
+        (d) => d && d.isNextDelivery === true && d.id !== startMarker.id && d.driver_id === currentUser.id
       );
 
-      // End marker: cycling mode, anchored order
-      stopOrderWrites.push(
-        base44.entities.Delivery.update(endMarker.id, {
-          stop_order: endMarkerOrder,
-          display_stop_order: endMarkerOrder,
-          transport_mode: 'cycling',
-        }).catch(() => null)
-      );
+      const updatedStartMarker  = { ...startMarker, stop_order: startMarkerOrder, display_stop_order: startMarkerOrder, isNextDelivery: true,  transport_mode: 'driving'  };
+      const updatedEndMarker    = { ...endMarker,   stop_order: endMarkerOrder,   display_stop_order: endMarkerOrder,   isNextDelivery: false, transport_mode: 'cycling'  };
+      const updatedCyclingStops = crowSorted.map((d, i) => ({ ...d, stop_order: cyclingStartOrder + i, display_stop_order: cyclingStartOrder + i, transport_mode: 'cycling' }));
+      const updatedDrivingStops = drivingStops.map((d, i) => ({ ...d, stop_order: endMarkerOrder + 1 + i, display_stop_order: endMarkerOrder + 1 + i }));
+      const clearedNextStops    = otherNextStops.map((d) => ({ ...d, isNextDelivery: false }));
 
-      // Cycling stops: crow-flies order, transport_mode=cycling
-      crowSorted.forEach((d, i) => {
-        stopOrderWrites.push(
-          base44.entities.Delivery.update(d.id, {
-            stop_order: cyclingStartOrder + i,
-            display_stop_order: cyclingStartOrder + i,
-            transport_mode: 'cycling',
-          }).catch(() => null)
-        );
-      });
-
-      // Driving stops: preserve relative order, renumber from end marker + 1
-      drivingStops.forEach((d, i) => {
-        stopOrderWrites.push(
-          base44.entities.Delivery.update(d.id, {
-            stop_order: endMarkerOrder + 1 + i,
-            display_stop_order: endMarkerOrder + 1 + i,
-          }).catch(() => null)
-        );
-      });
-
-      // Clear isNextDelivery from every other stop for this driver/date
-      const otherNextStops = deliveriesWithStopOrder.filter(
-        (d) =>
-          d &&
-          d.isNextDelivery === true &&
-          d.id !== startMarker.id &&
-          d.driver_id === currentUser.id
-      );
-      otherNextStops.forEach((d) => {
-        stopOrderWrites.push(
-          base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
-        );
-      });
-
-      // Save cycling mode preference + fetch HERE key + flush all stop_order writes in parallel
-      const [,, hereKeyResp] = await Promise.all([
-        updatePreferredTravelMode(appUsers, currentUser.id, 'cycling').then(() => setPreferredTravelMode('cycling')).catch(() => null),
-        Promise.all(stopOrderWrites),
-        base44.functions.invoke('getActiveHereApiKey', {}).catch(() => null),
-      ]);
-
-      const hereApiKey = hereKeyResp?.data?.apiKey || hereKeyResp?.apiKey || null;
-
-      // ── 6. Reflect all changes into local React state immediately ─────────
       const localUpserts = [
-        { ...startMarker, stop_order: startMarkerOrder, display_stop_order: startMarkerOrder, isNextDelivery: true, transport_mode: 'driving' },
-        { ...endMarker,   stop_order: endMarkerOrder,   display_stop_order: endMarkerOrder,   transport_mode: 'cycling' },
-        ...crowSorted.map((d, i) => ({ ...d, stop_order: cyclingStartOrder + i, display_stop_order: cyclingStartOrder + i, transport_mode: 'cycling' })),
-        ...drivingStops.map((d, i) => ({ ...d, stop_order: endMarkerOrder + 1 + i, display_stop_order: endMarkerOrder + 1 + i })),
-        ...otherNextStops.map((d) => ({ ...d, isNextDelivery: false })),
+        updatedStartMarker,
+        updatedEndMarker,
+        ...updatedCyclingStops,
+        ...updatedDrivingStops,
+        ...clearedNextStops,
       ];
-      applyDeliveryChangesLocally?.({ upserts: localUpserts, deleteIds: [] });
 
+      // Apply to local UI and IDB immediately so the stop cards reflect the new order
+      applyDeliveryChangesLocally?.({ upserts: localUpserts, deleteIds: [] });
       try {
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, localUpserts).catch(() => null);
-      } catch { /* offlineDB optional */ }
+      } catch { /* non-fatal */ }
 
-      console.log(
-        `[useModeRouteDialog] Stop orders written | startMarker=${startMarkerOrder}` +
-        ` | cyclingStops=${cyclingStartOrder}–${cyclingStartOrder + selectedDeliveries.length - 1}` +
-        ` | endMarker=${endMarkerOrder} | drivingStops from=${endMarkerOrder + 1}`
-      );
+      // Build the full merged delivery list for the optimizer (replaces stale records)
+      const updatedById = new Map(localUpserts.map((d) => [d.id, d]));
+      const mergedDeliveries = freshDeliveries.map((d) => updatedById.get(d.id) || d);
 
-      // ── 7. Stage 1 — Bicycle optimization (cycling loop) ─────────────────
-      // Origin: Start marker coords
-      // Destination: End marker coords
+      // ── 7. Save cycling mode preference (fire-and-forget) ─────────────────
+      updatePreferredTravelMode(appUsers, currentUser.id, 'cycling')
+        .then(() => setPreferredTravelMode('cycling'))
+        .catch(() => null);
+
+      // ── 8. Client-side route optimization — Stage 1 (cycling loop) ────────
+      // Origin: Start marker coords → Destination: End marker coords
       // Waypoints: selected cycling stops in crow-flies pre-sorted order
-      // Mode: bicycle
-      // Stages 1 and 2 write to non-overlapping stop_order ranges → safe to run in parallel.
-      const [stage1Result] = await Promise.all([
-        base44.functions.invoke('optimizeRemainingStops', {
+      // Runs entirely in-browser against fresh merged local data — no Deno cold start.
+      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+
+      const [stage1Result, stage2Result] = await Promise.all([
+        performRouteOptimization({
           driverId: currentUser.id,
           deliveryDate: deliveryDateStr,
-          currentLocalTime,
+          deliveries: mergedDeliveries,
+          patients,
+          stores,
+          appUsers,
+          source: 'cyclingMode:stage1',
           bypassDriverStatus: true,
-          triggerSource: 'cyclingMode:stage1',
-          hereApiKey,
           cyclingSegmentOnly: true,
           cyclingOrigin: startCoords,
           cyclingDestination: endCoords,
           cyclingStopIds: crowSortedIds,
           startingStopOrder: cyclingStartOrder,
+          skipPolyline: false,
         }).catch((e) => { console.warn('[useModeRouteDialog] Stage 1 failed:', e?.message); return null; }),
 
         // ── Stage 2 — Car optimization (remaining driving stops) ──────────
         // Origin: End marker coords (driver exits the cycling loop here)
-        // Waypoints: all non-cycling, non-marker active stops for this driver/date
-        // Preserves relative driving stop order — does not reorder from scratch.
-        // startingStopOrder anchors driving stops immediately after the end marker.
-        base44.functions.invoke('optimizeRemainingStops', {
+        // Excludes cycling markers + all cycling stops.
+        // preserveExistingOrder=true — we already set the right stop_order values
+        // above; just let the engine regenerate polylines without reshuffling.
+        performRouteOptimization({
           driverId: currentUser.id,
           deliveryDate: deliveryDateStr,
-          currentLocalTime,
+          deliveries: mergedDeliveries,
+          patients,
+          stores,
+          appUsers,
+          source: 'cyclingMode:stage2',
           bypassDriverStatus: true,
-          forceFullRemainingRouteOptimization: false,
-          triggerSource: 'cyclingMode:stage2',
-          hereApiKey,
           drivingSegmentOnly: true,
           drivingOrigin: endCoords,
           excludeStopIds: [startMarker.id, endMarker.id, ...crowSortedIds],
           startingStopOrder: endMarkerOrder + 1,
+          preserveExistingOrder: true,
+          skipPolyline: false,
         }).catch((e) => { console.warn('[useModeRouteDialog] Stage 2 failed:', e?.message); return null; }),
       ]);
 
-      console.log('[useModeRouteDialog] Stage 1+2 complete');
+      console.log('[useModeRouteDialog] Stage 1+2 complete', {
+        stage1: stage1Result?.success, stage2: stage2Result?.success,
+      });
 
-      // ── 8. Stage 3 — Polyline regeneration ───────────────────────────────
-      // purgeAndRegeneratePolylines groups consecutive same-transport_mode stops
-      // and issues one HERE directions call per group:
-      //   driving  → ... → Start marker  (driving polyline)
-      //   cycling  → selected stops → End marker  (cycling polyline)
-      //   driving  → ... remaining driving stops  (driving polyline)
-      // The orderedDeliveryIds hint lets the backend skip re-sorting from DB.
-      try {
-        const orderedIds = Array.isArray(stage1Result?.data?.optimizedRoute)
-          ? stage1Result.data.optimizedRoute.map((s) => s.deliveryId).filter(Boolean)
-          : [];
-
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
-          driverId: currentUser.id,
-          deliveryDate: deliveryDateStr,
-          scope: 'active_only',
-          reason: 'route_reordered',
-          bypassDriverStatus: true,
-          ...(orderedIds.length > 0 ? { orderedDeliveryIds: orderedIds } : {}),
-        });
-        console.log('[useModeRouteDialog] Stage 3 polyline regen complete');
-      } catch (e) {
-        console.warn('[useModeRouteDialog] Stage 3 polyline regen failed:', e?.message);
-      }
-
-      setModeDialogOpen(false);
       toast.success('Cycling route set — route optimized.');
     } catch (e) {
       console.error('[useModeRouteDialog] handleModeOptimize error:', e?.message);
-      toast.error('Failed to start cycling mode.');
+      toast.error('Failed to optimize cycling route.');
     } finally {
       setIsOptimizingModeRoute(false);
       isRunningRef.current = false;
