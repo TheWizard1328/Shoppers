@@ -44,6 +44,13 @@ export default function useDriverLocationSync({
   // tear down and recreate the GPS watcher every time the primary-device status resolves.
   const isPrimaryDeviceRef         = useRef(isPrimaryDevice);
 
+  // PROXIMITY SNAP: tracks which delivery ID the snap last fired for.
+  // Once we snap for a given stop, we must NOT snap again for the same stop —
+  // only re-snap when isNextDelivery moves to a different delivery (driver completed
+  // the stop and moved on). This prevents the 60s cooldown from re-triggering the
+  // snap repeatedly while the driver is parked at a stop they've already arrived at.
+  const lastProximitySnappedStopIdRef = useRef(null);
+
   useEffect(() => { deliveriesWithStopOrderRef.current = deliveriesWithStopOrder; }, [deliveriesWithStopOrder]);
   useEffect(() => { patientsRef.current                = patients;                }, [patients]);
   useEffect(() => { storesRef.current                  = stores;                  }, [stores]);
@@ -128,7 +135,7 @@ export default function useDriverLocationSync({
         // CRITICAL: Never proximity-snap within 5s of exiting immersive mode — the driver
         // just arrived near a stop and is parked; snapping to Phase 2 causes a jarring map jump.
         if ((window._lastImmersiveExitAt || 0) > now - 5000) return;
-        if (isMapViewLockedRef.current || now - lastUserInteractionRef.current < 300000 || now - lastProximitySnapTimeRef.current < 60000) return;
+        if (isMapViewLockedRef.current || now - lastUserInteractionRef.current < 300000) return;
         // CRITICAL: Only trigger proximity phase 2 on the driver's primary mobile device.
         // Secondary/tablet devices should not auto-switch map phases based on proximity.
         if (!isPrimaryDeviceRef.current) return;
@@ -140,10 +147,23 @@ export default function useDriverLocationSync({
           const stopLon = patient?.longitude ?? store?.longitude;
           if (stopLat == null || stopLon == null) continue;
           if (calculateDistanceRef.current(newLocation.latitude, newLocation.longitude, stopLat, stopLon) > 0.1) continue;
-          // Driver is within 100m of the next stop:
-          // Activate FAB into phase 2 (lock it) WITHOUT moving the map.
-          // This lets the driver see they're "locked to next stop" without a jarring map jump.
+
+          // Driver is within 100m of the next stop.
+          // CRITICAL: Only snap ONCE per stop. If we already snapped for this delivery ID,
+          // do NOT snap again — this prevents the proximity snap from re-firing every 60s
+          // while the driver is parked at the stop waiting to complete it. The snap only
+          // re-arms when isNextDelivery changes to a different delivery (i.e. stop completed).
+          if (lastProximitySnappedStopIdRef.current === delivery.id) {
+            // Already snapped for this stop — still scroll the card into view but don't re-snap phase.
+            const cardElement = document.getElementById(`stop-card-${delivery.id}`);
+            cardElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            break;
+          }
+
+          // First arrival at this stop — fire the snap.
           lastProximitySnapTimeRef.current = Date.now();
+          lastProximitySnappedStopIdRef.current = delivery.id;
+
           const currentPhase = mapViewPhaseRef.current;
           if (currentPhase !== 2) {
             // Only activate phase 2 if there is a driver location available for phase 2 to be meaningful
@@ -180,7 +200,7 @@ export default function useDriverLocationSync({
           longitude: trackerStatus.lastLocation.longitude,
           timestamp: new Date().toISOString(),
           accuracy:  trackerStatus.lastLocation.accuracy,
-          source:    trackerStatus.providerName || 'tracker'
+          source:    'tracker'
         });
       }
 
