@@ -25,6 +25,8 @@ export default function useDriverLocationSync({
   selectedDriverId, // needed to re-trigger map when viewing another driver's location
 }) {
   const lastLiveDriverLocationRef = useRef(null);
+  // Stable ref to syncLiveDriverLocation so the resume effect can call it without closure staleness
+  const syncLiveDriverLocationRef = useRef(null);
 
   // ── Live data refs ────────────────────────────────────────────────────────
   // These let syncMobileLocation always read current data without the effect
@@ -66,6 +68,7 @@ export default function useDriverLocationSync({
     const syncLiveDriverLocation = (newLocation) => {
       if (!newLocation?.latitude || !newLocation?.longitude) return;
       lastLiveDriverLocationRef.current = newLocation;
+      syncLiveDriverLocationRef.current = syncLiveDriverLocation; // keep resume effect ref fresh
       // CRITICAL: Update driverLocationRef synchronously BEFORE calling setMapViewTrigger.
       // setDriverLocation (state) only updates driverLocationRef.current one render later,
       // so without this the mapViewTrigger effect reads the OLD position and briefly
@@ -244,6 +247,87 @@ export default function useDriverLocationSync({
   }, [isDriver, currentUser, isMobile, locationTracker, setDriverLocation, setMapViewTrigger,
       mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef,
       lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef]);
+
+  // ── App resume / visibility reacquisition ────────────────────────────────────────────────
+  // On Android Chrome, switching apps suspends the browser context. When the driver returns:
+  //   1. `locationTracker._resumeAfterAbsence` fires a fresh GPS fix and dispatches
+  //      `driverLocationFocusRefresh` with the new coords — we must pipe that into React state.
+  //   2. The Dashboard's fallback `watchPosition` watcher (started inside startWatchingPosition)
+  //      may have gone stale during the suspension — we detect this and restart it.
+  // Both fixes together eliminate the straight-line jump caused by a long gap between the last
+  // breadcrumb before suspension and the first one after return.
+  const resumeWatchIdRef      = useRef(null);    // separate watch started on resume
+  const lastVisibilityHideRef = useRef(0);
+
+  useEffect(() => {
+    if (!isDriver || !currentUser || !isMobile) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        lastVisibilityHideRef.current = Date.now();
+        return;
+      }
+
+      const awayMs = Date.now() - (lastVisibilityHideRef.current || 0);
+      if (awayMs < 15000) return; // not gone long enough to need a restart
+
+      console.log(`🔄 [useDriverLocationSync] App resumed after ${Math.round(awayMs / 1000)}s — reacquiring GPS watcher`);
+
+      // Clear any stale resume watcher from a previous return
+      if (resumeWatchIdRef.current !== null) {
+        navigator.geolocation?.clearWatch(resumeWatchIdRef.current);
+        resumeWatchIdRef.current = null;
+      }
+
+      // Fire a fresh watchPosition that overwrites stale position state immediately.
+      // This runs in parallel with locationTracker's own refreshNow — both contribute
+      // a fresh fix so whichever resolves first updates the UI.
+      if (navigator.geolocation) {
+        resumeWatchIdRef.current = navigator.geolocation.watchPosition(
+          (position) => {
+            syncLiveDriverLocationRef.current?.({
+              latitude:  position.coords.latitude,
+              longitude: position.coords.longitude,
+              timestamp: new Date(position.timestamp).toISOString(),
+              accuracy:  position.coords.accuracy,
+              source:    'device_gps_resume',
+            });
+          },
+          (err) => console.warn('⚠️ [useDriverLocationSync] Resume GPS watcher error:', err?.message),
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
+      }
+    };
+
+    // Also pipe locationTracker's immediate refreshNow result into React state.
+    // `driverLocationFocusRefresh` is dispatched by locationTracker._resumeAfterAbsence
+    // right after it acquires a fresh fix — but useDriverLocationSync never listened to it.
+    const handleFocusRefresh = (event) => {
+      const { userId, latitude, longitude, accuracy } = event.detail || {};
+      if (userId && userId !== currentUser.id) return;
+      if (!latitude || !longitude) return;
+      syncLiveDriverLocationRef.current?.({
+        latitude,
+        longitude,
+        timestamp: new Date().toISOString(),
+        accuracy: accuracy ?? null,
+        source: 'focus_refresh',
+      });
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('driverLocationFocusRefresh', handleFocusRefresh);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('driverLocationFocusRefresh', handleFocusRefresh);
+      if (resumeWatchIdRef.current !== null) {
+        navigator.geolocation?.clearWatch(resumeWatchIdRef.current);
+        resumeWatchIdRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDriver, currentUser, isMobile]);
 
   // ── Selected driver shared-location follow (admin/dispatcher viewing another driver) ──
   // When a specific driver is selected that is NOT the current user, re-trigger the map

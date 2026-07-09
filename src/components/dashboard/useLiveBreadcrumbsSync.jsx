@@ -31,10 +31,28 @@ export default function useLiveBreadcrumbsSync({
       if (event?.data?.driver_id !== activeDriverId) return;
       refresh({ detail: { driverId: activeDriverId, deliveryDate: activeDate } });
     }) : null;
-    window.addEventListener('deliveriesUpdated', refresh);window.addEventListener('routeOptimizationComplete', refresh);window.addEventListener('routeReordered', refresh);window.addEventListener('breadcrumbCollected', append);
+    // Also reload breadcrumbs when the driver returns from a long app-switch.
+    // Without this, the UI keeps stale pre-suspension crumbs and the first new crumb
+    // saved by the restarted tracker appears as a straight line from the old position.
+    const handleResumeAfterAbsence = (event) => {
+      const { userId } = event.detail || {};
+      // Only reload for the currently displayed driver
+      if (userId && activeDriverId && userId !== activeDriverId) return;
+      refresh({ detail: { driverId: activeDriverId, deliveryDate: activeDate } });
+    };
+
+    window.addEventListener('deliveriesUpdated', refresh);
+    window.addEventListener('routeOptimizationComplete', refresh);
+    window.addEventListener('routeReordered', refresh);
+    window.addEventListener('breadcrumbCollected', append);
+    window.addEventListener('driverResumedAfterAbsence', handleResumeAfterAbsence);
     return () => {
       unsubscribeLive?.();
-      window.removeEventListener('deliveriesUpdated', refresh);window.removeEventListener('routeOptimizationComplete', refresh);window.removeEventListener('routeReordered', refresh);window.removeEventListener('breadcrumbCollected', append);
+      window.removeEventListener('deliveriesUpdated', refresh);
+      window.removeEventListener('routeOptimizationComplete', refresh);
+      window.removeEventListener('routeReordered', refresh);
+      window.removeEventListener('breadcrumbCollected', append);
+      window.removeEventListener('driverResumedAfterAbsence', handleResumeAfterAbsence);
     };
   // appUsers intentionally omitted — accessed via ref to prevent re-subscribing on every GPS tick
   // eslint-disable-next-line react-hooks/exhaustive-deps
