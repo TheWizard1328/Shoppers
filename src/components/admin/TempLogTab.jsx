@@ -4,10 +4,14 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { clearAllTempLogs } from '@/functions/clearAllTempLogs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Thermometer, ChevronRight, ChevronDown, Trash2, AlertTriangle, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import { Loader2, RefreshCw, Thermometer, ChevronRight, ChevronDown, Trash2, AlertTriangle, AlertCircle, Wifi, WifiOff, Pencil, CheckSquare } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
 import { format } from 'date-fns';
 import { isAppOwner } from '@/components/utils/userRoles';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 
 const DEFAULT_FRIDGE_TEMP = { safe_min: 2, safe_max: 8, danger_buffer: 2 };
 
@@ -44,6 +48,92 @@ export default function TempLogTab({ drivers = [], currentUser }) {
   const [selectedLogId, setSelectedLogId] = useState(null); // log expanded inline in summary table
 
   const canDelete = isAppOwner(currentUser);
+
+  // ── Reading selection + edit state ───────────────────────────────────────
+  // selectedReadings: Map<logId, Set<readingIdx>>
+  const [selectedReadings, setSelectedReadings] = useState(new Map());
+  const [editDialog, setEditDialog] = useState(null); // { logId, readingIdx, currentTemp }
+  const [editTempValue, setEditTempValue] = useState('');
+  const [adjustDialog, setAdjustDialog] = useState(null); // { logId, indices }
+  const [adjustDelta, setAdjustDelta] = useState(0);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const totalSelectedReadings = useMemo(() => {
+    let count = 0;
+    selectedReadings.forEach((set) => { count += set.size; });
+    return count;
+  }, [selectedReadings]);
+
+  const toggleReadingSelection = (logId, idx) => {
+    setSelectedReadings((prev) => {
+      const next = new Map(prev);
+      const set = new Set(next.get(logId) || []);
+      set.has(idx) ? set.delete(idx) : set.add(idx);
+      if (set.size === 0) next.delete(logId); else next.set(logId, set);
+      return next;
+    });
+  };
+
+  const clearAllSelections = () => setSelectedReadings(new Map());
+
+  const handleOpenEditDialog = (logId, idx, temp) => {
+    setEditDialog({ logId, readingIdx: idx, currentTemp: temp });
+    setEditTempValue(temp?.toFixed(1) ?? '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editDialog) return;
+    const newTemp = parseFloat(editTempValue);
+    if (Number.isNaN(newTemp)) return;
+    setIsSavingEdit(true);
+    const { logId, readingIdx } = editDialog;
+    const log = logs.find((l) => l.id === logId);
+    if (log) {
+      const newReadings = (log.temperature_readings || []).map((r, i) =>
+        i === readingIdx ? { ...r, temperature_celsius: newTemp } : r
+      );
+      const updatedLatest = newReadings.length ? newReadings[newReadings.length - 1] : null;
+      const updated = { ...log, temperature_readings: newReadings, latest_reading: updatedLatest };
+      try {
+        await base44.entities.RxTempLogs.update(logId, { temperature_readings: newReadings, latest_reading: updatedLatest });
+      } catch (_) {}
+      try { await offlineDB.save(offlineDB.STORES.RX_TEMP_LOGS, updated); } catch (_) {}
+      setLogs((prev) => prev.map((l) => l.id === logId ? updated : l));
+    }
+    setIsSavingEdit(false);
+    setEditDialog(null);
+  };
+
+  const handleOpenAdjustDialog = (logId) => {
+    const set = selectedReadings.get(logId);
+    if (!set || set.size === 0) return;
+    setAdjustDelta(0);
+    setAdjustDialog({ logId, indices: Array.from(set) });
+  };
+
+  const handleSaveAdjust = async () => {
+    if (!adjustDialog) return;
+    setIsSavingEdit(true);
+    const { logId, indices } = adjustDialog;
+    const idxSet = new Set(indices);
+    const log = logs.find((l) => l.id === logId);
+    if (log) {
+      const newReadings = (log.temperature_readings || []).map((r, i) =>
+        idxSet.has(i) ? { ...r, temperature_celsius: parseFloat((r.temperature_celsius + adjustDelta).toFixed(1)) } : r
+      );
+      const updatedLatest = newReadings.length ? newReadings[newReadings.length - 1] : null;
+      const updated = { ...log, temperature_readings: newReadings, latest_reading: updatedLatest };
+      try {
+        await base44.entities.RxTempLogs.update(logId, { temperature_readings: newReadings, latest_reading: updatedLatest });
+      } catch (_) {}
+      try { await offlineDB.save(offlineDB.STORES.RX_TEMP_LOGS, updated); } catch (_) {}
+      setLogs((prev) => prev.map((l) => l.id === logId ? updated : l));
+    }
+    setIsSavingEdit(false);
+    setAdjustDialog(null);
+    // Clear selections for this log
+    setSelectedReadings((prev) => { const next = new Map(prev); next.delete(logId); return next; });
+  };
 
   const applyFilter = useCallback((records, date, driverId) => {
     if (!records) return [];
@@ -442,7 +532,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
   };
 
   return (
-    <div className="space-y-4 p-1">
+    <div className="flex flex-col gap-4 p-1 h-full min-h-0">
       {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
         <Select value={selectedDate} onValueChange={setSelectedDate}>
@@ -785,9 +875,10 @@ export default function TempLogTab({ drivers = [], currentUser }) {
 
       {/* Per-driver summary table */}
       {logs.length > 0 &&
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-2 text-left font-semibold text-slate-600">Driver</th>
                 <th className="px-4 py-2 text-right font-semibold text-slate-600">Readings</th>
@@ -803,39 +894,36 @@ export default function TempLogTab({ drivers = [], currentUser }) {
               const allReadings = (log.temperature_readings || []).filter((r) => r.temperature_celsius != null);
               if (!allReadings.length) return null;
 
-              // Filter to readings within route window (first → last finished stop)
               const bounds = routeBoundaries[log.driver_id];
               const routeReadings = bounds ?
               allReadings.filter((r) => {
                 if (!r.timestamp) return false;
                 const hhmm = String(r.timestamp).replace('Z', '').slice(11, 16);
                 return hhmm >= bounds.first && hhmm <= bounds.last;
-              }) :
-              [];
+              }) : [];
 
               const tempsAll = allReadings.map((r) => r.temperature_celsius);
               const tempsRoute = routeReadings.map((r) => r.temperature_celsius);
-
-              // Use route temps for all stats if available, fall back to all
               const temps = tempsRoute.length ? tempsRoute : tempsAll;
-
               const min = Math.min(...temps);
               const max = Math.max(...temps);
               const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
-
               const latest = log.latest_reading?.temperature_celsius ?? tempsAll[tempsAll.length - 1];
               const outOfRange = min < fridgeCfg.safe_min || max > fridgeCfg.safe_max;
+              const isExpanded = selectedLogId === log.id;
+              const logSelectedSet = selectedReadings.get(log.id) || new Set();
+              const logSelectedCount = logSelectedSet.size;
 
-              const isSelected = selectedLogId === log.id;
               return (
                 <React.Fragment key={log.id}>
                     <tr
-                    onClick={() => setSelectedLogId(isSelected ? null : log.id)}
-                    className={`border-b border-slate-100 last:border-0 cursor-pointer transition-colors ${isSelected ? 'bg-slate-100' : 'hover:bg-slate-50'}`}>
-                    
-                      <td className="px-4 py-2 font-medium text-slate-800 flex items-center gap-1.5">
-                        {isSelected ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
-                        {getDriverName(log.driver_id)}
+                    onClick={() => { setSelectedLogId(isExpanded ? null : log.id); if (isExpanded) { setSelectedReadings((prev) => { const next = new Map(prev); next.delete(log.id); return next; }); } }}
+                    className={`border-b border-slate-100 last:border-0 cursor-pointer transition-colors ${isExpanded ? 'bg-slate-100' : 'hover:bg-slate-50'}`}>
+                      <td className="px-4 py-2 font-medium text-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
+                          {getDriverName(log.driver_id)}
+                        </div>
                       </td>
                       <td className="px-4 py-2 text-right text-slate-600">
                         {bounds ? <span title="route readings / total readings">{tempsRoute.length}/{allReadings.length}</span> : allReadings.length}
@@ -846,81 +934,187 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                       <td className="px-4 py-2 text-right font-mono text-slate-600">{latest?.toFixed(1)}°C</td>
                       <td className="px-4 py-2 text-center">
                         {outOfRange ?
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">⚠ Out of Range</span> :
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">✓ OK</span>
-                      }
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">⚠ Out of Range</span> :
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">✓ OK</span>}
                       </td>
                     </tr>
-                    {isSelected &&
+                    {isExpanded &&
                   <tr className="bg-slate-50 border-b border-slate-200">
                         <td colSpan={7} className="px-4 py-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-slate-600">{allReadings.length} reading{allReadings.length !== 1 ? 's' : ''} — {getDriverName(log.driver_id)}</span>
-                            {canDelete && allReadings.length > 0 && (
-                        confirmDelete?.type === 'allReadings' && confirmDelete?.logId === log.id ?
-                        <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-red-600 font-medium">Delete all readings?</span>
+                          {/* Header: count + actions */}
+                          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-slate-600">{allReadings.length} reading{allReadings.length !== 1 ? 's' : ''} — {getDriverName(log.driver_id)}</span>
+                              {logSelectedCount > 0 && (
+                                <span className="text-xs text-blue-600 font-medium">{logSelectedCount} selected</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {logSelectedCount > 1 && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleOpenAdjustDialog(log.id); }}
+                                  className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                >
+                                  <CheckSquare className="w-3 h-3" /> Adjust {logSelectedCount}
+                                </button>
+                              )}
+                              {logSelectedCount > 0 && (
+                                <button onClick={(e) => { e.stopPropagation(); setSelectedReadings((prev) => { const next = new Map(prev); next.delete(log.id); return next; }); }} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Clear</button>
+                              )}
+                              {canDelete && allReadings.length > 0 && (
+                                confirmDelete?.type === 'allReadings' && confirmDelete?.logId === log.id ?
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-red-600 font-medium">Delete all?</span>
                                   <button onClick={() => deleteAllReadingsForLog(log.id)} disabled={deleting === `allReadings-${log.id}`} className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
                                     {deleting === `allReadings-${log.id}` ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
                                   </button>
                                   <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">No</button>
                                 </div> :
-
-                        <button onClick={(e) => {e.stopPropagation();setConfirmDelete({ type: 'allReadings', logId: log.id });}} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 transition-colors">
-                                  <Trash2 className="w-3 h-3" /> Delete all readings
-                                </button>)
-
-                        }
-                          </div>
-                          {allReadings.length === 0 ?
-                      <div className="text-xs text-slate-400">No readings recorded.</div> :
-
-                      <div className="space-y-0.5 max-h-60 overflow-y-auto">
-                              {allReadings.map((r, idx) => {
-                          const time = r.timestamp ? String(r.timestamp).replace('Z', '').slice(11, 16) : '??:??';
-                          const temp = r.temperature_celsius;
-                          const isOut = temp < fridgeCfg.safe_min || temp > fridgeCfg.safe_max;
-                          const rKey = `reading-${log.id}-${idx}`;
-                          return (
-                            <div key={idx} className="flex items-center gap-3 py-0.5 group">
-                                    <span className="text-xs font-mono text-slate-500 w-12">{time}</span>
-                                    <span className={`text-xs font-mono font-semibold w-16 ${isOut ? 'text-red-600' : 'text-emerald-700'}`}>
-                                      {temp != null ? `${temp.toFixed(1)}°C` : '—'}
-                                    </span>
-                                    {r.humidity_percent != null &&
-                              <span className="text-xs text-slate-400 w-16">{r.humidity_percent.toFixed(0)}% RH</span>
-                              }
-                                    {isOut && <AlertTriangle className="w-3 h-3 text-red-500" />}
-                                    {canDelete && (
-                              confirmDelete?.type === 'reading' && confirmDelete?.logId === log.id && confirmDelete?.readingIdx === idx ?
-                              <div className="flex items-center gap-1 ml-auto">
-                                          <span className="text-xs text-red-600">Delete?</span>
-                                          <button onClick={(e) => {e.stopPropagation();deleteReading(log.id, idx);}} disabled={deleting === rKey} className="text-xs px-1.5 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
-                                            {deleting === rKey ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
-                                          </button>
-                                          <button onClick={(e) => {e.stopPropagation();setConfirmDelete(null);}} className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">No</button>
-                                        </div> :
-
-                              <button onClick={(e) => {e.stopPropagation();setConfirmDelete({ type: 'reading', logId: log.id, readingIdx: idx });}} className="ml-auto opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all">
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>)
-
-                              }
-                                  </div>);
-
-                        })}
+                                <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'allReadings', logId: log.id }); }} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 transition-colors">
+                                  <Trash2 className="w-3 h-3" /> Delete all
+                                </button>
+                              )}
                             </div>
-                      }
+                          </div>
+                          {/* Readings list */}
+                          {allReadings.length === 0 ?
+                          <div className="text-xs text-slate-400">No readings recorded.</div> :
+                          <div className="space-y-0.5 max-h-64 overflow-y-auto">
+                            {allReadings.map((r, idx) => {
+                              const time = r.timestamp ? String(r.timestamp).replace('Z', '').slice(11, 16) : '??:??';
+                              const temp = r.temperature_celsius;
+                              const isOut = temp < fridgeCfg.safe_min || temp > fridgeCfg.safe_max;
+                              const rKey = `reading-${log.id}-${idx}`;
+                              const isChecked = logSelectedSet.has(idx);
+                              return (
+                                <div key={idx} className={`flex items-center gap-2 py-1 px-1 rounded group cursor-pointer transition-colors ${isChecked ? 'bg-blue-50' : 'hover:bg-white'}`}
+                                  onClick={(e) => { e.stopPropagation(); toggleReadingSelection(log.id, idx); }}
+                                >
+                                  <Checkbox
+                                    checked={isChecked}
+                                    onCheckedChange={() => toggleReadingSelection(log.id, idx)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex-shrink-0"
+                                  />
+                                  <span className="text-xs font-mono text-slate-500 w-12">{time}</span>
+                                  <span className={`text-xs font-mono font-semibold w-16 ${isOut ? 'text-red-600' : 'text-emerald-700'}`}>
+                                    {temp != null ? `${temp.toFixed(1)}°C` : '—'}
+                                  </span>
+                                  {r.humidity_percent != null &&
+                                    <span className="text-xs text-slate-400 w-16">{r.humidity_percent.toFixed(0)}% RH</span>
+                                  }
+                                  {isOut && <AlertTriangle className="w-3 h-3 text-red-500" />}
+                                  <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      title="Edit this reading"
+                                      onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(log.id, idx, temp); }}
+                                      className="p-1 rounded hover:bg-blue-100 text-blue-500 transition-colors"
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                    </button>
+                                    {canDelete && (
+                                      confirmDelete?.type === 'reading' && confirmDelete?.logId === log.id && confirmDelete?.readingIdx === idx ?
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-xs text-red-600">Delete?</span>
+                                        <button onClick={(e) => { e.stopPropagation(); deleteReading(log.id, idx); }} disabled={deleting === rKey} className="text-xs px-1.5 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                                          {deleting === rKey ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }} className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">No</button>
+                                      </div> :
+                                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'reading', logId: log.id, readingIdx: idx }); }} className="p-1 rounded hover:bg-red-100 text-slate-300 hover:text-red-500 transition-all">
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          }
                         </td>
                       </tr>
                   }
                   </React.Fragment>);
-
             })}
             </tbody>
           </table>
+          </div>
         </div>
       }
+
+      {/* Single reading edit dialog */}
+      <Dialog open={!!editDialog} onOpenChange={(open) => { if (!open) setEditDialog(null); }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Edit Temperature Reading</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <div className="text-xs text-slate-500">
+              Current value: <span className="font-mono font-semibold text-slate-700">{editDialog?.currentTemp?.toFixed(1)}°C</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                step="0.1"
+                value={editTempValue}
+                onChange={(e) => setEditTempValue(e.target.value)}
+                className="font-mono text-center"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); }}
+              />
+              <span className="text-sm text-slate-500 flex-shrink-0">°C</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditDialog(null)}>Cancel</Button>
+            <Button size="sm" onClick={handleSaveEdit} disabled={isSavingEdit}>
+              {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Multi-reading range adjust dialog */}
+      <Dialog open={!!adjustDialog} onOpenChange={(open) => { if (!open) { setAdjustDialog(null); setAdjustDelta(0); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Adjust {adjustDialog?.indices?.length} Readings</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-5">
+            <div className="text-xs text-slate-500 text-center">
+              Slide to adjust all selected readings up or down
+            </div>
+            <div className="text-center text-2xl font-mono font-bold text-slate-800">
+              {adjustDelta > 0 ? '+' : ''}{adjustDelta.toFixed(1)}°C
+            </div>
+            <div className="px-2">
+              <Slider
+                min={-50}
+                max={50}
+                step={1}
+                value={[Math.round(adjustDelta * 10)]}
+                onValueChange={([v]) => setAdjustDelta(parseFloat((v / 10).toFixed(1)))}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-slate-400 mt-1">
+                <span>-5°C</span>
+                <span>0</span>
+                <span>+5°C</span>
+              </div>
+            </div>
+            <div className="text-xs text-slate-500 text-center">
+              All {adjustDialog?.indices?.length} selected values will be shifted by {adjustDelta > 0 ? '+' : ''}{adjustDelta.toFixed(1)}°C
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => { setAdjustDialog(null); setAdjustDelta(0); }}>Cancel</Button>
+            <Button size="sm" onClick={handleSaveAdjust} disabled={isSavingEdit || adjustDelta === 0}>
+              {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>);
 
 }
