@@ -132,6 +132,7 @@ export default function PolylineViewer({ users = [] }) {
   const [cleanedPoints, setCleanedPoints]         = useState([]); // current editable point list
   const [undoStack, setUndoStack]                 = useState([]); // up to 5 previous states
   const [isSavingCrumb, setIsSavingCrumb]         = useState(false);
+  const draggingRef = useRef(false); // true while a marker drag is in progress
 
   // Track the item currently being cleaned so we can auto-save on focus change
   const pendingCleanRef = useRef(null); // { item, cleanedPoints }
@@ -468,6 +469,11 @@ export default function PolylineViewer({ users = [] }) {
   const handleRemovePoint = (idx) => {
     setUndoStack(prev => [...prev.slice(-4), cleanedPoints]); // keep max 5
     setCleanedPoints(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleMovePoint = (idx, newLat, newLng) => {
+    setUndoStack(prev => [...prev.slice(-4), cleanedPoints]); // keep max 5
+    setCleanedPoints(prev => prev.map((pt, i) => i === idx ? [newLat, newLng] : pt));
   };
 
   const handleUndo = () => {
@@ -850,10 +856,10 @@ export default function PolylineViewer({ users = [] }) {
                       const startLabel = seg.isBreadcrumb ? (originStop != null ? originStop : '▶') : (destStop ?? '▶');
                       const endLabel   = seg.isBreadcrumb ? (destStop != null ? destStop : '■') : (destStop ?? '■');
 
-                      // Clickable dot icon for cleaning mode
+                      // Draggable/clickable dot icon for cleaning mode
                       const makeDotIcon = (idx) => L.divIcon({
                         className: '',
-                        html: `<div style="width:16px;height:16px;border-radius:9999px;background:#ef4444;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;font-size:8px;font-weight:700">${idx}</div>`,
+                        html: `<div style="width:16px;height:16px;border-radius:9999px;background:#ef4444;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);cursor:grab;display:flex;align-items:center;justify-content:center;color:white;font-size:8px;font-weight:700">${idx}</div>`,
                         iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -8]
                       });
 
@@ -867,19 +873,28 @@ export default function PolylineViewer({ users = [] }) {
                             dashArray={seg.isBreadcrumb ? '6 4' : undefined}
                           />
 
-                          {/* In cleaning mode: render all intermediate points as clickable red dots */}
+                          {/* In cleaning mode: render all intermediate points as draggable/clickable red dots */}
                           {isActiveCleaning && cleanedPoints.slice(1, -1).map((pt, i) => (
                             <Marker
-                              key={`clean-pt-${i}`}
+                              key={`clean-pt-${i}-${pt[0]}-${pt[1]}`}
                               position={pt}
                               icon={makeDotIcon(i + 1)}
                               zIndexOffset={2000}
-                              eventHandlers={{ click: () => handleRemovePoint(i + 1) }}
+                              draggable={true}
+                              eventHandlers={{
+                                dragstart: () => { draggingRef.current = true; },
+                                dragend: (e) => {
+                                  const { lat, lng } = e.target.getLatLng();
+                                  handleMovePoint(i + 1, lat, lng);
+                                  setTimeout(() => { draggingRef.current = false; }, 50);
+                                },
+                                click: () => { if (!draggingRef.current) handleRemovePoint(i + 1); },
+                              }}
                             >
                               <Popup>
                                 <strong>Point #{i + 1}</strong><br />
                                 {pt[0].toFixed(6)}, {pt[1].toFixed(6)}<br />
-                                <em style={{color:'#ef4444'}}>Click marker to remove</em>
+                                <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em>
                               </Popup>
                             </Marker>
                           ))}
