@@ -571,9 +571,12 @@ export default function PolylineViewer({ users = [] }) {
       if (res?.data?.success) {
         toast.success(`Stop #${item.stop_order} saved to delivery route & breadcrumb.`);
         pendingCleanRef.current = null;
+        const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true };
         setBreadcrumbs(prev => prev.map(b =>
-          b.id === item.id ? { ...b, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true } : b
+          b.id === item.id ? updatedItem : b
         ));
+        // Update focusedItem so the map immediately re-renders with the saved polyline
+        setFocusedItem(updatedItem);
         setIsCleaningMode(false);
         setCleanedPoints([]);
         setUndoStack([]);
