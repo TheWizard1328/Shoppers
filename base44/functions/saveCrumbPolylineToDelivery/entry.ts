@@ -24,8 +24,39 @@ Deno.serve(async (req) => {
     }
 
     const delivery = deliveries[0];
+
+    // Decode polyline and calculate Haversine distance in km
+    const decodePolyline = (encoded) => {
+      const poly = [];
+      let index = 0, len = encoded.length, lat = 0, lng = 0;
+      while (index < len) {
+        let b, shift = 0, result = 0;
+        do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
+        shift = 0; result = 0;
+        do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
+        poly.push([lat / 1e5, lng / 1e5]);
+      }
+      return poly;
+    };
+    const haversineKm = (lat1, lon1, lat2, lon2) => {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+    const points = decodePolyline(cleanedEncodedPolyline);
+    let travelDistKm = 0;
+    for (let i = 1; i < points.length; i++) {
+      travelDistKm += haversineKm(points[i-1][0], points[i-1][1], points[i][0], points[i][1]);
+    }
+    const travelDist = Math.round(travelDistKm * 100) / 100; // 2 decimal places
+
     await base44.asServiceRole.entities.Delivery.update(delivery.id, {
       encoded_polyline: cleanedEncodedPolyline,
+      travel_dist: travelDist,
     });
 
     // 2. Update the DeliveryBreadcrumbs record — save cleaned polyline and tag as saved_to_route
@@ -49,7 +80,8 @@ Deno.serve(async (req) => {
       success: true,
       deliveryId: delivery.id,
       breadcrumbId,
-      message: `Delivery stop #${stopOrder} polyline updated and breadcrumb saved.`,
+      travelDistKm: travelDist,
+      message: `Delivery stop #${stopOrder} polyline updated, travel_dist ${travelDist} km saved.`,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
