@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { MapContainer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Eraser, Undo2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -83,6 +83,38 @@ const MapUpdater = ({ allPoints }) => {
     const valid = (allPoints || []).filter(p => Array.isArray(p) && p.length === 2 && isFinite(p[0]) && isFinite(p[1]));
     if (valid.length > 0) map.fitBounds(L.latLngBounds(valid), { padding: [50, 50] });
   }, [allPoints, map]);
+  return null;
+};
+
+// ── Point-to-segment geometry helper ────────────────────────────────────────
+// Returns the index AFTER which the new point should be inserted (0-based)
+const findClosestSegmentIndex = (points, lat, lng) => {
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < points.length - 1; i++) {
+    const [ax, ay] = [points[i][0], points[i][1]];
+    const [bx, by] = [points[i + 1][0], points[i + 1][1]];
+    const [px, py] = [lat, lng];
+    const abx = bx - ax, aby = by - ay;
+    const len2 = abx * abx + aby * aby;
+    let t = len2 > 0 ? ((px - ax) * abx + (py - ay) * aby) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * abx, cy = ay + t * aby;
+    const dx = px - cx, dy = py - cy;
+    const dist = dx * dx + dy * dy;
+    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+  }
+  return bestIdx;
+};
+
+// ── Map click handler for adding points ─────────────────────────────────────
+const MapClickHandler = ({ isActive, onAddPoint }) => {
+  useMapEvents({
+    click: (e) => {
+      if (!isActive) return;
+      onAddPoint(e.latlng.lat, e.latlng.lng);
+    },
+  });
   return null;
 };
 
@@ -474,6 +506,17 @@ export default function PolylineViewer({ users = [] }) {
   const handleMovePoint = (idx, newLat, newLng) => {
     setUndoStack(prev => [...prev.slice(-4), cleanedPoints]); // keep max 5
     setCleanedPoints(prev => prev.map((pt, i) => i === idx ? [newLat, newLng] : pt));
+  };
+
+  const handleAddPoint = (lat, lng) => {
+    if (cleanedPoints.length < 2) return;
+    const insertAfter = findClosestSegmentIndex(cleanedPoints, lat, lng);
+    setUndoStack(prev => [...prev.slice(-4), cleanedPoints]);
+    setCleanedPoints(prev => {
+      const next = [...prev];
+      next.splice(insertAfter + 1, 0, [lat, lng]);
+      return next;
+    });
   };
 
   const handleUndo = () => {
@@ -894,7 +937,8 @@ export default function PolylineViewer({ users = [] }) {
                               <Popup>
                                 <strong>Point #{i + 1}</strong><br />
                                 {pt[0].toFixed(6)}, {pt[1].toFixed(6)}<br />
-                                <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em>
+                                <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em><br />
+                                <em style={{color:'#2563eb'}}>Click map to add a new point</em>
                               </Popup>
                             </Marker>
                           ))}
@@ -938,6 +982,10 @@ export default function PolylineViewer({ users = [] }) {
                       );
                     })}
 
+                    <MapClickHandler
+                      isActive={isCleaningMode}
+                      onAddPoint={handleAddPoint}
+                    />
                     <MapUpdater allPoints={allMapPoints} />
                   </MapContainer>
                 ) : (
