@@ -652,49 +652,45 @@ export default function PolylineViewer({ users = [] }) {
                   const distKm = calcPolylineDistanceKm(pts);
                   const distStr = distKm >= 1 ? `${distKm.toFixed(2)} km` : `${(distKm * 1000).toFixed(0)} m`;
                   return (
-                    <div className="text-xs text-slate-500 mb-0.5">
-                      📏 {distStr} actual
+                    <div className="flex items-center justify-between gap-1">
+                      <span>{item.transport_mode ? `🚗 ${item.transport_mode}` : ''}</span>
+                      <span className="text-slate-500">📏 {distStr}</span>
+                      {isFocused && (
+                        <div className="flex items-center gap-1 ml-1" onClick={e => e.stopPropagation()}>
+                          {isCleaningMode && focusedItem?.id === item.id && (
+                            <span className="text-xs text-orange-700 font-medium mr-1">
+                              {cleanedPoints.length} pts
+                            </span>
+                          )}
+                          {isCleaningMode && focusedItem?.id === item.id && undoStack.length > 0 && (
+                            <button
+                              title={`Undo last removal (${undoStack.length} steps)`}
+                              onClick={e => { e.stopPropagation(); handleUndo(); }}
+                              className="p-1 rounded hover:bg-slate-200 text-slate-600 transition-colors"
+                            >
+                              <Undo2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            title={isCleaningMode && focusedItem?.id === item.id ? 'Exit cleaning mode' : 'Clean crumb points'}
+                            onClick={e => { e.stopPropagation(); handleToggleCleaningMode(item); }}
+                            className={`p-1 rounded transition-colors ${isCleaningMode && focusedItem?.id === item.id ? 'bg-orange-200 text-orange-800' : 'hover:bg-orange-100 text-orange-600'}`}
+                          >
+                            <Eraser className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            title="Save crumb polyline to delivery"
+                            onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(item); }}
+                            disabled={isSavingCrumb}
+                            className="p-1 rounded hover:bg-green-100 text-green-700 disabled:opacity-50 transition-colors"
+                          >
+                            {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
-                {isBreadcrumb && (
-                  <div className="flex items-center justify-between gap-1">
-                    {item.transport_mode && <span>🚗 {item.transport_mode}</span>}
-                    {isFocused && (
-                      <div className="flex items-center gap-1 ml-auto" onClick={e => e.stopPropagation()}>
-                        {isCleaningMode && focusedItem?.id === item.id && (
-                          <span className="text-xs text-orange-700 font-medium mr-1">
-                            {cleanedPoints.length} pts
-                          </span>
-                        )}
-                        {isCleaningMode && focusedItem?.id === item.id && undoStack.length > 0 && (
-                          <button
-                            title={`Undo last removal (${undoStack.length} steps)`}
-                            onClick={e => { e.stopPropagation(); handleUndo(); }}
-                            className="p-1 rounded hover:bg-slate-200 text-slate-600 transition-colors"
-                          >
-                            <Undo2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <button
-                          title={isCleaningMode && focusedItem?.id === item.id ? 'Exit cleaning mode' : 'Clean crumb points'}
-                          onClick={e => { e.stopPropagation(); handleToggleCleaningMode(item); }}
-                          className={`p-1 rounded transition-colors ${isCleaningMode && focusedItem?.id === item.id ? 'bg-orange-200 text-orange-800' : 'hover:bg-orange-100 text-orange-600'}`}
-                        >
-                          <Eraser className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          title="Save crumb polyline to delivery"
-                          onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(item); }}
-                          disabled={isSavingCrumb}
-                          className="p-1 rounded hover:bg-green-100 text-green-700 disabled:opacity-50 transition-colors"
-                        >
-                          {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           </div>
