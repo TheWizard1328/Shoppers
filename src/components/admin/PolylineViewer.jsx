@@ -890,8 +890,8 @@ export default function PolylineViewer({ users = [] }) {
                     className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
                   />
                   <span className="font-semibold text-sm text-slate-700 truncate">
-                    {activeItems.length} record{activeItems.length !== 1 ? 's' : ''}
-                    {viewMode === 'combined' && ` (${filteredPolylines.length}P + ${filteredBreadcrumbs.length}BC)`}
+                    {unsavedItems.length} record{unsavedItems.length !== 1 ? 's' : ''}
+                    {viewMode === 'combined' && ` (${filteredPolylines.filter(i => !i.saved_to_route).length}P + ${filteredBreadcrumbs.filter(i => !i.saved_to_route).length}BC)`}
                   </span>
                   {isAppOwner(currentUser) && fewCrumbItems.length > 0 && (
                     <label className="ml-auto flex items-center gap-1.5 cursor-pointer flex-shrink-0">
