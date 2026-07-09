@@ -569,7 +569,8 @@ export default function PolylineViewer({ users = [] }) {
           : Promise.resolve(),
       ]);
       if (res?.data?.success) {
-        toast.success(`Stop #${item.stop_order} saved to delivery route & breadcrumb.`);
+        const travelDistKm = res.data.travelDistKm;
+        toast.success(`Stop #${item.stop_order} saved — ${travelDistKm != null ? travelDistKm.toFixed(2) + ' km' : ''}`);
         pendingCleanRef.current = null;
         const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true };
         setBreadcrumbs(prev => prev.map(b =>
@@ -580,6 +581,23 @@ export default function PolylineViewer({ users = [] }) {
         setIsCleaningMode(false);
         setCleanedPoints([]);
         setUndoStack([]);
+        // Also update the offline DB delivery record with the new travel_dist so the
+        // stats card recalculates immediately without waiting for a WebSocket round-trip
+        if (travelDistKm != null) {
+          import('../utils/offlineDatabase').then(({ offlineDB }) => {
+            if (!res.data.deliveryId) return;
+            offlineDB.getById(offlineDB.STORES.DELIVERIES, res.data.deliveryId)
+              .then(existing => {
+                if (existing) {
+                  return offlineDB.save(offlineDB.STORES.DELIVERIES, { ...existing, travel_dist: travelDistKm });
+                }
+              })
+              .then(() => {
+                window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+              })
+              .catch(() => {});
+          }).catch(() => {});
+        }
       } else {
         toast.error(`Save failed: ${res?.data?.error || 'Unknown error'}`);
       }
