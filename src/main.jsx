@@ -2,6 +2,29 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
+
+// ── Global chunk-load error handler ─────────────────────────────────────────
+// When Vite rebuilds after a deploy, dynamic import() calls in open tabs reference
+// old hashed chunk filenames that no longer exist on the server (404). This produces
+// "Failed to fetch dynamically imported module" errors. Intercept them and trigger
+// a silent reload so the driver gets the new build without a manual refresh.
+window.addEventListener('error', (event) => {
+  const msg = event?.message || '';
+  if (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Importing a module script failed')) {
+    console.warn('⚠️ [ChunkLoad] Stale chunk detected — reloading for fresh build');
+    // Small delay so any in-flight saves can complete
+    setTimeout(() => window.location.reload(), 1500);
+  }
+});
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = String(event?.reason?.message || event?.reason || '');
+  if (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Importing a module script failed')) {
+    console.warn('⚠️ [ChunkLoad] Stale chunk (unhandledrejection) — reloading for fresh build');
+    event.preventDefault();
+    setTimeout(() => window.location.reload(), 1500);
+  }
+});
+
 import L from 'leaflet';
 
 // ─── Leaflet SVG path safety patch ──────────────────────────────────────────
