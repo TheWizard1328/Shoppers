@@ -462,7 +462,7 @@ export const handleBatchSaveDelivery = async ({
           is_cycling_marker: true,
           cycling_latitude: stop.cycling_latitude ?? null,
           cycling_longitude: stop.cycling_longitude ?? null,
-          transport_mode: stop.transport_mode || 'cycling',
+          transport_mode: stop.transport_mode ?? ((stop.delivery_notes || '').toLowerCase().includes('start') ? 'driving' : 'cycling'),
         } : {}),
       };
 
