@@ -29,8 +29,13 @@ export default function MapController({
       const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
       const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
       const isProgrammaticFromTimer = timeSinceProgrammatic < 1200;
+      // CRITICAL: A real finger/pointer gesture was recorded recently — this is definitely
+      // a user action (pinch-zoom or scroll) even if the programmatic timer is still hot
+      // from a GPS-driven map reposition. Trust the gesture timestamp over the timer.
+      const timeSinceGesture = Date.now() - (window._lastUserGestureStart || 0);
+      const isRealUserGesture = timeSinceGesture < 500;
       
-      if (isProgrammaticFromFlag || isProgrammaticFromTimer) {
+      if (!isRealUserGesture && (isProgrammaticFromFlag || isProgrammaticFromTimer)) {
         console.log('🗺️ [MapController] ZOOM START - PROGRAMMATIC (ignoring)');
         return;
       }
@@ -64,7 +69,11 @@ export default function MapController({
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
         const isProgrammaticDrag = timeSinceProgrammatic < 1500;
         
-        if (!isProgrammaticDrag) {
+        // CRITICAL: Also trust a recent gesture timestamp to override the programmatic timer.
+        const timeSinceGesture = Date.now() - (window._lastUserGestureStart || 0);
+        const isRealUserGesture = timeSinceGesture < 2000; // drag can take up to ~1.5s
+
+        if (!isProgrammaticDrag || isRealUserGesture) {
           console.log('🗺️ [MapController] DRAG END - USER INTERACTION');
           console.log('🟠 [map phase unlocked] reason=user-drag');
           markUserMapControlActive();
@@ -179,6 +188,28 @@ export default function MapController({
     };
     window.addEventListener('mapDoubleTapZoom', handleDoubleTapZoom);
     return () => window.removeEventListener('mapDoubleTapZoom', handleDoubleTapZoom);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // CRITICAL: Track real user touch/pointer gestures on the map container.
+  // The _lastProgrammaticMapMove timer is refreshed every GPS tick (~1-5s) in phase 2,
+  // which means zoomstart/dragend always sees timeSinceProgrammatic < 1200ms and
+  // incorrectly classifies user pinch-zoom and drag as programmatic — silently
+  // swallowing the onMapInteraction() call that should unlock the FAB.
+  // Solution: record the EXACT moment a real finger/pointer touches the map so
+  // zoomstart/dragend can override the timer check when a gesture JUST started.
+  useEffect(() => {
+    const mapContainer = mapInstance.getContainer();
+    if (!mapContainer) return;
+    const onGestureStart = () => {
+      window._lastUserGestureStart = Date.now();
+    };
+    mapContainer.addEventListener('touchstart', onGestureStart, { passive: true });
+    mapContainer.addEventListener('pointerdown', onGestureStart, { passive: true });
+    return () => {
+      mapContainer.removeEventListener('touchstart', onGestureStart);
+      mapContainer.removeEventListener('pointerdown', onGestureStart);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

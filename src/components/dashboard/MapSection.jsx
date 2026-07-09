@@ -48,8 +48,12 @@ export default function MapSection({
     // CRITICAL: Leaflet fitBounds animations fire moveend/zoomend after ~900ms.
     // We must suppress user-interaction detection long enough to outlast the animation
     // so a GPS-driven phase-2 reposition doesn't accidentally unlock the FAB.
+    // EXCEPTION: If a real user gesture (touchstart/pointerdown) was recorded very recently
+    // by MapController, trust it and let the unlock through regardless of the programmatic timer.
     const timeSinceProgrammaticMove = Date.now() - (window._lastProgrammaticMapMove || 0);
-    if (timeSinceProgrammaticMove < 1500) return;
+    const timeSinceGesture = Date.now() - (window._lastUserGestureStart || 0);
+    const isRealGesture = timeSinceGesture < 2000;
+    if (!isRealGesture && timeSinceProgrammaticMove < 1500) return;
     fabControlEvents.notifyUserMapInteraction();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onImmersiveMapTap]);
@@ -59,7 +63,12 @@ export default function MapSection({
     if ((isDispatcher || isAdmin) && !isDriver) { handleMapViewCycle?.(); return; }
     if (!immersiveHidden) {
       window.dispatchEvent(new CustomEvent('mapDoubleTapZoom', { detail: { delta: 0.5 } }));
-      fabControlEvents.notifyUserMapInteraction();
+      // CRITICAL: For drivers, double-tap is a momentary zoom gesture — NOT a "free roam" intent.
+      // We do NOT call notifyUserMapInteraction() here because that would set mapUserUnlockedRef=true
+      // and permanently break the auto phase-follow until the driver explicitly taps the FAB.
+      // Instead: just publish the visual unlock signal so the FAB grays out briefly, but do NOT
+      // set mapUserUnlockedRef. The map will resume auto-follow on the next GPS tick naturally.
+      fabControlEvents.publish({ type: 'FAB_MAP_UNLOCKED_BY_USER_INTERACTION' });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onImmersiveMapTap, isDispatcher, isAdmin, isDriver, handleMapViewCycle, immersiveHidden]);
