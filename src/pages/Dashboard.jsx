@@ -580,6 +580,11 @@ function Dashboard() {
     cardExpandedAtRef.current = null;
     setAreCardsVisible(false);
 
+    // CRITICAL: FAB was tapped intentionally — always clear free-pan mode so the
+    // state machine below can advance/re-lock normally. goPhase() also clears it,
+    // but we need it cleared BEFORE the isCurrentlyLocked checks run.
+    mapUserUnlockedRef.current = false;
+
     const phase = mapViewPhaseRef.current;
     const lockExpired = !mapLockExpiresAtRef.current || mapLockExpiresAtRef.current <= Date.now();
 
@@ -637,15 +642,11 @@ function Dashboard() {
     const isCurrentlyLocked = isMapViewLockedRef.current;
     if (phase === 1 && lockExpired)  { goPhase(1, true, p1LockMs); return; }
     if (phase === 1 && !lockExpired) { goPhase(p2Available ? 2 : p3Available ? 3 : 1, true, hasAnyPhase ? null : p1LockMs); return; }
-    // CRITICAL: If the user manually panned/zoomed to break free from phase 2/3, do NOT
-    // re-lock. mapUserUnlockedRef stays true until the driver explicitly taps the FAB.
     if (phase === 2 && !isCurrentlyLocked) {
-      if (mapUserUnlockedRef.current) return; // user chose free-pan — respect it
-      goPhase(2, true); return; // re-activate (was unlocked by something else, e.g. marker click)
+      goPhase(2, true); return; // re-activate (was unlocked by marker click or similar)
     }
     if (phase === 2 && isCurrentlyLocked)  { goPhase(p3Available ? 3 : 1, true, p3Available ? null : p1LockMs); return; }
     if (phase === 3 && !isCurrentlyLocked) {
-      if (mapUserUnlockedRef.current) return; // user chose free-pan — respect it
       goPhase(3, true); return;
     }
     goPhase(1, true, p1LockMs);

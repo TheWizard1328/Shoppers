@@ -95,6 +95,8 @@ export function useFabControlEventHandler({
       lastTriggeredNextStopIdRef.current = nextStopId || null;
       lastTriggeredDriverLocRef.current = driverLocation || null;
 
+      // Don't re-lock if the user is in free-pan mode
+      if (mapUserUnlockedRef?.current) return;
       // Re-lock and reposition the map to the new next stop
       clearTimer();
       isMapViewLockedRef.current = true;
@@ -109,6 +111,8 @@ export function useFabControlEventHandler({
     // Proximity-activated phase 2: driver is within 100m of next stop.
     // Lock FAB into phase 2 and trigger a map reposition to show driver + next stop.
     const onProximityActivatedPhase2 = () => {
+      // Don't re-lock if the user is in free-pan mode (they manually panned/zoomed)
+      if (mapUserUnlockedRef?.current) return;
       if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
       mapLockExpiresAtRef.current = null;
       mapViewPhaseRef.current = 2;
