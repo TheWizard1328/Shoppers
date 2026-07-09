@@ -1219,13 +1219,62 @@ class LocationTracker {
    * 3. If away > 30s, fires a global event so the offline DB can resync deliveries.
    */
   async _resumeAfterAbsence(awayDurationMs = 0) {
-    // Step 1: Immediately grab a fresh GPS fix + upload
-    await this.refreshNow({ source: 'visibility-return' });
+    // Single fresh GPS acquisition from the hardware antenna.
+    // We do ONE getCurrentPosition and use those coords for BOTH:
+    //   (a) updating the driver's live location in AppUser (via updateLocationInDatabase)
+    //   (b) saving an immediate breadcrumb (bypassing the interval gate via lastBreadcrumbSavedAt reset)
+    // This ensures both the blue dot and the breadcrumb polyline jump to the real current
+    // position instead of the stale pre-background position.
+    try {
+      const position = await this.locationProvider.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0,
+        requestPermissions: false
+      });
 
-    // Step 2: Reset breadcrumb timer so it fires immediately on the next tick
-    this.lastBreadcrumbSavedAt = 0;
+      const { latitude, longitude, accuracy } = position.coords;
+      const now = Date.now();
 
-    // Step 3: Restart breadcrumb interval (clears any stale/dead timer)
+      console.log(`📍 [LocationTracker] Resume fix acquired: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}] ±${accuracy?.toFixed(0)}m`);
+
+      // (a) Update lastPosition so everything downstream has current coords
+      this.lastPosition = { latitude, longitude, accuracy };
+
+      // (b) Upload to AppUser.current_latitude/longitude — updates live location dot
+      await this.updateLocationInDatabase(
+        latitude,
+        longitude,
+        accuracy,
+        true,   // forceUpdate — bypass 15s upload gate
+        false,
+        this.isPrimaryDevice
+      );
+
+      // (c) Dispatch driverLocationFocusRefresh so useDriverLocationSync pipes this into React state
+      window.dispatchEvent(new CustomEvent('driverLocationFocusRefresh', {
+        detail: {
+          userId: this.currentUser?.id,
+          latitude,
+          longitude,
+          accuracy,
+          source: 'resume'
+        }
+      }));
+
+      // (d) Save an immediate breadcrumb at the fresh position.
+      //     Reset the gate first so collectBreadcrumb doesn't skip it.
+      this.lastBreadcrumbSavedAt = 0;
+      await this.collectBreadcrumb(latitude, longitude, now);
+
+      console.log(`🍞 [LocationTracker] Resume breadcrumb saved at [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
+    } catch (err) {
+      console.warn('⚠️ [LocationTracker] Resume GPS fix failed:', err?.message);
+      // Even if the fix fails, still reset breadcrumb timer so the next interval tick tries again
+    }
+
+    // (e) Reset + restart breadcrumb interval from a clean slate.
+    //     The interval was potentially stale/dead from the background suspension.
     if (this.breadcrumbInterval) {
       clearInterval(this.breadcrumbInterval);
       this.breadcrumbInterval = null;
@@ -1246,19 +1295,17 @@ class LocationTracker {
         };
         await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now());
       } catch (e) {
-        console.warn('⚠️ [Breadcrumb Timer] Fresh GPS fix failed on resume:', e?.message);
+        console.warn('⚠️ [Breadcrumb Timer] GPS fix failed on interval tick:', e?.message);
       }
     }, this.breadcrumbSaveInterval);
 
-    console.log(`🍞 [LocationTracker] Breadcrumb timer restarted after resume`);
+    console.log(`🍞 [LocationTracker] Breadcrumb timer restarted — interval ${this.breadcrumbSaveInterval / 1000}s`);
 
-    // Step 4: If away for more than 30 seconds, signal the offline DB to resync deliveries
-    if (awayDurationMs > 30000) {
-      console.log(`📦 [LocationTracker] Away > 30s — signalling offline DB resync`);
-      window.dispatchEvent(new CustomEvent('driverResumedAfterAbsence', {
-        detail: { awayDurationMs, userId: this.currentUser?.id }
-      }));
-    }
+    // (f) Always signal useLiveBreadcrumbsSync to reload from DB so the polyline
+    //     reflects the fresh breadcrumb immediately (not just on the next delivery event).
+    window.dispatchEvent(new CustomEvent('driverResumedAfterAbsence', {
+      detail: { awayDurationMs, userId: this.currentUser?.id }
+    }));
   }
 
   getStatus() {
@@ -1308,7 +1355,7 @@ if (typeof document !== 'undefined') {
       locationTracker.isTracking &&
       locationTracker.driverStatus === 'on_duty' &&
       referenceTime > 0 &&
-      awayDuration > 15000
+      awayDuration > 5000
     ) {
       console.log(`🔄 [LocationTracker] App resumed after ${Math.round(awayDuration / 1000)}s away — resyncing GPS, breadcrumbs, and offline DB`);
       locationTracker._resumeAfterAbsence(awayDuration);

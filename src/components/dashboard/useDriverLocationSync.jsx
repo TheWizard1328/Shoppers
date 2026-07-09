@@ -269,7 +269,7 @@ export default function useDriverLocationSync({
       }
 
       const awayMs = Date.now() - (lastVisibilityHideRef.current || 0);
-      if (awayMs < 15000) return; // not gone long enough to need a restart
+      if (awayMs < 5000) return; // not gone long enough to need a restart
 
       console.log(`🔄 [useDriverLocationSync] App resumed after ${Math.round(awayMs / 1000)}s — reacquiring GPS watcher`);
 
