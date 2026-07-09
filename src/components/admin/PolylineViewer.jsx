@@ -28,6 +28,25 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+// ── Haversine distance calculator ────────────────────────────────────────────
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const calcPolylineDistanceKm = (points) => {
+  if (!points || points.length < 2) return 0;
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += haversineKm(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
+  }
+  return total;
+};
+
 // ── Polyline encoder (Google encoding) ──────────────────────────────────────
 const encodePolyline = (points) => {
   const encodeValue = (val) => {
@@ -628,6 +647,16 @@ export default function PolylineViewer({ users = [] }) {
                     <span className="text-slate-500">📏 {item.estimated_distance_km?.toFixed(2) || '?'} km</span>
                   </div>
                 )}
+                {isBreadcrumb && (() => {
+                  const pts = decodePolyline(item.encoded_polyline);
+                  const distKm = calcPolylineDistanceKm(pts);
+                  const distStr = distKm >= 1 ? `${distKm.toFixed(2)} km` : `${(distKm * 1000).toFixed(0)} m`;
+                  return (
+                    <div className="text-xs text-slate-500 mb-0.5">
+                      📏 {distStr} actual
+                    </div>
+                  );
+                })()}
                 {isBreadcrumb && (
                   <div className="flex items-center justify-between gap-1">
                     {item.transport_mode && <span>🚗 {item.transport_mode}</span>}
