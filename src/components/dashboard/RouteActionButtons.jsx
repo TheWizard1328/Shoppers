@@ -15,9 +15,59 @@ import { offlineDB } from "@/components/utils/offlineDatabase";
 import { invalidate } from "@/components/utils/dataManager";
 import { cancelAllDeferredOptimizations } from '@/components/utils/optimizationDebouncer';
 import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
-import { detectActiveCyclingSegment } from '@/components/utils/cyclingAwareOptimizer';
 
 const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
+
+// ── Resolve GPS coords for a delivery (mirrors backend getDeliveryCoords) ──
+function _resolveStopCoords(delivery, patients = [], stores = []) {
+  if (!delivery) return null;
+  if (delivery.is_cycling_marker) {
+    const lat = Number(delivery.cycling_latitude);
+    const lon = Number(delivery.cycling_longitude);
+    return (Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 && lon !== 0) ? { lat, lon } : null;
+  }
+  if (delivery.patient_id) {
+    const p = patients.find((x) => x?.id === delivery.patient_id);
+    if (p?.latitude != null) return { lat: Number(p.latitude), lon: Number(p.longitude) };
+  }
+  if (delivery.store_id) {
+    const s = stores.find((x) => x?.id === delivery.store_id);
+    if (s?.latitude != null) return { lat: Number(s.latitude), lon: Number(s.longitude) };
+  }
+  return null;
+}
+
+// ── Detect whether an active (unfinished) cycling segment exists ──────────────
+function detectActiveCyclingSegment(deliveries, patients = [], stores = []) {
+  if (!Array.isArray(deliveries) || deliveries.length === 0) return null;
+  const startMarker = deliveries.find((d) => d?.is_cycling_marker && (d.delivery_notes || '').toLowerCase().includes('start')) || null;
+  const endMarker   = deliveries.find((d) => d?.is_cycling_marker && (d.delivery_notes || '').toLowerCase().includes('end'))   || null;
+  if (!endMarker || FINISHED.has(endMarker.status)) return null;
+  const endMarkerCoords = _resolveStopCoords(endMarker, patients, stores);
+  if (!endMarkerCoords) return null;
+  const endMarkerOrder   = Number(endMarker.stop_order   ?? 99999);
+  const startMarkerOrder = startMarker ? Number(startMarker.stop_order ?? 0) : 0;
+  const unfinishedCyclingStops = deliveries
+    .filter((d) => d && !d.is_cycling_marker && !FINISHED.has(d.status) && d.transport_mode === 'cycling'
+      && Number(d.stop_order ?? 99999) > startMarkerOrder && Number(d.stop_order ?? 99999) < endMarkerOrder)
+    .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+  const unfinishedCyclingStopIds = unfinishedCyclingStops.map((d) => d.id);
+  const startMarkerUnfinished = startMarker && !FINISHED.has(startMarker.status);
+  let cyclingOriginStop = null, cyclingOriginCoords = null;
+  if (startMarkerUnfinished) {
+    cyclingOriginStop   = startMarker;
+    cyclingOriginCoords = _resolveStopCoords(startMarker, patients, stores);
+  } else if (unfinishedCyclingStops.length > 0) {
+    cyclingOriginStop   = unfinishedCyclingStops[0];
+    cyclingOriginCoords = _resolveStopCoords(cyclingOriginStop, patients, stores);
+  } else {
+    cyclingOriginStop   = endMarker;
+    cyclingOriginCoords = endMarkerCoords;
+  }
+  if (!cyclingOriginCoords) return null;
+  return { startMarker, endMarker, endMarkerCoords, cyclingOriginStop, cyclingOriginCoords, unfinishedCyclingStopIds };
+}
+
 
 /**
  * Run the FAB optimization client-side, cycling-aware:
