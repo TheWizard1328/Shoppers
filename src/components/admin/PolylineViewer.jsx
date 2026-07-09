@@ -329,11 +329,12 @@ export default function PolylineViewer({ users = [] }) {
   useEffect(() => { setVisibleCount(40); }, [viewMode, filteredPolylines.length, filteredBreadcrumbs.length, dateFrom, dateTo]);
 
   // ── Selection helpers ─────────────────────────────────────────────────────
-  const isAllSelected  = activeItems.length > 0 && selectedIds.size === activeItems.length;
-  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < activeItems.length;
+  const unsavedItems = activeItems.filter(i => !i.saved_to_route);
+  const isAllSelected  = unsavedItems.length > 0 && unsavedItems.every(i => selectedIds.has(i.id));
+  const isSomeSelected = selectedIds.size > 0 && !isAllSelected;
 
   const handleSelectAll = (checked) => {
-    setSelectedIds(checked ? new Set(activeItems.map(i => i.id)) : new Set());
+    setSelectedIds(checked ? new Set(unsavedItems.map(i => i.id)) : new Set());
   };
 
   const handleSelectFewCrumbs = (checked) => {
