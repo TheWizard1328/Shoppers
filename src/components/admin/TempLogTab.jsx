@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { clearAllTempLogs } from '@/functions/clearAllTempLogs';
@@ -398,6 +398,35 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     return driverIds.map((id) => ({ id, name: getDriverName(id) }));
   }, [logs]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Pinch-to-zoom state for the chart ───────────────────────────────────
+  const [chartZoom, setChartZoom] = useState(1);
+  const [chartOffset, setChartOffset] = useState(0); // horizontal pan offset as fraction 0..1
+  const pinchRef = useRef({ active: false, initDist: 0, initZoom: 1 });
+
+  const handleChartTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchRef.current = { active: true, initDist: Math.hypot(dx, dy), initZoom: chartZoom };
+    }
+  }, [chartZoom]);
+
+  const handleChartTouchMove = useCallback((e) => {
+    if (!pinchRef.current.active || e.touches.length !== 2) return;
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    const newZoom = Math.min(5, Math.max(1, pinchRef.current.initZoom * (dist / pinchRef.current.initDist)));
+    setChartZoom(newZoom);
+  }, []);
+
+  const handleChartTouchEnd = useCallback(() => {
+    pinchRef.current.active = false;
+    if (chartZoom <= 1.05) { setChartZoom(1); setChartOffset(0); }
+  }, [chartZoom]);
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
     return (
@@ -515,6 +544,14 @@ export default function TempLogTab({ drivers = [], currentUser }) {
               Fridge item on board
             </div>
           </div>
+          {/* Pinch-to-zoom wrapper */}
+          <div
+            style={{ overflow: 'hidden', touchAction: 'none', cursor: chartZoom > 1 ? 'grab' : 'default' }}
+            onTouchStart={handleChartTouchStart}
+            onTouchMove={handleChartTouchMove}
+            onTouchEnd={handleChartTouchEnd}
+          >
+          <div style={{ transform: `scaleX(${chartZoom})`, transformOrigin: 'left center', width: `${100 / chartZoom}%`, transition: pinchRef.current.active ? 'none' : 'transform 0.2s ease' }}>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -615,6 +652,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
             })}
             </LineChart>
           </ResponsiveContainer>
+          </div>{/* end zoom scaler */}
+          </div>{/* end pinch wrapper */}
         </div>
       }
 

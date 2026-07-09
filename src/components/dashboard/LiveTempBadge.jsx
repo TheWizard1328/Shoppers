@@ -68,9 +68,28 @@ export default function LiveTempBadge({
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   })();
 
+  const lastSavedTempRef  = useRef(null);
+  const lastSavedTimeRef  = useRef(0);
+  const MAX_SKIP_MS = 5 * 60 * 1000; // force a save at least every 5 minutes
+
   const saveTempToDb = useCallback(async (tempC) => {
     const driverId = currentUser?.id;
     if (!driverId || tempC === null) return;
+
+    const now = Date.now();
+    const tempUnchanged = lastSavedTempRef.current !== null && lastSavedTempRef.current === tempC;
+    const withinWindow  = (now - lastSavedTimeRef.current) < MAX_SKIP_MS;
+
+    // Skip if temp hasn't changed AND we saved within the last 5 minutes
+    if (tempUnchanged && withinWindow) {
+      // Still update the displayed temp without hitting the backend
+      const ts = localISOString();
+      if (prevTempRef.current !== null) setTempDirection('right');
+      prevTempRef.current = tempC;
+      setLastReading({ temperature_celsius: tempC, timestamp: ts });
+      return;
+    }
+
     try {
       await base44.functions.invoke('recordFridgeTemperature', {
         temperatureCelsius: tempC,
@@ -82,6 +101,8 @@ export default function LiveTempBadge({
         sensor_mac: workerSensorName || null,
       });
       const ts = localISOString();
+      lastSavedTempRef.current = tempC;
+      lastSavedTimeRef.current = Date.now();
       // Update direction indicator based on previous reading
       if (prevTempRef.current !== null) {
         if (tempC > prevTempRef.current) setTempDirection('up');
