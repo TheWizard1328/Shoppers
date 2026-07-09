@@ -182,20 +182,39 @@ export default function LiveTempBadge({
 
   // WS / custom event listeners
   useEffect(() => {
+    const eid = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+
     const onRecorded = (e) => {
       const { temperature, timestamp, driverId } = e.detail || {};
-      const eid = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
       if (driverId !== eid) return;
       setLastReading({ temperature_celsius: temperature, timestamp });
     };
+
+    // WebSocket-driven update from another device or server
+    const onRxTempLogsUpdated = (e) => {
+      const { data } = e.detail || {};
+      if (!data) return;
+      if (data.driver_id !== eid) return;
+      if (data.delivery_date && data.delivery_date !== selectedDate) return;
+      // Update offline DB record is already handled by realtimeSync; just refresh the badge
+      if (data.latest_reading) {
+        setLastReading(data.latest_reading);
+      } else {
+        // No latest_reading in slim payload — reload from offline DB
+        loadFromDb();
+      }
+    };
+
     const onVisibilityRestored = () => { loadFromDb(); };
     window.addEventListener('fridgeTempRecorded', onRecorded);
+    window.addEventListener('rxTempLogsUpdated', onRxTempLogsUpdated);
     window.addEventListener('appVisibilityRestored', onVisibilityRestored);
     return () => {
       window.removeEventListener('fridgeTempRecorded', onRecorded);
+      window.removeEventListener('rxTempLogsUpdated', onRxTempLogsUpdated);
       window.removeEventListener('appVisibilityRestored', onVisibilityRestored);
     };
-  }, [selectedDriverId, currentUser?.id, loadFromDb]);
+  }, [selectedDriverId, selectedDate, currentUser?.id, loadFromDb]);
 
   useEffect(() => () => {
     clearTimeout(pulseTimerRef.current);
