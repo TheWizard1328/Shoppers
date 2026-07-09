@@ -77,12 +77,14 @@ const createNumberedIcon = (color, label) => L.divIcon({
 const getMarkerIcon = (color, label) => createNumberedIcon(color, label ?? '');
 
 // ── Map auto-fit ────────────────────────────────────────────────────────────
-const MapUpdater = ({ allPoints }) => {
+// Only fits bounds when the set of selected/focused item IDs changes — not on every point edit.
+const MapUpdater = ({ allPoints, fitKey }) => {
   const map = useMap();
   useEffect(() => {
     const valid = (allPoints || []).filter(p => Array.isArray(p) && p.length === 2 && isFinite(p[0]) && isFinite(p[1]));
     if (valid.length > 0) map.fitBounds(L.latLngBounds(valid), { padding: [50, 50] });
-  }, [allPoints, map]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitKey]); // intentionally only re-fit when selection changes, not on point edits
   return null;
 };
 
@@ -986,7 +988,10 @@ export default function PolylineViewer({ users = [] }) {
                       isActive={isCleaningMode}
                       onAddPoint={handleAddPoint}
                     />
-                    <MapUpdater allPoints={allMapPoints} />
+                    <MapUpdater
+                      allPoints={allMapPoints}
+                      fitKey={mapSegments.map(s => s.id).join('-') + (focusedItem?.id || '')}
+                    />
                   </MapContainer>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center bg-slate-50 text-slate-400 gap-2">
