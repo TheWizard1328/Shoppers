@@ -1,0 +1,81 @@
+{
+  "name": "Company",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Company/chain name (e.g., 'Shoppers Drug Mart', 'Independent Drugstore')"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "Company status"
+    },
+    "logo_url": {
+      "type": "string",
+      "description": "URL to company logo image"
+    },
+    "favicon_url": {
+      "type": "string",
+      "description": "URL to favicon"
+    },
+    "primary_color": {
+      "type": "string",
+      "description": "Primary brand color in hex format (e.g., #FF6B6B)"
+    },
+    "secondary_color": {
+      "type": "string",
+      "description": "Secondary brand color in hex format"
+    },
+    "accent_color": {
+      "type": "string",
+      "description": "Accent color in hex format"
+    },
+    "contact_name": {
+      "type": "string",
+      "description": "Primary contact name"
+    },
+    "contact_email": {
+      "type": "string",
+      "description": "Primary contact email address"
+    },
+    "contact_phone": {
+      "type": "string",
+      "description": "Primary contact phone number"
+    },
+    "website_url": {
+      "type": "string",
+      "description": "Company website URL"
+    },
+    "support_email": {
+      "type": "string",
+      "description": "Support email address"
+    },
+    "support_phone": {
+      "type": "string",
+      "description": "Support phone number"
+    },
+    "store_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Store IDs associated with this company"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "Primary timezone for the company"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Primary settings notes and internal company notes"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

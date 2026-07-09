@@ -1,0 +1,156 @@
+{
+  "name": "DemoPatient",
+  "type": "object",
+  "properties": {
+    "dispatcher_id": {
+      "type": "string"
+    },
+    "store_id": {
+      "type": "string"
+    },
+    "full_name": {
+      "type": "string"
+    },
+    "patient_id": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "unit_number": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "phone_secondary": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "latitude": {
+      "type": "number"
+    },
+    "longitude": {
+      "type": "number"
+    },
+    "time_window_start": {
+      "type": "string"
+    },
+    "time_window_end": {
+      "type": "string"
+    },
+    "distance_from_store": {
+      "type": "number"
+    },
+    "last_delivery_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active"
+    },
+    "mailbox_ok": {
+      "type": "boolean",
+      "default": false
+    },
+    "call_upon_arrival": {
+      "type": "boolean",
+      "default": false
+    },
+    "ring_bell": {
+      "type": "boolean",
+      "default": true
+    },
+    "dont_ring_bell": {
+      "type": "boolean",
+      "default": false
+    },
+    "back_door": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_daily": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_mon": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_tue": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_wed": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_thu": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_fri": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_sat": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_sun": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_biweekly": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_x4": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_x4_day": {
+      "type": "string",
+      "enum": [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun"
+      ]
+    },
+    "recurring_monthly": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_bimonthly": {
+      "type": "boolean",
+      "default": false
+    },
+    "signature_image_url": {
+      "type": "string"
+    },
+    "is_demo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Flag to indicate if this is demo data"
+    }
+  },
+  "required": [
+    "full_name",
+    "address"
+  ]
+}

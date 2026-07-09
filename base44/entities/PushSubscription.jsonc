@@ -1,9 +1,10 @@
 {
+  "name": "PushSubscription",
   "type": "object",
   "properties": {
     "user_id": {
       "type": "string",
-      "description": "The app user_id (AppUser.id) this subscription belongs to"
+      "description": "The app user_id (auth User.id) this subscription belongs to"
     },
     "endpoint": {
       "type": "string",
@@ -19,12 +20,12 @@
     },
     "user_agent": {
       "type": "string",
-      "description": "Browser/device user agent string at time of subscription (for debugging stale subscriptions)"
+      "description": "Browser/device user agent string at time of subscription"
     },
     "last_used_at": {
       "type": "string",
       "format": "date-time",
-      "description": "Timestamp of the last successful push sent to this subscription"
+      "description": "Timestamp of the last successful push sent"
     }
   },
   "required": [
@@ -32,6 +33,5 @@
     "endpoint",
     "p256dh_key",
     "auth_key"
-  ],
-  "name": "PushSubscription"
+  ]
 }

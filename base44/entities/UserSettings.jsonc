@@ -1,0 +1,140 @@
+{
+  "name": "UserSettings",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Reference to the user"
+    },
+    "device_settings_profiles": {
+      "type": "object",
+      "description": "Device-specific settings indexed by device_identifier",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "device_identifier": {
+            "type": "string",
+            "description": "UUID of the device"
+          },
+          "device_type": {
+            "type": "string",
+            "enum": [
+              "Mobile",
+              "Desktop",
+              "Tablet"
+            ],
+            "description": "Device type - Mobile, Desktop, or Tablet"
+          },
+          "fab_map_cycle_phase": {
+            "type": "number",
+            "default": 1,
+            "description": "Map view cycle phase (1, 2, or 3)"
+          },
+          "show_all_driver_markers": {
+            "type": "boolean",
+            "default": false,
+            "description": "Dashboard 'Show All' checkbox state"
+          },
+          "sidebar_width": {
+            "type": "number",
+            "default": 240,
+            "description": "Width of the left navigation sidebar in pixels"
+          },
+          "right_panel_width": {
+            "type": "number",
+            "default": 350,
+            "description": "Width of the right side panel/slider in pixels"
+          },
+          "theme_preference": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark",
+              "auto"
+            ],
+            "default": "auto",
+            "description": "Theme preference (light, dark, or auto based on system)"
+          },
+          "selected_driver_id": {
+            "type": "string",
+            "description": "Last selected driver ID in the Dashboard dropdown"
+          },
+          "selected_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Last selected date in the Dashboard date picker"
+          },
+          "admin_utilities_year": {
+            "type": "string",
+            "description": "Last selected year filter in Admin Utilities"
+          },
+          "admin_utilities_month": {
+            "type": "string",
+            "description": "Last selected month filter in Admin Utilities"
+          },
+          "admin_utilities_driver": {
+            "type": "string",
+            "description": "Last selected driver filter in Admin Utilities"
+          },
+          "breadcrumbs_enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether GPS breadcrumb tracking is enabled for this device"
+          },
+          "last_active_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last time this device profile was active"
+          }
+        }
+      }
+    },
+    "global_settings": {
+      "type": "object",
+      "description": "Global settings synced across all devices",
+      "properties": {
+        "units_of_measurement": {
+          "type": "string",
+          "enum": [
+            "miles",
+            "kilometers"
+          ],
+          "default": "kilometers",
+          "description": "Preferred units for distance display"
+        },
+        "notifications_enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether notifications are enabled"
+        },
+        "notifications_sound": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether notification sounds are enabled"
+        },
+        "notifications_vibration": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether notification vibration is enabled"
+        }
+      }
+    },
+    "active_device_identifier": {
+      "type": "string",
+      "description": "The device_identifier of the currently active device"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the settings record was initially created"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the settings record was last updated"
+    }
+  },
+  "required": [
+    "user_id"
+  ]
+}

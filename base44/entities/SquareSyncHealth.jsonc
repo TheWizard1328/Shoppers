@@ -1,0 +1,60 @@
+{
+  "name": "SquareSyncHealth",
+  "type": "object",
+  "properties": {
+    "sync_name": {
+      "type": "string",
+      "description": "Name of the sync run"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "idle",
+        "running",
+        "success",
+        "warning",
+        "error"
+      ],
+      "description": "Current sync status"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the sync started"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the sync finished"
+    },
+    "request_count": {
+      "type": "number",
+      "description": "Total Square API requests made"
+    },
+    "retry_count": {
+      "type": "number",
+      "description": "Total retries performed"
+    },
+    "rate_limit_hits": {
+      "type": "number",
+      "description": "Number of rate limit responses seen"
+    },
+    "error_count": {
+      "type": "number",
+      "description": "Number of errors recorded"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Short human readable summary"
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Extra sync metadata"
+    }
+  },
+  "required": [
+    "sync_name",
+    "status"
+  ]
+}

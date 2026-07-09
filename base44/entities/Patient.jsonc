@@ -1,0 +1,182 @@
+{
+  "name": "Patient",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "ID of the store this patient is assigned to"
+    },
+    "full_name": {
+      "type": "string",
+      "description": "Full name of the patient"
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "Custom patient identifier from the pharmacy system"
+    },
+    "address": {
+      "type": "string",
+      "description": "Full delivery address"
+    },
+    "unit_number": {
+      "type": "string",
+      "description": "Apartment, suite, or unit number"
+    },
+    "email": {
+      "type": "string",
+      "description": "Patient email address"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Patient phone number"
+    },
+    "phone_secondary": {
+      "type": "string",
+      "description": "Secondary phone number for the patient"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Patient notes (allergies, delivery preferences, etc.)"
+    },
+    "latitude": {
+      "type": "number",
+      "description": "Address latitude for mapping and distance calculation"
+    },
+    "longitude": {
+      "type": "number",
+      "description": "Address longitude for mapping and distance calculation"
+    },
+    "time_window_start": {
+      "type": "string",
+      "description": "Start of the preferred delivery time window (e.g., 10:00)"
+    },
+    "time_window_end": {
+      "type": "string",
+      "description": "End of the preferred delivery time window (e.g., 14:00)"
+    },
+    "distance_from_store": {
+      "type": "number",
+      "description": "Distance in km from the assigned store"
+    },
+    "last_delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "The date of the patient's last delivery"
+    },
+    "last_login_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the patient's most recent successful portal login"
+    },
+    "portal_login_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Total number of successful patient portal logins"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "Patient status"
+    },
+    "mailbox_ok": {
+      "type": "boolean",
+      "default": false
+    },
+    "call_upon_arrival": {
+      "type": "boolean",
+      "default": false
+    },
+    "ring_bell": {
+      "type": "boolean",
+      "default": true
+    },
+    "dont_ring_bell": {
+      "type": "boolean",
+      "default": false
+    },
+    "back_door": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this patient has recurring deliveries"
+    },
+    "recurring_daily": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_mon": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_tue": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_wed": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_thu": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_fri": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_sat": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_sun": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_biweekly": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_x4": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_weekly_x4_day": {
+      "type": "string",
+      "enum": [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun"
+      ],
+      "description": "Day of the week for Weekly x4 deliveries"
+    },
+    "recurring_monthly": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring_bimonthly": {
+      "type": "boolean",
+      "default": false,
+      "description": "Delivery every 2 months"
+    },
+    "signature_image_url": {
+      "type": "string",
+      "description": "URL to the patient's saved proof of delivery signature"
+    }
+  },
+  "required": [
+    "full_name",
+    "address"
+  ],
+  "rls": {}
+}

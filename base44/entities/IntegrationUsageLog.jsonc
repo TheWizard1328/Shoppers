@@ -1,0 +1,68 @@
+{
+  "name": "IntegrationUsageLog",
+  "type": "object",
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the integration call was made"
+    },
+    "integration_name": {
+      "type": "string",
+      "description": "Integration package name"
+    },
+    "operation_name": {
+      "type": "string",
+      "description": "Specific integration operation invoked"
+    },
+    "feature": {
+      "type": "string",
+      "description": "Task or feature that triggered the integration call"
+    },
+    "app_user_id": {
+      "type": "string",
+      "description": "App user identifier that triggered the call"
+    },
+    "app_user_name": {
+      "type": "string",
+      "description": "App user display name that triggered the call"
+    },
+    "auth_user_id": {
+      "type": "string",
+      "description": "Authenticated user identifier"
+    },
+    "duration_ms": {
+      "type": "number",
+      "description": "How long the integration call took in milliseconds"
+    },
+    "success": {
+      "type": "boolean",
+      "description": "Whether the integration call succeeded"
+    },
+    "estimated_credits_used": {
+      "type": "number",
+      "default": 1,
+      "description": "Estimated credit units consumed by this tracked call"
+    },
+    "actual_platform_credits_used": {
+      "type": "number",
+      "description": "Optional actual platform credit amount when available"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Error message when the call failed"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional tracking metadata",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "timestamp",
+    "integration_name",
+    "operation_name",
+    "success",
+    "estimated_credits_used"
+  ]
+}
