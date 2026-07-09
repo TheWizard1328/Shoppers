@@ -569,10 +569,10 @@ export default function PolylineViewer({ users = [] }) {
           : Promise.resolve(),
       ]);
       if (res?.data?.success) {
-        toast.success(`Stop #${item.stop_order} delivery polyline updated.`);
+        toast.success(`Stop #${item.stop_order} saved to delivery route & breadcrumb.`);
         pendingCleanRef.current = null;
         setBreadcrumbs(prev => prev.map(b =>
-          b.id === item.id ? { ...b, encoded_polyline: polyToSave, point_count: points.length } : b
+          b.id === item.id ? { ...b, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true } : b
         ));
         setIsCleaningMode(false);
         setCleanedPoints([]);
@@ -634,6 +634,9 @@ export default function PolylineViewer({ users = [] }) {
                 <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className="text-xs flex-shrink-0 ml-auto">
                   {isBreadcrumb ? '🛤 BC' : '🗺 Poly'}
                 </Badge>
+                {isBreadcrumb && item.saved_to_route && (
+                  <Badge className="text-xs flex-shrink-0 bg-green-100 text-green-700 border-0">✓ Saved</Badge>
+                )}
               </div>
               <div className="text-xs text-slate-600 space-y-0.5">
                 <div className="flex items-center justify-between gap-2">

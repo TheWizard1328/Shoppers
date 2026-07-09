@@ -35,6 +35,11 @@
     "point_count": {
       "type": "number",
       "description": "Number of GPS points encoded in this record (for quick reference without decoding)"
+    },
+    "saved_to_route": {
+      "type": "boolean",
+      "default": false,
+      "description": "True once this breadcrumb's cleaned polyline has been saved back to the Delivery route record"
     }
   },
   "required": [
