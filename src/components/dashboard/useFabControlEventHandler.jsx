@@ -19,6 +19,10 @@ export function useFabControlEventHandler({
   setMapViewTrigger,
   // Optional: called when ON_DUTY_FROM_TOGGLE fires so the manual reoptimize runs
   onOnDutyFromToggle,
+  // Ref set to true when user manually pans/zooms — suppresses auto re-lock in handleMapViewCycle
+  mapUserUnlockedRef,
+  // Ref updated so proximity snap suppression (300s) kicks in after manual unlock
+  lastUserInteractionRef,
 }) {
   // Keep a ref so the stable useEffect([]) closure always calls the latest callback
   const onOnDutyFromToggleRef = useRef(onOnDutyFromToggle);
@@ -136,10 +140,17 @@ export function useFabControlEventHandler({
           break;
         }
         case 'USER_MAP_INTERACTION': {
-          // Double-tap on map in phases 2/3 → unlock FAB so user can pan freely
+          // User manually panned/zoomed while in phase 2/3 — unlock FAB and enter free-pan mode.
           clearTimer();
           isMapViewLockedRef.current = false;
           setIsMapViewLocked(false);
+          // CRITICAL: Set the free-pan flag so handleMapViewCycle's state machine does NOT
+          // immediately re-lock phase 2/3 on the next setMapViewTrigger tick.
+          if (mapUserUnlockedRef) mapUserUnlockedRef.current = true;
+          // CRITICAL: Update lastUserInteractionRef so the proximity snap 5-min suppression
+          // engages — prevents the proximity snap from re-locking phase 2 while driver is
+          // still within 100m of the stop they just freed from.
+          if (lastUserInteractionRef) lastUserInteractionRef.current = Date.now();
           // Signal to the FAB to also update its visual "locked" appearance immediately
           fabControlEvents.publish({ type: 'FAB_MAP_UNLOCKED_BY_USER_INTERACTION' });
           break;

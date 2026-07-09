@@ -108,6 +108,9 @@ function Dashboard() {
   const [driverRoutes, setDriverRoutes] = useState([]);
   const lastProximitySnapTimeRef = useRef(0);
   const lastUserInteractionRef = useRef(0);
+  // Set to true when user manually pans/zooms while in phase 2/3 — prevents handleMapViewCycle
+  // from immediately re-locking back to the phase. Cleared when driver taps FAB to cycle.
+  const mapUserUnlockedRef = useRef(false);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
   const [currentToNextPolyline, setCurrentToNextPolyline] = useState(null);
   const [hasRateLimitError, setHasRateLimitError] = useState(false);
@@ -332,7 +335,7 @@ function Dashboard() {
   useEffect(() => { if (!isMobile) { setStatsPanelOpacity(1); return; } if (isExpanded) { setStatsPanelOpacity(1); if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } } else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
   useEffect(() => { if (!isMobile || !isDataLoaded) return; const t = setTimeout(() => { if (!isExpanded) setStatsPanelOpacity(0.5); }, 5000); return () => clearTimeout(t); }, [isDataLoaded, isExpanded, isMobile]);
   const handleReoptimizeRouteRef = useRef(null);
-  useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger, onOnDutyFromToggle: () => handleReoptimizeRouteRef.current?.() });
+  useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, mapUserUnlockedRef, lastUserInteractionRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger, onOnDutyFromToggle: () => handleReoptimizeRouteRef.current?.() });
   useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, selectedDate, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({ currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally });
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });
@@ -583,6 +586,9 @@ function Dashboard() {
     const goPhase = (nextPhase, shouldLock, unlockMs = null) => {
       if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
       mapLockExpiresAtRef.current = null;
+      // CRITICAL: Whenever goPhase fires for a real cycle advance, clear the free-pan flag.
+      // This means the driver explicitly tapped the FAB — re-enable auto phase follow.
+      mapUserUnlockedRef.current = false;
       mapViewPhaseRef.current = nextPhase;
       isMapViewLockedRef.current = shouldLock;
       pendingPhaseRef.current = nextPhase;
@@ -631,9 +637,17 @@ function Dashboard() {
     const isCurrentlyLocked = isMapViewLockedRef.current;
     if (phase === 1 && lockExpired)  { goPhase(1, true, p1LockMs); return; }
     if (phase === 1 && !lockExpired) { goPhase(p2Available ? 2 : p3Available ? 3 : 1, true, hasAnyPhase ? null : p1LockMs); return; }
-    if (phase === 2 && !isCurrentlyLocked) { goPhase(2, true); return; } // re-activate (was unlocked by user pan)
+    // CRITICAL: If the user manually panned/zoomed to break free from phase 2/3, do NOT
+    // re-lock. mapUserUnlockedRef stays true until the driver explicitly taps the FAB.
+    if (phase === 2 && !isCurrentlyLocked) {
+      if (mapUserUnlockedRef.current) return; // user chose free-pan — respect it
+      goPhase(2, true); return; // re-activate (was unlocked by something else, e.g. marker click)
+    }
     if (phase === 2 && isCurrentlyLocked)  { goPhase(p3Available ? 3 : 1, true, p3Available ? null : p1LockMs); return; }
-    if (phase === 3 && !isCurrentlyLocked) { goPhase(3, true); return; } // re-activate (was unlocked by user pan)
+    if (phase === 3 && !isCurrentlyLocked) {
+      if (mapUserUnlockedRef.current) return; // user chose free-pan — respect it
+      goPhase(3, true); return;
+    }
     goPhase(1, true, p1LockMs);
   }, [isDriver, isDispatcher, isAdmin, currentUser, deliveriesWithStopOrder,
       selectedDriverId, appUsers, driverLocation, allDriverLocations, isPrimaryDevice]);
