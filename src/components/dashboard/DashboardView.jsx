@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, memo } from "react";
 import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -14,7 +14,7 @@ import FABControls from "@/components/dashboard/FABControls";
 import LiveTempBadge from "@/components/dashboard/LiveTempBadge";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
 
-export default function DashboardView({
+function DashboardView({
   // User & roles
   currentUser, isDriver, isAdmin, isDispatcher, isMobile,
   // Data
@@ -530,3 +530,5 @@ export default function DashboardView({
     </div>
   );
 }
+
+export default memo(DashboardView);

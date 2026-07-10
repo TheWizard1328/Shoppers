@@ -1689,7 +1689,7 @@ useEffect(() => {
     };
   }, [selectedDriverId, selectedDate]);
 
-  const handleAIToggle = () => {
+  const handleAIToggle = useCallback(() => {
     const newValue = !isAIEnabled;
     setIsAIEnabled(newValue);
     localStorage.setItem('rxdeliver_ai_enabled', String(newValue));
@@ -1698,9 +1698,9 @@ useEffect(() => {
       setShowAIAssistant(false);
       setHasUnreadAIAlerts(false);
     }
-  };
+  }, [isAIEnabled]);
 
-  const handleMarkerClick = (delivery) => {
+  const handleMarkerClick = useCallback((delivery) => {
     // Minimize any expanded stop card when tapping on a map marker
     setSelectedCardId(null);
 
@@ -1733,7 +1733,7 @@ useEffect(() => {
         }));
       }, 400);
     }
-  };
+  }, [isDispatcher, isAdmin, currentUserId, currentUserStoreIds]);
 
   // Collapse expanded stop card when Patient History panel is closed
   useEffect(() => {
@@ -1936,7 +1936,7 @@ useEffect(() => {
     }
   };
 
-  const handleEditDelivery = (delivery) => {
+  const handleEditDelivery = useCallback((delivery) => {
     // Pause any pending debounced optimization for this driver+date
     // so we don't fire mid-edit if the user is chaining edits quickly.
     if (delivery?.driver_id && delivery?.delivery_date) {
@@ -1946,20 +1946,20 @@ useEffect(() => {
     }
     setEditingDelivery(delivery || null);
     setShowDeliveryForm(true);
-  };
+  }, []);
 
-  const handleEditPatient = (patient) => {
+  const handleEditPatient = useCallback((patient) => {
     setEditingPatient(patient);
     setPatientFormCallback(null);
     setShowPatientForm(true);
-  };
+  }, []);
 
-  const handleCreatePatientFromDelivery = (callback, initialData = null, mode = null) => {
+  const handleCreatePatientFromDelivery = useCallback((callback, initialData = null, mode = null) => {
     setEditingPatient(initialData);
     setPatientFormCallback(() => callback);
     setPatientFormMode(mode); // 'duplicate' | 'newAddress' | null
     setShowPatientForm(true);
-  };
+  }, []);
 
   const handleSavePatient = async (patientData) => {
     setShowPatientForm(false);
@@ -2065,7 +2065,7 @@ useEffect(() => {
     });
   };
 
-  const handleNotesUpdate = (deliveryId, notes) => _handleNotesUpdate(deliveryId, notes, { refreshData });
+  const handleNotesUpdate = useCallback((deliveryId, notes) => _handleNotesUpdate(deliveryId, notes, { refreshData }), [refreshData]);
   const handleCODUpdate = (deliveryId, codPayments) => _handleCODUpdate(deliveryId, codPayments, { deliveriesWithStopOrder, updateDeliveriesLocally, setIsEntityUpdating });
 
   const handleCreateReturn = (args) => _handleCreateReturn(args, { currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries });
