@@ -14,8 +14,10 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin, isDriver as checkIsDriver } from '@/components/utils/userRoles';
 import { useInkbirdWorker } from '@/components/common/useInkbirdWorker';
 
-const TEMP_MIN      = 2;
-const TEMP_MAX      = 8;
+// Fridge temp defaults — overridden at runtime by AppSettings.fridge_temp_settings
+const DEFAULT_SAFE_MIN     = 2;
+const DEFAULT_SAFE_MAX     = 6;
+const DEFAULT_DANGER_BUFFER = 2;
 const DB_POLL_MS    = 60000;
 const DOUBLE_TAP_MS = 2000;
 
@@ -62,6 +64,25 @@ export default function LiveTempBadge({
 }) {
   const adminMode  = isAdmin(currentUser);
   const driverMode = checkIsDriver(currentUser);
+
+  // ── Fridge temp thresholds — loaded from AppSettings ──────────────────────
+  const [fridgeCfg, setFridgeCfg] = React.useState({
+    safe_min: DEFAULT_SAFE_MIN,
+    safe_max: DEFAULT_SAFE_MAX,
+    danger_buffer: DEFAULT_DANGER_BUFFER,
+  });
+  useEffect(() => {
+    base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
+      .then((s) => {
+        const ft = s?.[0]?.setting_value?.fridge_temp_settings;
+        if (ft) setFridgeCfg({
+          safe_min:      typeof ft.safe_min      === 'number' ? ft.safe_min      : DEFAULT_SAFE_MIN,
+          safe_max:      typeof ft.safe_max      === 'number' ? ft.safe_max      : DEFAULT_SAFE_MAX,
+          danger_buffer: typeof ft.danger_buffer === 'number' ? ft.danger_buffer : DEFAULT_DANGER_BUFFER,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const todayLocal = (() => {
     const d = new Date(), pad = n => String(n).padStart(2, '0');
@@ -257,8 +278,15 @@ export default function LiveTempBadge({
         ? bleTemp
         : (lastReading?.temperature_celsius ?? null));
 
-  const isOut     = displayTemp !== null && (displayTemp < TEMP_MIN || displayTemp > TEMP_MAX);
-  const isWarning = displayTemp !== null && !isOut && (displayTemp < TEMP_MIN + 1 || displayTemp > TEMP_MAX - 1);
+  // Use settings-loaded thresholds with float-safe comparison (no integer rounding).
+  // safe zone:    [safe_min, safe_max]   — inclusive on both ends
+  // warning zone: [safe_min - danger_buffer, safe_min) ∪ (safe_max, safe_max + danger_buffer]
+  // out of range: below (safe_min - danger_buffer) or above (safe_max + danger_buffer)
+  const { safe_min, safe_max, danger_buffer } = fridgeCfg;
+  const outLow  = safe_min - danger_buffer;
+  const outHigh = safe_max + danger_buffer;
+  const isOut     = displayTemp !== null && (displayTemp < outLow || displayTemp > outHigh);
+  const isWarning = displayTemp !== null && !isOut && (displayTemp < safe_min || displayTemp > safe_max);
   const isLive    = showLiveBle && bleStatus === 'active' && bleTemp !== null;
 
   // ── Tap handler ─────────────────────────────────────────────────────────
