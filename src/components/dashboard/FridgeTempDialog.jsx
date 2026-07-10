@@ -7,8 +7,18 @@ import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 
-const TEMP_MIN = 2;
-const TEMP_MAX = 6;
+// Defaults — overridden at runtime from AppSettings.fridge_temp_settings
+let _ftdMin = 2, _ftdMax = 6, _ftdBuffer = 2;
+(async () => {
+  try {
+    const { base44: b44 } = await import('@/api/base44Client');
+    const s = await b44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+    const ft = s?.[0]?.setting_value?.fridge_temp_settings;
+    if (typeof ft?.safe_min      === 'number') _ftdMin    = ft.safe_min;
+    if (typeof ft?.safe_max      === 'number') _ftdMax    = ft.safe_max;
+    if (typeof ft?.danger_buffer === 'number') _ftdBuffer = ft.danger_buffer;
+  } catch (_) {}
+})();
 const TEMP_PREFERRED = 4;
 const READING_INTERVAL_MINUTES = 60;
 const PROMPT_THRESHOLD_MINUTES = 50; // Prompt if ≥50 min since last reading
@@ -229,8 +239,10 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
     setShowDialog(false);
   };
 
-  const isOutOfRange = tempValue < TEMP_MIN || tempValue > TEMP_MAX;
-  const tempColor = isOutOfRange ? 'text-red-600' : tempValue === TEMP_PREFERRED ? 'text-emerald-600' : 'text-blue-600';
+  // red = outside full danger band; yellow = outside safe zone but within buffer; green = within safe zone
+  const isOutOfRange   = tempValue < (_ftdMin - _ftdBuffer) || tempValue > (_ftdMax + _ftdBuffer);
+  const isWarningRange = !isOutOfRange && (tempValue < _ftdMin || tempValue > _ftdMax);
+  const tempColor = isOutOfRange ? 'text-red-600' : isWarningRange ? 'text-yellow-600' : 'text-emerald-600';
   const bgColor = isOutOfRange ? 'bg-red-50 border-red-300' : 'bg-cyan-50 border-cyan-300';
 
   if (!isDriver || activeFridgeDeliveries.length === 0) return null;
@@ -283,7 +295,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
                 <div className={`text-4xl font-bold tabular-nums ${tempColor}`}>
                   {tempValue}°C
                 </div>
-                <div className="text-xs text-slate-500 mt-0.5">Target: {TEMP_MIN}–{TEMP_MAX}°C</div>
+                <div className="text-xs text-slate-500 mt-0.5">Target: {_ftdMin}–{_ftdMax}°C</div>
               </div>
 
               <button
@@ -310,7 +322,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
             {isOutOfRange && (
               <div className="flex items-center gap-1.5 text-red-700 text-xs font-semibold mb-2 bg-red-100 rounded-lg px-2 py-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                Outside safe range ({TEMP_MIN}–{TEMP_MAX}°C)! Please check cooler.
+                Outside safe range ({_ftdMin}–{_ftdMax}°C)! Please check cooler.
               </div>
             )}
 
