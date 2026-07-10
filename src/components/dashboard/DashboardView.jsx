@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, memo } from "react";
+import { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
 import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -100,7 +100,7 @@ function DashboardView({
   const [selectedDeliveryIds, setSelectedDeliveryIds] = useState({});
   const initialFabRetriggeredRef = useRef(false);
 
-  const handleStopCardSelectionChange = (deliveryId, selected) => {
+  const handleStopCardSelectionChange = useCallback((deliveryId, selected) => {
     setSelectedDeliveryIds((current) => {
       const next = { ...current };
       if (!deliveryId) return next;
@@ -108,7 +108,7 @@ function DashboardView({
       else delete next[deliveryId];
       return next;
     });
-  };
+  }, []);
   useEffect(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const hasDeliveriesForDate = Array.isArray(deliveries) && deliveries.some(d => d && d.delivery_date === dateStr);
