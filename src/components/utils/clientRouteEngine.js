@@ -785,38 +785,36 @@ export async function optimizeRouteClientSide({
   }
 
   // ── Re-insert cycling markers at their correct positions ──────────────────
-  // Markers are fixed anchors excluded from HERE sequencing. We re-insert them
-  // based on how many non-marker stops originally came BEFORE each marker
-  // (by original stop_order), so the cycling stops end up sandwiched between
-  // the start and end markers regardless of how HERE reordered them.
+  // Start marker → insert BEFORE all cycling-mode stops (or at position 0 if none).
+  // End marker   → insert AFTER all cycling-mode stops (or at the end if none).
+  // This is purely positional — we do NOT use the original stop_order values because
+  // those can be stale/mismatched after HERE resequencing.
   if (cyclingMarkers.length > 0) {
-    // Sort markers so we insert them in stop_order sequence (start before end)
     const sortedMarkers = [...cyclingMarkers].sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
-
-    // Count of non-cycling-marker incomplete stops that had stop_order < markerOrder in the original list
-    const allIncompleteNonMarkers = incompleteDeliveries.filter(d => !d.is_cycling_marker);
 
     for (const marker of sortedMarkers) {
       const coords = getDeliveryCoords(marker, patientMap, storeMap, ispSourceMap);
       if (!coords) continue;
       const markerStop = { delivery: marker, lat: coords.lat, lng: coords.lng, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity };
 
-      const markerOrder = Number(marker.stop_order) || 99999;
-      // Count stops that originally preceded this marker
-      const stopsBeforeMarker = allIncompleteNonMarkers.filter(d => (Number(d.stop_order) || 0) < markerOrder).length;
+      const notes = (marker.delivery_notes || '').toLowerCase();
+      const isEndMarker = notes.includes('end');
 
-      // Insert after that many non-marker entries in the current routeStops
-      let nonMarkerCount = 0;
-      let insertIndex = routeStops.length; // default: append
-      for (let ri = 0; ri < routeStops.length; ri++) {
-        if (!routeStops[ri].delivery.is_cycling_marker) nonMarkerCount++;
-        if (nonMarkerCount >= stopsBeforeMarker) {
-          insertIndex = ri + 1;
-          break;
+      if (isEndMarker) {
+        // End marker: insert AFTER the last cycling-mode stop in routeStops, or append at end.
+        let lastCyclingIdx = -1;
+        for (let ri = 0; ri < routeStops.length; ri++) {
+          if (routeStops[ri].delivery.transport_mode === 'cycling' && !routeStops[ri].delivery.is_cycling_marker) {
+            lastCyclingIdx = ri;
+          }
         }
+        routeStops.splice(lastCyclingIdx + 1, 0, markerStop);
+      } else {
+        // Start marker: insert BEFORE the first cycling-mode stop in routeStops, or at position 0.
+        let firstCyclingIdx = routeStops.findIndex(s => s.delivery.transport_mode === 'cycling' && !s.delivery.is_cycling_marker);
+        if (firstCyclingIdx === -1) firstCyclingIdx = 0;
+        routeStops.splice(firstCyclingIdx, 0, markerStop);
       }
-
-      routeStops.splice(insertIndex, 0, markerStop);
     }
     console.log(`[clientRouteEngine] ${source} — re-inserted ${cyclingMarkers.length} cycling marker(s) into routeStops (total=${routeStops.length})`);
   }
@@ -978,20 +976,11 @@ export async function optimizeRouteClientSide({
     return formatMinutesToTime(baseMinutes + 5);
   };
 
-  // Pre-compute sequential stop_order for non-marker stops, leaving marker orders intact.
-  // We walk activeStops in order; each non-marker stop gets the next counter slot,
-  // but counter slots already "occupied" by marker stop_orders are skipped.
-  const markerOrders = new Set(
-    activeStops.filter(s => s.is_cycling_marker).map(s => Number(s.stop_order || 0)).filter(n => n > 0)
-  );
-  let nonMarkerCounter = startOrder;
-  const computedStopOrders = activeStops.map((stop) => {
-    if (stop.is_cycling_marker) return Number(stop.stop_order || 1);
+  // Assign stop_order sequentially based on position in the final ordered array.
+  // Every stop (including cycling markers) gets a clean sequential number.
+  const computedStopOrders = activeStops.map((stop, i) => {
     if (preserveExistingOrder) return Number(stop.stop_order || 1);
-    nonMarkerCounter++;
-    // Skip any counter values that are reserved by a cycling marker
-    while (markerOrders.has(nonMarkerCounter)) nonMarkerCounter++;
-    return nonMarkerCounter;
+    return startOrder + i + 1;
   });
 
   for (let i = 0; i < activeStops.length; i++) {
