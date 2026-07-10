@@ -2398,7 +2398,7 @@ useEffect(() => {
     setRouteNotification, setIsCalendarOpen, setCalendarMonth, setShowRouteSummary,
     setSummaryDriver, setSnapshotData, setIsSnapshotModeActive, setRenderSequence,
     setDriverRoutes, setBreadcrumbsData, setCurrentToNextPolyline,
-    handleStatsPanelInteraction, handleCardInteraction,
+    handleStatsPanelInteraction, handleCardInteraction, retractClustersRef,
     setIsEntityUpdating, handleDateChange, handleDriverChange, handleMapViewCycle,
     handleCardClick, handleMarkerClick, handleStatusUpdate, handleStartDelivery,
     handleSaveDelivery, handleEditDelivery, handleDeleteDelivery, handleRestartDelivery,
