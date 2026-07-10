@@ -75,29 +75,34 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   }
 
   // ── Android Mobile Web format — Android Intent URI ────────────────────
-  // Bare launch: same CHARGE action + client_id/callback, but NO amount/currency/tender.
-  // Square POS accepts this and opens to its main screen so the driver can set their location.
-  const parts = [
-    'action=com.squareup.pos.action.CHARGE',
-    'package=com.squareup',
-    `S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(resolvedCallbackUrl)}`,
-    `S.com.squareup.pos.CLIENT_ID=${encodeURIComponent(squareAppId)}`,
-    'S.com.squareup.pos.API_VERSION=v2.0',
-  ];
-  if (!bare) {
+  // Bare launch: use android.intent.action.MAIN with just the package — this simply
+  // brings the Square POS app to the foreground without triggering any transaction flow.
+  // The CHARGE action (even without an amount) causes Square to start its payment
+  // controller which then errors/falls back when no valid transaction payload is present.
+  let squareUrl;
+  if (bare) {
+    squareUrl = `intent:#Intent;action=android.intent.action.MAIN;package=com.squareup;end`;
+  } else {
     const tenderTypes = [
       'com.squareup.pos.TENDER_CARD',
       'com.squareup.pos.TENDER_CARD_ON_FILE',
       'com.squareup.pos.TENDER_CASH',
       'com.squareup.pos.TENDER_OTHER',
     ].join(',');
-    parts.push(`i.com.squareup.pos.TOTAL_AMOUNT=${Math.round(amountCents)}`);
-    parts.push(`S.com.squareup.pos.CURRENCY_CODE=${encodeURIComponent(currencyCode)}`);
-    parts.push(`S.com.squareup.pos.TENDER_TYPES=${encodeURIComponent(tenderTypes)}`);
+    const parts = [
+      'action=com.squareup.pos.action.CHARGE',
+      'package=com.squareup',
+      `S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(resolvedCallbackUrl)}`,
+      `S.com.squareup.pos.CLIENT_ID=${encodeURIComponent(squareAppId)}`,
+      'S.com.squareup.pos.API_VERSION=v2.0',
+      `i.com.squareup.pos.TOTAL_AMOUNT=${Math.round(amountCents)}`,
+      `S.com.squareup.pos.CURRENCY_CODE=${encodeURIComponent(currencyCode)}`,
+      `S.com.squareup.pos.TENDER_TYPES=${encodeURIComponent(tenderTypes)}`,
+    ];
     if (notes) parts.push(`S.com.squareup.pos.NOTE=${encodeURIComponent(notes)}`);
     if (locationId) parts.push(`S.com.squareup.pos.LOCATION_ID=${encodeURIComponent(locationId)}`);
+    squareUrl = `intent:#Intent;${parts.join(';')};end`;
   }
-  const squareUrl = `intent:#Intent;${parts.join(';')};end`;
 
   remoteLogger.info(`[Square POS] (Android) Intent URL built (bare=${bare})`, squareUrl);
   console.log('[Square POS] (Android) Launching URL:', squareUrl);
