@@ -1316,7 +1316,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                               {logSelectedCount > 0 && (
                                 <button onClick={(e) => { e.stopPropagation(); setSelectedReadings((prev) => { const next = new Map(prev); next.delete(log.id); return next; }); }} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Clear</button>
                               )}
-                              {canDelete && allReadings.length > 0 && routeBoundaries[log.driver_id] && (() => {
+                              {(() => {
+                                if (!canDelete || !allReadings.length || !routeBoundaries[log.driver_id]) return null;
                                 const bounds = routeBoundaries[log.driver_id];
                                 const outsideCount = allReadings.filter((r) => {
                                   if (!r.timestamp) return true;
@@ -1326,7 +1327,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                                 if (outsideCount === 0) return null;
                                 return confirmDelete?.type === 'outsideRoute' && confirmDelete?.logId === log.id ? (
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-orange-600 font-medium">Remove {outsideCount} readings outside route?</span>
+                                    <span className="text-xs text-orange-600 font-medium">Remove {outsideCount} outside route?</span>
                                     <button onClick={() => deleteReadingsOutsideRoute(log.id)} disabled={deleting === `outsideRoute-${log.id}`} className="text-xs px-2 py-0.5 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50">
                                       {deleting === `outsideRoute-${log.id}` ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
                                     </button>
