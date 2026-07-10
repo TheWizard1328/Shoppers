@@ -1256,9 +1256,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                   }, [])
                 : null;
 
-              return (
-                <React.Fragment key={log.id}>
-                    <tr
+              return [
+                <tr key={`row-${log.id}`}
                     onClick={() => {
                      const expanding = !isExpanded;
                      setSelectedLogId(expanding ? log.id : null);
@@ -1292,129 +1291,88 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">⚠ Out of Range</span> :
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">✓ OK</span>}
                       </td>
+                    </tr>,
+                    isExpanded ? (
+                    <tr key={`exp-${log.id}`} className="bg-slate-50 border-b border-slate-200">
+                    <td colSpan={7} className="px-4 py-3">
+                     <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                       <div className="flex items-center gap-2">
+                         <span className="text-xs font-semibold text-slate-600">{allReadings.length} reading{allReadings.length !== 1 ? 's' : ''} — {getDriverName(log.driver_id)}</span>
+                         {logSelectedCount > 0 && <span className="text-xs text-blue-600 font-medium">{logSelectedCount} selected</span>}
+                       </div>
+                       <div className="flex items-center gap-2">
+                         {logSelectedCount > 1 && (
+                           <button onClick={(e) => { e.stopPropagation(); handleOpenAdjustDialog(log.id); }} className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                             <CheckSquare className="w-3 h-3" /> Adjust {logSelectedCount}
+                           </button>
+                         )}
+                         {logSelectedCount > 0 && (
+                           <button onClick={(e) => { e.stopPropagation(); setSelectedReadings((prev) => { const next = new Map(prev); next.delete(log.id); return next; }); }} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Clear</button>
+                         )}
+                         {(() => {
+                           if (!canDelete || !allReadings.length || !routeBoundaries[log.driver_id]) return null;
+                           const rb = routeBoundaries[log.driver_id];
+                           const outsideCount = allReadings.filter((r) => { if (!r.timestamp) return true; const hhmm = String(r.timestamp).replace('Z','').slice(11,16); return hhmm < rb.first || hhmm > rb.last; }).length;
+                           if (outsideCount === 0) return null;
+                           return confirmDelete?.type === 'outsideRoute' && confirmDelete?.logId === log.id ? (
+                             <div className="flex items-center gap-1.5">
+                               <span className="text-xs text-orange-600 font-medium">Remove {outsideCount} outside route?</span>
+                               <button onClick={() => deleteReadingsOutsideRoute(log.id)} disabled={deleting === `outsideRoute-${log.id}`} className="text-xs px-2 py-0.5 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50">{deleting === `outsideRoute-${log.id}` ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}</button>
+                               <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">No</button>
+                             </div>
+                           ) : (
+                             <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'outsideRoute', logId: log.id }); }} className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-700 transition-colors" title={`Remove ${outsideCount} readings outside route (${rb.first}–${rb.last})`}>
+                               <Trash2 className="w-3 h-3" /> Outside route ({outsideCount})
+                             </button>
+                           );
+                         })()}
+                         {canDelete && allReadings.length > 0 && (
+                           confirmDelete?.type === 'allReadings' && confirmDelete?.logId === log.id ?
+                           <div className="flex items-center gap-1.5">
+                             <span className="text-xs text-red-600 font-medium">Delete all?</span>
+                             <button onClick={() => deleteAllReadingsForLog(log.id)} disabled={deleting === `allReadings-${log.id}`} className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">{deleting === `allReadings-${log.id}` ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}</button>
+                             <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">No</button>
+                           </div> :
+                           <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'allReadings', logId: log.id }); }} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 transition-colors"><Trash2 className="w-3 h-3" /> Delete all</button>
+                         )}
+                       </div>
+                     </div>
+                     {allReadings.length === 0 ? <div className="text-xs text-slate-400">No readings recorded.</div> :
+                     <div className="space-y-0.5 max-h-64 overflow-y-auto">
+                       {allReadings.map((r, idx) => {
+                         const time = r.timestamp ? String(r.timestamp).replace('Z','').slice(11,16) : '??:??';
+                         const temp = r.temperature_celsius;
+                         const isOut = temp < fridgeCfg.safe_min || temp > fridgeCfg.safe_max;
+                         const rKey = `reading-${log.id}-${idx}`;
+                         const isChecked = logSelectedSet.has(idx);
+                         const outsideSlider = sliderFilteredIndices && !sliderFilteredIndices.includes(idx);
+                         return (
+                           <div key={idx} className={`flex items-center gap-2 py-1 px-1 rounded group cursor-pointer transition-colors ${isChecked ? 'bg-blue-50' : 'hover:bg-white'} ${outsideSlider ? 'opacity-30 pointer-events-none' : ''}`} onClick={(e) => { e.stopPropagation(); if (!outsideSlider) toggleReadingSelection(log.id, idx); }}>
+                             <Checkbox checked={isChecked} onCheckedChange={() => toggleReadingSelection(log.id, idx)} onClick={(e) => e.stopPropagation()} className="flex-shrink-0" />
+                             <span className="text-xs font-mono text-slate-500 w-12">{time}</span>
+                             <span className={`text-xs font-mono font-semibold w-16 ${isOut ? 'text-red-600' : 'text-emerald-700'}`}>{temp != null ? `${temp.toFixed(1)}°C` : '—'}</span>
+                             {r.humidity_percent != null && <span className="text-xs text-slate-400 w-16">{r.humidity_percent.toFixed(0)}% RH</span>}
+                             {isOut && <AlertTriangle className="w-3 h-3 text-red-500" />}
+                             <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                               <button title="Edit this reading" onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(log.id, idx, temp); }} className="p-1 rounded hover:bg-blue-100 text-blue-500 transition-colors"><Pencil className="w-3 h-3" /></button>
+                               {canDelete && (
+                                 confirmDelete?.type === 'reading' && confirmDelete?.logId === log.id && confirmDelete?.readingIdx === idx ?
+                                 <div className="flex items-center gap-1">
+                                   <span className="text-xs text-red-600">Delete?</span>
+                                   <button onClick={(e) => { e.stopPropagation(); deleteReading(log.id, idx); }} disabled={deleting === rKey} className="text-xs px-1.5 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">{deleting === rKey ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}</button>
+                                   <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }} className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">No</button>
+                                 </div> :
+                                 <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'reading', logId: log.id, readingIdx: idx }); }} className="p-1 rounded hover:bg-red-100 text-slate-300 hover:text-red-500 transition-all"><Trash2 className="w-3 h-3" /></button>
+                               )}
+                             </div>
+                           </div>
+                         );
+                       })}
+                     </div>}
+                    </td>
                     </tr>
-                    {isExpanded &&
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                        <td colSpan={7} className="px-4 py-3">
-                          {/* Header: count + actions */}
-                          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-slate-600">{allReadings.length} reading{allReadings.length !== 1 ? 's' : ''} — {getDriverName(log.driver_id)}</span>
-                              {logSelectedCount > 0 && (
-                                <span className="text-xs text-blue-600 font-medium">{logSelectedCount} selected</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {logSelectedCount > 1 && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleOpenAdjustDialog(log.id); }}
-                                  className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                >
-                                  <CheckSquare className="w-3 h-3" /> Adjust {logSelectedCount}
-                                </button>
-                              )}
-                              {logSelectedCount > 0 && (
-                                <button onClick={(e) => { e.stopPropagation(); setSelectedReadings((prev) => { const next = new Map(prev); next.delete(log.id); return next; }); }} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Clear</button>
-                              )}
-                              {(() => {
-                                if (!canDelete || !allReadings.length || !routeBoundaries[log.driver_id]) return null;
-                                const bounds = routeBoundaries[log.driver_id];
-                                const outsideCount = allReadings.filter((r) => {
-                                  if (!r.timestamp) return true;
-                                  const hhmm = String(r.timestamp).replace('Z', '').slice(11, 16);
-                                  return hhmm < bounds.first || hhmm > bounds.last;
-                                }).length;
-                                if (outsideCount === 0) return null;
-                                return confirmDelete?.type === 'outsideRoute' && confirmDelete?.logId === log.id ? (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-orange-600 font-medium">Remove {outsideCount} outside route?</span>
-                                    <button onClick={() => deleteReadingsOutsideRoute(log.id)} disabled={deleting === `outsideRoute-${log.id}`} className="text-xs px-2 py-0.5 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50">
-                                      {deleting === `outsideRoute-${log.id}` ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
-                                    </button>
-                                    <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">No</button>
-                                  </div>
-                                ) : (
-                                  <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'outsideRoute', logId: log.id }); }} className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-700 transition-colors" title={`Remove ${outsideCount} readings outside route (${bounds.first}–${bounds.last})`}>
-                                    <Trash2 className="w-3 h-3" /> Outside route ({outsideCount})
-                                  </button>
-                                );
-                              })()}
-                              {canDelete && allReadings.length > 0 && (
-                                confirmDelete?.type === 'allReadings' && confirmDelete?.logId === log.id ?
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-red-600 font-medium">Delete all?</span>
-                                  <button onClick={() => deleteAllReadingsForLog(log.id)} disabled={deleting === `allReadings-${log.id}`} className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
-                                    {deleting === `allReadings-${log.id}` ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
-                                  </button>
-                                  <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">No</button>
-                                </div> :
-                                <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'allReadings', logId: log.id }); }} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 transition-colors">
-                                  <Trash2 className="w-3 h-3" /> Delete all
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {/* Readings list */}
-                          {allReadings.length === 0 ?
-                          <div className="text-xs text-slate-400">No readings recorded.</div> :
-                          <div className="space-y-0.5 max-h-64 overflow-y-auto">
-                            {allReadings.map((r, idx) => {
-                              const time = r.timestamp ? String(r.timestamp).replace('Z', '').slice(11, 16) : '??:??';
-                              const temp = r.temperature_celsius;
-                              const isOut = temp < fridgeCfg.safe_min || temp > fridgeCfg.safe_max;
-                              const rKey = `reading-${log.id}-${idx}`;
-                              const isChecked = logSelectedSet.has(idx);
-                              // Dim readings outside the slider range
-                              const outsideSlider = sliderFilteredIndices && !sliderFilteredIndices.includes(idx);
-                              return (
-                                <div key={idx} className={`flex items-center gap-2 py-1 px-1 rounded group cursor-pointer transition-colors ${isChecked ? 'bg-blue-50' : 'hover:bg-white'} ${outsideSlider ? 'opacity-30 pointer-events-none' : ''}`}
-                                  onClick={(e) => { e.stopPropagation(); if (!outsideSlider) toggleReadingSelection(log.id, idx); }}
-                                >
-                                  <Checkbox
-                                    checked={isChecked}
-                                    onCheckedChange={() => toggleReadingSelection(log.id, idx)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex-shrink-0"
-                                  />
-                                  <span className="text-xs font-mono text-slate-500 w-12">{time}</span>
-                                  <span className={`text-xs font-mono font-semibold w-16 ${isOut ? 'text-red-600' : 'text-emerald-700'}`}>
-                                    {temp != null ? `${temp.toFixed(1)}°C` : '—'}
-                                  </span>
-                                  {r.humidity_percent != null &&
-                                    <span className="text-xs text-slate-400 w-16">{r.humidity_percent.toFixed(0)}% RH</span>
-                                  }
-                                  {isOut && <AlertTriangle className="w-3 h-3 text-red-500" />}
-                                  <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                                    <button
-                                      title="Edit this reading"
-                                      onClick={(e) => { e.stopPropagation(); handleOpenEditDialog(log.id, idx, temp); }}
-                                      className="p-1 rounded hover:bg-blue-100 text-blue-500 transition-colors"
-                                    >
-                                      <Pencil className="w-3 h-3" />
-                                    </button>
-                                    {canDelete && (
-                                      confirmDelete?.type === 'reading' && confirmDelete?.logId === log.id && confirmDelete?.readingIdx === idx ?
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-xs text-red-600">Delete?</span>
-                                        <button onClick={(e) => { e.stopPropagation(); deleteReading(log.id, idx); }} disabled={deleting === rKey} className="text-xs px-1.5 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
-                                          {deleting === rKey ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
-                                        </button>
-                                        <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }} className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">No</button>
-                                      </div> :
-                                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'reading', logId: log.id, readingIdx: idx }); }} className="p-1 rounded hover:bg-red-100 text-slate-300 hover:text-red-500 transition-all">
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          }
-                        </td>
-                      </tr>
-                  }
-                  </React.Fragment>);
+                    ) : null,
+                    ].filter(Boolean);
             })}
             </tbody>
           </table>
