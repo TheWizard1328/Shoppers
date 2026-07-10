@@ -56,6 +56,13 @@ import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseMan
 const getEdmDate=()=>{const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Edmonton',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return`${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`;};const centerNextDeliveryCard=()=>{window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));};
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
+  // Stable scalars derived from currentUser — use these in dep arrays instead of
+  // the whole object so a refreshUser() that returns identical data doesn't blow
+  // away every memo and effect that depends on user identity.
+  const currentUserId       = currentUser?.id ?? null;
+  const currentUserRoles    = currentUser?.app_roles;    // array ref — stable while roles unchanged
+  const currentUserStoreIds = currentUser?.store_ids;    // array ref — stable while stores unchanged
+  const currentUserCityIds  = currentUser?.city_ids;
   const { deliveries, patients, stores, drivers, users, cities, appUsers, isDataLoaded, refreshData, updateDeliveriesLocally, updateAppUsersLocally, applyDeliveryChangesLocally, forceRefreshDriverDeliveries, setIsFormOverlayOpen, setIsEntityUpdating: _setIsEntityUpdatingCtx, dataReadyForSelectedDate, isSnapshotModeActive, setIsSnapshotModeActive, dataSource, initialFabPhase } = useAppData();
   const [isEntityUpdating, setIsEntityUpdating] = useState(false);
   // Keep context and local state in sync so Layout's overlay detection still works
@@ -207,8 +214,8 @@ function Dashboard() {
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
   const { isMobile } = useDevice();
   const bottomNavHeight = useMemo(() => { const val = getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height').trim(); if (!val || val === '0px') return 0; const match = val.match(/(\d+)px/); return match ? parseInt(match[1], 10) : 0; }, []);
-  const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
-  const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
+  const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUserRoles]);
+  const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUserRoles]);
   const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0);
   const [statsCardBaseHeight, setStatsCardBaseHeight] = useState(0);
   const phaseBeforeBreakRef = useRef(null);
@@ -281,7 +288,7 @@ function Dashboard() {
     let result = deliveries.filter((d) => { if (!d || d.delivery_date !== dateStr) return false; if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return false; return true; });
     if (isDispatcher && !isAdmin && (selectedDriverId === 'all' || selectedDriverId === '')) { const _ds = new Set(currentUser?.store_ids || []); const _allowedDriverIds = new Set(result.filter((x) => x && _ds.has(x.store_id)).map((x) => x.driver_id).filter(Boolean)); result = result.filter((d) => d && (d.is_cycling_marker || _allowedDriverIds.has(d.driver_id))); }
     return result;
-  }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUser, isSnapshotModeActive, snapshotData]);
+  }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUserStoreIds, isSnapshotModeActive, snapshotData]);
 
   const deliveriesWithStopOrder = useMemo(() => {
     if (!filteredDeliveries || filteredDeliveries.length === 0) return [];
@@ -375,7 +382,7 @@ function Dashboard() {
     let totalDrivers=0,inTransitDrivers=0,completedDrivers=0;
     if(isDispatcher||isAdmin){const aids=new Set(rd.map((d)=>d?.driver_id).filter(Boolean));totalDrivers=aids.size;inTransitDrivers=new Set(rd.filter((d)=>d&&(d.status==='in_transit'||d.status==='en_route')).map((d)=>d?.driver_id).filter(Boolean)).size;aids.forEach((did)=>{const ds=rd.filter((d)=>d?.driver_id===did);if(ds.some((d)=>d&&d.status==='completed')&&ds.every((d)=>d&&['completed','failed','cancelled'].includes(d.status)))completedDrivers++;});}
     return {total,inTransit,enRoute,activePickupsEnRoute:enRoute,completed,failed,returned,totalDrivers,inTransitDrivers,completedDrivers,totalPickups,completedPickups,isdIspCount,inTransitIsdIsp,completedIsdIsp};
-  }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids, isAdmin]);
+  }, [filteredDeliveries, patients, isDispatcher, currentUserStoreIds, isAdmin]);
 
   const isDateFinished = useMemo(() => { const tod = startOfDay(new Date()); const sel = startOfDay(selectedDate); if (sel >= tod) return false; return filteredDeliveries.length > 0 && filteredDeliveries.every((d) => d && ['completed','failed','cancelled'].includes(d.status)); }, [selectedDate, filteredDeliveries]);
   const isRouteComplete = useMemo(() => { if (!filteredDeliveries || filteredDeliveries.length === 0) return false; const pds = filteredDeliveries.filter((d) => d && d.patient_id); const isRtn = (d) => (patients.find((p) => p && p.id === d.patient_id)?.address || '').toUpperCase().includes('(RTN)'); return pds.length > 0 && pds.every((d) => ['completed','failed','cancelled'].includes(d.status) || isRtn(d)); }, [filteredDeliveries, patients]);
@@ -414,11 +421,11 @@ function Dashboard() {
       return src.filter((d) => aids.has(d.id) || aids.has(d.user_id));
     }
     return src;
-  }, [appUsers, currentUser, stores, selectedDate, activeDriverIdsOnDate, isAdmin]);
-  const isDriverDropdownDisabled = useMemo(() => !currentUser || userHasRole(currentUser,'admin') ? false : userHasRole(currentUser,'dispatcher') ? false : !!userHasRole(currentUser,'driver'), [currentUser]);
+  }, [appUsers, currentUserId, currentUserStoreIds, currentUserRoles, stores, selectedDate, activeDriverIdsOnDate, isAdmin]);
+  const isDriverDropdownDisabled = useMemo(() => !currentUser || userHasRole(currentUser,'admin') ? false : userHasRole(currentUser,'dispatcher') ? false : !!userHasRole(currentUser,'driver'), [currentUserRoles]);
   const statsCardPositioning = useMemo(() => { const snapshotOffset = isSnapshotModeActive ? 'left-24' : 'left-2'; return (screenWidth / cardWidth) < 2 ? 'absolute top-2 left-1/2 -translate-x-1/2' : `absolute top-2 ${snapshotOffset}`; }, [screenWidth, cardWidth, isSnapshotModeActive]);
   const isStatsCardCentered = useMemo(() => (screenWidth / cardWidth) < 2, [screenWidth, cardWidth]);
-  const nextStop = useMemo(() => { if (!isDriver || !currentUser || !filteredDeliveries || filteredDeliveries.length === 0) return null; if (isRouteComplete) return null; const next = filteredDeliveries.find((d) => d && d.isNextDelivery === true && d.driver_id === currentUser.id && d.status !== 'pending' && !['completed','failed','cancelled'].includes(d.status)); if (next) return next; const unf = filteredDeliveries.filter((d) => d && d.driver_id === currentUser.id && !['completed','failed','cancelled','pending'].includes(d.status)); if (!unf.length) return null; return [...unf].sort((a, b) => a.stop_order && b.stop_order ? a.stop_order - b.stop_order : (a.delivery_time_start || '').localeCompare(b.delivery_time_start || ''))[0]; }, [isDriver, filteredDeliveries, currentUser, isRouteComplete]);
+  const nextStop = useMemo(() => { if (!isDriver || !currentUser || !filteredDeliveries || filteredDeliveries.length === 0) return null; if (isRouteComplete) return null; const next = filteredDeliveries.find((d) => d && d.isNextDelivery === true && d.driver_id === currentUser.id && d.status !== 'pending' && !['completed','failed','cancelled'].includes(d.status)); if (next) return next; const unf = filteredDeliveries.filter((d) => d && d.driver_id === currentUser.id && !['completed','failed','cancelled','pending'].includes(d.status)); if (!unf.length) return null; return [...unf].sort((a, b) => a.stop_order && b.stop_order ? a.stop_order - b.stop_order : (a.delivery_time_start || '').localeCompare(b.delivery_time_start || ''))[0]; }, [isDriver, filteredDeliveries, currentUserId, isRouteComplete]);
   const nextStopCoordinates = useMemo(() => { if (!nextStop) return null; if (nextStop.is_cycling_marker && nextStop.cycling_latitude && nextStop.cycling_longitude) return { lat: nextStop.cycling_latitude, lon: nextStop.cycling_longitude }; if (nextStop.patient_id) { const p = patients.find((p) => p && p.id === nextStop.patient_id); if (p?.latitude && p?.longitude) return { lat: p.latitude, lon: p.longitude }; } else if (isInterStoreDelivery(nextStop.delivery_id)) { const isl = getInterStoreLocationSync(nextStop.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } else if (nextStop.store_id) { const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } return null; }, [nextStop, patients, stores]);
   // nextStopCoordinatesRef kept as inline sync — fires only when nextStopCoordinates changes
   useEffect(() => { nextStopCoordinatesRef.current = nextStopCoordinates; }, [nextStopCoordinates]);
@@ -483,7 +490,7 @@ function Dashboard() {
     };
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
-  }, [currentUser, deliveries, drivers, stores, selectedDate, showAllDriverMarkers, appUsers, selectedDriverId]);
+  }, [currentUserId, deliveries, drivers, stores, selectedDate, showAllDriverMarkers, appUsers, selectedDriverId]);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   // CRITICAL: Initialize poller once on mount
@@ -639,7 +646,7 @@ function Dashboard() {
     const interval = setInterval(checkAlerts, 10 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [currentUser, filteredDeliveries, showAIAssistant, isAIEnabled]);
+  }, [currentUserId, filteredDeliveries, showAIAssistant, isAIEnabled]);
 
   useEffect(() => {
     if (showAIAssistant) {
@@ -2182,7 +2189,7 @@ useEffect(() => {
     };
     window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
     return () => window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
-  }, [updateDeliveriesLocally, updateAppUsersLocally, selectedDate, currentUser, drivers, stores, showAllDriverMarkers]);
+  }, [updateDeliveriesLocally, updateAppUsersLocally, selectedDate, currentUserId, drivers, stores, showAllDriverMarkers]);
 
   // Listen for data source changes and reload deliveries for ALL drivers
   useEffect(() => {
