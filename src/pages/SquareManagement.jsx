@@ -373,36 +373,41 @@ export default function SquareManagement() {
       // 2) Refresh UI immediately without clearing totals
       setIsLoading(false);
 
-      // 5) Pull latest Square catalog + transactions from Square API
+      // 5) PURGE online DBs then rebuild from Square API, then sync offline to match exactly
       let catalogError = null;
       let transactionError = null;
-      let catalogRecords = [];
-      let transactionRecords = [];
       try {
+        // Step A: Purge + rebuild online SquareCatalogItems from live Square catalog API
+        const purgeResult = await base44.functions.invoke('squareCodCore', { action: 'purgeAndRebuildCatalog' });
+        const purgeData = purgeResult?.data || purgeResult || {};
+
+        // Step B: Pull fresh transactions + deliveries from Square API (rebuilds online SquareTransaction records)
         const codResponse = await base44.functions.invoke('squareGetCODData', {
           forceDeliveryRefresh: true,
           daysBack: 90,
-          mergeWithExisting: true
         });
         const codData = codResponse?.data || codResponse || {};
-        catalogRecords = codData.catalogRecords || [];
-        transactionRecords = codData.transactionRecords || [];
+        const transactionRecords = codData.transactionRecords || [];
         const strippedDeliveries = Array.isArray(codData.deliveries) ?
         codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest) :
         [];
 
-        const mergeRecords = async (store, freshRecords) => {
-          const existing = (await offlineDB.getAll(store)) || [];
-          const existingMap = new Map(existing.map((r) => [r.id, r]));
-          (freshRecords || []).forEach((r) => {if (r?.id) existingMap.set(r.id, r);});
-          await offlineDB.replaceAllRecords(store, Array.from(existingMap.values()));
-          return Array.from(existingMap.values());
-        };
+        // Step C: Use catalog records returned by purgeAndRebuildCatalog (already matches live Square)
+        const catalogRecords = purgeData.catalogRecords || [];
 
-        const mergedDeliveries = await mergeRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
-
+        // Step D: Sync online→offline: replace offline stores with exactly what Square returned
         await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
         await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+
+        // Step E: Merge deliveries (non-destructive — delivery data is not purged)
+        const mergeDeliveries = async (freshRecords) => {
+          const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
+          const existingMap = new Map(existing.map((r) => [r.id, r]));
+          (freshRecords || []).forEach((r) => { if (r?.id) existingMap.set(r.id, r); });
+          await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
+          return Array.from(existingMap.values());
+        };
+        const mergedDeliveries = await mergeDeliveries(strippedDeliveries);
 
         const [uiCatalog, uiTransactions] = await Promise.all([
         squareCODOfflineManager.getCatalogItemsOffline(),

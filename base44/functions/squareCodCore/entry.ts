@@ -456,7 +456,12 @@ async function handleGetCodData(base44, payload={}) {
   const daysBack=Math.max(1,Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
   const transactionRetentionStartMs=Date.now()-daysBack*86400000;const refreshDeliveries=shouldRefreshDeliveries(payload?.lastDeliverySyncAt,payload?.forceDeliveryRefresh===true);
   // quickSync: only query Square API for the daysBack window — caller merges with existing offline data
-  const[allLocationConfigs,stores,existingTransactions]=await Promise.all([base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.Store.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',2000).catch(()=>[])]);
+  // CRITICAL: Purge and rebuild online SquareTransaction DB from Square API so it exactly
+  // mirrors Square. This eliminates orphaned transactions that no longer exist in Square.
+  await base44.asServiceRole.entities.SquareTransaction.deleteMany({}).catch(() => null);
+  await sleep(400);
+
+  const[allLocationConfigs,stores,existingTransactions]=await Promise.all([base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.Store.list('-updated_date',500).catch(()=>[]),Promise.resolve([])]);  // existingTransactions always empty after purge
   const safeAllConfigs=(Array.isArray(allLocationConfigs)?allLocationConfigs:[]).map(unwrapEntityRecord).filter(Boolean);
   // Active configs are used for store-matching; ALL configs (including inactive) are used for the Square API location query
   const safeConfigs=safeAllConfigs.filter((c)=>c?.status==='active');
@@ -505,6 +510,12 @@ async function handleSyncCatalogItems(base44, payload={}) {
   const daysBack=Math.max(1,Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
   const lookbackStartStr=formatLocalDate(new Date(Date.now()-daysBack*86400000));
   const todayStr=formatLocalDate(new Date());
+
+  // CRITICAL: Purge online SquareCatalogItems DB before sync so stale/orphaned records are removed.
+  // This ensures the DB exactly mirrors what is in the live Square catalog after this sync.
+  await base44.asServiceRole.entities.SquareCatalogItems.deleteMany({}).catch(() => null);
+  await sleep(300);
+
   const[deliveries,stores,squareConfigs,squareTransactions]=await Promise.all([base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:lookbackStartStr,$lte:todayStr}},'-updated_date',5000),base44.asServiceRole.entities.Store.list('-updated_date',200),base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',200),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000)]);
   const activeConfigById=new Map((squareConfigs||[]).filter((c)=>c?.status==='active'&&c?.square_location_id).map((c)=>[c.id,c]));
   const storeById=new Map((stores||[]).map((s)=>[s.id,s]));const deliveryById=new Map((deliveries||[]).map((d)=>[d.id,d]));
