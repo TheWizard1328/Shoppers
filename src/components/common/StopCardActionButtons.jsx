@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
 import { launchSquarePOS } from "../utils/squarePOSLauncher";
 import { remoteLogger } from "../utils/remoteLogger";
+import { useSquareLocationCheck } from "../dashboard/useSquareLocationCheck";
 
 // Generate the Square item name: "MM/DD(StoreAbbr)-PatientName"
 const generateSquareItemName = (delivery, patient, store) => {
@@ -116,39 +117,14 @@ export default function StopCardActionButtons(props) {
     return matched?.square_location_id || null;
   }, [store, reactiveSquareLocationConfigs]);
 
-  // Find a recently completed COD stop on this route that used a DIFFERENT Square location_id.
-  // Only triggers a warning if the last COD stop used a different square_location_id than
-  // the current delivery's store — meaning the driver needs to switch locations in the POS app.
-  const lastCodStoreName = useMemo(() => {
-    if (!allDeliveries || !delivery?.driver_id || !delivery?.delivery_date) return null;
-    if (!currentSquareLocationId) return null;
-    const configs = reactiveSquareLocationConfigs;
-
-    const candidates = (allDeliveries || [])
-      .filter((d) =>
-        d &&
-        d.id !== delivery.id &&
-        d.driver_id === delivery.driver_id &&
-        d.delivery_date === delivery.delivery_date &&
-        d.status === 'completed' &&
-        d.cod_total_amount_required > 0 &&
-        Array.isArray(d.cod_payments) && d.cod_payments.length > 0
-      )
-      .sort((a, b) => (b.stop_order || 0) - (a.stop_order || 0));
-
-    for (const d of candidates) {
-      const prevStore = (stores || []).find((s) => s?.id === d.store_id);
-      if (!prevStore) continue;
-      const configId = prevStore.square_location_config_id;
-      if (!configId) continue;
-      const matched = configs.find((c) => c?.id === configId);
-      if (!matched?.square_location_id) continue;
-      // Only warn if the Square location_id is actually different
-      if (matched.square_location_id === currentSquareLocationId) return null;
-      return matched?.store_name || matched?.name || prevStore.name;
-    }
-    return null;
-  }, [allDeliveries, delivery, stores, currentSquareLocationId, reactiveSquareLocationConfigs]);
+  // Live Square location check — queries the Square API for the most recent transaction
+  // on the expected location to verify the driver's reader is active there.
+  const squareLocationStatus = useSquareLocationCheck({
+    isNextDelivery,
+    hasCODRequired,
+    isCODComplete,
+    expectedLocationId: currentSquareLocationId,
+  });
 
   // Direct synchronous Square POS launch — no modal, no state change before dispatch.
   // CRITICAL: Must stay synchronous within the gesture handler to preserve gesture trust
@@ -246,11 +222,15 @@ export default function StopCardActionButtons(props) {
                 alt="Square POS"
                 className="w-6 h-6 md:w-5 md:h-5 rounded-md object-cover" />
             </button>
-            {lastCodStoreName && squareLocationName ? (
+            {squareLocationStatus === 'loading' ? (
+              <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-slate-400 z-40 pointer-events-none">
+                <Loader2 className="w-2.5 h-2.5 text-white animate-spin" />
+              </span>
+            ) : squareLocationStatus === 'mismatch' ? (
               <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold leading-none z-40 pointer-events-none">
                 ⚠
               </span>
-            ) : hasValidSquareLocation && !lastCodStoreName ? (
+            ) : squareLocationStatus === 'verified' ? (
               <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] font-bold leading-none z-40 pointer-events-none">
                 ✓
               </span>

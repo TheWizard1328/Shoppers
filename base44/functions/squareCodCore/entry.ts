@@ -293,6 +293,37 @@ async function paginatedDeleteAll(entityApi, pageSize=50) {
   while(true){const records=await entityApi.list('-updated_date',pageSize).catch(()=>[]);if(!records?.length)break;for(let i=0;i<records.length;i+=5){const chunk=records.slice(i,i+5);await Promise.all(chunk.map((r)=>entityApi.delete(r.id).catch(()=>null)));if(i+5<records.length)await sleep(BASE44_SYNC_CHUNK_DELAY_MS*4);}if(records.length<pageSize)break;await sleep(BASE44_SYNC_CHUNK_DELAY_MS*4);}
 }
 
+// Peek at the most recent completed Square order for a given locationId.
+// Returns { locationId, found: bool, orderCreatedAt } — used by the UI to verify
+// that the driver's Bluetooth reader is currently active on the expected location.
+async function handlePeekDriverTransaction(payload) {
+  const accessToken = ensureSquareToken();
+  const { locationId } = payload || {};
+  if (!locationId) throw new HttpError(400, 'locationId is required');
+
+  // Search for the single most-recent completed or open order at this location
+  const json = await squareFetch('/v2/orders/search', 'POST', accessToken, {
+    location_ids: [locationId],
+    limit: 1,
+    query: {
+      filter: { state_filter: { states: ['COMPLETED', 'OPEN'] } },
+      sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' },
+    },
+  });
+
+  const orders = json?.orders || [];
+  if (!orders.length) {
+    return { found: false, locationId, lastLocationId: null, orderCreatedAt: null };
+  }
+  const order = orders[0];
+  return {
+    found: true,
+    locationId,
+    lastLocationId: order.location_id || null,
+    orderCreatedAt: order.created_at || null,
+  };
+}
+
 // ─── HANDLERS ────────────────────────────────────────────────────────────────
 
 async function handleCreateCodItem(base44, payload) {
@@ -1023,6 +1054,7 @@ Deno.serve(async (req) => {
     if(action==='reconcile'){await requireUser(base44);return Response.json(await handleReconcile(base44,payload));}
     if(action==='mirrorCatalogFromSquare'){await requireAdminIfAuthenticated(base44);return Response.json(await handleMirrorCatalogFromSquare(base44));}
     if(action==='purgeAndRebuildCatalog'){await requireAdminIfAuthenticated(base44);return Response.json(await handlePurgeAndRebuildCatalog(base44));}
+    if(action==='peekDriverTransaction'){await requireUser(base44);return Response.json(await handlePeekDriverTransaction(payload));}
     throw new HttpError(400,'Missing or invalid action');
   } catch(error){const status=error?.status||500;return Response.json({error:error?.message||'Internal Server Error'},{status});}
 });
