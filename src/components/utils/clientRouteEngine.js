@@ -30,6 +30,28 @@ const TIME_ZONE = 'America/Edmonton';
 const LAST_FINISHED_STOP_PROXIMITY_KM = 0.25;
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
+// ─── HERE API Usage Logger ───────────────────────────────────────────────────
+// Best-effort: logs each HERE API hit to GoogleAPILog so the admin badge stays accurate.
+// Never throws — logging failure must never block routing.
+
+async function logHereApiCall({ apiType, purpose, source, driverId, callCount = 1 }) {
+  try {
+    await base44.entities.GoogleAPILog.create({
+      timestamp: new Date().toISOString(),
+      api_type: apiType,
+      purpose: purpose || apiType,
+      function_name: source || 'clientRouteEngine',
+      user_id: driverId || null,
+      user_name: null,
+      metadata: {
+        provider: 'HERE',
+        source: source || 'client',
+        call_count: callCount,
+      },
+    });
+  } catch { /* best-effort */ }
+}
+
 // ─── HERE Flexible Polyline decode ───────────────────────────────────────────
 
 const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -250,6 +272,7 @@ const getHereSegmentDuration = async (origin, destination, hereApiKey, hereTrans
       apiKey: hereApiKey
     });
     const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, { signal: AbortSignal.timeout(8000) });
+    logHereApiCall({ apiType: 'Routes (HERE)', purpose: 'Segment duration check', source: 'getHereSegmentDuration' }).catch(() => {});
     if (!resp.ok) return null;
     const data = await resp.json().catch(() => null);
     const summary = data?.routes?.[0]?.sections?.[0]?.summary;
@@ -279,6 +302,7 @@ async function getMultiStopRouteHere(points, transportMode, hereApiKey) {
   const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
     signal: AbortSignal.timeout(20000), headers: { accept: 'application/json' }
   });
+  logHereApiCall({ apiType: 'Routes (HERE)', purpose: `Polyline generation — ${validPoints.length - 1} leg(s), mode=${hereTransportMode}`, source: 'getMultiStopRouteHere' }).catch(() => {});
   const routeData = await routeResp.json().catch(() => null);
   const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
 
@@ -343,6 +367,7 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
     signal: AbortSignal.timeout(8000)
   });
+  logHereApiCall({ apiType: 'Route Optimization (HERE)', purpose: `findsequence2 — ${stopsToSequence.length} stop(s), mode=${hereTransportMode}`, source: 'callHereSequence' }).catch(() => {});
   const data = await response.json().catch(() => null);
   return { response, data, includeTimeWindows };
 }
