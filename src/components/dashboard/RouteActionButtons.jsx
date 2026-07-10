@@ -390,7 +390,7 @@ export default function RouteActionButtons({
               // ── Build BEFORE state for compare dialog ──────────────────────
               const ACTIVE_PENDING = ['in_transit', 'en_route', 'pending'];
               const beforeDeliveries = (filteredDeliveries || []).filter(
-                (d) => d && (ACTIVE_PENDING.includes(d.status) || d.is_cycling_marker)
+                (d) => d && (ACTIVE_PENDING.includes(d.status) || (d.is_cycling_marker && !FINISHED.has(d.status)))
               );
               const beforeMap = new Map(
                 beforeDeliveries.map((d) => [d.id, { stopOrder: d.stop_order, eta: d.delivery_time_eta }])
@@ -441,7 +441,7 @@ export default function RouteActionButtons({
                 // ── Update compare dialog with AFTER state ─────────────────
                 if (fresh.length > 0) {
                   const activeAfter = fresh.filter(
-                    (d) => d && (ACTIVE_PENDING.includes(d.status) || d.is_cycling_marker)
+                    (d) => d && (ACTIVE_PENDING.includes(d.status) || (d.is_cycling_marker && !FINISHED.has(d.status)))
                   );
                   const afterRows = activeAfter
                     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))
