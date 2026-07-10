@@ -1492,7 +1492,7 @@ useEffect(() => {
     }
   }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB, isAllDriversMode, isDispatcher]);
 
-  const handleDateChange = async (date) => {
+  const handleDateChange = useCallback(async (date) => {
     setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
     hasShownSummaryRef.current.clear();setIsCalendarOpen(false);
     setSelectedDate(date);
@@ -1530,11 +1530,9 @@ useEffect(() => {
     } finally {
       setIsEntityUpdating(false);
     }
-  };
+    }, [currentUserId, selectedDate, refreshData, setIsEntityUpdating, appUsers]);
 
-  const driverChangeInProgressRef = useRef(false),driverChangeRequestIdRef = useRef(0);
-
-  const handleDriverChange = async (driverId) => {
+  const handleDriverChange = useCallback(async (driverId) => {
     const reqId = Date.now();
     driverChangeRequestIdRef.current = reqId;
     driverChangeInProgressRef.current = true;
@@ -1783,7 +1781,7 @@ useEffect(() => {
     return () => window.removeEventListener('collapseAllStopCards', handleCollapseAllStopCardsEvent);
   }, [selectedCardId, deliveries, previousMapState]);
 
-  const handleCardClick = (delivery) => {
+  const handleCardClick = useCallback((delivery) => {
     if (!delivery || !delivery.id) {
       return;
     }
@@ -1878,12 +1876,14 @@ useEffect(() => {
         }
       }, 300);
     }
-  };
+    }, [selectedCardId, previousMapState]);
 
-  const handleSaveDelivery = async (deliveryData) => {
+  const handleSaveDeliveryRef = useRef(null);
+  const handleSaveDelivery = useCallback(async (deliveryData) => {
     const { handleSaveDelivery: _doSave } = await import('@/components/dashboard/handleSaveDelivery');
     return _doSave(deliveryData, { editingDelivery, drivers, deliveries, patients, stores, currentUser, selectedDate, updateDeliveriesLocally, applyDeliveryChangesLocally, refreshData, setShowDeliveryForm, setEditingDelivery, hasAutoSelectedRef, setIsEntityUpdating, smartRefreshManager, handleDualDriverOptimization });
-  };
+  }, [editingDelivery, drivers, deliveries, patients, stores, currentUserId, selectedDate, updateDeliveriesLocally, applyDeliveryChangesLocally, refreshData, setIsEntityUpdating]);
+  handleSaveDeliveryRef.current = handleSaveDelivery;
 
   const handleReoptimizeRoute = async () => {
     handleReoptimizeRouteRef.current = handleReoptimizeRoute;
@@ -1961,7 +1961,7 @@ useEffect(() => {
     setShowPatientForm(true);
   }, []);
 
-  const handleSavePatient = async (patientData) => {
+  const handleSavePatient = useCallback(async (patientData) => {
     setShowPatientForm(false);
 
     if (patientFormCallback && patientData) {
@@ -1971,7 +1971,7 @@ useEffect(() => {
     setEditingPatient(null);
     setPatientFormCallback(null);
     setPatientFormMode(null);
-  };
+  }, [patientFormCallback]);
 
   const triggerPostDeleteOperations = async (driverId, deliveryDate, wasNextDelivery) => {
     try {
@@ -2012,7 +2012,7 @@ useEffect(() => {
     } catch (e) { console.error('❌ [DELETE] Background ops failed:', e); } finally { resumeOfflineSync(); setIsEntityUpdating(false); }
   };
 
-  const handleDeleteDelivery = async (deliveryId) => {
+  const handleDeleteDelivery = useCallback(async (deliveryId) => {
     const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
     if (!targetDelivery) { console.error('❌ [DELETE] Not found'); throw new Error('Delivery not found'); }
     const { driverId: _did, delivery_date: _dd, patient_id: _pid, stop_id: _sid, status: _st, cod_total_amount_required: _cod, isNextDelivery: _isNext } = { driverId: targetDelivery.driver_id, ...targetDelivery };
@@ -2028,12 +2028,11 @@ useEffect(() => {
     const p = deleteDeliveryLocal(deliveryId);
     if (selectedCardId === deliveryId) setSelectedCardId(null);
     if (_isActive) triggerPostDeleteOperations(_did, _dd, _wasNext);
-    await p;
-  };
+     }, [deliveriesWithStopOrder, selectedCardId, triggerPostDeleteOperations]);
 
   const recalculateStopOrders = async (driverId, deliveryDate) => recalculateAndUpdateStopOrders(driverId, deliveryDate);
 
-  const handleRestartDelivery = async (deliveryId) => {
+  const handleRestartDelivery = useCallback(async (deliveryId) => {
     try {
       setIsEntityUpdating(true); pauseOfflineMutations(); pauseOfflineSync(); smartRefreshManager.pause();
       await new Promise((r) => setTimeout(r, 100));
@@ -2049,9 +2048,9 @@ useEffect(() => {
       await refreshData();
     } catch (e) { console.error('Error restarting delivery:', e); alert('Failed to restart delivery. Please try again.'); }
     finally { await new Promise((r) => setTimeout(r, 1000)); resumeOfflineMutations(); resumeOfflineSync(); smartRefreshManager.resume(); setIsEntityUpdating(false); }
-  };
+  }, [deliveriesWithStopOrder, currentUser, stores, appUsers, setIsEntityUpdating, refreshData]);
 
-  const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
+  const handleStatusUpdate = useCallback(async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
     return _handleStatusUpdateImpl(deliveryId, newStatus, extraData, skipAutoCenter, {
       statusUpdateLockRef, deliveriesWithStopOrder, mapViewPhase, isMapViewLocked,
       mapLockTimeoutRef, mapLockExpiresAtRef, isMapViewLockedRef, mapViewPhaseRef, pendingPhaseRef,
@@ -2063,19 +2062,19 @@ useEffect(() => {
       isDispatcher, isAdmin, saveSetting, setEndOfDayDriver, setShowEndOfDayStats,
       hasShownSummaryRef, refreshData,
     });
-  };
+  }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked, showBreadcrumbs, selectedDriverId, stopCardsBaseHeight, currentUser, patients, stores, appUsers, drivers, isDispatcher, isAdmin, updateDeliveriesLocally, refreshData]);
 
   const handleNotesUpdate = useCallback((deliveryId, notes) => _handleNotesUpdate(deliveryId, notes, { refreshData }), [refreshData]);
   const handleCODUpdate = useCallback((deliveryId, codPayments) => _handleCODUpdate(deliveryId, codPayments, { deliveriesWithStopOrder, updateDeliveriesLocally, setIsEntityUpdating }), [deliveriesWithStopOrder, updateDeliveriesLocally, setIsEntityUpdating]);
 
   const handleCreateReturn = useCallback((args) => _handleCreateReturn(args, { currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries }), [currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries]);
 
-  const handleStartDelivery = async (deliveryId) => {
+  const handleStartDelivery = useCallback(async (deliveryId) => {
     const { handleStartDelivery: _doStart } = await import('@/components/dashboard/handleStartDelivery');
     return _doStart({ deliveryId, deliveriesWithStopOrder, deliveries, users, patients, stores, appUsers, currentUser, driverLocation, updateDeliveriesLocally, setIsEntityUpdating, setCurrentToNextPolyline });
-  };
+  }, [deliveriesWithStopOrder, deliveries, patients, stores, appUsers, currentUserId, driverLocation, updateDeliveriesLocally, setIsEntityUpdating]);
 
-  const handleAcceptAIOptimization = async (updates) => {
+  const handleAcceptAIOptimization = useCallback(async (updates) => {
     try {
       '🤖 [AI Optimization] Accepting AI route suggestions:', updates;
 
@@ -2092,9 +2091,9 @@ useEffect(() => {
       console.error('❌ [AI Optimization] Error applying optimization:', error);
       throw error;
     }
-  };
+  }, [refreshData]);
 
-  const handleQuickReorder = async (reorderUpdates) => {
+  const handleQuickReorder = useCallback(async (reorderUpdates) => {
     try {
       setIsEntityUpdating(true);
       pauseOfflineMutations();
@@ -2110,9 +2109,9 @@ useEffect(() => {
       resumeOfflineSync();
       setIsEntityUpdating(false);
     }
-  };
+  }, [selectedDate, currentUserId, appUsers, setIsEntityUpdating, setShowQuickAdjustments]);
 
-  const handleAddDelay = async (deliveryId, delayMinutes) => {
+  const handleAddDelay = useCallback(async (deliveryId, delayMinutes) => {
     try {
       setIsEntityUpdating(true);
 
@@ -2153,7 +2152,7 @@ useEffect(() => {
     } finally {
       setIsEntityUpdating(false);
     }
-  };
+  }, [deliveriesWithStopOrder, selectedDate, currentUserId, setIsEntityUpdating, refreshData]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -2362,64 +2361,5 @@ useEffect(() => {
         if (error.response?.status === 429 || error.message?.includes('429')) return;
         console.warn('⚠️ [Dashboard Mount - STEP 2] Background sync failed:', error.message);
       }
-    };
-    setTimeout(backgroundPrioritySync, 1000);
-  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, userSettingsLoaded, deliveries]);
-
-  // Intentionally removed: the previous effect called setForceRender on every
-  // delivery array change (including GPS-driven appUser updates that indirectly
-  // touch the deliveries reference), causing full Dashboard re-renders on every
-  // GPS tick and manifesting as map flickering. filteredDeliveries and
-  // deliveriesWithStopOrder are derived via useMemo and already update correctly
-  // when deliveries changes — the extra forceRender is not needed.
-
-  const dashboardViewModel = useDashboardViewModel({
-    isLoadingUser,
-    isFiltersReady,
-    isDataLoaded,
-    userSettingsLoaded,
-    currentUser, isDriver, isAdmin, isDispatcher, isMobile,
-    deliveries, patients, stores, drivers, appUsers, cities,
-    filteredDeliveries, deliveriesWithStopOrder, stats, driversList,
-    selectedDate, selectedDriverId, calendarMonth, setCalendarMonth,
-    isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,
-    isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
-    mapCenter, mapZoom, shouldFitBounds, setShouldFitBounds, setMapCenter, setMapZoom,
-    mapMode, setMapMode, mapViewPhase, setMapViewPhase, isMapViewLocked, setIsMapViewLocked,
-    driverLocation, allDriverLocations, currentToNextPolyline, driverRoutes, setDriverRoutes, nextStopCoordinates,
-    showRoutes, setShowRoutes, showAllDriverMarkers, setShowAllDriverMarkers,
-    showBreadcrumbs, setShowBreadcrumbs, breadcrumbsData, setBreadcrumbsData,
-    highlightedCardId, retractClustersRef, renderSequence, setRenderSequence,
-    stopCardsBaseHeight, statsCardBaseHeight, statsCardRef, cardsReadyForFAB,
-    mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef,
-    mapViewPhaseRef, isMapViewLockedRef,
-    handleMapViewCycle, mapViewTrigger, setMapViewTrigger, getMapPadding,
-    statsPanelOpacity, isExpanded, setIsExpanded, areCardsVisible,
-    handleStatsPanelInteraction, handleCardInteraction, isStatsCardCentered,
-    statsCardPositioning, pullToSyncKey, stopCardsContainerRef, horizontalStopCardsRef,
-    optimizationMessage, setOptimizationMessage, isReoptimizing, setIsReoptimizing,
-    setIsEntityUpdating: _setIsEntityUpdatingBoth, isEntityUpdating, hasRateLimitError, updateDeliveriesLocally, updateAppUsersLocally,
-    selectedCardId, handleCardClick, handleMarkerClick,
-    showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery, defaultToPickupMode: !!editingDelivery && !editingDelivery.patient_id,
-    showPatientForm, setShowPatientForm, editingPatient, setEditingPatient,
-    patientFormCallback, setPatientFormCallback, patientFormMode, setPatientFormMode,
-    showOptimizationSettings, setShowOptimizationSettings,
-    showQuickAdjustments, setShowQuickAdjustments,
-    handleSaveDelivery, handleSavePatient, handleEditDelivery, handleEditPatient,
-    handleDeleteDelivery, handleRestartDelivery, handleStatusUpdate, handleNotesUpdate,
-    handleCODUpdate, handleCreateReturn, handleStartDelivery,
-    handleCreatePatientFromDelivery, handleQuickReorder, handleAddDelay, handleAcceptAIOptimization,
-    showRouteSummary, setShowRouteSummary, summaryDriver, setSummaryDriver,
-    showEndOfDayStats, setShowEndOfDayStats, endOfDayDriver, setEndOfDayDriver,
-    routeNotification, setRouteNotification,
-    isSnapshotModeActive, setIsSnapshotModeActive, snapshotData, setSnapshotData,
-    performanceStats, deliveryStats, liveDistance, liveTimeOnDuty, isLoadingPayrollStats,
-    dailyPolylineCount, isAIEnabled, showAIAssistant, preferredTravelMode, realTimeETAEnabled,
-    mapStyle, setMapStyle, refreshUser, refreshData, dataSource,
-    isPrimaryDevice,
-  });
-
-  return (<><DashboardScreen {...dashboardViewModel} /><SkippedStopsDialog isOpen={!!skippedStopsDialogData} skippedStops={skippedStopsDialogData} onClose={() => setSkippedStopsDialogData(null)} /></>);
-}
-
-export default Dashboard;
+      }, [currentUserId, selectedDate, mapViewTrigger, showAllDriverMarkers, refreshData, setIsEntityUpdating, appUsers]);
+;
