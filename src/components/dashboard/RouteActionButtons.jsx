@@ -18,66 +18,10 @@ import { performRouteOptimization } from '@/components/utils/routeOptimizationCo
 
 const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
 
-// ── Resolve GPS coords for a delivery (mirrors backend getDeliveryCoords) ──
-function _resolveStopCoords(delivery, patients = [], stores = []) {
-  if (!delivery) return null;
-  if (delivery.is_cycling_marker) {
-    const lat = Number(delivery.cycling_latitude);
-    const lon = Number(delivery.cycling_longitude);
-    return (Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 && lon !== 0) ? { lat, lon } : null;
-  }
-  if (delivery.patient_id) {
-    const p = patients.find((x) => x?.id === delivery.patient_id);
-    if (p?.latitude != null) return { lat: Number(p.latitude), lon: Number(p.longitude) };
-  }
-  if (delivery.store_id) {
-    const s = stores.find((x) => x?.id === delivery.store_id);
-    if (s?.latitude != null) return { lat: Number(s.latitude), lon: Number(s.longitude) };
-  }
-  return null;
-}
-
-// ── Detect whether an active (unfinished) cycling segment exists ──────────────
-function detectActiveCyclingSegment(deliveries, patients = [], stores = []) {
-  if (!Array.isArray(deliveries) || deliveries.length === 0) return null;
-  const startMarker = deliveries.find((d) => d?.is_cycling_marker && (d.delivery_notes || '').toLowerCase().includes('start')) || null;
-  const endMarker   = deliveries.find((d) => d?.is_cycling_marker && (d.delivery_notes || '').toLowerCase().includes('end'))   || null;
-  if (!endMarker || FINISHED.has(endMarker.status)) return null;
-  const endMarkerCoords = _resolveStopCoords(endMarker, patients, stores);
-  if (!endMarkerCoords) return null;
-  const endMarkerOrder   = Number(endMarker.stop_order   ?? 99999);
-  const startMarkerOrder = startMarker ? Number(startMarker.stop_order ?? 0) : 0;
-  const unfinishedCyclingStops = deliveries
-    .filter((d) => d && !d.is_cycling_marker && !FINISHED.has(d.status) && d.transport_mode === 'cycling'
-      && Number(d.stop_order ?? 99999) > startMarkerOrder && Number(d.stop_order ?? 99999) < endMarkerOrder)
-    .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
-  const unfinishedCyclingStopIds = unfinishedCyclingStops.map((d) => d.id);
-  const startMarkerUnfinished = startMarker && !FINISHED.has(startMarker.status);
-  let cyclingOriginStop = null, cyclingOriginCoords = null;
-  if (startMarkerUnfinished) {
-    cyclingOriginStop   = startMarker;
-    cyclingOriginCoords = _resolveStopCoords(startMarker, patients, stores);
-  } else if (unfinishedCyclingStops.length > 0) {
-    cyclingOriginStop   = unfinishedCyclingStops[0];
-    cyclingOriginCoords = _resolveStopCoords(cyclingOriginStop, patients, stores);
-  } else {
-    cyclingOriginStop   = endMarker;
-    cyclingOriginCoords = endMarkerCoords;
-  }
-  if (!cyclingOriginCoords) return null;
-  return { startMarker, endMarker, endMarkerCoords, cyclingOriginStop, cyclingOriginCoords, unfinishedCyclingStopIds };
-}
-
 
 /**
- * Run the FAB optimization client-side, cycling-aware:
- *
- *  - No active cycling segment → single performRouteOptimization call (full route).
- *  - Active cycling segment    → two parallel performRouteOptimization calls:
- *      Stage 1: cyclingSegmentOnly (bicycle mode, origin=first unfinished cycling stop, dest=end marker)
- *      Stage 2: drivingSegmentOnly (car mode,     origin=end marker, excludes cycling ids)
- *
- * Returns { success, freshDeliveries, optimizeData } compatible with the existing compare-dialog logic.
+ * Run the FAB optimization — single-pass, cycling-aware.
+ * Cycling markers are handled as fixed anchors inside the client-side engine.
  */
 async function runClientSideOptimize({
   driverId,
@@ -89,95 +33,18 @@ async function runClientSideOptimize({
   currentLocation,
   source,
 }) {
-  const driverDeliveries = (deliveries || []).filter(
-    (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
-  );
-
-  const cycling = detectActiveCyclingSegment(driverDeliveries, patients, stores);
-
-  if (!cycling) {
-    // ── No cycling segment — single full-route pass ────────────────────────
-    return performRouteOptimization({
-      driverId,
-      deliveryDate,
-      deliveries,
-      patients,
-      stores,
-      appUsers,
-      currentLocation,
-      source: `${source}:standard`,
-      bypassDriverStatus: true,
-      preserveExistingOrder: false,
-      skipPolyline: false,
-    });
-  }
-
-  // ── Active cycling segment — two-pass client-side (mirrors useModeRouteDialog) ──
-  const { endMarker, endMarkerCoords, cyclingOriginCoords, unfinishedCyclingStopIds, startMarker } = cycling;
-  const endMarkerOrder = Number(endMarker.stop_order ?? 0);
-
-  const [stage1, stage2] = await Promise.all([
-    // Stage 1 — cycling loop (bicycle mode)
-    unfinishedCyclingStopIds.length > 0
-      ? performRouteOptimization({
-          driverId,
-          deliveryDate,
-          deliveries,
-          patients,
-          stores,
-          appUsers,
-          currentLocation: cyclingOriginCoords,
-          source: `${source}:cycling:stage1`,
-          bypassDriverStatus: true,
-          cyclingSegmentOnly: true,
-          cyclingOrigin: cyclingOriginCoords,
-          cyclingDestination: endMarkerCoords,
-          cyclingStopIds: unfinishedCyclingStopIds,
-          startingStopOrder: endMarkerOrder - unfinishedCyclingStopIds.length,
-          skipPolyline: false,
-        }).catch((e) => { console.warn('[FAB] Stage 1 failed:', e?.message); return null; })
-      : Promise.resolve(null),
-
-    // Stage 2 — driving leg (car mode, starts at end marker)
-    performRouteOptimization({
-      driverId,
-      deliveryDate,
-      deliveries,
-      patients,
-      stores,
-      appUsers,
-      currentLocation: endMarkerCoords,
-      source: `${source}:cycling:stage2`,
-      bypassDriverStatus: true,
-      drivingSegmentOnly: true,
-      drivingOrigin: endMarkerCoords,
-      excludeStopIds: [
-        ...(unfinishedCyclingStopIds || []),
-        startMarker?.id,
-        endMarker.id,
-      ].filter(Boolean),
-      startingStopOrder: endMarkerOrder + 1,
-      preserveExistingOrder: false,
-      skipPolyline: false,
-    }).catch((e) => { console.warn('[FAB] Stage 2 failed:', e?.message); return null; }),
-  ]);
-
-  // Return the stage2 result as the primary (it has the driving-leg freshDeliveries).
-  // Merge both freshDeliveries arrays so the compare dialog gets the full picture.
-  const merged = [
-    ...(stage1?.freshDeliveries || []),
-    ...(stage2?.freshDeliveries || []),
-  ];
-  // Deduplicate by id (stage2 wins on overlap)
-  const byId = new Map();
-  merged.forEach((d) => { if (d?.id) byId.set(d.id, d); });
-  const freshDeliveries = [...byId.values()];
-
-  return {
-    success: (stage1?.success !== false) || (stage2?.success === true),
-    freshDeliveries,
-    optimizeData: stage2?.optimizeData || stage1?.optimizeData || null,
-  };
+  return performRouteOptimization({
+    driverId,
+    deliveryDate,
+    deliveries,
+    patients,
+    stores,
+    appUsers,
+    currentLocation,
+    source,
+    bypassDriverStatus: true,
+    preserveExistingOrder: false,
+  });
 }
 
 export default function RouteActionButtons({
