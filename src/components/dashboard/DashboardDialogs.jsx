@@ -125,6 +125,7 @@ export default function DashboardDialogs({
               isOpen={showEndOfDayStats}
               onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }}
               deliveries={filteredDeliveries}
+              allYearDeliveries={deliveries || []}
               driver={selectedDriver}
               deliveryDate={format(selectedDate, 'yyyy-MM-dd')}
               isProcessing={isEntityUpdating}

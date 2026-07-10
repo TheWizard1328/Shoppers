@@ -45,6 +45,7 @@ export default function EndOfDayStatsDialog({
   isOpen, 
   onClose, 
   deliveries = [],
+  allYearDeliveries = [],
   driver,
   deliveryDate,
   isProcessing = false,
@@ -130,6 +131,32 @@ export default function EndOfDayStatsDialog({
       ? (deliveries || []).filter(d => d).reduce((sum, d) => sum + (d.estimated_distance_km || 0), 0)
       : null;
 
+    // Compute best day of the year from allYearDeliveries
+    const currentYear = new Date().getFullYear();
+    const yearStr = String(currentYear);
+    const driverIdToMatch = driver?.user_id || driver?.id || null;
+
+    // Group all year deliveries by date → count patient stops & sum pay
+    const dayMap = new Map();
+    (allYearDeliveries || []).forEach(d => {
+      if (!d || !d.delivery_date || !d.delivery_date.startsWith(yearStr)) return;
+      if (!d.patient_id) return; // only patient deliveries count
+      if (driverIdToMatch && d.driver_id !== driverIdToMatch) return;
+      if (!dayMap.has(d.delivery_date)) dayMap.set(d.delivery_date, { stops: 0, pay: 0 });
+      const entry = dayMap.get(d.delivery_date);
+      entry.stops += 1;
+    });
+
+    let bestDayByStops = null;
+    let bestDayByEarned = null;
+
+    if (dayMap.size > 0) {
+      let maxStops = 0;
+      for (const [date, entry] of dayMap) {
+        if (entry.stops > maxStops) { maxStops = entry.stops; bestDayByStops = { date, stops: entry.stops }; }
+      }
+    }
+
     const newStats = {
       total,
       completed,
@@ -148,6 +175,7 @@ export default function EndOfDayStatsDialog({
       hourlyRate,
       routeComplete: routeActuallyComplete,
       routeStarted,
+      bestDayByStops,
     };
     // Pick a random message only once per open session
     if (!messageLockedRef.current) {
@@ -334,9 +362,19 @@ export default function EndOfDayStatsDialog({
             const bgVar = color === 'emerald' ? 'var(--bg-emerald-50)' : 'var(--bg-blue-50)';
             const borderVar = color === 'emerald' ? 'var(--border-emerald-200)' : 'var(--border-blue-200)';
             const textClass = color === 'emerald' ? 'text-emerald-700' : 'text-blue-700';
+            const bestDay = stats?.bestDayByStops;
+            const bestDayLabel = bestDay
+              ? format(new Date(bestDay.date + 'T00:00:00'), 'MMM d')
+              : null;
+            const isNewRecord = bestDay && stats.total >= bestDay.stops && deliveryDate === bestDay.date;
             return (
               <div className="text-center py-3 px-4 rounded-lg border" style={{ background: bgVar, borderColor: borderVar }}>
                 <p className={`text-sm font-medium ${textClass}`}>{emoji} {text}</p>
+                {bestDay && (
+                  <p className="text-xs mt-1.5 opacity-70" style={{ color: color === 'emerald' ? 'var(--text-emerald-700)' : 'var(--text-blue-700)' }}>
+                    {isNewRecord ? '🏆 New record! ' : ''}Best Day: {bestDayLabel} — {bestDay.stops} Stop{bestDay.stops !== 1 ? 's' : ''}
+                  </p>
+                )}
               </div>
             );
           })()}
