@@ -130,9 +130,20 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
                     {moved && (
                       <ArrowRight className="w-3 h-3 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                     )}
+                    {/* Cycling marker coloured dot */}
+                    {row.isCyclingStart && (
+                      <span className="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-green-500" title="Cycling Start" />
+                    )}
+                    {row.isCyclingEnd && (
+                      <span className="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-red-500" title="Cycling End" />
+                    )}
                     <span
                       className={`truncate font-medium ${
-                        moved
+                        row.isCyclingStart
+                          ? "text-green-700 dark:text-green-400"
+                          : row.isCyclingEnd
+                          ? "text-red-700 dark:text-red-400"
+                          : moved
                           ? "text-amber-800 dark:text-amber-300"
                           : "text-slate-700 dark:text-slate-200"
                       }`}

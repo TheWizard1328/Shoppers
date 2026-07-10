@@ -205,12 +205,36 @@ export default function RouteActionButtons({
   const { isMobile } = useDevice();
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareRows, setCompareRows] = useState([]);
+  const [cyclingLocations, setCyclingLocations] = useState([]);
   const reoptimizeBtnRef = useRef(null);
+
+  // Pre-fetch CyclingLocations once so getStopName can show real marker names
+  useEffect(() => {
+    base44.entities.CyclingLocation.list()
+      .then((locs) => setCyclingLocations(locs || []))
+      .catch(() => {});
+  }, []);
 
   // Build a display name for a delivery
   const getStopName = (delivery) => {
     if (!delivery) return 'Unknown';
-    if (delivery.is_cycling_marker) return '🚴 Cycling Marker';
+    if (delivery.is_cycling_marker) {
+      const notes = (delivery.delivery_notes || '').trim().toLowerCase();
+      const isEnd = notes.includes('end');
+      const label = isEnd ? 'Cycling End' : 'Cycling Start';
+      // Try to resolve the real location name from CyclingLocation records
+      const lat = delivery.cycling_latitude;
+      const lng = delivery.cycling_longitude;
+      let locName = null;
+      if (lat != null && lng != null && cyclingLocations.length > 0) {
+        const THRESH = 0.0005;
+        const match = cyclingLocations.find((loc) =>
+          Math.abs(loc.latitude - lat) < THRESH && Math.abs(loc.longitude - lng) < THRESH
+        );
+        locName = match?.name || null;
+      }
+      return locName ? `${label}: ${locName}` : label;
+    }
     if (isInterStoreDelivery(delivery.delivery_id)) {
       const loc = getInterStoreLocationSync(delivery.delivery_id);
       const storeName = loc?.store_name || null;
@@ -382,15 +406,20 @@ export default function RouteActionButtons({
               // Show dialog immediately with loading state
               const beforeRows = beforeDeliveries
                 .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))
-                .map((d) => ({
-                  deliveryId: d.id,
-                  name: getStopName(d),
-                  oldStopOrder: d.stop_order ?? null,
-                  oldEta: d.delivery_time_eta ?? null,
-                  newStopOrder: null,
-                  newEta: null,
-                  orderChanged: false,
-                }));
+                .map((d) => {
+                  const _notes = (d.delivery_notes || '').trim().toLowerCase();
+                  return {
+                    deliveryId: d.id,
+                    name: getStopName(d),
+                    isCyclingStart: !!d.is_cycling_marker && !_notes.includes('end'),
+                    isCyclingEnd:   !!d.is_cycling_marker &&  _notes.includes('end'),
+                    oldStopOrder: d.stop_order ?? null,
+                    oldEta: d.delivery_time_eta ?? null,
+                    newStopOrder: null,
+                    newEta: null,
+                    orderChanged: false,
+                  };
+                });
               setCompareRows(beforeRows);
               setCompareDialogOpen(true);
 
@@ -418,9 +447,12 @@ export default function RouteActionButtons({
                     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))
                     .map((d) => {
                       const before = beforeMap.get(d.id) || {};
+                      const _notes = (d.delivery_notes || '').trim().toLowerCase();
                       return {
                         deliveryId: d.id,
                         name: getStopName(d),
+                        isCyclingStart: !!d.is_cycling_marker && !_notes.includes('end'),
+                        isCyclingEnd:   !!d.is_cycling_marker &&  _notes.includes('end'),
                         oldStopOrder: before.stopOrder ?? null,
                         oldEta: before.eta ?? null,
                         newStopOrder: d.stop_order ?? null,
