@@ -1606,7 +1606,7 @@ useEffect(() => {
         driverChangeInProgressRef.current = false;
       }
     }
-  };
+  }, [currentUserId, selectedDate, refreshData, setIsEntityUpdating, appUsers, showAllDriverMarkers, mapViewTrigger]);
 
   // KITT bar phased messages: activate on button click, show 3 phases, clear on done
   const kittTimeoutRef = useRef(null);
@@ -2361,5 +2361,53 @@ useEffect(() => {
         if (error.response?.status === 429 || error.message?.includes('429')) return;
         console.warn('⚠️ [Dashboard Mount - STEP 2] Background sync failed:', error.message);
       }
-      }, [currentUserId, selectedDate, mapViewTrigger, showAllDriverMarkers, refreshData, setIsEntityUpdating, appUsers]);
-;
+    };
+    backgroundPrioritySync();
+  }, [currentUserId, selectedDateStr, isDataLoaded, isFiltersReady, userSettingsLoaded]);
+
+  const driverChangeRequestIdRef = useRef(null);
+  const driverChangeInProgressRef = useRef(false);
+
+  const dashboardProps = {
+    currentUser, selectedDate, selectedDriverId, deliveriesWithStopOrder, filteredDeliveries,
+    deliveries, patients, stores, drivers, driversList, users, appUsers, cities, stats,
+    isDataLoaded, isEntityUpdating, isDateFinished, isRouteComplete, isDriver, isAdmin,
+    isDispatcher, isDriverDropdownDisabled, isAllDriversMode, mapCenter, mapZoom,
+    shouldFitBounds, mapViewPhase, mapViewTrigger, isMapViewLocked, mapStyle, showRoutes,
+    showBreadcrumbs, showAllDriverMarkers, breadcrumbsData, driverLocation, allDriverLocations,
+    currentToNextPolyline, driverRoutes, selectedCardId, highlightedCardId, isExpanded,
+    areCardsVisible, statsPanelOpacity, stopCardsBaseHeight, cardsReadyForFAB, isReoptimizing,
+    optimizationMessage, showDeliveryForm, editingDelivery, showPatientForm, editingPatient,
+    patientFormMode, showOptimizationSettings, showAIAssistant, isAIEnabled, hasUnreadAIAlerts,
+    showQuickAdjustments, showEndOfDayStats, endOfDayDriver, skippedStopsDialogData,
+    routeNotification, performanceStats, isLoadingPayrollStats, preferredTravelMode,
+    nextStop, nextStopCoordinates, renderSequence, statsCardRef, stopCardsContainerRef,
+    horizontalStopCardsRef, mapLockTimeoutRef, mapLockExpiresAtRef, mapViewPhaseRef,
+    isMapViewLockedRef, pendingPhaseRef, lastProgrammaticMapMoveRef, isCalendarOpen,
+    calendarMonth, isPrimaryDevice, showRouteSummary, summaryDriver, snapshotData,
+    isSnapshotModeActive, statsCardPositioning, isStatsCardCentered, bottomNavHeight,
+    screenWidth, cardWidth, isFiltersReady, userSettingsLoaded,
+    setMapStyle, setMapCenter, setMapZoom, setShouldFitBounds, setMapViewPhase,
+    setMapViewTrigger, setIsMapViewLocked, setSelectedDate, setSelectedDriverId,
+    setIsExpanded, setAreCardsVisible, setStatsPanelOpacity, setShowRoutes,
+    setShowBreadcrumbs, setShowAllDriverMarkers, setSelectedCardId, setHighlightedCardId,
+    setStopCardsBaseHeight, setCardsReadyForFAB, setIsReoptimizing, setOptimizationMessage,
+    setShowDeliveryForm, setEditingDelivery, setShowPatientForm, setEditingPatient,
+    setShowOptimizationSettings, setShowAIAssistant, setIsAIEnabled, setHasUnreadAIAlerts,
+    setShowQuickAdjustments, setShowEndOfDayStats, setEndOfDayDriver, setSkippedStopsDialogData,
+    setRouteNotification, setIsCalendarOpen, setCalendarMonth, setShowRouteSummary,
+    setSummaryDriver, setSnapshotData, setIsSnapshotModeActive, setRenderSequence,
+    setDriverRoutes, setBreadcrumbsData, setCurrentToNextPolyline,
+    setIsEntityUpdating, handleDateChange, handleDriverChange, handleMapViewCycle,
+    handleCardClick, handleMarkerClick, handleStatusUpdate, handleStartDelivery,
+    handleSaveDelivery, handleEditDelivery, handleDeleteDelivery, handleRestartDelivery,
+    handleCreateReturn, handleNotesUpdate, handleCODUpdate, handleReoptimizeRoute,
+    handleAIToggle, handleAcceptAIOptimization, handleQuickReorder, handleAddDelay,
+    handleSavePatient, handleEditPatient, handleCreatePatientFromDelivery, getMapPadding,
+    refreshData, updateDeliveriesLocally,
+  };
+
+  return <DashboardScreen {...dashboardProps} />;
+}
+
+export default Dashboard;
