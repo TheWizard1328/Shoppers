@@ -87,7 +87,55 @@ function Dashboard() {
   const [mapViewPhase, setMapViewPhase] = useState(1);
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(true);
   const [initialMapViewApplied, setInitialMapViewApplied] = useState(false);
-  const [renderSequence, setRenderSequence] = useState({ statsAndCards: false, fabs: false, mapMarkers: false, routeLines: false, driverLiveLocation: false, sharedLocations: false, fullDeliveriesLoaded: false, fabPhaseReady: false });
+  // renderSequence refactor: only the two flags consumed by child components need to
+  // be state. The other 6 are pure internal sequencing gates — converting them to
+  // refs eliminates 6 out of 7 re-renders in the load/date-change cascade.
+  const [rsMapMarkersReady, setRsMapMarkersReady] = useState(false);
+  const [rsFabPhaseReady, setRsFabPhaseReady] = useState(false);
+  const rsStatsAndCardsRef    = useRef(false);
+  const rsFabsRef             = useRef(false);
+  const rsRouteLinesRef       = useRef(false);
+  const rsDriverLiveLocRef    = useRef(false);
+  const rsSharedLocationsRef  = useRef(false);
+  const rsFullDeliveriesRef   = useRef(false);
+  // Stable object passed to child components — shape is unchanged so no consumer
+  // needs to be updated. Re-created only when the two stateful flags flip.
+  const renderSequence = useMemo(() => ({
+    statsAndCards:       rsStatsAndCardsRef.current,
+    fabs:                rsFabsRef.current,
+    mapMarkers:          rsMapMarkersReady,
+    routeLines:          rsRouteLinesRef.current,
+    driverLiveLocation:  rsDriverLiveLocRef.current,
+    sharedLocations:     rsSharedLocationsRef.current,
+    fullDeliveriesLoaded: rsFullDeliveriesRef.current,
+    fabPhaseReady:       rsFabPhaseReady,
+  }), [rsMapMarkersReady, rsFabPhaseReady]);
+  // setRenderSequence shim — keeps MapSection.jsx and DashboardView.jsx working
+  // without changes. Only mapMarkers and fabPhaseReady trigger re-renders; the
+  // rest are written to refs silently.
+  const setRenderSequence = useCallback((updater) => {
+    const current = {
+      statsAndCards:       rsStatsAndCardsRef.current,
+      fabs:                rsFabsRef.current,
+      mapMarkers:          rsMapMarkersReady,
+      routeLines:          rsRouteLinesRef.current,
+      driverLiveLocation:  rsDriverLiveLocRef.current,
+      sharedLocations:     rsSharedLocationsRef.current,
+      fullDeliveriesLoaded: rsFullDeliveriesRef.current,
+      fabPhaseReady:       rsFabPhaseReady,
+    };
+    const next = typeof updater === 'function' ? updater(current) : updater;
+    // Write non-stateful flags to refs (no re-render)
+    rsStatsAndCardsRef.current   = next.statsAndCards   ?? current.statsAndCards;
+    rsFabsRef.current            = next.fabs            ?? current.fabs;
+    rsRouteLinesRef.current      = next.routeLines      ?? current.routeLines;
+    rsDriverLiveLocRef.current   = next.driverLiveLocation ?? current.driverLiveLocation;
+    rsSharedLocationsRef.current = next.sharedLocations ?? current.sharedLocations;
+    rsFullDeliveriesRef.current  = next.fullDeliveriesLoaded ?? current.fullDeliveriesLoaded;
+    // Only call state setters if the stateful flags actually changed
+    if (next.mapMarkers !== undefined && next.mapMarkers !== rsMapMarkersReady) setRsMapMarkersReady(next.mapMarkers);
+    if (next.fabPhaseReady !== undefined && next.fabPhaseReady !== rsFabPhaseReady) setRsFabPhaseReady(next.fabPhaseReady);
+  }, [rsMapMarkersReady, rsFabPhaseReady]);
   const [allDriverLocations, setAllDriverLocations] = useState([]);
   const screenWidth = window.innerWidth;
   const cardWidth = 340;
@@ -1197,118 +1245,90 @@ function Dashboard() {
   }, [mapViewTrigger]);
 
   // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
+  // Uses ref flag — no re-render on flip; just unblocks effect 2.
   useEffect(() => {
     if (!isDataLoaded || !userSettingsLoaded) return;
-
+    if (rsStatsAndCardsRef.current) return;
     const hasDeliveries = deliveriesWithStopOrder.length > 0;
     const statsCardMeasured = statsCardRef.current?.offsetHeight > 0;
     const stopCardsMeasured = hasDeliveries ? stopCardsBaseHeight > 0 : true;
-
-    if (statsCardMeasured && stopCardsMeasured && !renderSequence.statsAndCards) {
-      setRenderSequence((prev) => ({ ...prev, statsAndCards: true }));
+    if (statsCardMeasured && stopCardsMeasured) {
+      rsStatsAndCardsRef.current = true;
     }
-  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, stopCardsBaseHeight, renderSequence.statsAndCards]);
+  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, stopCardsBaseHeight]);
 
   // RENDER SEQUENCE EFFECT 2: Track FABs ready (after stats/cards)
+  // Pure ref-flag cascade — no re-render needed to unlock effect 3.
   useEffect(() => {
-    if (!renderSequence.statsAndCards) return;
-    if (renderSequence.fabs) return;
-
-    // CRITICAL: Wait for FABs to actually render before marking as ready
+    if (!rsStatsAndCardsRef.current) return;
+    if (rsFabsRef.current) return;
     const timer = setTimeout(() => {
-      setRenderSequence((prev) => ({ ...prev, fabs: true }));
-    }, 300); // Wait 300ms for FABs to mount and render
-
+      rsFabsRef.current = true;
+    }, 300);
     return () => clearTimeout(timer);
-  }, [renderSequence.statsAndCards, renderSequence.fabs]);
+  }, [rsStatsAndCardsRef.current, rsFabsRef.current]);
 
-  // RENDER SEQUENCE EFFECT 3: Track Map Markers ready (including ALL delivery/patient markers)
+  // RENDER SEQUENCE EFFECT 3: Track Map Markers ready — THIS one triggers a re-render
+  // (mapMarkers is consumed by MapSection). All gates before it are ref-checks only.
   useEffect(() => {
-    if (!renderSequence.fabs) return;
-    if (renderSequence.mapMarkers) return;
-
-    // CRITICAL: Map markers ready ONLY when we have deliveries AND patients loaded
-    // This ensures both pickup AND patient delivery markers are rendered
+    if (!rsFabsRef.current) return;
+    if (rsMapMarkersReady) return;
     const hasDeliveries = deliveriesWithStopOrder.length > 0;
     const hasPatients = patients.length > 0;
     const hasStores = stores.length > 0;
-
-    const hasRequiredData = hasDeliveries && hasPatients && hasStores || !hasDeliveries && hasStores;
-
+    const hasRequiredData = (hasDeliveries && hasPatients && hasStores) || (!hasDeliveries && hasStores);
     if (hasRequiredData) {
-      setRenderSequence((prev) => ({ ...prev, mapMarkers: true }));
+      rsRouteLinesRef.current = true;
+      rsDriverLiveLocRef.current = true;
+      setRsMapMarkersReady(true);
     }
-  }, [renderSequence.fabs, renderSequence.mapMarkers, deliveriesWithStopOrder.length, patients.length, stores.length]);
+  }, [rsFabsRef.current, rsMapMarkersReady, deliveriesWithStopOrder.length, patients.length, stores.length]);
 
+  // Effect 4 (routeLines) collapsed into effect 3 — rsRouteLinesRef set there.
+
+  // RENDER SEQUENCE EFFECT 5: driverLiveLocation — ref-only gate for sharedLocations.
+  // For non-drivers this is always true (set in effect 3). For drivers, wait for GPS.
   useEffect(() => {
-    if (!renderSequence.mapMarkers) return;
-    if (renderSequence.routeLines) return;
-    setRenderSequence((prev) => ({ ...prev, routeLines: true }));
-  }, [renderSequence.mapMarkers, renderSequence.routeLines]);
-
-  // RENDER SEQUENCE EFFECT 5: Track Driver Live Location ready
-  useEffect(() => {
-    if (!renderSequence.routeLines) return;
-    if (renderSequence.driverLiveLocation) return;
-
-    // Driver live location is ready when we have location OR user is not a driver
+    if (!rsRouteLinesRef.current) return;
+    if (rsDriverLiveLocRef.current) return;
     const hasLocation = driverLocation?.latitude && driverLocation?.longitude;
-    const notDriverOrHasLocation = !isDriver || hasLocation;
-
-    if (notDriverOrHasLocation) {
-      setRenderSequence((prev) => ({ ...prev, driverLiveLocation: true }));
+    if (!isDriver || hasLocation) {
+      rsDriverLiveLocRef.current = true;
     }
-  }, [renderSequence.routeLines, renderSequence.driverLiveLocation, driverLocation, isDriver]);
+  }, [rsRouteLinesRef.current, rsDriverLiveLocRef.current, driverLocation, isDriver]);
 
-  // RENDER SEQUENCE EFFECT 6: Track Shared Driver Locations ready
+  // RENDER SEQUENCE EFFECT 6: sharedLocations — ref-only gate; unlocks fullDeliveriesLoaded.
   useEffect(() => {
-    if (!renderSequence.driverLiveLocation) return;
-    if (renderSequence.sharedLocations) return;
-
-    // CRITICAL: Check TWO sources for driver locations:
-    // 1. allDriverLocations (from poller)
-    // 2. window.__mapDriverLocationMarkers (rendered on map by DriverLocationMarkers)
+    if (!rsDriverLiveLocRef.current) return;
+    if (rsSharedLocationsRef.current) return;
     const mapDriverMarkers = window.__mapDriverLocationMarkers || [];
     const hasSharedLocations = allDriverLocations.length > 0 || mapDriverMarkers.length > 0;
-
     if (hasSharedLocations) {
-      setRenderSequence((prev) => ({ ...prev, sharedLocations: true }));
+      rsSharedLocationsRef.current = true;
       return;
     }
-
-    // Reduce timeout to 500ms - markers should be available almost immediately
-    const timer = setTimeout(() => {
-      setRenderSequence((prev) => ({ ...prev, sharedLocations: true }));
-    }, 500);
-
+    const timer = setTimeout(() => { rsSharedLocationsRef.current = true; }, 500);
     return () => clearTimeout(timer);
-  }, [renderSequence.driverLiveLocation, renderSequence.sharedLocations, allDriverLocations.length, isDataLoaded]);
+  }, [rsDriverLiveLocRef.current, rsSharedLocationsRef.current, allDriverLocations.length, isDataLoaded]);
 
-  // RENDER SEQUENCE EFFECT 7: Wait for ALL drivers' deliveries for selected date to be ready.
-  // CRITICAL: Once fullDeliveriesLoaded=true it must NEVER reset from background refreshes.
-  // Resetting it causes _applyFabPhase to re-fire on every 90s smartRefresh.
+  // RENDER SEQUENCE EFFECT 7: fullDeliveriesLoaded — final gate before fabPhase.
+  // CRITICAL: once set it must NEVER reset from background refreshes — that's why
+  // rsFullDeliveriesRef is a ref (not state). The fabPhase effect below reads it
+  // directly on each of its own re-runs so no cascade re-render is needed here.
   useEffect(() => {
-    if (!renderSequence.sharedLocations) return;
-    if (renderSequence.fullDeliveriesLoaded) return; // never downgrade once set
-
+    if (!rsSharedLocationsRef.current) return;
+    if (rsFullDeliveriesRef.current) return;
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     const deliveriesToCheck = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
-
     if (deliveriesToCheck.length > 0 && patients.length > 0 && stores.length > 0) {
-      setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
+      rsFullDeliveriesRef.current = true;
       return;
     }
-
-    // Timeout fallback — mark ready even if no deliveries after 2 seconds
-    const timer = setTimeout(() => {
-      setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
-    }, 2000);
-
+    const timer = setTimeout(() => { rsFullDeliveriesRef.current = true; }, 2000);
     return () => clearTimeout(timer);
-  // CRITICAL: deliveries is intentionally NOT in deps — we only need to run this
-  // once per sharedLocations flip. Background delivery updates must not re-trigger it.
+  // CRITICAL: deliveries intentionally NOT in deps — see original comment above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, selectedDate, patients.length, stores.length]);
+  }, [rsSharedLocationsRef.current, rsFullDeliveriesRef.current, selectedDate, patients.length, stores.length]);
 
   // Save FAB phase when navigating away from Dashboard
   useEffect(() => {
@@ -1339,7 +1359,7 @@ function Dashboard() {
     mapViewPhaseRef.current = _sp; isMapViewLockedRef.current = shouldLock; pendingPhaseRef.current = _sp;
     setMapViewPhase(_sp); setIsMapViewLocked(shouldLock);
     setInitialMapViewApplied(true);
-    setRenderSequence((p) => ({ ...p, fabPhaseReady: true }));
+    setRsFabPhaseReady(true);
     lastProgrammaticMapMoveRef.current = Date.now();
     window._lastProgrammaticMapMove = Date.now();
     // CRITICAL: Fire the map trigger in a separate task so React has committed the
@@ -1353,34 +1373,25 @@ function Dashboard() {
   };
 
 useEffect(() => {
-    if (!renderSequence.fullDeliveriesLoaded || renderSequence.fabPhaseReady) return;
+    // Read ref directly — no re-render cascade needed; this effect fires when
+    // cardsReadyForFAB (state) or rsFabPhaseReady (state) changes.
+    if (!rsFullDeliveriesRef.current || rsFabPhaseReady) return;
     if (!cardsReadyForFAB) return;
-    if (initialMapViewApplied) { setRenderSequence((p) => ({ ...p, fabPhaseReady: true })); return; }
-
-    // CRITICAL FIX: Only apply FAB phase once for the current date/driver selection.
-    // Prevent re-triggering from background data refreshes.
+    if (initialMapViewApplied) { setRsFabPhaseReady(true); return; }
     const currentDateDriverCombo = `${format(selectedDate, 'yyyy-MM-dd')}-${selectedDriverId}`;
     if (initialFabPhaseAppliedRef.current === currentDateDriverCombo) {
-        setRenderSequence((p) => ({ ...p, fabPhaseReady: true }));
+        setRsFabPhaseReady(true);
         return;
     }
-
     fabControlEvents.notifyDataReady();
-    // CRITICAL: Wait for the map component to fully mount and subscribe its
-    // useEffect([mapViewTrigger]) before firing _applyFabPhase. The map renders
-    // after stop cards are measured (cardsReadyForFAB), but needs one more render
-    // cycle + layout paint before its effects are live. 1500ms is the safe minimum
-    // on slow devices; the extra 150ms inside _applyFabPhase then separates the
-    // phase-set from the trigger so they're never batched together.
     setTimeout(() => {
         _applyFabPhase();
         initialFabPhaseAppliedRef.current = currentDateDriverCombo;
-        // Center the isNextDelivery card after the map animation settles
         setTimeout(() => {
             window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));
         }, 800);
     }, 1500);
-  }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, cardsReadyForFAB]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rsFullDeliveriesRef.current, rsFabPhaseReady, initialMapViewApplied, cardsReadyForFAB]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { window._mapViewPhaseRef = mapViewPhaseRef; window._pendingPhaseRef = pendingPhaseRef; window._selectedDriverIdRef = selectedDriverIdRef; }, []);
 
@@ -1415,7 +1426,21 @@ useEffect(() => {
     const _pickupDriver=(deliveries||[]).find((d)=>d&&d.delivery_date===_ds&&d.store_id===_storeId&&!d.patient_id&&d.driver_id&&!['cancelled','failed'].includes(d.status))?.driver_id||'';if(_pickupDriver&&_driverInAppUsers(_pickupDriver)){_apply(_pickupDriver);return;}base44.entities.DriverScheduleOverride.filter({date:_ds,store_id:_storeId}).then((_ov)=>{const _ovId=(_ov||[]).find((o)=>o&&String(o.store_id)===_storeId)?.driver_id||'';if(!window.__dispatcherOverrideDriverIds)window.__dispatcherOverrideDriverIds={};window.__dispatcherOverrideDriverIds[_ds]=_ovId?[_ovId]:[];_apply(_ovId&&_driverInAppUsers(_ovId)?_ovId:_storeDefault());}).catch(()=>{_apply(_storeDefault());});}
   }, [currentUser?.id, isDataLoaded, userSettingsLoaded, isFiltersReady, driversList, stores, selectedDate]);
 
-  useEffect(() => { setCardsReadyForFAB(false); initialFabPhaseAppliedRef.current = null; setRenderSequence((p) => ({ ...p, fullDeliveriesLoaded: false, fabPhaseReady: false })); }, [selectedDriverId, selectedDate]);
+  // On driver/date change: reset all ref-flags and both stateful flags
+  useEffect(() => {
+    setCardsReadyForFAB(false);
+    initialFabPhaseAppliedRef.current = null;
+    // Reset all ref-flags (non-stateful)
+    rsStatsAndCardsRef.current   = false;
+    rsFabsRef.current            = false;
+    rsRouteLinesRef.current      = false;
+    rsDriverLiveLocRef.current   = false;
+    rsSharedLocationsRef.current = false;
+    rsFullDeliveriesRef.current  = false;
+    // Reset stateful flags (triggers re-render once — not 7 times)
+    setRsMapMarkersReady(false);
+    setRsFabPhaseReady(false);
+  }, [selectedDriverId, selectedDate]);
 
   // CRITICAL: Enable FAB repositioning once stop cards are measured
   useEffect(() => {
