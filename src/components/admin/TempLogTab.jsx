@@ -135,6 +135,34 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     setSelectedReadings((prev) => { const next = new Map(prev); next.delete(logId); return next; });
   };
 
+  // Dates that actually have temp log records
+  const [datesWithLogs, setDatesWithLogs] = useState(new Set([format(new Date(), 'yyyy-MM-dd')]));
+
+  useEffect(() => {
+    const loadDates = async () => {
+      try {
+        // Always check offline DB first (fast)
+        const cached = await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS);
+        const offlineDates = new Set((cached || []).map((r) => r?.delivery_date).filter(Boolean));
+
+        if (dataSource === 'online') {
+          // Fetch distinct dates from online DB — list all records but only grab delivery_date
+          try {
+            const online = await base44.entities.RxTempLogs.list('-delivery_date', 500);
+            (online || []).forEach((r) => { if (r?.delivery_date) offlineDates.add(r.delivery_date); });
+          } catch (_) {}
+        }
+
+        // Always include today so the picker isn't empty on first load
+        offlineDates.add(format(new Date(), 'yyyy-MM-dd'));
+        setDatesWithLogs(offlineDates);
+      } catch (_) {
+        setDatesWithLogs(new Set([format(new Date(), 'yyyy-MM-dd')]));
+      }
+    };
+    loadDates();
+  }, [dataSource]);
+
   const applyFilter = useCallback((records, date, driverId) => {
     if (!records) return [];
     return records.filter((r) =>
@@ -393,16 +421,10 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     return d?.user_name || d?.full_name || driverId;
   };
 
-  // Available dates — last 14 days
+  // Available dates — only dates that have temp log records, sorted newest first
   const availableDates = React.useMemo(() => {
-    const dates = [];
-    for (let i = 0; i < 14; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      dates.push(format(d, 'yyyy-MM-dd'));
-    }
-    return dates;
-  }, []);
+    return [...datesWithLogs].sort((a, b) => b.localeCompare(a));
+  }, [datesWithLogs]);
 
   const totalReadings = logs.reduce((sum, l) => sum + (l.temperature_readings?.length || 0), 0);
 
