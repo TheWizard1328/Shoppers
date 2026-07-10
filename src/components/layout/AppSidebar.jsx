@@ -6,6 +6,19 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { globalFilters } from '../utils/globalFilters';
+
+// ── Fridge temp thresholds for sidebar driver badges ──────────────────────
+let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
+(async () => {
+  try {
+    const { base44: b44 } = await import('@/api/base44Client');
+    const s = await b44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+    const ft = s?.[0]?.setting_value?.fridge_temp_settings;
+    if (typeof ft?.safe_min      === 'number') _sidebarFridgeCfg.safe_min      = ft.safe_min;
+    if (typeof ft?.safe_max      === 'number') _sidebarFridgeCfg.safe_max      = ft.safe_max;
+    if (typeof ft?.danger_buffer === 'number') _sidebarFridgeCfg.danger_buffer = ft.danger_buffer;
+  } catch (_) {}
+})();
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 
 import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings } from 'lucide-react';
@@ -380,12 +393,18 @@ export default function AppSidebar({
                         });
                       });
                       const tempDisplay = lastTemp ? `${lastTemp.temperature_celsius.toFixed(1)}°C` : 'N/A';
-                      const tempColor = lastTemp ?
-                      lastTemp.temperature_celsius <= 8 ? '#166534' : lastTemp.temperature_celsius <= 12 ? '#92400e' : '#991b1b' :
-                      '#64748b';
-                      const tempBg = lastTemp ?
-                      lastTemp.temperature_celsius <= 8 ? '#dcfce7' : lastTemp.temperature_celsius <= 12 ? '#fef3c7' : '#fee2e2' :
-                      '#f1f5f9';
+                      // Color logic: green = within safe zone, yellow = within buffer, red = outside buffer
+                      // Uses module-level _sidebarFridgeCfg loaded from AppSettings (defaults: 2/6/±2)
+                      const t = lastTemp?.temperature_celsius;
+                      const { safe_min: sbMin, safe_max: sbMax, danger_buffer: sbBuf } = _sidebarFridgeCfg;
+                      const tempColor = !lastTemp ? '#64748b'
+                        : t < (sbMin - sbBuf) || t > (sbMax + sbBuf) ? '#991b1b'
+                        : t < sbMin || t > sbMax                      ? '#92400e'
+                        :                                                '#166534';
+                      const tempBg = !lastTemp ? '#f1f5f9'
+                        : t < (sbMin - sbBuf) || t > (sbMax + sbBuf) ? '#fee2e2'
+                        : t < sbMin || t > sbMax                      ? '#fef3c7'
+                        :                                                '#dcfce7';
                       return null;
 
 
