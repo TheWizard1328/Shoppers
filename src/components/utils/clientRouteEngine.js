@@ -468,8 +468,8 @@ export async function optimizeRouteClientSide({
   const _driverAppUser = driverAppUser || {};
 
   const preferredTravelMode = String(_driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
-  const effectiveTravelMode = cyclingSegmentOnly ? 'cycling' : (preferredTravelMode === 'cycling' ? 'driving' : preferredTravelMode);
-  const hereTransportMode = cyclingSegmentOnly ? 'bicycle' : effectiveTravelMode === 'pedestrian' ? 'pedestrian' : 'car';
+  const effectiveTravelMode = preferredTravelMode === 'cycling' ? 'driving' : preferredTravelMode;
+  const hereTransportMode = effectiveTravelMode === 'pedestrian' ? 'pedestrian' : 'car';
 
   // Current time in Edmonton
   const now = new Date();
@@ -784,42 +784,41 @@ export async function optimizeRouteClientSide({
     }
   }
 
-  // ── Inject cycling markers for ETA + polyline + write-batch coverage ──────
-  // In two-phase mode (cyclingSegmentOnly / drivingSegmentOnly), inject the
-  // relevant marker(s) so they receive ETAs and appear in the write batch.
-  //   • cyclingSegmentOnly: inject the START marker at position 0 (origin anchor)
-  //   • drivingSegmentOnly: inject the END marker at position 0 (origin anchor)
-  // In full-optimization mode (neither flag), re-insert ALL markers at their
-  // original stop_order positions (they are fixed anchors, not re-sequenced).
+  // ── Re-insert cycling markers at their correct positions ──────────────────
+  // Markers are fixed anchors excluded from HERE sequencing. We re-insert them
+  // based on how many non-marker stops originally came BEFORE each marker
+  // (by original stop_order), so the cycling stops end up sandwiched between
+  // the start and end markers regardless of how HERE reordered them.
   if (cyclingMarkers.length > 0) {
-    if (cyclingSegmentOnly) {
-      // Start marker goes at the front
-      const startMarker = cyclingMarkers.find(m => m.cycling_marker_type === 'start');
-      if (startMarker) {
-        const coords = getDeliveryCoords(startMarker, patientMap, storeMap, ispSourceMap)
-          || (cyclingOrigin?.lat != null ? { lat: cyclingOrigin.lat, lng: cyclingOrigin.lon } : null);
-        if (coords) routeStops.unshift({ delivery: startMarker, lat: coords.lat, lng: coords.lng ?? coords.lon, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity });
+    // Sort markers so we insert them in stop_order sequence (start before end)
+    const sortedMarkers = [...cyclingMarkers].sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+
+    // Count of non-cycling-marker incomplete stops that had stop_order < markerOrder in the original list
+    const allIncompleteNonMarkers = incompleteDeliveries.filter(d => !d.is_cycling_marker);
+
+    for (const marker of sortedMarkers) {
+      const coords = getDeliveryCoords(marker, patientMap, storeMap, ispSourceMap);
+      if (!coords) continue;
+      const markerStop = { delivery: marker, lat: coords.lat, lng: coords.lng, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity };
+
+      const markerOrder = Number(marker.stop_order) || 99999;
+      // Count stops that originally preceded this marker
+      const stopsBeforeMarker = allIncompleteNonMarkers.filter(d => (Number(d.stop_order) || 0) < markerOrder).length;
+
+      // Insert after that many non-marker entries in the current routeStops
+      let nonMarkerCount = 0;
+      let insertIndex = routeStops.length; // default: append
+      for (let ri = 0; ri < routeStops.length; ri++) {
+        if (!routeStops[ri].delivery.is_cycling_marker) nonMarkerCount++;
+        if (nonMarkerCount >= stopsBeforeMarker) {
+          insertIndex = ri + 1;
+          break;
+        }
       }
-    } else if (drivingSegmentOnly) {
-      // End marker goes at the front (it's the origin of the driving segment)
-      const endMarker = cyclingMarkers.find(m => m.cycling_marker_type === 'end');
-      if (endMarker) {
-        const coords = getDeliveryCoords(endMarker, patientMap, storeMap, ispSourceMap)
-          || (drivingOrigin?.lat != null ? { lat: drivingOrigin.lat, lng: drivingOrigin.lon ?? drivingOrigin.lng } : null);
-        if (coords) routeStops.unshift({ delivery: endMarker, lat: coords.lat, lng: coords.lng ?? coords.lon, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity });
-      }
-    } else {
-      // Full optimization: re-insert all markers at their original stop_order positions
-      for (const marker of cyclingMarkers) {
-        const coords = getDeliveryCoords(marker, patientMap, storeMap, ispSourceMap);
-        if (!coords) continue;
-        const markerStop = { delivery: marker, lat: coords.lat, lng: coords.lng, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity };
-        const markerOrder = Number(marker.stop_order) || 99999;
-        let insertIndex = routeStops.findIndex(s => (Number(s.delivery.stop_order) || 99999) > markerOrder);
-        if (insertIndex === -1) insertIndex = routeStops.length;
-        routeStops.splice(insertIndex, 0, markerStop);
-      }
+
+      routeStops.splice(insertIndex, 0, markerStop);
     }
+    console.log(`[clientRouteEngine] ${source} — re-inserted ${cyclingMarkers.length} cycling marker(s) into routeStops (total=${routeStops.length})`);
   }
 
   // ── Unit-number micro-sort ─────────────────────────────────────────────────
@@ -986,12 +985,25 @@ export async function optimizeRouteClientSide({
     return formatMinutesToTime(baseMinutes + 5);
   };
 
+  // Pre-compute sequential stop_order for non-marker stops, leaving marker orders intact.
+  // We walk activeStops in order; each non-marker stop gets the next counter slot,
+  // but counter slots already "occupied" by marker stop_orders are skipped.
+  const markerOrders = new Set(
+    activeStops.filter(s => s.is_cycling_marker).map(s => Number(s.stop_order || 0)).filter(n => n > 0)
+  );
+  let nonMarkerCounter = startOrder;
+  const computedStopOrders = activeStops.map((stop) => {
+    if (stop.is_cycling_marker) return Number(stop.stop_order || 1);
+    if (preserveExistingOrder) return Number(stop.stop_order || 1);
+    nonMarkerCounter++;
+    // Skip any counter values that are reserved by a cycling marker
+    while (markerOrders.has(nonMarkerCounter)) nonMarkerCounter++;
+    return nonMarkerCounter;
+  });
+
   for (let i = 0; i < activeStops.length; i++) {
     const stop = activeStops[i];
-    // Cycling markers are fixed anchors — always preserve their existing stop_order
-    const newOrder = stop.is_cycling_marker
-      ? Number(stop.stop_order || i + 1)
-      : (preserveExistingOrder ? Number(stop.stop_order || i + 1) : startOrder + i + 1);
+    const newOrder = computedStopOrders[i];
     const pendingStartTime = resolvePendingStartTime(stop);
     const seg = segmentPolylineByDeliveryId.get(stop.id) || null;
     const isPendingStop = stop?.status === 'pending';
@@ -1049,7 +1061,7 @@ export async function optimizeRouteClientSide({
     return {
       deliveryId: stop.id,
       newETA: stop.delivery_time_eta,
-      stop_order: startOrder + index + 1,
+      stop_order: writeEntry?.data?.stop_order ?? (startOrder + index + 1),
       isNextDelivery: stop.id === nextStopId,
       transport_mode: stop.transport_mode || 'driving',
       encoded_polyline: segmentPolylineByDeliveryId.get(stop.id)?.encodedPolyline || null,
