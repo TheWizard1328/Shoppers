@@ -856,50 +856,89 @@ export async function optimizeRouteClientSide({
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
     const polylineOrigin = (() => {
-      // Match regenerateType1Polyline origin logic: most recent finished stop by time, or home, or current position
       if (latestFinishedCoords) return { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng };
       if (resolvedHomePosition) return { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng };
       return { lat: currentPosition.lat, lon: currentPosition.lng };
     })();
     console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'currentPos'}`);
 
-    const routePoints = [
-      polylineOrigin,
-      ...activeRouteStops.map(s => ({ lat: s.lat, lon: s.lng }))
-    ];
+    // ── Mixed-mode polyline generation ──────────────────────────────────────
+    // A cycling route has legs with different transport modes (car vs bicycle).
+    // HERE's router only accepts one mode per API call, so we split activeRouteStops
+    // into consecutive MODE GROUPS and make a separate call per group.
+    // The leg into stop[i] uses the transport mode of stop[i].
+    // The leg into stop[0] (from polylineOrigin) uses its own transport_mode.
 
-    const multiStopRoute = await getMultiStopRouteHere(routePoints, effectiveTravelMode, hereApiKey).catch((err) => {
-      console.error(`[clientRouteEngine] ${source} — HERE Router v8 THREW:`, err?.message || err);
-      return { sections: [], usedFallbackPolyline: true };
-    });
-    const routeSections = multiStopRoute.sections;
-    console.log(`[clientRouteEngine] ${source} — HERE Router v8 returned ${routeSections.length} sections for ${routePoints.length} points (fallback=${multiStopRoute.usedFallbackPolyline})`);
+    // Resolve each stop's effective transport mode
+    const resolveStopMode = (stop) => {
+      const raw = String(stop.delivery.transport_mode || effectiveTravelMode).toLowerCase();
+      if (raw === 'cycling') return 'cycling';
+      if (raw === 'pedestrian') return 'pedestrian';
+      return 'driving';
+    };
 
-    // Map sections to stops (section[0] = origin → stop[0], section[1] = stop[0] → stop[1], etc.)
-    activeRouteStops.forEach((stop, index) => {
-      const section = routeSections[index] || null;
-      segmentPolylineByDeliveryId.set(stop.delivery.id, {
-        deliveryId: stop.delivery.id,
-        encodedPolyline: section?.encoded_polyline || null,
-        estimatedDistanceKm: section?.estimated_distance_km ?? null,
-        estimatedDurationMinutes: section?.estimated_duration_minutes ?? null
+    // Build mode-grouped segments: [{mode, stops: [{stopIndex, stop}], fromPoint}]
+    // Each group is a consecutive run of stops sharing the same transport mode.
+    // fromPoint for group[0] = polylineOrigin; for group[i>0] = last stop of group[i-1].
+    const modeGroups = [];
+    for (let i = 0; i < activeRouteStops.length; i++) {
+      const stop = activeRouteStops[i];
+      const mode = resolveStopMode(stop);
+      const last = modeGroups[modeGroups.length - 1];
+      if (last && last.mode === mode) {
+        last.stops.push({ stopIndex: i, stop });
+      } else {
+        const fromPoint = last
+          ? { lat: last.stops[last.stops.length - 1].stop.lat, lon: last.stops[last.stops.length - 1].stop.lng }
+          : polylineOrigin;
+        modeGroups.push({ mode, fromPoint, stops: [{ stopIndex: i, stop }] });
+      }
+    }
+
+    console.log(`[clientRouteEngine] ${source} — polyline mode groups: ${modeGroups.map(g => `${g.mode}×${g.stops.length}`).join(', ')}`);
+
+    // Fire all group HERE calls in parallel
+    const groupResults = await Promise.all(
+      modeGroups.map(async (group) => {
+        const points = [
+          group.fromPoint,
+          ...group.stops.map(({ stop }) => ({ lat: stop.lat, lon: stop.lng }))
+        ];
+        const result = await getMultiStopRouteHere(points, group.mode, hereApiKey).catch((err) => {
+          console.error(`[clientRouteEngine] ${source} — HERE Router v8 THREW (mode=${group.mode}):`, err?.message || err);
+          return { sections: [], usedFallbackPolyline: true };
+        });
+        console.log(`[clientRouteEngine] ${source} — HERE ${group.mode} returned ${result.sections.length} sections for ${points.length} points`);
+        return { group, sections: result.sections };
+      })
+    );
+
+    // Map sections back to each stop
+    for (const { group, sections } of groupResults) {
+      group.stops.forEach(({ stopIndex, stop }, groupLocalIndex) => {
+        const section = sections[groupLocalIndex] || null;
+        segmentPolylineByDeliveryId.set(stop.delivery.id, {
+          deliveryId: stop.delivery.id,
+          encodedPolyline: section?.encoded_polyline || null,
+          estimatedDistanceKm: section?.estimated_distance_km ?? null,
+          estimatedDurationMinutes: section?.estimated_duration_minutes ?? null
+        });
+        // Re-sync directionsLegs with actual HERE routing durations
+        if (section?.estimated_duration_minutes && Number(section.estimated_duration_minutes) > 0) {
+          const routeStopIdx = routeStops.indexOf(stop);
+          directionsLegs[routeStopIdx] = {
+            ...directionsLegs[routeStopIdx],
+            duration: Number(section.estimated_duration_minutes) * 60,
+            distance: section.estimated_distance_km
+              ? Number(section.estimated_distance_km) * 1000
+              : directionsLegs[routeStopIdx]?.distance
+          };
+        }
       });
-    });
+    }
 
     const _polylineCount = [...segmentPolylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
     console.log(`[clientRouteEngine] ${source} — polylines generated: ${_polylineCount}/${activeRouteStops.length} stops have encoded_polyline`);
-
-    // Re-sync directionsLegs with actual HERE routing durations if available
-    activeRouteStops.forEach((stop, index) => {
-      const section = routeSections[index];
-      if (section?.estimated_duration_minutes && Number(section.estimated_duration_minutes) > 0) {
-        directionsLegs[routeStops.indexOf(stop)] = {
-          ...directionsLegs[routeStops.indexOf(stop)],
-          duration: Number(section.estimated_duration_minutes) * 60,
-          distance: section.estimated_distance_km ? Number(section.estimated_distance_km) * 1000 : directionsLegs[routeStops.indexOf(stop)]?.distance
-        };
-      }
-    });
   }
 
   // ── ETA calculation ────────────────────────────────────────────────────────
