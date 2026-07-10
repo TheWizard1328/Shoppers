@@ -119,15 +119,6 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     }
   };
 
-  // Jump-queue Start: promotes this (not-yet-active) cycling marker to isNextDelivery
-  // instead of completing it directly. Routes through the same onStatusUpdate handler,
-  // which now knows how to reassign isNextDelivery for cycling markers on 'in_transit'.
-  const handleStart = (e) => {
-    e.stopPropagation();
-    if (!delivery?.id) return;
-    onComplete?.(delivery.id, 'in_transit', {});
-  };
-
   const handleRestart = (e) => {
     e.stopPropagation();
     if (!delivery?.id) return;
