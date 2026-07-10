@@ -488,6 +488,61 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     return driverIds.map((id) => ({ id, name: getDriverName(id) }));
   }, [logs]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Time range slider state (per-log, shown above chart when a row is expanded) ──
+  // timeRange: [minIdx, maxIdx] indices into the sorted unique timestamps array for selectedLogId
+  const [timeRange, setTimeRange] = useState(null); // null = not initialized
+
+  // All sorted unique HH:MM timestamps for the currently-expanded log
+  const expandedLogTimestamps = useMemo(() => {
+    if (!selectedLogId) return [];
+    const log = logs.find((l) => l.id === selectedLogId);
+    if (!log) return [];
+    const readings = (log.temperature_readings || []).filter((r) => r.timestamp && r.temperature_celsius != null);
+    const times = [...new Set(readings.map((r) => r.timestamp.slice(0, 16)))].sort();
+    return times;
+  }, [selectedLogId, logs]);
+
+  // When a row is expanded (selectedLogId changes), auto-initialize the time range
+  // to the first and last reading. routeBoundaries drive the default selection.
+  useEffect(() => {
+    if (!selectedLogId || expandedLogTimestamps.length === 0) {
+      setTimeRange(null);
+      return;
+    }
+    const log = logs.find((l) => l.id === selectedLogId);
+    if (!log) { setTimeRange(null); return; }
+
+    const bounds = routeBoundaries[log.driver_id];
+    if (bounds) {
+      // Find nearest index to route start/end
+      const toMin = (hhmm) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        return h * 60 + m;
+      };
+      const startMin = toMin(bounds.first);
+      const endMin = toMin(bounds.last);
+      let minIdx = 0, maxIdx = expandedLogTimestamps.length - 1;
+      expandedLogTimestamps.forEach((ts, i) => {
+        const hhmm = ts.slice(11, 16);
+        const m = toMin(hhmm);
+        if (m <= startMin) minIdx = i;
+        if (m <= endMin) maxIdx = i;
+      });
+      setTimeRange([minIdx, maxIdx]);
+    } else {
+      setTimeRange([0, expandedLogTimestamps.length - 1]);
+    }
+  }, [selectedLogId, expandedLogTimestamps]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Filtered chart data based on the time range slider (only when a row is expanded)
+  const filteredChartData = useMemo(() => {
+    if (!selectedLogId || !timeRange || expandedLogTimestamps.length === 0) return chartData;
+    const [minIdx, maxIdx] = timeRange;
+    const minTs = expandedLogTimestamps[minIdx]?.slice(11, 16) ?? '00:00';
+    const maxTs = expandedLogTimestamps[maxIdx]?.slice(11, 16) ?? '23:59';
+    return chartData.filter((p) => p.label >= minTs && p.label <= maxTs);
+  }, [chartData, selectedLogId, timeRange, expandedLogTimestamps]);
+
   // ── Pinch-to-zoom state for the chart ───────────────────────────────────
   const [chartZoom, setChartZoom] = useState(1);
   const [chartOffset, setChartOffset] = useState(0); // horizontal pan offset as fraction 0..1
@@ -634,6 +689,38 @@ export default function TempLogTab({ drivers = [], currentUser }) {
               Fridge item on board
             </div>
           </div>
+
+          {/* Time range slider — shown when a driver row is expanded */}
+          {selectedLogId && timeRange && expandedLogTimestamps.length > 1 && (() => {
+            const [minIdx, maxIdx] = timeRange;
+            const minLabel = expandedLogTimestamps[minIdx]?.slice(11, 16) ?? '';
+            const maxLabel = expandedLogTimestamps[maxIdx]?.slice(11, 16) ?? '';
+            const driverLog = logs.find((l) => l.id === selectedLogId);
+            const driverName = driverLog ? getDriverName(driverLog.driver_id) : '';
+            return (
+              <div className="mb-4 px-1 py-3 rounded-lg bg-slate-50 border border-slate-200">
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <span className="text-xs font-semibold text-slate-600">Time Range — {driverName}</span>
+                  <span className="text-xs font-mono text-slate-500">{minLabel} → {maxLabel}</span>
+                </div>
+                <div className="px-2">
+                  <Slider
+                    min={0}
+                    max={expandedLogTimestamps.length - 1}
+                    step={1}
+                    value={timeRange}
+                    onValueChange={(val) => setTimeRange(val)}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-slate-400 mt-1.5">
+                    <span>{expandedLogTimestamps[0]?.slice(11, 16)}</span>
+                    <span>{expandedLogTimestamps[expandedLogTimestamps.length - 1]?.slice(11, 16)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Pinch-to-zoom wrapper */}
           <div
             style={{ overflow: 'hidden', touchAction: 'none', cursor: chartZoom > 1 ? 'grab' : 'default' }}
@@ -643,7 +730,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
           >
           <div style={{ transform: `scaleX(${chartZoom})`, transformOrigin: 'left center', width: `${100 / chartZoom}%`, transition: pinchRef.current.active ? 'none' : 'transform 0.2s ease' }}>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <LineChart data={filteredChartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis
@@ -651,7 +738,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
               domain={[-5, (dataMax) => dataMax <= 10 ? 10 : Math.ceil(dataMax / 5) * 5]}
               ticks={(() => {
                 // Find actual data max from chart data
-                const vals = series.flatMap((id) => chartData.map((p) => p[id]).filter((v) => v != null));
+                const vals = series.flatMap((id) => filteredChartData.map((p) => p[id]).filter((v) => v != null));
                 const dataMax = vals.length ? Math.max(...vals) : 10;
                 const axisMax = dataMax <= 10 ? 10 : Math.ceil(dataMax / 5) * 5;
                 // Fixed ticks: -5, 0, 4, 8, then every 5 from 10 up to axisMax
@@ -673,8 +760,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
               {series.flatMap((driverId, i) => {
               const color = DRIVER_COLORS[i % DRIVER_COLORS.length];
               const bounds = routeBoundaries[driverId];
-              if (!bounds || !chartData.length) return [];
-              const labels = chartData.map((p) => p.label);
+              if (!bounds || !filteredChartData.length) return [];
+              const labels = filteredChartData.map((p) => p.label);
               // Find closest label index for a given HH:MM time
               const closestLabel = (target) => {
                 if (!target) return null;
