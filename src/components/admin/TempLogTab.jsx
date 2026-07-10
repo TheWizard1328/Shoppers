@@ -841,7 +841,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
           </div>
 
           {/* Time range slider — shown when a driver row is expanded */}
-          {selectedLogId && timeRange && expandedLogTimestamps.length > 1 && (() => {
+          {false && selectedLogId && timeRange && expandedLogTimestamps.length > 1 && (() => {
             const [minIdx, maxIdx] = timeRange;
             const minLabel = expandedLogTimestamps[minIdx]?.slice(11, 16) ?? '';
             const maxLabel = expandedLogTimestamps[maxIdx]?.slice(11, 16) ?? '';
