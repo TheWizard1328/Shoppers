@@ -298,13 +298,13 @@ async function paginatedDeleteAll(entityApi, pageSize=50) {
 // that the driver's Bluetooth reader is currently active on the expected location.
 async function handlePeekDriverTransaction(payload) {
   const accessToken = ensureSquareToken();
-  const { locationId } = payload || {};
+  const { locationId, driverName } = payload || {};
   if (!locationId) throw new HttpError(400, 'locationId is required');
 
-  // Search for the single most-recent completed or open order at this location
+  // Fetch up to 50 recent completed/open orders at this location (DESC)
   const json = await squareFetch('/v2/orders/search', 'POST', accessToken, {
     location_ids: [locationId],
-    limit: 1,
+    limit: 50,
     query: {
       filter: { state_filter: { states: ['COMPLETED', 'OPEN'] } },
       sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' },
@@ -315,13 +315,63 @@ async function handlePeekDriverTransaction(payload) {
   if (!orders.length) {
     return { found: false, locationId, lastLocationId: null, orderCreatedAt: null };
   }
-  const order = orders[0];
-  return {
-    found: true,
-    locationId,
-    lastLocationId: order.location_id || null,
-    orderCreatedAt: order.created_at || null,
+
+  // If no driverName provided, fall back to returning the most recent order (legacy behaviour)
+  if (!driverName || !driverName.trim()) {
+    const order = orders[0];
+    return { found: true, locationId, lastLocationId: order.location_id || null, orderCreatedAt: order.created_at || null };
+  }
+
+  // Collect unique team member IDs across the fetched orders
+  const teamMemberIds = [...new Set(orders.map((o) => o.created_by_team_member_id).filter(Boolean))];
+
+  // Fetch all team member profiles in parallel (one request per ID — typically ≤ 5 unique drivers)
+  const teamMemberMap = new Map(); // id → "Given Family"
+  await Promise.all(teamMemberIds.map(async (tmId) => {
+    try {
+      const tmJson = await squareFetch(`/v2/team-members/${tmId}`, 'GET', accessToken, null);
+      const tm = tmJson?.team_member;
+      if (tm) {
+        const fullName = [tm.given_name, tm.family_name].filter(Boolean).join(' ');
+        teamMemberMap.set(tmId, fullName);
+      }
+    } catch (_) { /* skip unresolvable IDs */ }
+  }));
+
+  // Fuzzy name match: normalize both sides, check if given name or significant family name token
+  // appears in the driver's app username (or vice versa). With a small distinct crew this is unambiguous.
+  const normStr = (v) => String(v || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  const nameMatchesDriver = (squareName) => {
+    if (!squareName) return false;
+    const sq = normStr(squareName);
+    const dr = normStr(driverName);
+    const [sqGiven = '', sqFamily = ''] = sq.split(' ');
+    // Match if driver name contains the Square given name (≥3 chars) or vice versa
+    if (sqGiven.length >= 3 && (dr.includes(sqGiven) || sqGiven.includes(dr.split(' ')[0]))) return true;
+    // Also check family name initial match (e.g. "Robert T" vs "Tauber")
+    if (sqFamily.length >= 1 && dr.includes(sqFamily[0]) && sqGiven.length >= 3 && dr.includes(sqGiven)) return true;
+    // Fallback: either name fully contains the other
+    return dr.includes(sq) || sq.includes(dr);
   };
+
+  // Walk orders newest-first, find the first one attributed to this driver
+  for (const order of orders) {
+    const tmId = order.created_by_team_member_id;
+    if (!tmId) continue;
+    const squareName = teamMemberMap.get(tmId);
+    if (nameMatchesDriver(squareName)) {
+      return {
+        found: true,
+        locationId,
+        lastLocationId: order.location_id || null,
+        orderCreatedAt: order.created_at || null,
+        matchedTeamMember: squareName || null,
+      };
+    }
+  }
+
+  // No order in the last 50 matched this driver — treat as first COD of day
+  return { found: false, locationId, lastLocationId: null, orderCreatedAt: null };
 }
 
 // ─── HANDLERS ────────────────────────────────────────────────────────────────
