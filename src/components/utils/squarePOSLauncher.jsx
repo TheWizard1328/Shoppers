@@ -47,20 +47,20 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
 
   const resolvedCallbackUrl = callbackUrl || (window.location.origin + window.location.pathname);
 
+  // Bare launch — open Square POS without a payment payload (no amount/tender).
+  // Used on first COD of the day or location mismatch so driver can set their location first.
+  const bare = !amountCents || amountCents <= 0;
+
   if (platform === 'ios') {
-    const payload = {
-      client_id: squareAppId,
-      version: '1.3',
-      callback_url: resolvedCallbackUrl,
-      amount_money: { amount: Math.round(amountCents), currency_code: currencyCode },
-    };
-    if (notes) payload.notes = notes;
-    if (locationId) payload.location_id = locationId;
+    const payload = { client_id: squareAppId, version: '1.3', callback_url: resolvedCallbackUrl };
+    if (!bare) {
+      payload.amount_money = { amount: Math.round(amountCents), currency_code: currencyCode };
+      if (notes) payload.notes = notes;
+      if (locationId) payload.location_id = locationId;
+    }
     const encoded = encodeURIComponent(JSON.stringify(payload));
     const squareUrl = `square-commerce-v1://payment/create?data=${encoded}`;
-
-    remoteLogger.info('[Square POS] (iOS) Launching', squareUrl);
-
+    remoteLogger.info(`[Square POS] (iOS) Launching (bare=${bare})`, squareUrl);
     try {
       const a = document.createElement('a');
       a.href = squareUrl;
@@ -68,7 +68,6 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} }, 1000);
-      remoteLogger.info('[Square POS] (iOS) Anchor click dispatched successfully');
     } catch (err) {
       remoteLogger.error('[Square POS] (iOS) Anchor click FAILED', String(err));
     }
@@ -76,27 +75,31 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   }
 
   // ── Android Mobile Web format — Android Intent URI ────────────────────
-  const tenderTypes = [
-    'com.squareup.pos.TENDER_CARD',
-    'com.squareup.pos.TENDER_CARD_ON_FILE',
-    'com.squareup.pos.TENDER_CASH',
-    'com.squareup.pos.TENDER_OTHER',
-  ].join(',');
+  // Bare launch: same CHARGE action + client_id/callback, but NO amount/currency/tender.
+  // Square POS accepts this and opens to its main screen so the driver can set their location.
   const parts = [
     'action=com.squareup.pos.action.CHARGE',
     'package=com.squareup',
     `S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(resolvedCallbackUrl)}`,
     `S.com.squareup.pos.CLIENT_ID=${encodeURIComponent(squareAppId)}`,
     'S.com.squareup.pos.API_VERSION=v2.0',
-    `i.com.squareup.pos.TOTAL_AMOUNT=${Math.round(amountCents)}`,
-    `S.com.squareup.pos.CURRENCY_CODE=${encodeURIComponent(currencyCode)}`,
-    `S.com.squareup.pos.TENDER_TYPES=${encodeURIComponent(tenderTypes)}`,
   ];
-  if (notes) parts.push(`S.com.squareup.pos.NOTE=${encodeURIComponent(notes)}`);
-  if (locationId) parts.push(`S.com.squareup.pos.LOCATION_ID=${encodeURIComponent(locationId)}`);
+  if (!bare) {
+    const tenderTypes = [
+      'com.squareup.pos.TENDER_CARD',
+      'com.squareup.pos.TENDER_CARD_ON_FILE',
+      'com.squareup.pos.TENDER_CASH',
+      'com.squareup.pos.TENDER_OTHER',
+    ].join(',');
+    parts.push(`i.com.squareup.pos.TOTAL_AMOUNT=${Math.round(amountCents)}`);
+    parts.push(`S.com.squareup.pos.CURRENCY_CODE=${encodeURIComponent(currencyCode)}`);
+    parts.push(`S.com.squareup.pos.TENDER_TYPES=${encodeURIComponent(tenderTypes)}`);
+    if (notes) parts.push(`S.com.squareup.pos.NOTE=${encodeURIComponent(notes)}`);
+    if (locationId) parts.push(`S.com.squareup.pos.LOCATION_ID=${encodeURIComponent(locationId)}`);
+  }
   const squareUrl = `intent:#Intent;${parts.join(';')};end`;
 
-  remoteLogger.info('[Square POS] (Android) Intent URL built', squareUrl);
+  remoteLogger.info(`[Square POS] (Android) Intent URL built (bare=${bare})`, squareUrl);
   console.log('[Square POS] (Android) Launching URL:', squareUrl);
 
   try {

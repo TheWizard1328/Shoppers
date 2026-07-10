@@ -161,12 +161,12 @@ export default function StopCardActionButtons(props) {
 
     const callbackUrl = window.location.origin + window.location.pathname;
 
-    // Warn on first COD of day or location mismatch — but still launch with full payload.
-    // The driver may need to confirm their location in Square, but we can still open it with amount.
-    if (isFirstCodOfDay) {
-      toast.info('First COD of the day — make sure your Square reader is set to the correct location before completing the payment.');
-    } else if (squareLocationStatus === 'mismatch') {
-      toast.warning('Square location mismatch detected — confirm your reader location in the Square app before completing.');
+    // Bare launch (no amount) on first COD of day or location mismatch —
+    // opens Square POS so driver can confirm/set their location before the real charge.
+    const launchBare = squareLocationStatus === 'mismatch' || isFirstCodOfDay;
+    if (launchBare) {
+      launchSquarePOS({ squareAppId: effectiveAppId, callbackUrl });
+      return;
     }
 
     const amountCents = Math.round(Number(codAmount || 0) * 100);
