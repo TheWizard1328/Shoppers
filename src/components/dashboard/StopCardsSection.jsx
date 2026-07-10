@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, memo } from "react";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import { getDriverColor } from "@/components/dashboard/DeliveryMap";
 import { createStopCardsScrollHandler } from "@/components/dashboard/StopCardsScrollHandler";
 
-export default function StopCardsSection({
+function StopCardsSection({
   currentUser, isDriver, isAdmin, isDispatcher, isMobile,
   deliveries, patients, stores, drivers, appUsers, deliveriesWithStopOrder,
   selectedDate, isAllDriversMode, isSnapshotModeActive,
@@ -35,6 +35,61 @@ export default function StopCardsSection({
   const hasFridgeItems = deliveriesWithStopOrder.some(
     (d) => d && d.fridge_item && d.delivery_date === selectedDateStr
   );
+
+  // Memoize the expensive per-delivery transform so it only re-runs when deliveries,
+  // patients, or role-flags actually change — not on every unrelated state update.
+  const pickupCards = useMemo(() => {
+    const dispStoreIds = (isDispatcher && currentUser?.store_ids?.length > 0)
+      ? new Set(currentUser.store_ids)
+      : null;
+
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
+    // Pre-compute allDriverDeliveries once (only needed for driver role-check)
+    const allDriverDeliveries = (isDriver && !isDispatcher && !isAdmin && currentUser?.id)
+      ? deliveriesWithStopOrder.filter((d) => d && d.driver_id === currentUser.id)
+      : null;
+
+    const checkIsReturn = (d) => {
+      if (!d || !d.patient_id) return false;
+      const p = patients.find((p) => p && p.id === d.patient_id);
+      const notes = d.delivery_notes || '', name = d.patient_name || '', full = p?.full_name || '';
+      return notes.toLowerCase().includes('(rtn)') || name.toLowerCase().includes('(rtn)') || full.toLowerCase().includes('(rtn)')
+        || /\breturn\b/i.test(notes) || /\breturn\b/i.test(name) || /\breturn\b/i.test(full);
+    };
+
+    const routeComplete = allDriverDeliveries
+      ? allDriverDeliveries.length > 0 && allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d))
+      : false;
+
+    return deliveriesWithStopOrder
+      .filter((delivery) => delivery && (delivery.is_cycling_marker || delivery.status !== 'pending') && !delivery.is_cycling_start_marker)
+      .map((delivery) => {
+        if (!delivery) return delivery;
+
+        // Attach projected pending deliveries to pickup containers
+        if (!delivery.patient_id && (delivery.status === 'en_route' || delivery.status === 'pending') && delivery.stop_id) {
+          let pending = deliveriesWithStopOrder.filter((d) => d && d.puid === delivery.stop_id && d.status === 'pending' && d.patient_id);
+          if (dispStoreIds) {
+            pending = pending.filter((d) => d && dispStoreIds.has(d.store_id));
+          }
+          if (pending.length > 0) return { ...delivery, projected_deliveries: pending };
+        }
+
+        // Dispatcher: strip stops outside their store scope
+        if (dispStoreIds && !delivery.is_cycling_marker && !currentUser.store_ids.includes(delivery.store_id)) {
+          return { ...delivery, _isStripped: true };
+        }
+
+        // Driver: strip non-essential stops after route completion
+        if (routeComplete) {
+          const isInterStore = delivery.patient_name?.toLowerCase().includes('interstore') || delivery.delivery_notes?.toLowerCase().includes('interstore');
+          const isStorePickup = !delivery.patient_id;
+          if (!isInterStore && !isStorePickup) return { ...delivery, _isStripped: true };
+        }
+
+        return delivery;
+      });
+  }, [deliveriesWithStopOrder, patients, isDispatcher, isDriver, isAdmin, currentUser?.id, currentUser?.store_ids]);
 
   return (
     <div
@@ -76,37 +131,7 @@ export default function StopCardsSection({
         <HorizontalStopCards
           ref={horizontalStopCardsRef}
           isSnapshotModeActive={isSnapshotModeActive}
-          pickupCards={deliveriesWithStopOrder.
-          filter((delivery) => delivery && (delivery.is_cycling_marker || delivery.status !== 'pending') && !delivery.is_cycling_start_marker).
-          map((delivery) => {
-            if (!delivery) return delivery;
-            if (!delivery.patient_id && (delivery.status === 'en_route' || delivery.status === 'pending') && delivery.stop_id) {
-              let pending = deliveriesWithStopOrder.filter((d) => d && d.puid === delivery.stop_id && d.status === 'pending' && d.patient_id);
-              if (isDispatcher && currentUser?.store_ids?.length > 0) {
-                const dispStoreIds = new Set(currentUser.store_ids);
-                pending = pending.filter((d) => d && dispStoreIds.has(d.store_id));
-              }
-              if (pending.length > 0) return { ...delivery, projected_deliveries: pending };
-            }
-            if (isDispatcher && currentUser.store_ids?.length > 0 && !delivery.is_cycling_marker && !currentUser.store_ids.includes(delivery.store_id)) return { ...delivery, _isStripped: true };
-            if (isDriver && !isDispatcher && !isAdmin) {
-              const finishedStatuses = ['completed', 'failed', 'cancelled'];
-              const allDriverDeliveries = deliveriesWithStopOrder.filter((d) => d && d.driver_id === currentUser.id);
-              const checkIsReturn = (d) => {
-                if (!d || !d.patient_id) return false;
-                const p = patients.find((p) => p && p.id === d.patient_id);
-                const notes = d.delivery_notes || '',name = d.patient_name || '',full = p?.full_name || '';
-                return notes.toLowerCase().includes('(rtn)') || name.toLowerCase().includes('(rtn)') || full.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) || /\breturn\b/i.test(name) || /\breturn\b/i.test(full);
-              };
-              const routeComplete = allDriverDeliveries.length > 0 && allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
-              if (routeComplete) {
-                const isInterStore = delivery.patient_name?.toLowerCase().includes('interstore') || delivery.delivery_notes?.toLowerCase().includes('interstore');
-                const isStorePickup = !delivery.patient_id;
-                if (!isInterStore && !isStorePickup) return { ...delivery, _isStripped: true };
-              }
-            }
-            return delivery;
-          })}
+          pickupCards={pickupCards}
           onCardClick={handleCardClick}
           selectedCardId={selectedCardId}
           stores={stores}
@@ -138,3 +163,5 @@ export default function StopCardsSection({
     </div>);
 
 }
+
+export default memo(StopCardsSection);
