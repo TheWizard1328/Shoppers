@@ -117,7 +117,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveHidden, statsCardHeight, 
 
   // CRITICAL: Never drop below 160px on mobile when cards are visible —
   // prevents fit-bounds from jumping when cards remeasure mid-animation.
-  const bottomPadding = isMobile && cardsArePresent
+  const bottomPadding = isMobile && cardsArePresent && isImmersiveHidden
     ? Math.max(rawBottomPadding, 160)
     : rawBottomPadding;
 
