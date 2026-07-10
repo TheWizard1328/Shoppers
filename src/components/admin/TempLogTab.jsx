@@ -635,26 +635,53 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     }, []);
     if (readingIndices.length === 0) return;
 
-    const startY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
     const origTemps = readings.map((r) => r.temperature_celsius);
 
-    setDragState({ logId: log.id, driverId, pointLabel, readingIndices, startY, origTemps, sliderMinLabel, sliderMaxLabel });
-  }, [selectedLogId, logs, timeRange, expandedLogTimestamps]);
+    // Capture Y-axis scale from the chart container so we can map clientY → °C
+    // Chart height=300, margin top=8, bottom=8 → plot area height = 284px
+    const CHART_HEIGHT = 300;
+    const MARGIN_TOP = 8;
+    const MARGIN_BOTTOM = 8;
+    const plotHeight = CHART_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
+
+    // Compute Y-axis domain (same logic as the YAxis domain prop)
+    const vals = series.flatMap((id) => (filteredChartData || chartData).map((p) => p[id]).filter((v) => v != null));
+    const dataMax = vals.length ? Math.max(...vals) : 10;
+    const yMax = dataMax <= 10 ? 10 : Math.ceil(dataMax / 5) * 5;
+    const yMin = -5;
+
+    // Chart container rect — used to compute relative Y
+    const containerRect = chartContainerRef.current?.getBoundingClientRect() ?? null;
+
+    setDragState({ logId: log.id, driverId, pointLabel, readingIndices, origTemps, sliderMinLabel, sliderMaxLabel, containerRect, plotHeight, yMin, yMax, MARGIN_TOP });
+  }, [selectedLogId, logs, timeRange, expandedLogTimestamps, series, filteredChartData, chartData]);
 
   // Global mouse/touch move while dragging
   useEffect(() => {
     if (!dragState) return;
-    const { logId, readingIndices, startY, origTemps, sliderMinLabel, sliderMaxLabel } = dragState;
+    const { logId, readingIndices, origTemps, sliderMinLabel, sliderMaxLabel, containerRect, plotHeight, yMin, yMax, MARGIN_TOP } = dragState;
+
+    // Convert clientY to temperature value using the chart's Y scale
+    const clientYToTemp = (clientY) => {
+      if (!containerRect) return null;
+      const relY = clientY - containerRect.top - MARGIN_TOP;
+      const fraction = Math.max(0, Math.min(1, relY / plotHeight));
+      // Y axis: top = yMax, bottom = yMin
+      const temp = parseFloat((yMax - fraction * (yMax - yMin)).toFixed(1));
+      return temp;
+    };
 
     const onMove = (e) => {
-      const clientY = e.clientY ?? e.touches?.[0]?.clientY ?? startY;
-      // 3px per 0.1°C
-      const delta = parseFloat((-(clientY - startY) / 30).toFixed(1));
+      const clientY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+      const newTemp = clientYToTemp(clientY);
+      if (newTemp === null) return;
       const log = logs.find((l) => l.id === logId);
       if (!log) return;
 
       const centreIdx = readingIndices[0];
-      // Restore originals first, then apply ripple
+      const origTemp = origTemps[centreIdx] ?? 0;
+      const delta = parseFloat((newTemp - origTemp).toFixed(1));
+
       const restored = (log.temperature_readings || []).map((r, i) => ({
         ...r,
         temperature_celsius: origTemps[i] ?? r.temperature_celsius,
@@ -667,11 +694,13 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     };
 
     const onUp = (e) => {
-      const clientY = e.clientY ?? e.changedTouches?.[0]?.clientY ?? dragState.startY;
-      const delta = parseFloat((-(clientY - dragState.startY) / 30).toFixed(1));
+      const clientY = e.clientY ?? e.changedTouches?.[0]?.clientY ?? 0;
+      const newTemp = clientYToTemp(clientY);
       const log = logs.find((l) => l.id === logId);
-      if (!log) { setDragState(null); setDragPreviewLogs(null); return; }
+      if (!log || newTemp === null) { setDragState(null); setDragPreviewLogs(null); return; }
       const centreIdx = readingIndices[0];
+      const origTemp = origTemps[centreIdx] ?? 0;
+      const delta = parseFloat((newTemp - origTemp).toFixed(1));
       const restored = (log.temperature_readings || []).map((r, i) => ({
         ...r,
         temperature_celsius: origTemps[i] ?? r.temperature_celsius,
