@@ -350,6 +350,14 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     return ranges.some((r) => label >= r.start && label <= r.end);
   }, [fridgeCarryRanges]);
 
+  // ── Chart dot drag-to-adjust state (declared early — used by chartData useMemo below) ──
+  const [dragState, setDragState] = useState(null);
+  const [dragPreviewLogs, setDragPreviewLogs] = useState(null);
+  const chartContainerRef = useRef(null);
+
+  // Effective logs to render (use drag preview when dragging)
+  const displayLogs = dragPreviewLogs || logs;
+
   // Build chart data — one series per driver, X-axis = time
   const { chartData, series } = React.useMemo(() => {
     if (!displayLogs.length) return { chartData: [], series: [] };
@@ -565,12 +573,6 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     return chartData.filter((p) => p.label >= minTs && p.label <= maxTs);
   }, [chartData, selectedLogId, timeRange, expandedLogTimestamps]);
 
-  // ── Chart dot drag-to-adjust state ──────────────────────────────────────
-  // dragState: { logId, driverId, pointLabel, readingIndices, startY, origTemps }
-  const [dragState, setDragState] = useState(null);
-  const [dragPreviewLogs, setDragPreviewLogs] = useState(null); // live-preview temp override while dragging
-  const chartContainerRef = useRef(null);
-
   // When a dot drag ends, persist the preview temps to real logs state + DB
   const commitDrag = useCallback(async (finalLogs) => {
     if (!finalLogs || !dragState) return;
@@ -690,9 +692,6 @@ export default function TempLogTab({ drivers = [], currentUser }) {
       window.removeEventListener('touchend', onUp);
     };
   }, [dragState, logs, dragPreviewLogs, applySineRipple, commitDrag]);
-
-  // Effective logs to render (use drag preview when dragging)
-  const displayLogs = dragPreviewLogs || logs;
 
   // ── Pinch-to-zoom state for the chart ───────────────────────────────────
   const [chartZoom, setChartZoom] = useState(1);
