@@ -496,6 +496,12 @@ export async function optimizeRouteClientSide({
   const activeRouteDeliveries = incompleteDeliveries.filter(d => ACTIVE_STATUSES.includes(d.status));
   const pendingRouteDeliveries = incompleteDeliveries.filter(d => d.status === 'pending');
   const filteredPendingRouteDeliveries = pendingRouteDeliveries.filter(d => !d.is_cycling_marker);
+
+  // Cycling markers are fixed anchors — separate them out before building the optimization pool.
+  // They are NOT sequenced by HERE but ARE re-inserted into the final route at their original
+  // stop_order positions so they receive ETAs and polylines like any other active stop.
+  const cyclingMarkers = incompleteDeliveries.filter(d => d.is_cycling_marker);
+
   let optimizableDeliveries = [...activeRouteDeliveries, ...filteredPendingRouteDeliveries];
 
   if (cyclingSegmentOnly && cyclingStopIds.length > 0) {
@@ -505,9 +511,8 @@ export async function optimizeRouteClientSide({
     // Driving segment: exclude cycling stops + both cycling markers
     optimizableDeliveries = optimizableDeliveries.filter(d => !excludeStopIds.includes(d.id) && !d.is_cycling_marker);
   } else if (!cyclingSegmentOnly && !drivingSegmentOnly) {
-    // Full optimization: always exclude cycling markers from the sequencing pool —
-    // they are fixed anchors, not routable waypoints. They keep their stop_order from
-    // the cyclingAwareOptimizer sync step.
+    // Full optimization: exclude cycling markers from the sequencing pool —
+    // they are fixed anchors. They will be re-inserted after sequencing.
     optimizableDeliveries = optimizableDeliveries.filter(d => !d.is_cycling_marker);
   }
 
@@ -779,6 +784,23 @@ export async function optimizeRouteClientSide({
     }
   }
 
+  // ── Re-insert cycling markers at their original stop_order positions ──────
+  // Markers were excluded from HERE sequencing (they're fixed anchors) but must
+  // appear in the final route so they receive ETAs, polylines, and stop_order writes.
+  if (cyclingMarkers.length > 0 && !cyclingSegmentOnly && !drivingSegmentOnly) {
+    for (const marker of cyclingMarkers) {
+      const coords = getDeliveryCoords(marker, patientMap, storeMap, ispSourceMap);
+      if (!coords) continue;
+      const markerStop = { delivery: marker, lat: coords.lat, lng: coords.lng, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity };
+      // Insert at the position matching the marker's existing stop_order relative to non-marker stops
+      const markerOrder = Number(marker.stop_order) || 99999;
+      let insertIndex = routeStops.findIndex(s => (Number(s.delivery.stop_order) || 99999) > markerOrder);
+      if (insertIndex === -1) insertIndex = routeStops.length;
+      routeStops.splice(insertIndex, 0, markerStop);
+      console.log(`[clientRouteEngine] ${source} — cycling marker ${marker.id} re-inserted at route position ${insertIndex} (stop_order=${markerOrder})`);
+    }
+  }
+
   // ── Unit-number micro-sort ─────────────────────────────────────────────────
   _unitNumberMicroSort(routeStops, patientMap);
 
@@ -791,9 +813,9 @@ export async function optimizeRouteClientSide({
   const segmentPolylineByDeliveryId = new Map();
 
   // Build the list of points for multi-stop routing: origin → each stop in order
-  // ONLY generate polylines for active stops (en_route, in_transit) — pending stops
-  // haven't been picked up yet so there's no driving path to them.
-  const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending');
+  // ONLY generate polylines for active stops (en_route, in_transit) and cycling markers —
+  // pending stops haven't been picked up yet so there's no driving path to them.
+  const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker);
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
     const polylineOrigin = (() => {
@@ -872,7 +894,11 @@ export async function optimizeRouteClientSide({
     for (let i = 0; i < routeStops.length; i++) {
       const stop = routeStops[i];
       const seg = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
-      cumulativeTime += getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg });
+      // Cycling markers: only add travel time if we have a polyline segment, otherwise treat as zero-travel anchor
+      const travelMinutes = stop.delivery.is_cycling_marker && !seg
+        ? 0
+        : getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg });
+      cumulativeTime += travelMinutes;
       const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start);
       if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
       if (isFutureRoute && !routeOfficiallyStarted && stop.isPickup) {
@@ -899,9 +925,10 @@ export async function optimizeRouteClientSide({
 
   const startOrder = startingStopOrder != null ? startingStopOrder : completedDeliveries.length;
   const originalActiveOrder = activeRouteDeliveries
+    .filter(d => !d.is_cycling_marker)
     .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
     .map(d => String(d.id));
-  const optimizedActiveOrder = activeStops.map(s => String(s.id));
+  const optimizedActiveOrder = activeStops.filter(s => !s.is_cycling_marker).map(s => String(s.id));
   const routeOrderChanged = preserveExistingOrder
     ? false
     : originalActiveOrder.length !== optimizedActiveOrder.length
@@ -916,7 +943,7 @@ export async function optimizeRouteClientSide({
   const routeInProgress = completedDeliveries.length > 0;
   // Check if the explicitNextDelivery was a cycling marker (excluded from optimizableDeliveries)
   const cyclingStartMarkerNext = driverDeliveries.find(
-    (d) => d?.is_cycling_marker && d?.isNextDelivery === true && !FINISHED_STATUSES.has(d.status)
+    (d) => d?.is_cycling_marker && d?.isNextDelivery === true && !FINISHED_STATUSES.includes(d.status)
   ) || null;
   const nextStopId = cyclingStartMarkerNext?.id
     || explicitNextDelivery?.id
@@ -940,7 +967,10 @@ export async function optimizeRouteClientSide({
 
   for (let i = 0; i < activeStops.length; i++) {
     const stop = activeStops[i];
-    const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : startOrder + i + 1;
+    // Cycling markers are fixed anchors — always preserve their existing stop_order
+    const newOrder = stop.is_cycling_marker
+      ? Number(stop.stop_order || i + 1)
+      : (preserveExistingOrder ? Number(stop.stop_order || i + 1) : startOrder + i + 1);
     const pendingStartTime = resolvePendingStartTime(stop);
     const seg = segmentPolylineByDeliveryId.get(stop.id) || null;
     const isPendingStop = stop?.status === 'pending';
