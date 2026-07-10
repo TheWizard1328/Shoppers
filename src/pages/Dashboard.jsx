@@ -290,8 +290,36 @@ function Dashboard() {
     return result;
   }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUserStoreIds, isSnapshotModeActive, snapshotData]);
 
+  // Sort-key fingerprint cache — deliveriesWithStopOrder only needs to re-sort
+  // when fields that AFFECT sort order change. Fields like isNextDelivery, polylines,
+  // updated_date, etc. don't change sort order and previously caused a full re-sort
+  // on every single delivery write. Now we hash just the sort-relevant fields and
+  // bail early (returning the cached result) if nothing changed.
+  const _dwsoSortKeyRef   = useRef('');
+  const _dwsoCachedResult = useRef([]);
+
   const deliveriesWithStopOrder = useMemo(() => {
-    if (!filteredDeliveries || filteredDeliveries.length === 0) return [];
+    if (!filteredDeliveries || filteredDeliveries.length === 0) {
+      _dwsoSortKeyRef.current = '';
+      _dwsoCachedResult.current = [];
+      return [];
+    }
+
+    // Build a lightweight fingerprint of only sort-relevant fields.
+    // Joining with '|' is fast — no JSON.stringify overhead on full objects.
+    const sortKey = filteredDeliveries
+      .map(d => d
+        ? `${d.id}:${d.driver_id}:${d.status}:${d.stop_order}:${d.actual_delivery_time}:${d.delivery_time_eta}:${d.delivery_time_start}:${d.is_cycling_marker ? 1 : 0}`
+        : 'null')
+      .join('|');
+
+    if (sortKey === _dwsoSortKeyRef.current) {
+      // Nothing that affects sort order changed — return the stable cached array.
+      // This prevents a re-sort (and new array reference) when only isNextDelivery,
+      // polylines, updated_date, or other non-sort fields changed.
+      return _dwsoCachedResult.current;
+    }
+    _dwsoSortKeyRef.current = sortKey;
 
     const FINISHED = ['completed', 'failed', 'cancelled', 'returned'];
 
@@ -352,6 +380,7 @@ function Dashboard() {
       });
     });
 
+    _dwsoCachedResult.current = result;
     return result;
   }, [filteredDeliveries]);
 
