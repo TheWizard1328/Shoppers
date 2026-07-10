@@ -495,26 +495,26 @@ export async function optimizeRouteClientSide({
   const incompleteDeliveries = driverDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
   const activeRouteDeliveries = incompleteDeliveries.filter(d => ACTIVE_STATUSES.includes(d.status));
   const pendingRouteDeliveries = incompleteDeliveries.filter(d => d.status === 'pending');
-  const filteredPendingRouteDeliveries = pendingRouteDeliveries.filter(d => !d.is_cycling_marker);
+  const filteredPendingRouteDeliveries = pendingRouteDeliveries; // cycling markers CAN be pending — include them
 
-  // Cycling markers are fixed anchors — separate them out before building the optimization pool.
-  // They are NOT sequenced by HERE but ARE re-inserted into the final route at their original
-  // stop_order positions so they receive ETAs and polylines like any other active stop.
+  // Cycling markers are FULL STOPS in the route (they have GPS coords used for sequencing/polylines).
+  // The only "fixed" constraint is positional:
+  //   - Start marker: must precede all cycling-mode stops (origin anchor when in_transit)
+  //   - End marker: must follow all cycling-mode stops, before remaining driving-mode stops
+  // They participate in isNextDelivery, can be started/completed, and receive polylines.
   const cyclingMarkers = incompleteDeliveries.filter(d => d.is_cycling_marker);
 
   let optimizableDeliveries = [...activeRouteDeliveries, ...filteredPendingRouteDeliveries];
 
   if (cyclingSegmentOnly && cyclingStopIds.length > 0) {
-    // Cycling segment: only the specified cycling stops (no markers — they are anchors)
-    optimizableDeliveries = optimizableDeliveries.filter(d => cyclingStopIds.includes(d.id) && !d.is_cycling_marker);
+    // Cycling segment: the explicitly provided cycling stop IDs (may include markers)
+    optimizableDeliveries = optimizableDeliveries.filter(d => cyclingStopIds.includes(d.id));
   } else if (drivingSegmentOnly && excludeStopIds.length > 0) {
-    // Driving segment: exclude cycling stops + both cycling markers
+    // Driving segment: exclude cycling stops + markers
     optimizableDeliveries = optimizableDeliveries.filter(d => !excludeStopIds.includes(d.id) && !d.is_cycling_marker);
-  } else if (!cyclingSegmentOnly && !drivingSegmentOnly) {
-    // Full optimization: exclude cycling markers from the sequencing pool —
-    // they are fixed anchors. They will be re-inserted after sequencing.
-    optimizableDeliveries = optimizableDeliveries.filter(d => !d.is_cycling_marker);
   }
+  // Full optimization (default): ALL stops including cycling markers go into the pool.
+  // Positional constraints (start before cycling stops, end after) are enforced AFTER HERE.
 
   if (optimizableDeliveries.length === 0) {
     console.warn(`[clientRouteEngine] ${source} — no optimizable deliveries (completed=${completedDeliveries.length}, active=${activeRouteDeliveries.length}, pending=${pendingRouteDeliveries.length})`);
@@ -784,39 +784,58 @@ export async function optimizeRouteClientSide({
     }
   }
 
-  // ── Re-insert cycling markers at their correct positions ──────────────────
-  // Start marker → insert BEFORE all cycling-mode stops (or at position 0 if none).
-  // End marker   → insert AFTER all cycling-mode stops (or at the end if none).
-  // This is purely positional — we do NOT use the original stop_order values because
-  // those can be stale/mismatched after HERE resequencing.
+  // ── Enforce cycling marker positional constraints ────────────────────────
+  // Markers are already sequenced by HERE along with other stops.
+  // "Fixed" means only positional: Start marker must be the ORIGIN of the cycling
+  // segment (before all cycling-mode stops), End marker must be AFTER all cycling-mode
+  // stops and before remaining driving-mode stops. If HERE placed them correctly, this
+  // is a no-op. If not (e.g. marker was in_transit and locked first), we enforce it.
   if (cyclingMarkers.length > 0) {
-    const sortedMarkers = [...cyclingMarkers].sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
-
-    for (const marker of sortedMarkers) {
-      const coords = getDeliveryCoords(marker, patientMap, storeMap, ispSourceMap);
-      if (!coords) continue;
-      const markerStop = { delivery: marker, lat: coords.lat, lng: coords.lng, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity };
-
+    for (const marker of cyclingMarkers) {
       const notes = (marker.delivery_notes || '').toLowerCase();
       const isEndMarker = notes.includes('end');
+      const markerIdx = routeStops.findIndex(s => s.delivery.id === marker.id);
+      if (markerIdx === -1) continue; // already handled below if missing
 
-      if (isEndMarker) {
-        // End marker: insert AFTER the last cycling-mode stop in routeStops, or append at end.
+      if (!isEndMarker) {
+        // Start marker: must be before ANY cycling-mode non-marker stop
+        const firstCyclingIdx = routeStops.findIndex(s =>
+          s.delivery.transport_mode === 'cycling' && !s.delivery.is_cycling_marker
+        );
+        if (firstCyclingIdx !== -1 && markerIdx > firstCyclingIdx) {
+          // Move start marker to just before the first cycling stop
+          const [removed] = routeStops.splice(markerIdx, 1);
+          const newFirstCyclingIdx = routeStops.findIndex(s =>
+            s.delivery.transport_mode === 'cycling' && !s.delivery.is_cycling_marker
+          );
+          routeStops.splice(Math.max(0, newFirstCyclingIdx), 0, removed);
+          console.log(`[clientRouteEngine] ${source} — repositioned cycling START marker before cycling stops`);
+        }
+      } else {
+        // End marker: must be after ALL cycling-mode non-marker stops
         let lastCyclingIdx = -1;
         for (let ri = 0; ri < routeStops.length; ri++) {
           if (routeStops[ri].delivery.transport_mode === 'cycling' && !routeStops[ri].delivery.is_cycling_marker) {
             lastCyclingIdx = ri;
           }
         }
-        routeStops.splice(lastCyclingIdx + 1, 0, markerStop);
-      } else {
-        // Start marker: insert BEFORE the first cycling-mode stop in routeStops, or at position 0.
-        let firstCyclingIdx = routeStops.findIndex(s => s.delivery.transport_mode === 'cycling' && !s.delivery.is_cycling_marker);
-        if (firstCyclingIdx === -1) firstCyclingIdx = 0;
-        routeStops.splice(firstCyclingIdx, 0, markerStop);
+        const currentMarkerIdx = routeStops.findIndex(s => s.delivery.id === marker.id);
+        if (lastCyclingIdx !== -1 && currentMarkerIdx < lastCyclingIdx) {
+          // Move end marker to just after the last cycling stop
+          const [removed] = routeStops.splice(currentMarkerIdx, 1);
+          const newLastCyclingIdx = routeStops.findIndex((s, ri) =>
+            ri > 0 &&
+            routeStops[ri - 1].delivery.transport_mode === 'cycling' &&
+            !routeStops[ri - 1].delivery.is_cycling_marker &&
+            (routeStops[ri].delivery.transport_mode !== 'cycling' || routeStops[ri].delivery.is_cycling_marker)
+          );
+          const insertAt = newLastCyclingIdx !== -1 ? newLastCyclingIdx : routeStops.length;
+          routeStops.splice(insertAt, 0, removed);
+          console.log(`[clientRouteEngine] ${source} — repositioned cycling END marker after cycling stops`);
+        }
       }
     }
-    console.log(`[clientRouteEngine] ${source} — re-inserted ${cyclingMarkers.length} cycling marker(s) into routeStops (total=${routeStops.length})`);
+    console.log(`[clientRouteEngine] ${source} — cycling marker positional check complete (total routeStops=${routeStops.length})`);
   }
 
   // ── Unit-number micro-sort ─────────────────────────────────────────────────
@@ -943,22 +962,21 @@ export async function optimizeRouteClientSide({
 
   const startOrder = startingStopOrder != null ? startingStopOrder : completedDeliveries.length;
   const originalActiveOrder = activeRouteDeliveries
-    .filter(d => !d.is_cycling_marker)
     .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
     .map(d => String(d.id));
-  const optimizedActiveOrder = activeStops.filter(s => !s.is_cycling_marker).map(s => String(s.id));
+  const optimizedActiveOrder = activeStops.map(s => String(s.id));
   const routeOrderChanged = preserveExistingOrder
     ? false
     : originalActiveOrder.length !== optimizedActiveOrder.length
       || originalActiveOrder.some((id, index) => id !== optimizedActiveOrder[index]);
 
   // Determine which stop should have isNextDelivery=true after optimization.
-  // Cycling markers must NEVER be assigned isNextDelivery — they are fixed anchors.
-  // Priority: explicit non-marker isNextDelivery → first active non-marker stop (if route not started).
+  // Cycling markers ARE full stops and CAN be isNextDelivery — a driver must be able to
+  // start/complete them like any other stop.
+  // Priority: explicit isNextDelivery (any stop) → first active stop (if route not started).
   const routeInProgress = completedDeliveries.length > 0;
-  const nonMarkerActiveStops = activeStops.filter(s => !s.is_cycling_marker);
-  const nextStopId = (explicitNextDelivery && !explicitNextDelivery.is_cycling_marker ? explicitNextDelivery.id : null)
-    || (!routeInProgress ? (nonMarkerActiveStops[0]?.id || null) : null);
+  const nextStopId = (explicitNextDelivery ? explicitNextDelivery.id : null)
+    || (!routeInProgress ? (activeStops[0]?.id || null) : null);
   const finalizedById = new Map(activeStops.map(s => [s.id, s]));
   const writeBatch = [];
 
