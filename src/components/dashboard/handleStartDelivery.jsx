@@ -57,9 +57,9 @@ export async function handleStartDelivery({
   const driverId = deliveryFromUI.driver_id;
   const deliveryDate = deliveryFromUI.delivery_date;
   const isCyclingMarker = !!deliveryFromUI.is_cycling_marker;
+  // Cycling markers are NOT pickups (no patient_id but also not a store pickup).
+  // Regular pickups use en_route; patient stops and cycling markers use in_transit.
   const isPickup = !deliveryFromUI.patient_id && !isCyclingMarker;
-  // Cycling markers are NOT pickups — they're GPS waypoints. Use 'in_transit' so the
-  // isInTransit check in CyclingMarkerStopCard correctly reflects the started state.
   const newStatus = isPickup ? 'en_route' : 'in_transit';
   const now = new Date();
   const etaMinutes = now.getHours() * 60 + now.getMinutes() + 5;
@@ -160,43 +160,36 @@ export async function handleStartDelivery({
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // ─── STEP 5+6: Unified route optimization (optimize + polyline regeneration) ──
-    // ─── STEP 5+6: Route optimization + polyline regeneration ───────────────
-    // SKIP for cycling markers: the optimizer's isNextDelivery logic deliberately
-    // excludes markers (fixed anchors). Running it after the driver explicitly starts
-    // a cycling marker would strip isNextDelivery=true and revert the card to Start.
-    // Markers have no address to sequence so there is nothing to optimize.
-    let coordResult;
-    if (isCyclingMarker) {
-      console.log('[handleStartDelivery] Cycling marker started — skipping route optimization to preserve isNextDelivery');
-      coordResult = { success: true, freshDeliveries: mutatedDeliveries };
-    } else {
-      let driverCurrentLat = null;
-      let driverCurrentLon = null;
-      const driverAppUser = appUsers.find((u) => u?.user_id === driverId);
-      if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-        driverCurrentLat = driverAppUser.current_latitude;
-        driverCurrentLon = driverAppUser.current_longitude;
-      } else if (driverLocation?.latitude && driverLocation?.longitude && driverId === currentUser?.id) {
-        driverCurrentLat = driverLocation.latitude;
-        driverCurrentLon = driverLocation.longitude;
-      }
-
-      // Pass the just-mutated local deliveries directly to the client-side engine.
-      // mutatedDeliveries already contains the full driver+date set from offlineDB
-      // with the latest status/isNextDelivery/stop_order writes applied.
-      coordResult = await performRouteOptimization({
-        driverId,
-        deliveryDate,
-        currentLocation: driverCurrentLat && driverCurrentLon ? { lat: driverCurrentLat, lon: driverCurrentLon } : null,
-        deliveries: mutatedDeliveries,
-        patients,
-        stores,
-        appUsers,
-        source: 'start_delivery',
-        bypassDriverStatus: true,
-      });
-      console.log('✅ [handleStartDelivery] Steps 5+6 complete — coordinator success:', coordResult?.success);
+    // ─── STEP 5+6: Unified route optimization (optimize + polyline regeneration) ──
+    // Cycling markers are full stops with GPS coords — they go through the optimizer
+    // just like any other stop. The optimizer preserves isNextDelivery and respects
+    // the positional constraint (start before cycling-mode stops, end after).
+    let driverCurrentLat = null;
+    let driverCurrentLon = null;
+    const driverAppUser = appUsers.find((u) => u?.user_id === driverId);
+    if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+      driverCurrentLat = driverAppUser.current_latitude;
+      driverCurrentLon = driverAppUser.current_longitude;
+    } else if (driverLocation?.latitude && driverLocation?.longitude && driverId === currentUser?.id) {
+      driverCurrentLat = driverLocation.latitude;
+      driverCurrentLon = driverLocation.longitude;
     }
+
+    // Pass the just-mutated local deliveries directly to the client-side engine.
+    // mutatedDeliveries already contains the full driver+date set from offlineDB
+    // with the latest status/isNextDelivery/stop_order writes applied.
+    const coordResult = await performRouteOptimization({
+      driverId,
+      deliveryDate,
+      currentLocation: driverCurrentLat && driverCurrentLon ? { lat: driverCurrentLat, lon: driverCurrentLon } : null,
+      deliveries: mutatedDeliveries,
+      patients,
+      stores,
+      appUsers,
+      source: 'start_delivery',
+      bypassDriverStatus: true,
+    });
+    console.log('✅ [handleStartDelivery] Steps 5+6 complete — coordinator success:', coordResult?.success);
 
     if (coordResult?.isDegraded) {
       console.warn('⚠️ [handleStartDelivery] Route optimization degraded — HERE routing unavailable, used straight-line approximation', {
