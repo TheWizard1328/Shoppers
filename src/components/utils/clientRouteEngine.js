@@ -629,12 +629,12 @@ export async function optimizeRouteClientSide({
     currentPosition = { lat: Number(_driverAppUser.home_latitude), lng: Number(_driverAppUser.home_longitude) };
     locationSource = 'home';
   }
-  if (cyclingSegmentOnly && cyclingOrigin?.lat != null && cyclingOrigin?.lon != null) {
-    currentPosition = { lat: Number(cyclingOrigin.lat), lng: Number(cyclingOrigin.lon) };
+  if (cyclingSegmentOnly && cyclingOrigin?.lat != null && (cyclingOrigin?.lon ?? cyclingOrigin?.lng) != null) {
+    currentPosition = { lat: Number(cyclingOrigin.lat), lng: Number(cyclingOrigin.lon ?? cyclingOrigin.lng) };
     locationSource = 'cycling_origin_override';
   }
-  if (drivingSegmentOnly && drivingOrigin?.lat != null && drivingOrigin?.lon != null) {
-    currentPosition = { lat: Number(drivingOrigin.lat), lng: Number(drivingOrigin.lon) };
+  if (drivingSegmentOnly && drivingOrigin?.lat != null && (drivingOrigin?.lon ?? drivingOrigin?.lng) != null) {
+    currentPosition = { lat: Number(drivingOrigin.lat), lng: Number(drivingOrigin.lon ?? drivingOrigin.lng) };
     locationSource = 'driving_origin_override';
   }
   // Allow explicit currentLocation override (from caller)
@@ -784,20 +784,41 @@ export async function optimizeRouteClientSide({
     }
   }
 
-  // ── Re-insert cycling markers at their original stop_order positions ──────
-  // Markers were excluded from HERE sequencing (they're fixed anchors) but must
-  // appear in the final route so they receive ETAs, polylines, and stop_order writes.
-  if (cyclingMarkers.length > 0 && !cyclingSegmentOnly && !drivingSegmentOnly) {
-    for (const marker of cyclingMarkers) {
-      const coords = getDeliveryCoords(marker, patientMap, storeMap, ispSourceMap);
-      if (!coords) continue;
-      const markerStop = { delivery: marker, lat: coords.lat, lng: coords.lng, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity };
-      // Insert at the position matching the marker's existing stop_order relative to non-marker stops
-      const markerOrder = Number(marker.stop_order) || 99999;
-      let insertIndex = routeStops.findIndex(s => (Number(s.delivery.stop_order) || 99999) > markerOrder);
-      if (insertIndex === -1) insertIndex = routeStops.length;
-      routeStops.splice(insertIndex, 0, markerStop);
-      console.log(`[clientRouteEngine] ${source} — cycling marker ${marker.id} re-inserted at route position ${insertIndex} (stop_order=${markerOrder})`);
+  // ── Inject cycling markers for ETA + polyline + write-batch coverage ──────
+  // In two-phase mode (cyclingSegmentOnly / drivingSegmentOnly), inject the
+  // relevant marker(s) so they receive ETAs and appear in the write batch.
+  //   • cyclingSegmentOnly: inject the START marker at position 0 (origin anchor)
+  //   • drivingSegmentOnly: inject the END marker at position 0 (origin anchor)
+  // In full-optimization mode (neither flag), re-insert ALL markers at their
+  // original stop_order positions (they are fixed anchors, not re-sequenced).
+  if (cyclingMarkers.length > 0) {
+    if (cyclingSegmentOnly) {
+      // Start marker goes at the front
+      const startMarker = cyclingMarkers.find(m => m.cycling_marker_type === 'start');
+      if (startMarker) {
+        const coords = getDeliveryCoords(startMarker, patientMap, storeMap, ispSourceMap)
+          || (cyclingOrigin?.lat != null ? { lat: cyclingOrigin.lat, lng: cyclingOrigin.lon } : null);
+        if (coords) routeStops.unshift({ delivery: startMarker, lat: coords.lat, lng: coords.lng ?? coords.lon, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity });
+      }
+    } else if (drivingSegmentOnly) {
+      // End marker goes at the front (it's the origin of the driving segment)
+      const endMarker = cyclingMarkers.find(m => m.cycling_marker_type === 'end');
+      if (endMarker) {
+        const coords = getDeliveryCoords(endMarker, patientMap, storeMap, ispSourceMap)
+          || (drivingOrigin?.lat != null ? { lat: drivingOrigin.lat, lng: drivingOrigin.lon ?? drivingOrigin.lng } : null);
+        if (coords) routeStops.unshift({ delivery: endMarker, lat: coords.lat, lng: coords.lng ?? coords.lon, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity });
+      }
+    } else {
+      // Full optimization: re-insert all markers at their original stop_order positions
+      for (const marker of cyclingMarkers) {
+        const coords = getDeliveryCoords(marker, patientMap, storeMap, ispSourceMap);
+        if (!coords) continue;
+        const markerStop = { delivery: marker, lat: coords.lat, lng: coords.lng, isPickup: false, windowStart: null, windowEnd: null, hasLateWindow: false, timeMinutes: Infinity };
+        const markerOrder = Number(marker.stop_order) || 99999;
+        let insertIndex = routeStops.findIndex(s => (Number(s.delivery.stop_order) || 99999) > markerOrder);
+        if (insertIndex === -1) insertIndex = routeStops.length;
+        routeStops.splice(insertIndex, 0, markerStop);
+      }
     }
   }
 

@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { pauseOfflineMutations, resumeOfflineMutations } from '@/components/utils/offlineMutations';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
 import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
+import { detectActiveCyclingSegment } from '@/components/utils/cyclingAwareOptimizer';
 
 export async function handleReoptimizeRoute({
   currentUser,
@@ -58,18 +59,88 @@ export async function handleReoptimizeRoute({
       ? deliveries.filter(d => d && d.driver_id === driverId && d.delivery_date === deliveryDate)
       : null;
 
-    // ── Unified optimization call (client-side engine) ──────────────────────
-    const result = await performRouteOptimization({
-      driverId,
-      deliveryDate,
-      currentLocation,
-      deliveries: driverDeliveries,
-      patients,
-      stores,
-      appUsers,
-      source: 'reoptimize_fab',
-      bypassDriverStatus: true,
-    });
+    // ── Detect active cycling segment — run two-phase optimization if present ──
+    const cyclingSegment = driverDeliveries
+      ? detectActiveCyclingSegment(driverDeliveries, patients, stores)
+      : null;
+
+    let result;
+
+    if (cyclingSegment) {
+      console.log('🚴 [handleReoptimizeRoute] Active cycling segment detected — running two-phase optimization');
+
+      const { startMarker, endMarker, endMarkerCoords, cyclingOriginCoords, unfinishedCyclingStopIds } = cyclingSegment;
+
+      // Resolve start marker coords for cycling origin
+      const resolveCoords = (marker) => {
+        if (marker.cycling_latitude && marker.cycling_longitude) return { lat: marker.cycling_latitude, lon: marker.cycling_longitude };
+        return cyclingOriginCoords;
+      };
+      const cyclingOrigin = resolveCoords(startMarker);
+
+      // Phase 1: cycling segment (stops between start and end markers, cycling mode)
+      const phase1 = await performRouteOptimization({
+        driverId, deliveryDate, currentLocation: cyclingOrigin,
+        deliveries: driverDeliveries, patients, stores, appUsers,
+        source: 'reoptimize_fab_cycling',
+        bypassDriverStatus: true,
+        cyclingSegmentOnly: true,
+        cyclingOrigin,
+        cyclingDestination: endMarkerCoords,
+        cyclingStopIds: unfinishedCyclingStopIds,
+        startingStopOrder: Number(startMarker.stop_order || 1),
+      });
+
+      // Phase 2: driving segment (stops after end marker, driving mode, origin = end marker)
+      const endMarkerStopOrder = Number(endMarker.stop_order || 0);
+      const drivingStopIds = driverDeliveries
+        .filter(d => !d.is_cycling_marker && Number(d.stop_order || 0) > endMarkerStopOrder)
+        .map(d => d.id);
+
+      const phase2 = drivingStopIds.length > 0 ? await performRouteOptimization({
+        driverId, deliveryDate,
+        currentLocation: { lat: endMarkerCoords.lat, lon: endMarkerCoords.lon },
+        deliveries: driverDeliveries, patients, stores, appUsers,
+        source: 'reoptimize_fab_driving',
+        bypassDriverStatus: true,
+        drivingSegmentOnly: true,
+        drivingOrigin: { lat: endMarkerCoords.lat, lon: endMarkerCoords.lon },
+        excludeStopIds: [...unfinishedCyclingStopIds, startMarker.id, endMarker.id],
+        startingStopOrder: endMarkerStopOrder,
+      }) : null;
+
+      // Merge: success if at least phase1 succeeded
+      const mergedFresh = [
+        ...(phase1.freshDeliveries || []),
+        ...(phase2?.freshDeliveries || []),
+      ];
+      // De-duplicate by id, later phase wins
+      const freshMap = new Map();
+      mergedFresh.forEach(d => { if (d?.id) freshMap.set(d.id, d); });
+
+      result = {
+        success: phase1.success,
+        error: phase1.error || phase2?.error,
+        isDegraded: phase1.isDegraded || phase2?.isDegraded,
+        optimizeData: {
+          optimizedCount: (phase1.optimizeData?.optimizedCount || 0) + (phase2?.optimizeData?.optimizedCount || 0),
+        },
+        freshDeliveries: Array.from(freshMap.values()),
+      };
+    } else {
+      // ── Standard single-phase optimization ────────────────────────────────
+      result = await performRouteOptimization({
+        driverId,
+        deliveryDate,
+        currentLocation,
+        deliveries: driverDeliveries,
+        patients,
+        stores,
+        appUsers,
+        source: 'reoptimize_fab',
+        bypassDriverStatus: true,
+      });
+    }
 
     if (result.success) {
       setOptimizationMessage(`Route optimized! ${result.optimizeData?.optimizedCount || 0} stops updated.`);
