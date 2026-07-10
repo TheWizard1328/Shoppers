@@ -203,7 +203,19 @@ export default function TempLogTab({ drivers = [], currentUser }) {
       const data = await base44.entities.RxTempLogs.filter(filter);
       if (data?.length) {
         await offlineDB.bulkSave(offlineDB.STORES.RX_TEMP_LOGS, data);
-        setLogs(data);
+        // Merge with current state so in-progress edits aren't wiped by a background fetch
+        setLogs((prev) => {
+          if (!prev.length) return data;
+          const map = new Map(prev.map((l) => [l.id, l]));
+          data.forEach((l) => {
+            // Only overwrite if the server version is newer (or we have no local copy)
+            const local = map.get(l.id);
+            if (!local || (l.updated_date && local.updated_date && l.updated_date >= local.updated_date)) {
+              map.set(l.id, l);
+            }
+          });
+          return Array.from(map.values());
+        });
       } else if (!filteredCached.length) {
         setLogs([]);
       }
