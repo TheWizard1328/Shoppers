@@ -126,6 +126,23 @@ export default function StopCardActionButtons(props) {
     expectedLocationId: currentSquareLocationId,
   });
 
+  // True if this is the first COD delivery the driver has attempted today.
+  // "Attempted" = a prior COD stop for the same driver/date already has cod_payments recorded.
+  // If no prior COD payments exist, the reader hasn't been used yet today → launch bare.
+  const isFirstCodOfDay = useMemo(() => {
+    if (!delivery?.driver_id || !delivery?.delivery_date) return true;
+    const priorWithPayment = (allDeliveries || []).some(
+      (d) =>
+        d &&
+        d.id !== delivery.id &&
+        d.driver_id === delivery.driver_id &&
+        d.delivery_date === delivery.delivery_date &&
+        d.cod_total_amount_required > 0 &&
+        Array.isArray(d.cod_payments) && d.cod_payments.length > 0
+    );
+    return !priorWithPayment;
+  }, [allDeliveries, delivery]);
+
   // Direct synchronous Square POS launch — no modal, no state change before dispatch.
   // CRITICAL: Must stay synchronous within the gesture handler to preserve gesture trust
   // on Android WebView. Any React state update before launchSquarePOS breaks the chain.
@@ -135,20 +152,31 @@ export default function StopCardActionButtons(props) {
     const codAmount = delivery?.cod_total_amount_required;
     remoteLogger.info('[Square] Button tapped (direct launch)', JSON.stringify({
       hasAppId: !!effectiveAppId, codAmount, deliveryId: delivery?.id, storeId: store?.id,
+      squareLocationStatus, isFirstCodOfDay,
     }));
     if (!effectiveAppId) {
       toast.error('Square not ready yet — App ID missing.');
       return;
     }
+
+    const callbackUrl = window.location.origin + window.location.pathname;
+
+    // Launch bare (no payload) when location mismatch or first COD of the day —
+    // the driver needs to manually select/confirm their location in the Square app first.
+    const launchBare = squareLocationStatus === 'mismatch' || isFirstCodOfDay;
+    if (launchBare) {
+      launchSquarePOS({ squareAppId: effectiveAppId, callbackUrl });
+      return;
+    }
+
     const amountCents = Math.round(Number(codAmount || 0) * 100);
     if (amountCents <= 0) {
       toast.error('No COD amount set for this delivery.');
       return;
     }
     const notes = generateSquareItemName(delivery, patient, store);
-    const callbackUrl = window.location.origin + window.location.pathname;
     launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', callbackUrl, notes, locationId: currentSquareLocationId });
-  }, [delivery, patient, store, squareAppId, currentSquareLocationId]);
+  }, [delivery, patient, store, squareAppId, currentSquareLocationId, squareLocationStatus, isFirstCodOfDay]);
 
 
 
