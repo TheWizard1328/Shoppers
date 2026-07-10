@@ -1724,7 +1724,7 @@ useEffect(() => {
       delivery.patient_id &&
       isDispatcher &&
       !isAdmin &&
-      currentUser?.store_ids?.includes(delivery.store_id)
+      currentUserStoreIds?.includes(delivery.store_id)
     ) {
       setTimeout(() => {
         const patient = patients.find((p) => p && p.id === delivery.patient_id);
@@ -1733,7 +1733,7 @@ useEffect(() => {
         }));
       }, 400);
     }
-  }, [isDispatcher, isAdmin, currentUserId, currentUserStoreIds]);
+  }, [isDispatcher, isAdmin, currentUserStoreIds, patients]);
 
   // Collapse expanded stop card when Patient History panel is closed
   useEffect(() => {
@@ -2066,9 +2066,9 @@ useEffect(() => {
   };
 
   const handleNotesUpdate = useCallback((deliveryId, notes) => _handleNotesUpdate(deliveryId, notes, { refreshData }), [refreshData]);
-  const handleCODUpdate = (deliveryId, codPayments) => _handleCODUpdate(deliveryId, codPayments, { deliveriesWithStopOrder, updateDeliveriesLocally, setIsEntityUpdating });
+  const handleCODUpdate = useCallback((deliveryId, codPayments) => _handleCODUpdate(deliveryId, codPayments, { deliveriesWithStopOrder, updateDeliveriesLocally, setIsEntityUpdating }), [deliveriesWithStopOrder, updateDeliveriesLocally, setIsEntityUpdating]);
 
-  const handleCreateReturn = (args) => _handleCreateReturn(args, { currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries });
+  const handleCreateReturn = useCallback((args) => _handleCreateReturn(args, { currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries }), [currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries]);
 
   const handleStartDelivery = async (deliveryId) => {
     const { handleStartDelivery: _doStart } = await import('@/components/dashboard/handleStartDelivery');
