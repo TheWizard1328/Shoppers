@@ -119,11 +119,14 @@ export default function StopCardActionButtons(props) {
 
   // Live Square location check — queries the Square API for the most recent transaction
   // on the expected location to verify the driver's reader is active there.
-  // Resolve driver name for Square team member matching — use currentUser's full_name
-  // (the logged-in driver), falling back to app user_name if available.
+  // Resolve driver name for Square team member matching — use the AppUser record's
+  // user_name (the name set inside the app, matching what Square team members use),
+  // NOT the platform full_name which may be an email or platform display name.
   const driverNameForPeek = useMemo(() => {
-    return currentUser?.full_name || currentUser?.user_name || null;
-  }, [currentUser?.full_name, currentUser?.user_name]);
+    const appUsers = appData?.appUsers || [];
+    const myAppUser = appUsers.find((u) => u?.user_id === currentUser?.id);
+    return myAppUser?.user_name || null;
+  }, [appData?.appUsers, currentUser?.id]);
 
   const squareLocationStatus = useSquareLocationCheck({
     isNextDelivery,
