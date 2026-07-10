@@ -709,6 +709,73 @@ export async function optimizeRouteClientSide({
   }
 
   // ── Run HERE sequencing or fallback ────────────────────────────────────────
+  // Helper: run callHereSequence with time-window fallback, return ordered stops + directionsLegs
+  const runHereSequence = async ({ sequenceStart, stops: seqStops, origin, hereMode, withHome }) => {
+    if (seqStops.length === 0) return { orderedStops: [], legs: [] };
+    let attempt = await callHereSequence({
+      sequenceStart, stopsToSequence: seqStops,
+      resolvedHomePosition: withHome ? resolvedHomePosition : null,
+      hereApiKey, hereTransportMode: hereMode,
+      deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: true
+    });
+    let result = Array.isArray(attempt.data?.results) ? attempt.data.results[0] : null;
+    let waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
+    let interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+
+    if ((!attempt.response.ok || !result || waypoints.length === 0) && attempt.includeTimeWindows) {
+      usedTimeWindows = false;
+      attempt = await callHereSequence({
+        sequenceStart, stopsToSequence: seqStops,
+        resolvedHomePosition: withHome ? resolvedHomePosition : null,
+        hereApiKey, hereTransportMode: hereMode,
+        deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: false
+      });
+      result = Array.isArray(attempt.data?.results) ? attempt.data.results[0] : null;
+      waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
+      interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+    }
+
+    if (!attempt.response.ok || !result || waypoints.length === 0) {
+      console.warn(`[clientRouteEngine] ${source} — HERE sequencing FAILED (mode=${hereMode}, status=${attempt.response.status}), crow-flies fallback`);
+      usedFallbackOrdering = true;
+      const sorted = [...seqStops].sort((a, b) => {
+        const distA = calculateCrowFliesDistance(origin.lat, origin.lng, a.lat, a.lng);
+        const distB = calculateCrowFliesDistance(origin.lat, origin.lng, b.lat, b.lng);
+        const penA = resolvedHomePosition && withHome ? calculateCrowFliesDistance(a.lat, a.lng, resolvedHomePosition.lat, resolvedHomePosition.lng) : 0;
+        const penB = resolvedHomePosition && withHome ? calculateCrowFliesDistance(b.lat, b.lng, resolvedHomePosition.lat, resolvedHomePosition.lng) : 0;
+        return (distA - penA * 0.15) - (distB - penB * 0.15);
+      });
+      let prev = origin;
+      const legs = sorted.map(s => {
+        const d = calculateCrowFliesDistance(prev.lat, prev.lng, s.lat, s.lng);
+        prev = { lat: s.lat, lng: s.lng };
+        return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 };
+      });
+      return { orderedStops: sorted, legs };
+    }
+
+    console.log(`[clientRouteEngine] ${source} — HERE sequencing OK (mode=${hereMode}): ${waypoints.length} waypoints`);
+    const ordered = waypoints
+      .filter(wp => wp.id !== 'driverStart' && wp.id !== 'driverEnd')
+      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+      .map(wp => ({
+        stop: seqStops.find(s => (s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id) === wp.id) || null,
+        waypoint: wp
+      }))
+      .filter(item => item.stop);
+    const icByTo = new Map(interconnections.map(i => [i.toWaypoint, i]));
+    const legs = ordered.map((item, idx) => {
+      const ic = icByTo.get(item.waypoint.id);
+      if (idx === 0) {
+        const d = calculateCrowFliesDistance(origin.lat, origin.lng, item.stop.lat, item.stop.lng);
+        return ic ? { duration: Number(ic.time || 0), distance: Number(ic.distance || 0) }
+                  : { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 };
+      }
+      return { duration: Number(ic?.time || 0), distance: Number(ic?.distance || 0) };
+    });
+    return { orderedStops: ordered.map(i => i.stop), legs };
+  };
+
   if (preserveExistingOrder) {
     routeStops = [...orderedOptimizationStops];
     let prevPos = currentPosition;
@@ -718,69 +785,129 @@ export async function optimizeRouteClientSide({
       prevPos = { lat: stop.lat, lng: stop.lng };
     }
   } else if (stopsToSequence.length > 0) {
-    console.log(`[clientRouteEngine] ${source} — calling HERE findsequence2 for ${stopsToSequence.length} stops (preserveExistingOrder=${preserveExistingOrder})`);
-    let hereAttempt = await callHereSequence({
-      sequenceStart: routeOriginStop ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng } : currentPosition,
-      stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode,
-      deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: true
-    });
-    let result = Array.isArray(hereAttempt.data?.results) ? hereAttempt.data.results[0] : null;
-    let waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
-    let interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+    console.log(`[clientRouteEngine] ${source} — calling HERE findsequence2 for ${stopsToSequence.length} stops`);
 
-    if ((!hereAttempt.response.ok || !result || waypoints.length === 0) && hereAttempt.includeTimeWindows) {
-      usedTimeWindows = false;
-      hereAttempt = await callHereSequence({
-        sequenceStart: routeOriginStop ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng } : currentPosition,
-        stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode,
-        deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: false
+    // ── Mixed-mode sequencing ─────────────────────────────────────────────
+    // Detect whether we have a cycling segment (Start marker + End marker + cycling stops).
+    // If so, sequence driving stops and cycling stops separately with their correct HERE modes,
+    // then stitch: [locked next] → [sequenced driving before cycling] → [Start marker]
+    //              → [sequenced cycling stops] → [End marker] → [sequenced driving after cycling]
+    const startMarker = stopsToSequence.find(s =>
+      s.delivery.is_cycling_marker && (s.delivery.delivery_notes || '').toLowerCase().includes('start')
+    ) || null;
+    const endMarker = stopsToSequence.find(s =>
+      s.delivery.is_cycling_marker && (s.delivery.delivery_notes || '').toLowerCase().includes('end')
+    ) || null;
+    const hasCyclingSegment = !!(startMarker && endMarker);
+
+    if (hasCyclingSegment) {
+      // Split stopsToSequence into three pools:
+      //   drivingPool: non-cycling, non-marker stops
+      //   cyclingPool: stops with transport_mode='cycling' (excludes the markers themselves)
+      //   markers: Start + End (fixed positionally — not passed to HERE)
+      const drivingPool = stopsToSequence.filter(s =>
+        !s.delivery.is_cycling_marker &&
+        String(s.delivery.transport_mode || 'driving').toLowerCase() !== 'cycling'
+      );
+      const cyclingPool = stopsToSequence.filter(s =>
+        !s.delivery.is_cycling_marker &&
+        String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'
+      );
+
+      console.log(`[clientRouteEngine] ${source} — mixed-mode sequencing: ${drivingPool.length} driving, ${cyclingPool.length} cycling, 2 markers`);
+
+      // Sequence driving stops (car mode, home as end anchor)
+      const drivingOrigin = routeOriginStop
+        ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng }
+        : currentPosition;
+      const { orderedStops: orderedDriving, legs: drivingLegs } = await runHereSequence({
+        sequenceStart: drivingOrigin,
+        stops: drivingPool,
+        origin: drivingOrigin,
+        hereMode: 'car',
+        withHome: true
       });
-      result = Array.isArray(hereAttempt.data?.results) ? hereAttempt.data.results[0] : null;
-      waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
-      interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
-    }
 
-    if (!hereAttempt.response.ok || !result || waypoints.length === 0) {
-      // Crow-flies fallback
-      console.warn(`[clientRouteEngine] ${source} — HERE sequencing FAILED (status=${hereAttempt.response.status}, usedTimeWindows=${usedTimeWindows}), using crow-flies fallback`);
-      usedFallbackOrdering = true;
-      routeStops = [...routeStops, ...stopsToSequence].sort((a, b) => {
-        const distA = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, a.lat, a.lng);
-        const distB = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, b.lat, b.lng);
-        const homePenaltyA = resolvedHomePosition ? calculateCrowFliesDistance(a.lat, a.lng, resolvedHomePosition.lat, resolvedHomePosition.lng) : 0;
-        const homePenaltyB = resolvedHomePosition ? calculateCrowFliesDistance(b.lat, b.lng, resolvedHomePosition.lat, resolvedHomePosition.lng) : 0;
-        return (distA - homePenaltyA * 0.15) - (distB - homePenaltyB * 0.15);
+      // Sequence cycling stops (bicycle mode, no home end-anchor)
+      const cyclingOriginCoords = startMarker
+        ? { lat: startMarker.lat, lng: startMarker.lng }
+        : drivingOrigin;
+      const { orderedStops: orderedCycling, legs: cyclingLegs } = await runHereSequence({
+        sequenceStart: cyclingOriginCoords,
+        stops: cyclingPool,
+        origin: cyclingOriginCoords,
+        hereMode: 'bicycle',
+        withHome: false
       });
-      let prevPos = currentPosition;
-      for (const stop of routeStops) {
-        const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
-        directionsLegs.push({ duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 });
-        prevPos = { lat: stop.lat, lng: stop.lng };
-      }
-    } else {
-      // HERE success — map waypoints to stops
-      console.log(`[clientRouteEngine] ${source} — HERE sequencing OK: ${waypoints.length} waypoints, usedTimeWindows=${usedTimeWindows}`);
-      const orderedStops = waypoints
-        .filter(wp => wp.id !== 'driverStart' && wp.id !== 'driverEnd')
-        .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-        .map(wp => ({
-          stop: stopsToSequence.find(item => (item.delivery.stop_id || item.delivery.delivery_id || item.delivery.id) === wp.id) || null,
-          waypoint: wp
-        }))
-        .filter(item => item.stop);
 
-      routeStops = [...routeStops, ...orderedStops.map(item => item.stop)];
-      const interconnectionByToWaypoint = new Map(interconnections.map(item => [item.toWaypoint, item]));
-      directionsLegs = routeStops.map((stop, index) => {
-        if (index === 0) {
-          const distKm = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
-          return { duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 };
+      // Stitch the final route:
+      // [locked next stop (if any)] → [driving stops] → [Start marker] → [cycling stops] → [End marker] → (remaining driving continues from home sort)
+      // The driving stops are already sorted to minimize home distance so they naturally precede the cycling segment.
+      const stitchedStops = [
+        ...(routeOriginStop ? [routeOriginStop] : []),
+        ...orderedDriving,
+        startMarker,
+        ...orderedCycling,
+        endMarker,
+      ];
+
+      // Build directionsLegs for stitched stops:
+      // Leg[0] = origin → stop[0]: from currentPosition
+      // Legs for driving pool: from drivingLegs (relative to drivingOrigin)
+      // Leg for startMarker: crow-flies from last driving stop (or drivingOrigin if no driving stops)
+      // Legs for cycling pool: from cyclingLegs (relative to startMarker)
+      // Leg for endMarker: crow-flies from last cycling stop (or startMarker if no cycling stops)
+      const stitchedLegs = [];
+      let legCursor = currentPosition;
+
+      for (const stop of stitchedStops) {
+        const isLockedNext = routeOriginStop && stop.delivery.id === routeOriginStop.delivery.id;
+        const isDrivingStop = orderedDriving.includes(stop);
+        const isCyclingStop = orderedCycling.includes(stop);
+        const isStart = startMarker && stop.delivery.id === startMarker.delivery.id;
+        const isEnd = endMarker && stop.delivery.id === endMarker.delivery.id;
+
+        if (isLockedNext) {
+          const d = calculateCrowFliesDistance(legCursor.lat, legCursor.lng, stop.lat, stop.lng);
+          stitchedLegs.push({ duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 });
+        } else if (isDrivingStop) {
+          const idx = orderedDriving.indexOf(stop);
+          stitchedLegs.push(drivingLegs[idx] || { duration: 0, distance: 0 });
+        } else if (isStart) {
+          // Drive from last driving stop (or origin) to Start marker
+          const d = calculateCrowFliesDistance(legCursor.lat, legCursor.lng, stop.lat, stop.lng);
+          stitchedLegs.push({ duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 });
+        } else if (isCyclingStop) {
+          const idx = orderedCycling.indexOf(stop);
+          stitchedLegs.push(cyclingLegs[idx] || { duration: 0, distance: 0 });
+        } else if (isEnd) {
+          // Cycle from last cycling stop (or startMarker) to End marker
+          const d = calculateCrowFliesDistance(legCursor.lat, legCursor.lng, stop.lat, stop.lng);
+          stitchedLegs.push({ duration: Math.ceil((d / 20) * 60 * 60 * 1.2), distance: d * 1000 }); // bicycle speed approx
         }
-        const routeIndex = index - 1;
-        const waypoint = orderedStops[routeIndex]?.waypoint;
-        const leg = waypoint ? interconnectionByToWaypoint.get(waypoint.id) : null;
-        return { duration: Number(leg?.time || 0), distance: Number(leg?.distance || 0) };
+        legCursor = { lat: stop.lat, lng: stop.lng };
+      }
+
+      routeStops = stitchedStops;
+      directionsLegs = stitchedLegs;
+
+    } else {
+      // Pure driving (or no cycling segment) — single HERE call as before
+      const seqOrigin = routeOriginStop ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng } : currentPosition;
+      const { orderedStops, legs } = await runHereSequence({
+        sequenceStart: seqOrigin,
+        stops: stopsToSequence,
+        origin: seqOrigin,
+        hereMode: hereTransportMode,
+        withHome: true
       });
+      routeStops = [...routeStops, ...orderedStops];
+      directionsLegs = routeOriginStop
+        ? [
+            (() => { const d = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, routeOriginStop.lat, routeOriginStop.lng); return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 }; })(),
+            ...legs
+          ]
+        : legs;
     }
   }
 
