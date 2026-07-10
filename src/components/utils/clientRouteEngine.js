@@ -954,20 +954,13 @@ export async function optimizeRouteClientSide({
     : originalActiveOrder.length !== optimizedActiveOrder.length
       || originalActiveOrder.some((id, index) => id !== optimizedActiveOrder[index]);
 
-  // Only fall back to activeStops[0] when NO stop currently has isNextDelivery=true AND
-  // the route hasn't started yet (no completed stops). Once a route is in progress,
-  // the existing isNextDelivery stop must remain — never promote a freshly-added stop.
-  // CYCLING: If a cycling start marker has isNextDelivery=true in the full deliveries list
-  // (set by cyclingAwareOptimizer or handleStatusUpdate), respect it even though cycling
-  // markers are excluded from optimizableDeliveries — use the first active non-pending stop.
+  // Determine which stop should have isNextDelivery=true after optimization.
+  // Cycling markers must NEVER be assigned isNextDelivery — they are fixed anchors.
+  // Priority: explicit non-marker isNextDelivery → first active non-marker stop (if route not started).
   const routeInProgress = completedDeliveries.length > 0;
-  // Check if the explicitNextDelivery was a cycling marker (excluded from optimizableDeliveries)
-  const cyclingStartMarkerNext = driverDeliveries.find(
-    (d) => d?.is_cycling_marker && d?.isNextDelivery === true && !FINISHED_STATUSES.includes(d.status)
-  ) || null;
-  const nextStopId = cyclingStartMarkerNext?.id
-    || explicitNextDelivery?.id
-    || (!routeInProgress ? (activeStops[0]?.id || null) : null);
+  const nonMarkerActiveStops = activeStops.filter(s => !s.is_cycling_marker);
+  const nextStopId = (explicitNextDelivery && !explicitNextDelivery.is_cycling_marker ? explicitNextDelivery.id : null)
+    || (!routeInProgress ? (nonMarkerActiveStops[0]?.id || null) : null);
   const finalizedById = new Map(activeStops.map(s => [s.id, s]));
   const writeBatch = [];
 
@@ -1009,7 +1002,7 @@ export async function optimizeRouteClientSide({
     const isPendingStop = stop?.status === 'pending';
     const rawTransportMode = isPendingStop ? effectiveTravelMode : String(stop?.transport_mode || effectiveTravelMode).toLowerCase();
     const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(rawTransportMode) ? rawTransportMode : 'driving';
-    const isNextStop = stop.id === nextStopId && i === 0;
+    const isNextStop = stop.id === nextStopId;
     const logicalDurationMinutes = isNextStop && nextStopLogicalSegment
       ? nextStopLogicalSegment.durationMinutes
       : (typeof seg?.estimatedDurationMinutes === 'number' ? seg.estimatedDurationMinutes : null);
