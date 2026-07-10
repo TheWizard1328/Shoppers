@@ -1273,8 +1273,8 @@ class LocationTracker {
       // Even if the fix fails, still reset breadcrumb timer so the next interval tick tries again
     }
 
-    // (e) Reset + restart breadcrumb interval from a clean slate.
-    //     The interval was potentially stale/dead from the background suspension.
+    // (e) Reset + restart both the breadcrumb interval AND the 15s heartbeat interval.
+    //     Both can be killed by Android Chrome's background timer throttling.
     if (this.breadcrumbInterval) {
       clearInterval(this.breadcrumbInterval);
       this.breadcrumbInterval = null;
@@ -1298,6 +1298,42 @@ class LocationTracker {
         console.warn('⚠️ [Breadcrumb Timer] GPS fix failed on interval tick:', e?.message);
       }
     }, this.breadcrumbSaveInterval);
+
+    // Also restart the 15s heartbeat (AppUser coordinate upload) — it can be killed too.
+    // Only restart for web providers — native background providers manage their own interval.
+    const isNativeProvider = this.locationProvider?.backgroundCapable === true;
+    if (!isNativeProvider && !this._webOnlyMode && !this._dispatcherHeartbeatMode) {
+      this._clearHeartbeat();
+      const providerName = this.locationProvider?.name || 'web';
+      this.heartbeatInterval = setInterval(async () => {
+        if (!this.isTracking) return;
+        try {
+          const freshPos = await this.locationProvider.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 0,
+            requestPermissions: false
+          });
+          this.lastPosition = {
+            latitude: freshPos.coords.latitude,
+            longitude: freshPos.coords.longitude,
+            accuracy: freshPos.coords.accuracy
+          };
+          this._pendingEventUpdate = false;
+          await this.updateLocationInDatabase(
+            freshPos.coords.latitude,
+            freshPos.coords.longitude,
+            freshPos.coords.accuracy,
+            false,
+            false,
+            this.isPrimaryDevice
+          );
+        } catch (err) {
+          console.warn(`⚠️ [${providerName} PROVIDER] Fresh GPS fix failed on resumed heartbeat:`, err?.message);
+        }
+      }, this.updateInterval);
+      console.log(`💓 [LocationTracker] Heartbeat interval restarted after resume — ${this.updateInterval / 1000}s`);
+    }
 
     console.log(`🍞 [LocationTracker] Breadcrumb timer restarted — interval ${this.breadcrumbSaveInterval / 1000}s`);
 
@@ -1342,19 +1378,16 @@ if (typeof document !== 'undefined') {
     }
 
     const now = Date.now();
-    const referenceTime = Math.max(
-      locationTracker.lastFocusLostAt || 0,
-      locationTracker.lastHeartbeatAt || 0,
-      locationTracker.lastBreadcrumbSavedAt || 0,
-      locationTracker.lastCoordinateUpdate || 0
-    );
-
-    const awayDuration = referenceTime > 0 ? now - referenceTime : 0;
+    // Use lastFocusLostAt directly — Math.max with other timestamps caused false-short
+    // awayDuration values when a background tick updated lastBreadcrumbSavedAt/lastHeartbeatAt
+    // after the page was hidden, making the guard skip _resumeAfterAbsence entirely.
+    const focusLostAt = locationTracker.lastFocusLostAt || 0;
+    const awayDuration = focusLostAt > 0 ? now - focusLostAt : 0;
 
     if (
       locationTracker.isTracking &&
       locationTracker.driverStatus === 'on_duty' &&
-      referenceTime > 0 &&
+      focusLostAt > 0 &&
       awayDuration > 5000
     ) {
       console.log(`🔄 [LocationTracker] App resumed after ${Math.round(awayDuration / 1000)}s away — resyncing GPS, breadcrumbs, and offline DB`);

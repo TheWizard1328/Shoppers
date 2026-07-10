@@ -470,7 +470,9 @@ export function useLayoutEventHandlers({
     // so deliveries are fresh before the breadcrumb timer fires its next point.
     const handleDriverResumedAfterAbsence = async (event) => {
       const { awayDurationMs = 0 } = event.detail || {};
-      console.log(`🔄 [Layout] Driver resumed after ${Math.round(awayDurationMs / 1000)}s away — resyncing deliveries from offline DB`);
+      console.log(`🔄 [Layout] Driver resumed after ${Math.round(awayDurationMs / 1000)}s away — resyncing deliveries + temp logs`);
+
+      // ── 1. Resync deliveries from offline DB ───────────────────────────────
       try {
         const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
         const { loadAndCacheDeliveriesForDate } = await import('../utils/offlineSync');
@@ -484,7 +486,30 @@ export function useLayoutEventHandlers({
           console.log(`✅ [Layout] Resume resync applied — ${freshDeliveries.length} deliveries refreshed`);
         }
       } catch (e) {
-        console.warn('⚠️ [Layout] Resume resync failed:', e?.message);
+        console.warn('⚠️ [Layout] Resume delivery resync failed:', e?.message);
+      }
+
+      // ── 2. Resync RxTempLogs: server → offlineDB → UI ─────────────────────
+      // Android Chrome can suspend WebSocket/polling while backgrounded, so the
+      // temp badge may be stale. Pull fresh records now and broadcast so LiveTempBadge
+      // updates without waiting for its next DB poll tick.
+      try {
+        const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+        const { RxTempLogs } = await import('@/api/entities');
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const serverTempLogs = await RxTempLogs.filter({ delivery_date: selectedDateStr });
+        if (serverTempLogs && serverTempLogs.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.RX_TEMP_LOGS, serverTempLogs);
+          // Broadcast each record so LiveTempBadge's rxTempLogsUpdated listener fires
+          serverTempLogs.forEach((log) => {
+            window.dispatchEvent(new CustomEvent('rxTempLogsUpdated', {
+              detail: { data: log }
+            }));
+          });
+          console.log(`🌡️ [Layout] Resume temp resync — ${serverTempLogs.length} log(s) refreshed for ${selectedDateStr}`);
+        }
+      } catch (e) {
+        console.warn('⚠️ [Layout] Resume temp resync failed:', e?.message);
       }
     };
     window.addEventListener('driverResumedAfterAbsence', handleDriverResumedAfterAbsence);

@@ -105,36 +105,38 @@ export const roundCompletionTime = (timeISO) => {
  */
 export const buildMapPadding = ({ isMobile, isImmersiveHidden, statsCardHeight, statsCardBaseHeight, stopCardsBaseHeight, bottomNavHeight }) => {
   const paddingBuffer = 60;
+  // In immersive mode (UI hidden) the map gets 80px breathing room on both axes
+  // so markers never sit flush against the screen edge.
+  const immersivePadding = 80;
   const stopCardsHeight = isImmersiveHidden ? paddingBuffer : (stopCardsBaseHeight || paddingBuffer);
   const cardsArePresent = stopCardsHeight > 0;
 
   // Bottom padding rules (both desktop and mobile):
+  //   Immersive — fixed 80px (no stop cards, no bottom nav obstruction)
   //   Cards present  — stop cards height + bottom nav + 10px breathing room
   //   Cards absent   — bottom nav + 10px (nav bar still overlaps the bottom edge)
-  const rawBottomPadding = cardsArePresent
-    ? stopCardsHeight + (bottomNavHeight || 0) + paddingBuffer
-    : (bottomNavHeight || 0) + paddingBuffer;
+  const rawBottomPadding = isImmersiveHidden
+    ? immersivePadding
+    : cardsArePresent
+      ? stopCardsHeight + (bottomNavHeight || 0) + paddingBuffer
+      : (bottomNavHeight || 0) + paddingBuffer;
 
-  // CRITICAL: Never drop below 160px on mobile when cards are visible —
-  // prevents fit-bounds from jumping when cards remeasure mid-animation.
-  const bottomPadding = isMobile && cardsArePresent && isImmersiveHidden
-    ? Math.max(rawBottomPadding, 160)
-    : rawBottomPadding;
+  const bottomPadding = rawBottomPadding;
 
   // Top padding rules:
-  //   Mobile  — full stats panel container height (statsCardHeight from DOM, which
-  //             measures the stats card div only) + mobile header bar (~56px) +
-  //             legend bar (~32px) + breathing room. Use a generous minimum of 200px
-  //             to ensure markers never hide behind the stats panel in collapsed mode.
-  //   Desktop — paddingBuffer (stats panel is not overlapping the map canvas).
+  //   Immersive — fixed 80px (stats panel is hidden)
+  //   Mobile    — full stats panel container height + breathing room (min 25px)
+  //   Desktop   — paddingBuffer
   let topPadding;
-  if (isMobile && !isImmersiveHidden) {
+  if (isImmersiveHidden) {
+    topPadding = immersivePadding;
+  } else if (isMobile) {
     const mobileHeaderHeight = 0; //56; // fixed MobileHeader height
     const legendBarHeight = 0; //36;    // collapsed driver legend bar below stats card
     const rawStatsHeight = statsCardHeight || statsCardBaseHeight || 75;
     // Full obstruction = mobile header + stats card + legend bar + breathing room
     const fullObstructionHeight = rawStatsHeight + paddingBuffer / 2 + mobileHeaderHeight + legendBarHeight;
-    // Never drop below 200px on mobile — guards against transient 0 heights
+    // Never drop below 25px on mobile — guards against transient 0 heights
     topPadding = Math.max(fullObstructionHeight, 25);
   } else {
     topPadding = paddingBuffer;
