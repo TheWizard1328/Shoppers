@@ -190,17 +190,22 @@ function Dashboard() {
   const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
   const isAllDriversMode = selectedDriverId === 'all';
   const [forceRender, setForceRender] = useState(0);
-  useEffect(() => { driverLocationRef.current = driverLocation; }, [driverLocation]);
-  useEffect(() => { patientsRef.current = patients; }, [patients]);
-  useEffect(() => { storesRef.current = stores; }, [stores]);
-  useEffect(() => { allDriverLocationsRef.current = allDriverLocations; }, [allDriverLocations]);
-  useEffect(() => { appUsersRef.current = appUsers; }, [appUsers]);
-  useEffect(() => { deliveriesRef.current = deliveries; }, [deliveries]);
-  useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate]);
-  useEffect(() => { showAllDriverMarkersRef.current = showAllDriverMarkers; }, [showAllDriverMarkers]);
-  useEffect(() => { selectedDriverIdRef.current = selectedDriverId; }, [selectedDriverId]);
-  useEffect(() => { citiesRef.current = cities; }, [cities]);
-  useEffect(() => { isPrimaryDeviceRef.current = isPrimaryDevice; }, [isPrimaryDevice]);
+  // Consolidate 11 ref-sync effects into one — refs don't trigger renders so there
+  // is no correctness reason to keep them separate; this saves 10 scheduler ticks
+  // on every periodic refresh that updates deliveries + appUsers + patients together.
+  useEffect(() => {
+    driverLocationRef.current = driverLocation;
+    patientsRef.current = patients;
+    storesRef.current = stores;
+    allDriverLocationsRef.current = allDriverLocations;
+    appUsersRef.current = appUsers;
+    deliveriesRef.current = deliveries;
+    selectedDateRef.current = selectedDate;
+    showAllDriverMarkersRef.current = showAllDriverMarkers;
+    selectedDriverIdRef.current = selectedDriverId;
+    citiesRef.current = cities;
+    isPrimaryDeviceRef.current = isPrimaryDevice;
+  }, [driverLocation, patients, stores, allDriverLocations, appUsers, deliveries, selectedDate, showAllDriverMarkers, selectedDriverId, cities, isPrimaryDevice]);
 
   // Resolve primary-device status from the DB once we have a logged-in driver.
   // Without this, isPrimaryDevice stays false forever and immersive mode never activates.
@@ -294,7 +299,10 @@ function Dashboard() {
     return result;
   }, [filteredDeliveries]);
 
-  useEffect(() => { deliveriesWithStopOrderRef.current = deliveriesWithStopOrder; }, [deliveriesWithStopOrder]);
+  // Consolidate computed-value ref syncs into one effect
+  useEffect(() => {
+    deliveriesWithStopOrderRef.current = deliveriesWithStopOrder;
+  }, [deliveriesWithStopOrder]);
 
   const stats = useMemo(() => {
     let rd = filteredDeliveries || [];
@@ -363,6 +371,7 @@ function Dashboard() {
   const isStatsCardCentered = useMemo(() => (screenWidth / cardWidth) < 2, [screenWidth, cardWidth]);
   const nextStop = useMemo(() => { if (!isDriver || !currentUser || !filteredDeliveries || filteredDeliveries.length === 0) return null; if (isRouteComplete) return null; const next = filteredDeliveries.find((d) => d && d.isNextDelivery === true && d.driver_id === currentUser.id && d.status !== 'pending' && !['completed','failed','cancelled'].includes(d.status)); if (next) return next; const unf = filteredDeliveries.filter((d) => d && d.driver_id === currentUser.id && !['completed','failed','cancelled','pending'].includes(d.status)); if (!unf.length) return null; return [...unf].sort((a, b) => a.stop_order && b.stop_order ? a.stop_order - b.stop_order : (a.delivery_time_start || '').localeCompare(b.delivery_time_start || ''))[0]; }, [isDriver, filteredDeliveries, currentUser, isRouteComplete]);
   const nextStopCoordinates = useMemo(() => { if (!nextStop) return null; if (nextStop.is_cycling_marker && nextStop.cycling_latitude && nextStop.cycling_longitude) return { lat: nextStop.cycling_latitude, lon: nextStop.cycling_longitude }; if (nextStop.patient_id) { const p = patients.find((p) => p && p.id === nextStop.patient_id); if (p?.latitude && p?.longitude) return { lat: p.latitude, lon: p.longitude }; } else if (isInterStoreDelivery(nextStop.delivery_id)) { const isl = getInterStoreLocationSync(nextStop.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } else if (nextStop.store_id) { const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } return null; }, [nextStop, patients, stores]);
+  // nextStopCoordinatesRef kept as inline sync — fires only when nextStopCoordinates changes
   useEffect(() => { nextStopCoordinatesRef.current = nextStopCoordinates; }, [nextStopCoordinates]);
   const getMapPadding = useCallback((isImmersiveHidden = false) => buildMapPadding({ isMobile, isImmersiveHidden, statsCardHeight: statsCardRef.current?.offsetHeight, statsCardBaseHeight, stopCardsBaseHeight, bottomNavHeight }), [isMobile, stopCardsBaseHeight, statsCardBaseHeight, bottomNavHeight]);
   const handleCardInteraction = useCallback((show) => { if (fadeTimeoutRef.current) { clearTimeout(fadeTimeoutRef.current); fadeTimeoutRef.current = null; } setAreCardsVisible(show); if (show && !isExpanded && !isRouteComplete) fadeTimeoutRef.current = setTimeout(() => setAreCardsVisible(false), 3000); }, [isExpanded, isRouteComplete]);
