@@ -352,14 +352,14 @@ export default function TempLogTab({ drivers = [], currentUser }) {
 
   // Build chart data — one series per driver, X-axis = time
   const { chartData, series } = React.useMemo(() => {
-    if (!logs.length) return { chartData: [], series: [] };
+    if (!displayLogs.length) return { chartData: [], series: [] };
 
-    const driverIds = [...new Set(logs.map((l) => l.driver_id))];
+    const driverIds = [...new Set(displayLogs.map((l) => l.driver_id))];
 
     // Collect all timestamps across drivers
     const allPoints = new Map(); // timestamp string → { time, ...driverTemps }
 
-    logs.forEach((log) => {
+    displayLogs.forEach((log) => {
       const readings = log.temperature_readings || [];
       readings.forEach((r) => {
         if (!r.timestamp || r.temperature_celsius == null) return;
@@ -495,7 +495,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
   // All sorted unique HH:MM timestamps for the currently-expanded log
   const expandedLogTimestamps = useMemo(() => {
     if (!selectedLogId) return [];
-    const log = logs.find((l) => l.id === selectedLogId);
+    const log = displayLogs.find((l) => l.id === selectedLogId);
     if (!log) return [];
     const readings = (log.temperature_readings || []).filter((r) => r.timestamp && r.temperature_celsius != null);
     const times = [...new Set(readings.map((r) => r.timestamp.slice(0, 16)))].sort();
@@ -534,6 +534,28 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     }
   }, [selectedLogId, expandedLogTimestamps]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // When slider range changes while a log is expanded, auto-select all readings in range
+  useEffect(() => {
+    if (!selectedLogId || !timeRange || expandedLogTimestamps.length === 0) return;
+    const minLabel = expandedLogTimestamps[timeRange[0]]?.slice(11, 16) ?? '00:00';
+    const maxLabel = expandedLogTimestamps[timeRange[1]]?.slice(11, 16) ?? '23:59';
+    const log = logs.find((l) => l.id === selectedLogId);
+    if (!log) return;
+    const allReadings = (log.temperature_readings || []).filter((r) => r.temperature_celsius != null);
+    const inRange = new Set(
+      allReadings.reduce((acc, r, i) => {
+        const hhmm = r.timestamp?.slice(11, 16) ?? '';
+        if (hhmm >= minLabel && hhmm <= maxLabel) acc.push(i);
+        return acc;
+      }, [])
+    );
+    setSelectedReadings((prev) => {
+      const next = new Map(prev);
+      next.set(selectedLogId, inRange);
+      return next;
+    });
+  }, [timeRange]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Filtered chart data based on the time range slider (only when a row is expanded)
   const filteredChartData = useMemo(() => {
     if (!selectedLogId || !timeRange || expandedLogTimestamps.length === 0) return chartData;
@@ -542,6 +564,135 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     const maxTs = expandedLogTimestamps[maxIdx]?.slice(11, 16) ?? '23:59';
     return chartData.filter((p) => p.label >= minTs && p.label <= maxTs);
   }, [chartData, selectedLogId, timeRange, expandedLogTimestamps]);
+
+  // ── Chart dot drag-to-adjust state ──────────────────────────────────────
+  // dragState: { logId, driverId, pointLabel, readingIndices, startY, origTemps }
+  const [dragState, setDragState] = useState(null);
+  const [dragPreviewLogs, setDragPreviewLogs] = useState(null); // live-preview temp override while dragging
+  const chartContainerRef = useRef(null);
+
+  // When a dot drag ends, persist the preview temps to real logs state + DB
+  const commitDrag = useCallback(async (finalLogs) => {
+    if (!finalLogs || !dragState) return;
+    const { logId } = dragState;
+    const updatedLog = finalLogs.find((l) => l.id === logId);
+    if (!updatedLog) return;
+    const newReadings = updatedLog.temperature_readings;
+    const updatedLatest = newReadings.length ? newReadings[newReadings.length - 1] : null;
+    const payload = { temperature_readings: newReadings, latest_reading: updatedLatest };
+    try { await base44.entities.RxTempLogs.update(logId, payload); } catch (_) {}
+    try { await offlineDB.save(offlineDB.STORES.RX_TEMP_LOGS, updatedLog); } catch (_) {}
+    setLogs(finalLogs);
+    setDragPreviewLogs(null);
+    setDragState(null);
+  }, [dragState]);
+
+  // Build the sinusoidal ripple: given sorted readings array, a centre index, and a delta,
+  // return new readings with adjusted temperatures.
+  // Influence radius grows proportionally to |delta| (max 1/3 of total range width).
+  // Points outside the slider range (when active) are NOT touched.
+  const applySineRipple = useCallback((readings, centreIdx, delta, sliderMinLabel, sliderMaxLabel) => {
+    const n = readings.length;
+    if (n === 0) return readings;
+    // Radius: 1 point per 0.5°C of delta, capped at n/3
+    const radius = Math.min(Math.ceil(Math.abs(delta) * 2), Math.floor(n / 3), 20);
+    return readings.map((r, i) => {
+      // Skip points outside slider range if slider is active
+      if (sliderMinLabel && sliderMaxLabel && r.timestamp) {
+        const hhmm = r.timestamp.slice(11, 16);
+        if (hhmm < sliderMinLabel || hhmm > sliderMaxLabel) return r;
+      }
+      const dist = Math.abs(i - centreIdx);
+      if (dist > radius) return r;
+      // Sine envelope: 1 at centre, 0 at radius edge
+      const envelope = Math.cos((dist / (radius + 1)) * (Math.PI / 2));
+      const adjustment = parseFloat((delta * envelope).toFixed(1));
+      return { ...r, temperature_celsius: parseFloat((r.temperature_celsius + adjustment).toFixed(1)) };
+    });
+  }, []);
+
+  const handleDotMouseDown = useCallback((driverId, pointLabel, e) => {
+    e?.stopPropagation?.();
+    e?.preventDefault?.();
+    if (!selectedLogId) return;
+    const log = logs.find((l) => l.id === selectedLogId && l.driver_id === driverId);
+    if (!log) return;
+
+    // Determine the slider range labels (if active)
+    let sliderMinLabel = null, sliderMaxLabel = null;
+    if (timeRange && expandedLogTimestamps.length > 1) {
+      sliderMinLabel = expandedLogTimestamps[timeRange[0]]?.slice(11, 16) ?? null;
+      sliderMaxLabel = expandedLogTimestamps[timeRange[1]]?.slice(11, 16) ?? null;
+    }
+
+    // Find all readings that match this time label
+    const readings = log.temperature_readings || [];
+    const readingIndices = readings.reduce((acc, r, i) => {
+      if (r.timestamp?.slice(11, 16) === pointLabel) acc.push(i);
+      return acc;
+    }, []);
+    if (readingIndices.length === 0) return;
+
+    const startY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+    const origTemps = readings.map((r) => r.temperature_celsius);
+
+    setDragState({ logId: log.id, driverId, pointLabel, readingIndices, startY, origTemps, sliderMinLabel, sliderMaxLabel });
+  }, [selectedLogId, logs, timeRange, expandedLogTimestamps]);
+
+  // Global mouse/touch move while dragging
+  useEffect(() => {
+    if (!dragState) return;
+    const { logId, readingIndices, startY, origTemps, sliderMinLabel, sliderMaxLabel } = dragState;
+
+    const onMove = (e) => {
+      const clientY = e.clientY ?? e.touches?.[0]?.clientY ?? startY;
+      // 3px per 0.1°C
+      const delta = parseFloat((-(clientY - startY) / 30).toFixed(1));
+      const log = logs.find((l) => l.id === logId);
+      if (!log) return;
+
+      const centreIdx = readingIndices[0];
+      // Restore originals first, then apply ripple
+      const restored = (log.temperature_readings || []).map((r, i) => ({
+        ...r,
+        temperature_celsius: origTemps[i] ?? r.temperature_celsius,
+      }));
+      const adjusted = applySineRipple(restored, centreIdx, delta, sliderMinLabel, sliderMaxLabel);
+      setDragPreviewLogs((prev) => {
+        const base = prev || logs;
+        return base.map((l) => l.id === logId ? { ...l, temperature_readings: adjusted } : l);
+      });
+    };
+
+    const onUp = (e) => {
+      const clientY = e.clientY ?? e.changedTouches?.[0]?.clientY ?? dragState.startY;
+      const delta = parseFloat((-(clientY - dragState.startY) / 30).toFixed(1));
+      const log = logs.find((l) => l.id === logId);
+      if (!log) { setDragState(null); setDragPreviewLogs(null); return; }
+      const centreIdx = readingIndices[0];
+      const restored = (log.temperature_readings || []).map((r, i) => ({
+        ...r,
+        temperature_celsius: origTemps[i] ?? r.temperature_celsius,
+      }));
+      const adjusted = applySineRipple(restored, centreIdx, delta, sliderMinLabel, sliderMaxLabel);
+      const finalLogs = (dragPreviewLogs || logs).map((l) => l.id === logId ? { ...l, temperature_readings: adjusted } : l);
+      commitDrag(finalLogs);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: true });
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+  }, [dragState, logs, dragPreviewLogs, applySineRipple, commitDrag]);
+
+  // Effective logs to render (use drag preview when dragging)
+  const displayLogs = dragPreviewLogs || logs;
 
   // ── Pinch-to-zoom state for the chart ───────────────────────────────────
   const [chartZoom, setChartZoom] = useState(1);
@@ -714,6 +865,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                   />
                   <div className="flex justify-between text-xs text-slate-400 mt-1.5">
                     <span>{expandedLogTimestamps[0]?.slice(11, 16)}</span>
+                    <span className="text-slate-400 text-center">Drag a point on the chart ↕ to adjust</span>
                     <span>{expandedLogTimestamps[expandedLogTimestamps.length - 1]?.slice(11, 16)}</span>
                   </div>
                 </div>
@@ -723,7 +875,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
 
           {/* Pinch-to-zoom wrapper */}
           <div
-            style={{ overflow: 'hidden', touchAction: 'none', cursor: chartZoom > 1 ? 'grab' : 'default' }}
+            ref={chartContainerRef}
+            style={{ overflow: 'hidden', touchAction: dragState ? 'none' : 'none', cursor: dragState ? 'ns-resize' : chartZoom > 1 ? 'grab' : 'default' }}
             onTouchStart={handleChartTouchStart}
             onTouchMove={handleChartTouchMove}
             onTouchEnd={handleChartTouchEnd}
@@ -814,6 +967,22 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                     stroke={color}
                     strokeWidth={2} />);
               };
+              const isDraggableDriver = selectedLogId && displayLogs.find((l) => l.id === selectedLogId && l.driver_id === driverId);
+              const renderActiveDot = (props) => {
+                const { cx, cy, payload } = props;
+                return (
+                  <circle
+                    key={`adot-${driverId}-${payload?.label}`}
+                    cx={cx} cy={cy} r={7}
+                    fill={color}
+                    stroke="#fff"
+                    strokeWidth={2}
+                    style={{ cursor: isDraggableDriver ? 'ns-resize' : 'default' }}
+                    onMouseDown={isDraggableDriver ? (e) => handleDotMouseDown(driverId, payload?.label, e) : undefined}
+                    onTouchStart={isDraggableDriver ? (e) => handleDotMouseDown(driverId, payload?.label, e.touches[0]) : undefined}
+                  />
+                );
+              };
               return (
                 <Line
                   key={driverId}
@@ -822,7 +991,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                   stroke={color}
                   strokeWidth={2}
                   dot={renderDot}
-                  activeDot={{ r: 5 }}
+                  activeDot={renderActiveDot}
                   connectNulls={false} />);
 
 
@@ -977,7 +1146,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
               </tr>
             </thead>
             <tbody>
-              {logs.map((log) => {
+              {displayLogs.map((log) => {
               const allReadings = (log.temperature_readings || []).filter((r) => r.temperature_celsius != null);
               if (!allReadings.length) return null;
 
@@ -1001,10 +1170,37 @@ export default function TempLogTab({ drivers = [], currentUser }) {
               const logSelectedSet = selectedReadings.get(log.id) || new Set();
               const logSelectedCount = logSelectedSet.size;
 
+              // Compute slider-filtered readings for this log when expanded + slider active
+              const isThisLogExpanded = isExpanded && selectedLogId === log.id;
+              const sliderActive = isThisLogExpanded && timeRange && expandedLogTimestamps.length > 1;
+              const sliderMinLabel = sliderActive ? (expandedLogTimestamps[timeRange[0]]?.slice(11, 16) ?? null) : null;
+              const sliderMaxLabel = sliderActive ? (expandedLogTimestamps[timeRange[1]]?.slice(11, 16) ?? null) : null;
+              // Indices (into allReadings) that fall within the slider range
+              const sliderFilteredIndices = sliderActive
+                ? allReadings.reduce((acc, r, i) => {
+                    const hhmm = r.timestamp?.slice(11, 16) ?? '';
+                    if (hhmm >= sliderMinLabel && hhmm <= sliderMaxLabel) acc.push(i);
+                    return acc;
+                  }, [])
+                : null;
+
               return (
                 <React.Fragment key={log.id}>
                     <tr
-                    onClick={() => { setSelectedLogId(isExpanded ? null : log.id); if (isExpanded) { setSelectedReadings((prev) => { const next = new Map(prev); next.delete(log.id); return next; }); } }}
+                    onClick={() => {
+                     const expanding = !isExpanded;
+                     setSelectedLogId(expanding ? log.id : null);
+                     if (!expanding) {
+                       setSelectedReadings((prev) => { const next = new Map(prev); next.delete(log.id); return next; });
+                     } else {
+                       // Auto-select all readings when expanding (slider will refine if active)
+                       setSelectedReadings((prev) => {
+                         const next = new Map(prev);
+                         next.set(log.id, new Set(allReadings.map((_, i) => i)));
+                         return next;
+                       });
+                     }
+                    }}
                     className={`border-b border-slate-100 last:border-0 cursor-pointer transition-colors ${isExpanded ? 'bg-slate-100' : 'hover:bg-slate-50'}`}>
                       <td className="px-4 py-2 font-medium text-slate-800">
                         <div className="flex items-center gap-1.5">
@@ -1073,9 +1269,11 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                               const isOut = temp < fridgeCfg.safe_min || temp > fridgeCfg.safe_max;
                               const rKey = `reading-${log.id}-${idx}`;
                               const isChecked = logSelectedSet.has(idx);
+                              // Dim readings outside the slider range
+                              const outsideSlider = sliderFilteredIndices && !sliderFilteredIndices.includes(idx);
                               return (
-                                <div key={idx} className={`flex items-center gap-2 py-1 px-1 rounded group cursor-pointer transition-colors ${isChecked ? 'bg-blue-50' : 'hover:bg-white'}`}
-                                  onClick={(e) => { e.stopPropagation(); toggleReadingSelection(log.id, idx); }}
+                                <div key={idx} className={`flex items-center gap-2 py-1 px-1 rounded group cursor-pointer transition-colors ${isChecked ? 'bg-blue-50' : 'hover:bg-white'} ${outsideSlider ? 'opacity-30 pointer-events-none' : ''}`}
+                                  onClick={(e) => { e.stopPropagation(); if (!outsideSlider) toggleReadingSelection(log.id, idx); }}
                                 >
                                   <Checkbox
                                     checked={isChecked}
