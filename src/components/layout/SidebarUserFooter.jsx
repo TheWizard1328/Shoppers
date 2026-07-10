@@ -10,6 +10,24 @@ import { User } from '@/api/entities';
 import { canShowExportRoute, getUserAvatarGradient } from '@/components/layout/sidebarUserUtils';
 import { base44 } from '@/api/base44Client';
 
+// ── Fridge temp settings cache (loaded once from AppSettings) ─────────────
+let _fridgeCfgCache = null;
+async function loadFridgeCfg() {
+  if (_fridgeCfgCache) return _fridgeCfgCache;
+  try {
+    const s = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+    const ft = s?.[0]?.setting_value?.fridge_temp_settings;
+    _fridgeCfgCache = {
+      safe_min:      typeof ft?.safe_min      === 'number' ? ft.safe_min      : 2,
+      safe_max:      typeof ft?.safe_max      === 'number' ? ft.safe_max      : 6,
+      danger_buffer: typeof ft?.danger_buffer === 'number' ? ft.danger_buffer : 2,
+    };
+  } catch (_) {
+    _fridgeCfgCache = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
+  }
+  return _fridgeCfgCache;
+}
+
 // ── Local timestamp helper ─────────────────────────────────────────────────
 // All stored timestamps are local ISO strings (YYYY-MM-DDTHH:MM:SS, no Z).
 // new Date('2026-06-11T08:30:00') is parsed as LOCAL time by JS — correct.
@@ -67,7 +85,11 @@ function DispatcherTempBadge({ driverId, selectedDateStr }) {
   if (!reading?.temperature_celsius) return null;
 
   const t     = reading.temperature_celsius;
-  const isOut = t < 2 || t > 8;
+  // isOut = outside the full danger range (safe_min - buffer … safe_max + buffer)
+  // The badge here only needs a binary safe/out-of-range signal — no warning tier
+  const [dispCfg, setDispCfg] = React.useState({ safe_min: 2, safe_max: 6, danger_buffer: 2 });
+  useEffect(() => { loadFridgeCfg().then(setDispCfg).catch(() => {}); }, []);
+  const isOut = t < (dispCfg.safe_min - dispCfg.danger_buffer) || t > (dispCfg.safe_max + dispCfg.danger_buffer);
   const ts    = fmtLocalTime(reading.timestamp);
 
   return (
@@ -152,7 +174,8 @@ function DispatcherAvgTempBadge({ driverId, selectedDateStr, fridgeDeliveries, s
           const allTemps = allReadings.map(r => r.temperature_celsius).filter(v => v != null);
           if (!allTemps.length) return;
           const avg = +(allTemps.reduce((a,b) => a+b, 0) / allTemps.length).toFixed(1);
-          setAvgData({ avg, count: allTemps.length, windowStart: null, windowEnd: null, isOut: avg < 2 || avg > 8 });
+          const cfg1 = await loadFridgeCfg();
+          setAvgData({ avg, count: allTemps.length, windowStart: null, windowEnd: null, isOut: avg < cfg1.safe_min || avg > cfg1.safe_max });
           return;
         }
 
@@ -163,7 +186,7 @@ function DispatcherAvgTempBadge({ driverId, selectedDateStr, fridgeDeliveries, s
           count: temps.length,
           windowStart,
           windowEnd,
-          isOut: avg < 2 || avg > 8,
+          isOut: avg < (await loadFridgeCfg()).safe_min || avg > (await loadFridgeCfg()).safe_max,
         });
         loadedRef.current = true;
       } catch (_) {}

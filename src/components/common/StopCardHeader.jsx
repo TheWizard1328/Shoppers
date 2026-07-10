@@ -11,9 +11,19 @@ import { getCurrentEtaForDelivery, getEtaTrendForDelivery, primeEtaTrendBus } fr
 import { Thermometer } from "lucide-react";
 import { computeFridgeAvgTemp } from "../utils/fridgeTempAverage";
 import { offlineDB } from "../utils/offlineDatabase";
-
-const TEMP_MIN = 2;
-const TEMP_MAX = 6;
+// Fridge safe zone — defaults match AppSettings; overridden on first render
+let _scTempMin = 2;
+let _scTempMax = 6;
+// Load once from AppSettings (fire-and-forget; defaults used until resolved)
+(async () => {
+  try {
+    const { base44: b44 } = await import('@/api/base44Client');
+    const s = await b44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+    const ft = s?.[0]?.setting_value?.fridge_temp_settings;
+    if (typeof ft?.safe_min === 'number') _scTempMin = ft.safe_min;
+    if (typeof ft?.safe_max === 'number') _scTempMax = ft.safe_max;
+  } catch (_) {}
+})();
 
 function getLatestTempReading(delivery) {
   if (!Array.isArray(delivery?.temperature_readings) || delivery.temperature_readings.length === 0) return null;
@@ -339,7 +349,7 @@ export default function StopCardHeader({
                 <Thermometer className="w-2.5 h-3" />--°C
               </Badge>
             );
-            const isOut = reading.temperature_celsius < TEMP_MIN || reading.temperature_celsius > TEMP_MAX;
+            const isOut = reading.temperature_celsius < _scTempMin || reading.temperature_celsius > _scTempMax;
             return (
               <Badge className={`mt-1 text-[10px] px-1.5 py-0 h-6 rounded-full font-bold inline-flex items-center gap-0.5 ${isOut ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-cyan-100 text-cyan-700 border border-cyan-300'}`}>
                 <Thermometer className="w-2.5 h-3" />{reading.temperature_celsius}°C
