@@ -11,7 +11,6 @@ export async function loadDashboardOfflineDateData({
   selectedDate,
   driverLocationPoller,
   showAllDriverMarkers,
-  setForceRender,
 }) {
   const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
   const mountAppUsers = ((await offlineDB.getAll(offlineDB.STORES.APP_USERS)) || []).filter((u) => u?.user_id && u.user_id !== 'undefined');
@@ -27,7 +26,6 @@ export async function loadDashboardOfflineDateData({
     window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: appUsersToProcess, forceAll: true } }));
   }
 
-  setForceRender((prev) => prev + 1);
   return { mountDeliveries, mountAppUsers };
 }
 

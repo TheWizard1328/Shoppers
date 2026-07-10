@@ -237,7 +237,8 @@ function Dashboard() {
   const hasAutoSelectedRef = useRef(false);
   const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
   const isAllDriversMode = selectedDriverId === 'all';
-  const [forceRender, setForceRender] = useState(0);
+  // forceRender removed — updateDeliveriesLocally already triggers context re-renders;
+  //   the counter increments were redundant full-tree re-renders on top of that.
   // Consolidate 11 ref-sync effects into one — refs don't trigger renders so there
   // is no correctness reason to keep them separate; this saves 10 scheduler ticks
   // on every periodic refresh that updates deliveries + appUsers + patients together.
@@ -2164,9 +2165,6 @@ useEffect(() => {
         }
         if (updateAppUsersLocally && freshAppUsers) {updateAppUsersLocally(freshAppUsers, true);}
 
-        // Force complete UI re-render
-        setForceRender((prev) => prev + 1);
-
         // CRITICAL: Validate freshAppUsers — offline DB may return junk records with user_id=undefined
         const validAppUsers = (freshAppUsers || []).filter((u) => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined');
         const appUsersForPoller = validAppUsers.length > 0 ? validAppUsers : appUsers;
@@ -2215,9 +2213,6 @@ useEffect(() => {
         const allDeliveries = [...otherDateDeliveries, ...freshDeliveries];
         updateDeliveriesLocally(allDeliveries, true);
 
-        // Force immediate UI refresh
-        setForceRender((prev) => prev + 1);
-
         // Force stats refresh with new data
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
@@ -2247,7 +2242,7 @@ useEffect(() => {
 
     window.addEventListener('dataSourceChanged', handleDataSourceChange);
     return () => window.removeEventListener('dataSourceChanged', handleDataSourceChange);
-  }, [selectedDate, updateDeliveriesLocally, deliveries, setForceRender]);
+  }, [selectedDate, updateDeliveriesLocally, deliveries]);
 
   // CRITICAL: STEP 0 - ALWAYS fetch fresh AppUser data on app load
   const hasPreRenderSyncRef = useRef(false);
@@ -2303,7 +2298,6 @@ useEffect(() => {
           selectedDate,
           driverLocationPoller,
           showAllDriverMarkers,
-          setForceRender
         });
         // Ensure temp logs exist in IDB for the selected date — fetches from server if missing
         ensureTempLogsForDate({ selectedDateStr, currentUser }).catch(() => {});
