@@ -438,6 +438,7 @@ export default function SidebarUserFooter({
               <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
                 Drivers: {scheduledDrivers.length} / {scheduledDrivers.length + otherCityDrivers.length}
               </p>
+              <span className="text-[10px] text-slate-400 font-medium">{driversExpanded ? 'Less' : 'More'}</span>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform text-slate-400 ${driversExpanded ? '' : '-rotate-90'}`} />
             </button>
             {/* Render a single scheduled driver card — used for both always-visible and collapsed sections */}
