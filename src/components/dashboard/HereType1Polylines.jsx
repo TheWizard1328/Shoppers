@@ -36,6 +36,7 @@ function HereType1Polylines({
   appUsers = [],
   driverTravelModes = {},
   selectedDate = null,
+  isDispatcher = false,
 }) {
   const map = useMap();
   // Canvas renderer — lazily initialized after map is ready to avoid pane errors.
@@ -110,13 +111,19 @@ function HereType1Polylines({
   const driversWithCompleteRoute = useMemo(() => {
     const out = new Set();
     driverStops.forEach((stops, driverId) => {
-      // Only count pending stops that are real delivery stops (have a non-empty patient_id)
-      // Pickups (empty/null patient_id) and cycling markers are not "remaining work"
-      const pendingCount = (stops.pending || []).filter(s => s?.patient_id && s.patient_id !== '' && !s?.is_cycling_marker).length;
-      if (stops.incomplete.length === 0 && pendingCount === 0 && stops.complete.length > 0) out.add(driverId);
+      if (isDispatcher) {
+        // For dispatchers: route is complete if there are no incomplete/pending stops at all
+        // and at least one finished stop — no stop-type filtering needed
+        const totalNonComplete = (stops.incomplete?.length || 0) + (stops.pending?.length || 0);
+        if (totalNonComplete === 0 && stops.complete.length > 0) out.add(driverId);
+      } else {
+        // For drivers/admins: only count pending delivery stops (not pickups or cycling markers)
+        const pendingCount = (stops.pending || []).filter(s => s?.patient_id && s.patient_id !== '' && !s?.is_cycling_marker).length;
+        if (stops.incomplete.length === 0 && pendingCount === 0 && stops.complete.length > 0) out.add(driverId);
+      }
     });
     return out;
-  }, [driverStops]);
+  }, [driverStops, isDispatcher]);
 
   // Drivers who are off_duty — their first-stop polyline should not be rendered.
   // Uses the full appUsers list so drivers with null/cleared location data are still caught.
