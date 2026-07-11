@@ -281,6 +281,38 @@ function Dashboard() {
   }, [isDriver, currentUser?.id]);
   useEffect(() => { isMapViewLockedRef.current = isMapViewLocked; }, [isMapViewLocked]);
 
+  // Must be declared BEFORE filteredDeliveries — dispatcher filter depends on driversList
+  const activeDriverIdsOnDate = useMemo(() => {
+    const _ds = format(selectedDate, 'yyyy-MM-dd');
+    const set = new Set();
+    (deliveries || []).forEach((d) => { if (d && d.delivery_date === _ds && d.driver_id) set.add(d.driver_id); });
+    return set;
+  }, [deliveries, selectedDate]);
+
+  const driversList = useMemo(() => {
+    const _ds = format(selectedDate, 'yyyy-MM-dd');
+    const src = (appUsers || [])
+      .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active')
+      .map((au) => ({ ...au, id: au.user_id }))
+      .sort((a, b) => { const sa = a.sort_order ?? Infinity, sb = b.sort_order ?? Infinity; return sa !== sb ? sa - sb : (a.user_name || '').toLowerCase().localeCompare((b.user_name || '').toLowerCase()); });
+    if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) return src;
+    if (userHasRole(currentUser, 'dispatcher')) {
+      const sid = String((currentUser?.store_ids || [])[0] || '');
+      const st = stores?.find((s) => s && String(s.id) === sid);
+      const aids = new Set();
+      if (st) {
+        const di = new Date(_ds + 'T00:00:00').getDay();
+        if (di === 6) { if (st.saturday_am_driver_id) aids.add(st.saturday_am_driver_id); if (st.saturday_pm_driver_id) aids.add(st.saturday_pm_driver_id); }
+        else if (di === 0) { if (st.sunday_am_driver_id) aids.add(st.sunday_am_driver_id); if (st.sunday_pm_driver_id) aids.add(st.sunday_pm_driver_id); }
+        else { if (st.weekday_am_driver_id) aids.add(st.weekday_am_driver_id); if (st.weekday_pm_driver_id) aids.add(st.weekday_pm_driver_id); }
+      }
+      (deliveries || []).filter((d) => d && d.delivery_date === _ds && String(d.store_id) === sid).forEach((d) => { if (d.driver_id) aids.add(d.driver_id); });
+      (window.__dispatcherOverrideDriverIds?.[_ds] || []).forEach((id) => aids.add(id));
+      return src.filter((d) => aids.has(d.id) || aids.has(d.user_id));
+    }
+    return src;
+  }, [appUsers, currentUser, stores, deliveries, selectedDate]);
+
   const filteredDeliveries = useMemo(() => {
     if (isSnapshotModeActive && snapshotData?.deliveries) { const dateStr = format(selectedDate, 'yyyy-MM-dd'); let result = snapshotData.deliveries.filter((d) => d && d.delivery_date === dateStr); if (selectedDriverId && selectedDriverId !== 'all') { result = result.filter((d) => d.driver_id === selectedDriverId); } return result; }
     if (!deliveries || !Array.isArray(deliveries)) return [];
@@ -292,7 +324,7 @@ function Dashboard() {
       const _ds = new Set(currentUser?.store_ids || []); const _allowedDriverIds = new Set(result.filter((x) => x && _ds.has(x.store_id)).map((x) => x.driver_id).filter(Boolean)); result = result.filter((d) => d && (d.is_cycling_marker || _allowedDriverIds.has(d.driver_id)));
     }
     return result;
-  }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUserStoreIds, isSnapshotModeActive, snapshotData]);
+  }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUser, isSnapshotModeActive, snapshotData, driversList]);
 
   // Sort-key fingerprint cache — deliveriesWithStopOrder only needs to re-sort
   // when fields that AFFECT sort order change. Fields like isNextDelivery, polylines,
@@ -419,42 +451,7 @@ function Dashboard() {
 
   const isDateFinished = useMemo(() => { const tod = startOfDay(new Date()); const sel = startOfDay(selectedDate); if (sel >= tod) return false; return filteredDeliveries.length > 0 && filteredDeliveries.every((d) => d && ['completed','failed','cancelled'].includes(d.status)); }, [selectedDate, filteredDeliveries]);
   const isRouteComplete = useMemo(() => { if (!filteredDeliveries || filteredDeliveries.length === 0) return false; const pds = filteredDeliveries.filter((d) => d && d.patient_id); const isRtn = (d) => (patients.find((p) => p && p.id === d.patient_id)?.address || '').toUpperCase().includes('(RTN)'); return pds.length > 0 && pds.every((d) => ['completed','failed','cancelled'].includes(d.status) || isRtn(d)); }, [filteredDeliveries, patients]);
-  // Stable set of driver IDs that have deliveries on the selected date — split out so
-  // driversList only re-runs when driver-identity data changes, not on every delivery write.
-  const activeDriverIdsOnDate = useMemo(() => {
-    const _ds = format(selectedDate, 'yyyy-MM-dd');
-    const set = new Set();
-    (deliveries || []).forEach((d) => {
-      if (d && d.delivery_date === _ds && d.driver_id) set.add(d.driver_id);
-    });
-    return set;
-  }, [deliveries, selectedDate]);
-
-  const driversList = useMemo(() => {
-    const _ds = format(selectedDate, 'yyyy-MM-dd');
-    const _iok = isAdmin ? activeDriverIdsOnDate : new Set();
-    const src = (appUsers || [])
-      .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && (au.status === 'active' || _iok.has(au.user_id)))
-      .map((au) => ({ ...au, id: au.user_id }))
-      .sort((a, b) => { const sa = a.sort_order ?? Infinity, sb = b.sort_order ?? Infinity; return sa !== sb ? sa - sb : (a.user_name || '').toLowerCase().localeCompare((b.user_name || '').toLowerCase()); });
-    if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) return src;
-    if (userHasRole(currentUser, 'dispatcher')) {
-      const sid = String((currentUser.store_ids || [])[0] || '');
-      const st = stores?.find((s) => s && String(s.id) === sid);
-      const aids = new Set();
-      if (st) {
-        const di = new Date(selectedDate).getDay();
-        if (di === 6) { if (st.saturday_am_driver_id) aids.add(st.saturday_am_driver_id); if (st.saturday_pm_driver_id) aids.add(st.saturday_pm_driver_id); }
-        else if (di === 0) { if (st.sunday_am_driver_id) aids.add(st.sunday_am_driver_id); if (st.sunday_pm_driver_id) aids.add(st.sunday_pm_driver_id); }
-        else { if (st.weekday_am_driver_id) aids.add(st.weekday_am_driver_id); if (st.weekday_pm_driver_id) aids.add(st.weekday_pm_driver_id); }
-      }
-      // Also include any driver that actually has a delivery for this dispatcher's store on this date
-      (deliveries || []).filter((d) => d && d.delivery_date === _ds && String(d.store_id) === sid).forEach((d) => { if (d.driver_id) aids.add(d.driver_id); });
-      (window.__dispatcherOverrideDriverIds?.[_ds] || []).forEach((id) => aids.add(id));
-      return src.filter((d) => aids.has(d.id) || aids.has(d.user_id));
-    }
-    return src;
-  }, [appUsers, currentUserId, currentUserStoreIds, currentUserRoles, stores, selectedDate, activeDriverIdsOnDate, isAdmin]);
+  // activeDriverIdsOnDate and driversList are declared above filteredDeliveries
   const isDriverDropdownDisabled = useMemo(() => !currentUser || userHasRole(currentUser,'admin') ? false : userHasRole(currentUser,'dispatcher') ? false : !!userHasRole(currentUser,'driver'), [currentUserRoles]);
   const statsCardPositioning = useMemo(() => { const snapshotOffset = isSnapshotModeActive ? 'left-24' : 'left-2'; return (screenWidth / cardWidth) < 2 ? 'absolute top-2 left-1/2 -translate-x-1/2' : `absolute top-2 ${snapshotOffset}`; }, [screenWidth, cardWidth, isSnapshotModeActive]);
   const isStatsCardCentered = useMemo(() => (screenWidth / cardWidth) < 2, [screenWidth, cardWidth]);
