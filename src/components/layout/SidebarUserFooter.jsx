@@ -18,9 +18,9 @@ async function loadFridgeCfg() {
     const s = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
     const ft = s?.[0]?.setting_value?.fridge_temp_settings;
     _fridgeCfgCache = {
-      safe_min:      typeof ft?.safe_min      === 'number' ? ft.safe_min      : 2,
-      safe_max:      typeof ft?.safe_max      === 'number' ? ft.safe_max      : 6,
-      danger_buffer: typeof ft?.danger_buffer === 'number' ? ft.danger_buffer : 2,
+      safe_min: typeof ft?.safe_min === 'number' ? ft.safe_min : 2,
+      safe_max: typeof ft?.safe_max === 'number' ? ft.safe_max : 6,
+      danger_buffer: typeof ft?.danger_buffer === 'number' ? ft.danger_buffer : 2
     };
   } catch (_) {
     _fridgeCfgCache = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
@@ -38,7 +38,7 @@ function fmtLocalTime(ts, opts = { hour: '2-digit', minute: '2-digit' }) {
     // Ensure we never accidentally parse a UTC string as local by stripping Z if present
     const clean = String(ts).replace('Z', '').replace('+00:00', '');
     return new Date(clean).toLocaleTimeString([], opts);
-  } catch (_) { return ts; }
+  } catch (_) {return ts;}
 }
 
 // ── Dispatcher inline temp badge — LIVE / last reading ────────────────────
@@ -55,7 +55,7 @@ function DispatcherTempBadge({ driverId, selectedDateStr }) {
       try {
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
         const all = await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS);
-        const log = (all || []).find(l => l?.driver_id === driverId && l?.delivery_date === selectedDateStr);
+        const log = (all || []).find((l) => l?.driver_id === driverId && l?.delivery_date === selectedDateStr);
         if (log) latest = log.latest_reading || null;
       } catch (_) {}
       if (!latest) {
@@ -74,7 +74,7 @@ function DispatcherTempBadge({ driverId, selectedDateStr }) {
 
   const [dispCfg, setDispCfg] = useState({ safe_min: 2, safe_max: 6, danger_buffer: 2 });
 
-  useEffect(() => { loadFridgeCfg().then(setDispCfg).catch(() => {}); }, []);
+  useEffect(() => {loadFridgeCfg().then(setDispCfg).catch(() => {});}, []);
 
   useEffect(() => {
     const handler = (e) => {
@@ -88,21 +88,21 @@ function DispatcherTempBadge({ driverId, selectedDateStr }) {
 
   if (!reading?.temperature_celsius) return null;
 
-  const t   = reading.temperature_celsius;
-  const isOut = t < (dispCfg.safe_min - dispCfg.danger_buffer) || t > (dispCfg.safe_max + dispCfg.danger_buffer);
-  const ts    = fmtLocalTime(reading.timestamp);
+  const t = reading.temperature_celsius;
+  const isOut = t < dispCfg.safe_min - dispCfg.danger_buffer || t > dispCfg.safe_max + dispCfg.danger_buffer;
+  const ts = fmtLocalTime(reading.timestamp);
 
   return (
     <span
       title={ts ? `Last reading: ${ts}` : undefined}
       className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 cursor-default ${
-        isOut ? 'bg-red-100 text-red-600' : 'bg-cyan-100 text-cyan-700'
-      }`}
-    >
+      isOut ? 'bg-red-100 text-red-600' : 'bg-cyan-100 text-cyan-700'}`
+      }>
+      
       <Thermometer className="w-2.5 h-2.5" />
       {t}°C
-    </span>
-  );
+    </span>);
+
 }
 
 // ── Dispatcher avg temp badge — COMPLETED route ────────────────────────────
@@ -122,7 +122,7 @@ function DispatcherAvgTempBadge({ driverId, selectedDateStr, fridgeDeliveries, s
         try {
           const { offlineDB } = await import('@/components/utils/offlineDatabase');
           const all = await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS);
-          logRecord = (all || []).find(l => l?.driver_id === driverId && l?.delivery_date === selectedDateStr) || null;
+          logRecord = (all || []).find((l) => l?.driver_id === driverId && l?.delivery_date === selectedDateStr) || null;
         } catch (_) {}
         if (!logRecord) {
           const logs = await base44.entities.RxTempLogs.filter({ driver_id: driverId, delivery_date: selectedDateStr });
@@ -139,31 +139,31 @@ function DispatcherAvgTempBadge({ driverId, selectedDateStr, fridgeDeliveries, s
         // Window END   = latest actual_delivery_time among completed fridge deliveries
         //   (patient_id non-empty, fridge_item true, status completed/failed)
         const driverFridgeDeliveries = fridgeDeliveries.filter(
-          d => d?.driver_id === driverId && d?.delivery_date === selectedDateStr && d?.store_id === storeId
+          (d) => d?.driver_id === driverId && d?.delivery_date === selectedDateStr && d?.store_id === storeId
         );
 
         // Pickups = no patient_id (or patient_id empty), fridge_item true
         const pickups = driverFridgeDeliveries.filter(
-          d => !d?.patient_id && d?.actual_delivery_time
+          (d) => !d?.patient_id && d?.actual_delivery_time
         );
         // Deliveries = have patient_id, fridge_item true, completed/failed
         const drops = driverFridgeDeliveries.filter(
-          d => d?.patient_id && d?.fridge_item && ['completed','failed'].includes(d?.status) && d?.actual_delivery_time
+          (d) => d?.patient_id && d?.fridge_item && ['completed', 'failed'].includes(d?.status) && d?.actual_delivery_time
         );
 
         if (!drops.length) return; // no completed drops yet
 
         // Parse timestamps (local ISO — no Z)
-        const parseLocal = ts => ts ? new Date(String(ts).replace('Z','').replace('+00:00','')) : null;
+        const parseLocal = (ts) => ts ? new Date(String(ts).replace('Z', '').replace('+00:00', '')) : null;
 
-        const pickupTimes = pickups.map(d => parseLocal(d.actual_delivery_time)).filter(Boolean);
-        const dropTimes   = drops.map(d => parseLocal(d.actual_delivery_time)).filter(Boolean);
+        const pickupTimes = pickups.map((d) => parseLocal(d.actual_delivery_time)).filter(Boolean);
+        const dropTimes = drops.map((d) => parseLocal(d.actual_delivery_time)).filter(Boolean);
 
         const windowStart = pickupTimes.length ? new Date(Math.min(...pickupTimes)) : new Date(Math.min(...dropTimes));
-        const windowEnd   = new Date(Math.max(...dropTimes));
+        const windowEnd = new Date(Math.max(...dropTimes));
 
         // Filter readings within window
-        const inWindow = allReadings.filter(r => {
+        const inWindow = allReadings.filter((r) => {
           if (!r?.timestamp || r.temperature_celsius == null) return false;
           const t = parseLocal(r.timestamp);
           return t && t >= windowStart && t <= windowEnd;
@@ -171,22 +171,22 @@ function DispatcherAvgTempBadge({ driverId, selectedDateStr, fridgeDeliveries, s
 
         if (!inWindow.length) {
           // Fallback: avg over all readings for the day
-          const allTemps = allReadings.map(r => r.temperature_celsius).filter(v => v != null);
+          const allTemps = allReadings.map((r) => r.temperature_celsius).filter((v) => v != null);
           if (!allTemps.length) return;
-          const avg = +(allTemps.reduce((a,b) => a+b, 0) / allTemps.length).toFixed(1);
+          const avg = +(allTemps.reduce((a, b) => a + b, 0) / allTemps.length).toFixed(1);
           const cfg1 = await loadFridgeCfg();
           setAvgData({ avg, count: allTemps.length, windowStart: null, windowEnd: null, isOut: avg < cfg1.safe_min || avg > cfg1.safe_max });
           return;
         }
 
-        const temps = inWindow.map(r => r.temperature_celsius);
-        const avg   = +(temps.reduce((a,b) => a+b, 0) / temps.length).toFixed(1);
+        const temps = inWindow.map((r) => r.temperature_celsius);
+        const avg = +(temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1);
         setAvgData({
           avg,
           count: temps.length,
           windowStart,
           windowEnd,
-          isOut: avg < (await loadFridgeCfg()).safe_min || avg > (await loadFridgeCfg()).safe_max,
+          isOut: avg < (await loadFridgeCfg()).safe_min || avg > (await loadFridgeCfg()).safe_max
         });
         loadedRef.current = true;
       } catch (_) {}
@@ -198,23 +198,23 @@ function DispatcherAvgTempBadge({ driverId, selectedDateStr, fridgeDeliveries, s
   const { avg, count, windowStart, windowEnd, isOut } = avgData;
   // windowStart/End are Date objects — use toLocaleTimeString directly (already local)
   const startStr = windowStart ? windowStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
-  const endStr   = windowEnd   ? windowEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })   : null;
-  const tooltip  = [
-    `Avg cooler temp over ${count} readings`,
-    startStr && endStr ? `${startStr} → ${endStr}` : null,
-  ].filter(Boolean).join('\n');
+  const endStr = windowEnd ? windowEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+  const tooltip = [
+  `Avg cooler temp over ${count} readings`,
+  startStr && endStr ? `${startStr} → ${endStr}` : null].
+  filter(Boolean).join('\n');
 
   return (
     <span
       title={tooltip}
       className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 cursor-default ${
-        isOut ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'
-      }`}
-    >
+      isOut ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`
+      }>
+      
       <Thermometer className="w-2.5 h-2.5" />
       ⌀{avg}°C
-    </span>
-  );
+    </span>);
+
 }
 
 function getSlotKeysForDate(dateStr) {
@@ -244,16 +244,16 @@ function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, de
 
   const todayStr = selectedDateStr || (() => {
     const d = new Date();
-    const p = n => String(n).padStart(2,'0');
-    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   })();
   const slotKeys = getSlotKeysForDate(todayStr);
   const driverMap = new Map();
 
   const assignedDriverIds = new Set(
-    (deliveries || [])
-      .filter((d) => d?.delivery_date === todayStr && dispatcherStoreIds.includes(d?.store_id) && d?.driver_id)
-      .map((d) => d.driver_id)
+    (deliveries || []).
+    filter((d) => d?.delivery_date === todayStr && dispatcherStoreIds.includes(d?.store_id) && d?.driver_id).
+    map((d) => d.driver_id)
   );
 
   const scheduledDriverIds = new Set();
@@ -328,8 +328,8 @@ export default function SidebarUserFooter({
   // Local today string (YYYY-MM-DD) — used to decide live vs avg badge
   const localTodayStr = (() => {
     const d = new Date();
-    const p = n => String(n).padStart(2,'0');
-    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   })();
   const isSelectedDateToday = !selectedDateStr || selectedDateStr === localTodayStr;
   const [todayOverrides, setTodayOverrides] = useState([]);
@@ -345,8 +345,8 @@ export default function SidebarUserFooter({
   useEffect(() => {
     if (!currentUser?.app_roles?.includes('dispatcher')) return;
     const _now = new Date();
-    const _p = n => String(n).padStart(2,'0');
-    const todayStr = `${_now.getFullYear()}-${_p(_now.getMonth()+1)}-${_p(_now.getDate())}`;
+    const _p = (n) => String(n).padStart(2, '0');
+    const todayStr = `${_now.getFullYear()}-${_p(_now.getMonth() + 1)}-${_p(_now.getDate())}`;
     base44.entities.DriverScheduleOverride.filter({ date: todayStr }).
     then(setTodayOverrides).
     catch(() => setTodayOverrides([]));
@@ -421,12 +421,12 @@ export default function SidebarUserFooter({
 
               return (
                 <div
-                 key={driver.user_id || driver.id}
-                 className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95"
-                 style={{ background: isAssigned ? 'linear-gradient(135deg, #eef2ff, #f5f3ff)' : 'var(--bg-slate-50)', borderColor: isAssigned ? '#c7d2fe' : 'var(--border-slate-200)' }}
-                 onClick={() => onOpenDriverChat?.(driver)}
-                 title={`Message ${driverName}`}
-                >
+                  key={driver.user_id || driver.id}
+                  className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95"
+                  style={{ background: isAssigned ? 'linear-gradient(135deg, #eef2ff, #f5f3ff)' : 'var(--bg-slate-50)', borderColor: isAssigned ? '#c7d2fe' : 'var(--border-slate-200)' }}
+                  onClick={() => onOpenDriverChat?.(driver)}
+                  title={`Message ${driverName}`}>
+                  
                  {/* Top row: avatar + name + temp badges + stop count */}
                  <div className="flex items-center gap-1.5">
                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold" style={{ background: bgGradient }}>
@@ -435,23 +435,23 @@ export default function SidebarUserFooter({
                    <span className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</span>
                    {hasFridgeInTransit && <DispatcherTempBadge driverId={driverId} selectedDateStr={selectedDateStr} />}
                    {allFridgeDone && fridgeStoreIds.map((storeId) =>
-                     <DispatcherAvgTempBadge key={storeId} driverId={driverId} selectedDateStr={selectedDateStr} fridgeDeliveries={driverFridgeDeliveries} storeId={storeId} />
-                   )}
+                    <DispatcherAvgTempBadge key={storeId} driverId={driverId} selectedDateStr={selectedDateStr} fridgeDeliveries={driverFridgeDeliveries} storeId={storeId} />
+                    )}
                    {isAssigned && deliveryCount > 0 &&
-                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0">Stops: {deliveryCount}</span>
-                   }
+                    <span className="font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 text-[12px]">Stops: {deliveryCount}</span>
+                    }
                    {!isAssigned &&
-                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">Scheduled</span>
-                   }
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">Scheduled</span>
+                    }
                  </div>
 
                  {/* Bottom row: phone */}
                  {phone &&
-                   <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 mt-0.5 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}>
+                  <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 mt-0.5 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}>
                      <Phone className="w-2.5 h-2.5" />
-                     <span className="text-[10px]">{formatPhoneNumber(phone)}</span>
+                     <span className="text-[12px]">{formatPhoneNumber(phone)}</span>
                    </a>
-                 }
+                  }
                 </div>);
 
             })}
