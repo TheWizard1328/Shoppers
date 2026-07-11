@@ -35,6 +35,7 @@ function HereType1Polylines({
   driverLocations = [],
   appUsers = [],
   driverTravelModes = {},
+  selectedDate = null,
 }) {
   const map = useMap();
   // Canvas renderer — lazily initialized after map is ready to avoid pane errors.
@@ -84,7 +85,13 @@ function HereType1Polylines({
       ? allStops.filter(m => m && m.driver_id === selectedDriverId)
       : allStops;
 
-    scopedStops.forEach((m) => {
+    // Filter to selected date only — prevents stops from other dates contaminating
+    // the incomplete/complete counts used for route-completeness detection.
+    const dateFilteredStops = selectedDate
+      ? scopedStops.filter(m => !m?.delivery_date || m.delivery_date === selectedDate)
+      : scopedStops;
+
+    dateFilteredStops.forEach((m) => {
       if (!m || !m.driver_id || Number.isNaN(Number(m.latitude)) || Number.isNaN(Number(m.longitude))) return;
       if (!map.has(m.driver_id)) map.set(m.driver_id, { complete: [], incomplete: [], pending: [] });
       if (FINISHED.includes(m.status)) map.get(m.driver_id).complete.push(m);
@@ -200,6 +207,8 @@ function HereType1Polylines({
     if (!homeVisible) return;
     if (driversWithCompleteRoute.has(driverId)) return; // Route finished — hide pre-home leg
     if (offDutyDriverIds.has(driverId)) return; // Driver off duty — hide first-stop polyline
+    // Route started but no active leg — hide pre-home leg (e.g. driver is between stops)
+    if (hasCompleted && !hasIncomplete) return;
     if (!hasCompleted && hasIncomplete) {
       const next = stops.incomplete.find((s) => isCurrentLeg(s));
       
@@ -248,6 +257,11 @@ function HereType1Polylines({
 
     // For an off-duty driver, skip the first-stop polyline
     if (offDutyDriverIds.has(driverId)) return;
+
+    // Route started but driver is no longer in-transit — hide active leg
+    const hasCompleted = (stops?.complete?.length || 0) > 0;
+    const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
+    if (hasCompleted && !hasIncomplete) return;
 
     // For a completed route, skip rendering the polyline for the first stop (stop #1)
     if (driversWithCompleteRoute.has(driverId)) {
