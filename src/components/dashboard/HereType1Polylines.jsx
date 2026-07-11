@@ -327,16 +327,13 @@ function HereType1Polylines({
         .filter(s => s && Number.isFinite(Number(s.latitude)) && Number.isFinite(Number(s.longitude)))
         .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
 
-      // Find the minimum stop_order to identify stop #1
-      const minOrder = allSorted.length > 0 ? (Number(allSorted[0]?.stop_order) || 0) : null;
-
-      for (let i = 1; i < allSorted.length; i++) {
+      // Start at i=2: allSorted[1] holds the polyline FROM stop #1 → stop #2,
+      // which originates at stop #1 — we hide that leg on completed routes.
+      // allSorted[2] onwards are fully inter-stop legs safe to render.
+      for (let i = 2; i < allSorted.length; i++) {
         const prevStop = allSorted[i - 1];
         const stop     = allSorted[i];
         if (!stop) continue;
-
-        // Skip the polyline that leads INTO stop #1 (the first stop in the route)
-        if (minOrder !== null && (Number(stop.stop_order) || 0) === minOrder) continue;
 
         const driverColor = getPolylineColorForDriver(driverId, stop.driver?.sort_order);
         const key = `complete-${driverId}-${stop.id}-${i}`;
