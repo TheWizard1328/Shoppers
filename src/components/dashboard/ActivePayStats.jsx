@@ -112,12 +112,12 @@ export default function ActivePayStats({
 
   return (
     <div
-      className={`py-0.5 relative w-full ${onStatsClick ? 'cursor-pointer' : ''}`}
+      className={`py-0.5 relative ${onStatsClick ? 'cursor-pointer' : ''}`}
       onClick={onStatsClick ? (e) => { e.stopPropagation(); onStatsClick(); } : undefined}
       title={onStatsClick ? 'View route summary' : undefined}
     >
       {/* Row 1: Delivery Stats - 4 columns */}
-      <div className="mb-1 grid grid-cols-4 gap-1 w-full">
+      <div className="mb-1 grid grid-cols-4 gap-1">
         <StatBadge
           icon={Package}
           value={stats.total}
