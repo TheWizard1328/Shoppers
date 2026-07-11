@@ -5,7 +5,7 @@ import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
 
-const FINISHED = ["completed", "failed", "cancelled", "returned"];
+const FINISHED = ["completed", "failed", "cancelled"]; // "returned" is a UI label only — not a real DB status
 
 // Helper: visible fallback even when stops share same coordinates or coords are strings
 const samePoint = (a, b) => (
