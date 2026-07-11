@@ -286,7 +286,11 @@ function Dashboard() {
     if (!deliveries || !Array.isArray(deliveries)) return [];
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     let result = deliveries.filter((d) => { if (!d || d.delivery_date !== dateStr) return false; if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return false; return true; });
-    if (isDispatcher && !isAdmin && (selectedDriverId === 'all' || selectedDriverId === '')) { const _ds = new Set(currentUser?.store_ids || []); const _allowedDriverIds = new Set(result.filter((x) => x && _ds.has(x.store_id)).map((x) => x.driver_id).filter(Boolean)); result = result.filter((d) => d && (d.is_cycling_marker || _allowedDriverIds.has(d.driver_id))); }
+    if (isDispatcher && !isAdmin && (selectedDriverId === 'all' || selectedDriverId === '')) {
+      // If dispatcher has no drivers scheduled/assigned today, show nothing
+      if (driversList.length === 0) return [];
+      const _ds = new Set(currentUser?.store_ids || []); const _allowedDriverIds = new Set(result.filter((x) => x && _ds.has(x.store_id)).map((x) => x.driver_id).filter(Boolean)); result = result.filter((d) => d && (d.is_cycling_marker || _allowedDriverIds.has(d.driver_id)));
+    }
     return result;
   }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUserStoreIds, isSnapshotModeActive, snapshotData]);
 
