@@ -221,124 +221,79 @@ function HereType1Polylines({
 
   // ─── Route path classifier ───────────────────────────────────────────────
   // Path 1: Not started  — no finished stops, active/pending > 0
+  //         off-duty → nothing shown; on-duty → blue leg from home → first stop
   // Path 2: Active       — ≥1 finished stop, active/pending > 0
+  //         blue leg from most-recently-finished stop → isNextDelivery stop
   // Path 3: Complete     — ≥1 finished stop, active/pending = 0
-  //
-  // Path 1 & 2: render polylines for active (in_transit / en_route) stops only
-  // Path 3:     render polylines for ALL stops, but skip stop #1 (lowest stop_order)
+  //         all legs rendered in driver colour, stop #1 leg hidden
   // ─────────────────────────────────────────────────────────────────────────
 
-  // ── Section A: Pre-route leg (home → first active stop) ──────────────────
-  // Only relevant for Path 1 (route not yet started — no completed stops yet,
-  // driver is still on the way to their very first stop).
+  // ── Section 1: Current leg (blue) ────────────────────────────────────────
+  // Paths 1 & 2 only.
+  // Origin fallback:
+  //   Path 1 → home marker coords  (no finished stops yet)
+  //   Path 2 → most recently finished stop's coords
+  // The encoded_polyline on the isNextDelivery stop is always used first;
+  // the origin fallback is only needed when that polyline is absent.
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
     if (offDutyDriverIds.has(driverId)) return;
 
-    const hasFinished  = (stops?.complete?.length  || 0) > 0;
-    const activeCount  = (stops?.incomplete?.length || 0) + (stops?.pending?.length || 0);
+    const hasFinished = (stops?.complete?.length  || 0) > 0;
+    const activeCount = (stops?.incomplete?.length || 0) + (stops?.pending?.length || 0);
+    const isComplete  = hasFinished && activeCount === 0; // Path 3
 
-    // Only Path 1: route not started, driver heading to first stop
-    if (hasFinished || activeCount === 0) return;
+    if (isComplete || activeCount === 0) return; // Path 3 or no stops at all — skip
 
-    const homeVisible = driverHomeMarkers.some((h) => h && h.driverId === driverId);
-    if (!homeVisible) return;
-
-    const next = stops.incomplete.find((s) => isCurrentLeg(s));
-    const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-    const originLat = home && !Number.isNaN(Number(home.latitude)) ? Number(home.latitude) : undefined;
-    const originLon = home && !Number.isNaN(Number(home.longitude)) ? Number(home.longitude) : undefined;
-
-    if (!next || originLat === undefined || originLon === undefined) return;
-
-    const coords = typeof next?.encoded_polyline === 'string' && next.encoded_polyline.trim()
-      ? decodePolyline(next.encoded_polyline)
-      : null;
-    const key = `prehome-${driverId}-${next.id}`;
-    if (seenKeys.has(key)) return;
-    seenKeys.add(key);
-
-    const segmentPositions = Array.isArray(coords) && coords.length > 1
-      ? coords
-      : makeFallback({ latitude: originLat, longitude: originLon }, next);
-    if (!segmentPositions || segmentPositions.length < 2) return;
-
-    lines.push(
-      <Polyline
-        key={`type1-pre-home-line-${driverId}-${getDeliveryMode(next, driverId)}`}
-        positions={segmentPositions}
-        renderer={rendererReady ? canvasRenderer.current : undefined}
-        pathOptions={{
-          ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75, next),
-          dashArray: coords ? getDriverRouteStyle(driverId, 0.95, next).dashArray : '8,8'
-        }}
-        pane="currentLegPane"
-      />,
-      <RouteDirectionDecorator
-        key={`type1-pre-home-arrow-${driverId}-${getDeliveryMode(next, driverId)}`}
-        positions={segmentPositions}
-        color={CURRENT_LEG_COLOR}
-        pane="currentLegPane"
-      />
-    );
-  });
-
-  // ── Section B: Active leg (current position → next stop) ─────────────────
-  // Path 1 & 2 only. Path 3 (complete) shows no active leg.
-  driverStops.forEach((stops, driverId) => {
-    if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
-    if (offDutyDriverIds.has(driverId)) return;
-
-    const hasFinished  = (stops?.complete?.length  || 0) > 0;
-    const activeCount  = (stops?.incomplete?.length || 0) + (stops?.pending?.length || 0);
-    const isComplete   = hasFinished && activeCount === 0; // Path 3
-
-    if (isComplete) return; // Complete route — no active leg to draw
-
-    const currentStop = [...stops.incomplete]
-      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
-      .find((stop) => stop?.isNextDelivery === true)
-      || [...stops.incomplete]
-      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))[0];
-
+    // Find the current (next) active stop
+    const orderedIncomplete = [...stops.incomplete]
+      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+    const currentStop = orderedIncomplete.find((s) => s?.isNextDelivery === true) || orderedIncomplete[0];
     if (!currentStop) return;
 
-    const orderedStops = [...stops.incomplete]
-      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
-    const currentIndex = orderedStops.findIndex((stop) => stop?.id === currentStop?.id);
+    // Resolve origin fallback
+    let originFallback = null;
+    if (!hasFinished) {
+      // Path 1: use home marker
+      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+      const lat  = home && !Number.isNaN(Number(home.latitude))  ? Number(home.latitude)  : undefined;
+      const lon  = home && !Number.isNaN(Number(home.longitude)) ? Number(home.longitude) : undefined;
+      if (lat !== undefined && lon !== undefined) originFallback = { latitude: lat, longitude: lon };
+    } else {
+      // Path 2: use most recently finished stop
+      const lastFinished = [...stops.complete].sort((a, b) => {
+        const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
+        const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
+        return bt - at;
+      })[0];
+      if (lastFinished) originFallback = { latitude: Number(lastFinished.latitude), longitude: Number(lastFinished.longitude) };
+    }
 
-    const previousCompleted = [...stops.complete].sort((a, b) => {
-      const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
-      const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-      return bt - at;
-    })[0];
-    const previousStop = currentIndex > 0 ? orderedStops[currentIndex - 1] : previousCompleted;
-
+    // Decode the stored polyline on the current stop
     const encodedPoly = currentStop?.encoded_polyline;
     let coords = typeof encodedPoly === 'string' && encodedPoly.trim()
       ? (() => { try { return decodePolyline(encodedPoly); } catch (_) { return null; } })()
       : null;
 
     let shouldUseFallback = false;
-    if ((!coords || coords.length < 2) && previousStop) {
-      const origin = { latitude: Number(previousStop.latitude), longitude: Number(previousStop.longitude) };
-      const dest   = { latitude: Number(currentStop.latitude),  longitude: Number(currentStop.longitude)  };
-      if (Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) &&
-          Number.isFinite(dest.latitude)   && Number.isFinite(dest.longitude)) {
-        coords = makeFallback(origin, dest);
+    if ((!coords || coords.length < 2) && originFallback) {
+      const dest = { latitude: Number(currentStop.latitude), longitude: Number(currentStop.longitude) };
+      if (Number.isFinite(originFallback.latitude) && Number.isFinite(originFallback.longitude) &&
+          Number.isFinite(dest.latitude) && Number.isFinite(dest.longitude)) {
+        coords = makeFallback(originFallback, dest);
         shouldUseFallback = true;
       }
     }
 
     if (!coords || coords.length < 2) return;
 
-    const key = `active-${driverId}-${currentStop.id}`;
+    const key = `current-leg-${driverId}-${currentStop.id}`;
     if (seenKeys.has(key)) return;
     seenKeys.add(key);
 
     lines.push(
       <Polyline
-        key={`type1-active-line-${driverId}-${currentStop.id}`}
+        key={`type1-current-line-${driverId}-${currentStop.id}`}
         positions={coords}
         renderer={rendererReady ? canvasRenderer.current : undefined}
         pathOptions={{
@@ -348,7 +303,7 @@ function HereType1Polylines({
         pane="currentLegPane"
       />,
       <RouteDirectionDecorator
-        key={`type1-active-arrow-${driverId}-${currentStop.id}`}
+        key={`type1-current-arrow-${driverId}-${currentStop.id}`}
         positions={coords}
         color={CURRENT_LEG_COLOR}
         pane="currentLegPane"
