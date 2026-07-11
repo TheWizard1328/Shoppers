@@ -421,40 +421,37 @@ export default function SidebarUserFooter({
 
               return (
                 <div
-                  key={driver.user_id || driver.id}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95"
-                  style={{ background: isAssigned ? 'linear-gradient(135deg, #eef2ff, #f5f3ff)' : 'var(--bg-slate-50)', borderColor: isAssigned ? '#c7d2fe' : 'var(--border-slate-200)' }}
-                  onClick={() => onOpenDriverChat?.(driver)}
-                  title={`Message ${driverName}`}
+                 key={driver.user_id || driver.id}
+                 className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95"
+                 style={{ background: isAssigned ? 'linear-gradient(135deg, #eef2ff, #f5f3ff)' : 'var(--bg-slate-50)', borderColor: isAssigned ? '#c7d2fe' : 'var(--border-slate-200)' }}
+                 onClick={() => onOpenDriverChat?.(driver)}
+                 title={`Message ${driverName}`}
                 >
-                  {/* Avatar */}
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold" style={{ background: bgGradient }}>
-                    {initial}
-                  </div>
+                 {/* Top row: avatar + name + temp badges + stop count */}
+                 <div className="flex items-center gap-1.5">
+                   <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold" style={{ background: bgGradient }}>
+                     {initial}
+                   </div>
+                   <span className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</span>
+                   {hasFridgeInTransit && <DispatcherTempBadge driverId={driverId} selectedDateStr={selectedDateStr} />}
+                   {allFridgeDone && fridgeStoreIds.map((storeId) =>
+                     <DispatcherAvgTempBadge key={storeId} driverId={driverId} selectedDateStr={selectedDateStr} fridgeDeliveries={driverFridgeDeliveries} storeId={storeId} />
+                   )}
+                   {isAssigned && deliveryCount > 0 &&
+                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0">Stops: {deliveryCount}</span>
+                   }
+                   {!isAssigned &&
+                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">Scheduled</span>
+                   }
+                 </div>
 
-                  {/* Name */}
-                  <span className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</span>
-
-                  {/* Temp badges */}
-                  {hasFridgeInTransit && <DispatcherTempBadge driverId={driverId} selectedDateStr={selectedDateStr} />}
-                  {allFridgeDone && fridgeStoreIds.map((storeId) =>
-                    <DispatcherAvgTempBadge key={storeId} driverId={driverId} selectedDateStr={selectedDateStr} fridgeDeliveries={driverFridgeDeliveries} storeId={storeId} />
-                  )}
-
-                  {/* Stop count or scheduled pill */}
-                  {isAssigned && deliveryCount > 0 &&
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0">{deliveryCount}</span>
-                  }
-                  {!isAssigned &&
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">—</span>
-                  }
-
-                  {/* Phone link */}
-                  {phone &&
-                    <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors" title={formatPhoneNumber(phone)}>
-                      <Phone className="w-3 h-3" />
-                    </a>
-                  }
+                 {/* Bottom row: phone */}
+                 {phone &&
+                   <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 mt-0.5 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}>
+                     <Phone className="w-2.5 h-2.5" />
+                     <span className="text-[10px]">{formatPhoneNumber(phone)}</span>
+                   </a>
+                 }
                 </div>);
 
             })}
