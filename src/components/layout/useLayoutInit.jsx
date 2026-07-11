@@ -231,6 +231,18 @@ export function useLayoutInit({
         setInitialGlobalFiltersSet(true);setDataLoaded(true);
         setIsLoadingLayout(false); // Release loading gate ONLY after all prerequisites confirmed
 
+        // ── STEP 0: Load initial unread message count (non-blocking) ──
+        setTimeout(async () => {
+          try {
+            if (!fetchedUser?.id) return;
+            const unreadMessages = await base44.entities.Message.filter({ receiver_id: fetchedUser.id, read: false });
+            if (unreadMessages?.length > 0 && setInitialGlobalFiltersSet) {
+              // Reuse the setUnreadMessageCount via a custom event so we don't need to thread the setter
+              window.dispatchEvent(new CustomEvent('unreadMessageCountLoaded', { detail: { count: unreadMessages.length } }));
+            }
+          } catch { /* non-critical */ }
+        }, 2000);
+
         // ── STEP 3a: Patient DB priority sync — runs if offline DB < 3000 patients ──
         // Non-blocking. Prioritises stores relevant to the current user's role.
         setTimeout(() => {

@@ -233,6 +233,23 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('patientsUpdated', handlePatientsUpdated);
 
+    // Initialize unread count on app load (fired from useLayoutInit after a short delay)
+    const handleUnreadCountLoaded = (event) => {
+      const { count } = event.detail || {};
+      if (typeof count === 'number') setUnreadMessageCount(count);
+    };
+    window.addEventListener('unreadMessageCountLoaded', handleUnreadCountLoaded);
+
+    // Increment unread count in real-time when a new message arrives via WebSocket
+    const handleRealtimeNewMessage = (payload) => {
+      const event = payload?.detail || payload;
+      if (event?.type !== 'create') return;
+      const msg = event.data;
+      if (!msg || msg.receiver_id !== currentUser?.id || msg.read) return;
+      setUnreadMessageCount((prev) => (prev || 0) + 1);
+    };
+    const unsubscribeMessages = base44.entities.Message.subscribe(handleRealtimeNewMessage);
+
     // Listen for messaging requests from map markers
     const handleOpenMessaging = (event) => {
       const { otherUserId, otherUserName } = event.detail || {};
@@ -611,6 +628,8 @@ export function useLayoutEventHandlers({
       window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
       window.removeEventListener('appUserUpdated', handleAppUserUpdated);
       window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
+      window.removeEventListener('unreadMessageCountLoaded', handleUnreadCountLoaded);
+      unsubscribeMessages();
       window.removeEventListener('offlinePatientsRefreshed', handleOfflinePatientsRefreshed);
       window.removeEventListener('driverResumedAfterAbsence', handleDriverResumedAfterAbsence);
     };
