@@ -300,6 +300,7 @@ function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, de
   allRelevantDriverIds.forEach((driverId) => {
     const driver = appUsers?.find((u) => u.user_id === driverId || u.id === driverId);
     if (!driver) return;
+    if (driver.status !== 'active') return;
 
     const key = driver.user_id || driver.id;
     if (driverMap.has(key)) return;
@@ -423,7 +424,7 @@ export default function SidebarUserFooter({
   );
   const scheduledDriverIdSet = new Set(scheduledDrivers.map(({ driver }) => driver.user_id || driver.id));
   const otherCityDrivers = (appUsers || []).filter((u) => {
-    if (!u?.status === 'active') return false;
+    if (u?.status !== 'active') return false;
     if (!Array.isArray(u.app_roles) || !u.app_roles.includes('driver')) return false;
     if (!u.user_name) return false;
     if (scheduledDriverIdSet.has(u.user_id) || scheduledDriverIdSet.has(u.id)) return false;
