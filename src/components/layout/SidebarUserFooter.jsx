@@ -15,9 +15,9 @@ function getDriverDistToStore(driver, stores, dispatcherStoreIds) {
   const driverLat = driver.current_latitude ?? driver.home_latitude;
   const driverLng = driver.current_longitude ?? driver.home_longitude;
   if (!driverLat || !driverLng) return null;
-  const originStores = dispatcherStoreIds?.length
-    ? stores.filter((s) => dispatcherStoreIds.includes(s?.id) && s?.latitude && s?.longitude)
-    : stores.filter((s) => s?.latitude && s?.longitude);
+  const originStores = dispatcherStoreIds?.length ?
+  stores.filter((s) => dispatcherStoreIds.includes(s?.id) && s?.latitude && s?.longitude) :
+  stores.filter((s) => s?.latitude && s?.longitude);
   if (!originStores.length) return null;
   let minDist = Infinity;
   originStores.forEach((s) => {
@@ -410,22 +410,22 @@ export default function SidebarUserFooter({
   // All other drivers in the city not already shown in scheduledDrivers
   const scheduledDriverIdSet = new Set(scheduledDrivers.map(({ driver }) => driver.user_id || driver.id));
   const otherCityDrivers = (appUsers || []).filter((u) =>
-    u?.status === 'active' &&
-    Array.isArray(u.app_roles) && u.app_roles.includes('driver') &&
-    u.user_name &&
-    !(scheduledDriverIdSet.has(u.user_id) || scheduledDriverIdSet.has(u.id))
+  u?.status === 'active' &&
+  Array.isArray(u.app_roles) && u.app_roles.includes('driver') &&
+  u.user_name &&
+  !(scheduledDriverIdSet.has(u.user_id) || scheduledDriverIdSet.has(u.id))
   );
 
   return (
-    <div className="px-2 flex-shrink-0 border-t" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+    <div className="px-2 flex-shrink-0 border-t py-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
       <div>
 
         {(scheduledDrivers.length > 0 || otherCityDrivers.length > 0) &&
         <div className="pr-2 pl-2">
             <button
-              className="flex items-center justify-between w-full mb-2 group"
-              onClick={() => setDriversExpanded((v) => !v)}
-            >
+            className="flex items-center justify-between w-full mb-2 group"
+            onClick={() => setDriversExpanded((v) => !v)}>
+            
               <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
                 Drivers: {scheduledDrivers.length} / {scheduledDrivers.length + otherCityDrivers.length}
               </p>
@@ -433,24 +433,24 @@ export default function SidebarUserFooter({
             </button>
             {/* Render a single scheduled driver card — used for both always-visible and collapsed sections */}
             {(() => {
-              const renderDriverCard = ({ driver, deliveryCount, isAssigned, routeStarted }) => {
-                const driverId = driver.user_id || driver.id;
-                const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-                const driverFridgeDeliveries = (filteredDeliveries || []).filter(
-                  (d) => d?.driver_id === driverId && d?.delivery_date === selectedDateStr && d?.fridge_item === true && dispatcherStoreIds.has(d?.store_id)
-                );
-                const hasFridgeInTransit = driverFridgeDeliveries.some((d) => d?.status === 'in_transit');
-                const activeStatuses = new Set(['pending', 'in_transit']);
-                const allFridgeDone = driverFridgeDeliveries.length > 0 && !driverFridgeDeliveries.some((d) => activeStatuses.has(d?.status));
-                const fridgeStoreIds = [...new Set(driverFridgeDeliveries.map((d) => d.store_id).filter(Boolean))];
-                const driverName = driver.user_name || 'Driver';
-                const initial = driverName.charAt(0).toUpperCase();
-                const phone = driver.phone;
-                const distToStore = routeStarted ? null : getDriverDistToStore(driver, stores, currentUser.store_ids);
-                const isOnDuty = driver.driver_status === 'on_duty' || driver.driver_status === 'online';
-                const bgGradient = isAssigned ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'linear-gradient(135deg, #94a3b8, #cbd5e1)';
-                return (
-                  <div key={driver.user_id || driver.id} className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95" style={{ background: isAssigned ? 'linear-gradient(135deg, #eef2ff, #f5f3ff)' : 'var(--bg-slate-50)', borderColor: isAssigned ? '#c7d2fe' : 'var(--border-slate-200)' }} onClick={() => onOpenDriverChat?.(driver)} title={`Message ${driverName}`}>
+            const renderDriverCard = ({ driver, deliveryCount, isAssigned, routeStarted }) => {
+              const driverId = driver.user_id || driver.id;
+              const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+              const driverFridgeDeliveries = (filteredDeliveries || []).filter(
+                (d) => d?.driver_id === driverId && d?.delivery_date === selectedDateStr && d?.fridge_item === true && dispatcherStoreIds.has(d?.store_id)
+              );
+              const hasFridgeInTransit = driverFridgeDeliveries.some((d) => d?.status === 'in_transit');
+              const activeStatuses = new Set(['pending', 'in_transit']);
+              const allFridgeDone = driverFridgeDeliveries.length > 0 && !driverFridgeDeliveries.some((d) => activeStatuses.has(d?.status));
+              const fridgeStoreIds = [...new Set(driverFridgeDeliveries.map((d) => d.store_id).filter(Boolean))];
+              const driverName = driver.user_name || 'Driver';
+              const initial = driverName.charAt(0).toUpperCase();
+              const phone = driver.phone;
+              const distToStore = routeStarted ? null : getDriverDistToStore(driver, stores, currentUser.store_ids);
+              const isOnDuty = driver.driver_status === 'on_duty' || driver.driver_status === 'online';
+              const bgGradient = isAssigned ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'linear-gradient(135deg, #94a3b8, #cbd5e1)';
+              return (
+                <div key={driver.user_id || driver.id} className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95" style={{ background: isAssigned ? 'linear-gradient(135deg, #eef2ff, #f5f3ff)' : 'var(--bg-slate-50)', borderColor: isAssigned ? '#c7d2fe' : 'var(--border-slate-200)' }} onClick={() => onOpenDriverChat?.(driver)} title={`Message ${driverName}`}>
                     <div className="flex items-center gap-1.5">
                       <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold" style={{ background: bgGradient }}>{initial}</div>
                       <span className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</span>
@@ -463,39 +463,39 @@ export default function SidebarUserFooter({
                       {phone && <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}><Phone className="w-2.5 h-2.5" /><span className="text-[12px]">{formatPhoneNumber(phone)}</span></a>}
                       {distToStore && <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><MapPin className="w-2.5 h-2.5" />{distToStore}</span>}
                     </div>
-                  </div>
-                );
-              };
+                  </div>);
 
-              const assignedDrivers = scheduledDrivers.filter(({ isAssigned }) => isAssigned);
-              const unassignedDrivers = scheduledDrivers.filter(({ isAssigned }) => !isAssigned);
+            };
 
-              return (
-                <div className="flex flex-col gap-1.5">
+            const assignedDrivers = scheduledDrivers.filter(({ isAssigned }) => isAssigned);
+            const unassignedDrivers = scheduledDrivers.filter(({ isAssigned }) => !isAssigned);
+
+            return (
+              <div className="flex flex-col gap-1.5">
                   {/* Assigned drivers always visible */}
                   {assignedDrivers.map(renderDriverCard)}
                   {/* Rest only when expanded */}
-                  {driversExpanded && (
-                    <>
+                  {driversExpanded &&
+                <>
                       {unassignedDrivers.map(renderDriverCard)}
                       {/* Other city drivers shown inline when expanded */}
                       {otherCityDrivers.map((driver) => {
-                  const driverName = driver.user_name || 'Driver';
-                  const initial = driverName.charAt(0).toUpperCase();
-                  const phone = driver.phone;
-                  const isOnDuty = driver.driver_status === 'on_duty' || driver.driver_status === 'online';
-                  const distToStore = getDriverDistToStore(driver, stores, currentUser.store_ids);
-                  const statusColor = isOnDuty
-                    ? 'linear-gradient(135deg, #10b981, #059669)'
-                    : 'linear-gradient(135deg, #94a3b8, #cbd5e1)';
-                  return (
-                    <div
-                      key={driver.user_id || driver.id}
-                      className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95"
-                      style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}
-                      onClick={() => onOpenDriverChat?.(driver)}
-                      title={`Message ${driverName}`}
-                    >
+                    const driverName = driver.user_name || 'Driver';
+                    const initial = driverName.charAt(0).toUpperCase();
+                    const phone = driver.phone;
+                    const isOnDuty = driver.driver_status === 'on_duty' || driver.driver_status === 'online';
+                    const distToStore = getDriverDistToStore(driver, stores, currentUser.store_ids);
+                    const statusColor = isOnDuty ?
+                    'linear-gradient(135deg, #10b981, #059669)' :
+                    'linear-gradient(135deg, #94a3b8, #cbd5e1)';
+                    return (
+                      <div
+                        key={driver.user_id || driver.id}
+                        className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95"
+                        style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}
+                        onClick={() => onOpenDriverChat?.(driver)}
+                        title={`Message ${driverName}`}>
+                        
                       <div className="flex items-center gap-1.5">
                         <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold" style={{ background: statusColor }}>
                           {initial}
@@ -506,27 +506,27 @@ export default function SidebarUserFooter({
                         </span>
                       </div>
                       <div className="flex items-center justify-between mt-0.5">
-                        {phone && (
+                        {phone &&
                           <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}>
                             <Phone className="w-2.5 h-2.5" />
                             <span className="text-[12px]">{formatPhoneNumber(phone)}</span>
                           </a>
-                        )}
-                        {distToStore && (
+                          }
+                        {distToStore &&
                           <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                             <MapPin className="w-2.5 h-2.5" />
                             {distToStore}
                           </span>
-                        )}
+                          }
                       </div>
-                    </div>
-                  );
-                    })}
+                    </div>);
+
+                  })}
                     </>
-                  )}
-                </div>
-              );
-            })()}
+                }
+                </div>);
+
+          })()}
             <div className="mt-2 mb-1 border-t" style={{ borderColor: 'var(--border-slate-100)' }} />
           </div>
         }
