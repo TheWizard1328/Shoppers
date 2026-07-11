@@ -14,8 +14,8 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
     const { base44: b44 } = await import('@/api/base44Client');
     const s = await b44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
     const ft = s?.[0]?.setting_value?.fridge_temp_settings;
-    if (typeof ft?.safe_min      === 'number') _sidebarFridgeCfg.safe_min      = ft.safe_min;
-    if (typeof ft?.safe_max      === 'number') _sidebarFridgeCfg.safe_max      = ft.safe_max;
+    if (typeof ft?.safe_min === 'number') _sidebarFridgeCfg.safe_min = ft.safe_min;
+    if (typeof ft?.safe_max === 'number') _sidebarFridgeCfg.safe_max = ft.safe_max;
     if (typeof ft?.danger_buffer === 'number') _sidebarFridgeCfg.danger_buffer = ft.danger_buffer;
   } catch (_) {}
 })();
@@ -92,7 +92,7 @@ export default function AppSidebar({
       id: selectedDriverAppUser.user_id,
       driver_status: selectedDriverAppUser.driver_status || 'off_duty',
       current_latitude: selectedDriverAppUser.current_latitude,
-      current_longitude: selectedDriverAppUser.current_longitude,
+      current_longitude: selectedDriverAppUser.current_longitude
     };
   }, [selectedDriverAppUser, users]);
 
@@ -158,19 +158,19 @@ export default function AppSidebar({
           </button>
               }
 
-        {branding.logo_url && !branding.logo_url.includes('placehold') ? (
-          <img
-            src={branding.logo_url}
-            alt="RxDeliver"
-            className="w-10 h-10 rounded object-contain"
-            style={{ filter: 'var(--image-filter, none)' }}
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-          />
-        ) : (
-          <div className="w-10 h-10 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
+        {branding.logo_url && !branding.logo_url.includes('placehold') ?
+              <img
+                src={branding.logo_url}
+                alt="RxDeliver"
+                className="rounded object-contain w-12 h-12"
+                style={{ filter: 'var(--image-filter, none)' }}
+                onError={(e) => {e.currentTarget.style.display = 'none';}} /> :
+
+
+              <div className="w-10 h-10 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-sm">Rx</span>
           </div>
-        )}
+              }
 
         <div>
           <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>
@@ -186,7 +186,7 @@ export default function AppSidebar({
 
       <div className="flex items-center gap-2">
         {/* Show controls in navigation panel when tablet landscape OR landscape mobile */}
-        {(deviceType === 'Tablet' && !isTabletPortrait) || (!isMobile && !isTabletPortrait && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && cities && cities.length > 0) ?
+        {deviceType === 'Tablet' && !isTabletPortrait || !isMobile && !isTabletPortrait && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && cities && cities.length > 0 ?
               <>
             {/* Layout: [menu ⋮ on top, battery below] | [status toggle] */}
             <div className="flex items-center gap-1">
@@ -225,22 +225,22 @@ export default function AppSidebar({
                         onDeliveryImportClick={() => setShowDeliveryImport(true)}
                         isMobile={isMobile} />
                 </DropdownMenu>
-                {(isWideScreenMobile || (deviceType === 'Tablet' && !isTabletPortrait)) && currentUser && (
-                  <BatteryIndicator vertical={true} />
-                )}
+                {(isWideScreenMobile || deviceType === 'Tablet' && !isTabletPortrait) && currentUser &&
+                    <BatteryIndicator vertical={true} />
+                    }
               </div>
               {/* Right column: status toggle — landscape mobile/tablet AND desktop drivers */}
-              {currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) && (
-                <DriverStatusToggle
-                  currentUser={currentUser}
-                  targetUser={selectedDriverTarget}
-                  vertical={true}
-                  onStatusChange={async () => {
-                    clearUserCache();
-                    const refreshedUser = await getEffectiveUser();
-                    if (refreshedUser) setCurrentUser(refreshedUser);
-                  }} />
-              )}
+              {currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
+                  <DriverStatusToggle
+                    currentUser={currentUser}
+                    targetUser={selectedDriverTarget}
+                    vertical={true}
+                    onStatusChange={async () => {
+                      clearUserCache();
+                      const refreshedUser = await getEffectiveUser();
+                      if (refreshedUser) setCurrentUser(refreshedUser);
+                    }} />
+                  }
             </div>
           </> : null
               }
@@ -397,14 +397,14 @@ export default function AppSidebar({
                       // Uses module-level _sidebarFridgeCfg loaded from AppSettings (defaults: 2/6/±2)
                       const t = lastTemp?.temperature_celsius;
                       const { safe_min: sbMin, safe_max: sbMax, danger_buffer: sbBuf } = _sidebarFridgeCfg;
-                      const tempColor = !lastTemp ? '#64748b'
-                        : t < (sbMin - sbBuf) || t > (sbMax + sbBuf) ? '#991b1b'
-                        : t < sbMin || t > sbMax                      ? '#92400e'
-                        :                                                '#166534';
-                      const tempBg = !lastTemp ? '#f1f5f9'
-                        : t < (sbMin - sbBuf) || t > (sbMax + sbBuf) ? '#fee2e2'
-                        : t < sbMin || t > sbMax                      ? '#fef3c7'
-                        :                                                '#dcfce7';
+                      const tempColor = !lastTemp ? '#64748b' :
+                      t < sbMin - sbBuf || t > sbMax + sbBuf ? '#991b1b' :
+                      t < sbMin || t > sbMax ? '#92400e' :
+                      '#166534';
+                      const tempBg = !lastTemp ? '#f1f5f9' :
+                      t < sbMin - sbBuf || t > sbMax + sbBuf ? '#fee2e2' :
+                      t < sbMin || t > sbMax ? '#fef3c7' :
+                      '#dcfce7';
                       return null;
 
 
@@ -491,7 +491,7 @@ export default function AppSidebar({
       <div className="border-t mb-2 mt-1" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-        <Link
+            <Link
               to={createPageUrl('Settings')}
               onClick={() => setSidebarOpen(false)}
               className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
@@ -508,7 +508,7 @@ export default function AppSidebar({
           <Settings className="w-5 h-5" />
           <span className="font-semibold">User Settings</span>
         </Link>
-      }
+            }
 
       </div>
 
