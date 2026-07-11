@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Phone, MessageCircle, QrCode, Thermometer, MapPin } from 'lucide-react';
+import { Phone, MessageCircle, QrCode, Thermometer, MapPin, ChevronDown } from 'lucide-react';
 
 function haversineMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -358,6 +358,7 @@ export default function SidebarUserFooter({
   })();
   const isSelectedDateToday = !selectedDateStr || selectedDateStr === localTodayStr;
   const [todayOverrides, setTodayOverrides] = useState([]);
+  const [driversExpanded, setDriversExpanded] = useState(true);
 
   useEffect(() => {
     const unsubscribe = globalFilters.subscribe(() => {
@@ -410,10 +411,17 @@ export default function SidebarUserFooter({
 
         {scheduledDrivers.length > 0 &&
         <div className="pr-2 pl-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--text-slate-400)' }}>
-              {selectedDateStr === new Date().toISOString().slice(0, 10) ? "Today's Drivers" : "Route Drivers"}
-            </p>
-            <div className="flex flex-col gap-1.5">
+            <button
+              className="flex items-center justify-between w-full mb-2 group"
+              onClick={() => setDriversExpanded((v) => !v)}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
+                {selectedDateStr === new Date().toISOString().slice(0, 10) ? "Today's Drivers" : "Route Drivers"}
+                <span className="ml-1 normal-case font-normal">({scheduledDrivers.length})</span>
+              </p>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform text-slate-400 ${driversExpanded ? '' : '-rotate-90'}`} />
+            </button>
+            {driversExpanded && <div className="flex flex-col gap-1.5">
               {scheduledDrivers.map(({ driver, deliveryCount, isAssigned }) => {
               const driverId = driver.user_id || driver.id;
 
@@ -490,7 +498,7 @@ export default function SidebarUserFooter({
                 </div>);
 
             })}
-            </div>
+            </div>}
             <div className="mt-2 mb-1 border-t" style={{ borderColor: 'var(--border-slate-100)' }} />
           </div>
         }
