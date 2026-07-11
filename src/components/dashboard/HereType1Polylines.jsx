@@ -28,6 +28,7 @@ function HereType1Polylines({
   isViewingCurrentDate,
   deliveryMarkers = [],
   pickupMarkers = [],
+  allDriverDeliveries = [],
   driverHomeMarkers = [],
   currentDriverMarker = null,
   selectedDriverId = null,
@@ -108,15 +109,41 @@ function HereType1Polylines({
     return map;
   }, [deliveryMarkers, pickupMarkers, selectedDriverId, showAll, selectedDate]);
 
+  // Route completeness must be checked against the driver's ENTIRE day route,
+  // not just the store-filtered markers visible to a dispatcher.
+  // Use allDriverDeliveries (unfiltered) when available; fall back to driverStops.
   const driversWithCompleteRoute = useMemo(() => {
     const out = new Set();
-    driverStops.forEach((stops, driverId) => {
-      // Route is complete if there are no in_transit/en_route/pending stops and at least one finished stop
-      const hasActive = stops.incomplete.length > 0 || stops.pending.length > 0;
-      if (!hasActive && stops.complete.length > 0) out.add(driverId);
-    });
+
+    if (allDriverDeliveries.length > 0) {
+      // Group all stops for this date by driver_id
+      const byDriver = new Map();
+      const dateFiltered = selectedDate
+        ? allDriverDeliveries.filter(d => !d?.delivery_date || d.delivery_date === selectedDate)
+        : allDriverDeliveries;
+
+      dateFiltered.forEach((d) => {
+        if (!d?.driver_id) return;
+        if (!byDriver.has(d.driver_id)) byDriver.set(d.driver_id, { hasFinished: false, hasActive: false });
+        const entry = byDriver.get(d.driver_id);
+        if (FINISHED.includes(d.status)) entry.hasFinished = true;
+        else entry.hasActive = true; // pending, in_transit, en_route — anything not FINISHED
+      });
+
+      byDriver.forEach(({ hasFinished, hasActive }, driverId) => {
+        if (hasFinished && !hasActive) out.add(driverId);
+      });
+    } else {
+      // Fallback: use driverStops (store-filtered) — may produce "ghost" polylines for
+      // dispatchers viewing a partial route, but avoids suppressing polylines entirely.
+      driverStops.forEach((stops, driverId) => {
+        const hasActive = stops.incomplete.length > 0 || stops.pending.length > 0;
+        if (!hasActive && stops.complete.length > 0) out.add(driverId);
+      });
+    }
+
     return out;
-  }, [driverStops]);
+  }, [allDriverDeliveries, driverStops, selectedDate]);
 
   // Drivers who are off_duty — their first-stop polyline should not be rendered.
   // Uses the full appUsers list so drivers with null/cleared location data are still caught.
