@@ -429,85 +429,55 @@ export default function SidebarUserFooter({
               </p>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform text-slate-400 ${driversExpanded ? '' : '-rotate-90'}`} />
             </button>
-            {driversExpanded && <div className="flex flex-col gap-1.5">
-              {scheduledDrivers.map(({ driver, deliveryCount, isAssigned }) => {
-              const driverId = driver.user_id || driver.id;
+            {/* Render a single scheduled driver card — used for both always-visible and collapsed sections */}
+            {(() => {
+              const renderDriverCard = ({ driver, deliveryCount, isAssigned }) => {
+                const driverId = driver.user_id || driver.id;
+                const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+                const driverFridgeDeliveries = (filteredDeliveries || []).filter(
+                  (d) => d?.driver_id === driverId && d?.delivery_date === selectedDateStr && d?.fridge_item === true && dispatcherStoreIds.has(d?.store_id)
+                );
+                const hasFridgeInTransit = driverFridgeDeliveries.some((d) => d?.status === 'in_transit');
+                const activeStatuses = new Set(['pending', 'in_transit']);
+                const allFridgeDone = driverFridgeDeliveries.length > 0 && !driverFridgeDeliveries.some((d) => activeStatuses.has(d?.status));
+                const fridgeStoreIds = [...new Set(driverFridgeDeliveries.map((d) => d.store_id).filter(Boolean))];
+                const driverName = driver.user_name || 'Driver';
+                const initial = driverName.charAt(0).toUpperCase();
+                const phone = driver.phone;
+                const distToStore = getDriverDistToStore(driver, stores, currentUser.store_ids);
+                const isOnDuty = driver.driver_status === 'on_duty' || driver.driver_status === 'online';
+                const bgGradient = isAssigned ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'linear-gradient(135deg, #94a3b8, #cbd5e1)';
+                return (
+                  <div key={driver.user_id || driver.id} className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95" style={{ background: isAssigned ? 'linear-gradient(135deg, #eef2ff, #f5f3ff)' : 'var(--bg-slate-50)', borderColor: isAssigned ? '#c7d2fe' : 'var(--border-slate-200)' }} onClick={() => onOpenDriverChat?.(driver)} title={`Message ${driverName}`}>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold" style={{ background: bgGradient }}>{initial}</div>
+                      <span className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</span>
+                      {hasFridgeInTransit && <DispatcherTempBadge driverId={driverId} selectedDateStr={selectedDateStr} />}
+                      {allFridgeDone && fridgeStoreIds.map((storeId) => <DispatcherAvgTempBadge key={storeId} driverId={driverId} selectedDateStr={selectedDateStr} fridgeDeliveries={driverFridgeDeliveries} storeId={storeId} />)}
+                      {isAssigned && deliveryCount > 0 && <span className="font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 text-[12px]">Stops: {deliveryCount}</span>}
+                      {!isAssigned && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">Scheduled</span>}
+                    </div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      {phone && <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}><Phone className="w-2.5 h-2.5" /><span className="text-[12px]">{formatPhoneNumber(phone)}</span></a>}
+                      {distToStore && <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><MapPin className="w-2.5 h-2.5" />{distToStore}</span>}
+                    </div>
+                  </div>
+                );
+              };
 
-              // Fridge deliveries for this driver+date scoped to dispatcher's stores
-              const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-              const driverFridgeDeliveries = (filteredDeliveries || []).filter(
-                (d) => d?.driver_id === driverId &&
-                d?.delivery_date === selectedDateStr &&
-                d?.fridge_item === true &&
-                dispatcherStoreIds.has(d?.store_id)
-              );
-
-              // In-transit check: any fridge item still active
-              const hasFridgeInTransit = driverFridgeDeliveries.some((d) => d?.status === 'in_transit');
-
-              // All-done check: had fridge items but none left in_transit/pending
-              const activeStatuses = new Set(['pending', 'in_transit']);
-              const allFridgeDone = driverFridgeDeliveries.length > 0 &&
-              !driverFridgeDeliveries.some((d) => activeStatuses.has(d?.status));
-
-              // For avg badge: group by store — show one badge per store that's done
-              const fridgeStoreIds = [...new Set(driverFridgeDeliveries.map((d) => d.store_id).filter(Boolean))];
-
-              const driverName = driver.user_name || 'Driver';
-              const initial = driverName.charAt(0).toUpperCase();
-              const phone = driver.phone;
-              const distToStore = getDriverDistToStore(driver, stores, currentUser.store_ids);
-              const isOnDuty = driver.driver_status === 'on_duty' || driver.driver_status === 'online';
-              const bgGradient = isAssigned ?
-              'linear-gradient(135deg, #6366f1, #8b5cf6)' :
-              'linear-gradient(135deg, #94a3b8, #cbd5e1)';
+              const assignedDrivers = scheduledDrivers.filter(({ isAssigned }) => isAssigned);
+              const unassignedDrivers = scheduledDrivers.filter(({ isAssigned }) => !isAssigned);
 
               return (
-                <div
-                  key={driver.user_id || driver.id}
-                  className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95"
-                  style={{ background: isAssigned ? 'linear-gradient(135deg, #eef2ff, #f5f3ff)' : 'var(--bg-slate-50)', borderColor: isAssigned ? '#c7d2fe' : 'var(--border-slate-200)' }}
-                  onClick={() => onOpenDriverChat?.(driver)}
-                  title={`Message ${driverName}`}>
-                  
-                 {/* Top row: avatar + name + temp badges + stop count */}
-                 <div className="flex items-center gap-1.5">
-                   <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold" style={{ background: bgGradient }}>
-                     {initial}
-                   </div>
-                   <span className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</span>
-                   {hasFridgeInTransit && <DispatcherTempBadge driverId={driverId} selectedDateStr={selectedDateStr} />}
-                   {allFridgeDone && fridgeStoreIds.map((storeId) =>
-                    <DispatcherAvgTempBadge key={storeId} driverId={driverId} selectedDateStr={selectedDateStr} fridgeDeliveries={driverFridgeDeliveries} storeId={storeId} />
-                    )}
-                   {isAssigned && deliveryCount > 0 &&
-                    <span className="font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0 text-[12px]">Stops: {deliveryCount}</span>
-                    }
-                   {!isAssigned &&
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">Scheduled</span>
-                    }
-                 </div>
-
-                 {/* Bottom row: phone + distance */}
-                 <div className="flex items-center justify-between mt-0.5">
-                   {phone &&
-                    <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}>
-                       <Phone className="w-2.5 h-2.5" />
-                       <span className="text-[12px]">{formatPhoneNumber(phone)}</span>
-                     </a>
-                   }
-                   {distToStore &&
-                    <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                       <MapPin className="w-2.5 h-2.5" />
-                       {distToStore}
-                     </span>
-                   }
-                 </div>
-                </div>);
-
-            })}
-                {/* Other city drivers shown inline when expanded */}
-                {otherCityDrivers.map((driver) => {
+                <div className="flex flex-col gap-1.5">
+                  {/* Assigned drivers always visible */}
+                  {assignedDrivers.map(renderDriverCard)}
+                  {/* Rest only when expanded */}
+                  {driversExpanded && (
+                    <>
+                      {unassignedDrivers.map(renderDriverCard)}
+                      {/* Other city drivers shown inline when expanded */}
+                      {otherCityDrivers.map((driver) => {
                   const driverName = driver.user_name || 'Driver';
                   const initial = driverName.charAt(0).toUpperCase();
                   const phone = driver.phone;
@@ -549,8 +519,12 @@ export default function SidebarUserFooter({
                       </div>
                     </div>
                   );
-                })}
-            </div>}
+                    })}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             <div className="mt-2 mb-1 border-t" style={{ borderColor: 'var(--border-slate-100)' }} />
           </div>
         }
