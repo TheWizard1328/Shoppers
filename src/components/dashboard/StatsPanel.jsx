@@ -415,7 +415,7 @@ export default function StatsPanel({
                   } : undefined} />
                 
             {isDispatcherLockedExpanded
-                ? <div className="h-8 w-8 flex-shrink-0" />
+                ? <div className="h-8 w-8 flex-shrink-0 opacity-0 pointer-events-none" />
                 : <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();if (!isExpanded) window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));setIsExpanded(!isExpanded);}} disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin} className={`h-8 w-8 p-0 flex-shrink-0 ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
