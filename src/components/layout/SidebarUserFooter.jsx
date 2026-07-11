@@ -361,6 +361,15 @@ export default function SidebarUserFooter({
   const isSelectedDateToday = !selectedDateStr || selectedDateStr === localTodayStr;
   const [todayOverrides, setTodayOverrides] = useState([]);
   const [driversExpanded, setDriversExpanded] = useState(false);
+  const driversExpandedAtRef = useRef(null);
+
+  // Auto-collapse the drivers list after 2 minutes of being expanded (same as stop cards)
+  useEffect(() => {
+    if (!driversExpanded) { driversExpandedAtRef.current = null; return; }
+    driversExpandedAtRef.current = Date.now();
+    const timer = setTimeout(() => setDriversExpanded(false), 120000);
+    return () => clearTimeout(timer);
+  }, [driversExpanded]);
 
   useEffect(() => {
     const unsubscribe = globalFilters.subscribe(() => {
