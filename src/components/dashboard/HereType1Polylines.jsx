@@ -110,9 +110,9 @@ function HereType1Polylines({
   const driversWithCompleteRoute = useMemo(() => {
     const out = new Set();
     driverStops.forEach((stops, driverId) => {
-      // Only count pending stops that are real delivery stops (have a patient_id)
-      // Pickups (no patient_id) and cycling markers are not "remaining work"
-      const pendingCount = (stops.pending || []).filter(s => s?.patient_id && !s?.is_cycling_marker).length;
+      // Only count pending stops that are real delivery stops (have a non-empty patient_id)
+      // Pickups (empty/null patient_id) and cycling markers are not "remaining work"
+      const pendingCount = (stops.pending || []).filter(s => s?.patient_id && s.patient_id !== '' && !s?.is_cycling_marker).length;
       if (stops.incomplete.length === 0 && pendingCount === 0 && stops.complete.length > 0) out.add(driverId);
     });
     return out;
