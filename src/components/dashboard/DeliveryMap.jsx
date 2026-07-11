@@ -243,7 +243,9 @@ export default function DeliveryMap({
 
   const isViewingCurrentDate = useMemo(() => !selectedDate || selectedDate === getEdmDate(), [selectedDate]);
   const isAllDriversMode = useMemo(() => {
-    if (!selectedDriverId || selectedDriverId === "all") return true;
+    // Treat empty string as "no driver selected" for dispatchers — NOT as all-drivers mode
+    if (selectedDriverId === "all") return true;
+    if (!selectedDriverId) return false;
     return new Set(safeDeliveries.map((d) => d?.driver_id).filter(Boolean)).size > 1;
   }, [selectedDriverId, safeDeliveries]);
 
