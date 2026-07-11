@@ -280,17 +280,13 @@ function HereType1Polylines({
     // For an off-duty driver, skip the first-stop polyline
     if (offDutyDriverIds.has(driverId)) return;
 
+    // Route complete or no active leg — hide entirely
+    if (driversWithCompleteRoute.has(driverId)) return;
+
     // Route started but driver is no longer in-transit — hide active leg
     const hasCompleted = (stops?.complete?.length || 0) > 0;
     const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
     if (hasCompleted && !hasIncomplete) return;
-
-    // For a completed route, skip rendering the polyline for the first stop (stop #1)
-    if (driversWithCompleteRoute.has(driverId)) {
-      const allStops = [...stops.complete, ...stops.incomplete, ...(stops.pending || [])];
-      const minOrder = Math.min(...allStops.map(s => Number(s?.stop_order) || Infinity));
-      if ((Number(currentStop.stop_order) || 0) === minOrder) return;
-    }
 
     const orderedStops = [...stops.incomplete]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
