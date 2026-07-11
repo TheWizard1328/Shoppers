@@ -271,6 +271,10 @@ function HereType1Polylines({
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
     if (driversWithCompleteRoute.has(driverId)) return; // Route finished — hide active leg
 
+    const hasCompleted2 = (stops?.complete?.length || 0) > 0;
+    const hasIncomplete2 = (stops?.incomplete?.length || 0) > 0;
+    if (hasCompleted2 && !hasIncomplete2) return; // Route finished (dispatcher view) — hide active leg
+
     const currentStop = [...stops.incomplete]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
       .find((stop) => stop?.isNextDelivery === true) || [...stops.incomplete]
@@ -355,6 +359,10 @@ function HereType1Polylines({
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
     if (driversWithCompleteRoute.has(driverId)) return; // Route finished — hide remaining legs
+
+    const hasCompletedR = (stops?.complete?.length || 0) > 0;
+    const hasIncompleteR = (stops?.incomplete?.length || 0) > 0;
+    if (hasCompletedR && !hasIncompleteR) return; // Route finished (dispatcher view) — hide remaining legs
 
     const orderedStops = [...stops.incomplete]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
