@@ -182,10 +182,17 @@ export default function DriverSettings() {
     }
   };
 
-  // Calculate crow-flies distance from driver to nearest store (any store with coords)
-  const getDriverDistanceToStore = (driver, latestAppUser) => {
-    const driverLat = latestAppUser?.current_latitude ?? driver.current_latitude;
-    const driverLng = latestAppUser?.current_longitude ?? driver.current_longitude;
+  // Calculate crow-flies distance from driver to nearest store.
+  // On duty → use current GPS location (green badge). Off duty → use home location (red badge).
+  const getDriverDistanceToStore = (driver, latestAppUser, isOnDuty) => {
+    let driverLat, driverLng;
+    if (isOnDuty) {
+      driverLat = latestAppUser?.current_latitude ?? driver.current_latitude;
+      driverLng = latestAppUser?.current_longitude ?? driver.current_longitude;
+    } else {
+      driverLat = latestAppUser?.home_latitude ?? driver.home_latitude;
+      driverLng = latestAppUser?.home_longitude ?? driver.home_longitude;
+    }
     if (!driverLat || !driverLng) return null;
 
     let minDist = Infinity;
@@ -304,7 +311,10 @@ export default function DriverSettings() {
               })();
 
               const isOnDuty = dutyStatus.label === 'On Duty' || dutyStatus.label === 'On Break' || dutyStatus.label === 'Online';
-              const distToStore = isOnDuty ? getDriverDistanceToStore(driver, latestAppUser) : null;
+              const distToStore = getDriverDistanceToStore(driver, latestAppUser, isOnDuty);
+              const distBadgeClass = isOnDuty
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-red-100 text-red-700';
 
               if (!isAdmin) {
                 // Compact card for drivers/dispatchers
@@ -324,10 +334,10 @@ export default function DriverSettings() {
                            {getDriverDisplayName(driver)}
                          </p>
                          {distToStore &&
-                        <Badge className="text-xs py-0 h-4 gap-0.5 bg-slate-100 text-slate-600 flex-shrink-0">
-                           <MapPin className="w-2.5 h-2.5" />
-                           {distToStore}
-                         </Badge>
+                        <Badge className={`text-xs py-0 h-4 gap-0.5 flex-shrink-0 ${distBadgeClass}`}>
+                          <MapPin className="w-2.5 h-2.5" />
+                          {distToStore}
+                        </Badge>
                         }
                        </div>
                        <div className="flex items-center gap-1 flex-wrap mt-0.5">
@@ -383,7 +393,7 @@ export default function DriverSettings() {
                             </h3>
                           </div>
                           {distToStore &&
-                          <Badge className="text-xs gap-1 bg-slate-100 text-slate-600 flex-shrink-0">
+                          <Badge className={`text-xs gap-1 flex-shrink-0 ${distBadgeClass}`}>
                               <MapPin className="w-3 h-3" />
                               {distToStore}
                             </Badge>

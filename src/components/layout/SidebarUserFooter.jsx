@@ -72,6 +72,10 @@ function DispatcherTempBadge({ driverId, selectedDateStr }) {
     return () => clearInterval(pollRef.current);
   }, [load]);
 
+  const [dispCfg, setDispCfg] = useState({ safe_min: 2, safe_max: 6, danger_buffer: 2 });
+
+  useEffect(() => { loadFridgeCfg().then(setDispCfg).catch(() => {}); }, []);
+
   useEffect(() => {
     const handler = (e) => {
       const { temperature, timestamp, driverId: eid } = e.detail || {};
@@ -84,11 +88,7 @@ function DispatcherTempBadge({ driverId, selectedDateStr }) {
 
   if (!reading?.temperature_celsius) return null;
 
-  const t     = reading.temperature_celsius;
-  // isOut = outside the full danger range (safe_min - buffer … safe_max + buffer)
-  // The badge here only needs a binary safe/out-of-range signal — no warning tier
-  const [dispCfg, setDispCfg] = React.useState({ safe_min: 2, safe_max: 6, danger_buffer: 2 });
-  useEffect(() => { loadFridgeCfg().then(setDispCfg).catch(() => {}); }, []);
+  const t   = reading.temperature_celsius;
   const isOut = t < (dispCfg.safe_min - dispCfg.danger_buffer) || t > (dispCfg.safe_max + dispCfg.danger_buffer);
   const ts    = fmtLocalTime(reading.timestamp);
 
