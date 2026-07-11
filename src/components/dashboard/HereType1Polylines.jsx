@@ -108,6 +108,20 @@ function HereType1Polylines({
     return out;
   }, [driverStops]);
 
+  // Drivers who are off_duty — their first-stop polyline should not be rendered
+  const offDutyDriverIds = useMemo(() => {
+    const out = new Set();
+    (driverLocations || []).forEach((loc) => {
+      const status = loc?.driver_status;
+      if (status && status !== 'on_duty' && status !== 'online') {
+        if (loc.driverId) out.add(loc.driverId);
+        if (loc.driver_id) out.add(loc.driver_id);
+        if (loc.id) out.add(loc.id);
+      }
+    });
+    return out;
+  }, [driverLocations]);
+
   useEffect(() => {
     const invalidate = () => setRefreshToken((t) => t + 1);
     const onDriverTravelModeChanged = (event) => {
@@ -184,6 +198,7 @@ function HereType1Polylines({
     
     if (!homeVisible) return;
     if (driversWithCompleteRoute.has(driverId)) return; // Route finished — hide pre-home leg
+    if (offDutyDriverIds.has(driverId)) return; // Driver off duty — hide first-stop polyline
     if (!hasCompleted && hasIncomplete) {
       const next = stops.incomplete.find((s) => isCurrentLeg(s));
       
@@ -229,6 +244,9 @@ function HereType1Polylines({
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))[0];
 
     if (!currentStop) return;
+
+    // For an off-duty driver, skip the first-stop polyline
+    if (offDutyDriverIds.has(driverId)) return;
 
     // For a completed route, skip rendering the polyline for the first stop (stop #1)
     if (driversWithCompleteRoute.has(driverId)) {
