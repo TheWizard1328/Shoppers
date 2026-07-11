@@ -182,8 +182,11 @@ export default function DriverSettings() {
     }
   };
 
-  // Calculate crow-flies distance from driver to nearest store.
-  // On duty → use current GPS location (green badge). Off duty → use home location (red badge).
+  // Calculate crow-flies distance from the dispatcher's store(s) to each driver.
+  // On duty → use driver's current GPS location (green badge). Off duty → use home location (red badge).
+  const dispatcherStoreIds = currentUser?.store_ids || [];
+  const dispatcherStores = stores.filter((s) => dispatcherStoreIds.includes(s?.id) && s?.latitude && s?.longitude);
+
   const getDriverDistanceToStore = (driver, latestAppUser, isOnDuty) => {
     let driverLat, driverLng;
     if (isOnDuty) {
@@ -195,17 +198,20 @@ export default function DriverSettings() {
     }
     if (!driverLat || !driverLng) return null;
 
+    // Use dispatcher's assigned stores as origin; fall back to all stores for admins
+    const originStores = dispatcherStores.length > 0 ? dispatcherStores : stores.filter((s) => s?.latitude && s?.longitude);
+    if (!originStores.length) return null;
+
     let minDist = Infinity;
-    stores.forEach((store) => {
-      if (!store?.latitude || !store?.longitude) return;
-      const dist = calculateHaversineDistance(driverLat, driverLng, store.latitude, store.longitude);
+    originStores.forEach((store) => {
+      const dist = calculateHaversineDistance(store.latitude, store.longitude, driverLat, driverLng);
       if (dist < minDist) minDist = dist;
     });
 
     if (minDist === Infinity) return null;
     return minDist < 1000 ?
-    `${Math.round(minDist)}m` :
-    `${(minDist / 1000).toFixed(1)}km`;
+      `${Math.round(minDist)}m` :
+      `${(minDist / 1000).toFixed(1)}km`;
   };
 
   const handleSaveDriver = async (userId, updates) => {
