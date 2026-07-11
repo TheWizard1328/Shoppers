@@ -269,6 +269,7 @@ function HereType1Polylines({
   // Render the first active leg in blue using the stored polyline on the next stop
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
+    if (driversWithCompleteRoute.has(driverId)) return; // Route finished — hide active leg
 
     const currentStop = [...stops.incomplete]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
@@ -353,6 +354,7 @@ function HereType1Polylines({
   // Render remaining incomplete legs (after current) in driver's color
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
+    if (driversWithCompleteRoute.has(driverId)) return; // Route finished — hide remaining legs
 
     const orderedStops = [...stops.incomplete]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
