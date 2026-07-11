@@ -241,9 +241,11 @@ function HereType1Polylines({
 
     const hasFinished = (stops?.complete?.length  || 0) > 0;
     const activeCount = (stops?.incomplete?.length || 0) + (stops?.pending?.length || 0);
-    const isComplete  = hasFinished && activeCount === 0; // Path 3
+    // Use driversWithCompleteRoute (built from allDriverDeliveries) as the authoritative
+    // source for Path 3 — driverStops counts can be skewed by pickup/cycling marker statuses.
+    const isComplete  = driversWithCompleteRoute.has(driverId);
 
-    if (isComplete || activeCount === 0) return; // Path 3 or no stops at all — skip
+    if (isComplete || (!hasFinished && activeCount === 0)) return; // Path 3 or no stops — skip
 
     // Find the current (next) active stop
     const orderedIncomplete = [...stops.incomplete]
@@ -317,9 +319,7 @@ function HereType1Polylines({
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
 
-    const hasFinished  = (stops?.complete?.length  || 0) > 0;
-    const activeCount  = (stops?.incomplete?.length || 0) + (stops?.pending?.length || 0);
-    const isComplete   = hasFinished && activeCount === 0; // Path 3
+    const isComplete = driversWithCompleteRoute.has(driverId); // Path 3 — authoritative source
 
     if (isComplete) {
       // ── Path 3: show all stops ordered by stop_order, skip the very first ──
