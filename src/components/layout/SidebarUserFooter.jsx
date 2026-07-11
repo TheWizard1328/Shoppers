@@ -417,13 +417,20 @@ export default function SidebarUserFooter({
   const scheduledDrivers = buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, filteredDeliveries, selectedDateStr);
 
   // All other drivers in the city not already shown in scheduledDrivers
-  const scheduledDriverIdSet = new Set(scheduledDrivers.map(({ driver }) => driver.user_id || driver.id));
-  const otherCityDrivers = (appUsers || []).filter((u) =>
-  u?.status === 'active' &&
-  Array.isArray(u.app_roles) && u.app_roles.includes('driver') &&
-  u.user_name &&
-  !(scheduledDriverIdSet.has(u.user_id) || scheduledDriverIdSet.has(u.id))
+  // Only show drivers assigned to the same city_ids as the dispatcher's stores
+  const dispatcherCityIds = new Set(
+    (stores || []).filter(s => (currentUser.store_ids || []).includes(s.id)).map(s => s.city_id).filter(Boolean)
   );
+  const scheduledDriverIdSet = new Set(scheduledDrivers.map(({ driver }) => driver.user_id || driver.id));
+  const otherCityDrivers = (appUsers || []).filter((u) => {
+    if (!u?.status === 'active') return false;
+    if (!Array.isArray(u.app_roles) || !u.app_roles.includes('driver')) return false;
+    if (!u.user_name) return false;
+    if (scheduledDriverIdSet.has(u.user_id) || scheduledDriverIdSet.has(u.id)) return false;
+    // Must share at least one city with the dispatcher's stores
+    const driverCities = Array.isArray(u.city_ids) ? u.city_ids : (u.city_id ? [u.city_id] : []);
+    return driverCities.some(cid => dispatcherCityIds.has(cid));
+  });
 
   return (
     <div className="px-2 flex-shrink-0 border-t py-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
