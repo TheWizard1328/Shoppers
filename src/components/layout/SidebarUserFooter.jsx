@@ -429,7 +429,7 @@ export default function SidebarUserFooter({
     <div className="px-2 flex-shrink-0 border-t py-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
       <div>
 
-        {(scheduledDrivers.length > 0 || otherCityDrivers.length > 0) &&
+        {currentUser?.app_roles?.includes('dispatcher') && (scheduledDrivers.length > 0 || otherCityDrivers.length > 0) &&
         <div className="pr-2 pl-2">
             <button
             className="flex items-center justify-between w-full group"
