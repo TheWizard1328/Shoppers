@@ -230,6 +230,13 @@ function HereType1Polylines({
 
     if (!currentStop) return;
 
+    // For a completed route, skip rendering the polyline for the first stop (stop #1)
+    if (driversWithCompleteRoute.has(driverId)) {
+      const allStops = [...stops.complete, ...stops.incomplete, ...(stops.pending || [])];
+      const minOrder = Math.min(...allStops.map(s => Number(s?.stop_order) || Infinity));
+      if ((Number(currentStop.stop_order) || 0) === minOrder) return;
+    }
+
     const orderedStops = [...stops.incomplete]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
     const currentIndex = orderedStops.findIndex((stop) => stop?.id === currentStop?.id);
@@ -298,6 +305,15 @@ function HereType1Polylines({
 
     const orderedStops = [...stops.incomplete]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+
+    // For a completed route, compute the minimum stop_order across all stops so we can skip stop #1
+    const isComplete = driversWithCompleteRoute.has(driverId);
+    const allStopsForDriver = isComplete
+      ? [...stops.complete, ...stops.incomplete, ...(stops.pending || [])]
+      : [];
+    const minOrderForDriver = isComplete
+      ? Math.min(...allStopsForDriver.map(s => Number(s?.stop_order) || Infinity))
+      : Infinity;
     
     // Use isNextDelivery index, but fall back to index 0 if none is flagged yet
     const flaggedIndex = orderedStops.findIndex((stop) => stop?.isNextDelivery === true);
@@ -310,6 +326,8 @@ function HereType1Polylines({
         const stop = orderedStops[i];
         
         if (!stop) continue;
+        // For a completed route, skip the polyline for the first stop
+        if (isComplete && (Number(stop.stop_order) || 0) === minOrderForDriver) continue;
 
         const origin = { latitude: Number(prevStop.latitude), longitude: Number(prevStop.longitude) };
         const destination = { latitude: Number(stop.latitude), longitude: Number(stop.longitude) };
