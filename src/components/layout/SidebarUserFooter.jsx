@@ -359,6 +359,7 @@ export default function SidebarUserFooter({
   const isSelectedDateToday = !selectedDateStr || selectedDateStr === localTodayStr;
   const [todayOverrides, setTodayOverrides] = useState([]);
   const [driversExpanded, setDriversExpanded] = useState(true);
+  const [allDriversExpanded, setAllDriversExpanded] = useState(false);
 
   useEffect(() => {
     const unsubscribe = globalFilters.subscribe(() => {
@@ -404,6 +405,15 @@ export default function SidebarUserFooter({
   const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
 
   const scheduledDrivers = buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, filteredDeliveries, selectedDateStr);
+
+  // All other drivers in the city not already shown in scheduledDrivers
+  const scheduledDriverIdSet = new Set(scheduledDrivers.map(({ driver }) => driver.user_id || driver.id));
+  const otherCityDrivers = (appUsers || []).filter((u) =>
+    u?.status === 'active' &&
+    Array.isArray(u.app_roles) && u.app_roles.includes('driver') &&
+    u.user_name &&
+    !(scheduledDriverIdSet.has(u.user_id) || scheduledDriverIdSet.has(u.id))
+  );
 
   return (
     <div className="px-2 flex-shrink-0 border-t" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
@@ -499,6 +509,70 @@ export default function SidebarUserFooter({
 
             })}
             </div>}
+            <div className="mt-2 mb-1 border-t" style={{ borderColor: 'var(--border-slate-100)' }} />
+          </div>
+        }
+
+        {/* All city drivers expand/collapse */}
+        {otherCityDrivers.length > 0 &&
+        <div className="pr-2 pl-2 mb-1">
+            <button
+              className="flex items-center justify-between w-full mb-1 group"
+              onClick={() => setAllDriversExpanded((v) => !v)}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
+                All City Drivers
+                <span className="ml-1 normal-case font-normal">({otherCityDrivers.length})</span>
+              </p>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform text-slate-400 ${allDriversExpanded ? '' : '-rotate-90'}`} />
+            </button>
+            {allDriversExpanded && (
+              <div className="flex flex-col gap-1.5">
+                {otherCityDrivers.map((driver) => {
+                  const driverName = driver.user_name || 'Driver';
+                  const initial = driverName.charAt(0).toUpperCase();
+                  const phone = driver.phone;
+                  const isOnDuty = driver.driver_status === 'on_duty' || driver.driver_status === 'online';
+                  const distToStore = getDriverDistToStore(driver, stores, currentUser.store_ids);
+                  const statusColor = isOnDuty
+                    ? 'linear-gradient(135deg, #10b981, #059669)'
+                    : 'linear-gradient(135deg, #94a3b8, #cbd5e1)';
+                  return (
+                    <div
+                      key={driver.user_id || driver.id}
+                      className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95"
+                      style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}
+                      onClick={() => onOpenDriverChat?.(driver)}
+                      title={`Message ${driverName}`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold" style={{ background: statusColor }}>
+                          {initial}
+                        </div>
+                        <span className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                          {isOnDuty ? 'On Duty' : 'Off Duty'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        {phone && (
+                          <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}>
+                            <Phone className="w-2.5 h-2.5" />
+                            <span className="text-[12px]">{formatPhoneNumber(phone)}</span>
+                          </a>
+                        )}
+                        {distToStore && (
+                          <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            <MapPin className="w-2.5 h-2.5" />
+                            {distToStore}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <div className="mt-2 mb-1 border-t" style={{ borderColor: 'var(--border-slate-100)' }} />
           </div>
         }
