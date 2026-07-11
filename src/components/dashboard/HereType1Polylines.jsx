@@ -97,7 +97,7 @@ function HereType1Polylines({
       if (!map.has(m.driver_id)) map.set(m.driver_id, { complete: [], incomplete: [], pending: [] });
       if (FINISHED.includes(m.status)) map.get(m.driver_id).complete.push(m);
       else if (m.status === "in_transit" || m.status === "en_route") map.get(m.driver_id).incomplete.push(m);
-      else if (m.status === "pending") map.get(m.driver_id).pending.push(m);
+      else map.get(m.driver_id).pending.push(m); // treat any unknown/pending status as pending
     });
     
     // Sort incomplete stops by stop_order to ensure we find the true "next" stop
@@ -111,19 +111,12 @@ function HereType1Polylines({
   const driversWithCompleteRoute = useMemo(() => {
     const out = new Set();
     driverStops.forEach((stops, driverId) => {
-      if (isDispatcher) {
-        // For dispatchers: route is complete if there are no incomplete/pending stops at all
-        // and at least one finished stop — no stop-type filtering needed
-        const totalNonComplete = (stops.incomplete?.length || 0) + (stops.pending?.length || 0);
-        if (totalNonComplete === 0 && stops.complete.length > 0) out.add(driverId);
-      } else {
-        // For drivers/admins: only count pending delivery stops (not pickups or cycling markers)
-        const pendingCount = (stops.pending || []).filter(s => s?.patient_id && s.patient_id !== '' && !s?.is_cycling_marker).length;
-        if (stops.incomplete.length === 0 && pendingCount === 0 && stops.complete.length > 0) out.add(driverId);
-      }
+      // Route is complete if there are no in_transit/en_route/pending stops and at least one finished stop
+      const hasActive = stops.incomplete.length > 0 || stops.pending.length > 0;
+      if (!hasActive && stops.complete.length > 0) out.add(driverId);
     });
     return out;
-  }, [driverStops, isDispatcher]);
+  }, [driverStops]);
 
   // Drivers who are off_duty — their first-stop polyline should not be rendered.
   // Uses the full appUsers list so drivers with null/cleared location data are still caught.
