@@ -423,7 +423,7 @@ export default function SidebarUserFooter({
         {(scheduledDrivers.length > 0 || otherCityDrivers.length > 0) &&
         <div className="pr-2 pl-2">
             <button
-            className="flex items-center justify-between w-full mb-2 group"
+            className="flex items-center justify-between w-full group"
             onClick={() => setDriversExpanded((v) => !v)}>
             
               <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
