@@ -358,7 +358,7 @@ export default function SidebarUserFooter({
   })();
   const isSelectedDateToday = !selectedDateStr || selectedDateStr === localTodayStr;
   const [todayOverrides, setTodayOverrides] = useState([]);
-  const [driversExpanded, setDriversExpanded] = useState(true);
+  const [driversExpanded, setDriversExpanded] = useState(false);
 
   useEffect(() => {
     const unsubscribe = globalFilters.subscribe(() => {
@@ -425,8 +425,7 @@ export default function SidebarUserFooter({
               onClick={() => setDriversExpanded((v) => !v)}
             >
               <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
-                {selectedDateStr === new Date().toISOString().slice(0, 10) ? "Today's Drivers" : "Route Drivers"}
-                <span className="ml-1 normal-case font-normal">({scheduledDrivers.length}{otherCityDrivers.length > 0 ? `+${otherCityDrivers.length}` : ''})</span>
+                Drivers: {scheduledDrivers.length} / {scheduledDrivers.length + otherCityDrivers.length}
               </p>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform text-slate-400 ${driversExpanded ? '' : '-rotate-90'}`} />
             </button>
