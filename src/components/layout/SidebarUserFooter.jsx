@@ -318,11 +318,13 @@ function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, de
       });
     });
 
-    const deliveryCount = (deliveries || []).filter(
+    const driverDeliveries = (deliveries || []).filter(
       (d) => d?.delivery_date === todayStr && d?.driver_id === driverId && dispatcherStoreIds.includes(d?.store_id)
-    ).filter((d) => d?.delivery_id && !d.delivery_id.startsWith('BIK') && d?.patient_id).length;
+    );
+    const deliveryCount = driverDeliveries.filter((d) => d?.delivery_id && !d.delivery_id.startsWith('BIK') && d?.patient_id).length;
+    const routeStarted = driverDeliveries.some((d) => ['completed', 'failed', 'cancelled'].includes(d?.status));
 
-    driverMap.set(key, { driver, slots, deliveryCount, isAssigned: assignedDriverIds.has(driverId) });
+    driverMap.set(key, { driver, slots, deliveryCount, isAssigned: assignedDriverIds.has(driverId), routeStarted });
   });
 
   const slotOrder = (slots) => {
@@ -431,7 +433,7 @@ export default function SidebarUserFooter({
             </button>
             {/* Render a single scheduled driver card — used for both always-visible and collapsed sections */}
             {(() => {
-              const renderDriverCard = ({ driver, deliveryCount, isAssigned }) => {
+              const renderDriverCard = ({ driver, deliveryCount, isAssigned, routeStarted }) => {
                 const driverId = driver.user_id || driver.id;
                 const dispatcherStoreIds = new Set(currentUser.store_ids || []);
                 const driverFridgeDeliveries = (filteredDeliveries || []).filter(
@@ -444,7 +446,7 @@ export default function SidebarUserFooter({
                 const driverName = driver.user_name || 'Driver';
                 const initial = driverName.charAt(0).toUpperCase();
                 const phone = driver.phone;
-                const distToStore = getDriverDistToStore(driver, stores, currentUser.store_ids);
+                const distToStore = routeStarted ? null : getDriverDistToStore(driver, stores, currentUser.store_ids);
                 const isOnDuty = driver.driver_status === 'on_duty' || driver.driver_status === 'online';
                 const bgGradient = isAssigned ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'linear-gradient(135deg, #94a3b8, #cbd5e1)';
                 return (
