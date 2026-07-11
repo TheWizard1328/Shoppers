@@ -1,6 +1,31 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Phone, MessageCircle, QrCode, Thermometer } from 'lucide-react';
+import { Phone, MessageCircle, QrCode, Thermometer, MapPin } from 'lucide-react';
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getDriverDistToStore(driver, stores, dispatcherStoreIds) {
+  const driverLat = driver.current_latitude ?? driver.home_latitude;
+  const driverLng = driver.current_longitude ?? driver.home_longitude;
+  if (!driverLat || !driverLng) return null;
+  const originStores = dispatcherStoreIds?.length
+    ? stores.filter((s) => dispatcherStoreIds.includes(s?.id) && s?.latitude && s?.longitude)
+    : stores.filter((s) => s?.latitude && s?.longitude);
+  if (!originStores.length) return null;
+  let minDist = Infinity;
+  originStores.forEach((s) => {
+    const d = haversineMeters(s.latitude, s.longitude, driverLat, driverLng);
+    if (d < minDist) minDist = d;
+  });
+  return minDist === Infinity ? null : minDist < 1000 ? `${Math.round(minDist)}m` : `${(minDist / 1000).toFixed(1)}km`;
+}
 import { formatRoles } from '@/components/utils/userRoles';
 import { getDriverDisplayName } from '@/components/utils/driverUtils';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
@@ -415,6 +440,8 @@ export default function SidebarUserFooter({
               const driverName = driver.user_name || 'Driver';
               const initial = driverName.charAt(0).toUpperCase();
               const phone = driver.phone;
+              const distToStore = getDriverDistToStore(driver, stores, currentUser.store_ids);
+              const isOnDuty = driver.driver_status === 'on_duty' || driver.driver_status === 'online';
               const bgGradient = isAssigned ?
               'linear-gradient(135deg, #6366f1, #8b5cf6)' :
               'linear-gradient(135deg, #94a3b8, #cbd5e1)';
@@ -445,13 +472,21 @@ export default function SidebarUserFooter({
                     }
                  </div>
 
-                 {/* Bottom row: phone */}
-                 {phone &&
-                  <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 mt-0.5 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}>
-                     <Phone className="w-2.5 h-2.5" />
-                     <span className="text-[12px]">{formatPhoneNumber(phone)}</span>
-                   </a>
-                  }
+                 {/* Bottom row: phone + distance */}
+                 <div className="flex items-center justify-between mt-0.5">
+                   {phone &&
+                    <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-slate-700 transition-colors" style={{ color: 'var(--text-slate-500)' }}>
+                       <Phone className="w-2.5 h-2.5" />
+                       <span className="text-[12px]">{formatPhoneNumber(phone)}</span>
+                     </a>
+                   }
+                   {distToStore &&
+                    <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isOnDuty ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                       <MapPin className="w-2.5 h-2.5" />
+                       {distToStore}
+                     </span>
+                   }
+                 </div>
                 </div>);
 
             })}
