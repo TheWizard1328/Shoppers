@@ -318,6 +318,7 @@ export default function SidebarUserFooter({
   unreadMessageCount = 0,
   onOpenMessaging,
   onOpenInviteQR,
+  onOpenDriverChat,
   stores,
   filteredDeliveries
 }) {
@@ -419,7 +420,12 @@ export default function SidebarUserFooter({
               'linear-gradient(135deg, #94a3b8, #cbd5e1)';
 
               return (
-                <div key={driver.user_id || driver.id} className="flex items-center gap-2">
+                <div
+                  key={driver.user_id || driver.id}
+                  className="flex items-center gap-2 cursor-pointer rounded-lg px-1 hover:bg-slate-50 transition-colors"
+                  onClick={() => onOpenDriverChat?.(driver)}
+                  title={`Message ${driverName}`}
+                >
                     <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
                   style={{ background: bgGradient }}>
                       {initial}

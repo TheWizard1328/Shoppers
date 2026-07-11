@@ -542,6 +542,15 @@ export default function AppSidebar({
           unreadMessageCount={unreadMessageCount}
           onOpenMessaging={() => {setShowMessaging(true);setUnreadMessageCount(0);setSidebarOpen(false);}}
           onOpenInviteQR={() => {setShowInviteQRModal(true);setSidebarOpen(false);}}
+          onOpenDriverChat={(driver) => {
+            const otherUserId = driver.user_id || driver.id;
+            const otherUserName = driver.user_name || 'Driver';
+            const conversationId = [currentUser.id, otherUserId].sort().join('_');
+            setInitialConversation({ conversationId, otherUserId, otherUserName });
+            setShowMessaging(true);
+            setUnreadMessageCount(0);
+            setSidebarOpen(false);
+          }}
           stores={stores}
           filteredDeliveries={filteredDeliveries} />
 
