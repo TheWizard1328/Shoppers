@@ -210,7 +210,19 @@ export default function CompletedBreadcrumbPolylines({
       })
       .filter((stop) => isAllDriversMode || selectedDriverId === "all" || stop.driver_id === selectedDriverId);
 
-    return allFinishedStops.map((stop) => ({
+    // Find the minimum stop_order per driver so we can skip stop #1's polyline
+    // (it encodes the home→first-stop leg which we never want to display on completed routes)
+    const minStopOrderByDriver = new Map();
+    allFinishedStops.forEach((stop) => {
+      const ord = Number(stop.stop_order) || 0;
+      if (!minStopOrderByDriver.has(stop.driver_id) || ord < minStopOrderByDriver.get(stop.driver_id)) {
+        minStopOrderByDriver.set(stop.driver_id, ord);
+      }
+    });
+
+    return allFinishedStops
+      .filter((stop) => (Number(stop.stop_order) || 0) !== minStopOrderByDriver.get(stop.driver_id))
+      .map((stop) => ({
       finishedLegTransportMode: normalizeTravelMode(stop.finished_leg_transport_mode || stop.transport_mode),
       id: `stored-${stop.id}`,
       stopId: stop.id,
