@@ -359,7 +359,6 @@ export default function SidebarUserFooter({
   const isSelectedDateToday = !selectedDateStr || selectedDateStr === localTodayStr;
   const [todayOverrides, setTodayOverrides] = useState([]);
   const [driversExpanded, setDriversExpanded] = useState(true);
-  const [allDriversExpanded, setAllDriversExpanded] = useState(false);
 
   useEffect(() => {
     const unsubscribe = globalFilters.subscribe(() => {
@@ -419,7 +418,7 @@ export default function SidebarUserFooter({
     <div className="px-2 flex-shrink-0 border-t" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
       <div>
 
-        {scheduledDrivers.length > 0 &&
+        {(scheduledDrivers.length > 0 || otherCityDrivers.length > 0) &&
         <div className="pr-2 pl-2">
             <button
               className="flex items-center justify-between w-full mb-2 group"
@@ -427,7 +426,7 @@ export default function SidebarUserFooter({
             >
               <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
                 {selectedDateStr === new Date().toISOString().slice(0, 10) ? "Today's Drivers" : "Route Drivers"}
-                <span className="ml-1 normal-case font-normal">({scheduledDrivers.length})</span>
+                <span className="ml-1 normal-case font-normal">({scheduledDrivers.length}{otherCityDrivers.length > 0 ? `+${otherCityDrivers.length}` : ''})</span>
               </p>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform text-slate-400 ${driversExpanded ? '' : '-rotate-90'}`} />
             </button>
@@ -508,26 +507,7 @@ export default function SidebarUserFooter({
                 </div>);
 
             })}
-            </div>}
-            <div className="mt-2 mb-1 border-t" style={{ borderColor: 'var(--border-slate-100)' }} />
-          </div>
-        }
-
-        {/* All city drivers expand/collapse */}
-        {otherCityDrivers.length > 0 &&
-        <div className="pr-2 pl-2 mb-1">
-            <button
-              className="flex items-center justify-between w-full mb-1 group"
-              onClick={() => setAllDriversExpanded((v) => !v)}
-            >
-              <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-slate-400)' }}>
-                All City Drivers
-                <span className="ml-1 normal-case font-normal">({otherCityDrivers.length})</span>
-              </p>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform text-slate-400 ${allDriversExpanded ? '' : '-rotate-90'}`} />
-            </button>
-            {allDriversExpanded && (
-              <div className="flex flex-col gap-1.5">
+                {/* Other city drivers shown inline when expanded */}
                 {otherCityDrivers.map((driver) => {
                   const driverName = driver.user_name || 'Driver';
                   const initial = driverName.charAt(0).toUpperCase();
@@ -571,8 +551,7 @@ export default function SidebarUserFooter({
                     </div>
                   );
                 })}
-              </div>
-            )}
+            </div>}
             <div className="mt-2 mb-1 border-t" style={{ borderColor: 'var(--border-slate-100)' }} />
           </div>
         }
