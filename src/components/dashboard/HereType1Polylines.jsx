@@ -33,6 +33,7 @@ function HereType1Polylines({
   selectedDriverId = null,
   showAll = false,
   driverLocations = [],
+  appUsers = [],
   driverTravelModes = {},
 }) {
   const map = useMap();
@@ -108,19 +109,19 @@ function HereType1Polylines({
     return out;
   }, [driverStops]);
 
-  // Drivers who are off_duty — their first-stop polyline should not be rendered
+  // Drivers who are off_duty — their first-stop polyline should not be rendered.
+  // Uses the full appUsers list so drivers with null/cleared location data are still caught.
   const offDutyDriverIds = useMemo(() => {
     const out = new Set();
-    (driverLocations || []).forEach((loc) => {
-      const status = loc?.driver_status;
+    (appUsers || []).forEach((u) => {
+      const status = u?.driver_status;
       if (status && status !== 'on_duty' && status !== 'online') {
-        if (loc.driverId) out.add(loc.driverId);
-        if (loc.driver_id) out.add(loc.driver_id);
-        if (loc.id) out.add(loc.id);
+        if (u.id) out.add(u.id);
+        if (u.user_id) out.add(u.user_id);
       }
     });
     return out;
-  }, [driverLocations]);
+  }, [appUsers]);
 
   useEffect(() => {
     const invalidate = () => setRefreshToken((t) => t + 1);
