@@ -313,21 +313,39 @@ export default function MessageRulesManager() {
                       <span className="font-medium text-slate-900 text-sm">{label}</span>
                       {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
                     </div>
-                    {/* Card-level Test button */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isTestingThis}
-                      onClick={e => { e.stopPropagation(); sendTestMessage(eventName); }}
-                      className={`gap-1 text-xs px-2 h-7 ${testOk ? 'border-green-500 text-green-600' : 'text-slate-500'}`}
-                    >
-                      {isTestingThis
-                        ? <Loader2 className="w-3 h-3 animate-spin" />
-                        : testOk
-                        ? <CheckCircle className="w-3 h-3" />
-                        : <FlaskConical className="w-3 h-3" />}
-                      {testOk ? 'Sent!' : 'Test'}
-                    </Button>
+                    <div className="flex flex-col gap-1 items-end" onClick={e => e.stopPropagation()}>
+                      {/* Card-level Test button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isTestingThis}
+                        onClick={e => { e.stopPropagation(); sendTestMessage(eventName); }}
+                        className={`gap-1 text-xs px-2 h-7 ${testOk ? 'border-green-500 text-green-600' : 'text-slate-500'}`}
+                      >
+                        {isTestingThis
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : testOk
+                          ? <CheckCircle className="w-3 h-3" />
+                          : <FlaskConical className="w-3 h-3" />}
+                        {testOk ? 'Sent!' : 'Test'}
+                      </Button>
+                      {rec && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={e => {
+                            e.stopPropagation();
+                            if (!confirm('Delete this notification rule? It will revert to built-in default behavior.')) return;
+                            base44.entities.NotificationTemplate.delete(rec.id).then(() => {
+                              setRecords(prev => { const next = { ...prev }; delete next[eventName]; return next; });
+                            }).catch(() => alert('Failed to delete rule'));
+                          }}
+                          className="gap-1 text-xs px-2 h-7 text-slate-400 hover:text-red-600"
+                        >
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <p className="text-xs text-slate-500 italic truncate">"{buildSampleMessage(template)}"</p>
