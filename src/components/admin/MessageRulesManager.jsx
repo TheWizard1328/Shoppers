@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Save, X, Edit2, Bell, MessageSquare, RotateCcw, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Save, Bell, MessageSquare, RotateCcw, Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { notificationRules, applyTemplateUpdate } from '@/components/utils/notificationRules';
@@ -58,7 +59,6 @@ function getHardcodedDefault(eventName) {
 }
 
 export default function MessageRulesManager() {
-  // records: { [event_name]: entity record }
   const [records, setRecords]         = useState({});
   const [isLoading, setIsLoading]     = useState(true);
   const [isSaving, setIsSaving]       = useState(null);
@@ -68,7 +68,6 @@ export default function MessageRulesManager() {
   useEffect(() => {
     loadTemplates();
 
-    // Subscribe to live entity changes so the UI stays in sync with other sessions
     const unsubscribe = base44.entities.NotificationTemplate.subscribe((event) => {
       if (!event?.data?.event_name) return;
       setRecords(prev => {
@@ -98,8 +97,8 @@ export default function MessageRulesManager() {
     }
   };
 
-  // Quick inline toggle (enabled / in_app_enabled / push_enabled)
-  const handleToggle = async (eventName, field) => {
+  const handleToggle = async (eventName, field, e) => {
+    e?.stopPropagation();
     const rec = records[eventName];
     if (!rec) return;
     const newVal = !rec[field];
@@ -109,14 +108,14 @@ export default function MessageRulesManager() {
       const merged = { ...rec, [field]: newVal, ...updated };
       setRecords(prev => ({ ...prev, [eventName]: merged }));
       applyTemplateUpdate(merged);
-    } catch (e) {
+    } catch {
       alert('Failed to save change');
     } finally {
       setIsSaving(null);
     }
   };
 
-  const handleEditOpen = (eventName) => {
+  const handleCardClick = (eventName) => {
     const rec = records[eventName];
     setEditDraft({
       message_template: rec?.message_template || getHardcodedDefault(eventName),
@@ -145,26 +144,33 @@ export default function MessageRulesManager() {
     }
   };
 
-  const handleReset = async (eventName) => {
+  const handleReset = async (e) => {
+    e?.stopPropagation();
+    if (!editingEvent) return;
     if (!confirm('Reset this message to its default template?')) return;
-    const rec = records[eventName];
+    const rec = records[editingEvent];
     if (!rec) return;
-    const defaultTemplate = getHardcodedDefault(eventName);
     const resetFields = {
-      message_template: defaultTemplate,
+      message_template: getHardcodedDefault(editingEvent),
       enabled:          true,
       in_app_enabled:   true,
       push_enabled:     false,
     };
-    setIsSaving(eventName);
+    setIsSaving(editingEvent);
     try {
       const updated = await base44.entities.NotificationTemplate.update(rec.id, resetFields);
       const merged = { ...rec, ...resetFields, ...updated };
-      setRecords(prev => ({ ...prev, [eventName]: merged }));
+      setRecords(prev => ({ ...prev, [editingEvent]: merged }));
       applyTemplateUpdate(merged);
+      setEditDraft(resetFields);
     } finally {
       setIsSaving(null);
     }
+  };
+
+  const closeDialog = () => {
+    setEditingEvent(null);
+    setEditDraft(null);
   };
 
   if (isLoading) {
@@ -187,11 +193,11 @@ export default function MessageRulesManager() {
         </CardContent>
       </Card>
 
-      {/* Rules table */}
+      {/* Rules list */}
       <Card>
         <CardHeader>
           <CardTitle>Notification Rules</CardTitle>
-          <p className="text-sm text-slate-500">Toggle or customize when and how each notification is sent.</p>
+          <p className="text-sm text-slate-500">Click a card to edit. Use toggles to quickly enable/disable channels.</p>
         </CardHeader>
         <CardContent className="space-y-3">
           {EVENT_ORDER.map(eventName => {
@@ -201,90 +207,99 @@ export default function MessageRulesManager() {
             const inApp    = rec?.in_app_enabled   ?? true;
             const push     = rec?.push_enabled      ?? false;
             const template = rec?.message_template || getHardcodedDefault(eventName);
-            const isEditing = editingEvent === eventName;
 
             return (
-              <div key={eventName} className={`border rounded-lg p-4 transition-colors ${isEditing ? 'border-blue-300 bg-blue-50' : 'bg-slate-50'}`}>
-                {isEditing ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-900">{label}</h3>
-                      <Button size="sm" variant="ghost" onClick={() => { setEditingEvent(null); setEditDraft(null); }}>
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-
-                    <div>
-                      <Label className="text-xs text-slate-600 mb-1 block">Message Template</Label>
-                      <Textarea
-                        value={editDraft.message_template}
-                        onChange={e => setEditDraft(d => ({ ...d, message_template: e.target.value }))}
-                        rows={3}
-                        className="text-sm"
-                        placeholder="Use {{driverName}}, {{patientName}}, etc."
-                      />
-                      <p className="text-xs text-slate-400 mt-1">
-                        Preview: <em>"{buildSampleMessage(editDraft.message_template)}"</em>
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-6">
-                      <div className="flex items-center gap-2">
-                        <Switch checked={editDraft.enabled} onCheckedChange={v => setEditDraft(d => ({ ...d, enabled: v }))} />
-                        <Label className="text-sm">Enabled</Label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch checked={editDraft.in_app_enabled} onCheckedChange={v => setEditDraft(d => ({ ...d, in_app_enabled: v }))} />
-                        <Label className="text-sm flex items-center gap-1"><MessageSquare className="w-3 h-3" /> In-App</Label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch checked={editDraft.push_enabled} onCheckedChange={v => setEditDraft(d => ({ ...d, push_enabled: v }))} />
-                        <Label className="text-sm flex items-center gap-1"><Bell className="w-3 h-3" /> Push</Label>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={handleEditSave} disabled={isSaving === eventName} className="gap-1">
-                        {isSaving === eventName ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                        Save
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => { setEditingEvent(null); setEditDraft(null); }}>Cancel</Button>
-                    </div>
+              <div
+                key={eventName}
+                onClick={() => handleCardClick(eventName)}
+                className="border rounded-lg p-4 bg-slate-50 hover:bg-slate-100 hover:border-blue-300 cursor-pointer transition-colors"
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-slate-900 text-sm">{label}</span>
+                    {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
                   </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-slate-900 text-sm">{label}</span>
-                      {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
-                    </div>
-                    <p className="text-xs text-slate-500 italic truncate">"{buildSampleMessage(template)}"</p>
+                  <p className="text-xs text-slate-500 italic truncate">"{buildSampleMessage(template)}"</p>
 
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <Switch checked={enabled} onCheckedChange={() => handleToggle(eventName, 'enabled')} disabled={!!isSaving} />
-                        <span className={`text-xs ${enabled ? 'text-slate-700' : 'text-slate-400'}`}>On/Off</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <Switch checked={inApp} onCheckedChange={() => handleToggle(eventName, 'in_app_enabled')} disabled={!!isSaving} />
-                        <span className={`text-xs flex items-center gap-1 ${inApp ? 'text-blue-600' : 'text-slate-400'}`}>
-                          <MessageSquare className="w-3 h-3" /> In-App
-                        </span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <Switch checked={push} onCheckedChange={() => handleToggle(eventName, 'push_enabled')} disabled={!!isSaving} />
-                        <span className={`text-xs flex items-center gap-1 ${push ? 'text-purple-600' : 'text-slate-400'}`}>
-                          <Bell className="w-3 h-3" /> Push
-                        </span>
-                      </label>
-                    </div>
+                  <div className="flex items-center gap-4" onClick={e => e.stopPropagation()}>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <Switch checked={enabled} onCheckedChange={(_, e) => handleToggle(eventName, 'enabled', e)} disabled={!!isSaving} onClick={e => e.stopPropagation()} />
+                      <span className={`text-xs ${enabled ? 'text-slate-700' : 'text-slate-400'}`}>On/Off</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <Switch checked={inApp} onCheckedChange={(_, e) => handleToggle(eventName, 'in_app_enabled', e)} disabled={!!isSaving} onClick={e => e.stopPropagation()} />
+                      <span className={`text-xs flex items-center gap-1 ${inApp ? 'text-blue-600' : 'text-slate-400'}`}>
+                        <MessageSquare className="w-3 h-3" /> In-App
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <Switch checked={push} onCheckedChange={(_, e) => handleToggle(eventName, 'push_enabled', e)} disabled={!!isSaving} onClick={e => e.stopPropagation()} />
+                      <span className={`text-xs flex items-center gap-1 ${push ? 'text-purple-600' : 'text-slate-400'}`}>
+                        <Bell className="w-3 h-3" /> Push
+                      </span>
+                    </label>
                   </div>
-                )}
+                </div>
               </div>
-
             );
           })}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingEvent} onOpenChange={open => { if (!open) closeDialog(); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{EVENT_LABELS[editingEvent] || editingEvent}</DialogTitle>
+          </DialogHeader>
+
+          {editDraft && (
+            <div className="space-y-4 py-2">
+              <div>
+                <Label className="text-xs text-slate-600 mb-1 block">Message Template</Label>
+                <Textarea
+                  value={editDraft.message_template}
+                  onChange={e => setEditDraft(d => ({ ...d, message_template: e.target.value }))}
+                  rows={4}
+                  className="text-sm"
+                  placeholder="Use {{driverName}}, {{patientName}}, etc."
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Preview: <em>"{buildSampleMessage(editDraft.message_template)}"</em>
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-6">
+                <div className="flex items-center gap-2">
+                  <Switch checked={editDraft.enabled} onCheckedChange={v => setEditDraft(d => ({ ...d, enabled: v }))} />
+                  <Label className="text-sm">Enabled</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={editDraft.in_app_enabled} onCheckedChange={v => setEditDraft(d => ({ ...d, in_app_enabled: v }))} />
+                  <Label className="text-sm flex items-center gap-1"><MessageSquare className="w-3 h-3" /> In-App</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={editDraft.push_enabled} onCheckedChange={v => setEditDraft(d => ({ ...d, push_enabled: v }))} />
+                  <Label className="text-sm flex items-center gap-1"><Bell className="w-3 h-3" /> Push</Label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex items-center justify-between gap-2">
+            <Button size="sm" variant="ghost" onClick={handleReset} disabled={!!isSaving} className="text-slate-400 hover:text-red-500 gap-1">
+              <RotateCcw className="w-3 h-3" /> Reset to default
+            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={closeDialog}>Cancel</Button>
+              <Button size="sm" onClick={handleEditSave} disabled={!!isSaving} className="gap-1">
+                {isSaving === editingEvent ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                Save
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
