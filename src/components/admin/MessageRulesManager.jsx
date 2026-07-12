@@ -13,7 +13,6 @@ import { notificationRules, applyTemplateUpdate } from '@/components/utils/notif
 
 const EVENT_LABELS = {
   driver_accepted_all:    'Driver Accepted All',
-  driver_accepted_one:    'Driver Accepted One',
   dispatcher_assigned_all:'Dispatcher Assigned All',
   driver_started:         'Driver Started',
   driver_completed:       'Driver Completed',
@@ -24,7 +23,6 @@ const EVENT_LABELS = {
 
 const EVENT_ORDER = [
   'driver_accepted_all',
-  'driver_accepted_one',
   'dispatcher_assigned_all',
   'driver_started',
   'driver_completed',
