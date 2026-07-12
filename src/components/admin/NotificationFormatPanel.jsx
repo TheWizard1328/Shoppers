@@ -264,6 +264,21 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
                 {isTesting === editingEvent ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccess === editingEvent ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
                 {testSuccess === editingEvent ? 'Sent!' : 'Test'}
               </Button>
+              <Button size="sm" variant="ghost" disabled={!!isSaving}
+              onClick={async () => {
+                if (!confirm('Delete this notification template? It will be removed permanently.')) return;
+                const rec = records[editingEvent];
+                if (!rec) return;
+                setIsSaving(editingEvent);
+                try {
+                  await base44.entities.NotificationTemplate.delete(rec.id);
+                  setRecords((prev) => { const next = { ...prev }; delete next[editingEvent]; return next; });
+                  closeDialog();
+                } catch { alert('Failed to delete template'); } finally { setIsSaving(null); }
+              }}
+              className="text-red-400 hover:text-red-600 gap-1">
+                <Trash2 className="w-3 h-3" /> Delete
+              </Button>
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={closeDialog}>Cancel</Button>
