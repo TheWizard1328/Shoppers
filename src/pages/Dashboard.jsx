@@ -1003,7 +1003,23 @@ function Dashboard() {
             userHasRole,
             hasDriverMarkers: mapDriverLocationMarkersForBounds.length > 0
           });
-          mapHomeMarkers.forEach((home) => {if (home.latitude && home.longitude) allCoordinates.push([home.latitude, home.longitude]);});
+          // Only include a driver's home marker in Phase 1 bounds if that driver has NO finished
+          // stops for the selected date. Once any stop is finished (started or completed route),
+          // the home location is irrelevant to the delivery area and skews the zoom level.
+          const FINISHED_STATUSES_HOME = ['completed', 'failed', 'cancelled', 'returned'];
+          mapHomeMarkers.forEach((home) => {
+            if (!home.latitude || !home.longitude) return;
+            const homeDriverId = home.driverId || home.driver_id || home.id;
+            const driverHasFinishedStop = homeDriverId
+              ? deliveriesRef.current.some((d) =>
+                  d && d.delivery_date === selectedDateStr && d.driver_id === homeDriverId &&
+                  FINISHED_STATUSES_HOME.includes(d.status)
+                )
+              : false;
+            if (!driverHasFinishedStop) {
+              allCoordinates.push([home.latitude, home.longitude]);
+            }
+          });
         }
 
         // Get current city center
