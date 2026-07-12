@@ -1202,9 +1202,25 @@ export default function DeliveryMap({
         onClick={() => setFannedLocationKey(null)}
         whenReady={(instance) => {
           if (!instance?.target?._loaded || !instance?.target?._container || !instance?.target?._panes) return;
-          setMap(instance.target);
-          setCurrentZoom(instance.target.getZoom());
-          setVisibleBounds(instance.target.getBounds());
+          const mapInst = instance.target;
+
+          // Guard against Leaflet's _onZoomTransitionEnd firing after unmount.
+          // When the map pane is gone, _leaflet_pos is undefined and getPosition throws.
+          // Patching _getMapPanePos to bail early is the safest fix.
+          const origGetMapPanePos = mapInst._getMapPanePos.bind(mapInst);
+          mapInst._getMapPanePos = function () {
+            try {
+              const pane = this._mapPane;
+              if (!pane || !pane._leaflet_pos) return L.point(0, 0);
+              return origGetMapPanePos();
+            } catch {
+              return L.point(0, 0);
+            }
+          };
+
+          setMap(mapInst);
+          setCurrentZoom(mapInst.getZoom());
+          setVisibleBounds(mapInst.getBounds());
           // Defer one animation frame so Leaflet fully settles pixel/world bounds
           // before any vector layer children mount and call _clipPoints / addLayer.
           if (!fanCanvasRenderer.current) {
