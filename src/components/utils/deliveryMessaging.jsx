@@ -277,7 +277,8 @@ async function getStoreUser(store) {
 export async function notifyDriverAcceptedAll({
   driver,
   store,
-  appUsers
+  appUsers,
+  pendingCount = null
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'inApp'))) return;
 
@@ -291,7 +292,7 @@ export async function notifyDriverAcceptedAll({
   if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName };
+  const messageData = { driverName, pendingCount };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue; // Don't notify self
@@ -314,7 +315,8 @@ export async function notifyDriverAcceptedOne({
   driver,
   patientName,
   store,
-  appUsers
+  appUsers,
+  pendingCount = null
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'inApp'))) return;
 
@@ -328,7 +330,7 @@ export async function notifyDriverAcceptedOne({
   if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName, patientName };
+  const messageData = { driverName, patientName, pendingCount };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue;
@@ -392,7 +394,8 @@ export async function notifyDriverStarted({
   patientName,
   delivery,
   store,
-  appUsers
+  appUsers,
+  pendingCount = null
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_STARTED, 'inApp'))) return;
 
@@ -406,7 +409,7 @@ export async function notifyDriverStarted({
   if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName, patientName };
+  const messageData = { driverName, patientName, pendingCount };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue;
@@ -430,7 +433,8 @@ export async function notifyDriverCompleted({
   patientName,
   delivery,
   store,
-  appUsers
+  appUsers,
+  pendingCount = null
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_COMPLETED, 'inApp'))) return;
 
@@ -444,7 +448,7 @@ export async function notifyDriverCompleted({
   if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName, patientName };
+  const messageData = { driverName, patientName, pendingCount };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue;
@@ -510,7 +514,8 @@ export async function notifyDriverRetry({
   patientName,
   delivery,
   store,
-  appUsers
+  appUsers,
+  pendingCount = null
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETRY, 'inApp'))) return;
 
@@ -524,7 +529,7 @@ export async function notifyDriverRetry({
   if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName, patientName };
+  const messageData = { driverName, patientName, pendingCount };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue;
@@ -548,7 +553,8 @@ export async function notifyDriverReturn({
   patientName,
   delivery,
   store,
-  appUsers
+  appUsers,
+  pendingCount = null
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETURN, 'inApp'))) return;
 
@@ -563,7 +569,7 @@ export async function notifyDriverReturn({
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const deliveryNotes = delivery?.delivery_notes || '';
-  const messageData = { driverName, patientName, deliveryNotes };
+  const messageData = { driverName, patientName, deliveryNotes, pendingCount };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue;
