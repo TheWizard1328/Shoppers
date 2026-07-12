@@ -259,10 +259,12 @@ export default function StatsPanel({
     }
   }, [isDateFinished, isDriver, isAllDriversMode]);
 
+  const StatsCardMinWidth = 650;
+
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 20 : 40, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
       <div ref={statsCardRef} className="flex flex-col items-start gap-1 relative"
-      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile ? `${Math.round(window.innerWidth * 0.95)}px` : '625px', minWidth: isMobile ? undefined : '650px', maxWidth: isMobile ? undefined : '650px' }}
+      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile ? `${Math.round(window.innerWidth * 0.95)}px` : '{StatsCardMinWidth}px', minWidth: isMobile ? undefined : '{StatsCardMinWidth}px', maxWidth: isMobile ? undefined : '{StatsCardMinWidth}px' }}
       onMouseEnter={() => handleStatsPanelInteraction(true)}
       onMouseLeave={() => handleStatsPanelInteraction(false)}>
 
