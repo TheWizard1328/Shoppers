@@ -29,7 +29,7 @@ const SAMPLE_DATA = {
   deliveryList: '\n• Jane Smith\n• Bob Wilson',
 };
 
-function applyTemplate(template) {
+function buildSampleMessage(template) {
   return template
     .replace(/\{\{driverName\}\}/g, SAMPLE_DATA.driverName)
     .replace(/\{\{patientName\}\}/g, SAMPLE_DATA.patientName)
@@ -46,16 +46,13 @@ function getDefaultTemplate(eventName) {
     patientName: '{{patientName}}',
     storeName: '{{storeName}}',
     deliveryList: '{{deliveryList}}',
-    deliveryNotes: '',
   });
 }
 
-const VARIABLES = ['{{driverName}}', '{{patientName}}', '{{storeName}}', '{{deliveryList}}'];
-
 export default function MessageRulesManager() {
-  const [overrides, setOverrides] = useState({});
+  const [overrides, setOverrides] = useState({});  // { [eventName]: { enabled, inApp, push, messageTemplate } }
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(null);
+  const [isSaving, setIsSaving] = useState(null);  // eventName being saved
   const [editingEvent, setEditingEvent] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
   const [settingId, setSettingId] = useState(null);
@@ -77,7 +74,7 @@ export default function MessageRulesManager() {
   };
 
   const persistOverrides = async (newOverrides) => {
-    const payload = { setting_key: SETTING_KEY, setting_value: { rules: newOverrides }, description: 'Notification rule overrides per event' };
+    const payload = { setting_key: SETTING_KEY, setting_value: { rules: newOverrides }, description: 'Push notification rule overrides per event' };
     if (settingId) {
       await base44.entities.AppSettings.update(settingId, { setting_value: { rules: newOverrides } });
     } else {
@@ -85,47 +82,39 @@ export default function MessageRulesManager() {
       setSettingId(created.id);
     }
     setOverrides(newOverrides);
-    // Broadcast so the runtime notificationRules picks up the new values
-    window.dispatchEvent(new CustomEvent('appSettingsUpdated', { detail: { setting_key: SETTING_KEY, rules: newOverrides } }));
   };
 
+  // Quick-toggle enabled/inApp/push without opening editor
   const handleToggle = async (eventName, field) => {
     const defaultRule = notificationRules[eventName];
     const current = overrides[eventName] || {};
-    const currentValue = field in current ? current[field] : (field === 'push' ? false : (defaultRule?.[field] ?? true));
-    const newOverrides = { ...overrides, [eventName]: { ...current, [field]: !currentValue } };
+    const currentValue = field in current ? current[field] : defaultRule?.[field] ?? true;
+    const newOverrides = {
+      ...overrides,
+      [eventName]: { ...current, [field]: !currentValue },
+    };
     setIsSaving(eventName + '_' + field);
-    try { await persistOverrides(newOverrides); } finally { setIsSaving(null); }
+    try {
+      await persistOverrides(newOverrides);
+    } finally {
+      setIsSaving(null);
+    }
   };
 
   const handleEditOpen = (eventName) => {
     const defaultRule = notificationRules[eventName];
     const override = overrides[eventName] || {};
-    const defaultTpl = getDefaultTemplate(eventName);
     setEditDraft({
-      enabled:       'enabled'       in override ? override.enabled       : (defaultRule?.enabled ?? true),
-      inApp:         'inApp'         in override ? override.inApp         : (defaultRule?.inApp   ?? true),
-      push:          'push'          in override ? override.push           : false,
-      inAppTemplate: override.inAppTemplate || override.messageTemplate || defaultTpl,
-      pushTemplate:  override.pushTemplate  || override.messageTemplate  || defaultTpl,
+      enabled: 'enabled' in override ? override.enabled : (defaultRule?.enabled ?? true),
+      inApp:   'inApp'   in override ? override.inApp   : (defaultRule?.inApp   ?? true),
+      push:    'push'    in override ? override.push     : false,
+      messageTemplate: override.messageTemplate || getDefaultTemplate(eventName),
     });
     setEditingEvent(eventName);
   };
 
   const handleEditSave = async () => {
-    // Strip the legacy messageTemplate field when saving with new per-channel templates
-    const { messageTemplate: _drop, ...restOverride } = overrides[editingEvent] || {};
-    const newOverrides = {
-      ...overrides,
-      [editingEvent]: {
-        ...restOverride,
-        enabled:       editDraft.enabled,
-        inApp:         editDraft.inApp,
-        push:          editDraft.push,
-        inAppTemplate: editDraft.inAppTemplate,
-        pushTemplate:  editDraft.pushTemplate,
-      }
-    };
+    const newOverrides = { ...overrides, [editingEvent]: { ...editDraft } };
     setIsSaving(editingEvent);
     try {
       await persistOverrides(newOverrides);
@@ -143,7 +132,11 @@ export default function MessageRulesManager() {
     const newOverrides = { ...overrides };
     delete newOverrides[eventName];
     setIsSaving(eventName);
-    try { await persistOverrides(newOverrides); } finally { setIsSaving(null); }
+    try {
+      await persistOverrides(newOverrides);
+    } finally {
+      setIsSaving(null);
+    }
   };
 
   const getEffectiveValue = (eventName, field) => {
@@ -169,30 +162,27 @@ export default function MessageRulesManager() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2 text-xs">
-            {VARIABLES.map(v => (
+            {['{{driverName}}', '{{patientName}}', '{{storeName}}', '{{deliveryList}}'].map(v => (
               <code key={v} className="bg-slate-100 px-2 py-1 rounded text-slate-700">{v}</code>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Rules */}
+      {/* Rules table */}
       <Card>
         <CardHeader>
           <CardTitle>Notification Rules</CardTitle>
-          <p className="text-sm text-slate-500">Toggle or customize when and how each notification is sent. Each event has independent In-App and Push message templates.</p>
+          <p className="text-sm text-slate-500">Toggle or customize when and how each notification is sent.</p>
         </CardHeader>
         <CardContent className="space-y-3">
           {Object.values(NOTIFICATION_EVENTS).map(eventName => {
-            const label    = EVENT_LABELS[eventName] || eventName;
-            const enabled  = getEffectiveValue(eventName, 'enabled');
-            const inApp    = getEffectiveValue(eventName, 'inApp');
-            const push     = getEffectiveValue(eventName, 'push');
-            const override = overrides[eventName] || {};
-            const defaultTpl = getDefaultTemplate(eventName);
-            const inAppTpl   = override.inAppTemplate || override.messageTemplate || defaultTpl;
-            const pushTpl    = override.pushTemplate  || override.messageTemplate || defaultTpl;
-            const isEditing  = editingEvent === eventName;
+            const label = EVENT_LABELS[eventName] || eventName;
+            const enabled = getEffectiveValue(eventName, 'enabled');
+            const inApp  = getEffectiveValue(eventName, 'inApp');
+            const push   = getEffectiveValue(eventName, 'push');
+            const template = overrides[eventName]?.messageTemplate || getDefaultTemplate(eventName);
+            const isEditing = editingEvent === eventName;
             const isModified = hasOverride(eventName);
 
             return (
@@ -206,7 +196,20 @@ export default function MessageRulesManager() {
                       </Button>
                     </div>
 
-                    {/* Toggles */}
+                    <div>
+                      <Label className="text-xs text-slate-600 mb-1 block">Message Template</Label>
+                      <Textarea
+                        value={editDraft.messageTemplate}
+                        onChange={e => setEditDraft(d => ({ ...d, messageTemplate: e.target.value }))}
+                        rows={3}
+                        className="text-sm"
+                        placeholder="Use {{driverName}}, {{patientName}}, etc."
+                      />
+                      <p className="text-xs text-slate-400 mt-1">
+                        Preview: <em>"{buildSampleMessage(editDraft.messageTemplate)}"</em>
+                      </p>
+                    </div>
+
                     <div className="flex flex-wrap gap-6">
                       <div className="flex items-center gap-2">
                         <Switch checked={editDraft.enabled} onCheckedChange={v => setEditDraft(d => ({ ...d, enabled: v }))} />
@@ -220,40 +223,6 @@ export default function MessageRulesManager() {
                         <Switch checked={editDraft.push} onCheckedChange={v => setEditDraft(d => ({ ...d, push: v }))} />
                         <Label className="text-sm flex items-center gap-1"><Bell className="w-3 h-3" /> Push</Label>
                       </div>
-                    </div>
-
-                    {/* In-App template */}
-                    <div>
-                      <Label className="text-xs font-semibold text-blue-700 mb-1 flex items-center gap-1">
-                        <MessageSquare className="w-3 h-3" /> In-App Message Template
-                      </Label>
-                      <Textarea
-                        value={editDraft.inAppTemplate}
-                        onChange={e => setEditDraft(d => ({ ...d, inAppTemplate: e.target.value }))}
-                        rows={3}
-                        className="text-sm"
-                        placeholder="Use {{driverName}}, {{patientName}}, etc."
-                      />
-                      <p className="text-xs text-slate-400 mt-1">
-                        Preview: <em>"{applyTemplate(editDraft.inAppTemplate)}"</em>
-                      </p>
-                    </div>
-
-                    {/* Push template */}
-                    <div>
-                      <Label className="text-xs font-semibold text-purple-700 mb-1 flex items-center gap-1">
-                        <Bell className="w-3 h-3" /> Push Notification Template
-                      </Label>
-                      <Textarea
-                        value={editDraft.pushTemplate}
-                        onChange={e => setEditDraft(d => ({ ...d, pushTemplate: e.target.value }))}
-                        rows={3}
-                        className="text-sm"
-                        placeholder="Use {{driverName}}, {{patientName}}, etc."
-                      />
-                      <p className="text-xs text-slate-400 mt-1">
-                        Preview: <em>"{applyTemplate(editDraft.pushTemplate)}"</em>
-                      </p>
                     </div>
 
                     <div className="flex gap-2">
@@ -272,30 +241,26 @@ export default function MessageRulesManager() {
                         {isModified && <Badge variant="outline" className="text-xs border-amber-400 text-amber-700 bg-amber-50">Modified</Badge>}
                         {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
                       </div>
-
-                      {/* In-App preview */}
-                      <div className={`text-xs flex items-center gap-1 mt-1 ${inApp ? 'text-blue-700' : 'text-slate-400'}`}>
-                        <MessageSquare className="w-3 h-3 flex-shrink-0" />
-                        <span className={inApp ? '' : 'line-through opacity-60'}>
-                          <em>"{applyTemplate(inAppTpl)}"</em>
+                      <p className="text-xs text-slate-500 italic truncate">"{buildSampleMessage(template)}"</p>
+                      <div className="flex gap-3 mt-2">
+                        <span className={`text-xs flex items-center gap-1 ${inApp ? 'text-blue-600' : 'text-slate-400'}`}>
+                          <MessageSquare className="w-3 h-3" /> In-App {inApp ? 'On' : 'Off'}
                         </span>
-                      </div>
-
-                      {/* Push preview */}
-                      <div className={`text-xs flex items-center gap-1 mt-1 ${push ? 'text-purple-700' : 'text-slate-400'}`}>
-                        <Bell className="w-3 h-3 flex-shrink-0" />
-                        <span className={push ? '' : 'line-through opacity-60'}>
-                          <em>"{applyTemplate(pushTpl)}"</em>
+                        <span className={`text-xs flex items-center gap-1 ${push ? 'text-purple-600' : 'text-slate-400'}`}>
+                          <Bell className="w-3 h-3" /> Push {push ? 'On' : 'Off'}
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <Switch
-                        checked={enabled}
-                        onCheckedChange={() => handleToggle(eventName, 'enabled')}
-                        disabled={!!isSaving?.startsWith(eventName)}
-                      />
+                      {/* Quick enabled toggle */}
+                      <div className="flex items-center gap-1">
+                        <Switch
+                          checked={enabled}
+                          onCheckedChange={() => handleToggle(eventName, 'enabled')}
+                          disabled={isSaving?.startsWith(eventName)}
+                        />
+                      </div>
                       <Button size="sm" variant="outline" onClick={() => handleEditOpen(eventName)} className="gap-1 text-xs px-2">
                         <Edit2 className="w-3 h-3" /> Edit
                       </Button>

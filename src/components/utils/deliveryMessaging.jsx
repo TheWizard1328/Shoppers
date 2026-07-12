@@ -58,7 +58,6 @@ async function sendPushForNotification({ receiverId, senderName, content }) {
 
 /**
  * Send notification through configured channels (in-app + push)
- * Each channel uses its own template if configured.
  */
 async function sendNotification({
   event,
@@ -68,20 +67,20 @@ async function sendNotification({
   receiverId,
   receiverName
 }) {
-  // In-App channel
-  if (shouldNotify(event, 'inApp')) {
-    const inAppContent = getNotificationMessage(event, messageData, 'inApp');
-    if (inAppContent) {
-      await sendDeliveryMessage({ senderId, senderName, receiverId, receiverName, content: inAppContent });
-    }
-  }
+  const content = await getNotificationMessage(event, messageData);
+  if (!content) return;
 
-  // Push channel — uses its own template (falls back to in-app template if no push template set)
-  if (shouldNotify(event, 'push')) {
-    const pushContent = getNotificationMessage(event, messageData, 'push');
-    if (pushContent) {
-      sendPushForNotification({ receiverId, senderName, content: pushContent });
-    }
+  // Send in-app message if enabled
+  if (await shouldNotify(event, 'inApp')) {
+    await sendDeliveryMessage({
+      senderId,
+      senderName,
+      receiverId,
+      receiverName,
+      content
+    });
+    // Fire-and-forget push alongside each in-app message
+    sendPushForNotification({ receiverId, senderName, content });
   }
 }
 
