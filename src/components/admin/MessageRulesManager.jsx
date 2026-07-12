@@ -65,7 +65,24 @@ export default function MessageRulesManager() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [editDraft, setEditDraft]     = useState(null);
 
-  useEffect(() => { loadTemplates(); }, []);
+  useEffect(() => {
+    loadTemplates();
+
+    // Subscribe to live entity changes so the UI stays in sync with other sessions
+    const unsubscribe = base44.entities.NotificationTemplate.subscribe((event) => {
+      if (!event?.data?.event_name) return;
+      setRecords(prev => {
+        if (event.type === 'delete') {
+          const next = { ...prev };
+          delete next[event.data.event_name];
+          return next;
+        }
+        return { ...prev, [event.data.event_name]: { ...(prev[event.data.event_name] || {}), ...event.data } };
+      });
+    });
+
+    return () => { try { unsubscribe(); } catch {} };
+  }, []);
 
   const loadTemplates = async () => {
     setIsLoading(true);
