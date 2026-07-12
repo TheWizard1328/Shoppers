@@ -204,7 +204,7 @@ export default function MessageRulesManager() {
         receiver_id:     currentUser.id,
         receiver_name:   currentUser.full_name || 'You',
         conversation_id: [currentUser.id, 'system_test'].join('_'),
-        content:         `[TEST — ${eventLabel}] ${preview}`,
+        content:         `[TEST — ${eventLabel}]\n${preview}`,
         read:            false,
       });
       // Push notification
