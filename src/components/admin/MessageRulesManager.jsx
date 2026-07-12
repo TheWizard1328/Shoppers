@@ -11,25 +11,9 @@ import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { notificationRules, applyTemplateUpdate } from '@/components/utils/notificationRules';
 
-const EVENT_LABELS = {
-  driver_accepted_all:    'Driver Accepted All',
-  dispatcher_assigned_all:'Dispatcher Assigned All',
-  driver_started:         'Driver Started',
-  driver_completed:       'Driver Completed',
-  driver_failed:          'Driver Failed',
-  driver_retry:           'Driver Retry',
-  driver_return:          'Driver Return',
-};
-
-const EVENT_ORDER = [
-  'driver_accepted_all',
-  'dispatcher_assigned_all',
-  'driver_started',
-  'driver_completed',
-  'driver_failed',
-  'driver_retry',
-  'driver_return',
-];
+// Formats an event_name key into a readable label as a fallback
+const formatEventLabel = (eventName) =>
+  eventName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
 const TEMPLATE_VARIABLES = [
   '{{driverName}}',
@@ -132,7 +116,7 @@ export default function MessageRulesManager() {
   const handleCardClick = (eventName) => {
     const rec = records[eventName];
     setEditDraft({
-      label:            rec?.label            || EVENT_LABELS[eventName] || eventName,
+      label:            rec?.label            || formatEventLabel(eventName),
       message_template: rec?.message_template || getHardcodedDefault(eventName),
       enabled:          rec?.enabled          ?? true,
       in_app_enabled:   rec?.in_app_enabled   ?? true,
@@ -166,7 +150,7 @@ export default function MessageRulesManager() {
     const rec = records[editingEvent];
     if (!rec) return;
     const resetFields = {
-      label:            EVENT_LABELS[editingEvent] || editingEvent,
+      label:            formatEventLabel(editingEvent),
       message_template: getHardcodedDefault(editingEvent),
       enabled:          true,
       in_app_enabled:   true,
@@ -212,7 +196,7 @@ export default function MessageRulesManager() {
     setIsTesting(eventName);
     setTestSuccess(null);
     try {
-      const eventLabel = records[eventName]?.label || EVENT_LABELS[eventName] || eventName;
+      const eventLabel = records[eventName]?.label || formatEventLabel(eventName);
       // In-app message
       await base44.entities.Message.create({
         sender_id:       currentUser.id,
@@ -289,9 +273,9 @@ export default function MessageRulesManager() {
           <p className="text-sm text-slate-500">Click a card to edit. Use toggles to quickly enable/disable channels.</p>
         </CardHeader>
         <CardContent className="space-y-3">
-          {EVENT_ORDER.map(eventName => {
+          {Object.keys(records).sort().map(eventName => {
             const rec      = records[eventName];
-            const label    = rec?.label || EVENT_LABELS[eventName] || eventName;
+            const label    = rec?.label || formatEventLabel(eventName);
             const enabled  = rec?.enabled          ?? true;
             const inApp    = rec?.in_app_enabled   ?? true;
             const push     = rec?.push_enabled      ?? false;
@@ -379,7 +363,7 @@ export default function MessageRulesManager() {
       <Dialog open={!!editingEvent} onOpenChange={open => { if (!open) closeDialog(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editDraft?.label || EVENT_LABELS[editingEvent] || editingEvent}</DialogTitle>
+            <DialogTitle>{editDraft?.label || formatEventLabel(editingEvent)}</DialogTitle>
           </DialogHeader>
 
           {editDraft && (
