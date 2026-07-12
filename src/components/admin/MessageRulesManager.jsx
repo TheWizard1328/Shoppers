@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Save, Bell, MessageSquare, RotateCcw, Loader2, FlaskConical, CheckCircle } from 'lucide-react';
+import { Save, Bell, MessageSquare, RotateCcw, Loader2, FlaskConical, CheckCircle, Trash2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { notificationRules, applyTemplateUpdate } from '@/components/utils/notificationRules';
@@ -241,6 +241,23 @@ export default function MessageRulesManager() {
     }
   };
 
+  const handleDelete = async () => {
+    const rec = records[editingEvent];
+    if (!rec) return;
+    if (!confirm('Delete this notification rule? It will revert to the built-in default behavior.')) return;
+    try {
+      await base44.entities.NotificationTemplate.delete(rec.id);
+      setRecords(prev => {
+        const next = { ...prev };
+        delete next[editingEvent];
+        return next;
+      });
+      closeDialog();
+    } catch {
+      alert('Failed to delete rule');
+    }
+  };
+
   const closeDialog = () => {
     setEditingEvent(null);
     setEditDraft(null);
@@ -407,8 +424,11 @@ export default function MessageRulesManager() {
 
           <DialogFooter className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={handleReset} disabled={!!isSaving} className="text-slate-400 hover:text-red-500 gap-1">
+              <Button size="sm" variant="ghost" onClick={handleReset} disabled={!!isSaving} className="text-slate-400 hover:text-orange-500 gap-1">
                 <RotateCcw className="w-3 h-3" /> Reset
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleDelete} disabled={!!isSaving || !records[editingEvent]} className="text-slate-400 hover:text-red-600 gap-1">
+                <Trash2 className="w-3 h-3" /> Delete
               </Button>
               <Button
                 size="sm"
