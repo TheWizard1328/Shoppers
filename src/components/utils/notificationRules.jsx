@@ -143,13 +143,18 @@ export function shouldNotify(event, channel = 'inApp') {
 }
 
 /**
- * Get the message for an event.
- * Uses the admin-configured messageTemplate when present, falls back to hardcoded buildMessage.
+ * Get the message for an event and channel ('inApp' | 'push').
+ * Uses the admin-configured per-channel template when present, falls back to hardcoded buildMessage.
  */
-export function getNotificationMessage(event, data) {
+export function getNotificationMessage(event, data, channel = 'inApp') {
   const override = _overrides[event];
-  if (override?.messageTemplate) {
-    return override.messageTemplate
+  // Pick the channel-specific template, then fall back to the shared legacy messageTemplate
+  const template = channel === 'push'
+    ? (override?.pushTemplate || override?.messageTemplate)
+    : (override?.inAppTemplate || override?.messageTemplate);
+
+  if (template) {
+    return template
       .replace(/\{\{driverName\}\}/g, data.driverName || '')
       .replace(/\{\{patientName\}\}/g, data.patientName || '')
       .replace(/\{\{storeName\}\}/g, data.storeName || '')
