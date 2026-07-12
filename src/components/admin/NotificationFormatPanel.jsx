@@ -165,7 +165,7 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
         </CardContent>
       </Card>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {Object.keys(records).sort().map((eventName) => {
           const rec = records[eventName];
           const label = rec?.label || formatEventLabel(eventName);
@@ -176,52 +176,68 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
           const isTestingThis = isTesting === eventName;
           const testOk = testSuccess === eventName;
 
+          // Color-code left border by event category
+          const borderColor =
+            eventName.includes('fail') || eventName.includes('return') ? '#ef4444' :
+            eventName.includes('payroll') ? '#22c55e' :
+            eventName.includes('complete') ? '#3b82f6' :
+            eventName.includes('accept') || eventName.includes('assign') ? '#22c55e' :
+            '#3b82f6';
+
           return (
             <div key={eventName} onClick={() => handleCardClick(eventName)}
-            className="border rounded-lg p-3 bg-slate-50 hover:bg-slate-100 hover:border-blue-300 cursor-pointer transition-colors">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-900 text-sm">{label}</span>
-                  {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Off</Badge>}
+              className="border border-slate-200 rounded-xl bg-white hover:border-blue-300 cursor-pointer transition-colors overflow-hidden"
+              style={{ borderLeft: `4px solid ${borderColor}` }}>
+              <div className="px-4 py-3">
+                {/* Header row */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-bold text-slate-900 text-base">{label}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border ${enabled ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-red-50 text-red-500 border-red-200'}`}>
+                    {enabled ? 'enabled' : 'disabled'}
+                  </span>
                 </div>
-                <div className="flex flex-col gap-1 items-end">
-                  <Button size="sm" variant="outline" disabled={isTestingThis}
-                  onClick={(e) => {e.stopPropagation();sendTestMessage(eventName);}}
-                  className={`gap-1 text-xs px-2 h-7 ${testOk ? 'border-green-500 text-green-600' : 'text-slate-500'}`}>
-                    {isTestingThis ? <Loader2 className="w-3 h-3 animate-spin" /> : testOk ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
-                    {testOk ? 'Sent!' : 'Test'}
-                  </Button>
-                  <Button size="sm" variant="ghost" disabled={!!isSaving}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!confirm('Delete this notification template permanently?')) return;
-                    const rec = records[eventName];
-                    if (!rec) return;
-                    setIsSaving(eventName);
-                    try {
-                      await base44.entities.NotificationTemplate.delete(rec.id);
-                      setRecords((prev) => { const next = { ...prev }; delete next[eventName]; return next; });
-                    } catch { alert('Failed to delete template'); } finally { setIsSaving(null); }
-                  }}
-                  className="gap-1 text-xs px-2 h-7 text-red-400 hover:text-red-600">
-                    <Trash2 className="w-3 h-3" /> Delete
-                  </Button>
+                {/* Message preview */}
+                <p className="text-sm text-slate-700 font-mono mb-3 truncate">"{buildSampleMessage(template)}"</p>
+                {/* Bottom row: toggles left, buttons right */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-5" onClick={(e) => e.stopPropagation()}>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Switch checked={enabled} onCheckedChange={() => handleToggle(eventName, 'enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
+                      <span className="text-sm text-slate-700">On/Off</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Switch checked={inApp} onCheckedChange={() => handleToggle(eventName, 'in_app_enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
+                      <span className="text-sm text-slate-700">In-App</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Switch checked={push} onCheckedChange={() => handleToggle(eventName, 'push_enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
+                      <span className="text-sm text-slate-700">Push</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button size="sm" variant="outline" disabled={isTestingThis}
+                      onClick={(e) => { e.stopPropagation(); sendTestMessage(eventName); }}
+                      className={`text-sm px-4 h-8 ${testOk ? 'border-green-500 text-green-600' : 'text-slate-700 border-slate-300'}`}>
+                      {isTestingThis ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : testOk ? <CheckCircle className="w-3 h-3 mr-1" /> : null}
+                      {testOk ? 'Sent!' : 'Test'}
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={!!isSaving}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm('Delete this notification template permanently?')) return;
+                        const rec = records[eventName];
+                        if (!rec) return;
+                        setIsSaving(eventName);
+                        try {
+                          await base44.entities.NotificationTemplate.delete(rec.id);
+                          setRecords((prev) => { const next = { ...prev }; delete next[eventName]; return next; });
+                        } catch { alert('Failed to delete template'); } finally { setIsSaving(null); }
+                      }}
+                      className="text-sm px-4 h-8 text-slate-700 border-slate-300 hover:text-red-600 hover:border-red-300">
+                      Delete
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <p className="text-xs text-slate-500 italic truncate mb-2">"{buildSampleMessage(template)}"</p>
-              <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <Switch checked={enabled} onCheckedChange={() => handleToggle(eventName, 'enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
-                  <span className={`text-xs ${enabled ? 'text-slate-700' : 'text-slate-400'}`}>On/Off</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <Switch checked={inApp} onCheckedChange={() => handleToggle(eventName, 'in_app_enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
-                  <span className={`text-xs flex items-center gap-1 ${inApp ? 'text-blue-600' : 'text-slate-400'}`}><MessageSquare className="w-3 h-3" /> In-App</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <Switch checked={push} onCheckedChange={() => handleToggle(eventName, 'push_enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
-                  <span className={`text-xs flex items-center gap-1 ${push ? 'text-purple-600' : 'text-slate-400'}`}><Bell className="w-3 h-3" /> Push</span>
-                </label>
               </div>
             </div>);
 
