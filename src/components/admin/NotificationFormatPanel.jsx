@@ -192,8 +192,8 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
                 {/* Header row */}
                 <div className="flex items-center gap-2 mb-2">
                   <span className="font-bold text-slate-900 text-base">{label}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${enabled ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-red-50 text-red-500 border-red-200'}`}>
-                    {enabled ? 'enabled' : 'disabled'}
+                  <span className={`ml-auto text-xs px-2.5 py-0.5 rounded-full font-medium ${enabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                    {enabled ? 'Enabled' : 'Disabled'}
                   </span>
                 </div>
                 {/* Message preview */}
