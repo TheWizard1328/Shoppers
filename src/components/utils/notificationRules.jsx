@@ -204,10 +204,13 @@ export function getRecipients(event) {
 }
 
 /**
- * Get the display label for an event (live entity label, falls back to hardcoded).
+ * Get the display label for an event (live entity label, falls back to formatted event key).
  */
 export function getNotificationLabel(event) {
-  return _liveTemplates[event]?.label || null;
+  if (_liveTemplates[event]?.label) return _liveTemplates[event].label;
+  if (!event) return null;
+  // Format e.g. "driver_completed" → "Driver Completed"
+  return event.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 // Legacy compat — kept so existing callers of loadNotificationOverrides don't crash

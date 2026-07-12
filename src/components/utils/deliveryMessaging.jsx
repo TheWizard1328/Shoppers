@@ -76,7 +76,7 @@ async function sendNotification({
   if (await shouldNotify(event, 'inApp')) {
     const label = getNotificationLabel(event);
     // Title on its own line, then the body
-    const content = label ? `${label}\n${body}` : body;
+    const content = label ? `[${label}]\n${body}` : body;
     await sendDeliveryMessage({
       senderId,
       senderName,
