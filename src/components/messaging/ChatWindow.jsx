@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, ArrowLeft } from 'lucide-react';
+import { Send, ArrowLeft, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import {
@@ -189,6 +189,15 @@ function ChatWindow({
     }
   };
 
+  const handleDeleteMessage = async (msgId) => {
+    try {
+      await base44.entities.Message.delete(msgId);
+      setMessages(prev => prev.filter(m => m.id !== msgId));
+    } catch (error) {
+      console.error('Error deleting message:', error);
+    }
+  };
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -241,10 +250,19 @@ function ChatWindow({
           return (
             <div
               key={msg.id}
-              className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+              className={`flex group ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
             >
+              {isOwnMessage && (
+                <button
+                  onClick={() => handleDeleteMessage(msg.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 mr-1 self-center rounded hover:bg-red-100 transition-all"
+                  title="Delete message"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                </button>
+              )}
               <div 
-                className="rounded-2xl px-4 py-2 rounded-bl-sm max-w-[100%] shadow-sm"
+                className="rounded-2xl px-4 py-2 rounded-bl-sm max-w-[80%] shadow-sm"
                 style={{ 
                   background: isOwnMessage ? '#10b981' : 'var(--bg-white)', 
                   color: isOwnMessage ? '#ffffff' : 'var(--text-slate-900)' 
