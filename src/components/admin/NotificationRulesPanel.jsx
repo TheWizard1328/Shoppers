@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Trash2, Save, Loader2, Settings2 } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { applyTemplateUpdate } from '@/components/utils/notificationRules';
@@ -143,10 +143,10 @@ export default function NotificationRulesPanel({ records, setRecords }) {
         const enabled = rec?.enabled ?? true;
 
         return (
-          <div key={eventName}
-          className={`border rounded-lg p-3 transition-colors ${enabled ? 'bg-white hover:bg-slate-50' : 'bg-slate-50 opacity-60'}`}>
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
+          <div key={eventName} onClick={() => openEditor(eventName)}
+              className={`border rounded-lg p-3 transition-colors cursor-pointer ${enabled ? 'bg-white hover:bg-blue-50 hover:border-blue-300' : 'bg-slate-50 opacity-60 hover:bg-slate-100'}`}>
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="font-medium text-slate-900 text-sm">{label}</span>
                   {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Off</Badge>}
@@ -181,10 +181,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
 
                 }
               </div>
-              <Button size="sm" variant="outline" onClick={() => openEditor(eventName)}
-              className="gap-1 text-xs shrink-0">
-                <Settings2 className="w-3 h-3" /> Edit
-              </Button>
+
             </div>
           </div>);
 
