@@ -174,10 +174,10 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
       .map(conv => ({
         ...conv,
         lastMessage: conv.messages.sort((a, b) => 
-          new Date(b.created_date) - new Date(a.created_date)
+          (parseEntityTimestamp(b.created_date) || 0) - (parseEntityTimestamp(a.created_date) || 0)
         )[0]
       }))
-      .sort((a, b) => new Date(b.lastMessage?.created_date) - new Date(a.lastMessage?.created_date));
+      .sort((a, b) => (parseEntityTimestamp(b.lastMessage?.created_date) || 0) - (parseEntityTimestamp(a.lastMessage?.created_date) || 0));
   }, [messages, currentUser?.id, users]);
 
   // Notify parent of total unread count changes
