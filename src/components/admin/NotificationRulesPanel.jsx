@@ -256,14 +256,12 @@ export default function NotificationRulesPanel({ records, setRecords }) {
           <div key={eventName} onClick={() => openEditor(eventName)}
             className="border border-slate-200 rounded-xl bg-white hover:border-blue-300 cursor-pointer transition-colors overflow-hidden"
             style={{ borderLeft: `4px solid ${borderColor}` }}>
-            <div className="px-4 py-4 flex items-start gap-3">
+            <div className="px-4 py-3 flex gap-3">
+              {/* Left: main content */}
               <div className="flex-1 min-w-0">
-                {/* Header: label + enabled badge */}
-                <div className="flex items-center gap-2 mb-2">
+                {/* Label */}
+                <div className="mb-2">
                   <span className="font-bold text-slate-900 text-base">{label}</span>
-                  <span className={`ml-auto text-xs px-2.5 py-0.5 rounded-full font-medium ${enabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                    {enabled ? 'Enabled' : 'Disabled'}
-                  </span>
                 </div>
 
                 {/* Recipients */}
@@ -295,21 +293,26 @@ export default function NotificationRulesPanel({ records, setRecords }) {
                 }
               </div>
 
-              {/* Delete button */}
-              <Button size="sm" variant="outline"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (!confirm('Delete this rule template permanently?')) return;
-                  const rec = records[eventName];
-                  if (!rec) return;
-                  try {
-                    await base44.entities.NotificationTemplate.delete(rec.id);
-                    setRecords((prev) => { const next = { ...prev }; delete next[eventName]; return next; });
-                  } catch { alert('Failed to delete'); }
-                }}
-                className="shrink-0 self-end text-sm px-4 h-8 text-slate-700 border-slate-300 hover:text-red-600 hover:border-red-300">
-                Delete
-              </Button>
+              {/* Right: badge top, delete bottom */}
+              <div className="shrink-0 flex flex-col items-end justify-between gap-2" style={{ minHeight: '72px' }}>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${enabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                  {enabled ? 'Enabled' : 'Disabled'}
+                </span>
+                <Button size="sm" variant="outline"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm('Delete this rule template permanently?')) return;
+                    const rec = records[eventName];
+                    if (!rec) return;
+                    try {
+                      await base44.entities.NotificationTemplate.delete(rec.id);
+                      setRecords((prev) => { const next = { ...prev }; delete next[eventName]; return next; });
+                    } catch { alert('Failed to delete'); }
+                  }}
+                  className="text-sm px-4 h-8 text-slate-700 border-slate-300 hover:text-red-600 hover:border-red-300">
+                  Delete
+                </Button>
+              </div>
             </div>
           </div>
         );
