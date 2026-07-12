@@ -188,18 +188,13 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
             <div key={eventName} onClick={() => handleCardClick(eventName)}
               className="border border-slate-200 rounded-xl bg-white hover:border-blue-300 cursor-pointer transition-colors overflow-hidden"
               style={{ borderLeft: `4px solid ${borderColor}` }}>
-              <div className="px-4 py-3">
-                {/* Header row */}
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-bold text-slate-900 text-base">{label}</span>
-                  <span className={`ml-auto text-xs px-2.5 py-0.5 rounded-full font-medium ${enabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                    {enabled ? 'Enabled' : 'Disabled'}
-                  </span>
-                </div>
-                {/* Message preview */}
-                <p className="text-sm text-slate-700 font-mono mb-3 truncate">"{buildSampleMessage(template)}"</p>
-                {/* Bottom row: toggles left, buttons right */}
-                <div className="flex items-center justify-between gap-2">
+              <div className="px-4 py-3 flex gap-3">
+                {/* Left: label + preview + toggles */}
+                <div className="flex-1 min-w-0">
+                  <div className="mb-2">
+                    <span className="font-bold text-slate-900 text-base">{label}</span>
+                  </div>
+                  <p className="text-sm text-slate-700 font-mono mb-3 truncate">"{buildSampleMessage(template)}"</p>
                   <div className="flex items-center gap-5" onClick={(e) => e.stopPropagation()}>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <Switch checked={enabled} onCheckedChange={() => handleToggle(eventName, 'enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
@@ -214,6 +209,12 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
                       <span className="text-sm text-slate-700">Push</span>
                     </label>
                   </div>
+                </div>
+                {/* Right: badge top, buttons bottom */}
+                <div className="shrink-0 flex flex-col items-end justify-between gap-2" style={{ minHeight: '72px' }}>
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${enabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                    {enabled ? 'Enabled' : 'Disabled'}
+                  </span>
                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" variant="outline" disabled={isTestingThis}
                       onClick={(e) => { e.stopPropagation(); sendTestMessage(eventName); }}
