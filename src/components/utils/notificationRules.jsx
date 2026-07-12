@@ -98,6 +98,7 @@ export const notificationRules = {
 // ── Runtime state loaded from NotificationTemplate entity ─────────────────────
 // Keyed by event_name. Each entry mirrors the entity fields.
 let _liveTemplates = {};  // { [event_name]: NotificationTemplate record }
+let _activeSubscription = null; // held here so it's never GC'd
 
 /**
  * Load all NotificationTemplate records from the entity and cache them.
@@ -126,11 +127,17 @@ export function applyTemplateUpdate(record) {
 
 /**
  * Subscribe to real-time NotificationTemplate entity changes via WebSocket.
- * Call once at app startup. Returns an unsubscribe function.
+ * Holds the subscription in module scope so it's never garbage-collected.
+ * Safe to call multiple times — tears down the previous subscription first.
  */
 export function subscribeToTemplateUpdates(base44Client) {
+  // Tear down any existing subscription before creating a new one
+  if (_activeSubscription) {
+    try { _activeSubscription(); } catch {}
+    _activeSubscription = null;
+  }
   try {
-    const unsubscribe = base44Client.entities.NotificationTemplate.subscribe((event) => {
+    _activeSubscription = base44Client.entities.NotificationTemplate.subscribe((event) => {
       if (!event?.data?.event_name) return;
       if (event.type === 'delete') {
         delete _liveTemplates[event.data.event_name];
@@ -138,10 +145,8 @@ export function subscribeToTemplateUpdates(base44Client) {
         _liveTemplates[event.data.event_name] = event.data;
       }
     });
-    return unsubscribe;
   } catch (e) {
     console.warn('[NotificationRules] Real-time subscription failed:', e?.message);
-    return () => {};
   }
 }
 
