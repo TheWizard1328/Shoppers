@@ -187,7 +187,8 @@ export function getNotificationMessage(event, data) {
       .replace(/\{\{driverName\}\}/g,   data.driverName   || '')
       .replace(/\{\{patientName\}\}/g,  data.patientName  || '')
       .replace(/\{\{storeName\}\}/g,    data.storeName    || '')
-      .replace(/\{\{deliveryList\}\}/g, data.deliveryList || '');
+      .replace(/\{\{deliveryList\}\}/g, data.deliveryList || '')
+      .replace(/\{\{pendingCount\}\}/g, data.pendingCount != null ? String(data.pendingCount) : '');
   }
 
   const rule = notificationRules[event];

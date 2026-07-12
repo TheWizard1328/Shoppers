@@ -38,6 +38,7 @@ const TEMPLATE_VARIABLES = [
   '{{patientName}}',
   '{{storeName}}',
   '{{deliveryList}}',
+  '{{pendingCount}}',
 ];
 
 const SAMPLE_DATA = {
@@ -45,14 +46,16 @@ const SAMPLE_DATA = {
   patientName: 'Jane Smith',
   storeName: 'Main Pharmacy',
   deliveryList: '\n• Jane Smith\n• Bob Wilson',
+  pendingCount: '3',
 };
 
 function buildSampleMessage(template = '') {
   return template
-    .replace(/\{\{driverName\}\}/g,   SAMPLE_DATA.driverName)
-    .replace(/\{\{patientName\}\}/g,  SAMPLE_DATA.patientName)
-    .replace(/\{\{storeName\}\}/g,    SAMPLE_DATA.storeName)
-    .replace(/\{\{deliveryList\}\}/g, SAMPLE_DATA.deliveryList);
+    .replace(/\{\{driverName\}\}/g,    SAMPLE_DATA.driverName)
+    .replace(/\{\{patientName\}\}/g,   SAMPLE_DATA.patientName)
+    .replace(/\{\{storeName\}\}/g,     SAMPLE_DATA.storeName)
+    .replace(/\{\{deliveryList\}\}/g,  SAMPLE_DATA.deliveryList)
+    .replace(/\{\{pendingCount\}\}/g,  SAMPLE_DATA.pendingCount);
 }
 
 function getHardcodedDefault(eventName) {
