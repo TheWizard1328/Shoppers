@@ -103,25 +103,12 @@ export function runMapPositioningEffect({
         ? deliveriesRef.current.some((d) => d && d.delivery_date === selectedDateStr && d.driver_id === specificDriverId)
         : true; // 'all' mode — always proceed normally
 
-      // Determine route state for the selected driver to decide whether to include their
-      // live location in bounds. Once a route is started (≥1 finished stop) or fully completed,
-      // the driver's current_lat/lon may be back at home — including it would skew bounds far
-      // outside the delivery area. Only include driver location if the route hasn't started.
-      const FINISHED_STATUSES_P1 = ['completed', 'failed', 'cancelled', 'returned'];
-      const driverDeliveriesForDate = specificDriverId
-        ? deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr && d.driver_id === specificDriverId)
-        : [];
-      const driverHasFinishedStops = driverDeliveriesForDate.some((d) => FINISHED_STATUSES_P1.includes(d.status));
-      // Route is started (or complete) once any stop is finished — skip driver location in bounds
-      const skipDriverLocationInBounds = driverHasFinishedStops;
-
       if (isViewingToday) {
         if (specificDriverId) {
           // Admin/dispatcher viewing a specific driver — only add driver location to bounds
-          // if the driver actually has stops for this date AND the route hasn't started yet.
-          // Once any stop is finished the driver may be anywhere (including home for completed
-          // routes) — the stop coordinates are sufficient to anchor the bounds.
-          if (selectedDriverHasStopsForDate && !skipDriverLocationInBounds) {
+          // if the driver actually has stops for this date. If they have no stops, we skip
+          // the driver location here and fall through to the city-center fallback below.
+          if (selectedDriverHasStopsForDate) {
             const targetAppUser = appUsersRef.current?.find((au) => au?.user_id === specificDriverId);
             const targetLoc = targetAppUser?.current_latitude && targetAppUser?.current_longitude
               ? { latitude: targetAppUser.current_latitude, longitude: targetAppUser.current_longitude }
@@ -136,17 +123,8 @@ export function runMapPositioningEffect({
             if (bestLoc?.latitude && bestLoc?.longitude) { allCoordinates.push([bestLoc.latitude, bestLoc.longitude]); hasDriverMarkers = true; }
           }
         } else {
-          // For the current user's own view — same rule: skip driver location if route has started.
-          // Compute finished-stop state for the current user's own deliveries.
-          const selfId = currentUser?.id;
-          const selfDeliveriesForDate = selfId
-            ? deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr && d.driver_id === selfId)
-            : [];
-          const selfHasFinishedStops = selfDeliveriesForDate.some((d) => FINISHED_STATUSES_P1.includes(d.status));
-          if (!selfHasFinishedStops) {
-            const selectedDriverLoc = getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current });
-            if (selectedDriverLoc?.latitude && selectedDriverLoc?.longitude) { allCoordinates.push([selectedDriverLoc.latitude, selectedDriverLoc.longitude]); hasDriverMarkers = true; }
-          }
+          const selectedDriverLoc = getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current });
+          if (selectedDriverLoc?.latitude && selectedDriverLoc?.longitude) { allCoordinates.push([selectedDriverLoc.latitude, selectedDriverLoc.longitude]); hasDriverMarkers = true; }
         }
       }
 
