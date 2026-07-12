@@ -124,6 +124,27 @@ export function applyTemplateUpdate(record) {
   }
 }
 
+/**
+ * Subscribe to real-time NotificationTemplate entity changes via WebSocket.
+ * Call once at app startup. Returns an unsubscribe function.
+ */
+export function subscribeToTemplateUpdates(base44Client) {
+  try {
+    const unsubscribe = base44Client.entities.NotificationTemplate.subscribe((event) => {
+      if (!event?.data?.event_name) return;
+      if (event.type === 'delete') {
+        delete _liveTemplates[event.data.event_name];
+      } else {
+        _liveTemplates[event.data.event_name] = event.data;
+      }
+    });
+    return unsubscribe;
+  } catch (e) {
+    console.warn('[NotificationRules] Real-time subscription failed:', e?.message);
+    return () => {};
+  }
+}
+
 /** Returns the merged effective rule for an event */
 function getEffective(event) {
   const base = notificationRules[event] || {};
