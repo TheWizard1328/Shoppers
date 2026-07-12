@@ -10,7 +10,7 @@ import { isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { getCompanyBranding } from '../utils/brandingManager';
 import { offlineDB } from '../utils/offlineDatabase';
 import { initializeGlobalFilters } from './initializeGlobalFilters';
-import { loadNotificationTemplates } from '../utils/notificationRules';
+import { loadNotificationTemplates, subscribeToTemplateUpdates } from '../utils/notificationRules';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { initializeDailyCleanup } from '../utils/messageCleaner';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
@@ -109,6 +109,8 @@ export function useLayoutInit({
 
         // Load notification templates from entity so runtime messaging respects admin config
         loadNotificationTemplates(base44).catch(() => { /* non-critical */ });
+        // Subscribe to live template changes — updates take effect immediately for all users
+        subscribeToTemplateUpdates(base44);
         if (ms.hereApiKey) {
           if (typeof window !== 'undefined') window.__hereApiKey = ms.hereApiKey;
           const { seedHereApiKey } = await import('../utils/hereApiKeyStore');
