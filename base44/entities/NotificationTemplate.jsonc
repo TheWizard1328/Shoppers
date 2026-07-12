@@ -13,7 +13,9 @@
         "driver_completed",
         "driver_failed",
         "driver_retry",
-        "driver_return"
+        "driver_return",
+        "payroll_driver_confirmed",
+        "payroll_admin_approved"
       ]
     },
     "label": {
@@ -46,10 +48,46 @@
         "enum": [
           "dispatchers",
           "driver",
-          "appowner"
+          "appowner",
+          "admins"
         ]
       },
       "description": "Who receives this notification"
+    },
+    "trigger_conditions": {
+      "type": "array",
+      "description": "Optional conditions that must ALL pass for this notification to fire. Empty = always fire.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "Delivery field to evaluate (e.g. store_id, signature_needed, cod_total_amount_required, first_delivery, fridge_item, oversized)"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "less_than",
+              "is_true",
+              "is_false",
+              "in_list",
+              "not_in_list"
+            ],
+            "description": "Comparison operator"
+          },
+          "value": {
+            "type": "string",
+            "description": "Value to compare against (store ID, number as string, etc.)"
+          }
+        },
+        "required": [
+          "field",
+          "operator"
+        ]
+      }
     }
   },
   "required": [
