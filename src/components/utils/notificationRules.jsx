@@ -37,7 +37,8 @@ export const NOTIFICATION_EVENTS = {
   DRIVER_COMPLETED:       'driver_completed',
   DRIVER_FAILED:          'driver_failed',
   DRIVER_RETRY:           'driver_retry',
-  DRIVER_RETURN:          'driver_return'
+  DRIVER_RETURN:          'driver_return',
+  ADMIN_BROADCAST:        'admin_broadcast'
 };
 
 /** Hardcoded fallbacks — used only if the entity record is missing */
@@ -92,6 +93,11 @@ export const notificationRules = {
       const effectiveName = parsedNames || patientName || 'Unknown Patient';
       return `${driverName} is En Route to return delivery for ${effectiveName}.`;
     }
+  },
+  [NOTIFICATION_EVENTS.ADMIN_BROADCAST]: {
+    enabled: true, inApp: true, push: true,
+    recipients: ['dispatchers', 'driver', 'admins'],
+    buildMessage: () => `You have a new message from the administrator.`
   }
 };
 
