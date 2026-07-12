@@ -232,7 +232,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Card className="mb-3">
         <CardContent className="pb-2 p-3 pt-2 my-6">
           <p className="text-xs text-slate-500">
@@ -242,52 +242,61 @@ export default function NotificationRulesPanel({ records, setRecords }) {
         </CardContent>
       </Card>
 
-      {Object.keys(records).sort().map((eventName) => {
+      {Object.keys(records).sort().map((eventName) => { // eslint-disable-line
         const rec = records[eventName];
         const label = rec?.label || formatEventLabel(eventName);
         const conditions = rec?.trigger_conditions || [];
         const recipients = rec?.recipients || [];
         const enabled = rec?.enabled ?? true;
 
+        const borderColor =
+          eventName.includes('fail') || eventName.includes('return') ? '#ef4444' : '#3b82f6';
+
         return (
           <div key={eventName} onClick={() => openEditor(eventName)}
-            className={`border rounded-lg p-3 transition-colors cursor-pointer ${enabled ? 'bg-white hover:bg-blue-50 hover:border-blue-300' : 'bg-slate-50 opacity-60 hover:bg-slate-100'}`}>
-            <div className="flex items-start gap-2">
+            className="border border-slate-200 rounded-xl bg-white hover:border-blue-300 cursor-pointer transition-colors overflow-hidden"
+            style={{ borderLeft: `4px solid ${borderColor}` }}>
+            <div className="px-4 py-4 flex items-start gap-3">
               <div className="flex-1 min-w-0">
-
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="font-medium text-slate-900 text-sm">{label}</span>
-                  {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Off</Badge>}
+                {/* Header: label + enabled badge */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-bold text-slate-900 text-base">{label}</span>
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${enabled ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                    {enabled ? 'Enabled' : 'Disabled'}
+                  </span>
                 </div>
 
                 {/* Recipients */}
-                <div className="flex flex-wrap gap-1 mb-1.5">
+                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                  <span className="text-sm text-slate-700 mr-0.5">Recipients:</span>
                   {recipients.length > 0 ?
                     recipients.map((r) =>
-                      <Badge key={r} className="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-normal">
+                      <span key={r} className="text-sm px-3 py-0.5 rounded-full bg-blue-500 text-white font-medium">
                         {RECIPIENT_OPTIONS.find((o) => o.value === r)?.label.replace(/^[^\s]+ /, '') || r}
-                      </Badge>
+                      </span>
                     ) :
-                    <span className="text-xs text-slate-400 italic">No recipients set</span>
+                    <span className="text-sm text-slate-400 italic">No recipients set</span>
                   }
                 </div>
 
                 {/* Conditions summary */}
                 {conditions.length === 0 ?
-                  <p className="text-xs text-green-600">✓ Always fires</p> :
+                  <p className="text-sm text-slate-500 font-mono">✓ Always fires</p> :
                   <div className="space-y-0.5">
                     {conditions.map((c, i) =>
-                      <p key={i} className="text-xs text-slate-600 font-mono">
+                      <p key={i} className="text-sm text-slate-700 font-mono">
                         <span className="text-slate-400">{i === 0 ? 'IF ' : 'AND '}</span>
                         {FIELD_OPTIONS.find((f) => f.value === c.field)?.label || c.field}
                         <span className="text-slate-400"> {c.operator.replace(/_/g, ' ')} </span>
-                        {c.value ? <span className="text-orange-600">{resolveValueLabels(c.field, c.value, stores, drivers)}</span> : null}
+                        {c.value ? <span>{resolveValueLabels(c.field, c.value, stores, drivers)}</span> : null}
                       </p>
                     )}
                   </div>
                 }
               </div>
-              <Button size="sm" variant="ghost"
+
+              {/* Delete button */}
+              <Button size="sm" variant="outline"
                 onClick={async (e) => {
                   e.stopPropagation();
                   if (!confirm('Delete this rule template permanently?')) return;
@@ -298,8 +307,8 @@ export default function NotificationRulesPanel({ records, setRecords }) {
                     setRecords((prev) => { const next = { ...prev }; delete next[eventName]; return next; });
                   } catch { alert('Failed to delete'); }
                 }}
-                className="shrink-0 h-7 w-7 p-0 text-red-400 hover:text-red-600">
-                <X className="w-3 h-3" />
+                className="shrink-0 self-end text-sm px-4 h-8 text-slate-700 border-slate-300 hover:text-red-600 hover:border-red-300">
+                Delete
               </Button>
             </div>
           </div>
