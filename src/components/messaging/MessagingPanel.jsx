@@ -11,6 +11,7 @@ import {
   SYSTEM_UPDATES_SENDER_NAME,
   hideSystemBroadcastMessageForThisDevice,
 } from './updateBroadcastConfig';
+import { shouldNotify, getNotificationMessage } from '@/components/utils/notificationRules';
 
 function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange }) {
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
@@ -45,6 +46,11 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
     setIsBroadcastingUpdate(true);
     setUpdateBroadcastSent(false);
 
+    // Check if push is enabled for admin_broadcast via the live template config
+    const pushEnabled = shouldNotify('admin_broadcast', 'push');
+    const pushTitle = 'Admin Broadcast';
+    const pushBody = getNotificationMessage('admin_broadcast', {}) || 'You have a new message from the administrator.';
+
     const results = await Promise.allSettled(
       recipients.map(async (user) => {
         if (user.id === SYSTEM_UPDATES_SENDER_ID) return { recipientId: user.id, message: null };
@@ -57,6 +63,16 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
           content: APP_UPDATE_BROADCAST_MESSAGE,
           read: false,
         });
+
+        // Send push notification if enabled in the admin_broadcast template
+        if (pushEnabled) {
+          await base44.functions.invoke('sendPushNotification', {
+            user_id: user.id,
+            title: pushTitle,
+            body: pushBody,
+            url: '/',
+          }).catch(() => {}); // Non-blocking — don't fail the broadcast if push fails
+        }
 
         return { recipientId: user.id, message };
       })
