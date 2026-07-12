@@ -127,11 +127,15 @@ export function parseEntityTimestamp(timestamp) {
   }
 
   const normalizedTimestamp = String(timestamp);
-  const isUtcEntityTimestamp = /Z$|[+-]\d{2}:\d{2}$/.test(normalizedTimestamp);
+  const hasTimezoneSuffix = /Z$|[+-]\d{2}:\d{2}$/.test(normalizedTimestamp);
 
-  if (isUtcEntityTimestamp) {
+  if (hasTimezoneSuffix) {
+    // Already has timezone info — parse as-is (UTC Z or offset)
     return new Date(normalizedTimestamp);
   }
 
-  return parseLocalTimestamp(normalizedTimestamp);
+  // No timezone suffix: platform entity timestamps (created_date, updated_date)
+  // are stored in UTC without a Z. Append Z so the browser interprets them
+  // as UTC and converts correctly to local time on display.
+  return new Date(normalizedTimestamp + 'Z');
 }
