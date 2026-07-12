@@ -127,7 +127,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
   return (
     <div className="space-y-2">
       <Card className="mb-3">
-        <CardContent className="pb-2 my-6 p-3 pt-2">
+        <CardContent className="pb-2 p-3 pt-2 my-8">
           <p className="text-xs text-slate-500">
             Define <strong>when</strong> each notification fires and <strong>who</strong> receives it.
             No conditions = always fires. Multiple conditions = ALL must pass (AND logic).
