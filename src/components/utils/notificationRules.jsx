@@ -9,6 +9,32 @@
  * - messageBuilder: Function to build the message content
  */
 
+/**
+ * Parse patient names from return delivery notes.
+ * Supports:
+ *   "For: Name1, Name2"
+ *   "For: Name1\nand: Name2\nand: Name3"
+ */
+function extractPatientNamesFromReturnNotes(notes) {
+  if (!notes) return null;
+  const forMatch = notes.match(/For:\s*(.+)/i);
+  if (!forMatch) return null;
+
+  // Grab the first line after "For:"
+  const firstNames = forMatch[1].split('\n')[0];
+
+  // Gather any "and:" lines
+  const andMatches = [...notes.matchAll(/^and:\s*(.+)/gim)].map(m => m[1]);
+
+  const all = [firstNames, ...andMatches]
+    .join(',')
+    .split(',')
+    .map(n => n.trim())
+    .filter(n => n.length > 0);
+
+  return all.length > 0 ? all.join(', ') : null;
+}
+
 export const NOTIFICATION_EVENTS = {
   DRIVER_ACCEPTED_ALL: 'driver_accepted_all',
   DRIVER_ACCEPTED_ONE: 'driver_accepted_one',
@@ -85,8 +111,11 @@ export const notificationRules = {
     enabled: true,
     inApp: true,
     recipients: ['dispatchers', 'appowner'],
-    buildMessage: ({ driverName, patientName }) => 
-      `${driverName} is En Route to return delivery for ${patientName || 'Unknown Patient'}.`
+    buildMessage: ({ driverName, patientName, deliveryNotes }) => {
+      const parsedNames = extractPatientNamesFromReturnNotes(deliveryNotes);
+      const effectiveName = parsedNames || patientName || 'Unknown Patient';
+      return `${driverName} is En Route to return delivery for ${effectiveName}.`;
+    }
   }
 };
 
