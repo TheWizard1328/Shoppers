@@ -202,5 +202,12 @@ export function getRecipients(event) {
   return getEffective(event)?.recipients || null;
 }
 
+/**
+ * Get the display label for an event (live entity label, falls back to hardcoded).
+ */
+export function getNotificationLabel(event) {
+  return _liveTemplates[event]?.label || null;
+}
+
 // Legacy compat — kept so existing callers of loadNotificationOverrides don't crash
 export function loadNotificationOverrides() {}
