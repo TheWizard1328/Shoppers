@@ -259,43 +259,25 @@ export default function MessageRulesManager() {
                         {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
                       </div>
                       <p className="text-xs text-slate-500 italic truncate">"{buildSampleMessage(template)}"</p>
-                      <div className="flex items-center gap-4 mt-2">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <Switch
-                            checked={inApp}
-                            onCheckedChange={() => handleToggle(eventName, 'in_app_enabled')}
-                            disabled={!!isSaving}
-                          />
-                          <span className={`text-xs flex items-center gap-1 ${inApp ? 'text-blue-600' : 'text-slate-400'}`}>
-                            <MessageSquare className="w-3 h-3" /> In-App
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <Switch
-                            checked={push}
-                            onCheckedChange={() => handleToggle(eventName, 'push_enabled')}
-                            disabled={!!isSaving}
-                          />
-                          <span className={`text-xs flex items-center gap-1 ${push ? 'text-purple-600' : 'text-slate-400'}`}>
-                            <Bell className="w-3 h-3" /> Push
-                          </span>
-                        </label>
-                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Switch
-                        checked={enabled}
-                        onCheckedChange={() => handleToggle(eventName, 'enabled')}
-                        disabled={!!isSaving}
-                        title="Master toggle"
-                      />
-                      <Button size="sm" variant="outline" onClick={() => handleEditOpen(eventName)} className="gap-1 text-xs px-2">
-                        <Edit2 className="w-3 h-3" /> Edit
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleReset(eventName)} className="text-slate-400 hover:text-red-500 px-2" title="Reset to defaults" disabled={!!isSaving}>
-                        <RotateCcw className="w-3 h-3" />
-                      </Button>
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Switch checked={enabled} onCheckedChange={() => handleToggle(eventName, 'enabled')} disabled={!!isSaving} />
+                        <span className={`text-xs ${enabled ? 'text-slate-700' : 'text-slate-400'}`}>On/Off</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Switch checked={inApp} onCheckedChange={() => handleToggle(eventName, 'in_app_enabled')} disabled={!!isSaving} />
+                        <span className={`text-xs flex items-center gap-1 ${inApp ? 'text-blue-600' : 'text-slate-400'}`}>
+                          <MessageSquare className="w-3 h-3" /> In-App
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Switch checked={push} onCheckedChange={() => handleToggle(eventName, 'push_enabled')} disabled={!!isSaving} />
+                        <span className={`text-xs flex items-center gap-1 ${push ? 'text-purple-600' : 'text-slate-400'}`}>
+                          <Bell className="w-3 h-3" /> Push
+                        </span>
+                      </label>
                     </div>
                   </div>
                 )}
