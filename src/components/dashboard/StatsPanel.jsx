@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -263,8 +263,14 @@ export default function StatsPanel({
 
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 20 : 40, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
+      {/* OfflineSyncIndicator: absolutely positioned beside the stats card container on desktop, not inside it */}
+      {!isMobile && !isStatsCardCentered &&
+        <div style={{ position: 'absolute', left: `${StatsCardMinWidth + 8}px`, top: 0, pointerEvents: 'auto', width: '240px' }}>
+          <OfflineSyncIndicator inline={true} />
+        </div>
+      }
       <div ref={statsCardRef} className="flex flex-col items-start gap-1 relative"
-      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile ? `${Math.round(window.innerWidth * 0.95)}px` : '{StatsCardMinWidth}px', minWidth: isMobile ? undefined : '{StatsCardMinWidth}px', maxWidth: isMobile ? undefined : '{StatsCardMinWidth}px' }}
+      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile ? `${Math.round(window.innerWidth * 0.95)}px` : `${StatsCardMinWidth}px`, minWidth: isMobile ? undefined : `${StatsCardMinWidth}px`, maxWidth: isMobile ? undefined : `${StatsCardMinWidth}px` }}
       onMouseEnter={() => handleStatsPanelInteraction(true)}
       onMouseLeave={() => handleStatsPanelInteraction(false)}>
 
@@ -297,11 +303,8 @@ export default function StatsPanel({
             window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
             window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
           }} />
-        
 
-        {/* Flex row: [stats card + legend] left col | offline sync right col */}
-        <div className="flex flex-row items-start gap-1.5" style={{ pointerEvents: 'auto' }}>
-        <div className="flex flex-col items-stretch gap-1" style={{ minWidth: 0, width: '100%' }}>
+        <div className="flex flex-col items-stretch gap-1" style={{ pointerEvents: 'auto', width: '100%' }}>
         <motion.div
               data-stats-card="true"
               initial={{ opacity: 0, y: -20 }}
@@ -678,15 +681,7 @@ export default function StatsPanel({
             </div>
           </div>
             }
-        </div>{/* end left column: stats card + legend */}
-
-        {/* Offline DB badge - right column, desktop non-centered */}
-        {!isMobile && !isStatsCardCentered &&
-          <div style={{ pointerEvents: 'auto', width: '240px', flexShrink: 0, alignSelf: 'flex-start' }}>
-            <OfflineSyncIndicator inline={true} />
-          </div>
-          }
-        </div>{/* end flex-row */}
+        </div>{/* end stats card + legend */}
 
         {/* TravelModeDialog rendered OUTSIDE AnimatePresence so it survives StatsCard collapse */}
         {isDriver && !isAllDriversMode && travelModeDialogOpen &&
