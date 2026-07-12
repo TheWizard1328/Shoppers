@@ -69,11 +69,14 @@ async function sendNotification({
   receiverId,
   receiverName
 }) {
-  const content = await getNotificationMessage(event, messageData);
-  if (!content) return;
+  const body = await getNotificationMessage(event, messageData);
+  if (!body) return;
 
   // Send in-app message if enabled
   if (await shouldNotify(event, 'inApp')) {
+    const label = getNotificationLabel(event);
+    // Title on its own line, then the body
+    const content = label ? `${label}\n${body}` : body;
     await sendDeliveryMessage({
       senderId,
       senderName,
@@ -82,7 +85,7 @@ async function sendNotification({
       content
     });
     // Fire-and-forget push alongside each in-app message
-    sendPushForNotification({ receiverId, senderName, content, event });
+    sendPushForNotification({ receiverId, senderName, content: body, event });
   }
 }
 
