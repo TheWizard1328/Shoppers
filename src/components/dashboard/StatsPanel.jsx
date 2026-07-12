@@ -259,7 +259,7 @@ export default function StatsPanel({
     }
   }, [isDateFinished, isDriver, isAllDriversMode]);
 
-  const StatsCardMinWidth = 500;
+  const StatsCardMinWidth = 400;
 
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 20 : 40, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
