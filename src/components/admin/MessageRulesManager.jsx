@@ -252,16 +252,14 @@ export default function MessageRulesManager() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-medium text-slate-900 text-sm">{label}</span>
-                        {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
-                      </div>
-                      <p className="text-xs text-slate-500 italic truncate">"{buildSampleMessage(template)}"</p>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-slate-900 text-sm">{label}</span>
+                      {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
                     </div>
+                    <p className="text-xs text-slate-500 italic truncate">"{buildSampleMessage(template)}"</p>
 
-                    <div className="flex items-center gap-4 flex-shrink-0">
+                    <div className="flex items-center gap-4">
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <Switch checked={enabled} onCheckedChange={() => handleToggle(eventName, 'enabled')} disabled={!!isSaving} />
                         <span className={`text-xs ${enabled ? 'text-slate-700' : 'text-slate-400'}`}>On/Off</span>
@@ -282,6 +280,7 @@ export default function MessageRulesManager() {
                   </div>
                 )}
               </div>
+
             );
           })}
         </CardContent>
