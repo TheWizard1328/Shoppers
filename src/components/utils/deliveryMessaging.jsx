@@ -560,7 +560,8 @@ export async function notifyDriverReturn({
   if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName, patientName };
+  const deliveryNotes = delivery?.delivery_notes || '';
+  const messageData = { driverName, patientName, deliveryNotes };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue;
