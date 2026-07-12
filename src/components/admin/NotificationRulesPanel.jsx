@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Trash2, Save, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2, X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { applyTemplateUpdate } from '@/components/utils/notificationRules';
@@ -254,6 +254,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
             className={`border rounded-lg p-3 transition-colors cursor-pointer ${enabled ? 'bg-white hover:bg-blue-50 hover:border-blue-300' : 'bg-slate-50 opacity-60 hover:bg-slate-100'}`}>
             <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
+
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="font-medium text-slate-900 text-sm">{label}</span>
                   {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Off</Badge>}
@@ -286,6 +287,20 @@ export default function NotificationRulesPanel({ records, setRecords }) {
                   </div>
                 }
               </div>
+              <Button size="sm" variant="ghost"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (!confirm('Delete this rule template permanently?')) return;
+                  const rec = records[eventName];
+                  if (!rec) return;
+                  try {
+                    await base44.entities.NotificationTemplate.delete(rec.id);
+                    setRecords((prev) => { const next = { ...prev }; delete next[eventName]; return next; });
+                  } catch { alert('Failed to delete'); }
+                }}
+                className="shrink-0 h-7 w-7 p-0 text-red-400 hover:text-red-600">
+                <X className="w-3 h-3" />
+              </Button>
             </div>
           </div>
         );
