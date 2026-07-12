@@ -493,10 +493,12 @@ export default function SidebarUserFooter({
               <div className="flex flex-col gap-1.5">
                   {/* Assigned drivers always visible */}
                   {assignedDrivers.map(renderDriverCard)}
-                  {/* Rest only when expanded */}
+                  {/* Scheduled (unassigned) drivers always visible */}
+                  {unassignedDrivers.map(renderDriverCard)}
+                  {/* Other city drivers only when expanded */}
                   {driversExpanded &&
                 <>
-                      {unassignedDrivers.map(renderDriverCard)}
+                      {null /* unassignedDrivers already rendered above */}
                       {/* Other city drivers shown inline when expanded */}
                       {otherCityDrivers.map((driver) => {
                     const driverName = driver.user_name || 'Driver';
