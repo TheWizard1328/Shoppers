@@ -13,7 +13,7 @@ import { notificationRules, applyTemplateUpdate } from '@/components/utils/notif
 
 // Formats an event_name key into a readable label as a fallback
 const formatEventLabel = (eventName) =>
-  eventName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  eventName ? eventName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '';
 
 const TEMPLATE_VARIABLES = [
   '{{driverName}}',
