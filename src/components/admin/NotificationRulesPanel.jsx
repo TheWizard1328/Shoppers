@@ -250,7 +250,11 @@ export default function NotificationRulesPanel({ records, setRecords }) {
         const enabled = rec?.enabled ?? true;
 
         const borderColor =
-          eventName.includes('fail') || eventName.includes('return') ? '#ef4444' : '#3b82f6';
+          eventName.includes('fail') || eventName.includes('return') ? '#ef4444' :
+          eventName.includes('payroll') ? '#22c55e' :
+          eventName.includes('complete') ? '#3b82f6' :
+          eventName.includes('accept') || eventName.includes('assign') ? '#22c55e' :
+          '#3b82f6';
 
         return (
           <div key={eventName} onClick={() => openEditor(eventName)}
