@@ -96,22 +96,32 @@ export function runMapPositioningEffect({
       const shouldShowAllMarkersForBounds = selectedDriverIdRef.current === 'all' || showAllDriverMarkersRef.current;
       const specificDriverId = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : null;
 
+      // Pre-check: does the selected driver have any stops for this date?
+      // We need this before adding driver location so we can decide whether to
+      // show city center (no stops) vs driver location + stops (has stops).
+      const selectedDriverHasStopsForDate = specificDriverId
+        ? deliveriesRef.current.some((d) => d && d.delivery_date === selectedDateStr && d.driver_id === specificDriverId)
+        : true; // 'all' mode — always proceed normally
+
       if (isViewingToday) {
         if (specificDriverId) {
-          // Admin/dispatcher viewing a specific driver — get that driver's location directly from AppUser,
-          // regardless of duty status (bounds should reflect the selected driver, not the active user).
-          const targetAppUser = appUsersRef.current?.find((au) => au?.user_id === specificDriverId);
-          const targetLoc = targetAppUser?.current_latitude && targetAppUser?.current_longitude
-            ? { latitude: targetAppUser.current_latitude, longitude: targetAppUser.current_longitude }
-            : null;
-          // Also check allDriverLocations and live GPS if the selected driver is the current user
-          const liveLoc = specificDriverId === currentUser?.id && driverLocationRef.current?.latitude
-            ? driverLocationRef.current
-            : (allDriverLocationsRef.current || []).find((loc) =>
-                loc?.driver_id === specificDriverId || loc?.driverId === specificDriverId
-              ) || null;
-          const bestLoc = liveLoc || targetLoc;
-          if (bestLoc?.latitude && bestLoc?.longitude) { allCoordinates.push([bestLoc.latitude, bestLoc.longitude]); hasDriverMarkers = true; }
+          // Admin/dispatcher viewing a specific driver — only add driver location to bounds
+          // if the driver actually has stops for this date. If they have no stops, we skip
+          // the driver location here and fall through to the city-center fallback below.
+          if (selectedDriverHasStopsForDate) {
+            const targetAppUser = appUsersRef.current?.find((au) => au?.user_id === specificDriverId);
+            const targetLoc = targetAppUser?.current_latitude && targetAppUser?.current_longitude
+              ? { latitude: targetAppUser.current_latitude, longitude: targetAppUser.current_longitude }
+              : null;
+            // Also check allDriverLocations and live GPS if the selected driver is the current user
+            const liveLoc = specificDriverId === currentUser?.id && driverLocationRef.current?.latitude
+              ? driverLocationRef.current
+              : (allDriverLocationsRef.current || []).find((loc) =>
+                  loc?.driver_id === specificDriverId || loc?.driverId === specificDriverId
+                ) || null;
+            const bestLoc = liveLoc || targetLoc;
+            if (bestLoc?.latitude && bestLoc?.longitude) { allCoordinates.push([bestLoc.latitude, bestLoc.longitude]); hasDriverMarkers = true; }
+          }
         } else {
           const selectedDriverLoc = getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current });
           if (selectedDriverLoc?.latitude && selectedDriverLoc?.longitude) { allCoordinates.push([selectedDriverLoc.latitude, selectedDriverLoc.longitude]); hasDriverMarkers = true; }
@@ -219,12 +229,26 @@ export function runMapPositioningEffect({
       const p1Padding = getMapPadding(false);
 
       if (!hasStopMarkers && !hasDriverMarkers) {
+        // When a specific driver is selected with no stops, use THAT driver's city and location
+        // as the reference — not the current user's (dispatcher/admin may be in a different city).
+        const refDriverId = specificDriverId || currentUser?.id;
+        const refAppUser = specificDriverId
+          ? appUsersRef.current?.find((au) => au?.user_id === specificDriverId)
+          : null;
         let userRefLat = null, userRefLon = null;
-        if (!isDriverOffDuty(appUsersRef.current, currentUser?.id, currentUser?.driver_status) && driverLocationRef.current?.latitude && driverLocationRef.current?.longitude) { userRefLat = driverLocationRef.current.latitude; userRefLon = driverLocationRef.current.longitude; }
+        if (specificDriverId && refAppUser?.current_latitude && refAppUser?.current_longitude) {
+          userRefLat = refAppUser.current_latitude; userRefLon = refAppUser.current_longitude;
+        } else if (specificDriverId && refAppUser?.home_latitude && refAppUser?.home_longitude) {
+          userRefLat = refAppUser.home_latitude; userRefLon = refAppUser.home_longitude;
+        } else if (!isDriverOffDuty(appUsersRef.current, currentUser?.id, currentUser?.driver_status) && driverLocationRef.current?.latitude && driverLocationRef.current?.longitude) { userRefLat = driverLocationRef.current.latitude; userRefLon = driverLocationRef.current.longitude; }
         else if (!isDriverOffDuty(appUsersRef.current, currentUser?.id, currentUser?.driver_status) && currentUser?.current_latitude && currentUser?.current_longitude) { userRefLat = currentUser.current_latitude; userRefLon = currentUser.current_longitude; }
         else if (currentUser?.home_latitude && currentUser?.home_longitude) { userRefLat = currentUser.home_latitude; userRefLon = currentUser.home_longitude; }
 
-        const userCityIds = currentUser?.city_ids || (currentUser?.city_id ? [currentUser.city_id] : []);
+        // Use the selected driver's city IDs if a specific driver is selected
+        const refCityIds = specificDriverId
+          ? (refAppUser?.city_ids || (refAppUser?.city_id ? [refAppUser.city_id] : []))
+          : (currentUser?.city_ids || (currentUser?.city_id ? [currentUser.city_id] : []));
+        const userCityIds = refCityIds.length > 0 ? refCityIds : (currentUser?.city_ids || (currentUser?.city_id ? [currentUser.city_id] : []));
         const assignedCities = citiesRef.current?.filter((c) => c && userCityIds.includes(c.id)) || [];
         let closestCity = null;
         if (userRefLat && userRefLon && assignedCities.length > 0) {
