@@ -211,21 +211,21 @@ export default function MessageRulesManager() {
     setIsTesting(eventName);
     setTestSuccess(null);
     try {
+      const eventLabel = records[eventName]?.label || EVENT_LABELS[eventName] || eventName;
       // In-app message
-      const conversationId = [currentUser.id, currentUser.id + '_test'].sort().join('_') + '_test';
       await base44.entities.Message.create({
         sender_id:       currentUser.id,
         sender_name:     'System Test',
         receiver_id:     currentUser.id,
         receiver_name:   currentUser.full_name || 'You',
         conversation_id: [currentUser.id, 'system_test'].join('_'),
-        content:         `[TEST — ${EVENT_LABELS[eventName]}] ${preview}`,
+        content:         `[TEST — ${eventLabel}] ${preview}`,
         read:            false,
       });
       // Push notification
       await base44.functions.invoke('sendPushNotification', {
         user_id: currentUser.id,
-        title:   `[TEST] ${EVENT_LABELS[eventName]}`,
+        title:   `[TEST] ${eventLabel}`,
         body:    preview,
         url:     '/',
       });

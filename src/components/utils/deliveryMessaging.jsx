@@ -3,7 +3,8 @@ import {
   NOTIFICATION_EVENTS, 
   shouldNotify, 
   getNotificationMessage, 
-  getRecipients 
+  getRecipients,
+  getNotificationLabel
 } from './notificationRules';
 
 /**
@@ -42,12 +43,13 @@ export async function sendDeliveryMessage({
 /**
  * Fire-and-forget push notification alongside in-app messages
  */
-async function sendPushForNotification({ receiverId, senderName, content }) {
+async function sendPushForNotification({ receiverId, senderName, content, event }) {
   if (!receiverId || !content) return;
+  const title = (event && getNotificationLabel(event)) || senderName || 'RxDeliver';
   try {
     await base44.functions.invoke('sendPushNotification', {
       user_id: receiverId,
-      title: senderName || 'RxDeliver',
+      title,
       body: content,
       url: '/'
     });
@@ -80,7 +82,7 @@ async function sendNotification({
       content
     });
     // Fire-and-forget push alongside each in-app message
-    sendPushForNotification({ receiverId, senderName, content });
+    sendPushForNotification({ receiverId, senderName, content, event });
   }
 }
 
