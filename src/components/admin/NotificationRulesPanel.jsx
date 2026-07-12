@@ -261,7 +261,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
                 {/* Header: label + enabled badge */}
                 <div className="flex items-center gap-2 mb-2">
                   <span className="font-bold text-slate-900 text-base">{label}</span>
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${enabled ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                  <span className={`ml-auto text-xs px-2.5 py-0.5 rounded-full font-medium ${enabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
                     {enabled ? 'Enabled' : 'Disabled'}
                   </span>
                 </div>
