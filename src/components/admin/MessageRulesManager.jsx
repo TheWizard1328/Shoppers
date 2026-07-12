@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Save, Bell, MessageSquare, RotateCcw, Loader2, FlaskConical, CheckCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
@@ -130,6 +131,7 @@ export default function MessageRulesManager() {
   const handleCardClick = (eventName) => {
     const rec = records[eventName];
     setEditDraft({
+      label:            rec?.label            || EVENT_LABELS[eventName] || eventName,
       message_template: rec?.message_template || getHardcodedDefault(eventName),
       enabled:          rec?.enabled          ?? true,
       in_app_enabled:   rec?.in_app_enabled   ?? true,
@@ -163,6 +165,7 @@ export default function MessageRulesManager() {
     const rec = records[editingEvent];
     if (!rec) return;
     const resetFields = {
+      label:            EVENT_LABELS[editingEvent] || editingEvent,
       message_template: getHardcodedDefault(editingEvent),
       enabled:          true,
       in_app_enabled:   true,
@@ -270,7 +273,7 @@ export default function MessageRulesManager() {
         <CardContent className="space-y-3">
           {EVENT_ORDER.map(eventName => {
             const rec      = records[eventName];
-            const label    = EVENT_LABELS[eventName] || eventName;
+            const label    = rec?.label || EVENT_LABELS[eventName] || eventName;
             const enabled  = rec?.enabled          ?? true;
             const inApp    = rec?.in_app_enabled   ?? true;
             const push     = rec?.push_enabled      ?? false;
@@ -338,11 +341,20 @@ export default function MessageRulesManager() {
       <Dialog open={!!editingEvent} onOpenChange={open => { if (!open) closeDialog(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{EVENT_LABELS[editingEvent] || editingEvent}</DialogTitle>
+            <DialogTitle>{editDraft?.label || EVENT_LABELS[editingEvent] || editingEvent}</DialogTitle>
           </DialogHeader>
 
           {editDraft && (
             <div className="space-y-4 py-2">
+              <div>
+                <Label className="text-xs text-slate-600 mb-1 block">Title / Label</Label>
+                <Input
+                  value={editDraft.label}
+                  onChange={e => setEditDraft(d => ({ ...d, label: e.target.value }))}
+                  className="text-sm"
+                  placeholder="Event label shown on cards and notifications"
+                />
+              </div>
               <div>
                 <Label className="text-xs text-slate-600 mb-1 block">Message Template</Label>
                 <Textarea
