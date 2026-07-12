@@ -1,0 +1,60 @@
+{
+  "name": "NotificationTemplate",
+  "type": "object",
+  "properties": {
+    "event_name": {
+      "type": "string",
+      "description": "The notification event key (e.g. driver_completed)",
+      "enum": [
+        "driver_accepted_all",
+        "driver_accepted_one",
+        "dispatcher_assigned_all",
+        "driver_started",
+        "driver_completed",
+        "driver_failed",
+        "driver_retry",
+        "driver_return"
+      ]
+    },
+    "label": {
+      "type": "string",
+      "description": "Human-readable label shown in admin UI"
+    },
+    "message_template": {
+      "type": "string",
+      "description": "Message template string using {{driverName}}, {{patientName}}, {{storeName}}, {{deliveryList}} variables"
+    },
+    "in_app_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to send an in-app message for this event"
+    },
+    "push_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether to send a push notification for this event"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Master toggle \u2014 disabling this skips all channels for this event"
+    },
+    "recipients": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "dispatchers",
+          "driver",
+          "appowner"
+        ]
+      },
+      "description": "Who receives this notification"
+    }
+  },
+  "required": [
+    "event_name",
+    "label",
+    "message_template"
+  ]
+}

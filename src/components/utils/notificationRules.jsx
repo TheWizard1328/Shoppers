@@ -1,12 +1,9 @@
 /**
  * Centralized notification rules for in-app messaging
- * 
- * Each rule defines:
- * - event: The trigger event name
- * - enabled: Whether this notification is active
- * - inApp: Whether to send in-app message
- * - recipients: Who receives the notification ('dispatchers', 'driver', 'both')
- * - messageBuilder: Function to build the message content
+ *
+ * The hardcoded rules below are FALLBACKS only.
+ * Live configuration is stored in the NotificationTemplate entity
+ * and loaded at runtime via loadNotificationTemplates().
  */
 
 /**
@@ -20,10 +17,7 @@ function extractPatientNamesFromReturnNotes(notes) {
   const forMatch = notes.match(/For:\s*(.+)/i);
   if (!forMatch) return null;
 
-  // Grab the first line after "For:"
   const firstNames = forMatch[1].split('\n')[0];
-
-  // Gather any "and:" lines
   const andMatches = [...notes.matchAll(/^and:\s*(.+)/gim)].map(m => m[1]);
 
   const all = [firstNames, ...andMatches]
@@ -36,80 +30,62 @@ function extractPatientNamesFromReturnNotes(notes) {
 }
 
 export const NOTIFICATION_EVENTS = {
-  DRIVER_ACCEPTED_ALL: 'driver_accepted_all',
-  DRIVER_ACCEPTED_ONE: 'driver_accepted_one',
-  DISPATCHER_ASSIGNED_ALL: 'dispatcher_assigned_all',
-  DRIVER_STARTED: 'driver_started',
-  DRIVER_COMPLETED: 'driver_completed',
-  DRIVER_FAILED: 'driver_failed',
-  DRIVER_RETRY: 'driver_retry',
-  DRIVER_RETURN: 'driver_return'
+  DRIVER_ACCEPTED_ALL:    'driver_accepted_all',
+  DRIVER_ACCEPTED_ONE:    'driver_accepted_one',
+  DISPATCHER_ASSIGNED_ALL:'dispatcher_assigned_all',
+  DRIVER_STARTED:         'driver_started',
+  DRIVER_COMPLETED:       'driver_completed',
+  DRIVER_FAILED:          'driver_failed',
+  DRIVER_RETRY:           'driver_retry',
+  DRIVER_RETURN:          'driver_return'
 };
 
-/**
- * Notification rules configuration
- * Edit this object to enable/disable notifications for specific events
- */
+/** Hardcoded fallbacks — used only if the entity record is missing */
 export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL]: {
-    enabled: true,
-    inApp: true,
+    enabled: true, inApp: true, push: false,
     recipients: ['dispatchers', 'appowner'],
-    buildMessage: ({ driverName }) => 
+    buildMessage: ({ driverName }) =>
       `${driverName} has accepted all pending deliveries.`
   },
-
   [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE]: {
-    enabled: true,
-    inApp: true,
+    enabled: true, inApp: true, push: false,
     recipients: ['dispatchers', 'appowner'],
-    buildMessage: ({ driverName, patientName }) => 
+    buildMessage: ({ driverName, patientName }) =>
       `${driverName} has accepted delivery for ${patientName || 'Unknown Patient'}.`
   },
-
   [NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL]: {
-    enabled: true,
-    inApp: true,
+    enabled: true, inApp: true, push: false,
     recipients: ['driver', 'appowner'],
-    buildMessage: ({ storeName, deliveryList }) => 
+    buildMessage: ({ storeName, deliveryList }) =>
       `${storeName} has assigned you the following deliveries:${deliveryList}`
   },
-
   [NOTIFICATION_EVENTS.DRIVER_STARTED]: {
-    enabled: true,
-    inApp: true,
+    enabled: true, inApp: true, push: false,
     recipients: ['dispatchers', 'appowner'],
-    buildMessage: ({ driverName, patientName }) => 
+    buildMessage: ({ driverName, patientName }) =>
       `${driverName} has moved ${patientName || 'Unknown Patient'} to next delivery.`
   },
-
   [NOTIFICATION_EVENTS.DRIVER_COMPLETED]: {
-    enabled: true,
-    inApp: true,
+    enabled: true, inApp: true, push: false,
     recipients: ['dispatchers', 'appowner'],
-    buildMessage: ({ driverName, patientName }) => 
+    buildMessage: ({ driverName, patientName }) =>
       `${driverName} has completed delivery for ${patientName || 'Unknown Patient'}.`
   },
-
   [NOTIFICATION_EVENTS.DRIVER_FAILED]: {
-    enabled: true,
-    inApp: true,
+    enabled: true, inApp: true, push: false,
     recipients: ['dispatchers', 'appowner'],
-    buildMessage: ({ driverName, patientName }) => 
+    buildMessage: ({ driverName, patientName }) =>
       `${driverName} failed to complete delivery for ${patientName || 'Unknown Patient'}.`
   },
-
   [NOTIFICATION_EVENTS.DRIVER_RETRY]: {
-    enabled: true,
-    inApp: true,
+    enabled: true, inApp: true, push: false,
     recipients: ['dispatchers', 'appowner'],
-    buildMessage: ({ driverName, patientName }) => 
+    buildMessage: ({ driverName, patientName }) =>
       `${driverName} is now retrying delivery for ${patientName || 'Unknown Patient'}.`
   },
-
   [NOTIFICATION_EVENTS.DRIVER_RETURN]: {
-    enabled: true,
-    inApp: true,
+    enabled: true, inApp: true, push: false,
     recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName, deliveryNotes }) => {
       const parsedNames = extractPatientNamesFromReturnNotes(deliveryNotes);
@@ -119,17 +95,47 @@ export const notificationRules = {
   }
 };
 
-// ── Runtime overrides loaded from AppSettings (push_notification_rules) ──────
-let _overrides = {};
+// ── Runtime state loaded from NotificationTemplate entity ─────────────────────
+// Keyed by event_name. Each entry mirrors the entity fields.
+let _liveTemplates = {};  // { [event_name]: NotificationTemplate record }
 
-export function loadNotificationOverrides(overridesMap) {
-  _overrides = overridesMap || {};
+/**
+ * Load all NotificationTemplate records from the entity and cache them.
+ * Call this once at app startup (e.g. in useLayoutInit).
+ */
+export async function loadNotificationTemplates(base44Client) {
+  try {
+    const records = await base44Client.entities.NotificationTemplate.list();
+    _liveTemplates = {};
+    (records || []).forEach(r => {
+      if (r?.event_name) _liveTemplates[r.event_name] = r;
+    });
+  } catch (e) {
+    console.warn('[NotificationRules] Failed to load templates from entity, using fallbacks:', e?.message);
+  }
 }
 
+/**
+ * Re-apply a single updated record (call after saving in MessageRulesManager).
+ */
+export function applyTemplateUpdate(record) {
+  if (record?.event_name) {
+    _liveTemplates[record.event_name] = record;
+  }
+}
+
+/** Returns the merged effective rule for an event */
 function getEffective(event) {
   const base = notificationRules[event] || {};
-  const override = _overrides[event] || {};
-  return { ...base, ...override };
+  const live = _liveTemplates[event];
+  if (!live) return base;
+  return {
+    ...base,
+    enabled:    live.enabled        ?? base.enabled,
+    inApp:      live.in_app_enabled ?? base.inApp,
+    push:       live.push_enabled   ?? base.push ?? false,
+    recipients: live.recipients     || base.recipients,
+  };
 }
 
 /**
@@ -144,17 +150,20 @@ export function shouldNotify(event, channel = 'inApp') {
 
 /**
  * Get the message for an event.
- * Uses the admin-configured messageTemplate when present, falls back to hardcoded buildMessage.
+ * Uses the entity's message_template when present, falls back to hardcoded buildMessage.
  */
 export function getNotificationMessage(event, data) {
-  const override = _overrides[event];
-  if (override?.messageTemplate) {
-    return override.messageTemplate
-      .replace(/\{\{driverName\}\}/g, data.driverName || '')
-      .replace(/\{\{patientName\}\}/g, data.patientName || '')
-      .replace(/\{\{storeName\}\}/g, data.storeName || '')
+  const live = _liveTemplates[event];
+  const template = live?.message_template;
+
+  if (template) {
+    return template
+      .replace(/\{\{driverName\}\}/g,   data.driverName   || '')
+      .replace(/\{\{patientName\}\}/g,  data.patientName  || '')
+      .replace(/\{\{storeName\}\}/g,    data.storeName    || '')
       .replace(/\{\{deliveryList\}\}/g, data.deliveryList || '');
   }
+
   const rule = notificationRules[event];
   if (!rule?.buildMessage) return null;
   return rule.buildMessage(data);
@@ -164,6 +173,8 @@ export function getNotificationMessage(event, data) {
  * Get recipients type for an event
  */
 export function getRecipients(event) {
-  const rule = getEffective(event);
-  return rule?.recipients || null;
+  return getEffective(event)?.recipients || null;
 }
+
+// Legacy compat — kept so existing callers of loadNotificationOverrides don't crash
+export function loadNotificationOverrides() {}

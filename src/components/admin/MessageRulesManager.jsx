@@ -7,20 +7,29 @@ import { Label } from '@/components/ui/label';
 import { Save, X, Edit2, Bell, MessageSquare, RotateCcw, Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
-import { NOTIFICATION_EVENTS, notificationRules } from '@/components/utils/notificationRules';
-
-const SETTING_KEY = 'push_notification_rules';
+import { notificationRules, applyTemplateUpdate } from '@/components/utils/notificationRules';
 
 const EVENT_LABELS = {
-  [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL]:    'Driver Accepted All',
-  [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE]:    'Driver Accepted One',
-  [NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL]:'Dispatcher Assigned All',
-  [NOTIFICATION_EVENTS.DRIVER_STARTED]:         'Driver Started',
-  [NOTIFICATION_EVENTS.DRIVER_COMPLETED]:       'Driver Completed',
-  [NOTIFICATION_EVENTS.DRIVER_FAILED]:          'Driver Failed',
-  [NOTIFICATION_EVENTS.DRIVER_RETRY]:           'Driver Retry',
-  [NOTIFICATION_EVENTS.DRIVER_RETURN]:          'Driver Return',
+  driver_accepted_all:    'Driver Accepted All',
+  driver_accepted_one:    'Driver Accepted One',
+  dispatcher_assigned_all:'Dispatcher Assigned All',
+  driver_started:         'Driver Started',
+  driver_completed:       'Driver Completed',
+  driver_failed:          'Driver Failed',
+  driver_retry:           'Driver Retry',
+  driver_return:          'Driver Return',
 };
+
+const EVENT_ORDER = [
+  'driver_accepted_all',
+  'driver_accepted_one',
+  'dispatcher_assigned_all',
+  'driver_started',
+  'driver_completed',
+  'driver_failed',
+  'driver_retry',
+  'driver_return',
+];
 
 const SAMPLE_DATA = {
   driverName: 'John D.',
@@ -29,95 +38,87 @@ const SAMPLE_DATA = {
   deliveryList: '\n• Jane Smith\n• Bob Wilson',
 };
 
-function buildSampleMessage(template) {
+function buildSampleMessage(template = '') {
   return template
-    .replace(/\{\{driverName\}\}/g, SAMPLE_DATA.driverName)
-    .replace(/\{\{patientName\}\}/g, SAMPLE_DATA.patientName)
-    .replace(/\{\{storeName\}\}/g, SAMPLE_DATA.storeName)
+    .replace(/\{\{driverName\}\}/g,   SAMPLE_DATA.driverName)
+    .replace(/\{\{patientName\}\}/g,  SAMPLE_DATA.patientName)
+    .replace(/\{\{storeName\}\}/g,    SAMPLE_DATA.storeName)
     .replace(/\{\{deliveryList\}\}/g, SAMPLE_DATA.deliveryList);
 }
 
-// Build the default template string from the hardcoded buildMessage fn
-function getDefaultTemplate(eventName) {
+function getHardcodedDefault(eventName) {
   const rule = notificationRules[eventName];
   if (!rule?.buildMessage) return '';
   return rule.buildMessage({
-    driverName: '{{driverName}}',
-    patientName: '{{patientName}}',
-    storeName: '{{storeName}}',
+    driverName:   '{{driverName}}',
+    patientName:  '{{patientName}}',
+    storeName:    '{{storeName}}',
     deliveryList: '{{deliveryList}}',
   });
 }
 
 export default function MessageRulesManager() {
-  const [overrides, setOverrides] = useState({});  // { [eventName]: { enabled, inApp, push, messageTemplate } }
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(null);  // eventName being saved
+  // records: { [event_name]: entity record }
+  const [records, setRecords]         = useState({});
+  const [isLoading, setIsLoading]     = useState(true);
+  const [isSaving, setIsSaving]       = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [editDraft, setEditDraft] = useState(null);
-  const [settingId, setSettingId] = useState(null);
+  const [editDraft, setEditDraft]     = useState(null);
 
-  useEffect(() => { loadOverrides(); }, []);
+  useEffect(() => { loadTemplates(); }, []);
 
-  const loadOverrides = async () => {
+  const loadTemplates = async () => {
+    setIsLoading(true);
     try {
-      const settings = await base44.entities.AppSettings.filter({ setting_key: SETTING_KEY });
-      if (settings?.length > 0) {
-        setSettingId(settings[0].id);
-        setOverrides(settings[0].setting_value?.rules || {});
-      }
-    } catch (error) {
-      console.error('Error loading notification overrides:', error);
+      const list = await base44.entities.NotificationTemplate.list();
+      const map = {};
+      (list || []).forEach(r => { if (r?.event_name) map[r.event_name] = r; });
+      setRecords(map);
+    } catch (e) {
+      console.error('Error loading notification templates:', e);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const persistOverrides = async (newOverrides) => {
-    const payload = { setting_key: SETTING_KEY, setting_value: { rules: newOverrides }, description: 'Push notification rule overrides per event' };
-    if (settingId) {
-      await base44.entities.AppSettings.update(settingId, { setting_value: { rules: newOverrides } });
-    } else {
-      const created = await base44.entities.AppSettings.create(payload);
-      setSettingId(created.id);
-    }
-    setOverrides(newOverrides);
-  };
-
-  // Quick-toggle enabled/inApp/push without opening editor
+  // Quick inline toggle (enabled / in_app_enabled / push_enabled)
   const handleToggle = async (eventName, field) => {
-    const defaultRule = notificationRules[eventName];
-    const current = overrides[eventName] || {};
-    const currentValue = field in current ? current[field] : defaultRule?.[field] ?? true;
-    const newOverrides = {
-      ...overrides,
-      [eventName]: { ...current, [field]: !currentValue },
-    };
-    setIsSaving(eventName + '_' + field);
+    const rec = records[eventName];
+    if (!rec) return;
+    const newVal = !rec[field];
+    setIsSaving(`${eventName}_${field}`);
     try {
-      await persistOverrides(newOverrides);
+      const updated = await base44.entities.NotificationTemplate.update(rec.id, { [field]: newVal });
+      const merged = { ...rec, [field]: newVal, ...updated };
+      setRecords(prev => ({ ...prev, [eventName]: merged }));
+      applyTemplateUpdate(merged);
+    } catch (e) {
+      alert('Failed to save change');
     } finally {
       setIsSaving(null);
     }
   };
 
   const handleEditOpen = (eventName) => {
-    const defaultRule = notificationRules[eventName];
-    const override = overrides[eventName] || {};
+    const rec = records[eventName];
     setEditDraft({
-      enabled: 'enabled' in override ? override.enabled : (defaultRule?.enabled ?? true),
-      inApp:   'inApp'   in override ? override.inApp   : (defaultRule?.inApp   ?? true),
-      push:    'push'    in override ? override.push     : false,
-      messageTemplate: override.messageTemplate || getDefaultTemplate(eventName),
+      message_template: rec?.message_template || getHardcodedDefault(eventName),
+      enabled:          rec?.enabled          ?? true,
+      in_app_enabled:   rec?.in_app_enabled   ?? true,
+      push_enabled:     rec?.push_enabled      ?? false,
     });
     setEditingEvent(eventName);
   };
 
   const handleEditSave = async () => {
-    const newOverrides = { ...overrides, [editingEvent]: { ...editDraft } };
+    const rec = records[editingEvent];
+    if (!rec) return;
     setIsSaving(editingEvent);
     try {
-      await persistOverrides(newOverrides);
+      const updated = await base44.entities.NotificationTemplate.update(rec.id, editDraft);
+      const merged = { ...rec, ...editDraft, ...updated };
+      setRecords(prev => ({ ...prev, [editingEvent]: merged }));
+      applyTemplateUpdate(merged);
       setEditingEvent(null);
       setEditDraft(null);
     } catch {
@@ -128,26 +129,26 @@ export default function MessageRulesManager() {
   };
 
   const handleReset = async (eventName) => {
-    if (!confirm('Reset this rule to its default settings?')) return;
-    const newOverrides = { ...overrides };
-    delete newOverrides[eventName];
+    if (!confirm('Reset this message to its default template?')) return;
+    const rec = records[eventName];
+    if (!rec) return;
+    const defaultTemplate = getHardcodedDefault(eventName);
+    const resetFields = {
+      message_template: defaultTemplate,
+      enabled:          true,
+      in_app_enabled:   true,
+      push_enabled:     false,
+    };
     setIsSaving(eventName);
     try {
-      await persistOverrides(newOverrides);
+      const updated = await base44.entities.NotificationTemplate.update(rec.id, resetFields);
+      const merged = { ...rec, ...resetFields, ...updated };
+      setRecords(prev => ({ ...prev, [eventName]: merged }));
+      applyTemplateUpdate(merged);
     } finally {
       setIsSaving(null);
     }
   };
-
-  const getEffectiveValue = (eventName, field) => {
-    const defaultRule = notificationRules[eventName];
-    const override = overrides[eventName] || {};
-    if (field in override) return override[field];
-    if (field === 'push') return false;
-    return defaultRule?.[field] ?? true;
-  };
-
-  const hasOverride = (eventName) => !!overrides[eventName];
 
   if (isLoading) {
     return <div className="flex items-center gap-2 p-6 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" />Loading notification rules...</div>;
@@ -176,14 +177,14 @@ export default function MessageRulesManager() {
           <p className="text-sm text-slate-500">Toggle or customize when and how each notification is sent.</p>
         </CardHeader>
         <CardContent className="space-y-3">
-          {Object.values(NOTIFICATION_EVENTS).map(eventName => {
-            const label = EVENT_LABELS[eventName] || eventName;
-            const enabled = getEffectiveValue(eventName, 'enabled');
-            const inApp  = getEffectiveValue(eventName, 'inApp');
-            const push   = getEffectiveValue(eventName, 'push');
-            const template = overrides[eventName]?.messageTemplate || getDefaultTemplate(eventName);
+          {EVENT_ORDER.map(eventName => {
+            const rec      = records[eventName];
+            const label    = EVENT_LABELS[eventName] || eventName;
+            const enabled  = rec?.enabled          ?? true;
+            const inApp    = rec?.in_app_enabled   ?? true;
+            const push     = rec?.push_enabled      ?? false;
+            const template = rec?.message_template || getHardcodedDefault(eventName);
             const isEditing = editingEvent === eventName;
-            const isModified = hasOverride(eventName);
 
             return (
               <div key={eventName} className={`border rounded-lg p-4 transition-colors ${isEditing ? 'border-blue-300 bg-blue-50' : 'bg-slate-50'}`}>
@@ -199,14 +200,14 @@ export default function MessageRulesManager() {
                     <div>
                       <Label className="text-xs text-slate-600 mb-1 block">Message Template</Label>
                       <Textarea
-                        value={editDraft.messageTemplate}
-                        onChange={e => setEditDraft(d => ({ ...d, messageTemplate: e.target.value }))}
+                        value={editDraft.message_template}
+                        onChange={e => setEditDraft(d => ({ ...d, message_template: e.target.value }))}
                         rows={3}
                         className="text-sm"
                         placeholder="Use {{driverName}}, {{patientName}}, etc."
                       />
                       <p className="text-xs text-slate-400 mt-1">
-                        Preview: <em>"{buildSampleMessage(editDraft.messageTemplate)}"</em>
+                        Preview: <em>"{buildSampleMessage(editDraft.message_template)}"</em>
                       </p>
                     </div>
 
@@ -216,11 +217,11 @@ export default function MessageRulesManager() {
                         <Label className="text-sm">Enabled</Label>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Switch checked={editDraft.inApp} onCheckedChange={v => setEditDraft(d => ({ ...d, inApp: v }))} />
+                        <Switch checked={editDraft.in_app_enabled} onCheckedChange={v => setEditDraft(d => ({ ...d, in_app_enabled: v }))} />
                         <Label className="text-sm flex items-center gap-1"><MessageSquare className="w-3 h-3" /> In-App</Label>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Switch checked={editDraft.push} onCheckedChange={v => setEditDraft(d => ({ ...d, push: v }))} />
+                        <Switch checked={editDraft.push_enabled} onCheckedChange={v => setEditDraft(d => ({ ...d, push_enabled: v }))} />
                         <Label className="text-sm flex items-center gap-1"><Bell className="w-3 h-3" /> Push</Label>
                       </div>
                     </div>
@@ -238,7 +239,6 @@ export default function MessageRulesManager() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="font-medium text-slate-900 text-sm">{label}</span>
-                        {isModified && <Badge variant="outline" className="text-xs border-amber-400 text-amber-700 bg-amber-50">Modified</Badge>}
                         {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
                       </div>
                       <p className="text-xs text-slate-500 italic truncate">"{buildSampleMessage(template)}"</p>
@@ -253,22 +253,18 @@ export default function MessageRulesManager() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {/* Quick enabled toggle */}
-                      <div className="flex items-center gap-1">
-                        <Switch
-                          checked={enabled}
-                          onCheckedChange={() => handleToggle(eventName, 'enabled')}
-                          disabled={isSaving?.startsWith(eventName)}
-                        />
-                      </div>
+                      <Switch
+                        checked={enabled}
+                        onCheckedChange={() => handleToggle(eventName, 'enabled')}
+                        disabled={!!isSaving?.startsWith(eventName)}
+                        title="Master toggle"
+                      />
                       <Button size="sm" variant="outline" onClick={() => handleEditOpen(eventName)} className="gap-1 text-xs px-2">
                         <Edit2 className="w-3 h-3" /> Edit
                       </Button>
-                      {isModified && (
-                        <Button size="sm" variant="ghost" onClick={() => handleReset(eventName)} className="text-slate-400 hover:text-red-500 px-2" title="Reset to defaults">
-                          <RotateCcw className="w-3 h-3" />
-                        </Button>
-                      )}
+                      <Button size="sm" variant="ghost" onClick={() => handleReset(eventName)} className="text-slate-400 hover:text-red-500 px-2" title="Reset to defaults" disabled={!!isSaving?.startsWith(eventName)}>
+                        <RotateCcw className="w-3 h-3" />
+                      </Button>
                     </div>
                   </div>
                 )}
