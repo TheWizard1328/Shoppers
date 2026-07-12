@@ -10,7 +10,7 @@ import { isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { getCompanyBranding } from '../utils/brandingManager';
 import { offlineDB } from '../utils/offlineDatabase';
 import { initializeGlobalFilters } from './initializeGlobalFilters';
-import { loadNotificationOverrides } from '../utils/notificationRules';
+import { loadNotificationTemplates } from '../utils/notificationRules';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { initializeDailyCleanup } from '../utils/messageCleaner';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
@@ -107,13 +107,8 @@ export function useLayoutInit({
         if (ms.appVersion) {const v = ms.appVersion;setAppVersion(`v${v.major}.${v.minor}.${v.build}`);}
         setAdminImportEnabled(ms.adminImportEnabled === true);
 
-        // Load push notification rule overrides so runtime sendNotification respects admin config
-        try {
-          const notifSettings = await base44.entities.AppSettings.filter({ setting_key: 'push_notification_rules' });
-          if (notifSettings?.length > 0) {
-            loadNotificationOverrides(notifSettings[0].setting_value?.rules || {});
-          }
-        } catch { /* non-critical */ }
+        // Load notification templates from entity so runtime messaging respects admin config
+        loadNotificationTemplates(base44).catch(() => { /* non-critical */ });
         if (ms.hereApiKey) {
           if (typeof window !== 'undefined') window.__hereApiKey = ms.hereApiKey;
           const { seedHereApiKey } = await import('../utils/hereApiKeyStore');
