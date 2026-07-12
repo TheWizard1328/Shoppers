@@ -199,6 +199,34 @@ export default function LiveTempBadge({
       } else {
         setAvgReading(null);
         setLastReading(logRecord.latest_reading || null);
+
+        // Seed prevTempRef from the second-to-last saved reading so the direction
+        // arrow compares the next BLE reading against what was actually last persisted,
+        // not just against whatever was in memory from this session.
+        const allReadings = logRecord.temperature_readings || [];
+        if (allReadings.length >= 2) {
+          const sorted = [...allReadings]
+            .filter(r => typeof r?.temperature_celsius === 'number')
+            .sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
+          if (sorted.length >= 2) {
+            const prevSaved = sorted[sorted.length - 2];
+            const latestSaved = sorted[sorted.length - 1];
+            // Seed prevTempRef only if we don't already have a live BLE value
+            // (avoids overwriting a fresher in-session reading)
+            if (prevTempRef.current === null) {
+              prevTempRef.current = prevSaved.temperature_celsius;
+            }
+            // Compute direction from the two most recent DB readings for immediate display
+            const cur = latestSaved.temperature_celsius;
+            const prv = prevSaved.temperature_celsius;
+            if (cur > prv) setTempDirection('up');
+            else if (cur < prv) setTempDirection('down');
+            else setTempDirection('right');
+          } else if (sorted.length === 1 && prevTempRef.current === null) {
+            // Only one reading ever — seed prev so next BLE reading can compare
+            prevTempRef.current = sorted[0].temperature_celsius;
+          }
+        }
       }
     } catch (_) {}
   }, [selectedDriverId, selectedDate, currentUser?.id, todayLocal]);
@@ -241,8 +269,16 @@ export default function LiveTempBadge({
       // Update offline DB record is already handled by realtimeSync; just refresh the badge
       if (data.latest_reading) {
         setLastReading(data.latest_reading);
+        // Update direction arrow using the last known persisted temp as baseline
+        const newTemp = data.latest_reading.temperature_celsius;
+        if (typeof newTemp === 'number' && prevTempRef.current !== null) {
+          if (newTemp > prevTempRef.current) setTempDirection('up');
+          else if (newTemp < prevTempRef.current) setTempDirection('down');
+          else setTempDirection('right');
+        }
+        prevTempRef.current = typeof newTemp === 'number' ? newTemp : prevTempRef.current;
       } else {
-        // No latest_reading in slim payload — reload from offline DB
+        // No latest_reading in slim payload — reload from offline DB (direction derived there)
         loadFromDb();
       }
     };
