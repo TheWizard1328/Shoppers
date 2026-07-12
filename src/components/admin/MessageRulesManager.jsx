@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Save, Bell, MessageSquare, RotateCcw, Loader2 } from 'lucide-react';
+import { Save, Bell, MessageSquare, RotateCcw, Loader2, FlaskConical, CheckCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { notificationRules, applyTemplateUpdate } from '@/components/utils/notificationRules';
@@ -30,6 +30,13 @@ const EVENT_ORDER = [
   'driver_failed',
   'driver_retry',
   'driver_return',
+];
+
+const TEMPLATE_VARIABLES = [
+  '{{driverName}}',
+  '{{patientName}}',
+  '{{storeName}}',
+  '{{deliveryList}}',
 ];
 
 const SAMPLE_DATA = {
@@ -59,14 +66,19 @@ function getHardcodedDefault(eventName) {
 }
 
 export default function MessageRulesManager() {
-  const [records, setRecords]         = useState({});
-  const [isLoading, setIsLoading]     = useState(true);
-  const [isSaving, setIsSaving]       = useState(null);
+  const [records, setRecords]           = useState({});
+  const [isLoading, setIsLoading]       = useState(true);
+  const [isSaving, setIsSaving]         = useState(null);
+  const [isTesting, setIsTesting]       = useState(null);
+  const [testSuccess, setTestSuccess]   = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [editDraft, setEditDraft]     = useState(null);
+  const [editDraft, setEditDraft]       = useState(null);
+  const [currentUser, setCurrentUser]   = useState(null);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     loadTemplates();
+    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
 
     const unsubscribe = base44.entities.NotificationTemplate.subscribe((event) => {
       if (!event?.data?.event_name) return;
@@ -124,6 +136,7 @@ export default function MessageRulesManager() {
       push_enabled:     rec?.push_enabled      ?? false,
     });
     setEditingEvent(eventName);
+    setTestSuccess(null);
   };
 
   const handleEditSave = async () => {
@@ -144,8 +157,7 @@ export default function MessageRulesManager() {
     }
   };
 
-  const handleReset = async (e) => {
-    e?.stopPropagation();
+  const handleReset = async () => {
     if (!editingEvent) return;
     if (!confirm('Reset this message to its default template?')) return;
     const rec = records[editingEvent];
@@ -168,9 +180,65 @@ export default function MessageRulesManager() {
     }
   };
 
+  // Insert variable at cursor position in textarea
+  const insertVariable = (variable) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end   = textarea.selectionEnd;
+    const current = editDraft.message_template;
+    const newVal = current.slice(0, start) + variable + current.slice(end);
+    setEditDraft(d => ({ ...d, message_template: newVal }));
+    // Restore cursor after the inserted variable
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const pos = start + variable.length;
+      textarea.setSelectionRange(pos, pos);
+    });
+  };
+
+  // Send a test message to the current user (AppOwner) via in-app + push
+  const sendTestMessage = async (eventName, templateOverride = null) => {
+    if (!currentUser?.id) { alert('Could not determine current user.'); return; }
+    const rec = records[eventName];
+    const template = templateOverride ?? rec?.message_template ?? getHardcodedDefault(eventName);
+    const preview = buildSampleMessage(template);
+    if (!preview) { alert('No message to test.'); return; }
+
+    setIsTesting(eventName);
+    setTestSuccess(null);
+    try {
+      // In-app message
+      const conversationId = [currentUser.id, currentUser.id + '_test'].sort().join('_') + '_test';
+      await base44.entities.Message.create({
+        sender_id:       currentUser.id,
+        sender_name:     'System Test',
+        receiver_id:     currentUser.id,
+        receiver_name:   currentUser.full_name || 'You',
+        conversation_id: [currentUser.id, 'system_test'].join('_'),
+        content:         `[TEST — ${EVENT_LABELS[eventName]}] ${preview}`,
+        read:            false,
+      });
+      // Push notification
+      await base44.functions.invoke('sendPushNotification', {
+        user_id: currentUser.id,
+        title:   `[TEST] ${EVENT_LABELS[eventName]}`,
+        body:    preview,
+        url:     '/',
+      });
+      setTestSuccess(eventName);
+      setTimeout(() => setTestSuccess(null), 3000);
+    } catch (e) {
+      alert('Test failed: ' + (e?.message || e));
+    } finally {
+      setIsTesting(null);
+    }
+  };
+
   const closeDialog = () => {
     setEditingEvent(null);
     setEditDraft(null);
+    setTestSuccess(null);
   };
 
   if (isLoading) {
@@ -186,7 +254,7 @@ export default function MessageRulesManager() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2 text-xs">
-            {['{{driverName}}', '{{patientName}}', '{{storeName}}', '{{deliveryList}}'].map(v => (
+            {TEMPLATE_VARIABLES.map(v => (
               <code key={v} className="bg-slate-100 px-2 py-1 rounded text-slate-700">{v}</code>
             ))}
           </div>
@@ -207,6 +275,8 @@ export default function MessageRulesManager() {
             const inApp    = rec?.in_app_enabled   ?? true;
             const push     = rec?.push_enabled      ?? false;
             const template = rec?.message_template || getHardcodedDefault(eventName);
+            const isTestingThis = isTesting === eventName;
+            const testOk        = testSuccess === eventName;
 
             return (
               <div
@@ -215,25 +285,43 @@ export default function MessageRulesManager() {
                 className="border rounded-lg p-4 bg-slate-50 hover:bg-slate-100 hover:border-blue-300 cursor-pointer transition-colors"
               >
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-slate-900 text-sm">{label}</span>
-                    {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-slate-900 text-sm">{label}</span>
+                      {!enabled && <Badge className="bg-gray-100 text-gray-600 text-xs">Disabled</Badge>}
+                    </div>
+                    {/* Card-level Test button */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isTestingThis}
+                      onClick={e => { e.stopPropagation(); sendTestMessage(eventName); }}
+                      className={`gap-1 text-xs px-2 h-7 ${testOk ? 'border-green-500 text-green-600' : 'text-slate-500'}`}
+                    >
+                      {isTestingThis
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : testOk
+                        ? <CheckCircle className="w-3 h-3" />
+                        : <FlaskConical className="w-3 h-3" />}
+                      {testOk ? 'Sent!' : 'Test'}
+                    </Button>
                   </div>
+
                   <p className="text-xs text-slate-500 italic truncate">"{buildSampleMessage(template)}"</p>
 
                   <div className="flex items-center gap-4" onClick={e => e.stopPropagation()}>
                     <label className="flex items-center gap-1.5 cursor-pointer">
-                      <Switch checked={enabled} onCheckedChange={(_, e) => handleToggle(eventName, 'enabled', e)} disabled={!!isSaving} onClick={e => e.stopPropagation()} />
+                      <Switch checked={enabled} onCheckedChange={() => handleToggle(eventName, 'enabled')} disabled={!!isSaving} onClick={e => e.stopPropagation()} />
                       <span className={`text-xs ${enabled ? 'text-slate-700' : 'text-slate-400'}`}>On/Off</span>
                     </label>
                     <label className="flex items-center gap-1.5 cursor-pointer">
-                      <Switch checked={inApp} onCheckedChange={(_, e) => handleToggle(eventName, 'in_app_enabled', e)} disabled={!!isSaving} onClick={e => e.stopPropagation()} />
+                      <Switch checked={inApp} onCheckedChange={() => handleToggle(eventName, 'in_app_enabled')} disabled={!!isSaving} onClick={e => e.stopPropagation()} />
                       <span className={`text-xs flex items-center gap-1 ${inApp ? 'text-blue-600' : 'text-slate-400'}`}>
                         <MessageSquare className="w-3 h-3" /> In-App
                       </span>
                     </label>
                     <label className="flex items-center gap-1.5 cursor-pointer">
-                      <Switch checked={push} onCheckedChange={(_, e) => handleToggle(eventName, 'push_enabled', e)} disabled={!!isSaving} onClick={e => e.stopPropagation()} />
+                      <Switch checked={push} onCheckedChange={() => handleToggle(eventName, 'push_enabled')} disabled={!!isSaving} onClick={e => e.stopPropagation()} />
                       <span className={`text-xs flex items-center gap-1 ${push ? 'text-purple-600' : 'text-slate-400'}`}>
                         <Bell className="w-3 h-3" /> Push
                       </span>
@@ -258,13 +346,29 @@ export default function MessageRulesManager() {
               <div>
                 <Label className="text-xs text-slate-600 mb-1 block">Message Template</Label>
                 <Textarea
+                  ref={textareaRef}
                   value={editDraft.message_template}
                   onChange={e => setEditDraft(d => ({ ...d, message_template: e.target.value }))}
                   rows={4}
                   className="text-sm"
                   placeholder="Use {{driverName}}, {{patientName}}, etc."
                 />
-                <p className="text-xs text-slate-400 mt-1">
+
+                {/* Variable insertion badges */}
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {TEMPLATE_VARIABLES.map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => insertVariable(v)}
+                      className="bg-slate-100 hover:bg-blue-100 hover:text-blue-700 text-slate-600 text-xs px-2 py-0.5 rounded border border-slate-200 hover:border-blue-300 transition-colors cursor-pointer font-mono"
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+
+                <p className="text-xs text-slate-400 mt-2">
                   Preview: <em>"{buildSampleMessage(editDraft.message_template)}"</em>
                 </p>
               </div>
@@ -286,10 +390,26 @@ export default function MessageRulesManager() {
             </div>
           )}
 
-          <DialogFooter className="flex items-center justify-between gap-2">
-            <Button size="sm" variant="ghost" onClick={handleReset} disabled={!!isSaving} className="text-slate-400 hover:text-red-500 gap-1">
-              <RotateCcw className="w-3 h-3" /> Reset to default
-            </Button>
+          <DialogFooter className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={handleReset} disabled={!!isSaving} className="text-slate-400 hover:text-red-500 gap-1">
+                <RotateCcw className="w-3 h-3" /> Reset
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!!isTesting}
+                onClick={() => sendTestMessage(editingEvent, editDraft?.message_template)}
+                className={`gap-1 ${testSuccess === editingEvent ? 'border-green-500 text-green-600' : 'text-slate-600'}`}
+              >
+                {isTesting === editingEvent
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : testSuccess === editingEvent
+                  ? <CheckCircle className="w-3 h-3" />
+                  : <FlaskConical className="w-3 h-3" />}
+                {testSuccess === editingEvent ? 'Sent!' : 'Test'}
+              </Button>
+            </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={closeDialog}>Cancel</Button>
               <Button size="sm" onClick={handleEditSave} disabled={!!isSaving} className="gap-1">
