@@ -837,10 +837,15 @@ function Dashboard() {
         // CRITICAL: Treat "Show All" mode same as "All Drivers" mode for map bounds
         const shouldShowAllMarkersForBounds = selectedDriverIdRef.current === 'all' || showAllDriverMarkersRef.current;
 
-        // 1. DRIVER LOCATION: Include the SELECTED driver's location only (not active user if different driver selected)
+        // 1. DRIVER LOCATION: Include the SELECTED driver's location only if ON DUTY
         if (isViewingToday) {
-          const selectedDriverLoc = getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current });
-          if (selectedDriverLoc?.latitude && selectedDriverLoc?.longitude) {allCoordinates.push([selectedDriverLoc.latitude, selectedDriverLoc.longitude]);hasDriverMarkers = true;}
+          const tgtDriverId2 = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : (isDriver ? currentUser?.id : null);
+          const tgtAppUser2 = tgtDriverId2 ? appUsersRef.current.find((au) => au?.user_id === tgtDriverId2) : null;
+          const tgtIsOnDuty2 = tgtAppUser2?.driver_status === 'on_duty';
+          if (tgtIsOnDuty2) {
+            const selectedDriverLoc = getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current });
+            if (selectedDriverLoc?.latitude && selectedDriverLoc?.longitude) {allCoordinates.push([selectedDriverLoc.latitude, selectedDriverLoc.longitude]);hasDriverMarkers = true;}
+          }
         }
         const shouldIncludeBlueDot = isMobile && isDriver && !isDriverOffDuty(appUsersRef.current, currentUser?.id, currentUser?.driver_status) && isViewingToday && driverLocationRef.current?.latitude && driverLocationRef.current?.longitude && (selectedDriverId === currentUser?.id || selectedDriverIdRef.current === 'all');
 
@@ -907,7 +912,9 @@ function Dashboard() {
               return;
             }
 
-            if (appUsersRef.current?.find((au) => au?.user_id === location.driver_id)?.driver_status !== 'on_duty') {
+            // CRITICAL: Only include driver location if they are specifically ON DUTY — ignore off_duty/on_break
+            const driverAU = appUsersRef.current?.find((au) => au?.user_id === location.driver_id);
+            if (driverAU?.driver_status !== 'on_duty') {
               console.log(`🟡 [map phase 1 exit 5] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
               return;
             }
@@ -990,7 +997,18 @@ function Dashboard() {
           });
         }
 
-        // 4. HOME LOCATIONS: only add home markers when there are actual stops visible.
+        // 4. STORE (PICKUP ORIGIN) LOCATIONS: include stores that have deliveries in the current view
+        if (hasStopMarkers) {
+          const storeIdsInView = new Set((deliveriesToMap || []).map((d) => d?.store_id).filter(Boolean));
+          storeIdsInView.forEach((storeId) => {
+            const store = storesRef.current?.find((s) => s?.id === storeId);
+            if (store?.latitude && store?.longitude) {
+              allCoordinates.push([store.latitude, store.longitude]);
+            }
+          });
+        }
+
+        // 5. HOME LOCATIONS: only add home markers when there are actual stops visible.
         // If there are no stops for the selected driver, skip home markers entirely so
         // the "no stops" fallback (city-center view) triggers correctly below.
         const visibleDriverIdsForBounds = new Set((deliveriesToMap || []).map((d) => d?.driver_id).filter(Boolean));
