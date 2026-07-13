@@ -1832,7 +1832,12 @@ useEffect(() => {
       if (isDispatcher && currentUser?.store_ids && !currentUser.store_ids.includes(delivery.store_id)) {
         if (selectedCardId) { setSelectedCardId(null); setHighlightedCardId(null); cardExpandedAtRef.current = null; }
       }
-      setPreviousMapState({ center: Array.isArray(mapCenter) ? [...mapCenter] : null, zoom: mapZoom });
+      // Only capture map state when no card is currently expanded — if a card is already
+      // open and the user taps another, keep the original pre-expansion state so collapsing
+      // the new card returns to where the map was before ANY card was expanded.
+      if (!selectedCardId) {
+        setPreviousMapState({ center: Array.isArray(mapCenter) ? [...mapCenter] : null, zoom: mapZoom });
+      }
 
       // Collapse the stats card when a stop card expands or collapses (mutual exclusion)
       if (isExpanded) setIsExpanded(false);
