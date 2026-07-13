@@ -46,7 +46,6 @@ import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/pha
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection, ensureTempLogsForDate } from '@/components/dashboard/dashboardInitialLoadHelpers';
 import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
 import useImmersiveMode from '@/components/dashboard/useImmersiveMode';
-import useImmersiveMode from '@/components/dashboard/useImmersiveMode';
 import { getBoundsSpanKm, getPhaseBoundsMaxZoom } from '@/components/dashboard/mapCycleZoomHelpers';
 import { handleNotesUpdate as _handleNotesUpdate, handleCODUpdate as _handleCODUpdate } from '@/components/dashboard/handleSimpleDeliveryUpdates';
 import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboard/handleCreateReturn';
