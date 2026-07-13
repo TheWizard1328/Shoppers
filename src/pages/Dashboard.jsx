@@ -1788,10 +1788,7 @@ useEffect(() => {
       setSelectedCardId(null);
       setHighlightedCardId(null);
       cardExpandedAtRef.current = null;
-      if (previousMapState?.center && previousMapState?.zoom) {
-        window.dispatchEvent(new CustomEvent('restoreMapView', { detail: { center: previousMapState.center, zoom: previousMapState.zoom } }));
-        setShouldFitBounds(null);
-      }
+      // Programmatic collapse — do NOT restore map view
       setPreviousMapState(null);
     };
     window.addEventListener('patientHistoryPanelClosed', handlePatientHistoryPanelClosed);
@@ -1818,10 +1815,7 @@ useEffect(() => {
       setSelectedCardId(null);
       setHighlightedCardId(null);
       cardExpandedAtRef.current = null;
-      if (previousMapState?.center && previousMapState?.zoom) {
-        window.dispatchEvent(new CustomEvent('restoreMapView', { detail: { center: previousMapState.center, zoom: previousMapState.zoom } }));
-        setShouldFitBounds(null);
-      }
+      // Programmatic collapse — do NOT restore map view
       setPreviousMapState(null);
     };
     window.addEventListener('collapseAllStopCards', handleCollapseAllStopCardsEvent);
