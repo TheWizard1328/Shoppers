@@ -29,12 +29,7 @@
     "in_app_enabled": {
       "type": "boolean",
       "default": true,
-      "description": "Whether to send an in-app message for this event"
-    },
-    "push_enabled": {
-      "type": "boolean",
-      "default": false,
-      "description": "Whether to send a push notification for this event"
+      "description": "Whether to send an in-app message for this event. Push notifications are automatically sent to recipients whose device push settings are enabled."
     },
     "enabled": {
       "type": "boolean",

@@ -44,49 +44,49 @@ export const NOTIFICATION_EVENTS = {
 /** Hardcoded fallbacks — used only if the entity record is missing */
 export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL]: {
-    enabled: true, inApp: true, push: false,
+    enabled: true, inApp: true,
     recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName }) =>
       `${driverName} has accepted all pending deliveries.`
   },
   [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE]: {
-    enabled: true, inApp: true, push: false,
+    enabled: true, inApp: true,
     recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) =>
       `${driverName} has accepted delivery for ${patientName || 'Unknown Patient'}.`
   },
   [NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL]: {
-    enabled: true, inApp: true, push: false,
+    enabled: true, inApp: true,
     recipients: ['driver', 'appowner'],
     buildMessage: ({ storeName, deliveryList }) =>
       `${storeName} has assigned you the following deliveries:${deliveryList}`
   },
   [NOTIFICATION_EVENTS.DRIVER_STARTED]: {
-    enabled: true, inApp: true, push: false,
+    enabled: true, inApp: true,
     recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) =>
       `${driverName} has moved ${patientName || 'Unknown Patient'} to next delivery.`
   },
   [NOTIFICATION_EVENTS.DRIVER_COMPLETED]: {
-    enabled: true, inApp: true, push: false,
+    enabled: true, inApp: true,
     recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) =>
       `${driverName} has completed delivery for ${patientName || 'Unknown Patient'}.`
   },
   [NOTIFICATION_EVENTS.DRIVER_FAILED]: {
-    enabled: true, inApp: true, push: false,
+    enabled: true, inApp: true,
     recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) =>
       `${driverName} failed to complete delivery for ${patientName || 'Unknown Patient'}.`
   },
   [NOTIFICATION_EVENTS.DRIVER_RETRY]: {
-    enabled: true, inApp: true, push: false,
+    enabled: true, inApp: true,
     recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) =>
       `${driverName} is now retrying delivery for ${patientName || 'Unknown Patient'}.`
   },
   [NOTIFICATION_EVENTS.DRIVER_RETURN]: {
-    enabled: true, inApp: true, push: false,
+    enabled: true, inApp: true,
     recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName, deliveryNotes }) => {
       const parsedNames = extractPatientNamesFromReturnNotes(deliveryNotes);
@@ -95,7 +95,7 @@ export const notificationRules = {
     }
   },
   [NOTIFICATION_EVENTS.ADMIN_BROADCAST]: {
-    enabled: true, inApp: true, push: true,
+    enabled: true, inApp: true,
     recipients: ['dispatchers', 'driver', 'admins'],
     buildMessage: () => `You have a new message from the administrator.`
   }
@@ -165,18 +165,16 @@ function getEffective(event) {
     ...base,
     enabled:    live.enabled        ?? base.enabled,
     inApp:      live.in_app_enabled ?? base.inApp,
-    push:       live.push_enabled   ?? base.push ?? false,
     recipients: live.recipients     || base.recipients,
   };
 }
 
 /**
- * Check if a notification should be sent for an event and channel ('inApp' | 'push')
+ * Check if a notification should be sent for an event (inApp channel only now — push is device-controlled)
  */
 export function shouldNotify(event, channel = 'inApp') {
   const rule = getEffective(event);
   if (!rule.enabled) return false;
-  if (channel === 'push') return rule.push === true;
   return rule.inApp !== false;
 }
 

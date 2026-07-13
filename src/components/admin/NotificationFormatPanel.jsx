@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Save, Bell, MessageSquare, RotateCcw, Loader2, FlaskConical, CheckCircle, Trash2 } from 'lucide-react';
+import { Save, MessageSquare, RotateCcw, Loader2, FlaskConical, CheckCircle, Trash2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { notificationRules, applyTemplateUpdate } from '@/components/utils/notificationRules';
@@ -69,7 +69,6 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
       message_template: rec?.message_template || getHardcodedDefault(eventName),
       enabled: rec?.enabled ?? true,
       in_app_enabled: rec?.in_app_enabled ?? true,
-      push_enabled: rec?.push_enabled ?? false
     });
     setEditingEvent(eventName);
     setTestSuccess(null);
@@ -97,7 +96,7 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
     const resetFields = {
       label: formatEventLabel(editingEvent),
       message_template: getHardcodedDefault(editingEvent),
-      enabled: true, in_app_enabled: true, push_enabled: false
+      enabled: true, in_app_enabled: true,
     };
     setIsSaving(editingEvent);
     try {
@@ -171,7 +170,6 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
           const label = rec?.label || formatEventLabel(eventName);
           const enabled = rec?.enabled ?? true;
           const inApp = rec?.in_app_enabled ?? true;
-          const push = rec?.push_enabled ?? false;
           const template = rec?.message_template || getHardcodedDefault(eventName);
           const isTestingThis = isTesting === eventName;
           const testOk = testSuccess === eventName;
@@ -203,10 +201,6 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
                     <label className="flex items-center gap-2 cursor-pointer">
                       <Switch checked={inApp} onCheckedChange={() => handleToggle(eventName, 'in_app_enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
                       <span className="text-sm text-slate-700">In-App</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Switch checked={push} onCheckedChange={() => handleToggle(eventName, 'push_enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
-                      <span className="text-sm text-slate-700">Push</span>
                     </label>
                   </div>
                 </div>
@@ -279,10 +273,6 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
                 <div className="flex items-center gap-2">
                   <Switch checked={editDraft.in_app_enabled} onCheckedChange={(v) => setEditDraft((d) => ({ ...d, in_app_enabled: v }))} />
                   <Label className="text-sm flex items-center gap-1"><MessageSquare className="w-3 h-3" /> In-App</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch checked={editDraft.push_enabled} onCheckedChange={(v) => setEditDraft((d) => ({ ...d, push_enabled: v }))} />
-                  <Label className="text-sm flex items-center gap-1"><Bell className="w-3 h-3" /> Push</Label>
                 </div>
               </div>
             </div>

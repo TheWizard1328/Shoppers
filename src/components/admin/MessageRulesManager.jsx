@@ -63,7 +63,6 @@ export default function MessageRulesManager() {
         message_template: '',
         enabled: true,
         in_app_enabled: true,
-        push_enabled: false,
         recipients: [],
         trigger_conditions: [],
       });
