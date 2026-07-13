@@ -220,12 +220,16 @@ function DeliveryMarkers({
       dragend: (e) => handleMarkerDragEnd(delivery.id, e, 'delivery')
     };
 
+    // Scale circle radius so the marker pin is always fully encircled regardless of zoom.
+    // At zoom 14 (city overview) use ~60m; at zoom 18 (street level) use ~8m.
+    // Formula: radius = baseMeters / 2^(zoom - 14), clamped to [6, 80].
+    const haloRadius = Math.max(6, Math.min(80, 60 / Math.pow(2, Math.max(0, currentZoom - 14))));
     return [
-      isHighlighted && !isFanned && <Circle key={`delivery-halo-${delivery.id}`} center={[markerLatitude, markerLongitude]} radius={40} pathOptions={{ color: delivery.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />,
+      isHighlighted && !isFanned && <Circle key={`delivery-halo-${delivery.id}`} center={[markerLatitude, markerLongitude]} radius={haloRadius} pathOptions={{ color: delivery.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />,
       isHighlighted && !isFanned && delivery.store_id && (() => {
         const deliveryStore = stores.find(s => s?.id === delivery.store_id);
         if (!deliveryStore?.latitude || !deliveryStore?.longitude) return null;
-        return <Circle key={`delivery-store-halo-${delivery.id}`} center={[deliveryStore.latitude, deliveryStore.longitude]} radius={40} pathOptions={{ color: delivery.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />;
+        return <Circle key={`delivery-store-halo-${delivery.id}`} center={[deliveryStore.latitude, deliveryStore.longitude]} radius={haloRadius} pathOptions={{ color: delivery.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />;
       })(),
       <Marker
         key={`delivery-${delivery.id}`}
