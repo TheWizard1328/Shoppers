@@ -220,10 +220,13 @@ function DeliveryMarkers({
       dragend: (e) => handleMarkerDragEnd(delivery.id, e, 'delivery')
     };
 
-    // Scale circle radius so the marker pin is always fully encircled regardless of zoom.
-    // At zoom 14 (city overview) use ~60m; at zoom 18 (street level) use ~8m.
-    // Formula: radius = baseMeters / 2^(zoom - 14), clamped to [6, 80].
-    const haloRadius = Math.max(6, Math.min(80, 60 / Math.pow(2, Math.max(0, currentZoom - 14))));
+    // Convert marker pixel size → geographic meters so the circle always wraps the pin head.
+    // Marker pin head width ≈ size px (18–26px depending on zoom/mobile/status).
+    // metersPerPixel at zoom z (equator approximation): 156543 / 2^z
+    // We want the circle radius = (pinHeadPixels / 2 + padding) * metersPerPixel
+    // Use a slightly generous pixel size (26px) to cover the widest marker variant.
+    const metersPerPixel = 156543.03392 / Math.pow(2, currentZoom);
+    const haloRadius = Math.max(4, (26 / 2 + 6) * metersPerPixel);
     return [
       isHighlighted && !isFanned && <Circle key={`delivery-halo-${delivery.id}`} center={[markerLatitude, markerLongitude]} radius={haloRadius} pathOptions={{ color: delivery.pinColor || '#71717A', fillColor: 'transparent', fillOpacity: 0, weight: 2, opacity: 0.9, className: 'pulsating-halo' }} />,
       isHighlighted && !isFanned && delivery.store_id && (() => {
