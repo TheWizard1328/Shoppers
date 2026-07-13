@@ -84,6 +84,7 @@ export default function MobileHeader({
       }}
     >
       <div className="w-full min-h-[56px] flex items-center justify-between gap-2 px-4 py-2">
+        {/* LEFT: Back button + Logo (+ Menu button for dispatchers) */}
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             type="button"
@@ -94,7 +95,7 @@ export default function MobileHeader({
             <ArrowLeft className="w-6 h-6 text-slate-700" />
           </button>
 
-          {/* Logo with message badge - Left */}
+          {/* Logo with message badge */}
           <div
             className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"
             onClick={() => {
@@ -122,12 +123,32 @@ export default function MobileHeader({
               </span>
             )}
           </div>
+
+          {/* Menu button for dispatchers — left-aligned next to logo */}
+          {currentUser && !sidebarOpen && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation" aria-label="Open header menu">
+                  <MoreVertical className="w-5 h-5 text-slate-500" />
+                </Button>
+              </DropdownMenuTrigger>
+              <SettingsMenu
+                currentUser={currentUser}
+                realUser={realUser}
+                isAppOwner={isAppOwner(currentUser)}
+                themePreference={themePreference}
+                onThemeChange={onThemeChange}
+                cities={cities}
+                isMobile={true}
+              />
+            </DropdownMenu>
+          )}
         </div>
 
-        {/* Centered Controls - Only when sidebar is NOT open */}
-        {currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) && (
+        {/* Centered Controls - drivers and admins only */}
+        {currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) && (
           <div className="flex-1 flex items-center justify-center gap-2">
-            {/* Menu - Left */}
+            {/* Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation" aria-label="Open header menu">
@@ -145,7 +166,7 @@ export default function MobileHeader({
               />
             </DropdownMenu>
 
-            {/* Status Toggle - Center */}
+            {/* Status Toggle - drivers only */}
             {userHasRole(currentUser, 'driver') && (
               <div style={{ width: 'auto', overflow: 'hidden' }}>
                 <DriverStatusToggle
@@ -155,7 +176,7 @@ export default function MobileHeader({
               </div>
             )}
 
-            {/* QR Code - Right */}
+            {/* QR Code */}
             <button
               type="button"
               onClick={onInviteQRClick}
@@ -167,9 +188,20 @@ export default function MobileHeader({
           </div>
         )}
 
-        {/* Battery + User Avatar on far right */}
+        {/* RIGHT: Battery + Avatar (+ QR for dispatchers) */}
         {currentUser && (
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* QR Code for dispatchers — far right next to battery */}
+            {!sidebarOpen && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') && (
+              <button
+                type="button"
+                onClick={onInviteQRClick}
+                aria-label="Generate invite QR code"
+                className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 touch-manipulation"
+                title="Generate Invite QR Code">
+                <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
+              </button>
+            )}
             <BatteryIndicator vertical={true} />
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getUserAvatarGradient(currentUser)}`}>
               <span className="text-white font-bold text-xs">
