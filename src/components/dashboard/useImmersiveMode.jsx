@@ -211,11 +211,14 @@ export default function useImmersiveMode({
   // ACTIVATE when: driver is moving AND a next stop exists
   // DEACTIVATE when: near next stop OR manual override OR stopped OR cooldown OR no next stop
   const immersiveHidden = useMemo(() => {
-    if (!enabled || !isDriver || !isMobile) return false;
-    if (isCooldownActive) return false;    // post-stop cooldown — force UI visible (reactive, not stale ref)
-    if (!nextStopLocation) return false;   // no next stop → never immersive
-    if (isOverrideActive) return false;    // deactivation #2: double-tap
-    if (isNearNextStop) return false;      // deactivation #1: proximity
+    if (!enabled || !isDriver || !isMobile) {
+      console.log(`🚗 [Immersive] DISABLED — enabled:${enabled} isDriver:${isDriver} isMobile:${isMobile}`);
+      return false;
+    }
+    if (isCooldownActive) { console.log('🚗 [Immersive] OFF — post-stop cooldown'); return false; }
+    if (!nextStopLocation) { console.log('🚗 [Immersive] OFF — no nextStopLocation'); return false; }
+    if (isOverrideActive) { console.log('🚗 [Immersive] OFF — manual override'); return false; }
+    if (isNearNextStop) { console.log('🚗 [Immersive] OFF — near next stop'); return false; }  // deactivation #1: proximity
     return isDriverMoving;                 // activate only if moving; deactivation #3: stopped
   }, [enabled, isDriver, isMobile, isCooldownActive, nextStopLocation, isOverrideActive, isNearNextStop, isDriverMoving]);
 

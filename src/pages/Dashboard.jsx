@@ -279,12 +279,21 @@ function Dashboard() {
     let cancelled = false;
     getCurrentDevice(currentUser.id).then((device) => {
       if (cancelled) return;
-      const primary = device != null && device.status !== 'inactive' && device.is_primary_tracker === true;
+      // Align with StopCard / WebSocketDiagnosticsCard lenient logic:
+      //   null  → no device record → treat as primary (unregistered driver phones)
+      //   active + is_primary_tracker !== false → primary
+      //   inactive → non-primary
+      //   explicit is_primary_tracker: false → non-primary
+      const primary = device === null
+        || (device.status !== 'inactive' && device.is_primary_tracker !== false);
       setIsPrimaryDevice(primary);
       isPrimaryDeviceRef.current = primary;
       if (typeof window !== 'undefined') window.__isPrimaryDevice = primary;
     }).catch(() => {
-      // Leave as false on error — safe default
+      // On error assume primary — safe for immersive mode
+      setIsPrimaryDevice(true);
+      isPrimaryDeviceRef.current = true;
+      if (typeof window !== 'undefined') window.__isPrimaryDevice = true;
     });
     return () => { cancelled = true; };
   }, [isDriver, currentUser?.id]);
