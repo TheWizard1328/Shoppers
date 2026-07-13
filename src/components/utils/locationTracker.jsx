@@ -523,19 +523,22 @@ class LocationTracker {
 
       // Breadcrumbs are collected on their own independent 5s timer — not here.
 
-      // CRITICAL: Check for arrival at delivery locations on every GPS/heartbeat update while on duty
-      if (this.driverStatus === 'on_duty' && this.currentDeliveryDate) {
+      // CRITICAL: Check for arrival at delivery locations on every GPS/heartbeat update while on duty.
+      // Derive today's delivery date inline (Edmonton timezone) — do NOT rely on this.currentDeliveryDate
+      // which is never set from external callers.
+      if (this.driverStatus === 'on_duty' && this.currentUser?.id) {
+        const _todayEdmonton = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }); // yyyy-MM-dd
         await arrivalTimeDetector.processLocationUpdate(
           latitude,
           longitude,
-          this.currentUser?.id,
-          this.currentDeliveryDate
+          this.currentUser.id,
+          _todayEdmonton
         );
       }
 
       // Type 1 polyline regeneration is handled by explicit route-change flows only.
 
-      if (this.driverStatus === 'on_duty' && this.currentDeliveryDate && this.currentUser?.id) {
+      if (this.driverStatus === 'on_duty' && this.currentUser?.id) {
         const previousEtaPosition = this.lastEtaRefreshPosition;
         const distanceSinceEtaRefresh = previousEtaPosition
           ? this.calculateDistanceInMeters(
@@ -1266,12 +1269,14 @@ class LocationTracker {
       // returned to the app already parked at their next stop. The standard 30s-stationary
       // flow in processLocationUpdate won't trigger because the timer starts fresh on resume.
       // checkImmediateArrival fires instantly: isNextDelivery === true AND within 100m.
-      if (this.driverStatus === 'on_duty' && this.currentDeliveryDate && this.currentUser?.id) {
+      // Derive today's date inline (Edmonton timezone) — do NOT rely on this.currentDeliveryDate.
+      if (this.driverStatus === 'on_duty' && this.currentUser?.id) {
+        const _resumeDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
         arrivalTimeDetector.checkImmediateArrival(
           latitude,
           longitude,
           this.currentUser.id,
-          this.currentDeliveryDate
+          _resumeDate
         ).catch(err => {
           console.warn('⚠️ [LocationTracker] Immediate arrival check failed on resume:', err?.message);
         });
@@ -1407,6 +1412,22 @@ if (typeof document !== 'undefined') {
     ) {
       console.log(`🔄 [LocationTracker] App resumed after ${Math.round(awayDuration / 1000)}s away — resyncing GPS, breadcrumbs, and offline DB`);
       locationTracker._resumeAfterAbsence(awayDuration);
+      // _resumeAfterAbsence handles checkImmediateArrival after acquiring fresh GPS — no duplicate needed here.
+    } else if (
+      locationTracker.isTracking &&
+      locationTracker.driverStatus === 'on_duty' &&
+      locationTracker.lastPosition?.latitude &&
+      locationTracker.currentUser?.id
+    ) {
+      // Short absence (< 5s) or first focus: still check arrival using last known position.
+      // _resumeAfterAbsence won't run but driver may already be parked at their next stop.
+      const _focusDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+      arrivalTimeDetector.checkImmediateArrival(
+        locationTracker.lastPosition.latitude,
+        locationTracker.lastPosition.longitude,
+        locationTracker.currentUser.id,
+        _focusDate
+      ).catch(() => {});
     }
   });
 }

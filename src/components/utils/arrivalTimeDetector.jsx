@@ -22,7 +22,7 @@ class ArrivalTimeDetector {
     this._cachedStores = null;
     this._cachedAppUser = null;
     this._lastCacheTime = 0;
-    this._cacheMaxAge = 60000; // 1 minute
+    this._cacheMaxAge = 10000; // 10 seconds — keeps isNextDelivery flag fresh after stop transitions
     this._lastDriverId = null;
     this._lastDeliveryDate = null;
   }
