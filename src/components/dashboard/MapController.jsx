@@ -94,6 +94,7 @@ export default function MapController({
       const rawZoom = mapInstance.getZoom();
       const roundedZoom = Math.round(rawZoom * 10) / 10;
       window.__currentMapZoom = roundedZoom;
+      window.__mapCurrentZoom = roundedZoom;
       
       if (roundedZoom !== currentZoom) {
         setCurrentZoom(roundedZoom);
@@ -132,6 +133,11 @@ export default function MapController({
     },
     moveend: () => {
       if ((window._suppressAutoCenterUntil || 0) > Date.now()) { return; }
+      // Always publish live center so card-expand collapse restore can read it
+      const center = mapInstance.getCenter();
+      const newCenter = [center.lat, center.lng];
+      window.__mapCurrentCenter = newCenter;
+      window.__mapCurrentZoom = mapInstance.getZoom();
       // CRITICAL: Do not echo center back to Dashboard state during programmatic moves.
       // fitBounds/setView fire moveend, which updates mapCenter prop, which re-triggers
       // the setView effect — causing a second unwanted map reposition (double-bounce).
@@ -141,8 +147,6 @@ export default function MapController({
         setVisibleBounds(bounds);
         return;
       }
-      const center = mapInstance.getCenter();
-      const newCenter = [center.lat, center.lng];
       window.__currentMapCenter = newCenter;
       
       setMapCenter(prev => {
@@ -177,6 +181,19 @@ export default function MapController({
   });
 
 
+
+  // Restore map to saved center/zoom when a stop card collapses
+  useEffect(() => {
+    const handleRestoreMapView = (e) => {
+      const { center, zoom } = e?.detail || {};
+      if (!center || !zoom || !mapInstance) return;
+      window._lastProgrammaticMapMove = Date.now() + 1500;
+      mapInstance.setView(center, zoom, { animate: true, duration: 0.6 });
+    };
+    window.addEventListener('restoreMapView', handleRestoreMapView);
+    return () => window.removeEventListener('restoreMapView', handleRestoreMapView);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle zoom-in on double tap via window event (fired from MapSection onDoubleTap)
   useEffect(() => {

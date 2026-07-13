@@ -1789,8 +1789,7 @@ useEffect(() => {
       setHighlightedCardId(null);
       cardExpandedAtRef.current = null;
       if (previousMapState?.center && previousMapState?.zoom) {
-        setMapCenter(previousMapState.center);
-        setMapZoom(previousMapState.zoom);
+        window.dispatchEvent(new CustomEvent('restoreMapView', { detail: { center: previousMapState.center, zoom: previousMapState.zoom } }));
         setShouldFitBounds(null);
       }
       setPreviousMapState(null);
@@ -1820,8 +1819,7 @@ useEffect(() => {
       setHighlightedCardId(null);
       cardExpandedAtRef.current = null;
       if (previousMapState?.center && previousMapState?.zoom) {
-        setMapCenter(previousMapState.center);
-        setMapZoom(previousMapState.zoom);
+        window.dispatchEvent(new CustomEvent('restoreMapView', { detail: { center: previousMapState.center, zoom: previousMapState.zoom } }));
         setShouldFitBounds(null);
       }
       setPreviousMapState(null);
@@ -1841,7 +1839,14 @@ useEffect(() => {
     if (selectedCardId === delivery.id) {
       // Collapsing: restore map to pre-expansion state
       setSelectedCardId(null); setHighlightedCardId(null); cardExpandedAtRef.current = null;
-      if (previousMapState?.center && previousMapState?.zoom) { setMapCenter(previousMapState.center); setMapZoom(previousMapState.zoom); setShouldFitBounds(null); }
+      if (previousMapState?.center && previousMapState?.zoom) {
+        // Use a direct map restore event so the map component can call setView
+        // directly — mapCenter/mapZoom are null after fitBounds and can't be used.
+        window.dispatchEvent(new CustomEvent('restoreMapView', {
+          detail: { center: previousMapState.center, zoom: previousMapState.zoom }
+        }));
+        setShouldFitBounds(null);
+      }
       setPreviousMapState(null);
       window.dispatchEvent(new CustomEvent('collapseStatsCard'));
       return;
@@ -1853,8 +1858,12 @@ useEffect(() => {
       // Only capture map state when no card is currently expanded — if a card is already
       // open and the user taps another, keep the original pre-expansion state so collapsing
       // the new card returns to where the map was before ANY card was expanded.
+      // Read the live map center/zoom from the map instance globals so we always get the
+      // actual rendered position (mapCenter/mapZoom state are set to null after fitBounds).
       if (!selectedCardId) {
-        setPreviousMapState({ center: Array.isArray(mapCenter) ? [...mapCenter] : null, zoom: mapZoom });
+        const liveCenter = window.__mapCurrentCenter || (Array.isArray(mapCenter) ? [...mapCenter] : null);
+        const liveZoom = window.__mapCurrentZoom ?? mapZoom;
+        setPreviousMapState({ center: liveCenter, zoom: liveZoom });
       }
 
       // Collapse the stats card when a stop card expands or collapses (mutual exclusion)
@@ -1892,14 +1901,16 @@ useEffect(() => {
               const store = stores.find((s) => s.id === delivery.store_id);
               if (store?.latitude && store?.longitude) bounds.push([store.latitude, store.longitude]);
             }
-            if (appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
+            // Always include originating store in bounds
+            if (delivery.store_id) {
+              const originStore = stores.find((s) => s.id === delivery.store_id);
+              if (originStore?.latitude && originStore?.longitude) bounds.push([originStore.latitude, originStore.longitude]);
+            }
+            if (appUser?.driver_status === 'on_duty' && appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
             if (bounds.length) {
               setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
               setMapCenter(null);setMapZoom(null);
             }
-            // Only relock if: (a) the current phase hasn't changed since card was clicked,
-            // (b) the relock phase is 2 or 3 (never relock phase 1 — that's FAB-exclusive),
-            // (c) the delivery is still the next delivery.
 
           }, 350);
         } else {
@@ -1911,7 +1922,12 @@ useEffect(() => {
             const store = stores.find((s) => s.id === delivery.store_id);
             if (store?.latitude && store?.longitude) bounds.push([store.latitude, store.longitude]);
           }
-          if (appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
+          // Always include originating store in bounds
+          if (delivery.store_id) {
+            const originStore = stores.find((s) => s.id === delivery.store_id);
+            if (originStore?.latitude && originStore?.longitude) bounds.push([originStore.latitude, originStore.longitude]);
+          }
+          if (appUser?.driver_status === 'on_duty' && appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
           if (bounds.length) {
             setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
             setMapCenter(null);setMapZoom(null);
