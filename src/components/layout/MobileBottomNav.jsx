@@ -44,7 +44,6 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
       { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard, tabKey: 'dashboard' },
       { name: 'Patients', page: 'Patients', icon: Users, tabKey: 'patients' },
       { name: 'Routes', page: 'Deliveries', icon: Package, tabKey: 'routes' },
-      { name: 'Schedule', page: 'DriverScheduleCalendar', icon: CalendarDays, tabKey: 'scheduling' },
       { name: 'Messages', action: 'messaging', icon: MessageCircle },
       { name: 'Settings', page: 'Settings', icon: Settings, tabKey: 'settings' },
     ];
