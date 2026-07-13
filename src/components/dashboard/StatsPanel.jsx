@@ -434,7 +434,7 @@ export default function StatsPanel({
                   <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                     <SelectValue placeholder="All Drivers">{
                          !selectedDriverId ?
-                         isDispatcher ? 'Loading...' : 'All Drivers' :
+                         isDispatcher ? 'No Drivers' : 'All Drivers' :
                          selectedDriverId === 'all' ?
                          (isDispatcher && driversList.length === 0 ? 'No Drivers' : 'All Drivers') :
                          driversList.find((d) => d?.id === selectedDriverId)?.user_name || driversList.find((d) => d?.id === selectedDriverId)?.full_name || 'Driver'
