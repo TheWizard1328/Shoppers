@@ -105,32 +105,60 @@ Deno.serve(async (req) => {
       console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${clearedCount} deliveries for ${targetDate}`);
     }
     
-    // When coming back on_duty, preserve existing route state.
-    // Do not reassign isNextDelivery here because start/complete/optimizer own that flow.
+    // When coming back on_duty (from on_break OR off_duty), restore isNextDelivery and polyline.
+    //
+    // IMPORTANT: When a driver goes on_break, clearNextDeliveryFlags() wipes ALL isNextDelivery
+    // flags. So when they return on_duty, flaggedDeliveries will be 0. We must call
+    // setNextDeliveryFlag first to re-establish the correct next stop, THEN regenerate
+    // the polyline so the route line appears correctly.
     if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
       const targetDate = selectedDate || getEdmDate();
+      const ACTIVE_STATUSES = new Set(['in_transit', 'en_route', 'arrived']);
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: subjectUserId,
         delivery_date: targetDate
       }, 'stop_order');
 
       const flaggedDeliveries = allTodayDeliveries.filter((d) => d?.isNextDelivery === true);
+      const activeDeliveries = allTodayDeliveries.filter((d) => d && ACTIVE_STATUSES.has(d.status));
       console.log(`📦 [setDriverStatus] Found ${allTodayDeliveries.length} deliveries for ${targetDate}`);
-      console.log(`📦 [setDriverStatus] Preserving existing next-stop state on on_duty (${flaggedDeliveries.length} currently flagged)`);
+      console.log(`📦 [setDriverStatus] Flagged: ${flaggedDeliveries.length}, Active: ${activeDeliveries.length}`);
 
-      if (flaggedDeliveries.length > 0 && updatedAppUser?.home_latitude != null && updatedAppUser?.home_longitude != null) {
+      // If no stop is currently flagged as next (e.g. coming back from on_break which cleared all flags),
+      // but there are active stops, re-establish the isNextDelivery flag before regenerating the polyline.
+      let resolvedFlagged = flaggedDeliveries;
+      if (flaggedDeliveries.length === 0 && activeDeliveries.length > 0) {
+        console.log(`🔄 [setDriverStatus] No isNextDelivery flag found after status restore — calling setNextDeliveryFlag to re-establish`);
+        await base44.asServiceRole.functions.invoke('setNextDeliveryFlag', {
+          driverId: subjectUserId,
+          deliveryDate: targetDate
+        }).catch((error) => {
+          console.warn('⚠️ [setDriverStatus] setNextDeliveryFlag failed on on_duty restore:', error?.message || error);
+        });
+        // Re-fetch to see what was flagged
+        const refreshed = await base44.asServiceRole.entities.Delivery.filter({
+          driver_id: subjectUserId,
+          delivery_date: targetDate
+        }, 'stop_order').catch(() => []);
+        resolvedFlagged = refreshed.filter((d) => d?.isNextDelivery === true);
+        console.log(`✅ [setDriverStatus] After setNextDeliveryFlag: ${resolvedFlagged.length} flagged`);
+      }
+
+      // Regenerate the current-leg polyline now that isNextDelivery is correctly set.
+      // Use driver's current GPS if available, fall back to home coordinates.
+      const originLat = updatedAppUser?.current_latitude ?? updatedAppUser?.home_latitude;
+      const originLon = updatedAppUser?.current_longitude ?? updatedAppUser?.home_longitude;
+
+      if (resolvedFlagged.length > 0 && originLat != null && originLon != null) {
         await base44.asServiceRole.functions.invoke('regenerateType1Polyline', {
           driverId: subjectUserId,
           deliveryDate: targetDate,
-          currentLocation: {
-            lat: updatedAppUser.home_latitude,
-            lon: updatedAppUser.home_longitude
-          },
+          currentLocation: { lat: originLat, lon: originLon },
           isPrimaryDevice: true,
           force: true,
-          routeChangeSource: 'on_duty_start'
+          routeChangeSource: 'on_duty_restore'
         }).catch((error) => {
-          console.warn('⚠️ [setDriverStatus] Initial home-to-first-stop polyline skipped:', error?.message || error);
+          console.warn('⚠️ [setDriverStatus] regenerateType1Polyline skipped on on_duty restore:', error?.message || error);
         });
       }
     }
