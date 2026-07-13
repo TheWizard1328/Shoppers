@@ -400,6 +400,18 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: effectiveUser.id, newStatus: updatePayload.driver_status } }));
         // Ensure other devices receive the update via WS broadcast
         broadcastMutation('AppUser', 'update', appUserId, finalData);
+
+        // Force a delivery refresh so stop cards and polylines reflect the new status
+        // (isNextDelivery flags and stop order may have changed server-side)
+        const routeDate = globalFilters.getSelectedDate() || getTodayStr();
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { driverId: effectiveUser.id, deliveryDate: routeDate, triggeredBy: 'driverStatusChange' }
+        }));
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('triggerPullToSync', {
+            detail: { silent: true, reason: 'driver_status_change' }
+          }));
+        }, 800);
       }
 
       setTimeout(async () => {
