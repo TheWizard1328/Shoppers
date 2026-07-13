@@ -262,8 +262,33 @@ class ArrivalTimeDetector {
             console.log(`✅ [ARRIVAL] Detected at ${delivery.patient_id ? 'delivery' : 'pickup'} (${delivery.id}) after ${(stationaryDuration / 1000).toFixed(1)}s`);
             try {
               await base44.entities.Delivery.update(delivery.id, { arrival_time: _arrivalTime });
+
+              // ── Write arrival_time into IDB so local state reflects it immediately ──
+              try {
+                const { offlineDB } = await import('./offlineDatabase');
+                const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id);
+                if (existing) {
+                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...existing, arrival_time: _arrivalTime }]);
+                }
+              } catch (idbErr) {
+                console.warn('[ARRIVAL] IDB update failed (non-critical):', idbErr.message);
+              }
+
+              // ── Push updated delivery into React local state so StopCard re-renders immediately ──
+              const updatedDelivery = { ...delivery, arrival_time: _arrivalTime };
+              window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+                detail: {
+                  deliveries: [updatedDelivery],
+                  appUsers: [],
+                  patients: [],
+                  deliveryDate: delivery.delivery_date,
+                  preserveLocalState: true,
+                  triggeredBy: 'arrivalDetected'
+                }
+              }));
+
               this.stationaryStartTime = Date.now();
-              console.log(`💾 [ARRIVAL] Saved arrival_time for ${delivery.id}`);
+              console.log(`💾 [ARRIVAL] Saved arrival_time for ${delivery.id} — UI notified`);
             } catch (error) {
               console.error('❌ [ARRIVAL] Failed to save arrival_time:', error);
             }
