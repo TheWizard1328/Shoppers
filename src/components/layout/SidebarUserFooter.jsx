@@ -368,7 +368,7 @@ export default function SidebarUserFooter({
 
   // Auto-collapse the drivers list after 2 minutes of being expanded (same as stop cards)
   useEffect(() => {
-    if (!driversExpanded) { driversExpandedAtRef.current = null; return; }
+    if (!driversExpanded) {driversExpandedAtRef.current = null;return;}
     driversExpandedAtRef.current = Date.now();
     const timer = setTimeout(() => setDriversExpanded(false), 120000);
     return () => clearTimeout(timer);
@@ -422,7 +422,7 @@ export default function SidebarUserFooter({
   // All other drivers in the city not already shown in scheduledDrivers
   // Only show drivers assigned to the same city_ids as the dispatcher's stores
   const dispatcherCityIds = new Set(
-    (stores || []).filter(s => (currentUser.store_ids || []).includes(s.id)).map(s => s.city_id).filter(Boolean)
+    (stores || []).filter((s) => (currentUser.store_ids || []).includes(s.id)).map((s) => s.city_id).filter(Boolean)
   );
   const scheduledDriverIdSet = new Set(scheduledDrivers.map(({ driver }) => driver.user_id || driver.id));
   const otherCityDrivers = (appUsers || []).filter((u) => {
@@ -431,8 +431,8 @@ export default function SidebarUserFooter({
     if (!u.user_name) return false;
     if (scheduledDriverIdSet.has(u.user_id) || scheduledDriverIdSet.has(u.id)) return false;
     // Must share at least one city with the dispatcher's stores
-    const driverCities = Array.isArray(u.city_ids) ? u.city_ids : (u.city_id ? [u.city_id] : []);
-    return driverCities.some(cid => dispatcherCityIds.has(cid));
+    const driverCities = Array.isArray(u.city_ids) ? u.city_ids : u.city_id ? [u.city_id] : [];
+    return driverCities.some((cid) => dispatcherCityIds.has(cid));
   });
 
   return (
@@ -564,8 +564,8 @@ export default function SidebarUserFooter({
                 setShowLogoutConfirm(true);
               }
             }}
-            title={currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') ? 'Tap to log out' : undefined}
-          >
+            title={currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') ? 'Tap to log out' : undefined}>
+            
             <div className="w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0" style={{ background: getUserAvatarGradient(currentUser) }}>
               <span className="text-white font-bold text-sm">{(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}</span>
             </div>
@@ -583,9 +583,9 @@ export default function SidebarUserFooter({
                 </div>
               }
             </div>
-            {currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') && (
-              <LogOut className="w-4 h-4 text-slate-400 flex-shrink-0" />
-            )}
+            {currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') &&
+            <LogOut className="w-4 h-4 text-slate-400 flex-shrink-0 hidden" />
+            }
           </div>
 
           <div className="flex flex-col items-center">
