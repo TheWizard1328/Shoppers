@@ -313,6 +313,7 @@ export default function StopCardHeader({
         }
 
         <div className="flex items-center gap-0.5 flex-wrap justify-center">
+          {/* For dispatchers, only show special symbols for their own store's stops */}
           <SpecialSymbolsBadges
             delivery={delivery}
             patient={patient}
@@ -320,6 +321,7 @@ export default function StopCardHeader({
             isInterStore={isInterStore}
             size="card"
             className="mt-1"
+            hidden={userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !((currentUser?.store_ids || []).includes(delivery?.store_id))}
             fridgeTemp={delivery?.fridge_item ? (() => {
               const isFinished = FINISHED_STATUSES.includes(delivery?.status);
               // Average over the precise fridge-carry window (uses delivery's own date readings)

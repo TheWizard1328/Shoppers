@@ -50,8 +50,9 @@ export default function SpecialSymbolsBadges({
   className = '',
   showHelp = false,
   fridgeTemp = null,  // live or last recorded temp °C (number), passed from parent
+  hidden = false,
 }) {
-  if (!delivery) return null;
+  if (!delivery || hidden) return null;
 
   // Size configurations - consistent and accessible
   const sizeConfig = {
