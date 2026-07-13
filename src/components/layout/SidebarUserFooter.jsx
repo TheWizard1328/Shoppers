@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Phone, MessageCircle, QrCode, Thermometer, MapPin, ChevronDown } from 'lucide-react';
+import { Phone, MessageCircle, QrCode, Thermometer, MapPin, ChevronDown, LogOut } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 function haversineMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -362,6 +363,7 @@ export default function SidebarUserFooter({
   const isSelectedDateToday = !selectedDateStr || selectedDateStr === localTodayStr;
   const [todayOverrides, setTodayOverrides] = useState([]);
   const [driversExpanded, setDriversExpanded] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const driversExpandedAtRef = useRef(null);
 
   // Auto-collapse the drivers list after 2 minutes of being expanded (same as stop cards)
@@ -554,25 +556,38 @@ export default function SidebarUserFooter({
 
         <div className="rounded-lg flex items-center gap-3 px-2">
 
-          <div className="w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0" style={{ background: getUserAvatarGradient(currentUser) }}>
-            <span className="text-white font-bold text-sm">{(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}</span>
+          {/* Clickable area: avatar + name/role/phone — shows logout for dispatchers */}
+          <div
+            className={`flex items-center gap-3 flex-1 min-w-0 rounded-lg py-1 -mx-1 px-1 transition-colors ${currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') ? 'cursor-pointer hover:bg-slate-100 active:bg-slate-200' : ''}`}
+            onClick={() => {
+              if (currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin')) {
+                setShowLogoutConfirm(true);
+              }
+            }}
+            title={currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') ? 'Tap to log out' : undefined}
+          >
+            <div className="w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0" style={{ background: getUserAvatarGradient(currentUser) }}>
+              <span className="text-white font-bold text-sm">{(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
+                {getDriverDisplayName(currentUser)}
+              </p>
+              <p className="text-xs truncate capitalize" style={{ color: 'var(--text-slate-500)' }}>
+                {formatRoles(currentUser)}
+              </p>
+              {currentUser.phone &&
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <Phone className="w-3 h-3" />
+                  <span className="text-xs">{formatPhoneNumber(currentUser.phone)}</span>
+                </div>
+              }
+            </div>
+            {currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin') && (
+              <LogOut className="w-4 h-4 text-slate-400 flex-shrink-0" />
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
-              {getDriverDisplayName(currentUser)}
-            </p>
-            <p className="text-xs truncate capitalize" style={{ color: 'var(--text-slate-500)' }}>
-              {formatRoles(currentUser)}
-            </p>
-            {currentUser.phone &&
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-                <Phone className="w-3 h-3" />
-                <a href={`tel:${currentUser.phone}`} className="hover:text-slate-700 transition-colors text-xs">
-                  {formatPhoneNumber(currentUser.phone)}
-                </a>
-              </div>
-            }
-          </div>
+
           <div className="flex flex-col items-center">
             <button
               onClick={onOpenMessaging} className="px-2 py-0 rounded-lg hover:bg-slate-100 transition-colors relative"
@@ -602,6 +617,26 @@ export default function SidebarUserFooter({
           </div>
         }
       </div>
+
+      {/* Logout confirmation for dispatchers */}
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Log out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You'll be signed out of your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => base44.auth.logout('/')}>
+              Log Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>);
 
 }
