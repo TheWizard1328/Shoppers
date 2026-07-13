@@ -414,33 +414,41 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
   const statusConfig = {
     off_duty:  { label: 'Off', activeColor: 'bg-red-600' },
     on_duty:   { label: 'On',  activeColor: 'bg-emerald-600' },
-    on_break:  { label: 'Br',  activeColor: 'bg-blue-600' },
+    on_break:  { label: 'Br',  activeColor: 'bg-amber-500' },
   };
 
   const currentConfig = statusConfig[status] || statusConfig.off_duty;
+  const pendingConfig = pendingStatus ? statusConfig[pendingStatus] : null;
 
   return (
     <div className="flex items-center">
       <div
         className={cn(
-          "relative flex items-center rounded-full p-0.5 transition-all",
+          "relative flex items-center rounded-full p-0.5 transition-all duration-200",
           vertical ? "flex-col w-8 h-24" : "flex-row h-8 w-24",
-          isUpdating && "opacity-50 pointer-events-none"
+          isUpdating && "pointer-events-none"
         )}
         style={{ background: 'var(--bg-slate-200)' }}
       >
         {/* Sliding indicator */}
         <div className={cn(
-          "absolute rounded-full transition-all duration-200 ease-out shadow-sm",
-          currentConfig.activeColor,
+          "absolute rounded-full transition-all duration-300 ease-out shadow-sm flex items-center justify-center overflow-hidden",
+          isUpdating ? (pendingConfig?.activeColor || currentConfig.activeColor) : currentConfig.activeColor,
           vertical ? "w-7 h-8" : "h-7 w-8",
-          vertical && status === 'off_duty'  && 'top-0.5',
-          vertical && status === 'on_duty'   && 'top-[calc(33.33%-2px)]',
-          vertical && status === 'on_break'  && 'top-[calc(66.66%-4px)]',
-          !vertical && status === 'off_duty' && 'left-0.5',
-          !vertical && status === 'on_duty'  && 'left-[calc(33.33%-2px)]',
-          !vertical && status === 'on_break' && 'left-[calc(66.66%-4px)]'
-        )} />
+          vertical && (pendingStatus || status) === 'off_duty'  && 'top-0.5',
+          vertical && (pendingStatus || status) === 'on_duty'   && 'top-[calc(33.33%-2px)]',
+          vertical && (pendingStatus || status) === 'on_break'  && 'top-[calc(66.66%-4px)]',
+          !vertical && (pendingStatus || status) === 'off_duty' && 'left-0.5',
+          !vertical && (pendingStatus || status) === 'on_duty'  && 'left-[calc(33.33%-2px)]',
+          !vertical && (pendingStatus || status) === 'on_break' && 'left-[calc(66.66%-4px)]'
+        )}>
+          {isUpdating && (
+            <svg className="animate-spin w-3 h-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          )}
+        </div>
 
         {Object.entries(statusConfig).map(([key, cfg]) => (
           <button
@@ -448,11 +456,12 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             onClick={() => handleStatusChange(key)}
             disabled={isUpdating}
             className={cn(
-              "relative z-10 flex flex-1 items-center justify-center rounded-full font-bold leading-none transition-colors min-h-0",
+              "relative z-10 flex flex-1 items-center justify-center rounded-full font-bold leading-none transition-all duration-200 min-h-0",
               vertical ? "h-1/3 w-full text-[9px]" : "h-full text-[10px]",
-              status === key ? 'text-white' : ''
+              (pendingStatus || status) === key ? 'text-white' : '',
+              isUpdating && key === pendingStatus ? 'opacity-0' : ''
             )}
-            style={status !== key ? { color: 'var(--text-slate-500)' } : {}}
+            style={(pendingStatus || status) !== key ? { color: 'var(--text-slate-500)' } : {}}
           >
             {cfg.label}
           </button>
