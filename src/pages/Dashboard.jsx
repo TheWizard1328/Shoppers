@@ -46,6 +46,7 @@ import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/pha
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection, ensureTempLogsForDate } from '@/components/dashboard/dashboardInitialLoadHelpers';
 import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
 import useImmersiveMode from '@/components/dashboard/useImmersiveMode';
+import useImmersiveMode from '@/components/dashboard/useImmersiveMode';
 import { getBoundsSpanKm, getPhaseBoundsMaxZoom } from '@/components/dashboard/mapCycleZoomHelpers';
 import { handleNotesUpdate as _handleNotesUpdate, handleCODUpdate as _handleCODUpdate } from '@/components/dashboard/handleSimpleDeliveryUpdates';
 import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboard/handleCreateReturn';
@@ -474,6 +475,22 @@ function Dashboard() {
   const nextStopCoordinates = useMemo(() => { if (!nextStop) return null; if (nextStop.is_cycling_marker && nextStop.cycling_latitude && nextStop.cycling_longitude) return { lat: nextStop.cycling_latitude, lon: nextStop.cycling_longitude }; if (nextStop.patient_id) { const p = patients.find((p) => p && p.id === nextStop.patient_id); if (p?.latitude && p?.longitude) return { lat: p.latitude, lon: p.longitude }; } else if (isInterStoreDelivery(nextStop.delivery_id)) { const isl = getInterStoreLocationSync(nextStop.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } else if (nextStop.store_id) { const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } return null; }, [nextStop, patients, stores]);
   // nextStopCoordinatesRef kept as inline sync — fires only when nextStopCoordinates changes
   useEffect(() => { nextStopCoordinatesRef.current = nextStopCoordinates; }, [nextStopCoordinates]);
+
+  // ── Immersive mode — slides UI away when driver is actively moving toward their next stop ──
+  // Enabled only on the primary mobile device for drivers (not admins, not dispatchers).
+  const {
+    immersiveHidden,
+    isDriverMoving,
+    isOverrideActive: immersiveOverrideActive,
+    forceShowUI,
+  } = useImmersiveMode({
+    isDriver,
+    isMobile,
+    driverLocation,
+    nextStopLocation: nextStopCoordinates,
+    enabled: isPrimaryDevice && isDriver && !isAdmin,
+  });
+
   const getMapPadding = useCallback((isImmersiveHidden = false) => buildMapPadding({ isMobile, isImmersiveHidden, statsCardHeight: statsCardRef.current?.offsetHeight, statsCardBaseHeight, stopCardsBaseHeight, bottomNavHeight }), [isMobile, stopCardsBaseHeight, statsCardBaseHeight, bottomNavHeight]);
   const handleCardInteraction = useCallback((show) => { if (fadeTimeoutRef.current) { clearTimeout(fadeTimeoutRef.current); fadeTimeoutRef.current = null; } setAreCardsVisible(show); if (show && !isExpanded && !isRouteComplete) fadeTimeoutRef.current = setTimeout(() => setAreCardsVisible(false), 3000); }, [isExpanded, isRouteComplete]);
   const handleStatsPanelInteraction = useCallback((isHovering) => { if (!isMobile) return; if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } if (isHovering || isExpanded) setStatsPanelOpacity(1); else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);

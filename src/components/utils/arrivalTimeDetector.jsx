@@ -219,57 +219,107 @@ class ArrivalTimeDetector {
         return; // Done processing (pickups rule takes precedence)
       }
 
-      // 2) FALLBACK: Original behavior (for deliveries or single, non-eligible pickups)
-      // Find incomplete (non-finished, arrival_time empty) stops of any type
-      const incompleteDeliveries = deliveries.filter(d => allowedStatuses.includes(String(d.status)) && !d.arrival_time);
+      // 2) PATIENT DELIVERIES + CYCLING MARKERS: stationary-30s flow.
+      //
+      // Criteria (unified per spec):
+      //   • isNextDelivery === true  (only the flagged next stop gets arrival recorded)
+      //   • Within 100m of that stop's coordinates
+      //   • 30s stationary (timer runs on every GPS tick until confirmed)
+      //
+      // The "isNextDelivery" gate prevents false arrivals at co-located stops or
+      // stops the driver is simply passing near.
+      const nextDelivery = deliveries.find(d =>
+        d &&
+        d.isNextDelivery === true &&
+        allowedStatuses.includes(String(d.status)) &&
+        !d.arrival_time
+      );
 
       let driverAtLocation = false;
-      for (const delivery of incompleteDeliveries) {
+
+      if (nextDelivery) {
         let targetLat, targetLon;
-        if (delivery.is_cycling_marker) {
-          // Cycling markers use dedicated GPS fields
-          if (!delivery.cycling_latitude || !delivery.cycling_longitude) continue;
-          targetLat = delivery.cycling_latitude;
-          targetLon = delivery.cycling_longitude;
-        } else if (delivery.patient_id) {
-          const patient = patients.find(p => p?.id === delivery.patient_id);
-          if (!patient?.latitude || !patient?.longitude) continue;
+        if (nextDelivery.is_cycling_marker) {
+          if (!nextDelivery.cycling_latitude || !nextDelivery.cycling_longitude) {
+            this.resetStationary();
+            return;
+          }
+          targetLat = nextDelivery.cycling_latitude;
+          targetLon = nextDelivery.cycling_longitude;
+        } else if (nextDelivery.patient_id) {
+          const patient = patients.find(p => p?.id === nextDelivery.patient_id);
+          if (!patient?.latitude || !patient?.longitude) {
+            this.resetStationary();
+            return;
+          }
           targetLat = patient.latitude;
           targetLon = patient.longitude;
-        } else if (delivery.store_id) {
-          const store = stores.find(s => s?.id === delivery.store_id);
-          if (!store?.latitude || !store?.longitude) continue;
+        } else if (nextDelivery.store_id) {
+          const store = stores.find(s => s?.id === nextDelivery.store_id);
+          if (!store?.latitude || !store?.longitude) {
+            this.resetStationary();
+            return;
+          }
           targetLat = store.latitude;
           targetLon = store.longitude;
         }
-        if (!targetLat || !targetLon) continue;
 
-        const distance = this.calculateDistance(latitude, longitude, targetLat, targetLon);
-        if (distance <= this.geofenceRadius) {
-        driverAtLocation = true;
-        const targetChanged = this.currentTargetId !== delivery.id;
-        const movedTooFar = !this.lastLocationCoords ||
-            this.calculateDistance(latitude, longitude, this.lastLocationCoords.lat, this.lastLocationCoords.lon) > 20;
-        if (targetChanged || movedTooFar) {
-          this.stationaryStartTime = Date.now();
-          this.lastLocationCoords = { lat: latitude, lon: longitude };
-          this.currentTargetId = delivery.id;
-        } else if (this.stationaryStartTime) {
-          const stationaryDuration = Date.now() - this.stationaryStartTime;
-          if (stationaryDuration >= this.minStationaryDuration) {
-            const _now = new Date();
-            const _arrivalTime = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}T${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}:${String(_now.getSeconds()).padStart(2,'0')}`;
-            console.log(`✅ [ARRIVAL] Detected at ${delivery.patient_id ? 'delivery' : 'pickup'} (${delivery.id}) after ${(stationaryDuration / 1000).toFixed(1)}s`);
-            try {
-              await base44.entities.Delivery.update(delivery.id, { arrival_time: _arrivalTime });
+        if (targetLat && targetLon) {
+          const distance = this.calculateDistance(latitude, longitude, targetLat, targetLon);
+          if (distance <= this.geofenceRadius) {
+            driverAtLocation = true;
+            const targetChanged = this.currentTargetId !== nextDelivery.id;
+            const movedTooFar = !this.lastLocationCoords ||
+              this.calculateDistance(latitude, longitude, this.lastLocationCoords.lat, this.lastLocationCoords.lon) > 20;
+
+            if (targetChanged || movedTooFar) {
               this.stationaryStartTime = Date.now();
-              console.log(`💾 [ARRIVAL] Saved arrival_time for ${delivery.id}`);
-            } catch (error) {
-              console.error('❌ [ARRIVAL] Failed to save arrival_time:', error);
+              this.lastLocationCoords = { lat: latitude, lon: longitude };
+              this.currentTargetId = nextDelivery.id;
+            } else if (this.stationaryStartTime) {
+              const stationaryDuration = Date.now() - this.stationaryStartTime;
+              if (stationaryDuration >= this.minStationaryDuration) {
+                const _now = new Date();
+                const _arrivalTime = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}T${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}:${String(_now.getSeconds()).padStart(2,'0')}`;
+                console.log(`✅ [ARRIVAL] isNextDelivery stop ${nextDelivery.id} (${nextDelivery.patient_id ? 'patient' : 'stop'}) — ${distance.toFixed(0)}m, ${(stationaryDuration / 1000).toFixed(1)}s stationary`);
+                try {
+                  await base44.entities.Delivery.update(nextDelivery.id, { arrival_time: _arrivalTime });
+
+                  // Write into IDB immediately
+                  try {
+                    const { offlineDB } = await import('./offlineDatabase');
+                    const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+                    const existing = allDeliveries.find(d => d && d.id === nextDelivery.id);
+                    if (existing) {
+                      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...existing, arrival_time: _arrivalTime }]);
+                    }
+                  } catch (idbErr) {
+                    console.warn('[ARRIVAL] IDB update failed (non-critical):', idbErr.message);
+                  }
+
+                  // Push into React state so StopCard re-renders immediately
+                  window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+                    detail: {
+                      deliveries: [{ ...nextDelivery, arrival_time: _arrivalTime }],
+                      appUsers: [],
+                      patients: [],
+                      deliveryDate: nextDelivery.delivery_date,
+                      preserveLocalState: true,
+                      triggeredBy: 'arrivalDetected'
+                    }
+                  }));
+
+                  // Invalidate cache so next tick sees updated arrival_time
+                  this._lastCacheTime = 0;
+
+                  this.stationaryStartTime = Date.now();
+                  console.log(`💾 [ARRIVAL] Saved arrival_time for ${nextDelivery.id}`);
+                } catch (error) {
+                  console.error('❌ [ARRIVAL] Failed to save arrival_time:', error);
+                }
+              }
             }
           }
-        }
-        break; // only process the first matching stop
         }
       }
 
@@ -278,6 +328,105 @@ class ArrivalTimeDetector {
       }
     } catch (error) {
       console.error('❌ [ARRIVAL] Error processing location:', error);
+    }
+  }
+
+  /**
+   * Immediate arrival check — no 30s stationary requirement.
+   *
+   * Fires when:
+   *   • Driver returns to the app from an external app (e.g. Google Maps)
+   *   • Any other moment where we want instant arrival detection
+   *
+   * Criteria (simpler than processLocationUpdate — only two rules):
+   *   1. The stop has isNextDelivery === true
+   *   2. Driver is within 100m of that stop's coordinates
+   *
+   * Skips pickups with no patient_id (those use the stationary-30s flow which
+   * handles the "multiple pickups at same store" disambiguation logic).
+   */
+  async checkImmediateArrival(latitude, longitude, driverId, deliveryDate) {
+    if (!latitude || !longitude || !driverId || !deliveryDate) return;
+
+    try {
+      await this._refreshCacheIfNeeded(driverId, deliveryDate);
+
+      const deliveries = this._cachedDeliveries || [];
+      const patients = this._cachedPatients || [];
+      const stores = this._cachedStores || [];
+
+      // Find the single stop with isNextDelivery === true that hasn't recorded arrival yet
+      const nextStop = deliveries.find(d =>
+        d &&
+        d.isNextDelivery === true &&
+        ['en_route', 'in_transit'].includes(String(d.status)) &&
+        !d.arrival_time
+      );
+
+      if (!nextStop) return;
+
+      // Resolve the stop's GPS coordinates
+      let targetLat, targetLon;
+      if (nextStop.is_cycling_marker) {
+        targetLat = nextStop.cycling_latitude;
+        targetLon = nextStop.cycling_longitude;
+      } else if (nextStop.patient_id) {
+        const patient = patients.find(p => p?.id === nextStop.patient_id);
+        targetLat = patient?.latitude;
+        targetLon = patient?.longitude;
+      } else if (nextStop.store_id) {
+        const store = stores.find(s => s?.id === nextStop.store_id);
+        targetLat = store?.latitude;
+        targetLon = store?.longitude;
+      }
+
+      if (!targetLat || !targetLon) return;
+
+      const distance = this.calculateDistance(latitude, longitude, targetLat, targetLon);
+      if (distance > this.geofenceRadius) return; // > 100m — not arrived yet
+
+      // Driver is at their next stop — record arrival immediately
+      const now = new Date();
+      const arrivalTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+
+      console.log(`✅ [ARRIVAL immediate] isNextDelivery stop ${nextStop.id} within ${distance.toFixed(0)}m — recording arrival now`);
+
+      try {
+        await base44.entities.Delivery.update(nextStop.id, { arrival_time: arrivalTime });
+
+        // Write into IDB immediately so local state is consistent
+        try {
+          const { offlineDB } = await import('./offlineDatabase');
+          const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          const existing = allDeliveries.find(d => d && d.id === nextStop.id);
+          if (existing) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...existing, arrival_time: arrivalTime }]);
+          }
+        } catch (idbErr) {
+          console.warn('[ARRIVAL immediate] IDB update failed (non-critical):', idbErr.message);
+        }
+
+        // Push into React state so StopCard re-renders immediately
+        window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+          detail: {
+            deliveries: [{ ...nextStop, arrival_time: arrivalTime }],
+            appUsers: [],
+            patients: [],
+            deliveryDate: nextStop.delivery_date,
+            preserveLocalState: true,
+            triggeredBy: 'arrivalDetected'
+          }
+        }));
+
+        // Also invalidate the cache so next processLocationUpdate sees the new arrival_time
+        this._lastCacheTime = 0;
+
+        console.log(`💾 [ARRIVAL immediate] Saved arrival_time for ${nextStop.id}`);
+      } catch (error) {
+        console.error('❌ [ARRIVAL immediate] Failed to save arrival_time:', error);
+      }
+    } catch (error) {
+      console.error('❌ [ARRIVAL immediate] Error during check:', error);
     }
   }
 

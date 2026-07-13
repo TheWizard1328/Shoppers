@@ -1262,6 +1262,21 @@ class LocationTracker {
         }
       }));
 
+      // (c2) Immediate arrival check — driver may have navigated here via Google Maps and
+      // returned to the app already parked at their next stop. The standard 30s-stationary
+      // flow in processLocationUpdate won't trigger because the timer starts fresh on resume.
+      // checkImmediateArrival fires instantly: isNextDelivery === true AND within 100m.
+      if (this.driverStatus === 'on_duty' && this.currentDeliveryDate && this.currentUser?.id) {
+        arrivalTimeDetector.checkImmediateArrival(
+          latitude,
+          longitude,
+          this.currentUser.id,
+          this.currentDeliveryDate
+        ).catch(err => {
+          console.warn('⚠️ [LocationTracker] Immediate arrival check failed on resume:', err?.message);
+        });
+      }
+
       // (d) Save an immediate breadcrumb at the fresh position.
       //     Reset the gate first so collectBreadcrumb doesn't skip it.
       this.lastBreadcrumbSavedAt = 0;
