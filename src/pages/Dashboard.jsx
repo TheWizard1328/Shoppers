@@ -322,8 +322,11 @@ function Dashboard() {
       // ALWAYS filter to only stops that belong to this dispatcher's stores
       const _storeIds = new Set(currentUser?.store_ids || []);
       const _allowedDriverIds = new Set(result.filter((x) => x && _storeIds.has(x.store_id)).map((x) => x.driver_id).filter(Boolean));
-      // If no drivers have deliveries for this dispatcher's stores today, show nothing
-      if (_allowedDriverIds.size === 0 && driversList.length === 0) return [];
+      // If no drivers have deliveries for this dispatcher's stores today, show nothing.
+      // CRITICAL: do NOT gate this on driversList.length — drivers may exist globally
+      // (assigned to other stores) but have zero stops for THIS dispatcher's stores.
+      // In that case _allowedDriverIds will be empty and we must return [] immediately.
+      if (_allowedDriverIds.size === 0) return [];
       result = result.filter((d) => d && (d.is_cycling_marker || _allowedDriverIds.has(d.driver_id)));
     }
     return result;
@@ -1458,7 +1461,10 @@ useEffect(() => {
 
   // Unified initial driver selection per role rules
   useEffect(() => {
-    if (!currentUser || !isDataLoaded || !driversList.length || !userSettingsLoaded || !isFiltersReady) return;
+    const _isDispatcherInit = currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
+    // Dispatchers can have zero drivers for their store on a given date — still need to init (to set '' selection).
+    // All other roles wait for driversList to be populated before initializing.
+    if (!currentUser || !isDataLoaded || (!driversList.length && !_isDispatcherInit) || !userSettingsLoaded || !isFiltersReady) return;
     if (hasSetInitialDriverDashboard.current) return;
 
     const isAdmin = userHasRole(currentUser, 'admin');
@@ -1479,7 +1485,12 @@ useEffect(() => {
     if (!isDispatcherRole) { setSelectedDriverId(selection); globalFilters.setSelectedDriverId(selection); hasSetInitialDriverDashboard.current = true; return; }
     // DISPATCHER: single store — existing pickup driver → schedule override → store default driver → ''
     hasSetInitialDriverDashboard.current = true;
-    {const _ds=format(selectedDate,'yyyy-MM-dd'),_dayIdx=new Date(_ds+'T00:00:00').getDay(),_isSat=_dayIdx===6,_isSun=_dayIdx===0;const _storeId=String((currentUser?.store_ids||[])[0]||'');const _store=(stores||[]).find((s)=>s&&String(s.id)===_storeId);const _driverInAppUsers=(id)=>!!id&&appUsers.some((au)=>au?.user_id===id&&au?.app_roles?.includes('driver'));const _storeDefault=()=>{if(!_store)return'';if(_isSat)return _store.saturday_am_driver_id||_store.saturday_pm_driver_id||'';if(_isSun)return _store.sunday_am_driver_id||_store.sunday_pm_driver_id||'';return _store.weekday_am_driver_id||_store.weekday_pm_driver_id||'';};const _apply=(_f)=>{setSelectedDriverId(_f);globalFilters.setSelectedDriverId(_f);};if(!_storeId){_apply('');return;}// Priority 1: driver who already has a pickup for this store on this date
+    {const _ds=format(selectedDate,'yyyy-MM-dd'),_dayIdx=new Date(_ds+'T00:00:00').getDay(),_isSat=_dayIdx===6,_isSun=_dayIdx===0;const _storeId=String((currentUser?.store_ids||[])[0]||'');const _store=(stores||[]).find((s)=>s&&String(s.id)===_storeId);const _driverInAppUsers=(id)=>!!id&&appUsers.some((au)=>au?.user_id===id&&au?.app_roles?.includes('driver'));
+    // Only use the store's default driver if they actually have deliveries for this store today.
+    // If the store has no deliveries at all for this date, default to '' (no driver) — never
+    // fall back to a schedule-configured driver who belongs to a different store's route.
+    const _storeHasDeliveries=(id)=>!!id&&(deliveries||[]).some((d)=>d&&d.delivery_date===_ds&&String(d.store_id)===_storeId&&d.driver_id===id);
+    const _storeDefault=()=>{if(!_store)return'';const _defId=_isSat?(_store.saturday_am_driver_id||_store.saturday_pm_driver_id||''):_isSun?(_store.sunday_am_driver_id||_store.sunday_pm_driver_id||''):(_store.weekday_am_driver_id||_store.weekday_pm_driver_id||'');return _storeHasDeliveries(_defId)?_defId:'';};const _apply=(_f)=>{setSelectedDriverId(_f);globalFilters.setSelectedDriverId(_f);};if(!_storeId){_apply('');return;}// Priority 1: driver who already has a pickup for this store on this date
     const _pickupDriver=(deliveries||[]).find((d)=>d&&d.delivery_date===_ds&&d.store_id===_storeId&&!d.patient_id&&d.driver_id&&!['cancelled','failed'].includes(d.status))?.driver_id||'';if(_pickupDriver&&_driverInAppUsers(_pickupDriver)){_apply(_pickupDriver);return;}base44.entities.DriverScheduleOverride.filter({date:_ds,store_id:_storeId}).then((_ov)=>{const _ovId=(_ov||[]).find((o)=>o&&String(o.store_id)===_storeId)?.driver_id||'';if(!window.__dispatcherOverrideDriverIds)window.__dispatcherOverrideDriverIds={};window.__dispatcherOverrideDriverIds[_ds]=_ovId?[_ovId]:[];_apply(_ovId&&_driverInAppUsers(_ovId)?_ovId:_storeDefault());}).catch(()=>{_apply(_storeDefault());});}
   }, [currentUser?.id, isDataLoaded, userSettingsLoaded, isFiltersReady, driversList, stores, selectedDate]);
 
