@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ─── Tuning constants ────────────────────────────────────────────────────────
 // How far the driver must travel within MOTION_WINDOW_MS to be "moving"
-const MOTION_DISTANCE_METERS = 120;
+const MOTION_DISTANCE_METERS = 50;   // was 120 — lowered; 50m in 30s ≈ 6 km/h
 // Sliding window used to evaluate motion
-const MOTION_WINDOW_MS = 20000;
+const MOTION_WINDOW_MS = 30000;      // was 20s — widened to accumulate more GPS points
 // How long with no movement before isDriverMoving resets to false
-const STOPPED_IDLE_MS = 10000;
+const STOPPED_IDLE_MS = 15000;       // was 10s
 // How long a double-tap override suppresses immersive mode
 const MAP_TAP_OVERRIDE_MS = 30000;
 // Within this range of the next stop → disable immersive mode
@@ -15,7 +15,7 @@ const NEXT_STOP_DISABLE_DISTANCE_METERS = 250;
 // for this long so the driver isn't immediately re-immersed while still parked
 const POST_STOP_COOLDOWN_MS = 45000;
 // GPS accuracy noise buffer subtracted from measured movement
-const LOCATION_ACCURACY_BUFFER_METERS = 35;
+const LOCATION_ACCURACY_BUFFER_METERS = 15;  // was 35 — too aggressive; phone GPS ~10-20m
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const toRad = (v) => (v * Math.PI) / 180;
@@ -138,7 +138,14 @@ export default function useImmersiveMode({
       setIsDriverMoving(false);
       stoppedTimeoutRef.current = null;
     }, STOPPED_IDLE_MS);
-  }, [enabled, isDriver, isMobile, driverLocation?.latitude, driverLocation?.longitude]);
+  // Also depend on driverLocation?.timestamp so the effect fires on every GPS tick,
+  // not just when lat/lon digit values change (GPS can repeat coords with new timestamps).
+  }, [enabled, isDriver, isMobile, driverLocation?.latitude, driverLocation?.longitude, driverLocation?.timestamp]);
+
+  // ── Debug: log motion state changes so we can diagnose in DevTools ───────────
+  useEffect(() => {
+    console.log(`🚗 [Immersive] moving:${isDriverMoving} | enabled:${enabled} isDriver:${isDriver} isMobile:${isMobile} nextStop:${!!nextStopLocation} nearStop:${isNearNextStop} cooldown:${isCooldownActive}`);
+  }, [isDriverMoving, enabled, isDriver, isMobile]);
 
   // ── Post-stop action cooldown ───────────────────────────────────────────────
   useEffect(() => {
@@ -211,15 +218,12 @@ export default function useImmersiveMode({
   // ACTIVATE when: driver is moving AND a next stop exists
   // DEACTIVATE when: near next stop OR manual override OR stopped OR cooldown OR no next stop
   const immersiveHidden = useMemo(() => {
-    if (!enabled || !isDriver || !isMobile) {
-      console.log(`🚗 [Immersive] DISABLED — enabled:${enabled} isDriver:${isDriver} isMobile:${isMobile}`);
-      return false;
-    }
-    if (isCooldownActive) { console.log('🚗 [Immersive] OFF — post-stop cooldown'); return false; }
-    if (!nextStopLocation) { console.log('🚗 [Immersive] OFF — no nextStopLocation'); return false; }
-    if (isOverrideActive) { console.log('🚗 [Immersive] OFF — manual override'); return false; }
-    if (isNearNextStop) { console.log('🚗 [Immersive] OFF — near next stop'); return false; }  // deactivation #1: proximity
-    return isDriverMoving;                 // activate only if moving; deactivation #3: stopped
+    if (!enabled || !isDriver || !isMobile) return false;
+    if (isCooldownActive) return false;
+    if (!nextStopLocation) return false;
+    if (isOverrideActive) return false;
+    if (isNearNextStop) return false;
+    return isDriverMoving;
   }, [enabled, isDriver, isMobile, isCooldownActive, nextStopLocation, isOverrideActive, isNearNextStop, isDriverMoving]);
 
   // ── Notify FAB on immersive toggle ─────────────────────────────────────────
