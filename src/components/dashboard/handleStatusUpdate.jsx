@@ -175,7 +175,7 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       if (Array.isArray(pendingBreadcrumbs?.breadcrumbs) && pendingBreadcrumbs.breadcrumbs.length) { updateData.delivery_route_breadcrumbs = JSON.stringify(pendingBreadcrumbs.breadcrumbs); }
     }
 
-    if (['completed', 'failed', 'delivered'].includes(newStatus) || newStatus === 'cancelled' && isPickup) {
+    if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const allDriverStops = deliveriesWithStopOrder.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate);
       const completedStopsCount = allDriverStops.filter((d) => finishedStatuses.includes(d.status)).length;
