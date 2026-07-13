@@ -28,8 +28,13 @@ export function ProfilePanel({ currentUser, onClose }) {
   const [eTransEmail, setETransEmail] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const isDispatcherOnly = Array.isArray(currentUser?.app_roles) &&
+    currentUser.app_roles.includes('dispatcher') &&
+    !currentUser.app_roles.includes('admin') &&
+    !currentUser.app_roles.includes('driver');
+
   useEffect(() => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id || isDispatcherOnly) return;
     base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
       if (appUsers?.length > 0) setETransEmail(appUsers[0].ETrans_Email || '');
     }).catch(() => {});
@@ -40,7 +45,9 @@ export function ProfilePanel({ currentUser, onClose }) {
     try {
       const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
       if (appUsers?.length > 0) {
-        await base44.entities.AppUser.update(appUsers[0].id, { user_name: displayName, phone, ETrans_Email: eTransEmail });
+        const update = { user_name: displayName, phone };
+        if (!isDispatcherOnly) update.ETrans_Email = eTransEmail;
+        await base44.entities.AppUser.update(appUsers[0].id, update);
       }
       toast.success('Profile updated');
       if (onClose) onClose();
@@ -66,11 +73,13 @@ export function ProfilePanel({ currentUser, onClose }) {
         <Label htmlFor="phone">Phone Number</Label>
         <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" type="tel" />
       </div>
+      {!isDispatcherOnly && (
       <div className="space-y-1">
         <Label htmlFor="eTransEmail">e-Transfer Email</Label>
         <Input id="eTransEmail" value={eTransEmail} onChange={(e) => setETransEmail(e.target.value)} placeholder="your@email.com" type="email" />
         <p className="text-xs text-slate-400">Used for Interac e-Transfer payroll payments.</p>
       </div>
+      )}
       <Button onClick={handleSave} disabled={saving} className="w-full gap-2 mt-2">
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
         {saving ? 'Saving…' : 'Save Changes'}
@@ -322,7 +331,7 @@ export default function Settings() {
       icon: User,
       items: [
         { label: 'Profile', description: currentUser?.user_name || currentUser?.full_name || 'Tap to edit', onClick: () => setOpenPanel('profile') },
-        { label: 'Email', description: currentUser?.email || 'Not available', eTransEmail: eTransEmail || 'Not set', disabled: true, isEmailRow: true },
+        { label: 'Email', description: currentUser?.email || 'Not available', eTransEmail: eTransEmail || 'Not set', disabled: true, isEmailRow: true, hideETransfer: Array.isArray(currentUser?.app_roles) && currentUser.app_roles.includes('dispatcher') && !currentUser.app_roles.includes('admin') && !currentUser.app_roles.includes('driver') },
       ],
     },
     {
@@ -384,11 +393,15 @@ export default function Settings() {
                           <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Email</p>
                           <p className="text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>{item.description}</p>
                         </div>
-                        <div className="w-px self-stretch" style={{ background: 'var(--border-slate-200)' }} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>e-Transfer Email</p>
-                          <p className="text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>{item.eTransEmail}</p>
-                        </div>
+                        {!item.hideETransfer && (
+                          <>
+                            <div className="w-px self-stretch" style={{ background: 'var(--border-slate-200)' }} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>e-Transfer Email</p>
+                              <p className="text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>{item.eTransEmail}</p>
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   }

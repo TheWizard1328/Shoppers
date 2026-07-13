@@ -125,7 +125,7 @@ export default function MobileHeader({
         </div>
 
         {/* Centered Controls - Only when sidebar is NOT open */}
-        {currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) && (
+        {currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) && (
           <div className="flex-1 flex items-center justify-center gap-2">
             {/* Menu - Left */}
             <DropdownMenu>
