@@ -340,7 +340,7 @@ export default function StopCardHeader({
           />
 
           {/* Fridge temperature badge - uses same source as LiveTempBadge above stop cards */}
-          {delivery?.fridge_item && !isPickup && (() => {
+          {delivery?.fridge_item && !isPickup && !(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !((currentUser?.store_ids || []).includes(delivery?.store_id))) && (() => {
             const deliveryTemp = getLatestTempReading(delivery);
             const today = new Date().toISOString().slice(0, 10);
             const isToday = delivery?.delivery_date === today;
