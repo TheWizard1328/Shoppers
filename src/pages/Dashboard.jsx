@@ -71,7 +71,15 @@ function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(() => { const urlParams = new URLSearchParams(window.location.search); const dateParam = urlParams.get('date'); if (dateParam) return new Date(dateParam + 'T00:00:00'); const saved = globalFilters.getSelectedDate(); const savedDate = typeof saved === 'string' && saved ? new Date(saved + 'T00:00:00') : null; return savedDate || new Date(); });
   const [selectedDriverId, setSelectedDriverId] = useState(() => new URLSearchParams(window.location.search).get('driver') || globalFilters.getSelectedDriverId() || 'all');
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showRoutes, setShowRoutes] = useState(() => { const saved = localStorage.getItem('rxdeliver_show_routes'); return saved !== null ? saved === 'true' : true; });
+  const _isDispatcherOnly = currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver');
+  const [showRoutes, setShowRoutes] = useState(() => {
+    // Dispatchers always have polylines visible
+    if (_isDispatcherOnly) return true;
+    const saved = localStorage.getItem('rxdeliver_show_routes');
+    return saved !== null ? saved === 'true' : true;
+  });
+  // Keep polylines forced on for dispatchers even if setShowRoutes is called elsewhere
+  const _effectiveShowRoutes = _isDispatcherOnly ? true : showRoutes;
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [optimizationMessage, setOptimizationMessage] = useState(null);
   const [selectedCardId, setSelectedCardId] = useState(null);
@@ -616,13 +624,20 @@ function Dashboard() {
 
     fetchPolyline();
 
-    const handlePolylineUpdated = () => {
-      fetchPolyline();
+    const handlePolylineUpdated = () => { fetchPolyline(); };
+    // Also re-fetch when the selected driver goes on_duty (status change broadcasts this event)
+    const handleDriverStatusChanged = (event) => {
+      const { userId, newStatus } = event?.detail || {};
+      if (newStatus !== 'on_duty') return;
+      if (userId && userId !== driverIdToFetch) return;
+      setTimeout(fetchPolyline, 1500);
     };
     window.addEventListener('routeReordered', handlePolylineUpdated);
+    window.addEventListener('driverStatusChanged', handleDriverStatusChanged);
 
     return () => {
       window.removeEventListener('routeReordered', handlePolylineUpdated);
+      window.removeEventListener('driverStatusChanged', handleDriverStatusChanged);
     };
   }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, appUsers]);
 
@@ -2438,7 +2453,7 @@ useEffect(() => {
     isDataLoaded, isEntityUpdating, isDateFinished, isRouteComplete, isDriver, isAdmin,
     isDispatcher, isDriverDropdownDisabled, isAllDriversMode, mapCenter, mapZoom,
     shouldFitBounds, mapViewPhase, mapViewTrigger, isMapViewLocked, mapStyle, mapMode, setMapMode,
-    showRoutes, showBreadcrumbs, showAllDriverMarkers, breadcrumbsData, driverLocation, allDriverLocations,
+    showRoutes: _effectiveShowRoutes, showBreadcrumbs, showAllDriverMarkers, breadcrumbsData, driverLocation, allDriverLocations,
     currentToNextPolyline, driverRoutes, selectedCardId, highlightedCardId, isExpanded,
     areCardsVisible, statsPanelOpacity, stopCardsBaseHeight, statsCardBaseHeight, cardsReadyForFAB, isReoptimizing,
     optimizationMessage, showDeliveryForm, editingDelivery, showPatientForm, editingPatient,
