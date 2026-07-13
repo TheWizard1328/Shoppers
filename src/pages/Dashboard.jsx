@@ -45,6 +45,7 @@ import { getInterStoreLocationSync, isInterStoreDelivery } from "@/components/ut
 import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/phase3BoundsHelper";
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection, ensureTempLogsForDate } from '@/components/dashboard/dashboardInitialLoadHelpers';
 import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
+import useImmersiveMode from '@/components/dashboard/useImmersiveMode';
 import { getBoundsSpanKm, getPhaseBoundsMaxZoom } from '@/components/dashboard/mapCycleZoomHelpers';
 import { handleNotesUpdate as _handleNotesUpdate, handleCODUpdate as _handleCODUpdate } from '@/components/dashboard/handleSimpleDeliveryUpdates';
 import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboard/handleCreateReturn';
@@ -2469,7 +2470,7 @@ useEffect(() => {
     isSnapshotModeActive, statsCardPositioning, isStatsCardCentered, bottomNavHeight,
     screenWidth, cardWidth, isFiltersReady, userSettingsLoaded,
     isMobile, realTimeETAEnabled,
-    immersiveHidden: false, isDriverMoving: false, immersiveOverrideActive: false, onImmersiveMapTap: () => {},
+    immersiveHidden, isDriverMoving, immersiveOverrideActive, onImmersiveMapTap: forceShowUI,
     googleApiKey: null, onTravelModeChange: () => {},
     setMapStyle, setMapCenter, setMapZoom, setShouldFitBounds, setMapViewPhase,
     setMapViewTrigger, setIsMapViewLocked, setSelectedDate, setSelectedDriverId,
