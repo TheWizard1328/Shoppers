@@ -669,6 +669,51 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     });
   }, []);
 
+  // Generate a natural-looking random temp curve for 11 readings centred on centreIdx.
+  // Uses the average of those 11 readings as the baseline, then adds a smooth random walk.
+  const applyAverageCurve = useCallback(async (logId, driverId, centreIdx) => {
+    const log = logs.find((l) => l.id === logId);
+    if (!log) return;
+    const readings = [...(log.temperature_readings || [])];
+    const n = readings.length;
+    if (n === 0) return;
+
+    const HALF = 5;
+    const startIdx = Math.max(0, centreIdx - HALF);
+    const endIdx = Math.min(n - 1, centreIdx + HALF);
+    const window = readings.slice(startIdx, endIdx + 1);
+
+    // Compute average of the window
+    const avg = window.reduce((sum, r) => sum + (r.temperature_celsius ?? 0), 0) / window.length;
+
+    // Generate a smooth random curve: start and end near avg, vary ±0.5°C with a random walk
+    const count = window.length;
+    const newTemps = [];
+    let current = avg + (Math.random() - 0.5) * 0.6;
+    for (let i = 0; i < count; i++) {
+      // Smooth random walk that stays near avg (mean-reverting)
+      const pull = (avg - current) * 0.35;
+      const noise = (Math.random() - 0.5) * 0.5;
+      current = parseFloat((current + pull + noise).toFixed(1));
+      newTemps.push(current);
+    }
+
+    // Apply new temps to the window
+    const newReadings = readings.map((r, i) => {
+      const windowOffset = i - startIdx;
+      if (i >= startIdx && i <= endIdx) {
+        return { ...r, temperature_celsius: newTemps[windowOffset] };
+      }
+      return r;
+    });
+
+    const updatedLatest = newReadings.length ? newReadings[newReadings.length - 1] : null;
+    const updated = { ...log, temperature_readings: newReadings, latest_reading: updatedLatest };
+    try { await base44.entities.RxTempLogs.update(logId, { temperature_readings: newReadings, latest_reading: updatedLatest }); } catch (_) {}
+    try { await offlineDB.save(offlineDB.STORES.RX_TEMP_LOGS, updated); } catch (_) {}
+    setLogs((prev) => prev.map((l) => l.id === logId ? updated : l));
+  }, [logs]);
+
   const handleDotMouseDown = useCallback((driverId, pointLabel, e) => {
     e?.stopPropagation?.();
     e?.preventDefault?.();
@@ -1051,9 +1096,16 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                     stroke={color}
                     strokeWidth={2} />);
               };
-              const isDraggableDriver = selectedLogId && displayLogs.find((l) => l.id === selectedLogId && l.driver_id === driverId);
+              const activeLog = selectedLogId ? displayLogs.find((l) => l.id === selectedLogId && l.driver_id === driverId) : null;
               const renderActiveDot = (props) => {
                 const { cx, cy, payload } = props;
+                const handleClick = activeLog ? (e) => {
+                  e.stopPropagation();
+                  // Find the reading index that matches this time label
+                  const readings = activeLog.temperature_readings || [];
+                  const centreIdx = readings.findIndex((r) => r.timestamp?.slice(11, 16) === payload?.label);
+                  if (centreIdx >= 0) applyAverageCurve(activeLog.id, driverId, centreIdx);
+                } : undefined;
                 return (
                   <circle
                     key={`adot-${driverId}-${payload?.label}`}
@@ -1061,9 +1113,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
                     fill={color}
                     stroke="#fff"
                     strokeWidth={2}
-                    style={{ cursor: isDraggableDriver ? 'ns-resize' : 'default' }}
-                    onMouseDown={isDraggableDriver ? (e) => handleDotMouseDown(driverId, payload?.label, e) : undefined}
-                    onTouchStart={isDraggableDriver ? (e) => handleDotMouseDown(driverId, payload?.label, e.touches[0]) : undefined}
+                    style={{ cursor: activeLog ? 'pointer' : 'default' }}
+                    onClick={handleClick}
                   />
                 );
               };
