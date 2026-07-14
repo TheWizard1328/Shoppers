@@ -205,15 +205,21 @@ const map = useMap();
           key={`type2-line-${driverId}-${i}-${getDeliveryMode(b, driverId)}`}
           positions={segmentPositions}
           renderer={rendererReady ? canvasRenderer.current : undefined}
-          pathOptions={{
-            ...getDriverRouteStyle(driverId, coords ? (() => {
+          pathOptions={(() => {
+            const style = getDriverRouteStyle(driverId, coords ? (() => {
               if (totalLegs <= 1) return 0.85;
               const t = (i - 1) / Math.max(1, totalLegs - 2);
               const start = 0.85, end = 0.25;
               return Math.max(end, start + (end - start) * t);
-            })() : 0.35, b),
-            dashArray: coords ? getDriverRouteStyle(driverId, undefined, b).dashArray : '6,6'
-          }}
+            })() : 0.35, b);
+            const mode = getDeliveryMode(b, driverId);
+            const isCycling = mode === 'cycling';
+            return {
+              ...style,
+              // Never override dashArray for cycling — keep the green dotted pattern
+              dashArray: coords ? style.dashArray : (isCycling ? '2 8' : '6,6'),
+            };
+          })()}
           pane="routeBasePane"
         />,
         <RouteDirectionDecorator key={`type2-arrow-${driverId}-${i}-${getDeliveryMode(b, driverId)}`} positions={segmentPositions} color={getDriverRouteStyle(driverId, undefined, b).color} />

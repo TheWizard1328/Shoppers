@@ -357,6 +357,7 @@ function HereType1Polylines({
         seenKeys.add(key);
 
         const mode = getDeliveryMode(stop, driverId);
+        const isCycling = mode === 'cycling';
         const driverStyle = getTravelModeLineStyle(mode, driverColor, isPM(stop));
         lines.push(
           <Polyline
@@ -365,7 +366,7 @@ function HereType1Polylines({
             renderer={rendererReady ? canvasRenderer.current : undefined}
             pathOptions={{
               ...driverStyle,
-              color: driverColor,
+              color: isCycling ? '#16A34A' : driverColor,
               opacity: shouldUseFallback ? 0.6 : 0.75,
               lineJoin: 'round',
               lineCap: 'round'
@@ -375,7 +376,7 @@ function HereType1Polylines({
           <RouteDirectionDecorator
             key={`type1-complete-arrow-${driverId}-${stop.id}-${i}`}
             positions={coords}
-            color={driverColor}
+            color={isCycling ? '#16A34A' : driverColor}
           />
         );
       }
@@ -417,6 +418,7 @@ function HereType1Polylines({
         seenKeys.add(key);
 
         const mode = getDeliveryMode(stop, driverId);
+        const isCycling = mode === 'cycling';
         const driverStyle = getTravelModeLineStyle(mode, driverColor, isPM(stop));
         lines.push(
           <Polyline
@@ -425,7 +427,7 @@ function HereType1Polylines({
             renderer={rendererReady ? canvasRenderer.current : undefined}
             pathOptions={{
               ...driverStyle,
-              color: driverColor,
+              color: isCycling ? '#16A34A' : driverColor,
               opacity: shouldUseFallback ? 0.6 : 0.75,
               lineJoin: 'round',
               lineCap: 'round'
@@ -435,7 +437,7 @@ function HereType1Polylines({
           <RouteDirectionDecorator
             key={`type1-remaining-arrow-${driverId}-${stop.id}-${i}`}
             positions={coords}
-            color={driverColor}
+            color={isCycling ? '#16A34A' : driverColor}
           />
         );
       }
