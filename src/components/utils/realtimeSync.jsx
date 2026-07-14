@@ -613,7 +613,7 @@ const subscribeToEntity = (entityName) => {
 
       console.log(`📡 [RealtimeSync] [${rsTime()}] ${entityName} ${type}: ${displayId}${changedFields.length > 0 ? ` changed: ${changedFields.join(', ')}` : ''}`);
       
-      // CRITICAL: Save to offline DB immediately on WebSocket update
+      // CRITICAL: Save to offline DB immediately on WebSocket update — dataToSave hoisted here so it's in scope after the try/catch
       let dataToSave = data;
       try {
         const { offlineDB } = await import('./offlineDatabase');
