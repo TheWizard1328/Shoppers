@@ -12,6 +12,8 @@ export default function RouteDirectionDecorator({ positions = [], color = "#2563
       : [];
 
     if (!map || !map._loaded || !map._panes || validPositions.length < 2) return;
+    // Guard: the target pane must exist before leaflet-polylinedecorator tries to appendChild into it
+    if (pane && !map._panes[pane]) return;
 
     const decorator = L.polylineDecorator(validPositions, {
       patterns: [
