@@ -44,11 +44,12 @@ export default function useModeRouteDialog({
 
   // Resolve cycling start marker coordinates for distance calculation
   const cyclingStartLocation = useMemo(() => {
-    // Canonical identifier: transport_mode === 'driving' is the cycling Start marker.
-    // Fallback: delivery_notes includes 'start' (legacy / newly created markers).
+    // Canonical identifier: delivery_notes === 'Cycling Route Start' (exact string, same as
+    // DeliveryMarkers.jsx, DeliveryMap.jsx, and DeliveryFormView.jsx all use).
+    // Fallback: loose 'start' substring for legacy records.
     const startMarker = deliveriesWithStopOrder.find(
       (d) => d?.is_cycling_marker && (
-        d.transport_mode === 'driving' ||
+        d.delivery_notes === 'Cycling Route Start' ||
         (d.delivery_notes || '').toLowerCase().includes('start')
       )
     );
@@ -120,17 +121,16 @@ export default function useModeRouteDialog({
       } catch { /* use deliveriesWithStopOrder as fallback */ }
 
       // ── 1. Resolve Start and End markers ──────────────────────────────────
-      // transport_mode === 'driving' = Start marker; transport_mode === 'cycling' = End marker.
-      // Fallback to delivery_notes for legacy markers.
+      // Canonical identifier: exact delivery_notes string (same as rest of codebase).
       const startMarker = freshDeliveries.find(
         (d) => d?.is_cycling_marker && (
-          d.transport_mode === 'driving' ||
+          d.delivery_notes === 'Cycling Route Start' ||
           (d.delivery_notes || '').toLowerCase().includes('start')
         )
       ) || null;
       const endMarker = freshDeliveries.find(
         (d) => d?.is_cycling_marker && (
-          d.transport_mode === 'cycling' ||
+          d.delivery_notes === 'Cycling Route End' ||
           (d.delivery_notes || '').toLowerCase().includes('end')
         )
       ) || null;
