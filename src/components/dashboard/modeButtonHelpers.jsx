@@ -41,14 +41,20 @@ export function getCurrentDriverLocation({ currentUser, appUsers = [], driverLoc
   return null;
 }
 
-export function getNearbyModeStops({ deliveries = [], patients = [], stores = [], currentLocation, radiusKm = 50 }) {
+export function getNearbyModeStops({ deliveries = [], patients = [], stores = [], currentLocation, cyclingStartLocation = null, radiusKm = 50 }) {
+  // Use cycling start marker coords for distance if available, otherwise driver location
+  const distanceOrigin = cyclingStartLocation || currentLocation;
+
   return deliveries
     .filter((delivery) => delivery && !delivery.is_cycling_marker && !['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status))
     .map((delivery) => {
+      const store = stores.find((item) => item?.id === delivery.store_id);
+      const storeAbbreviation = store?.abbreviation || null;
+
       if (delivery.patient_id) {
         const patient = patients.find((item) => item?.id === delivery.patient_id || item?.patient_id === delivery.patient_id);
-        const distanceKm = (currentLocation && patient?.latitude && patient?.longitude)
-          ? calculateDistanceKm(currentLocation, { latitude: patient.latitude, longitude: patient.longitude })
+        const distanceKm = (distanceOrigin && patient?.latitude && patient?.longitude)
+          ? calculateDistanceKm(distanceOrigin, { latitude: patient.latitude, longitude: patient.longitude })
           : null;
         if (currentLocation && distanceKm !== null && distanceKm > radiusKm) return null;
         return {
@@ -56,15 +62,16 @@ export function getNearbyModeStops({ deliveries = [], patients = [], stores = []
           label: patient?.full_name || 'Patient Stop',
           subtitle: patient?.address || '',
           distanceKm,
+          storeAbbreviation,
+          storeColor: store?.color || null,
           status: delivery.status,
           stopType: 'delivery',
           delivery
         };
       }
 
-      const store = stores.find((item) => item?.id === delivery.store_id);
-      const distanceKm = (currentLocation && store?.latitude && store?.longitude)
-        ? calculateDistanceKm(currentLocation, { latitude: store.latitude, longitude: store.longitude })
+      const distanceKm = (distanceOrigin && store?.latitude && store?.longitude)
+        ? calculateDistanceKm(distanceOrigin, { latitude: store.latitude, longitude: store.longitude })
         : null;
       if (currentLocation && distanceKm !== null && distanceKm > radiusKm) return null;
       return {
@@ -72,6 +79,8 @@ export function getNearbyModeStops({ deliveries = [], patients = [], stores = []
         label: store?.name || 'Store Pickup',
         subtitle: store?.address || '',
         distanceKm,
+        storeAbbreviation,
+        storeColor: store?.color || null,
         status: delivery.status,
         stopType: 'pickup',
         delivery

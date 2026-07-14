@@ -34,7 +34,26 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
   }, [delivery]);
 
   if (!delivery) return null;
-  const batchTracking = formatBatchTracking(delivery, store);
+
+  // Detect special stop types
+  const isCyclingMarker = !!delivery.is_cycling_marker;
+  const isInterStore = !isCyclingMarker && !isPickup && !patient &&
+    (String(delivery.delivery_id || '').toUpperCase().startsWith('ISP') ||
+     String(delivery.delivery_id || '').toUpperCase().startsWith('ISD') ||
+     String(delivery.delivery_notes || '').toLowerCase().includes('interstore'));
+
+  // Resolve display address
+  const resolvedAddress = (() => {
+    if (address) return address;
+    if (isCyclingMarker) return 'Cycling Route Marker';
+    if (patient?.address) return patient.address;
+    if (store?.address) return store.address;
+    return '--';
+  })();
+
+  // Only show batch tracking for regular deliveries
+  const batchTracking = (!isCyclingMarker && !isInterStore) ? formatBatchTracking(delivery, store) : null;
+
   const liveEta = getCurrentEtaForDelivery(
     delivery?.id,
     delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--"
@@ -82,7 +101,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
           </div>
 
           <div className="min-w-0 truncate text-center text-xs font-medium text-slate-800 dark:text-white">
-            {address || patient?.address || store?.address || '--'}
+            {resolvedAddress}
           </div>
 
           <Badge

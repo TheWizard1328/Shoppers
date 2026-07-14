@@ -63,10 +63,20 @@ export default function ModeSelectionDialog({
               <span className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)', flex: '1 1 0', minWidth: 0 }}>
                 {stop.label}
               </span>
-              {/* Distance */}
-              <span className="text-xs shrink-0 whitespace-nowrap text-center" style={{ color: 'var(--text-slate-500)', width: 52 }}>
-                {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km` : '—'}
-              </span>
+              {/* Distance + store abbreviation */}
+              <div className="flex items-center gap-1 shrink-0">
+                {stop.storeAbbreviation && (
+                  <span
+                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
+                    style={{ backgroundColor: stop.storeColor || '#64748b' }}
+                  >
+                    {stop.storeAbbreviation.slice(0, 2).toUpperCase()}
+                  </span>
+                )}
+                <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-slate-500)' }}>
+                  {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km` : '—'}
+                </span>
+              </div>
               {/* Status badge */}
               <StatusBadge status={stop.status} />
               {/* Checkbox */}

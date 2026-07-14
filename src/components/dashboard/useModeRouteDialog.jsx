@@ -42,13 +42,25 @@ export default function useModeRouteDialog({
     driverLocation,
   }), [currentUser, appUsers, driverLocation]);
 
+  // Resolve cycling start marker coordinates for distance calculation
+  const cyclingStartLocation = useMemo(() => {
+    const startMarker = deliveriesWithStopOrder.find(
+      (d) => d?.is_cycling_marker && (d.delivery_notes || '').toLowerCase().includes('start')
+    );
+    if (startMarker?.cycling_latitude && startMarker?.cycling_longitude) {
+      return { latitude: Number(startMarker.cycling_latitude), longitude: Number(startMarker.cycling_longitude) };
+    }
+    return null;
+  }, [deliveriesWithStopOrder]);
+
   const nearbyModeStops = useMemo(() => getNearbyModeStops({
     deliveries: deliveriesWithStopOrder,
     patients,
     stores,
     currentLocation: currentModeLocation,
+    cyclingStartLocation,
     radiusKm: 50,
-  }), [deliveriesWithStopOrder, patients, stores, currentModeLocation]);
+  }), [deliveriesWithStopOrder, patients, stores, currentModeLocation, cyclingStartLocation]);
 
   const toggleModeStop = useCallback((stopId) => {
     setSelectedModeStopIds((prev) =>
