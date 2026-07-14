@@ -44,15 +44,24 @@ export default function useModeRouteDialog({
 
   // Resolve cycling start marker coordinates for distance calculation
   const cyclingStartLocation = useMemo(() => {
-    // Canonical identifier: delivery_notes === 'Cycling Route Start' (exact string, same as
-    // DeliveryMarkers.jsx, DeliveryMap.jsx, and DeliveryFormView.jsx all use).
-    // Fallback: loose 'start' substring for legacy records.
-    const startMarker = deliveriesWithStopOrder.find(
-      (d) => d?.is_cycling_marker && (
+    // Canonical identifier: delivery_notes === 'Cycling Route Start' (exact string).
+    // IMPORTANT: When multiple cycling routes exist on the same day (e.g. one completed earlier,
+    // one active now), prefer the non-completed/non-failed marker so we measure distances
+    // from the *active* cycling start point, not the already-finished one.
+    const DONE = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const isStartMarker = (d) =>
+      d?.is_cycling_marker && (
         d.delivery_notes === 'Cycling Route Start' ||
         (d.delivery_notes || '').toLowerCase().includes('start')
-      )
+      );
+    // First pass: active (not done) start marker
+    let startMarker = deliveriesWithStopOrder.find(
+      (d) => isStartMarker(d) && !DONE.has(d.status)
     );
+    // Fallback: any start marker (e.g. if somehow all are completed)
+    if (!startMarker) {
+      startMarker = deliveriesWithStopOrder.find(isStartMarker);
+    }
     if (startMarker?.cycling_latitude && startMarker?.cycling_longitude) {
       return { latitude: Number(startMarker.cycling_latitude), longitude: Number(startMarker.cycling_longitude) };
     }
@@ -121,19 +130,13 @@ export default function useModeRouteDialog({
       } catch { /* use deliveriesWithStopOrder as fallback */ }
 
       // ── 1. Resolve Start and End markers ──────────────────────────────────
-      // Canonical identifier: exact delivery_notes string (same as rest of codebase).
-      const startMarker = freshDeliveries.find(
-        (d) => d?.is_cycling_marker && (
-          d.delivery_notes === 'Cycling Route Start' ||
-          (d.delivery_notes || '').toLowerCase().includes('start')
-        )
-      ) || null;
-      const endMarker = freshDeliveries.find(
-        (d) => d?.is_cycling_marker && (
-          d.delivery_notes === 'Cycling Route End' ||
-          (d.delivery_notes || '').toLowerCase().includes('end')
-        )
-      ) || null;
+      // Prefer non-completed markers — when multiple cycling routes exist on the same day
+      // (one completed, one active) we must use the active pair, not the finished one.
+      const _DONE = new Set(['completed', 'failed', 'cancelled', 'returned']);
+      const isStartM = (d) => d?.is_cycling_marker && (d.delivery_notes === 'Cycling Route Start' || (d.delivery_notes || '').toLowerCase().includes('start'));
+      const isEndM   = (d) => d?.is_cycling_marker && (d.delivery_notes === 'Cycling Route End'   || (d.delivery_notes || '').toLowerCase().includes('end'));
+      const startMarker = (freshDeliveries.find((d) => isStartM(d) && !_DONE.has(d.status)) || freshDeliveries.find(isStartM)) ?? null;
+      const endMarker   = (freshDeliveries.find((d) => isEndM(d)   && !_DONE.has(d.status)) || freshDeliveries.find(isEndM))   ?? null;
 
       if (!startMarker || !endMarker) {
         toast.error('Cycling markers not found — please try again.');
