@@ -1,5 +1,30 @@
 import { useEffect, useRef } from "react";
 
+/**
+ * useDriverLocationSync
+ *
+ * Manages two completely separate concerns:
+ *
+ * 1. LIVE DRIVER LOCATION STATE — keeps `driverLocation` React state and
+ *    `driverLocationRef` in sync with the primary device's raw GPS ticks
+ *    (via `driverPositionUpdated`) or the desktop shared-location fallback.
+ *
+ * 2. MAP PAN/ZOOM TRIGGER — fires `setMapViewTrigger` exactly when the live
+ *    location marker updates, so Phase 2 / Phase 3 auto-pan matches 1:1 with
+ *    marker movement:
+ *
+ *    PRIMARY DEVICE (driver's own phone running locationTracker):
+ *      → trigger fires on every `driverPositionUpdated` event (raw GPS tick,
+ *        every ~1-5s from watchPosition / native background provider).
+ *
+ *    NON-PRIMARY DEVICE (admin tablet, dispatcher, secondary phone):
+ *      → trigger fires on every `driverLocationsUpdated` event (WS broadcast
+ *        from the backend DB write, every ~15s upload cycle) for the target
+ *        selected driver.
+ *
+ * 3. PROXIMITY SNAP — auto-enters Phase 2 when the driver is within 100m of
+ *    the next stop (primary device only, unlocked state only).
+ */
 export default function useDriverLocationSync({
   isDriver,
   currentUser,
@@ -11,7 +36,6 @@ export default function useDriverLocationSync({
   stores,
   mapViewPhaseRef,
   isMapViewLockedRef,
-  // isMapViewLocked state intentionally omitted — read via isMapViewLockedRef.current
   lastProgrammaticMapMoveRef,
   lastUserInteractionRef,
   lastProximitySnapTimeRef,
@@ -21,36 +45,29 @@ export default function useDriverLocationSync({
   calculateDistance,
   locationTracker,
   pendingPhaseRef,
-  driverLocationRef, // optional — when provided, updated synchronously before setMapViewTrigger
-  selectedDriverId, // needed to re-trigger map when viewing another driver's location
+  driverLocationRef,
+  selectedDriverId,
 }) {
-  const lastLiveDriverLocationRef = useRef(null);
-  // Stable ref to syncLiveDriverLocation so the resume effect can call it without closure staleness
-  const syncLiveDriverLocationRef = useRef(null);
 
-  // ── Live data refs ────────────────────────────────────────────────────────
-  // These let syncMobileLocation always read current data without the effect
-  // itself re-running (and tearing down the GPS listener) on every delivery
-  // or patient/store update.
+  // ── Stable refs for live data ─────────────────────────────────────────────
+  // Read via refs inside event callbacks so we never need to tear down and
+  // recreate event listeners when delivery/patient/store lists refresh.
   const deliveriesWithStopOrderRef = useRef(deliveriesWithStopOrder);
   const patientsRef                = useRef(patients);
   const storesRef                  = useRef(stores);
   const appUsersRef                = useRef(appUsers);
   const calculateDistanceRef       = useRef(calculateDistance);
-  // CRITICAL: isPrimaryDevice resolves asynchronously (Dashboard.jsx looks it up from the
-  // DB after mount) and is NOT in the GPS-watching effect's dependency array below — that
-  // effect's closure is created once when isDriver/currentUser/isMobile/locationTracker
-  // first become truthy, and would otherwise capture the stale initial `false` forever,
-  // silently disabling the live map-follow trigger on the actual primary device. Reading
-  // it via a ref (kept fresh here) instead of the raw prop fixes that without needing to
-  // tear down and recreate the GPS watcher every time the primary-device status resolves.
-  const isPrimaryDeviceRef         = useRef(isPrimaryDevice);
+  const selectedDriverIdRef        = useRef(selectedDriverId);
 
-  // PROXIMITY SNAP: tracks which delivery ID the snap last fired for.
-  // Once we snap for a given stop, we must NOT snap again for the same stop —
-  // only re-snap when isNextDelivery moves to a different delivery (driver completed
-  // the stop and moved on). This prevents the 60s cooldown from re-triggering the
-  // snap repeatedly while the driver is parked at a stop they've already arrived at.
+  // isPrimaryDevice resolves asynchronously — keep it in a ref so callbacks
+  // always see the current value without needing to re-register listeners.
+  const isPrimaryDeviceRef = useRef(isPrimaryDevice);
+
+  // Stable ref so the app-resume effect can call syncLocation without a stale closure.
+  const syncLocationRef = useRef(null);
+
+  // Proximity snap: remember which stop we last snapped to so we don't re-snap
+  // repeatedly while the driver is parked at the same stop.
   const lastProximitySnappedStopIdRef = useRef(null);
 
   useEffect(() => { deliveriesWithStopOrderRef.current = deliveriesWithStopOrder; }, [deliveriesWithStopOrder]);
@@ -59,210 +76,216 @@ export default function useDriverLocationSync({
   useEffect(() => { appUsersRef.current                = appUsers;                }, [appUsers]);
   useEffect(() => { calculateDistanceRef.current       = calculateDistance;       }, [calculateDistance]);
   useEffect(() => { isPrimaryDeviceRef.current         = isPrimaryDevice;         }, [isPrimaryDevice]);
+  useEffect(() => { selectedDriverIdRef.current        = selectedDriverId;        }, [selectedDriverId]);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // EFFECT 1: Live driver location state + PRIMARY DEVICE map trigger
+  //
+  // On mobile: listens to `driverPositionUpdated` (raw GPS from locationTracker,
+  //            every ~1-5s) → updates driverLocation state and fires map trigger.
+  // On desktop: reads from appUser shared record once at mount.
+  // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isDriver || !currentUser) return;
 
-    let watchId = null;
-
-    const syncLiveDriverLocation = (newLocation) => {
+    // Synchronously update both the ref and the React state so the mapViewTrigger
+    // effect always has the latest position when it reads driverLocationRef.current.
+    const syncLocation = (newLocation) => {
       if (!newLocation?.latitude || !newLocation?.longitude) return;
-      lastLiveDriverLocationRef.current = newLocation;
-      syncLiveDriverLocationRef.current = syncLiveDriverLocation; // keep resume effect ref fresh
-      // CRITICAL: Update driverLocationRef synchronously BEFORE calling setMapViewTrigger.
-      // setDriverLocation (state) only updates driverLocationRef.current one render later,
-      // so without this the mapViewTrigger effect reads the OLD position and briefly
-      // pans to the wrong location before the next render corrects it (the "bounce").
       if (driverLocationRef) driverLocationRef.current = newLocation;
       setDriverLocation(newLocation);
+      syncLocationRef.current = syncLocation;
     };
 
-    const startWatchingPosition = () => {
-      if (!isMobile) {
-        // Desktop: pull location from shared appUser record
-        const appUser = appUsersRef.current?.find((au) => au?.user_id === currentUser.id);
-        if (appUser?.current_latitude && appUser?.current_longitude && appUser?.location_updated_at) {
-          syncLiveDriverLocation({
-            latitude: appUser.current_latitude,
-            longitude: appUser.current_longitude,
-            timestamp: appUser.location_updated_at,
-            accuracy: null,
-            source: 'shared_location'
-          });
-        } else {
-          setDriverLocation(null);
-        }
-        return () => {};
-      }
+    syncLocationRef.current = syncLocation;
 
-      const syncMobileLocation = (newLocation) => {
-        syncLiveDriverLocation(newLocation);
-        if (!newLocation.latitude || !newLocation.longitude) return;
-        const now = Date.now();
-
-        // Phase 2 or 3 locked: re-trigger map bounds so view follows live GPS.
-        // Only fires if this device's driver IS the selected/target driver —
-        // an admin with a different driver selected must not override those bounds.
-        // CRITICAL: Also cross-check the window global (set by MapViewCycleFAB from React state)
-        // to guard against ref/state desync where mapViewPhaseRef says 2 but FAB shows 1.
-        const fabReportsPhase = window.__currentMapViewPhase ?? mapViewPhaseRef.current;
-        if (isMapViewLockedRef.current && (mapViewPhaseRef.current === 2 || mapViewPhaseRef.current === 3) && (fabReportsPhase === 2 || fabReportsPhase === 3)) {
-          if ((window._suppressMapRepositionUntil || 0) > now) return;
-          // Suppress GPS-driven map repositioning for 1.5s after exiting immersive mode
-          // (just enough time for the padding re-render to settle — driver still needs the map
-          // to follow them at 250m from the stop, so 5s was too long here).
-          if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
-          const selectedId = window._selectedDriverIdRef?.current;
-          if (selectedId && selectedId !== 'all' && selectedId !== currentUser.id) return;
-          // Phase 2: always try to scroll the next card into view on every GPS tick,
-          // regardless of whether the map itself repositions.
-          if (mapViewPhaseRef.current === 2) {
-            const nextCard = deliveriesWithStopOrderRef.current.find((d) => d && d.isNextDelivery === true);
-            if (nextCard) document.getElementById(`stop-card-${nextCard.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          }
-
-          // No update timer / distance-gate here anymore: on the primary device the map
-          // follow is driven exactly by the live GPS marker's own update cadence — every
-          // watchPosition tick that reaches here (already the device's real GPS refresh
-          // rate) immediately repositions the map, matching the live-location marker 1:1.
-          // CRITICAL: Also check window.__isPrimaryDevice as a fallback — isPrimaryDeviceRef
-          // is resolved async from the DB, and if the DB lookup hasn't completed yet when
-          // GPS ticks start firing, the ref is still false and the trigger is silently
-          // skipped. The window global is set by the same DB lookup path but also set to
-          // true as an optimistic default by locationTracker on native primary devices.
-          const effectivelyPrimary = isPrimaryDeviceRef.current || window.__isPrimaryDevice === true;
-          if (effectivelyPrimary) {
-            lastProgrammaticMapMoveRef.current = now;
-            window._lastProgrammaticMapMove = now;
-            pendingPhaseRef.current = mapViewPhaseRef.current;
-            setMapViewTrigger((prev) => prev + 1);
-          }
-          return;
-        }
-
-        // Proximity snap — only when unlocked, user hasn't interacted recently, AND on primary device only
-        // CRITICAL: Never proximity-snap within 5s of exiting immersive mode — the driver
-        // just arrived near a stop and is parked; snapping to Phase 2 causes a jarring map jump.
-        if ((window._lastImmersiveExitAt || 0) > now - 5000) return;
-        if (isMapViewLockedRef.current || now - lastUserInteractionRef.current < 300000) return;
-        // CRITICAL: Only trigger proximity phase 2 on the driver's primary mobile device.
-        // Secondary/tablet devices should not auto-switch map phases based on proximity.
-        if (!isPrimaryDeviceRef.current) return;
-        // Include 'pending' stops so unstarted routes also trigger proximity phase 2
-        for (const delivery of deliveriesWithStopOrderRef.current.filter((d) => d && d.isNextDelivery === true && ['in_transit', 'en_route', 'pending'].includes(d.status))) {
-          const patient = delivery.patient_id ? patientsRef.current.find((p) => p && p.id === delivery.patient_id) : null;
-          const store   = !delivery.patient_id && delivery.store_id ? storesRef.current.find((s) => s && s.id === delivery.store_id) : null;
-          const stopLat = patient?.latitude ?? store?.latitude;
-          const stopLon = patient?.longitude ?? store?.longitude;
-          if (stopLat == null || stopLon == null) continue;
-          if (calculateDistanceRef.current(newLocation.latitude, newLocation.longitude, stopLat, stopLon) > 0.1) continue;
-
-          // Driver is within 100m of the next stop.
-          // CRITICAL: Only snap ONCE per stop. If we already snapped for this delivery ID,
-          // do NOT snap again — this prevents the proximity snap from re-firing every 60s
-          // while the driver is parked at the stop waiting to complete it. The snap only
-          // re-arms when isNextDelivery changes to a different delivery (i.e. stop completed).
-          if (lastProximitySnappedStopIdRef.current === delivery.id) {
-            // Already snapped for this stop — still scroll the card into view but don't re-snap phase.
-            const cardElement = document.getElementById(`stop-card-${delivery.id}`);
-            cardElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            break;
-          }
-
-          // First arrival at this stop — fire the snap.
-          lastProximitySnapTimeRef.current = Date.now();
-          lastProximitySnappedStopIdRef.current = delivery.id;
-
-          const currentPhase = mapViewPhaseRef.current;
-          if (currentPhase !== 2) {
-            // Only activate phase 2 if there is a driver location available for phase 2 to be meaningful
-            const hasDriverLocation = !!(
-              (newLocation.latitude && newLocation.longitude) ||
-              appUsersRef.current?.find((au) => au?.user_id === currentUser?.id)?.current_latitude
-            );
-            if (hasDriverLocation) {
-              // Lock FAB into phase 2 and trigger a map reposition
-              mapViewPhaseRef.current = 2;
-              isMapViewLockedRef.current = true;
-              pendingPhaseRef.current = 2;
-              lastProgrammaticMapMoveRef.current = now;
-              window._lastProgrammaticMapMove = now;
-              // Dispatch event so FABControls can update its state synchronously
-              window.dispatchEvent(new CustomEvent('proximityActivatedPhase2', {
-                detail: { driverId: currentUser?.id }
-              }));
-              // Trigger map to actually reposition to phase 2 bounds
-              setMapViewTrigger((prev) => prev + 1);
-            }
-          }
-          // Scroll the next stop card into view
-          const cardElement = document.getElementById(`stop-card-${delivery.id}`);
-          cardElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          break;
-        }
-      };
-
-      const trackerStatus = locationTracker.getStatus();
-      if (trackerStatus.lastLocation?.latitude && trackerStatus.lastLocation?.longitude) {
-        syncMobileLocation({
-          latitude:  trackerStatus.lastLocation.latitude,
-          longitude: trackerStatus.lastLocation.longitude,
-          timestamp: new Date().toISOString(),
-          accuracy:  trackerStatus.lastLocation.accuracy,
-          source:    'tracker'
+    if (!isMobile) {
+      // Desktop fallback: pull position from shared AppUser record (no GPS here).
+      const appUser = appUsersRef.current?.find((au) => au?.user_id === currentUser.id);
+      if (appUser?.current_latitude && appUser?.current_longitude) {
+        syncLocation({
+          latitude:  appUser.current_latitude,
+          longitude: appUser.current_longitude,
+          timestamp: appUser.location_updated_at,
+          accuracy:  null,
+          source:    'shared_location',
         });
+      } else {
+        setDriverLocation(null);
+      }
+      return;
+    }
+
+    // ── Mobile: PRIMARY DEVICE GPS path ──────────────────────────────────
+    // Seed from tracker's last known position if available so the map doesn't
+    // start blank while waiting for the first `driverPositionUpdated` event.
+    const trackerStatus = locationTracker?.getStatus?.();
+    if (trackerStatus?.lastLocation?.latitude && trackerStatus?.lastLocation?.longitude) {
+      syncLocation({
+        latitude:  trackerStatus.lastLocation.latitude,
+        longitude: trackerStatus.lastLocation.longitude,
+        timestamp: new Date().toISOString(),
+        accuracy:  trackerStatus.lastLocation.accuracy,
+        source:    'tracker_seed',
+      });
+    }
+
+    const handleTrackerPosition = (event) => {
+      const { userId, latitude, longitude, timestamp, accuracy, source } = event.detail || {};
+      if (userId && userId !== currentUser.id) return;
+      if (!latitude || !longitude) return;
+
+      const newLocation = { latitude, longitude, timestamp, accuracy, source: source || 'tracker' };
+
+      // Always update the driver location state — this is what moves the blue dot.
+      syncLocation(newLocation);
+
+      const now = Date.now();
+
+      // ── MAP TRIGGER: Phase 2 / Phase 3 auto-pan on PRIMARY DEVICE ────────
+      // Rule: fire on every GPS tick when phase is 2 or 3 and the map is locked.
+      // This is the PRIMARY device path only — non-primary uses driverLocationsUpdated (below).
+      //
+      // "Effectively primary" covers the async race: isPrimaryDeviceRef is resolved from
+      // the DB after mount, but locationTracker only runs on confirmed primary devices, so
+      // any driverPositionUpdated event IS from the primary device. window.__isPrimaryDevice
+      // is stamped by locationTracker itself the moment it confirms it is primary.
+      const effectivelyPrimary = isPrimaryDeviceRef.current || window.__isPrimaryDevice === true;
+      if (!effectivelyPrimary) return;
+
+      const phase = mapViewPhaseRef.current;
+      const fabPhase = window.__currentMapViewPhase ?? phase;
+
+      if (!isMapViewLockedRef.current) {
+        // Map is unlocked — check proximity snap instead.
+        _checkProximitySnap(newLocation, now);
+        return;
       }
 
-      const handleTrackerPosition = (event) => {
-        const { userId, latitude, longitude, timestamp, accuracy, source } = event.detail || {};
-        if (userId && userId !== currentUser.id) return;
-        if (!latitude || !longitude) return;
-        syncMobileLocation({ latitude, longitude, timestamp, accuracy, source: source || 'tracker' });
-      };
+      if ((phase !== 2 && phase !== 3) || (fabPhase !== 2 && fabPhase !== 3)) return;
+      if ((window._suppressMapRepositionUntil || 0) > now) return;
+      if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
 
-      window.addEventListener('driverPositionUpdated', handleTrackerPosition);
-      if (!trackerStatus.isTracking && navigator.geolocation) {
-        watchId = navigator.geolocation.watchPosition(
-          (position) => syncMobileLocation({
-            latitude:  position.coords.latitude,
-            longitude: position.coords.longitude,
-            timestamp: new Date(position.timestamp).toISOString(),
-            accuracy:  position.coords.accuracy,
-            source:    'device_gps'
-          }),
-          (error) => console.warn('⚠️ [Dashboard] GPS error:', error.message),
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      } else if (!trackerStatus.isTracking) {
-        console.warn('⚠️ [Dashboard] Geolocation not available on this device');
+      // Don't override bounds when an admin is viewing a DIFFERENT driver's route.
+      const selectedId = selectedDriverIdRef.current;
+      if (selectedId && selectedId !== 'all' && selectedId !== currentUser.id) return;
+
+      // Phase 2: also keep the next-stop card scrolled into view.
+      if (phase === 2) {
+        const nextCard = deliveriesWithStopOrderRef.current.find((d) => d?.isNextDelivery === true);
+        if (nextCard) {
+          document.getElementById(`stop-card-${nextCard.id}`)?.scrollIntoView({
+            behavior: 'smooth', block: 'nearest', inline: 'center',
+          });
+        }
       }
 
-      return () => window.removeEventListener('driverPositionUpdated', handleTrackerPosition);
+      // Fire the map trigger — Dashboard's mapViewTrigger effect handles the actual
+      // fitBounds call with the correct Phase 2 / Phase 3 coordinate set.
+      lastProgrammaticMapMoveRef.current = now;
+      window._lastProgrammaticMapMove = now;
+      pendingPhaseRef.current = phase;
+      setMapViewTrigger((prev) => prev + 1);
     };
 
-    const cleanup = startWatchingPosition();
+    window.addEventListener('driverPositionUpdated', handleTrackerPosition);
+
+    // Fallback watchPosition only when locationTracker isn't running (e.g. browser
+    // that bypassed the tracker entirely). locationTracker already calls handleLocationSuccess
+    // which dispatches driverPositionUpdated, so this only activates if isTracking === false.
+    let watchId = null;
+    if (!trackerStatus?.isTracking && navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          window.dispatchEvent(new CustomEvent('driverPositionUpdated', {
+            detail: {
+              userId:    currentUser.id,
+              latitude:  position.coords.latitude,
+              longitude: position.coords.longitude,
+              timestamp: new Date(position.timestamp).toISOString(),
+              accuracy:  position.coords.accuracy,
+              source:    'device_gps_fallback',
+            },
+          }));
+        },
+        (err) => console.warn('⚠️ [useDriverLocationSync] GPS fallback error:', err.message),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
     return () => {
-      if (cleanup) cleanup();
-      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      window.removeEventListener('driverPositionUpdated', handleTrackerPosition);
+      if (watchId !== null) navigator.geolocation?.clearWatch(watchId);
     };
-
-  // Stable deps only — live data (deliveriesWithStopOrder, patients, stores, appUsers,
-  // calculateDistance) are read via refs above so the effect never tears down the GPS
-  // listener just because a delivery refreshed.
+  // Stable deps only — all live data accessed via refs.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDriver, currentUser, isMobile, locationTracker, setDriverLocation, setMapViewTrigger,
       mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef,
-      lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef]);
+      lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef,
+      stopCardsContainerRef]);
 
-  // ── App resume / visibility reacquisition ────────────────────────────────────────────────
-  // On Android Chrome, switching apps suspends the browser context. When the driver returns:
-  //   1. `locationTracker._resumeAfterAbsence` fires a fresh GPS fix and dispatches
-  //      `driverLocationFocusRefresh` with the new coords — we must pipe that into React state.
-  //   2. The Dashboard's fallback `watchPosition` watcher (started inside startWatchingPosition)
-  //      may have gone stale during the suspension — we detect this and restart it.
-  // Both fixes together eliminate the straight-line jump caused by a long gap between the last
-  // breadcrumb before suspension and the first one after return.
-  const resumeWatchIdRef      = useRef(null);    // separate watch started on resume
+  // ─────────────────────────────────────────────────────────────────────────
+  // EFFECT 2: NON-PRIMARY DEVICE map trigger
+  //
+  // Listens to `driverLocationsUpdated` (WS broadcast, fires on every DB upload
+  // from the primary device, ~15s cadence). Fires the map trigger when the
+  // target driver's record is in the payload and we're in Phase 2 or 3.
+  //
+  // Also handles:
+  //   - Admin/dispatcher viewing a specific OTHER driver's route
+  //   - Driver on a secondary device (tablet signed in as the same driver)
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleSharedLocationUpdate = (event) => {
+      const now = Date.now();
+
+      // Only act when the map is locked in Phase 2 or 3.
+      if (!isMapViewLockedRef.current) return;
+      const phase = mapViewPhaseRef.current;
+      const fabPhase = window.__currentMapViewPhase ?? phase;
+      if ((phase !== 2 && phase !== 3) || (fabPhase !== 2 && fabPhase !== 3)) return;
+      if ((window._suppressMapRepositionUntil || 0) > now) return;
+
+      const updatedAppUsers = event?.detail?.appUsers;
+      if (!Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) return;
+
+      const targetId = selectedDriverIdRef.current;
+      const isSelfOrAll = !targetId || targetId === 'all' || targetId === currentUser?.id;
+
+      // PRIMARY DEVICE handles its own map trigger via driverPositionUpdated (Effect 1).
+      // Skip here to avoid double-triggering — primary device fires on every GPS tick,
+      // non-primary fires on every WS broadcast. They must not both run.
+      if (isSelfOrAll && (isPrimaryDeviceRef.current || window.__isPrimaryDevice === true)) return;
+
+      // Determine which driver record to look for in the payload.
+      const resolvedTargetId = isSelfOrAll ? currentUser?.id : targetId;
+      if (!resolvedTargetId) return;
+
+      const targetAppUser = updatedAppUsers.find(
+        (au) => au?.user_id === resolvedTargetId || au?.id === resolvedTargetId
+      );
+      if (!targetAppUser?.current_latitude || !targetAppUser?.current_longitude) return;
+
+      // Fire the map trigger — same as primary device path but driven by WS cadence.
+      lastProgrammaticMapMoveRef.current = now;
+      window._lastProgrammaticMapMove = now;
+      pendingPhaseRef.current = phase;
+      setMapViewTrigger((prev) => prev + 1);
+    };
+
+    window.addEventListener('driverLocationsUpdated', handleSharedLocationUpdate);
+    return () => window.removeEventListener('driverLocationsUpdated', handleSharedLocationUpdate);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, setMapViewTrigger, mapViewPhaseRef, isMapViewLockedRef,
+      pendingPhaseRef, lastProgrammaticMapMoveRef]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // EFFECT 3: App resume / visibility reacquisition
+  //
+  // Android Chrome suspends watchPosition when backgrounded. When the driver
+  // returns, immediately reacquire a fresh GPS fix and pipe it into state.
+  // ─────────────────────────────────────────────────────────────────────────
+  const resumeWatchIdRef      = useRef(null);
   const lastVisibilityHideRef = useRef(0);
 
   useEffect(() => {
@@ -273,25 +296,20 @@ export default function useDriverLocationSync({
         lastVisibilityHideRef.current = Date.now();
         return;
       }
-
       const awayMs = Date.now() - (lastVisibilityHideRef.current || 0);
-      if (awayMs < 5000) return; // not gone long enough to need a restart
+      if (awayMs < 5000) return;
 
-      console.log(`🔄 [useDriverLocationSync] App resumed after ${Math.round(awayMs / 1000)}s — reacquiring GPS watcher`);
+      console.log(`🔄 [useDriverLocationSync] App resumed after ${Math.round(awayMs / 1000)}s — reacquiring GPS`);
 
-      // Clear any stale resume watcher from a previous return
       if (resumeWatchIdRef.current !== null) {
         navigator.geolocation?.clearWatch(resumeWatchIdRef.current);
         resumeWatchIdRef.current = null;
       }
 
-      // Fire a fresh watchPosition that overwrites stale position state immediately.
-      // This runs in parallel with locationTracker's own refreshNow — both contribute
-      // a fresh fix so whichever resolves first updates the UI.
       if (navigator.geolocation) {
         resumeWatchIdRef.current = navigator.geolocation.watchPosition(
           (position) => {
-            syncLiveDriverLocationRef.current?.({
+            syncLocationRef.current?.({
               latitude:  position.coords.latitude,
               longitude: position.coords.longitude,
               timestamp: new Date(position.timestamp).toISOString(),
@@ -299,24 +317,19 @@ export default function useDriverLocationSync({
               source:    'device_gps_resume',
             });
           },
-          (err) => console.warn('⚠️ [useDriverLocationSync] Resume GPS watcher error:', err?.message),
+          (err) => console.warn('⚠️ [useDriverLocationSync] Resume GPS error:', err.message),
           { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
         );
       }
     };
 
-    // Also pipe locationTracker's immediate refreshNow result into React state.
-    // `driverLocationFocusRefresh` is dispatched by locationTracker._resumeAfterAbsence
-    // right after it acquires a fresh fix — but useDriverLocationSync never listened to it.
     const handleFocusRefresh = (event) => {
       const { userId, latitude, longitude, accuracy } = event.detail || {};
       if (userId && userId !== currentUser.id) return;
       if (!latitude || !longitude) return;
-      syncLiveDriverLocationRef.current?.({
-        latitude,
-        longitude,
+      syncLocationRef.current?.({
+        latitude, longitude, accuracy: accuracy ?? null,
         timestamp: new Date().toISOString(),
-        accuracy: accuracy ?? null,
         source: 'focus_refresh',
       });
     };
@@ -335,56 +348,46 @@ export default function useDriverLocationSync({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDriver, currentUser, isMobile]);
 
-  // ── Selected driver shared-location follow (admin/dispatcher viewing another driver) ──
-  // When a specific driver is selected that is NOT the current user, re-trigger the map
-  // on their shared location updates so phase 2/3 follows them instead of the viewer.
-  const selectedDriverIdRef = useRef(selectedDriverId);
-  useEffect(() => { selectedDriverIdRef.current = selectedDriverId; }, [selectedDriverId]);
+  // ─────────────────────────────────────────────────────────────────────────
+  // INTERNAL: Proximity snap helper
+  // Called by Effect 1 when the map is UNLOCKED and the driver is near a stop.
+  // ─────────────────────────────────────────────────────────────────────────
+  function _checkProximitySnap(newLocation, now) {
+    if ((window._lastImmersiveExitAt || 0) > now - 5000) return;
+    if (now - (lastUserInteractionRef?.current || 0) < 300000) return;
+    if (!isPrimaryDeviceRef.current) return;
 
-  useEffect(() => {
-    const handleSharedLocationUpdate = (event) => {
-      const now = Date.now();
-      if (!isMapViewLockedRef.current) return;
-      if (mapViewPhaseRef.current !== 2 && mapViewPhaseRef.current !== 3) return;
-      // CRITICAL: Guard against ref/state desync — FAB must also report phase 2/3
-      const fabPhase = window.__currentMapViewPhase ?? mapViewPhaseRef.current;
-      if (fabPhase !== 2 && fabPhase !== 3) return;
-      if ((window._suppressMapRepositionUntil || 0) > now) return;
+    for (const delivery of deliveriesWithStopOrderRef.current.filter(
+      (d) => d?.isNextDelivery === true && ['in_transit', 'en_route', 'pending'].includes(d.status)
+    )) {
+      const patient = delivery.patient_id
+        ? patientsRef.current.find((p) => p?.id === delivery.patient_id) : null;
+      const store = !delivery.patient_id && delivery.store_id
+        ? storesRef.current.find((s) => s?.id === delivery.store_id) : null;
+      const stopLat = patient?.latitude ?? store?.latitude;
+      const stopLon = patient?.longitude ?? store?.longitude;
+      if (stopLat == null || stopLon == null) continue;
+      if (calculateDistanceRef.current(newLocation.latitude, newLocation.longitude, stopLat, stopLon) > 0.1) continue;
 
-      const targetId = selectedDriverIdRef.current;
-
-      // On a non-primary device the driver's own location arrives via shared location broadcast,
-      // not local GPS — so we must also re-trigger the map for self (targetId === currentUser?.id)
-      // and for the "all" case when not on the primary device.
-      const isSelfOrAll = !targetId || targetId === 'all' || targetId === currentUser?.id;
-      if (isSelfOrAll && (isPrimaryDeviceRef.current || window.__isPrimaryDevice === true)) return; // primary device handles this via live GPS path
-      if (!isSelfOrAll) {
-        // Specific OTHER driver selected — resolve that driver's updated record
+      if (lastProximitySnappedStopIdRef.current === delivery.id) {
+        // Already snapped for this stop — scroll card but don't re-snap.
+        const cardEl = document.getElementById(`stop-card-${delivery.id}`);
+        cardEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        break;
       }
 
-      const updatedAppUsers = event?.detail?.appUsers;
-      if (!Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) return;
+      console.log(`📍 [useDriverLocationSync] Proximity snap → Phase 2 for stop ${delivery.id}`);
+      lastProximitySnappedStopIdRef.current = delivery.id;
+      if (lastProximitySnapTimeRef) lastProximitySnapTimeRef.current = now;
 
-      // Resolve the effective target: for self/all on non-primary, use current user's record
-      const resolvedTargetId = (isSelfOrAll && !isPrimaryDeviceRef.current)
-        ? currentUser?.id
-        : targetId;
-      const targetAppUser = updatedAppUsers.find((au) => au?.user_id === resolvedTargetId);
-      if (!targetAppUser?.current_latitude || !targetAppUser?.current_longitude) return;
+      const cardEl = document.getElementById(`stop-card-${delivery.id}`);
+      cardEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 
-      // No update timer here either: on non-primary devices the map follow is driven
-      // exactly by the shared/broadcast location marker's own update cadence — every
-      // 'driverLocationsUpdated' event for the target driver immediately repositions
-      // the map, matching the shared marker 1:1 instead of polling on an interval.
-      lastProgrammaticMapMoveRef.current = now;
-      window._lastProgrammaticMapMove = now;
-      pendingPhaseRef.current = mapViewPhaseRef.current;
-      setMapViewTrigger((prev) => prev + 1);
-    };
-
-    window.addEventListener('driverLocationsUpdated', handleSharedLocationUpdate);
-    return () => window.removeEventListener('driverLocationsUpdated', handleSharedLocationUpdate);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, setMapViewTrigger, mapViewPhaseRef, isMapViewLockedRef,
-      pendingPhaseRef, lastProgrammaticMapMoveRef]);
+      // Lock into Phase 2 via the FAB control event bus.
+      import('../utils/fabControlEvents').then(({ fabControlEvents }) => {
+        fabControlEvents.reactivatePhaseTwoIfAvailable();
+      });
+      break;
+    }
+  }
 }

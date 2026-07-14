@@ -39,14 +39,19 @@ export function getFabTargetDriverMapLocation({
 
   const targetAppUser = (appUsers || []).find((au) => au?.user_id === targetDriverId);
   const isOwnDriver = targetDriverId === currentUser?.id;
-  const isOnDuty = (targetAppUser?.driver_status ?? null) === 'on_duty';
+  const activeStatus = targetAppUser?.driver_status ?? null;
+  // Accept on_duty AND on_break — driver on break is still physically present
+  // and Phase 2/3 map follow should continue during breaks.
+  const isOnDuty = activeStatus === 'on_duty' || activeStatus === 'on_break';
 
-  // 1. Live GPS — only on the primary device (non-primary devices don't broadcast GPS to driverLocation)
-  if (isOwnDriver && isOnDuty && isPrimaryDevice && driverLocation?.latitude && driverLocation?.longitude) {
+  // 1. Live GPS — primary device always wins regardless of async isPrimaryDevice resolution.
+  //    locationTracker only runs on confirmed primary devices, so if driverLocation is set
+  //    and this is the driver's own route, trust it unconditionally.
+  if (isOwnDriver && driverLocation?.latitude && driverLocation?.longitude) {
     return { latitude: driverLocation.latitude, longitude: driverLocation.longitude };
   }
 
-  // For any driver (including self), only use shared/stored location if on_duty
+  // For any driver (including self), only use shared/stored location if active
   if (!isOnDuty) return null;
 
   // 2. allDriverLocations (excludes self on mobile/tablet — see driverLocationPoller filter)
