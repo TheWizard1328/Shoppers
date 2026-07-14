@@ -323,7 +323,7 @@ export default function LiveTempBadge({
   const outHigh = safe_max + danger_buffer;
   const isOut     = displayTemp !== null && (displayTemp < outLow || displayTemp > outHigh);
   const isWarning = displayTemp !== null && !isOut && (displayTemp < safe_min || displayTemp > safe_max);
-  const isLive    = showLiveBle && bleStatus === 'active' && bleTemp !== null;
+  const isLive    = showLiveBle && bleStatus === 'active'; // ring shows as soon as BLE connects, before first reading
 
   // ── Tap handler ─────────────────────────────────────────────────────────
   const handleTap = useCallback(async () => {
@@ -462,7 +462,7 @@ export default function LiveTempBadge({
             <span style={{ color: iconColor }}>{labelText}</span>
           </Tooltip>
 
-          {(isOut || isWarning) && (
+          {displayTemp !== null && (
             <span
               className="text-xs font-bold flex-shrink-0"
               style={{
