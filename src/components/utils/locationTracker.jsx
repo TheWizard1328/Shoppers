@@ -854,6 +854,12 @@ class LocationTracker {
       return;
     }
 
+    // Stamp the window global so useDriverLocationSync can immediately treat this
+    // as a primary device even if Dashboard's async DB lookup hasn't resolved yet.
+    // This prevents GPS ticks from silently bypassing the map-follow trigger during
+    // the first few seconds after the tracker starts.
+    if (typeof window !== 'undefined') window.__isPrimaryDevice = true;
+
     // DISPATCHER / ADMIN ONLY: Skip GPS entirely — just send a timestamp heartbeat once per minute.
     if (this._isDispatcherOrAdminOnly()) {
       console.log(`📡 [LocationTracker] Dispatcher/Admin role — starting timestamp-only heartbeat (no GPS, no coordinates)`);

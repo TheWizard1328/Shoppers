@@ -125,7 +125,13 @@ export default function useDriverLocationSync({
           // follow is driven exactly by the live GPS marker's own update cadence — every
           // watchPosition tick that reaches here (already the device's real GPS refresh
           // rate) immediately repositions the map, matching the live-location marker 1:1.
-          if (isPrimaryDeviceRef.current) {
+          // CRITICAL: Also check window.__isPrimaryDevice as a fallback — isPrimaryDeviceRef
+          // is resolved async from the DB, and if the DB lookup hasn't completed yet when
+          // GPS ticks start firing, the ref is still false and the trigger is silently
+          // skipped. The window global is set by the same DB lookup path but also set to
+          // true as an optimistic default by locationTracker on native primary devices.
+          const effectivelyPrimary = isPrimaryDeviceRef.current || window.__isPrimaryDevice === true;
+          if (effectivelyPrimary) {
             lastProgrammaticMapMoveRef.current = now;
             window._lastProgrammaticMapMove = now;
             pendingPhaseRef.current = mapViewPhaseRef.current;
@@ -351,7 +357,7 @@ export default function useDriverLocationSync({
       // not local GPS — so we must also re-trigger the map for self (targetId === currentUser?.id)
       // and for the "all" case when not on the primary device.
       const isSelfOrAll = !targetId || targetId === 'all' || targetId === currentUser?.id;
-      if (isSelfOrAll && isPrimaryDeviceRef.current) return; // primary device handles this via live GPS path
+      if (isSelfOrAll && (isPrimaryDeviceRef.current || window.__isPrimaryDevice === true)) return; // primary device handles this via live GPS path
       if (!isSelfOrAll) {
         // Specific OTHER driver selected — resolve that driver's updated record
       }
