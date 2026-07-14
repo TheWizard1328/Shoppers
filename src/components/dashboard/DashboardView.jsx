@@ -77,8 +77,11 @@ function DashboardView({
   refreshUser, refreshData, dataSource,
 }) {
   // Block map pan/zoom whenever the stats card or a stop card is expanded
+  const prevPanZoomBlockedRef = useRef(false);
   useEffect(() => {
     const blocked = isExpanded || !!selectedCardId;
+    if (blocked === prevPanZoomBlockedRef.current) return; // no change — skip dispatch
+    prevPanZoomBlockedRef.current = blocked;
     window._panZoomBlocked = blocked;
     window.dispatchEvent(new CustomEvent(blocked ? 'mapPanZoomBlock' : 'mapPanZoomUnblock'));
   }, [isExpanded, selectedCardId]);

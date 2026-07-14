@@ -5,7 +5,6 @@ const markUserMapControlActive = (durationMs = 4000) => {
   window._userMapControlUntil = Date.now() + durationMs;
 };
 import { useMapEvents } from 'react-leaflet';
-import { base44 } from '@/api/base44Client';
 
 
 export default function MapController({ 
@@ -29,24 +28,14 @@ export default function MapController({
       const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
       const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
       const isProgrammaticFromTimer = timeSinceProgrammatic < 1200;
-      // CRITICAL: A real finger/pointer gesture was recorded recently — this is definitely
-      // a user action (pinch-zoom or scroll) even if the programmatic timer is still hot
-      // from a GPS-driven map reposition. Trust the gesture timestamp over the timer.
       const timeSinceGesture = Date.now() - (window._lastUserGestureStart || 0);
       const isRealUserGesture = timeSinceGesture < 500;
       
       if (!isRealUserGesture && (isProgrammaticFromFlag || isProgrammaticFromTimer)) {
-        console.log('🗺️ [MapController] ZOOM START - PROGRAMMATIC (ignoring)');
         return;
       }
       
-      console.log('🗺️ [MapController] ZOOM START - USER INTERACTION');
-      console.log('🟠 [map phase unlocked] reason=user-zoom');
       markUserMapControlActive();
-      base44.analytics.track({
-        eventName: 'map_zoom_started',
-        properties: { zoom_level: mapInstance.getZoom() }
-      });
       if (onMapInteraction) {
         onMapInteraction(true);
       }
@@ -68,23 +57,14 @@ export default function MapController({
       if (wasDragging && didMove) {
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
         const isProgrammaticDrag = timeSinceProgrammatic < 1500;
-        
-        // CRITICAL: Also trust a recent gesture timestamp to override the programmatic timer.
         const timeSinceGesture = Date.now() - (window._lastUserGestureStart || 0);
-        const isRealUserGesture = timeSinceGesture < 2000; // drag can take up to ~1.5s
+        const isRealUserGesture = timeSinceGesture < 2000;
 
         if (!isProgrammaticDrag || isRealUserGesture) {
-          console.log('🗺️ [MapController] DRAG END - USER INTERACTION');
-          console.log('🟠 [map phase unlocked] reason=user-drag');
           markUserMapControlActive();
-          base44.analytics.track({
-            eventName: 'map_panned',
-            properties: { zoom_level: mapInstance.getZoom() }
-          });
           if (onMapInteraction) {
             onMapInteraction(true);
           }
-          // Collapse any expanded cards when user pans the map
           window.dispatchEvent(new CustomEvent('mapBackgroundClick'));
         }
       }
@@ -98,19 +78,18 @@ export default function MapController({
       
       if (roundedZoom !== currentZoom) {
         setCurrentZoom(roundedZoom);
-        // CRITICAL: Do not echo zoom back to Dashboard state during programmatic moves —
-        // this would update the zoom prop on DeliveryMap and re-trigger the setView effect.
-        const timeSinceProgrammaticZoom = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammaticZoom >= 3500) {
+        
+        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+        const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
+        const isProgrammaticFromTimer = timeSinceProgrammatic < 1500;
+        const isUserZoom = !isProgrammaticFromFlag && !isProgrammaticFromTimer;
+
+        // Only echo zoom back to Dashboard state on genuine user zoom to avoid re-triggering setView
+        if (isUserZoom && timeSinceProgrammatic >= 3500) {
           setMapZoom?.(roundedZoom);
         }
         
-        const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
-        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        const isProgrammaticFromTimer = timeSinceProgrammatic < 1500;
-        
-        if (!isProgrammaticFromFlag && !isProgrammaticFromTimer) {
-          console.log('🗺️ [MapController] ZOOM END - USER INTERACTION (showing overlay)');
+        if (isUserZoom) {
           markUserMapControlActive();
           if (zoomOverlayTimeoutRef.current) {
             clearTimeout(zoomOverlayTimeoutRef.current);
@@ -119,8 +98,6 @@ export default function MapController({
           zoomOverlayTimeoutRef.current = setTimeout(() => {
             setShowZoomOverlay(false);
           }, 3000);
-        } else {
-          console.log('🗺️ [MapController] ZOOM END - PROGRAMMATIC (not showing overlay)');
         }
       }
       
@@ -133,31 +110,27 @@ export default function MapController({
     },
     moveend: () => {
       if ((window._suppressAutoCenterUntil || 0) > Date.now()) { return; }
-      // Always publish live center so card-expand collapse restore can read it
       const center = mapInstance.getCenter();
       const newCenter = [center.lat, center.lng];
       window.__mapCurrentCenter = newCenter;
       window.__mapCurrentZoom = mapInstance.getZoom();
-      // CRITICAL: Do not echo center back to Dashboard state during programmatic moves.
-      // fitBounds/setView fire moveend, which updates mapCenter prop, which re-triggers
-      // the setView effect — causing a second unwanted map reposition (double-bounce).
-      const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-      if (timeSinceProgrammatic < 3500) { 
-        const bounds = mapInstance.getBounds();
-        setVisibleBounds(bounds);
-        return;
-      }
-      window.__currentMapCenter = newCenter;
       
+      const bounds = mapInstance.getBounds();
+      setVisibleBounds(bounds);
+
+      // Only echo center back to Dashboard state on genuine user moves.
+      // fitBounds/setView fire moveend — echoing back updates mapCenter prop, which
+      // re-triggers the setView effect causing a double-bounce.
+      const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+      if (timeSinceProgrammatic < 3500) return;
+      
+      window.__currentMapCenter = newCenter;
       setMapCenter(prev => {
         if (!prev || prev[0] !== newCenter[0] || prev[1] !== newCenter[1]) {
           return newCenter;
         }
         return prev;
       });
-      
-      const bounds = mapInstance.getBounds();
-      setVisibleBounds(bounds);
     },
     click: () => {
       setFannedLocationKey(null);
@@ -166,16 +139,10 @@ export default function MapController({
     },
     dblclick: (event) => {
       event?.originalEvent?.stopPropagation?.();
-      base44.analytics.track({
-        eventName: 'map_double_tapped',
-        properties: { zoom_level: mapInstance.getZoom() }
-      });
-      // If immersive mode is active: disable it and exit — no zoom, nothing else.
       if (immersiveHidden) {
         if (onDoubleTap) onDoubleTap(true);
         return;
       }
-      // Immersive mode is off: proceed with zoom
       if (onDoubleTap) onDoubleTap(true);
     },
   });

@@ -1194,8 +1194,8 @@ export default function DeliveryMap({
         center={center || [53.5461, -113.4938]}
         zoom={zoom || (safeDeliveries.length === 0 ? 11 : 12)}
         maxZoom={18}
-        zoomSnap={0}
-        zoomDelta={0.1}
+        zoomSnap={0.25}
+        zoomDelta={0.5}
         style={{ height: "100%", width: "100%" }}
         zoomControl={false}
         doubleClickZoom={false}
