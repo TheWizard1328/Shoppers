@@ -52,18 +52,6 @@ const map = useMap();
     }
   }, [map]);
 
-  const [panesReady, setPanesReady] = useState(false);
-  useEffect(() => {
-    if (!map || panesReady) return;
-    const check = () => {
-      if (map._panes?.routeBasePane) setPanesReady(true);
-    };
-    check();
-    const interval = setInterval(check, 50);
-    const timeout = setTimeout(() => { clearInterval(interval); setPanesReady(true); }, 3000);
-    return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, [map, panesReady]);
-
   const [refreshToken, setRefreshToken] = useState(0);
   const [localDriverTravelModes, setLocalDriverTravelModes] = useState({});
 
@@ -240,7 +228,7 @@ const map = useMap();
   });
 
 
-  if (!rendererReady || !panesReady) return null;
+  if (!rendererReady) return null;
   return lines.length ? <>{lines}</> : null;
 }
 
