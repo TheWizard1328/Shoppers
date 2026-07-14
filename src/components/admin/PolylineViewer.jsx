@@ -556,14 +556,22 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   const handleAddPoint = (lat, lng) => {
-    if (cleanedPoints.length < 2) return;
-    const insertAfter = findClosestSegmentIndex(cleanedPoints, lat, lng);
     setUndoStack(prev => [...prev.slice(-4), cleanedPoints]);
-    setCleanedPoints(prev => {
-      const next = [...prev];
-      next.splice(insertAfter + 1, 0, [lat, lng]);
-      return next;
-    });
+    if (cleanedPoints.length === 0) {
+      // Empty — just set the single point
+      setCleanedPoints([[lat, lng]]);
+    } else if (cleanedPoints.length === 1) {
+      // One point — append as destination
+      setCleanedPoints(prev => [...prev, [lat, lng]]);
+    } else {
+      // 2+ points — insert at closest segment
+      const insertAfter = findClosestSegmentIndex(cleanedPoints, lat, lng);
+      setCleanedPoints(prev => {
+        const next = [...prev];
+        next.splice(insertAfter + 1, 0, [lat, lng]);
+        return next;
+      });
+    }
   };
 
   const handleUndo = () => {
@@ -721,7 +729,7 @@ export default function PolylineViewer({ users = [] }) {
                         <div className="flex items-center gap-1 ml-1" onClick={e => e.stopPropagation()}>
                           {isCleaningMode && focusedItem?.id === item.id && (
                             <span className="text-xs text-orange-700 font-medium mr-1">
-                              {cleanedPoints.length} pts
+                              {cleanedPoints.length} pt{cleanedPoints.length !== 1 ? 's' : ''}{cleanedPoints.length < 2 ? ' — click map to add' : ''}
                             </span>
                           )}
                           {isCleaningMode && focusedItem?.id === item.id && undoStack.length > 0 && (
@@ -1026,8 +1034,7 @@ export default function PolylineViewer({ users = [] }) {
                               <Popup>
                                 <strong>Point #{i + 1}</strong><br />
                                 {pt[0].toFixed(6)}, {pt[1].toFixed(6)}<br />
-                                <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em><br />
-                                <em style={{color:'#2563eb'}}>Click map to add a new point</em>
+                                <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em>
                               </Popup>
                             </Marker>
                           ))}
@@ -1037,7 +1044,16 @@ export default function PolylineViewer({ users = [] }) {
                               position={first}
                               icon={getMarkerIcon('#16a34a', startLabel)}
                               zIndexOffset={1400}
-                              eventHandlers={isActiveCleaning && displayCoords.length > 2 ? { click: () => handleRemovePoint(0) } : {}}
+                              draggable={isActiveCleaning}
+                              eventHandlers={isActiveCleaning ? {
+                                dragstart: () => { draggingRef.current = true; },
+                                dragend: (e) => {
+                                  const { lat, lng } = e.target.getLatLng();
+                                  handleMovePoint(0, lat, lng);
+                                  setTimeout(() => { draggingRef.current = false; }, 50);
+                                },
+                                click: () => { if (!draggingRef.current && displayCoords.length > 2) handleRemovePoint(0); },
+                              } : {}}
                             >
                               <Popup>
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb Start' : 'Route Start'}</strong><br />
@@ -1048,7 +1064,8 @@ export default function PolylineViewer({ users = [] }) {
                                 }
                                 {seg.isBreadcrumb && <>Points: {isActiveCleaning ? cleanedPoints.length : seg.item.point_count}<br /></>}
                                 {first[0].toFixed(6)}, {first[1].toFixed(6)}<br />
-                                {isActiveCleaning && displayCoords.length > 2 && <em style={{color:'#ef4444'}}>Click to remove (next point becomes origin)</em>}
+                                {isActiveCleaning && <em style={{color:'#2563eb'}}>Drag to move</em>}
+                                {isActiveCleaning && displayCoords.length > 2 && <><br /><em style={{color:'#ef4444'}}>Click to remove</em></>}
                               </Popup>
                             </Marker>
                           )}
@@ -1057,13 +1074,23 @@ export default function PolylineViewer({ users = [] }) {
                               position={last}
                               icon={getMarkerIcon(seg.isBreadcrumb ? '#f59e0b' : '#dc2626', endLabel)}
                               zIndexOffset={1100}
-                              eventHandlers={isActiveCleaning && displayCoords.length > 2 ? { click: () => handleRemovePoint(displayCoords.length - 1) } : {}}
+                              draggable={isActiveCleaning}
+                              eventHandlers={isActiveCleaning ? {
+                                dragstart: () => { draggingRef.current = true; },
+                                dragend: (e) => {
+                                  const { lat, lng } = e.target.getLatLng();
+                                  handleMovePoint(displayCoords.length - 1, lat, lng);
+                                  setTimeout(() => { draggingRef.current = false; }, 50);
+                                },
+                                click: () => { if (!draggingRef.current && displayCoords.length > 2) handleRemovePoint(displayCoords.length - 1); },
+                              } : {}}
                             >
                               <Popup>
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb End' : 'Route End'}</strong><br />
                                 {seg.isBreadcrumb && <>Stop: #{destStop}<br /></>}
                                 {last[0].toFixed(6)}, {last[1].toFixed(6)}<br />
-                                {isActiveCleaning && displayCoords.length > 2 && <em style={{color:'#ef4444'}}>Click to remove (previous point becomes destination)</em>}
+                                {isActiveCleaning && <em style={{color:'#2563eb'}}>Drag to move</em>}
+                                {isActiveCleaning && displayCoords.length > 2 && <><br /><em style={{color:'#ef4444'}}>Click to remove</em></>}
                               </Popup>
                             </Marker>
                           )}
