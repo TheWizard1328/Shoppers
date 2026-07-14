@@ -686,11 +686,34 @@ const subscribeToEntity = (entityName) => {
                   // if it's explicitly set (even to null/''), the incoming value wins.
                   // Time window fields (delivery_time_start/end/eta) are ONLY preserved when absent
                   // so that forced updates from purgeAndRegeneratePolylines are never blocked.
+                  // Fields that must NEVER be wiped by a partial WebSocket update.
+                  // The WS payload often carries only the changed field (e.g. just `status`).
+                  // A simple { ...existing, ...data } would zero-out anything absent from
+                  // the incoming payload if the incoming value is falsy/absent.
+                  // We restore from the existing IDB record when the field is truly absent
+                  // (undefined) from the incoming payload AND has a non-falsy value locally.
                   const PRESERVE_FIELDS = [
-                    'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
+                    // Route / polyline
                     'encoded_polyline', 'transport_mode', 'estimated_distance_km',
-                    'estimated_duration_minutes', 'patient_name', 'patient_phone',
-                    'delivery_instructions', 'unit_number',
+                    'estimated_duration_minutes', 'first_leg_origin_lat', 'first_leg_origin_lng',
+                    'polyline_saved_at', 'PolylineUpdated', 'travel_dist',
+                    // Time windows
+                    'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
+                    // Sequencing
+                    'stop_order', 'display_stop_order', 'isNextDelivery',
+                    // Identity
+                    'puid', 'stop_id', 'delivery_id', 'tracking_number',
+                    // Inter-store
+                    '_interstore_source_id', '_interstore_source_name',
+                    '_interstore_dest_id', '_interstore_dest_name',
+                    // Cycling
+                    'is_cycling_marker', 'cycling_latitude', 'cycling_longitude',
+                    // Patient-denormalized (sent only on create, not on every update)
+                    'patient_name', 'patient_phone', 'delivery_instructions', 'unit_number',
+                    // COD
+                    'cod_total_amount_required', 'cod_payments',
+                    // Proof
+                    'signature_image_url', 'proof_photo_urls', 'barcode_values', 'receipt_barcode_values',
                   ];
                   const merged = { ...existing, ...data };
                   for (const field of PRESERVE_FIELDS) {

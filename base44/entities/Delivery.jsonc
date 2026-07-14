@@ -52,6 +52,10 @@
       "type": "number",
       "description": "Sequential stop order number for the route"
     },
+    "display_stop_order": {
+      "type": "number",
+      "description": "UI-facing stop number shown to drivers — mirrors stop_order after re-sequencing"
+    },
     "stop_id": {
       "type": "string",
       "description": "Stop ID (SID) - used for import matching"

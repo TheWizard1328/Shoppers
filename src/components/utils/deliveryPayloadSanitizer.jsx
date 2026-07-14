@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 
 const FALLBACK_ALLOWED_FIELDS = new Set([
+  // ── Identity / assignment ──────────────────────────────────────────────────
   'company_id',
   'delivery_id',
   'patient_id',
@@ -8,27 +9,50 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'driver_name',
   'created_by_app_user_id',
   'delivery_date',
+  'status',
+  'tracking_number',
+  'stop_order',
+  'display_stop_order',       // UI-facing stop number (mirrors stop_order after re-sequencing)
+  'stop_id',
+  'puid',
+  'prescription_number',
+  'delivery_notes',
+  'delivery_instructions',
+  'store_id',
+  // ── Inter-store transfer metadata ──────────────────────────────────────────
+  '_interstore_source_id',
+  '_interstore_source_name',
+  '_interstore_dest_id',
+  '_interstore_dest_name',
+  // ── Time windows ──────────────────────────────────────────────────────────
   'delivery_time_start',
   'delivery_time_end',
   'delivery_time_eta',
   'arrival_time',
   'actual_delivery_time',
-  'status',
-  'prescription_number',
-  'delivery_notes',
-  'delivery_instructions',
-  'store_id',
-  'tracking_number',
-  'stop_order',
-  'stop_id',
-  'puid',
-  'extra_time',
+  'ampm_deliveries',
+  // ── Route / polyline ──────────────────────────────────────────────────────
+  'encoded_polyline',
+  'transport_mode',
+  'estimated_distance_km',
+  'estimated_duration_minutes',
+  'first_leg_origin_lat',
+  'first_leg_origin_lng',
+  'polyline_saved_at',
+  'PolylineUpdated',
   'travel_dist',
+  'extra_time',
   'paid_km_override',
+  // ── Cycling markers ───────────────────────────────────────────────────────
+  'is_cycling_marker',
+  'cycling_latitude',
+  'cycling_longitude',
+  // ── Route sequencing ──────────────────────────────────────────────────────
+  'isNextDelivery',
+  // ── COD / payments ────────────────────────────────────────────────────────
   'cod_total_amount_required',
   'cod_payments',
-  'cod_payment_type',
-  'cod_amount',
+  // ── Delivery attributes ───────────────────────────────────────────────────
   'signature_needed',
   'signature_image_url',
   'proof_photo_urls',
@@ -39,18 +63,6 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'after_hours_pickup',
   'no_charge',
   'first_delivery',
-  'isNextDelivery',
-  'ampm_deliveries',
-  'delivery_route_breadcrumbs',
-  'encoded_polyline',
-  'transport_mode',
-  'finished_leg_transport_mode',
-  'estimated_distance_km',
-  'estimated_duration_minutes',
-  'PolylineUpdated',
-  'is_cycling_marker',
-  'cycling_latitude',
-  'cycling_longitude'
 ]);
 
 const INTERNAL_ONLY_FIELDS = new Set([
