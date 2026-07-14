@@ -128,29 +128,11 @@ const mergeAppUsersByFreshness = (currentUsers = [], incomingUsers = []) => {
       return;
     }
     if (getAppUserTimestamp(user) < getAppUserTimestamp(existing)) return;
-
-    const movedEnough = hasDriverMovedEnoughForPhase2(
-      {
-        latitude: Number(existing?.current_latitude),
-        longitude: Number(existing?.current_longitude)
-      },
-      {
-        latitude: Number(user?.current_latitude),
-        longitude: Number(user?.current_longitude)
-      },
-      50
-    );
-
-    if (!movedEnough) {
-      merged.set(key, {
-        ...existing,
-        ...user,
-        current_latitude: existing?.current_latitude,
-        current_longitude: existing?.current_longitude
-      });
-      return;
-    }
-
+    // Accept every incoming location update — the map follow and marker position
+    // must update on every GPS tick, even for small movements. The old 50m gate was
+    // causing the shared marker to freeze until the driver moved 50m, making Phase 2/3
+    // pan only every ~10 updates. Removed: marker dedup is handled upstream by the
+    // GPS upload interval (15-30s cadence), not here in the render path.
     merged.set(key, { ...existing, ...user });
   });
   return Array.from(merged.values());

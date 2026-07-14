@@ -872,7 +872,10 @@ function Dashboard() {
 
     // CRITICAL: Only skip phase 2 (driver+next-stop) if not a driver or no location.
     // Phase 3 CAN run for dispatchers (shows incomplete stops for their stores).
-    if (mapViewPhaseRef.current === 2 && !(isDispatcher && !isAdmin || isAdmin && selectedDriverId === 'all') && !getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice })) {
+    // MUST use refs here — this effect runs on every GPS tick via setMapViewTrigger,
+    // and setDriverLocation/setAppUsers React state updates may not have committed yet
+    // when the effect fires, causing stale driverLocation=null to falsely bail early.
+    if (mapViewPhaseRef.current === 2 && !(isDispatcher && !isAdmin || isAdmin && selectedDriverIdRef.current === 'all') && !getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current })) {
       console.log(`🟡 [map return 3] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
       return;
     }
