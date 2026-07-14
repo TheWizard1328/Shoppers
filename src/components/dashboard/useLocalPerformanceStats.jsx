@@ -174,6 +174,7 @@ export function useLocalPerformanceStats({
           const now = new Date();
           endMinutes = now.getHours() * 60 + now.getMinutes();
         }
+        // Note: totalDutyMinutes will be overridden below if activity_segments are available
 
         if (isAllDrivers) {
           // Track overall span across all drivers
@@ -196,6 +197,46 @@ export function useLocalPerformanceStats({
       let span = allDriversLatestMinutes - allDriversEarliestMinutes;
       if (span < 0) span += 24 * 60;
       totalDutyMinutes = Math.max(0, span);
+    }
+
+    // ── Prefer activity_segments for single-driver view ──────────────────────
+    // If the selected driver has a DriverDailyActivity record with segments,
+    // use the segment sum (closed tots + live open segment) as the authoritative
+    // on-duty time rather than the first-stop to last-stop span.
+    // This is done asynchronously — it fires a second setPerformanceStats
+    // update once the DB read resolves, so the UI shows the span first then
+    // immediately corrects to the segment-based value.
+    if (!isAllDrivers && driverIds.length === 1 && isDataLoaded) {
+      const segDriverId = driverIds[0];
+      const segDate = (() => {
+        // Derive selected date from filteredDeliveries
+        const anyDelivery = (filteredDeliveries || []).find(d => d?.driver_id === segDriverId && d?.delivery_date);
+        return anyDelivery?.delivery_date || new Date().toISOString().split('T')[0];
+      })();
+      (async () => {
+        try {
+          const recs = await base44.entities.DriverDailyActivity.filter({
+            driver_id: segDriverId,
+            activity_date: segDate
+          });
+          const segments = recs?.[0]?.activity_segments;
+          if (Array.isArray(segments) && segments.length > 0) {
+            const nowMs = Date.now();
+            const segMinutes = segments.reduce((sum, seg) => {
+              if (!seg?.start_time) return sum;
+              if (seg.end_time && typeof seg.tot === 'number') return sum + seg.tot;
+              if (!seg.end_time) {
+                return sum + Math.max(0, Math.round((nowMs - new Date(seg.start_time).getTime()) / 60000));
+              }
+              return sum;
+            }, 0);
+            setPerformanceStats(prev => prev
+              ? { ...prev, totalTimeOnDuty: formatMinutes(segMinutes) }
+              : null
+            );
+          }
+        } catch (_) { /* non-critical — span fallback already set */ }
+      })();
     }
 
     setPerformanceStats({

@@ -173,8 +173,15 @@ function DashboardView({
     (async () => {
       try {
         const recs = await base44.entities.DriverDailyActivity.filter({ driver_id: currentUser.id, activity_date: selectedDateStr });
-        const breakMin = (recs && recs[0]?.total_break_time_minutes) || 0;
-        const total = Math.max(0, baseMinutes - breakMin);
+        const segments = recs?.[0]?.activity_segments;
+        let total = baseMinutes; // fallback: span of first→last stop
+        if (Array.isArray(segments) && segments.length > 0) {
+          // Authoritative: sum all closed segment tots
+          total = segments.reduce((sum, seg) => {
+            if (seg?.end_time && typeof seg.tot === 'number') return sum + seg.tot;
+            return sum;
+          }, 0);
+        }
         const hh = String(Math.floor(total / 60)).padStart(2, '0');
         const mm = String(total % 60).padStart(2, '0');
         setFinalizedDutyTime(`${hh}:${mm}`);

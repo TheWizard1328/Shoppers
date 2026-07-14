@@ -112,110 +112,105 @@ class LiveDistanceTracker {
   }
 
   /**
-   * Get or create DriverDailyActivity record for today
+   * Get or create DriverDailyActivity record for today.
+   * Uses activity_segments array — each segment is one continuous on-duty window.
    */
   async getOrCreateDailyActivity(driverId) {
     const todayStr = new Date().toISOString().split('T')[0];
-    
-    // Try to find existing record
-    const existingRecords = await base44.entities.DriverDailyActivity.filter({
+
+    const existing = await base44.entities.DriverDailyActivity.filter({
       driver_id: driverId,
       activity_date: todayStr
     });
-    
-    if (existingRecords && existingRecords.length > 0) {
-      return existingRecords[0];
-    }
-    
-    // Create new record for today
+
+    if (existing && existing.length > 0) return existing[0];
+
+    const driverName = this.currentUser?.user_name || this.currentUser?.full_name || '';
     const newRecord = await base44.entities.DriverDailyActivity.create({
       driver_id: driverId,
+      driver_name: driverName,
       activity_date: todayStr,
-      total_break_time_minutes: 0,
-      break_start_time: null
+      activity_segments: []
     });
-    
+
     console.log('📅 [LiveDistanceTracker] Created new DriverDailyActivity for', todayStr);
     return newRecord;
   }
 
   /**
-   * Update driver status (for duty time tracking)
+   * Update driver status and record on-duty segments.
+   *
+   * On Duty  → push a new open segment { start_time: now, end_time: null, tot: null }
+   *            (also closes any dangling open segment first — crash recovery)
+   * On Break / Off Duty → close the open segment: set end_time + tot
    */
   async updateDriverStatus(newStatus) {
     const previousStatus = this.currentUser?.driver_status;
-    
+
     if (!this.currentUser) return;
-    
+
     this.currentUser.driver_status = newStatus;
 
     try {
-      // Get or create DriverDailyActivity for today
       const dailyActivity = await this.getOrCreateDailyActivity(this.currentUser.id);
-      
+
       if (!dailyActivity) {
         console.error('❌ [LiveDistanceTracker] Could not get/create DriverDailyActivity');
         return;
       }
 
-      // Handle duty time tracking state changes
+      const segments = Array.isArray(dailyActivity.activity_segments)
+        ? [...dailyActivity.activity_segments]
+        : [];
+
+      const now = new Date().toISOString();
+      const nowMs = Date.now();
+
       if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
-        // Started duty - start timer (no break time to add yet)
-        this.dutyStartTime = Date.now();
-        console.log('⏱️ [LiveDistanceTracker] Duty timer started');
-        
-      } else if (newStatus === 'on_break' && previousStatus === 'on_duty') {
-        // Going on break - save break start time to DriverDailyActivity
-        const now = new Date().toISOString();
-        await base44.entities.DriverDailyActivity.update(dailyActivity.id, {
-          break_start_time: now
-        });
-        console.log('⏸️ [LiveDistanceTracker] Break started - timestamp saved to DriverDailyActivity');
-        
-      } else if (newStatus === 'on_duty' && previousStatus === 'on_break') {
-        // Returning from break - calculate break duration and add to total
-        if (dailyActivity.break_start_time) {
-          const breakStart = new Date(dailyActivity.break_start_time).getTime();
-          const breakEnd = Date.now();
-          const breakDurationMs = breakEnd - breakStart;
-          const breakDurationMinutes = Math.floor(breakDurationMs / 60000);
-          
-          const newTotalBreakTime = (dailyActivity.total_break_time_minutes || 0) + breakDurationMinutes;
-          
-          await base44.entities.DriverDailyActivity.update(dailyActivity.id, {
-            total_break_time_minutes: newTotalBreakTime,
-            break_start_time: null
-          });
-          
-          console.log(`⏱️ [LiveDistanceTracker] Break ended - Duration: ${breakDurationMinutes} minutes, Total break time: ${newTotalBreakTime} minutes`);
+        // ── Crash-recovery: close any dangling open segment before pushing a new one ──
+        const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
+        if (openIdx !== -1) {
+          const danglingStartMs = new Date(segments[openIdx].start_time).getTime();
+          const danglingTot = Math.max(0, Math.round((nowMs - danglingStartMs) / 60000));
+          segments[openIdx] = { ...segments[openIdx], end_time: now, tot: danglingTot };
+          console.log(`🔧 [LiveDistanceTracker] Closed dangling segment (${danglingTot} min)`);
         }
-        
-      } else if (newStatus === 'off_duty') {
-        // Going off duty - finalize any active break (but don't reset - keep for historical stats)
-        if (previousStatus === 'on_break' && dailyActivity.break_start_time) {
-          const breakStart = new Date(dailyActivity.break_start_time).getTime();
-          const breakEnd = Date.now();
-          const breakDurationMs = breakEnd - breakStart;
-          const breakDurationMinutes = Math.floor(breakDurationMs / 60000);
-          
-          const newTotalBreakTime = (dailyActivity.total_break_time_minutes || 0) + breakDurationMinutes;
-          
-          await base44.entities.DriverDailyActivity.update(dailyActivity.id, {
-            total_break_time_minutes: newTotalBreakTime,
-            break_start_time: null
-          });
-          
-          console.log(`⏱️ [LiveDistanceTracker] Off duty - Finalized break: ${breakDurationMinutes} minutes, Total: ${newTotalBreakTime} minutes`);
+
+        // Push new open segment
+        segments.push({ start_time: now, end_time: null, tot: null });
+        await base44.entities.DriverDailyActivity.update(dailyActivity.id, { activity_segments: segments });
+        this.dutyStartTime = nowMs;
+        console.log('⏱️ [LiveDistanceTracker] New on-duty segment opened');
+
+      } else if ((newStatus === 'on_break' || newStatus === 'off_duty') && previousStatus === 'on_duty') {
+        // ── Close the open segment ──
+        const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
+        if (openIdx !== -1) {
+          const startMs = new Date(segments[openIdx].start_time).getTime();
+          const tot = Math.max(0, Math.round((nowMs - startMs) / 60000));
+          segments[openIdx] = { ...segments[openIdx], end_time: now, tot };
+          await base44.entities.DriverDailyActivity.update(dailyActivity.id, { activity_segments: segments });
+          console.log(`⏸️ [LiveDistanceTracker] Segment closed — ${tot} min on duty`);
         }
-        
-        // Stop duty timer
         if (this.dutyStartTime) {
-          const elapsedMs = Date.now() - this.dutyStartTime;
-          this.totalTimeOnDuty += Math.floor(elapsedMs / 60000);
+          this.totalTimeOnDuty += Math.round((nowMs - this.dutyStartTime) / 60000);
           this.dutyStartTime = null;
         }
+
+      } else if (newStatus === 'on_duty' && previousStatus === 'on_break') {
+        // Returning from break — same as fresh on_duty (open a new segment)
+        const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
+        if (openIdx !== -1) {
+          // Shouldn't exist, but close defensively
+          const startMs = new Date(segments[openIdx].start_time).getTime();
+          segments[openIdx] = { ...segments[openIdx], end_time: now, tot: Math.max(0, Math.round((nowMs - startMs) / 60000)) };
+        }
+        segments.push({ start_time: now, end_time: null, tot: null });
+        await base44.entities.DriverDailyActivity.update(dailyActivity.id, { activity_segments: segments });
+        this.dutyStartTime = nowMs;
+        console.log('⏱️ [LiveDistanceTracker] Return-from-break segment opened');
       }
-      
+
     } catch (error) {
       console.error('❌ [LiveDistanceTracker] Error updating driver status:', error);
     }
@@ -424,16 +419,26 @@ class LiveDistanceTracker {
         driver_id: this.currentUser.id,
         activity_date: todayStr
       });
-      const totalBreakMinutes = dailyActivities?.[0]?.total_break_time_minutes || 0;
+      const segments = dailyActivities?.[0]?.activity_segments || [];
+      const nowMs = Date.now();
 
-      const timeOnDutyMinutes = Math.max(0, elapsedMinutes - totalBreakMinutes);
+      // Sum closed segments + live-compute any open segment
+      const totalOnDutyMinutes = segments.reduce((sum, seg) => {
+        if (!seg?.start_time) return sum;
+        if (seg.end_time && typeof seg.tot === 'number') return sum + seg.tot;
+        if (!seg.end_time) {
+          // Open segment — driver currently on duty
+          return sum + Math.max(0, Math.round((nowMs - new Date(seg.start_time).getTime()) / 60000));
+        }
+        return sum;
+      }, 0);
 
-      console.log(`⏱️ [LiveDistanceTracker] Live: ${timeOnDutyMinutes} min (${activeStops.length} active stops)`);
+      console.log(`⏱️ [LiveDistanceTracker] Live on-duty: ${totalOnDutyMinutes} min (${activeStops.length} active stops)`);
 
       window.dispatchEvent(new CustomEvent('timeOnDutyUpdated', {
         detail: {
-          totalMinutes: timeOnDutyMinutes,
-          formattedTime: this.formatDutyTime(timeOnDutyMinutes)
+          totalMinutes: totalOnDutyMinutes,
+          formattedTime: this.formatDutyTime(totalOnDutyMinutes)
         }
       }));
 
