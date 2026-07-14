@@ -784,10 +784,8 @@ export default function useStopCardActions(params) {
           .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
 
         // Put the started stop first among active stops, clear isNextDelivery on all others
-        const startMinutes = now.getHours() * 60 + now.getMinutes() + 5;
-        const startTimeStr = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
         const reorderedActiveStops = activeStops.filter((d) => d?.id !== delivery.id);
-        reorderedActiveStops.unshift({ ...delivery, status: isPickup ? 'en_route' : 'in_transit', delivery_time_start: startTimeStr });
+        reorderedActiveStops.unshift({ ...delivery, status: isPickup ? 'en_route' : 'in_transit' });
         const startedRouteDeliveries = [...completedStops, ...reorderedActiveStops, ...pendingStops]
           .filter(Boolean)
           .map((d, index) => ({
@@ -816,11 +814,10 @@ export default function useStopCardActions(params) {
             if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
             if (Number(existing.stop_order || 0) !== Number(item.stop_order || 0)) updates.stop_order = item.stop_order;
             if (Number(existing.display_stop_order || 0) !== Number(item.display_stop_order || 0)) updates.display_stop_order = item.display_stop_order;
-            // For the started stop: persist status + delivery_time_start immediately
+            // For the started stop: persist status immediately (no delivery_time_start on Start)
             if (item.id === delivery.id) {
               const expectedStartStatus = isPickup ? 'en_route' : 'in_transit';
               if (existing.status !== expectedStartStatus) updates.status = expectedStartStatus;
-              if (item.delivery_time_start && existing.delivery_time_start !== item.delivery_time_start) updates.delivery_time_start = item.delivery_time_start;
             }
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
             return Promise.all([
