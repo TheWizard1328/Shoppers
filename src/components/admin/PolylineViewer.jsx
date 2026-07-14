@@ -259,61 +259,6 @@ export default function PolylineViewer({ users = [] }) {
 
   useEffect(() => { loadData(); }, [dataSource]);
 
-  // ── Real-time listeners — sync breadcrumb + delivery updates from other devices ──
-  useEffect(() => {
-    const handleBreadcrumbUpdate = (e) => {
-      const { type, id, data } = e.detail || {};
-      if (!id || !data) return;
-      if (type === 'delete') {
-        setBreadcrumbs(prev => prev.filter(b => b.id !== id));
-      } else {
-        // Merge into existing list or append if new
-        setBreadcrumbs(prev => {
-          const idx = prev.findIndex(b => b.id === id);
-          if (idx !== -1) {
-            const next = [...prev];
-            next[idx] = { ...prev[idx], ...data };
-            return next;
-          }
-          return [...prev, data];
-        });
-        // If the updated breadcrumb is the currently focused item, update it too
-        setFocusedItem(prev => {
-          if (!prev || prev.id !== id) return prev;
-          const updated = { ...prev, ...data };
-          // If we're not in cleaning mode, also update the map display
-          return updated;
-        });
-      }
-    };
-
-    const handleDeliveryUpdate = (e) => {
-      const { type, id, data } = e.detail || {};
-      if (!id || !data) return;
-      if (typeof data.encoded_polyline !== 'string') return; // Only care about polyline changes
-      if (type === 'delete') {
-        setDeliveries(prev => prev.filter(d => d.id !== id));
-      } else {
-        setDeliveries(prev => {
-          const idx = prev.findIndex(d => d.id === id);
-          if (idx !== -1) {
-            const next = [...prev];
-            next[idx] = { ...prev[idx], ...data };
-            return next;
-          }
-          return [...prev, data];
-        });
-      }
-    };
-
-    window.addEventListener('realtimeUpdate_DeliveryBreadcrumbs', handleBreadcrumbUpdate);
-    window.addEventListener('realtimeUpdate_Delivery', handleDeliveryUpdate);
-    return () => {
-      window.removeEventListener('realtimeUpdate_DeliveryBreadcrumbs', handleBreadcrumbUpdate);
-      window.removeEventListener('realtimeUpdate_Delivery', handleDeliveryUpdate);
-    };
-  }, []);
-
   // ── Load all AppUsers (incl. inactive) for name resolution ────────────────
   useEffect(() => {
     base44.entities.AppUser.list().then(res => setAllAppUsers(res || [])).catch(() => {});
@@ -545,31 +490,36 @@ export default function PolylineViewer({ users = [] }) {
           : Promise.resolve(),
       ]);
       if (res?.data?.success) {
-        const travelDistKm = res.data.travelDistKm;
-        const deliveryId = res.data.deliveryId;
         toast.success(`Stop #${pending.item.stop_order} auto-saved.`);
-        // Update local breadcrumbs state so the list reflects new point count
         setBreadcrumbs(prev => prev.map(b =>
           b.id === pending.item.id ? { ...b, encoded_polyline: newPoly, point_count: points.length } : b
         ));
-        // Broadcast to Routes tab and Dashboard
-        window.dispatchEvent(new CustomEvent('breadcrumbSavedToDelivery', {
-          detail: { breadcrumbId: pending.item.id, deliveryId, stopOrder: pending.item.stop_order, driverId: pending.item.driver_id, deliveryDate: pending.item.delivery_date, travelDistKm }
-        }));
-        if (deliveryId) {
+        // Write encoded_polyline back into Delivery IDB and broadcast to React state
+        if (res.data?.deliveryId) {
           import('../utils/offlineDatabase').then(({ offlineDB }) => {
-            offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId)
+            offlineDB.getById(offlineDB.STORES.DELIVERIES, res.data.deliveryId)
               .then(existing => {
-                if (!existing) return;
-                const updatedDelivery = { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: newPoly };
-                return offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).then(() => updatedDelivery);
+                if (!existing) return null;
+                const travelDistKm = res.data?.travelDistKm;
+                const updated = {
+                  ...existing,
+                  encoded_polyline: newPoly,
+                  ...(travelDistKm != null ? { travel_dist: travelDistKm } : {}),
+                };
+                return offlineDB.save(offlineDB.STORES.DELIVERIES, updated).then(() => updated);
               })
-              .then(updatedDelivery => {
-                if (updatedDelivery) {
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                    detail: { triggeredBy: 'breadcrumbAutoSaved', deliveryId, freshDeliveries: [updatedDelivery], fullReplacement: false, preserveLocalState: true }
-                  }));
-                }
+              .then(updated => {
+                if (!updated) return;
+                window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+                  detail: {
+                    deliveries: [updated],
+                    appUsers: [],
+                    patients: [],
+                    deliveryDate: updated.delivery_date,
+                    preserveLocalState: true,
+                    triggeredBy: 'autoSaveCrumbPolyline'
+                  }
+                }));
                 window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
               })
               .catch(() => {});
@@ -651,7 +601,6 @@ export default function PolylineViewer({ users = [] }) {
       ]);
       if (res?.data?.success) {
         const travelDistKm = res.data.travelDistKm;
-        const deliveryId = res.data.deliveryId;
         toast.success(`Stop #${item.stop_order} saved — ${travelDistKm != null ? travelDistKm.toFixed(2) + ' km' : ''}`);
         pendingCleanRef.current = null;
         const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true };
@@ -663,34 +612,39 @@ export default function PolylineViewer({ users = [] }) {
         setIsCleaningMode(false);
         setCleanedPoints([]);
         setUndoStack([]);
-
-        // Broadcast breadcrumb update so the Routes tab list refreshes
-        window.dispatchEvent(new CustomEvent('breadcrumbSavedToDelivery', {
-          detail: { breadcrumbId: item.id, deliveryId, stopOrder: item.stop_order, driverId: item.driver_id, deliveryDate: item.delivery_date, travelDistKm }
-        }));
-
-        // Update offline DB delivery record and broadcast to Dashboard
-        import('../utils/offlineDatabase').then(({ offlineDB }) => {
-          if (!deliveryId) return;
-          offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId)
-            .then(existing => {
-              if (!existing) return;
-              const updatedDelivery = { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: polyToSave };
-              return offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).then(() => updatedDelivery);
-            })
-            .then(updatedDelivery => {
-              if (updatedDelivery) {
-                // Notify Dashboard to merge this delivery update
-                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                  detail: { triggeredBy: 'breadcrumbSaved', deliveryId, freshDeliveries: [updatedDelivery], fullReplacement: false, preserveLocalState: true }
-                }));
-              }
-              window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-            })
-            .catch(() => {
-              window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-            });
-        }).catch(() => {});
+        // Also update the offline DB delivery record with the new travel_dist so the
+        // stats card recalculates immediately without waiting for a WebSocket round-trip
+        if (res.data.deliveryId) {
+          import('../utils/offlineDatabase').then(({ offlineDB }) => {
+            offlineDB.getById(offlineDB.STORES.DELIVERIES, res.data.deliveryId)
+              .then(existing => {
+                if (!existing) return null;
+                const updated = {
+                  ...existing,
+                  encoded_polyline: polyToSave,
+                  ...(travelDistKm != null ? { travel_dist: travelDistKm } : {}),
+                };
+                return offlineDB.save(offlineDB.STORES.DELIVERIES, updated).then(() => updated);
+              })
+              .then((updated) => {
+                if (updated) {
+                  // Broadcast to this device's React state so the map re-renders immediately
+                  window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+                    detail: {
+                      deliveries: [updated],
+                      appUsers: [],
+                      patients: [],
+                      deliveryDate: updated.delivery_date,
+                      preserveLocalState: true,
+                      triggeredBy: 'saveCrumbPolyline'
+                    }
+                  }));
+                }
+                window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+              })
+              .catch(() => {});
+          }).catch(() => {});
+        }
       } else {
         toast.error(`Save failed: ${res?.data?.error || 'Unknown error'}`);
       }
