@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields: driverId, deliveryDate, stopOrder, cleanedEncodedPolyline' }, { status: 400 });
     }
 
-    // 1. Update the Delivery record's encoded_polyline
+    // 1. Find the matching Delivery record
     const deliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,
@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
 
     const delivery = deliveries[0];
 
-    // Decode polyline and calculate Haversine distance in km
+    // 2. Decode polyline and calculate Haversine distance in km
     const decodePolyline = (encoded) => {
       const poly = [];
       let index = 0, len = encoded.length, lat = 0, lng = 0;
@@ -52,16 +52,15 @@ Deno.serve(async (req) => {
     for (let i = 1; i < points.length; i++) {
       travelDistKm += haversineKm(points[i-1][0], points[i-1][1], points[i][0], points[i][1]);
     }
-    const travelDist = Math.round(travelDistKm * 100) / 100; // 2 decimal places
+    const travelDist = Math.round(travelDistKm * 100) / 100;
 
-    // Use user-scoped client (not asServiceRole) so the WebSocket subscription
-    // fires on all connected devices, allowing their offline DBs and UI to update.
-    await base44.entities.Delivery.update(delivery.id, {
+    // 3. Update Delivery with new polyline + travel distance
+    await base44.asServiceRole.entities.Delivery.update(delivery.id, {
       encoded_polyline: cleanedEncodedPolyline,
       travel_dist: travelDist,
     });
 
-    // 2. Update the DeliveryBreadcrumbs record — save cleaned polyline and tag as saved_to_route
+    // 4. Update DeliveryBreadcrumbs record — save cleaned polyline and tag as saved_to_route
     const crumbs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,
@@ -71,12 +70,21 @@ Deno.serve(async (req) => {
     let breadcrumbId = null;
     if (crumbs && crumbs.length > 0) {
       breadcrumbId = crumbs[0].id;
-      // Count points by decoding length heuristic — just store the polyline and flag it
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(crumbs[0].id, {
         encoded_polyline: cleanedEncodedPolyline,
         saved_to_route: true,
       });
     }
+
+    // 5. FORCE FULL BROADCAST: Fetch the complete, fresh delivery record (includes patient_name,
+    //    delivery_id, all fields) then do a second update with a sync_nonce timestamp.
+    //    This guarantees all connected devices receive the full record via WebSocket
+    //    rather than a delta that may be suppressed or missing key fields.
+    const freshDelivery = await base44.asServiceRole.entities.Delivery.get(delivery.id);
+    await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+      ...freshDelivery,
+      polyline_saved_at: new Date().toISOString(),
+    });
 
     return Response.json({
       success: true,
