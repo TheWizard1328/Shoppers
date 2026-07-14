@@ -81,20 +81,8 @@ export default function DashboardDialogs({
     selectedDate,
   });
 
-  // Listen for the cycling marker form to signal "open mode selection dialog".
-  // Skip the dialog for historical dates — there are no future stops to select.
-  useEffect(() => {
-    const handler = (e) => {
-      const deliveryDate = e?.detail?.deliveryDate;
-      if (deliveryDate) {
-        const today = new Date().toISOString().split('T')[0];
-        if (deliveryDate < today) return; // past date — bypass stop-select dialog
-      }
-      setModeDialogOpen(true);
-    };
-    window.addEventListener('openCyclingModeDialog', handler);
-    return () => window.removeEventListener('openCyclingModeDialog', handler);
-  }, [setModeDialogOpen]);
+  // NOTE: openCyclingModeDialog is handled by useModeRouteDialog (pre-seeds cycling stops).
+  // No duplicate listener here.
 
   return (
     <>

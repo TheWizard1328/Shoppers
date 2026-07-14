@@ -87,9 +87,27 @@ export default function useModeRouteDialog({
     setReturnToCurrentLocation((prev) => !prev);
   }, []);
 
-  // Re-open dialog after Accept All when cycling mode is active
+  // Keep a ref to deliveriesWithStopOrder so the event handler can read it without stale closure
+  const deliveriesRef = useRef(deliveriesWithStopOrder);
+  useEffect(() => { deliveriesRef.current = deliveriesWithStopOrder; }, [deliveriesWithStopOrder]);
+
+  // Re-open dialog after Accept All (or any openCyclingModeDialog event) when cycling mode is active.
+  // Pre-seed selectedModeStopIds with stops that are already set to transport_mode='cycling'
+  // so the driver sees their current cycling stops already checked.
+  // Also enforces the past-date guard: if the event includes a deliveryDate in the past, skip.
   useEffect(() => {
-    const handler = () => setModeDialogOpen(true);
+    const handler = (e) => {
+      const deliveryDate = e?.detail?.deliveryDate;
+      if (deliveryDate) {
+        const today = new Date().toISOString().split('T')[0];
+        if (deliveryDate < today) return; // past date — bypass stop-select dialog
+      }
+      const alreadyCycling = (deliveriesRef.current || [])
+        .filter((d) => d && !d.is_cycling_marker && d.transport_mode === 'cycling')
+        .map((d) => d.id);
+      setSelectedModeStopIds(alreadyCycling);
+      setModeDialogOpen(true);
+    };
     window.addEventListener('openCyclingModeDialog', handler);
     return () => window.removeEventListener('openCyclingModeDialog', handler);
   }, []);
@@ -234,6 +252,15 @@ export default function useModeRouteDialog({
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, localUpserts).catch(() => null);
       } catch { /* non-fatal */ }
+
+      // ── 6b. Persist transport_mode='cycling' to the backend for selected stops ───
+      // The local upsert above updates in-memory + IDB but the backend still has the
+      // old transport_mode. Write it now so other devices and reloads see the correct mode.
+      // Fire-and-forget — don't block optimization on these writes.
+      const cyclingModeWrites = updatedCyclingStops.map((d) =>
+        base44.entities.Delivery.update(d.id, { transport_mode: 'cycling' }).catch(() => null)
+      );
+      Promise.all(cyclingModeWrites).catch(() => null); // non-blocking
 
       // Build the full merged delivery list for the optimizer (replaces stale records)
       const updatedById = new Map(localUpserts.map((d) => [d.id, d]));
