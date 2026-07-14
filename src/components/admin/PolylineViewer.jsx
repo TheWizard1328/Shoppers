@@ -490,26 +490,38 @@ export default function PolylineViewer({ users = [] }) {
           : Promise.resolve(),
       ]);
       if (res?.data?.success) {
-        const travelDistKm = res.data.travelDistKm;
-        const deliveryId = res.data.deliveryId;
         toast.success(`Stop #${pending.item.stop_order} auto-saved.`);
-        // Update local breadcrumbs state so the list reflects new point count
         setBreadcrumbs(prev => prev.map(b =>
           b.id === pending.item.id ? { ...b, encoded_polyline: newPoly, point_count: points.length } : b
         ));
-        // Update offline DB so local cache stays in sync
-        if (deliveryId) {
+        // Write encoded_polyline back into Delivery IDB and broadcast to React state
+        if (res.data?.deliveryId) {
           import('../utils/offlineDatabase').then(({ offlineDB }) => {
-            offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId)
+            offlineDB.getById(offlineDB.STORES.DELIVERIES, res.data.deliveryId)
               .then(existing => {
-                if (!existing) return;
-                return offlineDB.save(offlineDB.STORES.DELIVERIES, {
+                if (!existing) return null;
+                const travelDistKm = res.data?.travelDistKm;
+                const updated = {
                   ...existing,
-                  travel_dist: travelDistKm ?? existing.travel_dist,
                   encoded_polyline: newPoly,
-                });
+                  ...(travelDistKm != null ? { travel_dist: travelDistKm } : {}),
+                };
+                return offlineDB.save(offlineDB.STORES.DELIVERIES, updated).then(() => updated);
               })
-              .then(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')))
+              .then(updated => {
+                if (!updated) return;
+                window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+                  detail: {
+                    deliveries: [updated],
+                    appUsers: [],
+                    patients: [],
+                    deliveryDate: updated.delivery_date,
+                    preserveLocalState: true,
+                    triggeredBy: 'autoSaveCrumbPolyline'
+                  }
+                }));
+                window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+              })
               .catch(() => {});
           }).catch(() => {});
         }
@@ -549,22 +561,14 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   const handleAddPoint = (lat, lng) => {
+    if (cleanedPoints.length < 2) return;
+    const insertAfter = findClosestSegmentIndex(cleanedPoints, lat, lng);
     setUndoStack(prev => [...prev.slice(-4), cleanedPoints]);
-    if (cleanedPoints.length === 0) {
-      // Empty — just set the single point
-      setCleanedPoints([[lat, lng]]);
-    } else if (cleanedPoints.length === 1) {
-      // One point — append as destination
-      setCleanedPoints(prev => [...prev, [lat, lng]]);
-    } else {
-      // 2+ points — insert at closest segment
-      const insertAfter = findClosestSegmentIndex(cleanedPoints, lat, lng);
-      setCleanedPoints(prev => {
-        const next = [...prev];
-        next.splice(insertAfter + 1, 0, [lat, lng]);
-        return next;
-      });
-    }
+    setCleanedPoints(prev => {
+      const next = [...prev];
+      next.splice(insertAfter + 1, 0, [lat, lng]);
+      return next;
+    });
   };
 
   const handleUndo = () => {
@@ -597,7 +601,6 @@ export default function PolylineViewer({ users = [] }) {
       ]);
       if (res?.data?.success) {
         const travelDistKm = res.data.travelDistKm;
-        const deliveryId = res.data.deliveryId;
         toast.success(`Stop #${item.stop_order} saved — ${travelDistKm != null ? travelDistKm.toFixed(2) + ' km' : ''}`);
         pendingCleanRef.current = null;
         const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true };
@@ -609,22 +612,39 @@ export default function PolylineViewer({ users = [] }) {
         setIsCleaningMode(false);
         setCleanedPoints([]);
         setUndoStack([]);
-
-        // Update offline DB delivery record so local cache stays in sync
-        import('../utils/offlineDatabase').then(({ offlineDB }) => {
-          if (!deliveryId) return;
-          offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId)
-            .then(existing => {
-              if (!existing) return;
-              return offlineDB.save(offlineDB.STORES.DELIVERIES, {
-                ...existing,
-                travel_dist: travelDistKm ?? existing.travel_dist,
-                encoded_polyline: polyToSave,
-              });
-            })
-            .then(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')))
-            .catch(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')));
-        }).catch(() => {});
+        // Also update the offline DB delivery record with the new travel_dist so the
+        // stats card recalculates immediately without waiting for a WebSocket round-trip
+        if (res.data.deliveryId) {
+          import('../utils/offlineDatabase').then(({ offlineDB }) => {
+            offlineDB.getById(offlineDB.STORES.DELIVERIES, res.data.deliveryId)
+              .then(existing => {
+                if (!existing) return null;
+                const updated = {
+                  ...existing,
+                  encoded_polyline: polyToSave,
+                  ...(travelDistKm != null ? { travel_dist: travelDistKm } : {}),
+                };
+                return offlineDB.save(offlineDB.STORES.DELIVERIES, updated).then(() => updated);
+              })
+              .then((updated) => {
+                if (updated) {
+                  // Broadcast to this device's React state so the map re-renders immediately
+                  window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+                    detail: {
+                      deliveries: [updated],
+                      appUsers: [],
+                      patients: [],
+                      deliveryDate: updated.delivery_date,
+                      preserveLocalState: true,
+                      triggeredBy: 'saveCrumbPolyline'
+                    }
+                  }));
+                }
+                window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+              })
+              .catch(() => {});
+          }).catch(() => {});
+        }
       } else {
         toast.error(`Save failed: ${res?.data?.error || 'Unknown error'}`);
       }
@@ -710,7 +730,7 @@ export default function PolylineViewer({ users = [] }) {
                         <div className="flex items-center gap-1 ml-1" onClick={e => e.stopPropagation()}>
                           {isCleaningMode && focusedItem?.id === item.id && (
                             <span className="text-xs text-orange-700 font-medium mr-1">
-                              {cleanedPoints.length} pt{cleanedPoints.length !== 1 ? 's' : ''}{cleanedPoints.length < 2 ? ' — click map to add' : ''}
+                              {cleanedPoints.length} pts
                             </span>
                           )}
                           {isCleaningMode && focusedItem?.id === item.id && undoStack.length > 0 && (
@@ -1015,7 +1035,8 @@ export default function PolylineViewer({ users = [] }) {
                               <Popup>
                                 <strong>Point #{i + 1}</strong><br />
                                 {pt[0].toFixed(6)}, {pt[1].toFixed(6)}<br />
-                                <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em>
+                                <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em><br />
+                                <em style={{color:'#2563eb'}}>Click map to add a new point</em>
                               </Popup>
                             </Marker>
                           ))}
@@ -1025,16 +1046,7 @@ export default function PolylineViewer({ users = [] }) {
                               position={first}
                               icon={getMarkerIcon('#16a34a', startLabel)}
                               zIndexOffset={1400}
-                              draggable={isActiveCleaning}
-                              eventHandlers={isActiveCleaning ? {
-                                dragstart: () => { draggingRef.current = true; },
-                                dragend: (e) => {
-                                  const { lat, lng } = e.target.getLatLng();
-                                  handleMovePoint(0, lat, lng);
-                                  setTimeout(() => { draggingRef.current = false; }, 50);
-                                },
-                                click: () => { if (!draggingRef.current && displayCoords.length > 2) handleRemovePoint(0); },
-                              } : {}}
+                              eventHandlers={isActiveCleaning && displayCoords.length > 2 ? { click: () => handleRemovePoint(0) } : {}}
                             >
                               <Popup>
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb Start' : 'Route Start'}</strong><br />
@@ -1045,8 +1057,7 @@ export default function PolylineViewer({ users = [] }) {
                                 }
                                 {seg.isBreadcrumb && <>Points: {isActiveCleaning ? cleanedPoints.length : seg.item.point_count}<br /></>}
                                 {first[0].toFixed(6)}, {first[1].toFixed(6)}<br />
-                                {isActiveCleaning && <em style={{color:'#2563eb'}}>Drag to move</em>}
-                                {isActiveCleaning && displayCoords.length > 2 && <><br /><em style={{color:'#ef4444'}}>Click to remove</em></>}
+                                {isActiveCleaning && displayCoords.length > 2 && <em style={{color:'#ef4444'}}>Click to remove (next point becomes origin)</em>}
                               </Popup>
                             </Marker>
                           )}
@@ -1055,23 +1066,13 @@ export default function PolylineViewer({ users = [] }) {
                               position={last}
                               icon={getMarkerIcon(seg.isBreadcrumb ? '#f59e0b' : '#dc2626', endLabel)}
                               zIndexOffset={1100}
-                              draggable={isActiveCleaning}
-                              eventHandlers={isActiveCleaning ? {
-                                dragstart: () => { draggingRef.current = true; },
-                                dragend: (e) => {
-                                  const { lat, lng } = e.target.getLatLng();
-                                  handleMovePoint(displayCoords.length - 1, lat, lng);
-                                  setTimeout(() => { draggingRef.current = false; }, 50);
-                                },
-                                click: () => { if (!draggingRef.current && displayCoords.length > 2) handleRemovePoint(displayCoords.length - 1); },
-                              } : {}}
+                              eventHandlers={isActiveCleaning && displayCoords.length > 2 ? { click: () => handleRemovePoint(displayCoords.length - 1) } : {}}
                             >
                               <Popup>
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb End' : 'Route End'}</strong><br />
                                 {seg.isBreadcrumb && <>Stop: #{destStop}<br /></>}
                                 {last[0].toFixed(6)}, {last[1].toFixed(6)}<br />
-                                {isActiveCleaning && <em style={{color:'#2563eb'}}>Drag to move</em>}
-                                {isActiveCleaning && displayCoords.length > 2 && <><br /><em style={{color:'#ef4444'}}>Click to remove</em></>}
+                                {isActiveCleaning && displayCoords.length > 2 && <em style={{color:'#ef4444'}}>Click to remove (previous point becomes destination)</em>}
                               </Popup>
                             </Marker>
                           )}
