@@ -141,12 +141,11 @@ export const resolvePickupPuid = async ({
     !delivery.patient_id &&
     delivery.store_id === storeId &&
     delivery.delivery_date === deliveryDate &&
-    delivery.driver_id === driverId
+    delivery.driver_id === driverId &&
+    (delivery.ampm_deliveries || 'AM') === timeSlot
   );
 
-  const enRoutePickup =
-    candidatePickups.find((p) => p.status === 'en_route' && (p.ampm_deliveries || 'AM') === timeSlot) ||
-    candidatePickups.find((p) => p.status === 'en_route');
+  const enRoutePickup = candidatePickups.find((p) => p.status === 'en_route');
   if (enRoutePickup) {
     return enRoutePickup.puid || enRoutePickup.stop_id;
   }
@@ -168,9 +167,7 @@ export const resolvePickupPuid = async ({
     }
   }
 
-  const otherReusable =
-    candidatePickups.find((p) => ['pending', 'in_transit', 'Staged'].includes(p.status) && (p.ampm_deliveries || 'AM') === timeSlot) ||
-    candidatePickups.find((p) => ['pending', 'in_transit', 'Staged'].includes(p.status));
+  const otherReusable = candidatePickups.find((p) => ['pending', 'in_transit', 'Staged'].includes(p.status));
   if (otherReusable) {
     return otherReusable.puid || otherReusable.stop_id;
   }
