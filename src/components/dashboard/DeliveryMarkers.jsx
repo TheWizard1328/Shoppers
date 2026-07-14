@@ -181,13 +181,11 @@ function DeliveryMarkers({
 
     // Z-index tiers (higher = on top):
     // isNextDelivery: 12000 tier — always on top of all other markers
-    // Active (in_transit/en_route): 8000 tier — lowest stop_order gets highest z (subtract stop_order)
-    // Incomplete (pending/other non-finished): 5000 tier — lowest stop_order gets highest z
-    // Completed (finished): 100 tier — highest stop_order gets highest z within tier (add stop_order)
+    // Incomplete (pending/active): 10000 tier — lowest stop_order on top (subtract stop_order)
+    // Finished: 5000 tier — lowest stop_order on top (subtract stop_order), always under incomplete
     const isNextDeliveryMarker = delivery.isNextDelivery === true || delivery.isNextInLine === true;
     if (isNextDeliveryMarker) dynamicZIndex = 12000;
-    else if (isActive) dynamicZIndex = 8000 - stopOrder;
-    else if (isFinished) dynamicZIndex = 100 + stopOrder;
+    else if (!isFinished) dynamicZIndex = 10000 - stopOrder;
     else dynamicZIndex = 5000 - stopOrder;
 
     if (isFanned && isClustered) {
@@ -197,9 +195,9 @@ function DeliveryMarkers({
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       const clusterIndex = allMarkersAtLocation.findIndex(d => d && d.id === delivery.id);
       markerPosition = calculateFannedPositionWrapperWrapper(markerLatitude, markerLongitude, clusterIndex, allMarkersAtLocation.length, delivery.stop_order);
-      // Within a fanned cluster: active > pending > completed; within each tier use same ordering rules
-      if (isActive) dynamicZIndex = 9000 - stopOrder;
-      else if (isFinished) dynamicZIndex = 2000 + stopOrder;
+      // Within a fanned cluster: same tier logic — incomplete on top, finished underneath, lowest stop_order on top within each tier
+      if (isNextDeliveryMarker) dynamicZIndex = 12000;
+      else if (!isFinished) dynamicZIndex = 11000 - stopOrder;
       else dynamicZIndex = 6000 - stopOrder;
     }
 
