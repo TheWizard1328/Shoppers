@@ -285,14 +285,15 @@ function DashboardView({
       {isDriver && isMobile && (
         <div style={{
           position: 'fixed', bottom: 80, left: 8, zIndex: 99999,
-          background: 'rgba(0,0,0,0.75)', color: '#fff',
+          background: 'rgba(0,0,0,0.85)', color: '#fff',
           fontSize: 10, padding: '4px 8px', borderRadius: 6,
-          pointerEvents: 'none', lineHeight: 1.4, maxWidth: 220,
+          pointerEvents: 'none', lineHeight: 1.5, maxWidth: 240,
           fontFamily: 'monospace'
         }}>
           <div>🚗 IMM: {immersiveHidden ? '✅ ACTIVE' : '❌ off'}</div>
           <div>moving: {isDriverMoving ? '✅ YES' : '❌ no'}</div>
-          <div>nextStop: {immersiveOverlayDelivery ? '✅' : '❌ null'}</div>
+          <div>nextStop: {immersiveOverlayDelivery ? '✅' : (deliveriesWithStopOrder?.some(d => d?.isNextDelivery) ? '⚠️ noCoords' : '❌ null')}</div>
+          <div>override: {immersiveOverrideActive ? '✅ YES' : '— no'}</div>
         </div>
       )}
       {/* ─────────────────────────────────────────────────────────────────── */}
