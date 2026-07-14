@@ -1171,6 +1171,12 @@ export default function DeliveryMap({
 
     // First tap: center stop card + pan map, no popup
     if (marker.status === "pending" && marker.puid) {
+      // If this pending delivery has a patient, open the patient history panel before redirecting to pickup
+      if (marker.patient_id) {
+        window.dispatchEvent(new CustomEvent('openPatientHistoryPanel', {
+          detail: { patientId: marker.patient_id, patient: marker.patient || null }
+        }));
+      }
       const assignedPickup = pickupMarkers.find((pickup) => pickup?.stop_id === marker.puid);
       if (assignedPickup) {
         if (assignedPickup?.id) window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: assignedPickup.id, fromMarkerClick: true } }));

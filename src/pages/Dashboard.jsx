@@ -1826,12 +1826,11 @@ useEffect(() => {
       cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
 
-    // Auto-open Patient History panel for dispatchers clicking their own store's patient markers
+    // Auto-open Patient History panel for dispatchers clicking patient markers (any status)
     if (
       delivery.patient_id &&
       isDispatcher &&
-      !isAdmin &&
-      currentUserStoreIds?.includes(delivery.store_id)
+      (!currentUserStoreIds?.length || currentUserStoreIds.includes(delivery.store_id))
     ) {
       setTimeout(() => {
         const patient = patients.find((p) => p && p.id === delivery.patient_id);
