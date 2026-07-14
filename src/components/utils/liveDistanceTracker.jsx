@@ -62,17 +62,10 @@ class LiveDistanceTracker {
     this.isTracking = true;
     this.lastPosition = null;
     this.accumulatedDistance = 0;
-    
-    // Initialize duty time tracking
-    if (user.driver_status === 'on_duty') {
-      this.dutyStartTime = Date.now();
-      this.totalTimeOnDuty = 0;
-    } else {
-      this.dutyStartTime = null;
-      this.totalTimeOnDuty = 0;
-    }
+    // NOTE: dutyStartTime/totalTimeOnDuty are legacy in-memory fields — no longer used.
+    // Duty time is now derived exclusively from DB activity_segments.
 
-    console.log('🚀 [LiveDistanceTracker] Started tracking for', user.user_name);
+    console.log('🚀 [LiveDistanceTracker] Started tracking for', user.user_name || user.full_name || user.id);
 
     // Start periodic updates
     this.intervalId = setInterval(() => {
@@ -92,23 +85,12 @@ class LiveDistanceTracker {
       this.intervalId = null;
     }
 
-    // CRITICAL: Finalize time on duty before stopping
-    if (this.dutyStartTime) {
-      const elapsedMs = Date.now() - this.dutyStartTime;
-      this.totalTimeOnDuty += Math.floor(elapsedMs / 60000);
-      console.log(`⏱️ [LiveDistanceTracker] Finalized time on duty: ${this.totalTimeOnDuty} minutes`);
-      this.dutyStartTime = null;
-    }
-
     this.isTracking = false;
     this.currentUser = null;
     this.lastPosition = null;
     this.accumulatedDistance = 0;
-    
-    // DON'T reset totalTimeOnDuty - it should persist after route completion
-    // this.totalTimeOnDuty = 0;
 
-    console.log('🛑 [LiveDistanceTracker] Stopped tracking (Time On Duty preserved)');
+    console.log('🛑 [LiveDistanceTracker] Stopped tracking');
   }
 
   /**
@@ -179,7 +161,6 @@ class LiveDistanceTracker {
         // Push new open segment
         segments.push({ start_time: now, end_time: null, tot: null });
         await base44.entities.DriverDailyActivity.update(dailyActivity.id, { activity_segments: segments });
-        this.dutyStartTime = nowMs;
         console.log('⏱️ [LiveDistanceTracker] New on-duty segment opened');
 
       } else if ((newStatus === 'on_break' || newStatus === 'off_duty') && previousStatus === 'on_duty') {
@@ -192,10 +173,6 @@ class LiveDistanceTracker {
           await base44.entities.DriverDailyActivity.update(dailyActivity.id, { activity_segments: segments });
           console.log(`⏸️ [LiveDistanceTracker] Segment closed — ${tot} min on duty`);
         }
-        if (this.dutyStartTime) {
-          this.totalTimeOnDuty += Math.round((nowMs - this.dutyStartTime) / 60000);
-          this.dutyStartTime = null;
-        }
 
       } else if (newStatus === 'on_duty' && previousStatus === 'on_break') {
         // Returning from break — same as fresh on_duty (open a new segment)
@@ -207,7 +184,6 @@ class LiveDistanceTracker {
         }
         segments.push({ start_time: now, end_time: null, tot: null });
         await base44.entities.DriverDailyActivity.update(dailyActivity.id, { activity_segments: segments });
-        this.dutyStartTime = nowMs;
         console.log('⏱️ [LiveDistanceTracker] Return-from-break segment opened');
       }
 
