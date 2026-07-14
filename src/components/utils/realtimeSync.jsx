@@ -582,10 +582,19 @@ const subscribeToEntity = (entityName) => {
         entityDataCache.delete(id);
       }
       
+      // For Delivery, look up patient_name from the offline DB if not present in the broadcast payload
+      let deliveryDisplayName = data?.patient_name || data?.full_name;
+      if (entityName === 'Delivery' && !deliveryDisplayName && data?.id) {
+        try {
+          const { offlineDB } = await import('./offlineDatabase');
+          const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, data.id);
+          deliveryDisplayName = existing?.patient_name || existing?.full_name;
+        } catch (_) {}
+      }
       const displayId = entityName === 'Patient'
         ? (data?.full_name || id)
         : entityName === 'Delivery'
-          ? (data?.patient_name || data?.full_name || data?.patient_id || id)
+          ? (deliveryDisplayName || data?.patient_id || id)
           : entityName === 'AppUser'
             ? (data?.user_name || data?.full_name || data?.email || id)
             : id;
