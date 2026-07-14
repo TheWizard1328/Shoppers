@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { getCurrentDriverLocation, getNearbyModeStops } from '@/components/dashboard/modeButtonHelpers';
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
@@ -70,6 +70,13 @@ export default function useModeRouteDialog({
 
   const toggleReturnToCurrentLocation = useCallback(() => {
     setReturnToCurrentLocation((prev) => !prev);
+  }, []);
+
+  // Re-open dialog after Accept All when cycling mode is active
+  useEffect(() => {
+    const handler = () => setModeDialogOpen(true);
+    window.addEventListener('openCyclingModeDialog', handler);
+    return () => window.removeEventListener('openCyclingModeDialog', handler);
   }, []);
 
   const isRunningRef = useRef(false);
