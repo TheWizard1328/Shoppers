@@ -686,16 +686,16 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     // Compute average of the window
     const avg = window.reduce((sum, r) => sum + (r.temperature_celsius ?? 0), 0) / window.length;
 
-    // Generate a smooth random curve: start and end near avg, vary ±0.5°C with a random walk
+    // Generate a smooth sine wave pattern centred on avg
     const count = window.length;
     const newTemps = [];
-    let current = avg + (Math.random() - 0.5) * 0.6;
+    // Random phase offset and amplitude for variety each click
+    const amplitude = 0.3 + Math.random() * 0.5; // 0.3–0.8°C amplitude
+    const phaseOffset = Math.random() * Math.PI * 2;
+    const frequency = (1 + Math.random()) * Math.PI / Math.max(count - 1, 1); // 1–2 full cycles
     for (let i = 0; i < count; i++) {
-      // Smooth random walk that stays near avg (mean-reverting)
-      const pull = (avg - current) * 0.35;
-      const noise = (Math.random() - 0.5) * 0.5;
-      current = parseFloat((current + pull + noise).toFixed(1));
-      newTemps.push(current);
+      const sine = amplitude * Math.sin(frequency * i + phaseOffset);
+      newTemps.push(parseFloat((avg + sine).toFixed(1)));
     }
 
     // Apply new temps to the window
