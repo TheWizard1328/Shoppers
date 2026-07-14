@@ -142,11 +142,6 @@ export default function useImmersiveMode({
   // not just when lat/lon digit values change (GPS can repeat coords with new timestamps).
   }, [enabled, isDriver, isMobile, driverLocation?.latitude, driverLocation?.longitude, driverLocation?.timestamp]);
 
-  // ── Debug: log motion state changes so we can diagnose in DevTools ───────────
-  useEffect(() => {
-    console.log(`🚗 [Immersive] moving:${isDriverMoving} | enabled:${enabled} isDriver:${isDriver} isMobile:${isMobile} nextStop:${!!nextStopLocation} nearStop:${isNearNextStop} cooldown:${isCooldownActive}`);
-  }, [isDriverMoving, enabled, isDriver, isMobile]);
-
   // ── Post-stop action cooldown ───────────────────────────────────────────────
   useEffect(() => {
     const engage = () => {

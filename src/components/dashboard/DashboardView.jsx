@@ -291,23 +291,7 @@ function DashboardView({
         </div>
       }
 
-      {/* ─── Immersive mode debug overlay — remove after confirmed working ─── */}
-      {isDriver && isMobile && (
-        <div style={{
-          position: 'fixed', bottom: 80, left: 8, zIndex: 99999,
-          background: 'rgba(0,0,0,0.85)', color: '#fff',
-          fontSize: 10, padding: '4px 8px', borderRadius: 6,
-          pointerEvents: 'none', lineHeight: 1.5, maxWidth: 240,
-          fontFamily: 'monospace'
-        }}>
-          <div>🚗 IMM: {immersiveHidden ? '✅ ACTIVE' : '❌ off'}</div>
-          <div>primary: {typeof window !== 'undefined' && window.__isPrimaryDevice ? '✅ YES' : '❌ no'}</div>
-          <div>moving: {isDriverMoving ? '✅ YES' : '❌ no'}</div>
-          <div>nextStop: {immersiveOverlayDelivery ? '✅' : (deliveriesWithStopOrder?.some(d => d?.isNextDelivery) ? '⚠️ noCoords' : '❌ null')}</div>
-          <div>override: {immersiveOverrideActive ? '✅ YES' : '— no'}</div>
-        </div>
-      )}
-      {/* ─────────────────────────────────────────────────────────────────── */}
+
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
         <div
