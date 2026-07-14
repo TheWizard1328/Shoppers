@@ -678,7 +678,7 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     const n = readings.length;
     if (n === 0) return;
 
-    const HALF = 5;
+    const HALF = 25;
     const startIdx = Math.max(0, centreIdx - HALF);
     const endIdx = Math.min(n - 1, centreIdx + HALF);
     const window = readings.slice(startIdx, endIdx + 1);
