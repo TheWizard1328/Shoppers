@@ -614,6 +614,7 @@ const subscribeToEntity = (entityName) => {
       console.log(`📡 [RealtimeSync] [${rsTime()}] ${entityName} ${type}: ${displayId}${changedFields.length > 0 ? ` changed: ${changedFields.join(', ')}` : ''}`);
       
       // CRITICAL: Save to offline DB immediately on WebSocket update
+      let dataToSave = data;
       try {
         const { offlineDB } = await import('./offlineDatabase');
 
@@ -634,8 +635,6 @@ const subscribeToEntity = (entityName) => {
             }
           } catch (_) { /* non-critical — proceed on error */ }
         }
-
-        let dataToSave = data;
         if (type === 'create' || type === 'update') {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                             entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
