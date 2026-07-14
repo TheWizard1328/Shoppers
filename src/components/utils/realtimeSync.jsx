@@ -635,6 +635,7 @@ const subscribeToEntity = (entityName) => {
           } catch (_) { /* non-critical — proceed on error */ }
         }
 
+        let dataToSave = data;
         if (type === 'create' || type === 'update') {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                             entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
@@ -660,7 +661,6 @@ const subscribeToEntity = (entityName) => {
             // from realtime broadcasts to keep payloads small; smart refresh / offline sync
             // handles syncing the full array. Fetch the full record to save to offline DB,
             // but only dispatch latest_reading to the UI via the window event.
-            let dataToSave = data;
             if (entityName === 'RxTempLogs' && data?.id) {
               try {
                 const full = await base44.entities.RxTempLogs.get(data.id);
@@ -763,8 +763,15 @@ const subscribeToEntity = (entityName) => {
       const senderName = data?.updated_by_name || data?.updatedBy || updatedBy;
       const isRemoteUpdate = senderName !== currentUserName;
 
+      // CRITICAL: For Delivery updates, use the merged dataToSave (which has patient_name
+      // restored from the offline DB) so the toast and buffer always show the correct name.
+      // For all other entities, use the raw incoming data as before.
+      const bufferData = (entityName === 'Delivery' && type === 'update' && dataToSave && dataToSave !== data)
+        ? dataToSave
+        : data;
+
       // Buffer notifications to debounce UI updates
-      bufferEvent(entityName, { entityType: entityName, eventType: type, data, id, updatedBy, changedFields, isRemoteUpdate });
+      bufferEvent(entityName, { entityType: entityName, eventType: type, data: bufferData, id, updatedBy, changedFields, isRemoteUpdate });
     });
 
     activeSubscriptions.set(entityName, unsubscribe);
