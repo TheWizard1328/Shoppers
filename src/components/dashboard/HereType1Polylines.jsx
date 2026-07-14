@@ -43,6 +43,9 @@ function HereType1Polylines({
   // Canvas renderer — lazily initialized after map is ready to avoid pane errors.
   const canvasRenderer = useRef(null);
   const [rendererReady, setRendererReady] = useState(false);
+  // Track whether the custom panes (created by <Pane> in DeliveryMap) exist in the DOM yet.
+  const [panesReady, setPanesReady] = useState(false);
+
   useEffect(() => {
     if (!map || canvasRenderer.current) return;
     const init = () => {
@@ -58,6 +61,22 @@ function HereType1Polylines({
       return () => map.off('load', init);
     }
   }, [map]);
+
+  // Poll until the custom panes created by <Pane> in DeliveryMap are available.
+  // React-Leaflet creates them asynchronously after the map mounts, so decorators
+  // that reference e.g. "currentLegPane" must wait before adding themselves.
+  useEffect(() => {
+    if (!map || panesReady) return;
+    const check = () => {
+      if (map._panes?.currentLegPane && map._panes?.routeBasePane) {
+        setPanesReady(true);
+      }
+    };
+    check(); // immediate check
+    const interval = setInterval(check, 50);
+    const timeout = setTimeout(() => clearInterval(interval), 3000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, [map, panesReady]);
 
   const [driverStopsReady, setDriverStopsReady] = useState(false);
   const [localDriverTravelModes, setLocalDriverTravelModes] = useState({});
@@ -458,7 +477,7 @@ function HereType1Polylines({
   }, [lines]);
 
 
-  if (!rendererReady) return null;
+  if (!rendererReady || !panesReady) return null;
   return uniqueLines.length ? <>{uniqueLines}</> : null;
 }
 
