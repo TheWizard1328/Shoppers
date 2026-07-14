@@ -259,6 +259,61 @@ export default function PolylineViewer({ users = [] }) {
 
   useEffect(() => { loadData(); }, [dataSource]);
 
+  // ── Real-time listeners — sync breadcrumb + delivery updates from other devices ──
+  useEffect(() => {
+    const handleBreadcrumbUpdate = (e) => {
+      const { type, id, data } = e.detail || {};
+      if (!id || !data) return;
+      if (type === 'delete') {
+        setBreadcrumbs(prev => prev.filter(b => b.id !== id));
+      } else {
+        // Merge into existing list or append if new
+        setBreadcrumbs(prev => {
+          const idx = prev.findIndex(b => b.id === id);
+          if (idx !== -1) {
+            const next = [...prev];
+            next[idx] = { ...prev[idx], ...data };
+            return next;
+          }
+          return [...prev, data];
+        });
+        // If the updated breadcrumb is the currently focused item, update it too
+        setFocusedItem(prev => {
+          if (!prev || prev.id !== id) return prev;
+          const updated = { ...prev, ...data };
+          // If we're not in cleaning mode, also update the map display
+          return updated;
+        });
+      }
+    };
+
+    const handleDeliveryUpdate = (e) => {
+      const { type, id, data } = e.detail || {};
+      if (!id || !data) return;
+      if (typeof data.encoded_polyline !== 'string') return; // Only care about polyline changes
+      if (type === 'delete') {
+        setDeliveries(prev => prev.filter(d => d.id !== id));
+      } else {
+        setDeliveries(prev => {
+          const idx = prev.findIndex(d => d.id === id);
+          if (idx !== -1) {
+            const next = [...prev];
+            next[idx] = { ...prev[idx], ...data };
+            return next;
+          }
+          return [...prev, data];
+        });
+      }
+    };
+
+    window.addEventListener('realtimeUpdate_DeliveryBreadcrumbs', handleBreadcrumbUpdate);
+    window.addEventListener('realtimeUpdate_Delivery', handleDeliveryUpdate);
+    return () => {
+      window.removeEventListener('realtimeUpdate_DeliveryBreadcrumbs', handleBreadcrumbUpdate);
+      window.removeEventListener('realtimeUpdate_Delivery', handleDeliveryUpdate);
+    };
+  }, []);
+
   // ── Load all AppUsers (incl. inactive) for name resolution ────────────────
   useEffect(() => {
     base44.entities.AppUser.list().then(res => setAllAppUsers(res || [])).catch(() => {});

@@ -222,7 +222,7 @@ async function flushBuffered(entityName) {
     // set optimistically on the client.
     const hasPolylineUpdates = relevantItems.some((item) =>
       item?.changedFields?.includes('encoded_polyline') ||
-      (item?.data && item.data.encoded_polyline !== undefined)
+      (item?.data && typeof item.data.encoded_polyline === 'string' && item.data.encoded_polyline.length > 0)
     );
     const allFromLocalDevice = relevantItems.length > 0 && relevantItems.every((item) => !item.isRemoteUpdate);
     if (allFromLocalDevice && deletedItems.length === 0 && !hasPolylineUpdates) {
@@ -250,7 +250,11 @@ async function flushBuffered(entityName) {
           const lockoutProtected = applyRealtimeMergeWithLockout(itemData.id, merged, existing);
           snapshotMap.set(itemData.id, lockoutProtected);
         }
-        // If the item isn't in the snapshot (different date), don't add it — it won't be relevant.
+        // If the item isn't in the snapshot but carries a polyline update, add it directly
+        // so polyline saves on edge-case deliveries (e.g. IDB lagged behind) are never dropped.
+        if (!existing && typeof itemData?.encoded_polyline === 'string' && itemData.encoded_polyline.length > 0) {
+          snapshotMap.set(itemData.id, itemData);
+        }
       });
 
       // Read the in-memory Layout deliveries to find locally-set isNextDelivery=true flags.
@@ -272,18 +276,21 @@ async function flushBuffered(entityName) {
       }
       fullReplacementData = Array.from(snapshotMap.values());
     } else if (hasPolylineUpdates && allFromLocalDevice) {
-      // Local device with polyline updates and no IDB snapshot yet — build a minimal update
-      // from the buffered items so the map re-renders immediately on the originating device too.
+      // Editing device — polyline was just saved by this user.
+      // The pullToSyncDataReady broadcast from PolylineViewer may not have settled yet,
+      // so build the snapshot from IDB (which PolylineViewer already wrote before
+      // calling the backend function) merged with buffered item data to guarantee
+      // the new encoded_polyline is present.
       const localDeliveries = window.__appDeliveries;
-      if (Array.isArray(localDeliveries)) {
-        const snapshotMap = new Map(localDeliveries.map(d => [d.id, d]));
-        items.forEach(({ data: itemData }) => {
-          if (!itemData?.id) return;
-          const existing = snapshotMap.get(itemData.id);
-          if (existing) snapshotMap.set(itemData.id, { ...existing, ...itemData });
-        });
-        fullReplacementData = Array.from(snapshotMap.values());
-      }
+      const base = Array.isArray(localDeliveries) ? localDeliveries : [];
+      const snapshotMap = new Map(base.map(d => [d.id, d]));
+      items.forEach(({ data: itemData }) => {
+        if (!itemData?.id) return;
+        const existing = snapshotMap.get(itemData.id);
+        // Always overlay the buffered data — this is the authoritative new value
+        snapshotMap.set(itemData.id, existing ? { ...existing, ...itemData } : itemData);
+      });
+      fullReplacementData = Array.from(snapshotMap.values());
     }
 
     // CRITICAL: Dispatch ALL deliveries for the selected date — never filter by driver here.
