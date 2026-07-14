@@ -3,7 +3,7 @@ import { useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet-polylinedecorator";
 
-export default function RouteDirectionDecorator({ positions = [], color = "#2563EB", pattern = "120px", size = 9, pane = "routeBasePane" }) {
+export default function RouteDirectionDecorator({ positions = [], color = "#2563EB", pattern = "120px", size = 9, pane = "overlayPane" }) {
   const map = useMap();
   const decoratorRef = useRef(null);
   const retryRef = useRef(null);
@@ -24,11 +24,10 @@ export default function RouteDirectionDecorator({ positions = [], color = "#2563
     if (!map || !map._loaded || !map._panes || validPositions.length < 2) return cleanup;
 
     const tryAdd = (attempt = 0) => {
-      // Pane must exist as a real DOM element before polylinedecorator tries appendChild
-      if (!map._panes[pane] || !(map._panes[pane] instanceof Element)) {
-        if (attempt < 40) retryRef.current = setTimeout(() => tryAdd(attempt + 1), 50);
-        return;
-      }
+      // Use the standard overlayPane (always exists) for the arrowhead marker icon.
+      // Custom panes like currentLegPane/completedBreadcrumbPane may not be initialized yet
+      // and passing them to pathOptions causes _initIcon to crash with appendChild on undefined.
+      const iconPane = map._panes['markerPane'] ? 'markerPane' : 'overlayPane';
 
       if (decoratorRef.current) {
         try { map.removeLayer(decoratorRef.current); } catch (_) {}
@@ -43,21 +42,28 @@ export default function RouteDirectionDecorator({ positions = [], color = "#2563
             symbol: L.Symbol.arrowHead({
               pixelSize: size,
               polygon: true,
-              pathOptions: { stroke: false, fillOpacity: 0.9, fillColor: color || '#2563EB', pane }
+              pathOptions: {
+                stroke: false,
+                fillOpacity: 0.9,
+                fillColor: color || '#2563EB',
+                // Always use a built-in pane for the arrowhead icon — custom panes
+                // created by react-leaflet <Pane> components may not exist at mount time.
+                pane: iconPane,
+              }
             })
           }]
         });
         decorator.addTo(map);
         decoratorRef.current = decorator;
       } catch (err) {
-        // addTo failed (pane DOM not fully ready) — retry
+        // Map or pane not ready — retry up to 40 times (2 seconds)
         if (attempt < 40) retryRef.current = setTimeout(() => tryAdd(attempt + 1), 50);
       }
     };
 
     tryAdd();
     return cleanup;
-  }, [map, positions, color, pattern, size, pane]);
+  }, [map, positions, color, pattern, size]);
 
   return null;
 }
