@@ -242,7 +242,7 @@ function DeliveryMarkers({
         position={markerPosition}
         icon={icon}
         zIndexOffset={dynamicZIndex}
-        pane={isNextDeliveryMarker && !isFanned ? 'nextDeliveryMarkerPane' : undefined}
+
         draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver && isFanned}
         eventHandlers={handlers}
         ref={(ref) => { if (ref) markerRefs.current[`delivery-${delivery.id}`] = ref; }}
