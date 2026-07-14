@@ -483,31 +483,94 @@ Deno.serve(async (req) => {
       );
     }
 
-    const patientIds = [...new Set(activeStops.filter((d) => d?.patient_id).map((d) => d.patient_id))];
-    const storeIds = [...new Set(activeStops.filter((d) => d?.store_id).map((d) => d.store_id))];
+    // Gather all IDs needed across ALL deliveries (not just active) so coords are available
+    // for finished-stop origin resolution too.
+    const allDeliveryList = deliveries || [];
+    const patientIds = [...new Set(allDeliveryList.filter((d) => d?.patient_id).map((d) => d.patient_id))];
+    const storeIds = [...new Set(allDeliveryList.filter((d) => d?.store_id).map((d) => d.store_id))];
+    // ISP inter-store stops have no patient_id — resolve via InterStoreLocation
+    const ispDeliveries = allDeliveryList.filter((d) => !d.patient_id && String(d.delivery_id || '').toUpperCase().match(/^IS[PD]-/));
+    const hasIspStops = ispDeliveries.length > 0;
+    // Cycling markers store coords directly on the delivery record (cycling_latitude/cycling_longitude)
+    const hasCyclingMarkers = allDeliveryList.some((d) => d?.is_cycling_marker);
 
-    const [patients, stores] = await Promise.all([
+    const [patients, stores, allInterStoreLocations] = await Promise.all([
       patientIds.length ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }, undefined, 50000) : [],
-      storeIds.length ? base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, undefined, 50000) : []
+      storeIds.length ? base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, undefined, 50000) : [],
+      hasIspStops ? base44.asServiceRole.entities.InterStoreLocation.list() : []
     ]);
 
-    const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
-    const storeMap = new Map((stores || []).map((store) => [store.id, store]));
+    const patientMap = new Map((patients || []).map((p) => [p.id, p]));
+    const storeMap = new Map((stores || []).map((s) => [s.id, s]));
+
+    // Build phone → InterStoreLocation map for ISP coord resolution
+    const stripPhone = (s) => String(s || '').replace(/\D/g, '');
+    const ispPhoneToLocation = new Map();
+    (allInterStoreLocations || []).forEach((loc) => {
+      const digits = stripPhone(loc.store_phone);
+      if (digits) ispPhoneToLocation.set(digits, loc);
+    });
+
+    // Resolve ISP "from" coords by parsing the delivery_id phone segment
+    const ispSourceMap = new Map();
+    for (const d of ispDeliveries) {
+      const upper = String(d.delivery_id || '').toUpperCase();
+      const parts = String(d.delivery_id || '').split('-');
+      const fromPhone = upper.startsWith('ISP-') ? stripPhone(parts[2]) : upper.startsWith('ISD-') ? stripPhone(parts[3]) : null;
+      if (!fromPhone) continue;
+      const loc = ispPhoneToLocation.get(fromPhone);
+      if (loc?.store_latitude && loc?.store_longitude) {
+        ispSourceMap.set(d.id, { lat: Number(loc.store_latitude), lon: Number(loc.store_longitude) });
+        continue;
+      }
+      // Fallback: match phone against loaded stores
+      const matchedStore = Array.from(storeMap.values()).find((s) => stripPhone(s.phone) === fromPhone && s.latitude && s.longitude);
+      if (matchedStore) {
+        ispSourceMap.set(d.id, { lat: Number(matchedStore.latitude), lon: Number(matchedStore.longitude) });
+      }
+    }
+
+    const isValidCoord = (lat, lon) => {
+      return Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+    };
 
     const getLatLon = (delivery) => {
       if (!delivery) return null;
+
+      // 1. Cycling markers: use dedicated cycling GPS fields
+      if (delivery.is_cycling_marker) {
+        const lat = Number(delivery.cycling_latitude);
+        const lon = Number(delivery.cycling_longitude);
+        if (isValidCoord(lat, lon)) return { lat, lon };
+        console.warn(`[regenerateType1Polyline] cycling marker missing valid coords | delivery=${delivery.id}`);
+        return null;
+      }
+
+      // 2. ISP inter-store stops
+      if (!delivery.patient_id && ispSourceMap.has(delivery.id)) {
+        const coords = ispSourceMap.get(delivery.id);
+        if (isValidCoord(coords.lat, coords.lon)) return coords;
+      }
+
+      // 3. Patient address
       if (delivery.patient_id) {
         const patient = patientMap.get(delivery.patient_id);
-        if (patient?.latitude != null && patient?.longitude != null) {
-          return { lat: Number(patient.latitude), lon: Number(patient.longitude) };
-        }
+        const lat = Number(patient?.latitude);
+        const lon = Number(patient?.longitude);
+        if (isValidCoord(lat, lon)) return { lat, lon };
+        console.warn(`[regenerateType1Polyline] invalid patient coords | delivery=${delivery.id} | patient=${delivery.patient_id} | lat=${patient?.latitude} | lon=${patient?.longitude}`);
       }
+
+      // 4. Store address (pickup stops)
       if (delivery.store_id) {
         const store = storeMap.get(delivery.store_id);
-        if (store?.latitude != null && store?.longitude != null) {
-          return { lat: Number(store.latitude), lon: Number(store.longitude) };
-        }
+        const lat = Number(store?.latitude);
+        const lon = Number(store?.longitude);
+        if (isValidCoord(lat, lon)) return { lat, lon };
+        console.warn(`[regenerateType1Polyline] invalid store coords | delivery=${delivery.id} | store=${delivery.store_id} | lat=${store?.latitude} | lon=${store?.longitude}`);
       }
+
+      console.warn(`[regenerateType1Polyline] no usable coords | delivery=${delivery.id} | patient=${delivery.patient_id || ''} | store=${delivery.store_id || ''}`);
       return null;
     };
 

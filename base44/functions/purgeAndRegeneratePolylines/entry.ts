@@ -925,49 +925,45 @@ Deno.serve(async (req) => {
     const getLatLon = (delivery) => {
       if (!delivery) return null;
 
-      // Cycling markers: use their dedicated GPS fields
+      // 1. Cycling markers: use dedicated cycling GPS fields on the delivery record
       if (delivery.is_cycling_marker) {
         const lat = Number(delivery.cycling_latitude);
         const lon = Number(delivery.cycling_longitude);
-        if (isValidCoordinatePair(lat, lon)) {
-          return { lat, lon };
-        }
-        console.warn(`[purgeAndRegeneratePolylines] cycling marker missing coords | delivery=${delivery.id}`);
+        if (isValidCoordinatePair(lat, lon)) return { lat, lon };
+        console.warn(`[purgeAndRegeneratePolylines] cycling marker missing valid coords | delivery=${delivery.id}`);
         return null;
       }
 
-      // ISP stops: use coords resolved from delivery_id phone number
+      // 2. ISP inter-store stops: coords resolved from delivery_id phone number
       if (!delivery.patient_id && isInterStoreDeliveryId(delivery.delivery_id)) {
         const ispCoords = ispSourceMap.get(delivery.id);
         const lat = Number(ispCoords?.store_latitude);
         const lon = Number(ispCoords?.store_longitude);
-        if (isValidCoordinatePair(lat, lon)) {
-          return { lat, lon };
-        }
-        console.warn(`[purgeAndRegeneratePolylines] ISP coords missing for delivery | delivery=${delivery.id} | delivery_id=${delivery.delivery_id}`);
+        if (isValidCoordinatePair(lat, lon)) return { lat, lon };
+        console.warn(`[purgeAndRegeneratePolylines] ISP coords unresolvable | delivery=${delivery.id} | delivery_id=${delivery.delivery_id}`);
+        // Don't fall through — ISP stops have no patient and no store GPS to fall back to
+        return null;
       }
 
+      // 3. Patient address (standard delivery)
       if (delivery.patient_id) {
         const patient = patientMap.get(delivery.patient_id);
         const lat = Number(patient?.latitude);
         const lon = Number(patient?.longitude);
-        if (isValidCoordinatePair(lat, lon)) {
-          return { lat, lon };
-        }
-        console.warn(`[purgeAndRegeneratePolylines] invalid patient coords | delivery=${delivery.id} | patient_id=${delivery.patient_id} | raw_lat=${patient?.latitude} | raw_lon=${patient?.longitude} | lat=${lat} | lon=${lon}`);
+        if (isValidCoordinatePair(lat, lon)) return { lat, lon };
+        console.warn(`[purgeAndRegeneratePolylines] invalid patient coords | delivery=${delivery.id} | patient_id=${delivery.patient_id} | lat=${patient?.latitude} | lon=${patient?.longitude}`);
       }
 
+      // 4. Store address (pickup / store-only stops)
       if (delivery.store_id) {
         const store = storeMap.get(delivery.store_id);
         const lat = Number(store?.latitude);
         const lon = Number(store?.longitude);
-        if (isValidCoordinatePair(lat, lon)) {
-          return { lat, lon };
-        }
-        console.warn(`[purgeAndRegeneratePolylines] invalid store coords | delivery=${delivery.id} | store_id=${delivery.store_id} | raw_lat=${store?.latitude} | raw_lon=${store?.longitude} | lat=${lat} | lon=${lon}`);
+        if (isValidCoordinatePair(lat, lon)) return { lat, lon };
+        console.warn(`[purgeAndRegeneratePolylines] invalid store coords | delivery=${delivery.id} | store_id=${delivery.store_id} | lat=${store?.latitude} | lon=${store?.longitude}`);
       }
 
-      console.warn(`[purgeAndRegeneratePolylines] no usable coords | delivery=${delivery.id} | patient_id=${delivery.patient_id || ''} | store_id=${delivery.store_id || ''} | isp_source_id=${delivery._interstore_source_id || ''}`);
+      console.warn(`[purgeAndRegeneratePolylines] no usable coords | delivery=${delivery.id} | stop_order=${delivery.stop_order ?? '?'} | patient=${delivery.patient_id || ''} | store=${delivery.store_id || ''}`);
       return null;
     };
 
@@ -979,6 +975,9 @@ Deno.serve(async (req) => {
     );
     const reusablePolylineMetaById = reuseProvidedPolylines ? explicitStopMetaById : new Map();
     const deliveryById = new Map((deliveries || []).filter((delivery) => delivery?.id).map((delivery) => [delivery.id, delivery]));
+    // CRITICAL: Always sort strictly by stop_order ascending. This is the single source of truth
+    // for stop sequence — it is derived from actual_delivery_time order so it is always correct.
+    // Never rely on DB return order or coord proximity for sequence decisions.
     const orderedDeliveries = (explicitStopOrderIds.length > 0
       ? explicitStopOrderIds.map((id) => deliveryById.get(id) || null).filter(Boolean)
       : [...deliveries].sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
@@ -988,7 +987,11 @@ Deno.serve(async (req) => {
     const latestFinishedStop = finishedStops[finishedStops.length - 1] || null;
     // "Active" for polyline purposes = in_transit/en_route ONLY.
     // Pending stops have not been dispatched yet — never generate polylines for them.
-    const activeStops = orderedDeliveries.filter((delivery) => ACTIVE_STATUSES.has(delivery.status));
+    // CRITICAL: Re-sort activeStops strictly by stop_order so the index-based segment
+    // assignment below is always in the correct sequence, even for clustered stops.
+    const activeStops = orderedDeliveries
+      .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
+      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
     const pendingStops = orderedDeliveries.filter((delivery) => delivery.status === 'pending');
 
     // If scope=active_only but there are NO truly active stops and ALL stops are finished,
@@ -1346,23 +1349,23 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Build an ordered list of (spec, matchingStop) pairs.
-        // We must match each spec to its stop IN ORDER because cycling start+end markers
-        // share the same GPS — a simple .find() by coords would always match the first one.
-        const usedStopIds = new Set();
-        uncachedSegments.forEach((spec) => {
-          const directions = directionsBySegmentKey.get(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to));
-          // Prefer a stop not yet claimed; among equal-coord stops, use stop_order
-          const matchingStop = activeStops
-            .filter((stop) => {
-              if (!stop?.id || usedStopIds.has(stop.id)) return false;
-              const stopCoords = getLatLon(stop);
-              return stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
-            })
-            .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))[0] || null;
+        // CRITICAL: Match polyline segments to active stops by POSITION (index), not by coords.
+        // Coord-based matching fails when stops share identical GPS (clustered stops) because
+        // usedStopIds would block the second stop from ever matching. Since activeStops is
+        // already sorted by stop_order (strict ascending), and segmentSpecs was built by
+        // iterating activeStops in order, the Nth segment belongs to the Nth active stop.
+        // We iterate uncachedSegments in order and pair each one with the corresponding
+        // active stop at the same index — no coord comparison needed.
+        activeStops.forEach((matchingStop, stopIndex) => {
+          if (!matchingStop?.id) return;
+          // uncachedSegments is a subset of segmentSpecs; find the spec for this stop by index.
+          // segmentSpecs was built as: [origin→stop0, stop0→stop1, ...] so stop at index i
+          // corresponds to segmentSpecs[i]. We skip any home-leg specs (no active stop owns those).
+          const spec = uncachedSegments[stopIndex] || null;
+          if (!spec) return;
 
-          if (!matchingStop) return;
-          usedStopIds.add(matchingStop.id);
+          const directions = directionsBySegmentKey.get(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to));
+          if (!directions) return;
 
           const matchingStopCoords = getLatLon(matchingStop);
           deliveryUpdatesById.set(matchingStop.id, {
