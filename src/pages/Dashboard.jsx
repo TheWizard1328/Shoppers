@@ -273,29 +273,44 @@ function Dashboard() {
   }, [driverLocation, patients, stores, allDriverLocations, appUsers, deliveries, selectedDate, showAllDriverMarkers, selectedDriverId, cities, isPrimaryDevice]);
 
   // Resolve primary-device status from the DB once we have a logged-in driver.
-  // Without this, isPrimaryDevice stays false forever and immersive mode never activates.
+  // Retries after 5 seconds if the first attempt returns null (stale cache / timing issue).
   useEffect(() => {
     if (!isDriver || !currentUser?.id) return;
     let cancelled = false;
-    getCurrentDevice(currentUser.id).then((device) => {
-      if (cancelled) return;
-      // Align with StopCard / WebSocketDiagnosticsCard lenient logic:
-      //   null  → no device record → treat as primary (unregistered driver phones)
-      //   active + is_primary_tracker !== false → primary
-      //   inactive → non-primary
-      //   explicit is_primary_tracker: false → non-primary
-      const primary = device === null
-        || (device.status !== 'inactive' && device.is_primary_tracker !== false);
-      setIsPrimaryDevice(primary);
-      isPrimaryDeviceRef.current = primary;
-      if (typeof window !== 'undefined') window.__isPrimaryDevice = primary;
-    }).catch(() => {
-      // On error assume primary — safe for immersive mode
-      setIsPrimaryDevice(true);
-      isPrimaryDeviceRef.current = true;
-      if (typeof window !== 'undefined') window.__isPrimaryDevice = true;
-    });
-    return () => { cancelled = true; };
+    let retryTimer = null;
+
+    const resolvePrimary = (attempt = 1) => {
+      getCurrentDevice(currentUser.id).then((device) => {
+        if (cancelled) return;
+        if (device === null && attempt === 1) {
+          // null on first attempt could be a stale cache hit — retry once after 5s
+          console.log('📱 [Dashboard] isPrimaryDevice: null on attempt 1, retrying in 5s...');
+          retryTimer = setTimeout(() => resolvePrimary(2), 5000);
+          return;
+        }
+        // null  → no DB record → treat as primary (unregistered phone)
+        // active + is_primary_tracker !== false → primary
+        // inactive or explicit is_primary_tracker: false → non-primary
+        const primary = device === null
+          || (device.status !== 'inactive' && device.is_primary_tracker !== false);
+        console.log(`📱 [Dashboard] isPrimaryDevice: ${primary} (device: ${device?.device_name || 'null'}, primary_tracker: ${device?.is_primary_tracker})`);
+        setIsPrimaryDevice(primary);
+        isPrimaryDeviceRef.current = primary;
+        if (typeof window !== 'undefined') window.__isPrimaryDevice = primary;
+      }).catch(() => {
+        if (cancelled) return;
+        // On error assume primary — safe default for immersive mode
+        setIsPrimaryDevice(true);
+        isPrimaryDeviceRef.current = true;
+        if (typeof window !== 'undefined') window.__isPrimaryDevice = true;
+      });
+    };
+
+    resolvePrimary(1);
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [isDriver, currentUser?.id]);
   useEffect(() => { isMapViewLockedRef.current = isMapViewLocked; }, [isMapViewLocked]);
 

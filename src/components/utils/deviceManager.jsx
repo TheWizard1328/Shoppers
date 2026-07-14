@@ -52,7 +52,7 @@ export async function getCurrentDevice(userId) {
       return null;
     }, {
       ttlMs: DEVICE_CACHE_TTL_MS,
-      cacheNull: true
+      cacheNull: false  // Never cache null — a null means "no record found or failed"; retry next call
     });
   } catch (error) {
     console.error('❌ [DeviceManager] Failed to get current device:', error);

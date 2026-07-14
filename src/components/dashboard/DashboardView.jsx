@@ -291,6 +291,7 @@ function DashboardView({
           fontFamily: 'monospace'
         }}>
           <div>🚗 IMM: {immersiveHidden ? '✅ ACTIVE' : '❌ off'}</div>
+          <div>primary: {typeof window !== 'undefined' && window.__isPrimaryDevice ? '✅ YES' : '❌ no'}</div>
           <div>moving: {isDriverMoving ? '✅ YES' : '❌ no'}</div>
           <div>nextStop: {immersiveOverlayDelivery ? '✅' : (deliveriesWithStopOrder?.some(d => d?.isNextDelivery) ? '⚠️ noCoords' : '❌ null')}</div>
           <div>override: {immersiveOverrideActive ? '✅ YES' : '— no'}</div>
