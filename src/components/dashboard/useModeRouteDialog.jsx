@@ -221,52 +221,58 @@ export default function useModeRouteDialog({
         .then(() => setPreferredTravelMode('cycling'))
         .catch(() => null);
 
-      // ── 8. Client-side route optimization — Stage 1 (cycling loop) ────────
-      // Origin: Start marker coords → Destination: End marker coords
-      // Waypoints: selected cycling stops in crow-flies pre-sorted order
-      // Runs entirely in-browser against fresh merged local data — no Deno cold start.
+      // ── 8. Client-side route optimization — run SEQUENTIALLY ─────────────
+      // Stage 1 must finish first so its stop_order + polyline results are in the
+      // DB before stage 2 reads driving stops and sequences them.
       const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
 
-      const [stage1Result, stage2Result] = await Promise.all([
-        performRouteOptimization({
-          driverId: currentUser.id,
-          deliveryDate: deliveryDateStr,
-          deliveries: mergedDeliveries,
-          patients,
-          stores,
-          appUsers,
-          source: 'cyclingMode:stage1',
-          bypassDriverStatus: true,
-          cyclingSegmentOnly: true,
-          cyclingOrigin: startCoords,
-          cyclingDestination: endCoords,
-          cyclingStopIds: crowSortedIds,
-          startingStopOrder: cyclingStartOrder,
-          skipPolyline: false,
-        }).catch((e) => { console.warn('[useModeRouteDialog] Stage 1 failed:', e?.message); return null; }),
+      // Stage 1: Cycling loop
+      // Origin = Cycling Start marker coords → Destination = Cycling End marker coords
+      // Waypoints = selected stops (in crow-flies pre-sorted order)
+      const stage1Result = await performRouteOptimization({
+        driverId: currentUser.id,
+        deliveryDate: deliveryDateStr,
+        deliveries: mergedDeliveries,
+        patients,
+        stores,
+        appUsers,
+        source: 'cyclingMode:stage1',
+        bypassDriverStatus: true,
+        cyclingSegmentOnly: true,
+        cyclingOrigin: startCoords,
+        cyclingDestination: endCoords,
+        cyclingStopIds: crowSortedIds,
+        startingStopOrder: cyclingStartOrder,
+        skipPolyline: false,
+      }).catch((e) => { console.warn('[useModeRouteDialog] Stage 1 failed:', e?.message); return null; });
 
-        // ── Stage 2 — Car optimization (remaining driving stops) ──────────
-        // Origin: End marker coords (driver exits the cycling loop here)
-        // Excludes cycling markers + all cycling stops.
-        // preserveExistingOrder=true — we already set the right stop_order values
-        // above; just let the engine regenerate polylines without reshuffling.
-        performRouteOptimization({
-          driverId: currentUser.id,
-          deliveryDate: deliveryDateStr,
-          deliveries: mergedDeliveries,
-          patients,
-          stores,
-          appUsers,
-          source: 'cyclingMode:stage2',
-          bypassDriverStatus: true,
-          drivingSegmentOnly: true,
-          drivingOrigin: endCoords,
-          excludeStopIds: [startMarker.id, endMarker.id, ...crowSortedIds],
-          startingStopOrder: endMarkerOrder + 1,
-          preserveExistingOrder: true,
-          skipPolyline: false,
-        }).catch((e) => { console.warn('[useModeRouteDialog] Stage 2 failed:', e?.message); return null; }),
-      ]);
+      // Merge stage 1 results into the delivery list before running stage 2
+      const stage1WriteMap = new Map((stage1Result?.optimizeData?.writeBatch || []).map(({ id, data }) => [id, data]));
+      const mergedAfterStage1 = mergedDeliveries.map((d) => {
+        const patch = stage1WriteMap.get(d.id);
+        return patch ? { ...d, ...patch } : d;
+      });
+
+      // Stage 2: Driving segment
+      // Origin = Cycling End marker coords (driver exits cycling loop here)
+      // Remaining driving stops are RE-SEQUENCED by HERE with home as the end anchor.
+      // preserveExistingOrder=false → HERE optimizes the order; home is the final destination.
+      const stage2Result = await performRouteOptimization({
+        driverId: currentUser.id,
+        deliveryDate: deliveryDateStr,
+        deliveries: mergedAfterStage1,
+        patients,
+        stores,
+        appUsers,
+        source: 'cyclingMode:stage2',
+        bypassDriverStatus: true,
+        drivingSegmentOnly: true,
+        drivingOrigin: endCoords,
+        excludeStopIds: [startMarker.id, endMarker.id, ...crowSortedIds],
+        startingStopOrder: endMarkerOrder + 1,
+        preserveExistingOrder: false,
+        skipPolyline: false,
+      }).catch((e) => { console.warn('[useModeRouteDialog] Stage 2 failed:', e?.message); return null; });
 
       console.log('[useModeRouteDialog] Stage 1+2 complete', {
         stage1: stage1Result?.success, stage2: stage2Result?.success,
