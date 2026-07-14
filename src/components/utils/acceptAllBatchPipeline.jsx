@@ -38,6 +38,9 @@ export async function runAcceptAllBatchPipeline({
 
   const isRetroDate = deliveryDate < localDeviceTodayStr;
 
+  // Build patient lookup map for time window resolution
+  const patientMap = new Map((patients || []).filter(Boolean).map(p => [p.id, p]));
+
   // Build updated delivery objects
   const updatedDeliveries = scopedPendingDeliveries.map((delivery, idx) => {
     const baseMinutes = (() => {
@@ -48,10 +51,16 @@ export async function runAcceptAllBatchPipeline({
     const etaMins = baseMinutes % 60;
     const eta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
 
+    // Apply patient time windows if the delivery is missing them
+    const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+    const resolvedStart = delivery.delivery_time_start || (patient?.time_window_start) || deliveryTimeStart || '09:00';
+    const resolvedEnd = delivery.delivery_time_end || (patient?.time_window_end) || '';
+
     return {
       ...delivery,
       status: 'in_transit',
-      delivery_time_start: deliveryTimeStart || delivery.delivery_time_start || '09:00',
+      delivery_time_start: resolvedStart,
+      delivery_time_end: resolvedEnd,
       delivery_time_eta: eta,
       puid: delivery.puid || puid || stopId || delivery.puid || ''
     };
@@ -82,6 +91,7 @@ export async function runAcceptAllBatchPipeline({
         updateDeliveryLocal(updated.id, {
           status: 'in_transit',
           delivery_time_start: updated.delivery_time_start,
+          delivery_time_end: updated.delivery_time_end,
           delivery_time_eta: updated.delivery_time_eta,
           puid: updated.puid
         }, { skipSmartRefresh: true, isBatchOperation: true })

@@ -1209,6 +1209,19 @@ export async function optimizeRouteClientSide({
       stop.delivery_time_start = pendingStartTime;
     }
 
+    // Backfill patient time windows onto the delivery if missing
+    if (stop.status === 'pending' && stop.patient_id) {
+      const patient = patientMap.get(stop.patient_id);
+      if (patient) {
+        if (!updateData.delivery_time_start && !stop.delivery_time_start && patient.time_window_start) {
+          updateData.delivery_time_start = patient.time_window_start;
+        }
+        if (!stop.delivery_time_end && patient.time_window_end) {
+          updateData.delivery_time_end = patient.time_window_end;
+        }
+      }
+    }
+
     stop.stop_order = newOrder;
     stop.display_stop_order = newOrder;
     stop.isNextDelivery = stop.id === nextStopId;
