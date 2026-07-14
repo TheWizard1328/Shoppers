@@ -497,26 +497,19 @@ export default function PolylineViewer({ users = [] }) {
         setBreadcrumbs(prev => prev.map(b =>
           b.id === pending.item.id ? { ...b, encoded_polyline: newPoly, point_count: points.length } : b
         ));
-        // Broadcast to Routes tab and Dashboard
-        window.dispatchEvent(new CustomEvent('breadcrumbSavedToDelivery', {
-          detail: { breadcrumbId: pending.item.id, deliveryId, stopOrder: pending.item.stop_order, driverId: pending.item.driver_id, deliveryDate: pending.item.delivery_date, travelDistKm }
-        }));
+        // Update offline DB so local cache stays in sync
         if (deliveryId) {
           import('../utils/offlineDatabase').then(({ offlineDB }) => {
             offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId)
               .then(existing => {
                 if (!existing) return;
-                const updatedDelivery = { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: newPoly };
-                return offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).then(() => updatedDelivery);
+                return offlineDB.save(offlineDB.STORES.DELIVERIES, {
+                  ...existing,
+                  travel_dist: travelDistKm ?? existing.travel_dist,
+                  encoded_polyline: newPoly,
+                });
               })
-              .then(updatedDelivery => {
-                if (updatedDelivery) {
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                    detail: { triggeredBy: 'breadcrumbAutoSaved', deliveryId, freshDeliveries: [updatedDelivery], fullReplacement: false, preserveLocalState: true }
-                  }));
-                }
-                window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-              })
+              .then(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')))
               .catch(() => {});
           }).catch(() => {});
         }
@@ -617,32 +610,20 @@ export default function PolylineViewer({ users = [] }) {
         setCleanedPoints([]);
         setUndoStack([]);
 
-        // Broadcast breadcrumb update so the Routes tab list refreshes
-        window.dispatchEvent(new CustomEvent('breadcrumbSavedToDelivery', {
-          detail: { breadcrumbId: item.id, deliveryId, stopOrder: item.stop_order, driverId: item.driver_id, deliveryDate: item.delivery_date, travelDistKm }
-        }));
-
-        // Update offline DB delivery record and broadcast to Dashboard
+        // Update offline DB delivery record so local cache stays in sync
         import('../utils/offlineDatabase').then(({ offlineDB }) => {
           if (!deliveryId) return;
           offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId)
             .then(existing => {
               if (!existing) return;
-              const updatedDelivery = { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: polyToSave };
-              return offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).then(() => updatedDelivery);
+              return offlineDB.save(offlineDB.STORES.DELIVERIES, {
+                ...existing,
+                travel_dist: travelDistKm ?? existing.travel_dist,
+                encoded_polyline: polyToSave,
+              });
             })
-            .then(updatedDelivery => {
-              if (updatedDelivery) {
-                // Notify Dashboard to merge this delivery update
-                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                  detail: { triggeredBy: 'breadcrumbSaved', deliveryId, freshDeliveries: [updatedDelivery], fullReplacement: false, preserveLocalState: true }
-                }));
-              }
-              window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-            })
-            .catch(() => {
-              window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-            });
+            .then(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')))
+            .catch(() => window.dispatchEvent(new CustomEvent('refreshDeliveryStats')));
         }).catch(() => {});
       } else {
         toast.error(`Save failed: ${res?.data?.error || 'Unknown error'}`);
