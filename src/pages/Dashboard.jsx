@@ -497,9 +497,9 @@ function Dashboard() {
     driverLocation,
     nextStopLocation: nextStopCoordinates,
     // isPrimaryDevice guards GPS upload authority — it must NOT gate immersive UI.
-    // Any driver on a mobile device should get the immersive experience regardless
-    // of whether their device has a UserDevice DB record with is_primary_tracker=true.
-    enabled: isDriver && isMobile && !isAdmin,
+    // Gate only on the driver role — admins who are also drivers must still get
+    // immersive mode. isAdmin must NOT be used as a disqualifier here.
+    enabled: isDriver && isMobile,
   });
 
   const getMapPadding = useCallback((isImmersiveHidden = false) => buildMapPadding({ isMobile, isImmersiveHidden, statsCardHeight: statsCardRef.current?.offsetHeight, statsCardBaseHeight, stopCardsBaseHeight, bottomNavHeight }), [isMobile, stopCardsBaseHeight, statsCardBaseHeight, bottomNavHeight]);
