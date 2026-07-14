@@ -195,6 +195,18 @@ export default function CompletedBreadcrumbPolylines({
     }
   }, [map]);
 
+  const [panesReady, setPanesReady] = useState(false);
+  useEffect(() => {
+    if (!map || panesReady) return;
+    const check = () => {
+      if (map._panes?.completedBreadcrumbPane && map._panes?.routeBasePane) setPanesReady(true);
+    };
+    check();
+    const interval = setInterval(check, 50);
+    const timeout = setTimeout(() => { clearInterval(interval); setPanesReady(true); }, 3000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, [map, panesReady]);
+
   const [cache, setCache] = useState({});
   const requestTimesRef = useRef({});
 
@@ -505,6 +517,6 @@ export default function CompletedBreadcrumbPolylines({
       });
   });
 
-  if (!rendererReady) return null;
+  if (!rendererReady || !panesReady) return null;
   return renderedLines.length ? renderedLines.flat() : null;
 }
