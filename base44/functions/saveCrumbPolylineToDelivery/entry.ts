@@ -55,7 +55,9 @@ Deno.serve(async (req) => {
     const travelDist = Math.round(travelDistKm * 100) / 100;
 
     // 3. Update Delivery with new polyline + travel distance
-    await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+    // Use user-scoped client (not asServiceRole) so the WebSocket subscription
+    // fires on all connected devices and their offline DBs get updated.
+    await base44.entities.Delivery.update(delivery.id, {
       encoded_polyline: cleanedEncodedPolyline,
       travel_dist: travelDist,
     });
@@ -70,21 +72,11 @@ Deno.serve(async (req) => {
     let breadcrumbId = null;
     if (crumbs && crumbs.length > 0) {
       breadcrumbId = crumbs[0].id;
-      await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(crumbs[0].id, {
+      await base44.entities.DeliveryBreadcrumbs.update(crumbs[0].id, {
         encoded_polyline: cleanedEncodedPolyline,
         saved_to_route: true,
       });
     }
-
-    // 5. FORCE FULL BROADCAST: Fetch the complete, fresh delivery record (includes patient_name,
-    //    delivery_id, all fields) then do a second update with a sync_nonce timestamp.
-    //    This guarantees all connected devices receive the full record via WebSocket
-    //    rather than a delta that may be suppressed or missing key fields.
-    const freshDelivery = await base44.asServiceRole.entities.Delivery.get(delivery.id);
-    await base44.asServiceRole.entities.Delivery.update(delivery.id, {
-      ...freshDelivery,
-      polyline_saved_at: new Date().toISOString(),
-    });
 
     return Response.json({
       success: true,
