@@ -12,7 +12,6 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'status',
   'tracking_number',
   'stop_order',
-  'display_stop_order',       // UI-facing stop number (mirrors stop_order after re-sequencing)
   'stop_id',
   'puid',
   'prescription_number',

@@ -791,7 +791,6 @@ export default function useStopCardActions(params) {
           .map((d, index) => ({
             ...d,
             stop_order: index + 1,
-            display_stop_order: index + 1,
             isNextDelivery: d.id === delivery.id
           }));
 
@@ -813,7 +812,6 @@ export default function useStopCardActions(params) {
             const updates = {};
             if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
             if (Number(existing.stop_order || 0) !== Number(item.stop_order || 0)) updates.stop_order = item.stop_order;
-            if (Number(existing.display_stop_order || 0) !== Number(item.display_stop_order || 0)) updates.display_stop_order = item.display_stop_order;
             // For the started stop: persist status immediately (no delivery_time_start on Start)
             if (item.id === delivery.id) {
               const expectedStartStatus = isPickup ? 'en_route' : 'in_transit';

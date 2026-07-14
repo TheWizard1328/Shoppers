@@ -1190,7 +1190,6 @@ export async function optimizeRouteClientSide({
 
     const updateData = {
       stop_order: newOrder,
-      display_stop_order: newOrder,
       delivery_time_eta: stop.delivery_time_eta,
       isNextDelivery: stop.id === nextStopId,
       ...(stop.id !== nextStopId ? { isNextDelivery: false } : {}),
@@ -1223,7 +1222,6 @@ export async function optimizeRouteClientSide({
     }
 
     stop.stop_order = newOrder;
-    stop.display_stop_order = newOrder;
     stop.isNextDelivery = stop.id === nextStopId;
 
     writeBatch.push({ id: stop.id, data: updateData });

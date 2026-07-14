@@ -700,7 +700,7 @@ const subscribeToEntity = (entityName) => {
                     // Time windows
                     'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
                     // Sequencing
-                    'stop_order', 'display_stop_order', 'isNextDelivery',
+                    'stop_order', 'isNextDelivery',
                     // Identity
                     'puid', 'stop_id', 'delivery_id', 'tracking_number',
                     // Inter-store

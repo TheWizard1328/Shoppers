@@ -232,10 +232,10 @@ export default function useModeRouteDialog({
         (d) => d && d.isNextDelivery === true && d.id !== startMarker.id && d.driver_id === currentUser.id
       );
 
-      const updatedStartMarker  = { ...startMarker, stop_order: startMarkerOrder, display_stop_order: startMarkerOrder, isNextDelivery: true,  transport_mode: 'driving'  };
-      const updatedEndMarker    = { ...endMarker,   stop_order: endMarkerOrder,   display_stop_order: endMarkerOrder,   isNextDelivery: false, transport_mode: 'cycling'  };
-      const updatedCyclingStops = crowSorted.map((d, i) => ({ ...d, stop_order: cyclingStartOrder + i, display_stop_order: cyclingStartOrder + i, transport_mode: 'cycling' }));
-      const updatedDrivingStops = drivingStops.map((d, i) => ({ ...d, stop_order: endMarkerOrder + 1 + i, display_stop_order: endMarkerOrder + 1 + i }));
+      const updatedStartMarker  = { ...startMarker, stop_order: startMarkerOrder, isNextDelivery: true,  transport_mode: 'driving'  };
+      const updatedEndMarker    = { ...endMarker,   stop_order: endMarkerOrder,   isNextDelivery: false, transport_mode: 'cycling'  };
+      const updatedCyclingStops = crowSorted.map((d, i) => ({ ...d, stop_order: cyclingStartOrder + i, transport_mode: 'cycling' }));
+      const updatedDrivingStops = drivingStops.map((d, i) => ({ ...d, stop_order: endMarkerOrder + 1 + i }));
       const clearedNextStops    = otherNextStops.map((d) => ({ ...d, isNextDelivery: false }));
 
       const localUpserts = [
