@@ -283,24 +283,41 @@ class ArrivalTimeDetector {
                 const _arrivalTime = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}T${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}:${String(_now.getSeconds()).padStart(2,'0')}`;
                 console.log(`✅ [ARRIVAL] isNextDelivery stop ${nextDelivery.id} (${nextDelivery.patient_id ? 'patient' : 'stop'}) — ${distance.toFixed(0)}m, ${(stationaryDuration / 1000).toFixed(1)}s stationary`);
                 try {
-                  await base44.entities.Delivery.update(nextDelivery.id, { arrival_time: _arrivalTime });
+                  // Find all co-located stops at the same coordinates (clustered location)
+                  const coLocatedStops = deliveries.filter(d => {
+                    if (!d || d.id === nextDelivery.id) return false;
+                    if (!allowedStatuses.includes(String(d.status))) return false;
+                    if (d.arrival_time) return false;
+                    // Resolve this stop's coordinates
+                    let stopLat, stopLon;
+                    if (d.is_cycling_marker) { stopLat = d.cycling_latitude; stopLon = d.cycling_longitude; }
+                    else if (d.patient_id) { const p = patients.find(p => p?.id === d.patient_id); stopLat = p?.latitude; stopLon = p?.longitude; }
+                    else if (d.store_id) { const s = stores.find(s => s?.id === d.store_id); stopLat = s?.latitude; stopLon = s?.longitude; }
+                    if (!stopLat || !stopLon) return false;
+                    return this.calculateDistance(targetLat, targetLon, stopLat, stopLon) <= this.geofenceRadius;
+                  });
+
+                  const allArrivalUpdates = [nextDelivery, ...coLocatedStops];
+
+                  await Promise.all(allArrivalUpdates.map(d => base44.entities.Delivery.update(d.id, { arrival_time: _arrivalTime })));
 
                   // Write into IDB immediately
                   try {
                     const { offlineDB } = await import('./offlineDatabase');
                     const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-                    const existing = allDeliveries.find(d => d && d.id === nextDelivery.id);
-                    if (existing) {
-                      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...existing, arrival_time: _arrivalTime }]);
-                    }
+                    const toSave = allArrivalUpdates.map(d => {
+                      const existing = allDeliveries.find(x => x && x.id === d.id);
+                      return existing ? { ...existing, arrival_time: _arrivalTime } : null;
+                    }).filter(Boolean);
+                    if (toSave.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, toSave);
                   } catch (idbErr) {
                     console.warn('[ARRIVAL] IDB update failed (non-critical):', idbErr.message);
                   }
 
-                  // Push into React state so StopCard re-renders immediately
+                  // Push into React state so StopCards re-render immediately
                   window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
                     detail: {
-                      deliveries: [{ ...nextDelivery, arrival_time: _arrivalTime }],
+                      deliveries: allArrivalUpdates.map(d => ({ ...d, arrival_time: _arrivalTime })),
                       appUsers: [],
                       patients: [],
                       deliveryDate: nextDelivery.delivery_date,
@@ -313,7 +330,7 @@ class ArrivalTimeDetector {
                   this._lastCacheTime = 0;
 
                   this.stationaryStartTime = Date.now();
-                  console.log(`💾 [ARRIVAL] Saved arrival_time for ${nextDelivery.id}`);
+                  console.log(`💾 [ARRIVAL] Saved arrival_time for ${nextDelivery.id}${coLocatedStops.length > 0 ? ` + ${coLocatedStops.length} co-located stops` : ''}`);
                 } catch (error) {
                   console.error('❌ [ARRIVAL] Failed to save arrival_time:', error);
                 }
@@ -392,24 +409,40 @@ class ArrivalTimeDetector {
       console.log(`✅ [ARRIVAL immediate] isNextDelivery stop ${nextStop.id} within ${distance.toFixed(0)}m — recording arrival now`);
 
       try {
-        await base44.entities.Delivery.update(nextStop.id, { arrival_time: arrivalTime });
+        // Find all co-located stops at the same coordinates (clustered location)
+        const coLocatedImmediate = deliveries.filter(d => {
+          if (!d || d.id === nextStop.id) return false;
+          if (!['en_route', 'in_transit'].includes(String(d.status))) return false;
+          if (d.arrival_time) return false;
+          let stopLat, stopLon;
+          if (d.is_cycling_marker) { stopLat = d.cycling_latitude; stopLon = d.cycling_longitude; }
+          else if (d.patient_id) { const p = patients.find(p => p?.id === d.patient_id); stopLat = p?.latitude; stopLon = p?.longitude; }
+          else if (d.store_id) { const s = stores.find(s => s?.id === d.store_id); stopLat = s?.latitude; stopLon = s?.longitude; }
+          if (!stopLat || !stopLon) return false;
+          return this.calculateDistance(targetLat, targetLon, stopLat, stopLon) <= this.geofenceRadius;
+        });
+
+        const allImmediateUpdates = [nextStop, ...coLocatedImmediate];
+
+        await Promise.all(allImmediateUpdates.map(d => base44.entities.Delivery.update(d.id, { arrival_time: arrivalTime })));
 
         // Write into IDB immediately so local state is consistent
         try {
           const { offlineDB } = await import('./offlineDatabase');
           const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const existing = allDeliveries.find(d => d && d.id === nextStop.id);
-          if (existing) {
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...existing, arrival_time: arrivalTime }]);
-          }
+          const toSave = allImmediateUpdates.map(d => {
+            const existing = allDeliveries.find(x => x && x.id === d.id);
+            return existing ? { ...existing, arrival_time: arrivalTime } : null;
+          }).filter(Boolean);
+          if (toSave.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, toSave);
         } catch (idbErr) {
           console.warn('[ARRIVAL immediate] IDB update failed (non-critical):', idbErr.message);
         }
 
-        // Push into React state so StopCard re-renders immediately
+        // Push into React state so StopCards re-render immediately
         window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
           detail: {
-            deliveries: [{ ...nextStop, arrival_time: arrivalTime }],
+            deliveries: allImmediateUpdates.map(d => ({ ...d, arrival_time: arrivalTime })),
             appUsers: [],
             patients: [],
             deliveryDate: nextStop.delivery_date,
@@ -421,7 +454,7 @@ class ArrivalTimeDetector {
         // Also invalidate the cache so next processLocationUpdate sees the new arrival_time
         this._lastCacheTime = 0;
 
-        console.log(`💾 [ARRIVAL immediate] Saved arrival_time for ${nextStop.id}`);
+        console.log(`💾 [ARRIVAL immediate] Saved arrival_time for ${nextStop.id}${coLocatedImmediate.length > 0 ? ` + ${coLocatedImmediate.length} co-located stops` : ''}`);
       } catch (error) {
         console.error('❌ [ARRIVAL immediate] Failed to save arrival_time:', error);
       }
