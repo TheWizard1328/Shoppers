@@ -766,8 +766,22 @@ const subscribeToEntity = (entityName) => {
         console.warn(`⚠️ [RealtimeSync] [${rsTime()}] Failed to update offline DB for ${entityName}:`, offlineError.message);
       }
       
-      const senderName = data?.updated_by_name || data?.updatedBy || updatedBy;
-      const isRemoteUpdate = senderName !== currentUserName;
+      // isRemoteUpdate controls whether remote devices dispatch deliveriesUpdated.
+      // For 'update' events: use the updated_by_name field to detect same-user writes.
+      // For 'create' and 'delete' events: ALWAYS treat as remote — the triggering device
+      // already applied optimistic state; all other devices (including other sessions of
+      // the same account) need the WS echo to update their IDB snapshot and UI.
+      // The username heuristic CANNOT be used for create/delete because those events carry
+      // no updated_by_name and fall back to the local session username, making every device
+      // think it originated the event and silently suppressing the UI update.
+      let isRemoteUpdate;
+      if (type === 'update') {
+        const senderName = data?.updated_by_name || data?.updatedBy || updatedBy;
+        isRemoteUpdate = senderName !== currentUserName;
+      } else {
+        // create / delete — always propagate to all devices
+        isRemoteUpdate = true;
+      }
 
       // CRITICAL: For Delivery updates, use the merged dataToSave (which has patient_name
       // restored from the offline DB) so the toast and buffer always show the correct name.
