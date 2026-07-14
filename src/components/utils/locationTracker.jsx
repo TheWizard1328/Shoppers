@@ -143,7 +143,12 @@ class LocationTracker {
     this._pendingEventUpdate = true;
     this._eventUpdateTime = Date.now();
     
-    // CRITICAL: Update liveDistanceTracker's driver status too
+    // CRITICAL: Update liveDistanceTracker's driver status too.
+    // If it's not tracking yet (e.g. admin+driver whose GPS startTracking path didn't
+    // reach the start() call), lazily boot it now so segments are always recorded.
+    if (!liveDistanceTracker.isTracking && this.currentUser) {
+      liveDistanceTracker.start(this.currentUser).catch(e => console.warn('⚠️ [LocationTracker] liveDistanceTracker lazy-start failed:', e?.message));
+    }
     if (liveDistanceTracker.isTracking) {
       liveDistanceTracker.updateDriverStatus(status);
     }
@@ -825,6 +830,13 @@ class LocationTracker {
     this.lastBreadcrumbPosition = null;
     this.minBreadcrumbDistance = 100; // 100 meters
 
+    // CRITICAL: Start liveDistanceTracker here — BEFORE isPrimaryDevice guard.
+    // Segment logging (on-duty windows) must work for ALL driver devices, including
+    // admin+driver users whose phone is not the primary GPS tracker.
+    if (!liveDistanceTracker.isTracking) {
+      liveDistanceTracker.start(user).catch(e => console.warn('⚠️ [LocationTracker] liveDistanceTracker.start failed:', e?.message));
+    }
+
     // Test GPS capabilities
     const capabilities = await this.checkGPSCapabilities();
     if (!capabilities.hasGeolocation) {
@@ -1021,6 +1033,11 @@ class LocationTracker {
     
     // Clear arrival detection state
     arrivalTimeDetector.clearRecordedArrivals();
+
+    // Stop liveDistanceTracker (closes any open duty segment)
+    if (liveDistanceTracker.isTracking) {
+      liveDistanceTracker.stop();
+    }
   }
 
   /**

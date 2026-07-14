@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
+import { liveDistanceTracker } from "../utils/liveDistanceTracker";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
@@ -106,6 +107,13 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
 
         locationTracker.setDriverStatus(loadedStatus);
         const userWithId = { ...currentUser, appUserId: resolvedAppUser.id };
+
+        // CRITICAL: Boot liveDistanceTracker immediately on app load so duty-segment
+        // writes work regardless of GPS / isPrimaryDevice status.
+        // This must run before startTracking so the segment is captured even if GPS fails.
+        if (!liveDistanceTracker.isTracking) {
+          liveDistanceTracker.start(userWithId).catch(e => console.warn('[DriverStatusToggle] liveDistanceTracker boot failed:', e?.message));
+        }
 
         if (!locationTracker.isTracking) {
           if (loadedStatus === 'on_duty' || loadedStatus === 'on_break') {
