@@ -44,11 +44,12 @@ export async function getCurrentDevice(userId) {
         return device;
       }
 
-      // CRITICAL: Unregistered devices are NOT primary. Return a non-primary stub so the
-      // caller never falls back to "assume primary." Only an explicit is_primary_tracker=true
-      // record in the DB grants primary authority.
-      console.log(`⚠️ [DeviceManager] No UserDevice record found — treating as NON-PRIMARY (not registered)`);
-      return { is_primary_tracker: false, status: 'active', device_name: 'Unregistered Device' };
+      // Unregistered device (no DB record) — return null so callers treat it as primary.
+      // Most drivers never explicitly register a device; null = "unknown = assume primary"
+      // so they still get GPS upload authority and immersive mode.
+      // Only an explicit is_primary_tracker=false record in the DB denotes non-primary.
+      console.log(`⚠️ [DeviceManager] No UserDevice record found — returning null (assume primary)`);
+      return null;
     }, {
       ttlMs: DEVICE_CACHE_TTL_MS,
       cacheNull: true
