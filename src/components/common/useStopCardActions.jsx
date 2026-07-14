@@ -677,6 +677,91 @@ export default function useStopCardActions(params) {
         resetActionLocks(true);
         return;
       }
+
+      // ── Cycling marker fast path ─────────────────────────────────────────────
+      // Cycling markers (Start/End waypoints) only need:
+      //   1. isNextDelivery set on this stop, cleared on all others
+      //   2. Background route optimization
+      // Nothing else — no status change, no delivery_time_start, no patient activation,
+      // no notifications, no handleStartDelivery backend call.
+      // Writing status='en_route' to a cycling marker crashes the app because cycling
+      // markers only support in_transit/completed/pending transitions.
+      if (delivery.is_cycling_marker) {
+        pauseOfflineSync('delivery_actions');
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const routeDeliveries = getDriverRouteDeliveries(allDeliveries, delivery);
+
+          // 1. Update isNextDelivery locally
+          const updatedDeliveries = routeDeliveries.map((d) => ({
+            ...d,
+            isNextDelivery: d.id === delivery.id,
+          }));
+          const changed = updatedDeliveries.filter((item) => {
+            const existing = routeDeliveries.find((r) => r?.id === item.id);
+            return existing && existing.isNextDelivery !== item.isNextDelivery;
+          });
+          if (changed.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changed);
+            updateDeliveriesLocally?.(changed, false);
+            await Promise.all(changed.map((item) =>
+              base44.entities.Delivery.update(item.id, { isNextDelivery: item.isNextDelivery }).catch(() => null)
+            ));
+          }
+
+          await setAndCenterNextDelivery({ driverDeliveries: updatedDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
+          window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: changed } }));
+
+          resumeOfflineSync('delivery_actions');
+          driverLocationPoller.resume();
+          smartRefreshManager.resume();
+          backgroundSyncManager.resume();
+          resumeRealtimeSync();
+          resetActionLocks(true);
+          fabControlEvents.reactivatePhaseTwoIfAvailable();
+
+          // 2. Background route optimization only
+          window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+          Promise.resolve().then(async () => {
+            smartRefreshManager.pause();
+            backgroundSyncManager.pause();
+            pauseRealtimeSync();
+            pauseOfflineSync('delivery_actions');
+            pauseOfflineMutations();
+            try {
+              await performRouteOptimization({
+                driverId: delivery.driver_id,
+                deliveryDate: delivery.delivery_date,
+                deliveries: allDeliveries,
+                patients,
+                stores,
+                appUsers,
+                source: 'start_button',
+                bypassDriverStatus: true,
+              }).catch(() => null);
+            } finally {
+              resumeOfflineSync('delivery_actions');
+              resumeOfflineMutations();
+              smartRefreshManager.resume();
+              backgroundSyncManager.resume();
+              resumeRealtimeSync();
+            }
+            window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+          });
+        } catch (error) {
+          toast.error(`Failed to start: ${error.message}`);
+          resumeOfflineSync('delivery_actions');
+          driverLocationPoller.resume();
+          smartRefreshManager.resume();
+          backgroundSyncManager.resume();
+          resumeRealtimeSync();
+          resetActionLocks(true);
+        }
+        return; // exit lock
+      }
+      // ── End cycling marker fast path ─────────────────────────────────────────
+
       pauseOfflineSync('delivery_actions');
       try {
         const now = new Date();
