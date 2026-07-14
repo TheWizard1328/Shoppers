@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "properties": {
+    "driver_id": {
+      "type": "string",
+      "description": "The ID of the driver"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Display name of the driver"
+    },
+    "activity_date": {
+      "type": "string",
+      "format": "date",
+      "description": "The date of the activity (YYYY-MM-DD)"
+    },
+    "activity_segments": {
+      "type": "array",
+      "description": "Array of on-duty windows. Gaps between segments are breaks/off-duty. Open segment (end_time null) means driver is currently on duty.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "start_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp when driver went on_duty"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp when driver went on_break or off_duty. Null = segment still open."
+          },
+          "tot": {
+            "type": "number",
+            "description": "Duration of this on-duty segment in minutes. Null until segment is closed."
+          }
+        }
+      },
+      "default": []
+    }
+  },
+  "required": [
+    "driver_id",
+    "activity_date"
+  ],
+  "name": "DriverDailyActivity"
+}
