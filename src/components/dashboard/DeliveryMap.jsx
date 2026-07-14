@@ -1289,7 +1289,12 @@ export default function DeliveryMap({
         <Pane name="routeBasePane" style={{ zIndex: 430 }} />
         <Pane name="activeRoutePane" style={{ zIndex: 450 }} />
         <Pane name="completedBreadcrumbPane" style={{ zIndex: 460 }} />
-        <Pane name="currentLegPane" style={{ zIndex: 470 }} />
+        {/* currentLegPane sits above all regular markers (default marker pane = 600)
+            so the blue current-leg polyline always renders on top of other route lines.
+            nextDeliveryMarkerPane sits above currentLegPane so the isNextDelivery pin
+            is always the topmost element on the map. */}
+        <Pane name="currentLegPane" style={{ zIndex: 620 }} />
+        <Pane name="nextDeliveryMarkerPane" style={{ zIndex: 650 }} />
 
         {mapReady && !showBreadcrumbs && (showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
           <CompletedBreadcrumbPolylines

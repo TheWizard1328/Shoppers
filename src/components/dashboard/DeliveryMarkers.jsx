@@ -180,10 +180,13 @@ function DeliveryMarkers({
     const stopOrder = delivery.stop_order || delivery.number || 500;
 
     // Z-index tiers (higher = on top):
+    // isNextDelivery: 12000 tier — always topmost marker regardless of status
     // Active (in_transit/en_route): 8000 tier — lowest stop_order gets highest z (subtract stop_order)
     // Incomplete (pending/other non-finished): 5000 tier — lowest stop_order gets highest z
     // Completed (finished): 100 tier — highest stop_order gets highest z within tier (add stop_order)
-    if (isActive) dynamicZIndex = 8000 - stopOrder;
+    const isNextDeliveryMarker = !!delivery.isNextInLine;
+    if (isNextDeliveryMarker) dynamicZIndex = 12000;
+    else if (isActive) dynamicZIndex = 8000 - stopOrder;
     else if (isFinished) dynamicZIndex = 100 + stopOrder;
     else dynamicZIndex = 5000 - stopOrder;
 
@@ -194,8 +197,9 @@ function DeliveryMarkers({
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       const clusterIndex = allMarkersAtLocation.findIndex(d => d && d.id === delivery.id);
       markerPosition = calculateFannedPositionWrapperWrapper(markerLatitude, markerLongitude, clusterIndex, allMarkersAtLocation.length, delivery.stop_order);
-      // Within a fanned cluster: active > pending > completed; within each tier use same ordering rules
-      if (isActive) dynamicZIndex = 9000 - stopOrder;
+      // Within a fanned cluster: isNextDelivery > active > pending > completed
+      if (isNextDeliveryMarker) dynamicZIndex = 13000;
+      else if (isActive) dynamicZIndex = 9000 - stopOrder;
       else if (isFinished) dynamicZIndex = 2000 + stopOrder;
       else dynamicZIndex = 6000 - stopOrder;
     }
@@ -239,6 +243,7 @@ function DeliveryMarkers({
         position={markerPosition}
         icon={icon}
         zIndexOffset={dynamicZIndex}
+        pane={isNextDeliveryMarker ? 'nextDeliveryMarkerPane' : undefined}
         draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver && isFanned}
         eventHandlers={handlers}
         ref={(ref) => { if (ref) markerRefs.current[`delivery-${delivery.id}`] = ref; }}
