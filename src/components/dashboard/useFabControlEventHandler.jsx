@@ -183,9 +183,27 @@ export function useFabControlEventHandler({
           // If FAB is in Phase 1, do NOT change anything — leave it in Phase 1.
           // Only unlock if currently locked in Phase 2 or Phase 3.
           if (mapViewPhaseRef.current === 1) break;
+          const savedPhase = mapViewPhaseRef.current;
           clearTimer();
           isMapViewLockedRef.current = false;
           setIsMapViewLocked(false);
+          // CRITICAL: Re-lock Phase 2/3 after 2.5s so the map resumes auto-panning
+          // to the new next stop once Accept All completes and the new
+          // isNextDelivery flag is set. Without this, the map stays unlocked
+          // and the driver must manually tap the FAB to re-engage follow mode.
+          setTimeout(() => {
+            // Don't re-lock if user manually interacted with the map during the gap
+            if (mapUserUnlockedRef?.current) return;
+            if (mapViewPhaseRef.current !== savedPhase) return; // phase changed — don't override
+            if (savedPhase !== 2 && savedPhase !== 3) return;
+            clearTimer();
+            isMapViewLockedRef.current = true;
+            setIsMapViewLocked(true);
+            pendingPhaseRef.current = savedPhase;
+            lastProgrammaticMapMoveRef.current = Date.now();
+            window._lastProgrammaticMapMove = Date.now();
+            setMapViewTrigger((p) => p + 1);
+          }, 2500);
           break;
         }
         case 'DRIVER_SELECTION_CHANGED': {
@@ -250,12 +268,6 @@ export function useFabControlEventHandler({
           setTimeout(() => onOnDutyFromToggleRef.current?.(), 800);
           break;
         }
-        case 'DELIVERY_REALTIME_CREATE_DELETE_PULSE': {
-          if (mapViewPhaseRef.current === 1 && typeof window.__fabFlashUpdate === 'function') {
-            window.__fabFlashUpdate('route_change', { driverId: event.driverId });
-          }
-          break;
-        }
         default:
           break;
       }
@@ -266,6 +278,9 @@ export function useFabControlEventHandler({
       window.removeEventListener('isNextDeliveryFlagUpdated', onIsNextDeliveryFlagUpdated);
       window.removeEventListener('proximityActivatedPhase2', onProximityActivatedPhase2);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setMapViewPhase, setIsMapViewLocked, setMapViewTrigger,
+      mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef,
+      mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef,
+      phaseBeforeBreakRef, mapUserUnlockedRef, lastUserInteractionRef]);
 }
