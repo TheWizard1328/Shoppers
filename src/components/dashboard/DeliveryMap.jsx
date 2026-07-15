@@ -959,7 +959,16 @@ export default function DeliveryMap({
         // and fired moveend prematurely — leaving the map in a broken state
         // where fitBoundsInFlightRef was cleared but the pan never completed,
         // effectively stalling updates until the 12s watchdog re-fired.
-        const zoomAlreadyCorrect = currentZoom >= targetZoomForBounds - 0.05;
+        // ── BIDIRECTIONAL ZOOM CHECK ────────────────────────────────────────
+        // Use the fast setView pan ONLY when the current zoom is within 0.5
+        // zoom levels of what the bounds actually need.  This covers the normal
+        // GPS-follow case (driver moves slightly, target zoom barely changes).
+        // When the zoom is significantly off in EITHER direction — too zoomed
+        // out (initial Phase 2 entry from city view) OR too zoomed in (just
+        // completed a stop, next stop is far away, need to zoom OUT to fit both
+        // markers) — fall through to fitBounds which adjusts zoom + pan together.
+        const zoomDiff = currentZoom - targetZoomForBounds;
+        const zoomAlreadyCorrect = zoomDiff >= -0.05 && zoomDiff <= 0.5;
 
         fitBoundsInFlightRef.current = true;
         let settled = false;
