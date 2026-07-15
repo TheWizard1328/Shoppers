@@ -1388,7 +1388,7 @@ function Dashboard() {
   // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
   // Uses ref flag — no re-render on flip; just unblocks effect 2.
   useEffect(() => {
-    if (!isDataLoaded || !userSettingsLoaded) return;
+    if (!hasLoadedOfflineDataRef.current || !userSettingsLoaded) return;
     if (rsStatsAndCardsRef.current) return;
     const hasDeliveries = deliveriesWithStopOrder.length > 0;
     const statsCardMeasured = statsCardRef.current?.offsetHeight > 0;
@@ -1396,7 +1396,7 @@ function Dashboard() {
     if (statsCardMeasured && stopCardsMeasured) {
       rsStatsAndCardsRef.current = true;
     }
-  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, stopCardsBaseHeight]);
+  }, [hasLoadedOfflineDataRef.current, userSettingsLoaded, deliveriesWithStopOrder.length, stopCardsBaseHeight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // RENDER SEQUENCE EFFECT 2: Track FABs ready (after stats/cards)
   // Pure ref-flag cascade — no re-render needed to unlock effect 3.
