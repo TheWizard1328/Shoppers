@@ -107,7 +107,10 @@ function HereType1Polylines({
     });
     
     return map;
-  }, [deliveryMarkers, pickupMarkers, selectedDriverId, showAll, selectedDate]);
+  // refreshToken is intentionally included: when a polyline update arrives via realtime,
+  // invalidate() bumps refreshToken so this memo re-runs and picks up the new encoded_polyline.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveryMarkers, pickupMarkers, selectedDriverId, showAll, selectedDate, refreshToken]);
 
   // Route completeness: a driver's route is complete if they have ZERO stops
   // with status pending, in_transit, or en_route — checked against the full
@@ -163,12 +166,15 @@ function HereType1Polylines({
     };
 
     const onDeliveriesUpdated = (event) => {
-      // Only invalidate when the update carries polyline data to avoid unnecessary re-renders
+      // Invalidate when the update carries polyline data or comes from a realtime/reset source
       const detail = event?.detail || {};
       const deliveries = detail.freshDeliveries || detail.deliveries;
-      if (Array.isArray(deliveries) && deliveries.some(d => d?.encoded_polyline)) {
+      if (Array.isArray(deliveries) && deliveries.some(d => d?.encoded_polyline || d?.polyline_saved_at)) {
         invalidate();
-      } else if (detail.triggeredBy === 'resetPolylines_chunk' || detail.triggeredBy === 'realtimeBufferedFullRefresh') {
+      } else if (
+        detail.triggeredBy === 'resetPolylines_chunk' ||
+        detail.triggeredBy === 'realtimeBufferedFullRefresh'
+      ) {
         invalidate();
       }
     };
