@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Eraser, Undo2 } from 'lucide-react';
+import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Eraser, Undo2, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
@@ -186,6 +186,7 @@ export default function PolylineViewer({ users = [] }) {
   const [cleanedPoints, setCleanedPoints]         = useState([]); // current editable point list
   const [undoStack, setUndoStack]                 = useState([]); // up to 5 previous states
   const [isSavingCrumb, setIsSavingCrumb]         = useState(false);
+  const [isImportingCrumb, setIsImportingCrumb]   = useState(false);
   const draggingRef = useRef(false); // true while a marker drag is in progress
 
   // Track the item currently being cleaned so we can auto-save on focus change
@@ -650,6 +651,55 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
+  // ── Import delivery polyline → breadcrumb ────────────────────────────────
+  const handleImportDeliveryToCrumb = async (item) => {
+    const matchingDelivery = deliveries.find(d =>
+      d.driver_id === item.driver_id &&
+      d.delivery_date === item.delivery_date &&
+      d.stop_order === item.stop_order
+    );
+    if (!matchingDelivery?.encoded_polyline) {
+      toast.error('No polyline found on the matching Delivery record.');
+      return;
+    }
+    if (!window.confirm(`Import the Delivery polyline for Stop #${item.stop_order} into this breadcrumb? This will overwrite the existing breadcrumb path.`)) return;
+
+    setIsImportingCrumb(true);
+    const newPoly = matchingDelivery.encoded_polyline;
+    const pts = decodePolyline(newPoly);
+    try {
+      // Update online entity
+      await base44.entities.DeliveryBreadcrumbs.update(item.id, {
+        encoded_polyline: newPoly,
+        point_count: pts.length,
+        saved_to_route: true,
+      });
+      // Update offline DB
+      const { offlineDB } = await import('../utils/offlineDatabase').catch(() => ({ offlineDB: null }));
+      if (offlineDB) {
+        const existing = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, item.id).catch(() => null);
+        if (existing) {
+          await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: true });
+        }
+      }
+      // Update local state
+      const updatedItem = { ...item, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: true };
+      setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
+      setFocusedItem(updatedItem);
+      // Enter cleaning mode with the imported points ready to edit
+      setCleanedPoints(pts);
+      cleanedPointsRef.current = pts;
+      setUndoStack([]);
+      setIsCleaningMode(true);
+      pendingCleanRef.current = { item: updatedItem };
+      toast.success(`Stop #${item.stop_order} — Delivery polyline imported (${pts.length} pts). Now in cleaning mode.`);
+    } catch (e) {
+      toast.error(`Import failed: ${e.message}`);
+    } finally {
+      setIsImportingCrumb(false);
+    }
+  };
+
   // ── List item renderer ────────────────────────────────────────────────────
   const renderListItem = (item, inSheet = false) => {
     const isBreadcrumb = breadcrumbs.some(b => b.id === item.id);
@@ -751,6 +801,14 @@ export default function PolylineViewer({ users = [] }) {
                             className="p-1 rounded hover:bg-green-100 text-green-700 disabled:opacity-50 transition-colors"
                           >
                             {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            title="Import Delivery polyline → Breadcrumb"
+                            onClick={e => { e.stopPropagation(); handleImportDeliveryToCrumb(item); }}
+                            disabled={isImportingCrumb}
+                            className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors"
+                          >
+                            {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                           </button>
                         </div>
                       )}
