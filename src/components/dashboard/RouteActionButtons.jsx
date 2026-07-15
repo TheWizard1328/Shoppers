@@ -155,10 +155,8 @@ export default function RouteActionButtons({
         if (result?.success) {
           const fresh = result.freshDeliveries || [];
           if (fresh.length > 0) {
-            await offlineDB
-              .replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', date, fresh)
-              .catch(() => {});
-            updateDeliveriesLocally?.(fresh, true);
+            await Promise.all(fresh.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+            updateDeliveriesLocally?.(fresh, false);
             window.dispatchEvent(
               new CustomEvent('deliveriesUpdated', {
                 detail: {
@@ -332,10 +330,8 @@ export default function RouteActionButtons({
 
                 // ── Push fresh deliveries to offline DB + local UI ─────────
                 if (fresh.length > 0) {
-                  await offlineDB
-                    .replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDate, fresh)
-                    .catch(() => {});
-                  updateDeliveriesLocally?.(fresh, true);
+                  await Promise.all(fresh.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+                  updateDeliveriesLocally?.(fresh, false);
                 }
 
                 base44.analytics.track({

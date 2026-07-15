@@ -422,9 +422,9 @@ export default function useStopCardActions(params) {
         // so the UI reads the final ground-truth state (stop_order, encoded_polyline, ETAs)
         // rather than the intermediate optimistic snapshot written earlier in the pipeline.
         const { offlineDB } = await import('../utils/offlineDatabase');
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedList);
-        updateDeliveriesLocally?.(refreshedList, true);
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList } }));
+        await Promise.all(refreshedList.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+        updateDeliveriesLocally?.(refreshedList, false);
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: refreshedList } }));
       } else {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
       }
@@ -933,9 +933,9 @@ export default function useStopCardActions(params) {
                 ...d,
                 isNextDelivery: d.id === delivery.id ? true : (d.isNextDelivery && d.id !== delivery.id ? false : d.isNextDelivery),
               }));
-              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, withNextFlag);
-              updateDeliveriesLocally?.(withNextFlag, true);
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: withNextFlag } }));
+              await Promise.all(withNextFlag.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+              updateDeliveriesLocally?.(withNextFlag, false);
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: withNextFlag } }));
               try {
                 const { broadcastMutation } = await import('../utils/realtimeSync');
                 await Promise.all(withNextFlag.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));

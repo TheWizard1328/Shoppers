@@ -58,14 +58,14 @@ export async function handleQuickReorder(reorderUpdates, selectedDate, currentUs
   });
 
   if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
-    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDate, freshDeliveries).catch(() => {});
+    await Promise.all(freshDeliveries.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
   }
 
   window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
     detail: {
       triggeredBy: 'quickReorder',
       freshDeliveries,
-      fullReplacement: true,
+      fullReplacement: false,
     }
   }));
 }
