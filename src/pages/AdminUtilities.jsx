@@ -312,7 +312,7 @@ export default function AdminUtilities() {
   const [hasAccess, setHasAccess] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  const [activeDataTab, setActiveDataTab] = useState('deliveries');
+  const [activeDataTab, setActiveDataTab] = useState('driver-activity');
   const [activeUtilityTab, setActiveUtilityTab] = useState('data');
   const [dataViewMode, setDataViewMode] = useState({ deliveries: 'offline' }); // default deliveries to offline DB
 
@@ -1714,8 +1714,9 @@ export default function AdminUtilities() {
                        <TabsTrigger value="cities" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Cities</TabsTrigger>
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Deliveries</TabsTrigger>
                        <TabsTrigger value="patients" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Patients</TabsTrigger>
-                       <TabsTrigger value="stores" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Stores</TabsTrigger><TabsTrigger value="temp-logs" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ Temp Logs</TabsTrigger>
                        <TabsTrigger value="driver-activity" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Driver Activity</TabsTrigger>
+                       <TabsTrigger value="temp-logs" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ Temp Logs</TabsTrigger>
+                       <TabsTrigger value="stores" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Stores</TabsTrigger>
                        <TabsTrigger value="ble-diagnostic" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ BLE Diag</TabsTrigger>
                        </TabsList></div>
 

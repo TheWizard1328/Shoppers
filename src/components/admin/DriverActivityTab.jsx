@@ -334,6 +334,18 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
 
   useEffect(() => { loadRecords(); }, [selectedDate, selectedCityId]);
 
+  // Live WebSocket subscription — reload when any DriverDailyActivity record changes
+  useEffect(() => {
+    const unsubscribe = base44.entities.DriverDailyActivity.subscribe((event) => {
+      // Only reload if the changed record matches the currently viewed date
+      const changedDate = event?.data?.activity_date;
+      if (!changedDate || changedDate === selectedDate) {
+        loadRecords();
+      }
+    });
+    return unsubscribe;
+  }, [selectedDate, selectedCityId]);
+
   const handleSave = async (updates) => {
     if (editingRecord?.id) {
       await base44.entities.DriverDailyActivity.update(editingRecord.id, updates);
