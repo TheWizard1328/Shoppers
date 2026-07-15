@@ -54,10 +54,13 @@ Deno.serve(async (req) => {
     }
     const travelDist = Math.round(travelDistKm * 100) / 100;
 
-    // 3. Update Delivery with new polyline + travel distance
+    // 3. Update Delivery with new polyline + travel distance + timestamp in ONE write.
+    //    All three fields must be in the same update so the WebSocket diff includes
+    //    encoded_polyline — a second update would see it as unchanged and omit it.
     await base44.asServiceRole.entities.Delivery.update(delivery.id, {
       encoded_polyline: cleanedEncodedPolyline,
       travel_dist: travelDist,
+      polyline_saved_at: new Date().toISOString(),
     });
 
     // 4. Update DeliveryBreadcrumbs record — save cleaned polyline and tag as saved_to_route
@@ -75,16 +78,6 @@ Deno.serve(async (req) => {
         saved_to_route: true,
       });
     }
-
-    // 5. FORCE FULL BROADCAST: Fetch the complete, fresh delivery record (includes patient_name,
-    //    delivery_id, all fields) then do a second update with a sync_nonce timestamp.
-    //    This guarantees all connected devices receive the full record via WebSocket
-    //    rather than a delta that may be suppressed or missing key fields.
-    const freshDelivery = await base44.asServiceRole.entities.Delivery.get(delivery.id);
-    await base44.asServiceRole.entities.Delivery.update(delivery.id, {
-      ...freshDelivery,
-      polyline_saved_at: new Date().toISOString(),
-    });
 
     return Response.json({
       success: true,
