@@ -224,9 +224,11 @@ export async function handleStartDelivery({
     // 7b: Notification
     try {
       const deliveryStore = stores.find((s) => s?.id === deliveryFromUI?.store_id);
+      const patientForNotify = patients.find((p) => p?.id === deliveryFromUI?.patient_id);
+      const patientNameForNotify = patientForNotify?.full_name || deliveryFromUI?.patient_name || 'Unknown';
       await notifyDriverStarted({
         driver: currentUser,
-        patientName: deliveryFromUI?.patient_name || 'Unknown',
+        patientName: patientNameForNotify,
         delivery: deliveryFromUI,
         store: deliveryStore,
         appUsers,

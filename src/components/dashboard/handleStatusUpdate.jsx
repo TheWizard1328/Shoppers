@@ -383,7 +383,8 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
 
     if (['completed', 'failed'].includes(newStatus)) {
       const deliveryStore = stores.find((s) => s?.id === targetDelivery?.store_id);
-      const patientName = targetDelivery?.patient_name || 'Unknown';
+      const patientForMsg = patients.find((p) => p?.id === targetDelivery?.patient_id);
+      const patientName = patientForMsg?.full_name || targetDelivery?.patient_name || 'Unknown';
       if (newStatus === 'completed') { notifyDriverCompleted({ driver: currentUser, patientName, delivery: targetDelivery, store: deliveryStore, appUsers }).catch((error) => console.warn('⚠️ Notification failed:', error)); }
       else if (newStatus === 'failed') { notifyDriverFailed({ driver: currentUser, patientName, delivery: targetDelivery, store: deliveryStore, appUsers, failureReason: extraData?.delivery_notes || null }).catch((error) => console.warn('⚠️ Notification failed:', error)); }
     }
