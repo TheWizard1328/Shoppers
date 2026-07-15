@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { toast } from 'sonner';
+import { broadcastMutation } from '@/components/utils/realtimeSync';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -511,9 +512,7 @@ export default function PolylineViewer({ users = [] }) {
               })
               .then(updatedDelivery => {
                 if (updatedDelivery) {
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                    detail: { triggeredBy: 'breadcrumbAutoSaved', deliveryId, freshDeliveries: [updatedDelivery], fullReplacement: false, preserveLocalState: true }
-                  }));
+                  broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
                 }
                 window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
               })
@@ -632,10 +631,8 @@ export default function PolylineViewer({ users = [] }) {
             })
             .then(updatedDelivery => {
               if (updatedDelivery) {
-                // Notify Dashboard to merge this delivery update
-                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                  detail: { triggeredBy: 'breadcrumbSaved', deliveryId, freshDeliveries: [updatedDelivery], fullReplacement: false, preserveLocalState: true }
-                }));
+                // Broadcast through realtimeSync so all active map views re-render the polyline
+                broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
               }
               window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
             })
