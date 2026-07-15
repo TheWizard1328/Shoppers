@@ -439,14 +439,16 @@ export default function useStopCardActions(params) {
       if (isDriverAction) {
         notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(() => {});
 
-        // If the driver is in cycling mode, re-open the stop selection dialog
-        // so they can pick which stops to include in their cycling loop.
+        // Show the cycling stop selection dialog when the driver is in cycling mode
+        // OR when any of the accepted stops already have transport_mode='cycling'.
+        // Pre-seeded with stops that are already cycling (handled in useModeRouteDialog).
         const driverAppUser = appUsers.find((u) => u?.user_id === delivery.driver_id);
         const isCyclingMode = String(driverAppUser?.preferred_travel_mode || '').toLowerCase() === 'cycling';
-        if (isCyclingMode) {
+        const hasCyclingStops = scopedPendingDeliveries.some((d) => String(d?.transport_mode || '').toLowerCase() === 'cycling');
+        if (isCyclingMode || hasCyclingStops) {
           // Small delay so the UI settles after optimization before showing the dialog
           setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('openCyclingModeDialog'));
+            window.dispatchEvent(new CustomEvent('openCyclingModeDialog', { detail: { deliveryDate: delivery.delivery_date } }));
           }, 1500);
         }
       } else {

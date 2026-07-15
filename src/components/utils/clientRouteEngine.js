@@ -1172,8 +1172,7 @@ export async function optimizeRouteClientSide({
     const newOrder = computedStopOrders[i];
     const pendingStartTime = resolvePendingStartTime(stop);
     const seg = segmentPolylineByDeliveryId.get(stop.id) || null;
-    const isPendingStop = stop?.status === 'pending';
-    const rawTransportMode = isPendingStop ? effectiveTravelMode : String(stop?.transport_mode || effectiveTravelMode).toLowerCase();
+    const rawTransportMode = String(stop?.transport_mode || effectiveTravelMode).toLowerCase();
     const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(rawTransportMode) ? rawTransportMode : 'driving';
     const isNextStop = stop.id === nextStopId;
     const logicalDurationMinutes = isNextStop && nextStopLogicalSegment
