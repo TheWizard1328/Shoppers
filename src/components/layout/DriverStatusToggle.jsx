@@ -313,11 +313,9 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       if (isOwnUser) locationTracker.setDriverStatus(confirmedStatus);
       if (confirmedStatus === lastRequestedStatusRef.current) lastRequestedStatusRef.current = null;
 
-      // NOTE: Do NOT invalidate('AppUser') here — it triggers hasCurrentUserRefreshImpact
-      // in Layout which causes a full data reload + sidebar wipe. The optimistic update
-      // and broadcastMutation at the end of this handler are sufficient to sync all UI.
-      const { invalidate } = await import('../utils/dataManager');
-      invalidate('Delivery');
+      // NOTE: Do NOT invalidate caches here — it triggers full data reloads that wipe
+      // the dashboard. The optimistic update and broadcastMutation at the end of this
+      // handler are sufficient to sync all UI for a simple status change.
 
       // ── Location tracker side-effects (own device only) ──
       if (isOwnUser) {
@@ -408,18 +406,6 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: effectiveUser.id, newStatus: updatePayload.driver_status } }));
         // Ensure other devices receive the update via WS broadcast
         broadcastMutation('AppUser', 'update', appUserId, finalData);
-
-        // Force a delivery refresh so stop cards and polylines reflect the new status
-        // (isNextDelivery flags and stop order may have changed server-side)
-        const routeDate = globalFilters.getSelectedDate() || getTodayStr();
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { driverId: effectiveUser.id, deliveryDate: routeDate, triggeredBy: 'driverStatusChange' }
-        }));
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-            detail: { silent: true, reason: 'driver_status_change' }
-          }));
-        }, 800);
       }
 
       setTimeout(async () => {
