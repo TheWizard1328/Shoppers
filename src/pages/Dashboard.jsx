@@ -1357,7 +1357,7 @@ function Dashboard() {
   }, [mapViewTrigger]);
 
   const hasLoadedOfflineDataRef = useRef(false);
-  const lastOfflineLoadDateRef = useRef('');
+  const lastOfflineLoadDateRef = useRef(''); // tracks date to re-run on date change
   useEffect(() => {
     if (!hasLoadedOfflineDataRef.current || !userSettingsLoaded) return;
     if (rsStatsAndCardsRef.current) return;
@@ -1428,7 +1428,7 @@ function Dashboard() {
       rsFullDeliveriesRef.current = true;
       return;
     }
-    const timer = setTimeout(() => { rsFullDeliveriesRef.current = true; }, 2000);
+    const timer = setTimeout(() => { rsFullDeliveriesRef.current = true; }, 500);
     return () => clearTimeout(timer);
   // CRITICAL: deliveries intentionally NOT in deps — see original comment above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1493,8 +1493,8 @@ useEffect(() => {
         initialFabPhaseAppliedRef.current = currentDateDriverCombo;
         setTimeout(() => {
             window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));
-        }, 800);
-    }, 1500);
+        }, 600);
+    }, 400);
   }, [rsFullDeliveriesRef.current, rsFabPhaseReady, initialMapViewApplied, cardsReadyForFAB]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { window._mapViewPhaseRef = mapViewPhaseRef; window._pendingPhaseRef = pendingPhaseRef; window._selectedDriverIdRef = selectedDriverIdRef; }, []);
@@ -1591,15 +1591,18 @@ useEffect(() => {
       if (isDispatcher && !isAdmin) { const _dayIdx=new Date(dateStr+'T00:00:00').getDay(),_isSat=_dayIdx===6,_isSun=_dayIdx===0;const _storeId=String((currentUser?.store_ids||[])[0]||'');const _store=(stores||[]).find((s)=>s&&String(s.id)===_storeId);const _driverInAU=(id)=>!!id&&appUsers.some((au)=>au?.user_id===id&&au?.app_roles?.includes('driver'));const _def=()=>{if(!_store)return'';if(_isSat)return _store.saturday_am_driver_id||_store.saturday_pm_driver_id||'';if(_isSun)return _store.sunday_am_driver_id||_store.sunday_pm_driver_id||'';return _store.weekday_am_driver_id||_store.weekday_pm_driver_id||'';};let _f='';if(_storeId){// Priority 1: driver with existing store pickup for this date
       const _pd=(deliveries||[]).find((d)=>d&&d.delivery_date===dateStr&&d.store_id===_storeId&&!d.patient_id&&d.driver_id&&!['cancelled','failed'].includes(d.status))?.driver_id||'';if(_pd&&_driverInAU(_pd)){_f=_pd;}else{try{const _ov=await base44.entities.DriverScheduleOverride.filter({date:dateStr,store_id:_storeId});const _ovId=(_ov||[]).find((o)=>o&&String(o.store_id)===_storeId)?.driver_id||'';if(!window.__dispatcherOverrideDriverIds)window.__dispatcherOverrideDriverIds={};window.__dispatcherOverrideDriverIds[dateStr]=_ovId?[_ovId]:[];_f=_ovId&&_driverInAU(_ovId)?_ovId:'';if(!_f)_f=_def();}catch(_){_f=_def();}}}setSelectedDriverId(_f);globalFilters.setSelectedDriverId(_f); }
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 200));
       if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
       mapLockExpiresAtRef.current = null;
-      // Do NOT setIsMapViewLocked here — lock state is exclusively owned by triggerPhase/handleMapViewCycle.
-      // Overriding it here can flip phase=1 into a locked state, causing the next cycle to advance to phase 2.
+      mapViewPhaseRef.current = 1; isMapViewLockedRef.current = true; pendingPhaseRef.current = 1;
+      setMapViewPhase(1); setIsMapViewLocked(true);
       lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger((prev) => prev + 1);
       centerNextDeliveryCard(deliveriesWithStopOrder);
       fabControlEvents.notifyDataReady();
+      fabControlEvents.notifyDoneButtonClicked(250);
+      const _dcExp = Date.now() + 250; mapLockExpiresAtRef.current = _dcExp;
+      mapLockTimeoutRef.current = setTimeout(() => { if (mapLockExpiresAtRef.current === _dcExp) { isMapViewLockedRef.current = false; setIsMapViewLocked(false); mapLockExpiresAtRef.current = null; mapLockTimeoutRef.current = null; } }, 250);
     } catch (error) {
       console.error('❌ [Dashboard] Date change failed:', error);
     } finally {
