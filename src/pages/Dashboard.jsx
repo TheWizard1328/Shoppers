@@ -57,16 +57,12 @@ import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseMan
 const getEdmDate=()=>{const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Edmonton',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return`${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`;};const centerNextDeliveryCard=()=>{window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));};
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
-  // Stable scalars derived from currentUser — use these in dep arrays instead of
-  // the whole object so a refreshUser() that returns identical data doesn't blow
-  // away every memo and effect that depends on user identity.
   const currentUserId       = currentUser?.id ?? null;
   const currentUserRoles    = currentUser?.app_roles;    // array ref — stable while roles unchanged
   const currentUserStoreIds = currentUser?.store_ids;    // array ref — stable while stores unchanged
   const currentUserCityIds  = currentUser?.city_ids;
   const { deliveries, patients, stores, drivers, users, cities, appUsers, isDataLoaded, refreshData, updateDeliveriesLocally, updateAppUsersLocally, applyDeliveryChangesLocally, forceRefreshDriverDeliveries, setIsFormOverlayOpen, setIsEntityUpdating: _setIsEntityUpdatingCtx, dataReadyForSelectedDate, isSnapshotModeActive, setIsSnapshotModeActive, dataSource, initialFabPhase } = useAppData();
   const [isEntityUpdating, setIsEntityUpdating] = useState(false);
-  // Keep context and local state in sync so Layout's overlay detection still works
   const _setIsEntityUpdatingBoth = (v) => { setIsEntityUpdating(v); _setIsEntityUpdatingCtx?.(v); };
   const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
   const [selectedDate, setSelectedDate] = useState(() => { const urlParams = new URLSearchParams(window.location.search); const dateParam = urlParams.get('date'); if (dateParam) return new Date(dateParam + 'T00:00:00'); const saved = globalFilters.getSelectedDate(); const savedDate = typeof saved === 'string' && saved ? new Date(saved + 'T00:00:00') : null; return savedDate || new Date(); });
@@ -79,7 +75,6 @@ function Dashboard() {
     const saved = localStorage.getItem('rxdeliver_show_routes');
     return saved !== null ? saved === 'true' : true;
   });
-  // Keep polylines forced on for dispatchers even if setShowRoutes is called elsewhere
   const _effectiveShowRoutes = _isDispatcherOnly ? true : showRoutes;
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [optimizationMessage, setOptimizationMessage] = useState(null);
@@ -103,9 +98,6 @@ function Dashboard() {
   const [mapViewPhase, setMapViewPhase] = useState(1);
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(true);
   const [initialMapViewApplied, setInitialMapViewApplied] = useState(false);
-  // renderSequence refactor: only the two flags consumed by child components need to
-  // be state. The other 6 are pure internal sequencing gates — converting them to
-  // refs eliminates 6 out of 7 re-renders in the load/date-change cascade.
   const [rsMapMarkersReady, setRsMapMarkersReady] = useState(false);
   const [rsFabPhaseReady, setRsFabPhaseReady] = useState(false);
   const rsStatsAndCardsRef    = useRef(false);
@@ -114,8 +106,6 @@ function Dashboard() {
   const rsDriverLiveLocRef    = useRef(false);
   const rsSharedLocationsRef  = useRef(false);
   const rsFullDeliveriesRef   = useRef(false);
-  // Stable object passed to child components — shape is unchanged so no consumer
-  // needs to be updated. Re-created only when the two stateful flags flip.
   const renderSequence = useMemo(() => ({
     statsAndCards:       rsStatsAndCardsRef.current,
     fabs:                rsFabsRef.current,
@@ -126,9 +116,6 @@ function Dashboard() {
     fullDeliveriesLoaded: rsFullDeliveriesRef.current,
     fabPhaseReady:       rsFabPhaseReady,
   }), [rsMapMarkersReady, rsFabPhaseReady]);
-  // setRenderSequence shim — keeps MapSection.jsx and DashboardView.jsx working
-  // without changes. Only mapMarkers and fabPhaseReady trigger re-renders; the
-  // rest are written to refs silently.
   const setRenderSequence = useCallback((updater) => {
     const current = {
       statsAndCards:       rsStatsAndCardsRef.current,
@@ -255,9 +242,6 @@ function Dashboard() {
   const isAllDriversMode = selectedDriverId === 'all';
   // forceRender removed — updateDeliveriesLocally already triggers context re-renders;
   //   the counter increments were redundant full-tree re-renders on top of that.
-  // Consolidate 11 ref-sync effects into one — refs don't trigger renders so there
-  // is no correctness reason to keep them separate; this saves 10 scheduler ticks
-  // on every periodic refresh that updates deliveries + appUsers + patients together.
   useEffect(() => {
     driverLocationRef.current = driverLocation;
     patientsRef.current = patients;
@@ -272,13 +256,10 @@ function Dashboard() {
     isPrimaryDeviceRef.current = isPrimaryDevice;
   }, [driverLocation, patients, stores, allDriverLocations, appUsers, deliveries, selectedDate, showAllDriverMarkers, selectedDriverId, cities, isPrimaryDevice]);
 
-  // Resolve primary-device status from the DB once we have a logged-in driver.
-  // Retries after 5 seconds if the first attempt returns null (stale cache / timing issue).
   useEffect(() => {
     if (!isDriver || !currentUser?.id) return;
     let cancelled = false;
     let retryTimer = null;
-
     const resolvePrimary = (attempt = 1) => {
       getCurrentDevice(currentUser.id).then((device) => {
         if (cancelled) return;
@@ -314,7 +295,6 @@ function Dashboard() {
   }, [isDriver, currentUser?.id]);
   useEffect(() => { isMapViewLockedRef.current = isMapViewLocked; }, [isMapViewLocked]);
 
-  // Must be declared BEFORE filteredDeliveries — dispatcher filter depends on driversList
   const activeDriverIdsOnDate = useMemo(() => {
     const _ds = format(selectedDate, 'yyyy-MM-dd');
     const set = new Set();
@@ -365,11 +345,7 @@ function Dashboard() {
     return result;
   }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUser, isSnapshotModeActive, snapshotData, driversList]);
 
-  // Sort-key fingerprint cache — deliveriesWithStopOrder only needs to re-sort
-  // when fields that AFFECT sort order change. Fields like isNextDelivery, polylines,
-  // updated_date, etc. don't change sort order and previously caused a full re-sort
-  // on every single delivery write. Now we hash just the sort-relevant fields and
-  // bail early (returning the cached result) if nothing changed.
+  // Sort-key fingerprint cache — only re-sort when sort-relevant fields change.
   const _dwsoSortKeyRef   = useRef('');
   const _dwsoCachedResult = useRef([]);
 
@@ -459,7 +435,6 @@ function Dashboard() {
     return result;
   }, [filteredDeliveries]);
 
-  // Consolidate computed-value ref syncs into one effect
   useEffect(() => {
     deliveriesWithStopOrderRef.current = deliveriesWithStopOrder;
   }, [deliveriesWithStopOrder]);
@@ -496,11 +471,8 @@ function Dashboard() {
   const isStatsCardCentered = useMemo(() => (screenWidth / cardWidth) < 2, [screenWidth, cardWidth]);
   const nextStop = useMemo(() => { if (!isDriver || !currentUser || !filteredDeliveries || filteredDeliveries.length === 0) return null; if (isRouteComplete) return null; const next = filteredDeliveries.find((d) => d && d.isNextDelivery === true && d.driver_id === currentUser.id && d.status !== 'pending' && !['completed','failed','cancelled'].includes(d.status)); if (next) return next; const unf = filteredDeliveries.filter((d) => d && d.driver_id === currentUser.id && !['completed','failed','cancelled','pending'].includes(d.status)); if (!unf.length) return null; return [...unf].sort((a, b) => a.stop_order && b.stop_order ? a.stop_order - b.stop_order : (a.delivery_time_start || '').localeCompare(b.delivery_time_start || ''))[0]; }, [isDriver, filteredDeliveries, currentUserId, isRouteComplete]);
   const nextStopCoordinates = useMemo(() => { if (!nextStop) return null; if (nextStop.is_cycling_marker && nextStop.cycling_latitude && nextStop.cycling_longitude) return { lat: nextStop.cycling_latitude, lon: nextStop.cycling_longitude }; if (nextStop.patient_id) { const p = patients.find((p) => p && p.id === nextStop.patient_id); if (p?.latitude && p?.longitude) return { lat: p.latitude, lon: p.longitude }; } else if (isInterStoreDelivery(nextStop.delivery_id)) { const isl = getInterStoreLocationSync(nextStop.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } else if (nextStop.store_id) { const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } return null; }, [nextStop, patients, stores]);
-  // nextStopCoordinatesRef kept as inline sync — fires only when nextStopCoordinates changes
   useEffect(() => { nextStopCoordinatesRef.current = nextStopCoordinates; }, [nextStopCoordinates]);
 
-  // ── Immersive mode — slides UI away when driver is actively moving toward their next stop ──
-  // Enabled only on the primary mobile device for drivers (not admins, not dispatchers).
   const {
     immersiveHidden,
     isDriverMoving,
@@ -849,7 +821,6 @@ function Dashboard() {
   }, [isDriver, isDispatcher, isAdmin, currentUser, deliveriesWithStopOrder,
       selectedDriverId, appUsers, driverLocation, allDriverLocations, isPrimaryDevice]);
 
-  // Track the last trigger value to prevent re-running on every state change
   const lastAppliedTriggerRef = useRef(0);
 
   useEffect(() => {
@@ -1385,21 +1356,19 @@ function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapViewTrigger]);
 
-  // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
-  // Uses ref flag — no re-render on flip; just unblocks effect 2.
+  const hasLoadedOfflineDataRef = useRef(false);
+  const lastOfflineLoadDateRef = useRef(null);
+  // RENDER SEQUENCE EFFECT 1
   useEffect(() => {
     if (!hasLoadedOfflineDataRef.current || !userSettingsLoaded) return;
     if (rsStatsAndCardsRef.current) return;
     const hasDeliveries = deliveriesWithStopOrder.length > 0;
     const statsCardMeasured = statsCardRef.current?.offsetHeight > 0;
     const stopCardsMeasured = hasDeliveries ? stopCardsBaseHeight > 0 : true;
-    if (statsCardMeasured && stopCardsMeasured) {
-      rsStatsAndCardsRef.current = true;
-    }
+    if (statsCardMeasured && stopCardsMeasured) rsStatsAndCardsRef.current = true;
   }, [hasLoadedOfflineDataRef.current, userSettingsLoaded, deliveriesWithStopOrder.length, stopCardsBaseHeight]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // RENDER SEQUENCE EFFECT 2: Track FABs ready (after stats/cards)
-  // Pure ref-flag cascade — no re-render needed to unlock effect 3.
+  // RENDER SEQUENCE EFFECT 2: FABs ready
   useEffect(() => {
     if (!rsStatsAndCardsRef.current) return;
     if (rsFabsRef.current) return;
@@ -1409,8 +1378,7 @@ function Dashboard() {
     return () => clearTimeout(timer);
   }, [rsStatsAndCardsRef.current, rsFabsRef.current]);
 
-  // RENDER SEQUENCE EFFECT 3: Track Map Markers ready — THIS one triggers a re-render
-  // (mapMarkers is consumed by MapSection). All gates before it are ref-checks only.
+  // RENDER SEQUENCE EFFECT 3: Map Markers ready (triggers re-render)
   useEffect(() => {
     if (!rsFabsRef.current) return;
     if (rsMapMarkersReady) return;
@@ -1425,10 +1393,7 @@ function Dashboard() {
     }
   }, [rsFabsRef.current, rsMapMarkersReady, deliveriesWithStopOrder.length, patients.length, stores.length]);
 
-  // Effect 4 (routeLines) collapsed into effect 3 — rsRouteLinesRef set there.
-
-  // RENDER SEQUENCE EFFECT 5: driverLiveLocation — ref-only gate for sharedLocations.
-  // For non-drivers this is always true (set in effect 3). For drivers, wait for GPS.
+  // RENDER SEQUENCE EFFECT 5: driverLiveLocation gate
   useEffect(() => {
     if (!rsRouteLinesRef.current) return;
     if (rsDriverLiveLocRef.current) return;
@@ -1438,7 +1403,7 @@ function Dashboard() {
     }
   }, [rsRouteLinesRef.current, rsDriverLiveLocRef.current, driverLocation, isDriver]);
 
-  // RENDER SEQUENCE EFFECT 6: sharedLocations — ref-only gate; unlocks fullDeliveriesLoaded.
+  // RENDER SEQUENCE EFFECT 6: sharedLocations gate
   useEffect(() => {
     if (!rsDriverLiveLocRef.current) return;
     if (rsSharedLocationsRef.current) return;
@@ -1452,10 +1417,7 @@ function Dashboard() {
     return () => clearTimeout(timer);
   }, [rsDriverLiveLocRef.current, rsSharedLocationsRef.current, allDriverLocations.length, isDataLoaded]);
 
-  // RENDER SEQUENCE EFFECT 7: fullDeliveriesLoaded — final gate before fabPhase.
-  // CRITICAL: once set it must NEVER reset from background refreshes — that's why
-  // rsFullDeliveriesRef is a ref (not state). The fabPhase effect below reads it
-  // directly on each of its own re-runs so no cascade re-render is needed here.
+  // RENDER SEQUENCE EFFECT 7: fullDeliveriesLoaded gate
   useEffect(() => {
     if (!rsSharedLocationsRef.current) return;
     if (rsFullDeliveriesRef.current) return;
@@ -2433,11 +2395,7 @@ useEffect(() => {
     preRenderSync();
   }, [currentUser?.id, isFiltersReady]);
 
-  // CRITICAL: STEP 1 - Load everything from offline DB FIRST for instant UI
-  // MUST wait for userSettingsLoaded so selectedDate/selectedDriverId are final
-  const hasLoadedOfflineDataRef = useRef(false);
-  const lastOfflineLoadDateRef = useRef(null);
-
+  // STEP 1 - Load offline DB FIRST for instant UI (refs declared before render sequence effects above)
   useEffect(() => {
     if (!currentUser || !isFiltersReady || !userSettingsLoaded) return;
     if (!hasPreRenderSyncRef.current) return;
