@@ -744,12 +744,12 @@ export default function PolylineViewer({ users = [] }) {
             >
               <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="font-medium text-sm truncate">{getDriverName(item.driver_id)}</span>
-                <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className="text-xs flex-shrink-0 ml-auto">
+                {isBreadcrumb && item.saved_to_route && (
+                  <Badge className="text-xs flex-shrink-0 ml-auto bg-green-100 text-green-700 border-0">✓ Saved</Badge>
+                )}
+                <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className={`text-xs flex-shrink-0 ${!item.saved_to_route ? 'ml-auto' : ''}`}>
                   {isBreadcrumb ? '🛤 BC' : '🗺 Poly'}
                 </Badge>
-                {isBreadcrumb && item.saved_to_route && (
-                  <Badge className="text-xs flex-shrink-0 bg-green-100 text-green-700 border-0">✓ Saved</Badge>
-                )}
               </div>
               <div className="text-xs text-slate-600 space-y-0.5">
                 <div className="flex items-center justify-between gap-2">
@@ -768,11 +768,13 @@ export default function PolylineViewer({ users = [] }) {
                   const distKm = calcPolylineDistanceKm(pts);
                   const distStr = distKm >= 1 ? `${distKm.toFixed(2)} km` : `${(distKm * 1000).toFixed(0)} m`;
                   return (
-                    <div className="flex items-center justify-between gap-1">
-                      <span>{item.transport_mode ? `🚗 ${item.transport_mode}` : ''}</span>
-                      <span className="text-slate-500">📏 {distStr}</span>
+                    <>
+                      <div className="flex items-center justify-between gap-1">
+                        <span>{item.transport_mode ? `🚗 ${item.transport_mode}` : ''}</span>
+                        <span className="text-slate-500">📏 {distStr}</span>
+                      </div>
                       {isFocused && (
-                        <div className="flex items-center gap-1 ml-1" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100" onClick={e => e.stopPropagation()}>
                           {isCleaningMode && focusedItem?.id === item.id && (
                             <span className="text-xs text-orange-700 font-medium mr-1">
                               {cleanedPoints.length} pts
@@ -812,7 +814,7 @@ export default function PolylineViewer({ users = [] }) {
                           </button>
                         </div>
                       )}
-                    </div>
+                    </>
                   );
                 })()}
               </div>
