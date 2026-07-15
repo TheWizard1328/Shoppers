@@ -1356,8 +1356,8 @@ function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapViewTrigger]);
 
-  // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
-  // Uses ref flag — no re-render on flip; just unblocks effect 2.
+  const hasLoadedOfflineDataRef = useRef(false);
+  const lastOfflineLoadDateRef = useRef('');
   useEffect(() => {
     if (!hasLoadedOfflineDataRef.current || !userSettingsLoaded) return;
     if (rsStatsAndCardsRef.current) return;
@@ -2363,8 +2363,6 @@ useEffect(() => {
 
   // CRITICAL: STEP 0 - ALWAYS fetch fresh AppUser data on app load
   const hasPreRenderSyncRef = useRef(false);
-  const hasLoadedOfflineDataRef = useRef(false);
-  const lastOfflineLoadDateRef = useRef('');
 
   useEffect(() => {
     if (!currentUser || !isFiltersReady) return;
