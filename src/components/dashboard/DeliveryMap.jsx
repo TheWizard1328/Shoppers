@@ -943,7 +943,23 @@ export default function DeliveryMap({
           targetZoomForBounds = Math.min(map.getBoundsZoom(bounds, false, avgPadding), requestedMaxZoom);
         } catch {}
 
-        const alreadyAtOrAboveMaxZoom = currentZoom >= requestedMaxZoom - 0.05 && targetZoomForBounds >= requestedMaxZoom - 0.05;
+        // ── UNIFIED PHASE 2/3 PAN RULE ──────────────────────────────────────────
+        // ONE rule: if the map is already at or above the zoom the bounds need,
+        // use a fast setView pan (0.5s) so every GPS tick gets through without
+        // being queued behind a long fitBounds animation.  Only use fitBounds
+        // (which changes zoom + pan in one animated step) when the map actually
+        // NEEDS to zoom IN to fit the bounds — i.e. the initial Phase 2 entry
+        // from a zoomed-out state, or when the driver+stop pair get far enough
+        // apart that a higher zoom is required.
+        //
+        // The old code split on `alreadyAtOrAboveMaxZoom` (currentZoom >= 17.5
+        // AND targetZoom >= 17.5), which meant at any typical Phase 2 zoom
+        // (14–16) the map took the slow fitBounds path.  That path also called
+        // a redundant setZoom(fittedZoom) that cancelled the fitBounds animation
+        // and fired moveend prematurely — leaving the map in a broken state
+        // where fitBoundsInFlightRef was cleared but the pan never completed,
+        // effectively stalling updates until the 12s watchdog re-fired.
+        const zoomAlreadyCorrect = currentZoom >= targetZoomForBounds - 0.05;
 
         fitBoundsInFlightRef.current = true;
         let settled = false;
@@ -963,40 +979,33 @@ export default function DeliveryMap({
         // completion indefinitely. Force-clear the in-flight flag after the requested
         // animation duration (+ margin) so a missed event can never permanently jam
         // the follow — it just picks up the latest position a little late instead.
-        const animMs = Math.round(((opts.duration != null ? opts.duration : (alreadyAtOrAboveMaxZoom ? 0.5 : 0.9)) * 1000)) + 600;
+        const panDuration = zoomAlreadyCorrect ? 0.5 : (opts.duration != null ? opts.duration : 0.9);
+        const animMs = Math.round(panDuration * 1000) + 600;
         safetyTimer = setTimeout(settle, animMs);
 
-        // When the map is already at or above maxZoom AND the new bounds also want that same
-        // max zoom, Leaflet's fitBounds clamps the zoom to maxZoom and — since the bounds
-        // already fit within the current viewport at that zoom — silently skips the pan entirely.
-        // Phase 2 and Phase 3 both hit this when the driver is zoomed all the way in. Fix: detect
-        // that case and do a direct setView to the padding-adjusted center of the bounds instead
-        // of calling fitBounds.
-        if (alreadyAtOrAboveMaxZoom) {
-          const center = bounds.getCenter();
-          // Adjust center to compensate for asymmetric padding so the bounds center
-          // appears visually centred within the padded viewport area.
-          // BUG FIX: this must match Leaflet's OWN _getBoundsCenterZoom convention —
-          // paddingOffset = (paddingBottomRight - paddingTopLeft) / 2, added to the
-          // projected point. The previous (paddingTopLeft - paddingBottomRight) sign
-          // was inverted, which pushed the effective center in the wrong direction
-          // (most visible at max zoom during close-range live GPS follow, where this
-          // branch fires almost every tick) — the driver/stop pair rendered off-center
-          // instead of within the visible (unobscured) portion of the viewport.
-          const horizShift = (paddingBottomRight[0] - paddingTopLeft[0]) / 2;
-          const vertShift  = (paddingBottomRight[1] - paddingTopLeft[1]) / 2;
-          const projected = map.project(center, currentZoom);
-          const adjusted  = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), currentZoom);
-          map.setView(adjusted, currentZoom, { animate: opts.animate !== false, duration: opts.duration || 0.5 });
-          // Stamp so moveend/zoomend guards don't treat this as a user-gesture unlock
+        // Compute the padding-adjusted center of the bounds — used by both paths.
+        const boundsCenter = bounds.getCenter();
+        const horizShift = (paddingBottomRight[0] - paddingTopLeft[0]) / 2;
+        const vertShift  = (paddingBottomRight[1] - paddingTopLeft[1]) / 2;
+        const projected = map.project(boundsCenter, zoomAlreadyCorrect ? currentZoom : targetZoomForBounds);
+        const adjusted  = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), zoomAlreadyCorrect ? currentZoom : targetZoomForBounds);
+
+        if (zoomAlreadyCorrect) {
+          // ── FAST PAN PATH (every GPS tick) ────────────────────────────────
+          // Map is already at or above the zoom the bounds need.  Just pan to
+          // the new padding-adjusted center with a short 0.5s animation.
+          // This is the ONLY path that should fire on subsequent GPS ticks
+          // during Phase 2 follow — it completes quickly enough that the next
+          // tick (1–5s) never gets queued behind the animation.
+          map.setView(adjusted, currentZoom, { animate: opts.animate !== false, duration: 0.5 });
           window._lastProgrammaticMapMove = Date.now() + 1500;
         } else {
-          // Normal path — zoom out (or stay) and pan to fit all bounds points
+          // ── ZOOM-IN PATH (initial Phase 2 entry or bounds expanded) ────────
+          // Map is zoomed out further than the bounds need.  Use fitBounds to
+          // animate the zoom-in + pan in one smooth step.  No redundant setZoom
+          // call — the old setZoom(fittedZoom) cancelled this animation and fired
+          // moveend prematurely, breaking the in-flight guard.
           map.fitBounds(bounds, { ...opts, paddingTopLeft, paddingBottomRight, animate: true });
-          // Apply the -0.1 reduction to the zoom Leaflet actually chose so the final
-          // render is always slightly zoomed out from the computed best-fit level
-          const fittedZoom = map.getZoom();
-          map.setZoom(fittedZoom, { animate: true });
           window._lastProgrammaticMapMove = Date.now() + 1500;
         }
       } catch {
