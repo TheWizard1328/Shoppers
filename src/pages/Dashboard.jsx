@@ -1356,16 +1356,17 @@ function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapViewTrigger]);
 
-  const hasLoadedOfflineDataRef = useRef(false);
-  const lastOfflineLoadDateRef = useRef(null);
-  // RENDER SEQUENCE EFFECT 1
+  // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
+  // Uses ref flag — no re-render on flip; just unblocks effect 2.
   useEffect(() => {
     if (!hasLoadedOfflineDataRef.current || !userSettingsLoaded) return;
     if (rsStatsAndCardsRef.current) return;
     const hasDeliveries = deliveriesWithStopOrder.length > 0;
     const statsCardMeasured = statsCardRef.current?.offsetHeight > 0;
     const stopCardsMeasured = hasDeliveries ? stopCardsBaseHeight > 0 : true;
-    if (statsCardMeasured && stopCardsMeasured) rsStatsAndCardsRef.current = true;
+    if (statsCardMeasured && stopCardsMeasured) {
+      rsStatsAndCardsRef.current = true;
+    }
   }, [hasLoadedOfflineDataRef.current, userSettingsLoaded, deliveriesWithStopOrder.length, stopCardsBaseHeight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // RENDER SEQUENCE EFFECT 2: FABs ready
@@ -1741,13 +1742,6 @@ useEffect(() => {
     };
   }, []);
 
-  // BUG FIX: OptimizationSpinner (the global bottom-right "Optimizing Route" KITT bar)
-  // used to show for ANY driver/date optimization happening anywhere in the app — so a
-  // driver doing a harmless Staged→Pending flip on their own screen could see the orange
-  // banner because a completely unrelated optimization (another driver's Accept All, a
-  // dispatcher batch save, etc.) happened to be running in the background at the same
-  // moment. Broadcast the currently-viewed driver+date so the spinner can filter to only
-  // the route the current user is actually looking at.
   useEffect(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     window.__currentDashboardContext = {
@@ -2369,6 +2363,8 @@ useEffect(() => {
 
   // CRITICAL: STEP 0 - ALWAYS fetch fresh AppUser data on app load
   const hasPreRenderSyncRef = useRef(false);
+  const hasLoadedOfflineDataRef = useRef(false);
+  const lastOfflineLoadDateRef = useRef('');
 
   useEffect(() => {
     if (!currentUser || !isFiltersReady) return;
