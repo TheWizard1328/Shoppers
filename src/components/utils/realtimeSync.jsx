@@ -49,13 +49,42 @@ const eventBuffers = {
 };
 const flushTimers = {};
 
+// Fields that must survive a partial follow-up WS event for the same record.
+// When two WS events arrive for the same delivery (e.g. the polyline write fires
+// two events because the backend does two field updates in sequence), the second
+// event often only carries the timestamp field. The merge must preserve any
+// polyline/route fields from the first event so they are not silently dropped.
+const POLYLINE_PRESERVE_FIELDS = [
+  'encoded_polyline', 'travel_dist', 'polyline_saved_at',
+  'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes',
+];
+
 function bufferEvent(entityName, payload) {
   const buf = eventBuffers[entityName] || new Map();
   eventBuffers[entityName] = buf;
   const prev = buf.get(payload.id);
   if (prev) {
     const mergedChanged = Array.from(new Set([...(prev.changedFields || []), ...(payload.changedFields || [])]));
-    buf.set(payload.id, { ...prev, ...payload, changedFields: mergedChanged, isRemoteUpdate: prev.isRemoteUpdate || payload.isRemoteUpdate });
+    const mergedData = { ...(prev.data || {}), ...(payload.data || {}) };
+
+    // CRITICAL: If the incoming payload is missing key polyline fields that the previous
+    // buffered event DID carry, restore them. This prevents a follow-up timestamp-only
+    // WS event (e.g. just polyline_saved_at + updated_date) from wiping encoded_polyline.
+    if (entityName === 'Delivery' && prev.data && payload.data) {
+      for (const field of POLYLINE_PRESERVE_FIELDS) {
+        if (prev.data[field] && !payload.data[field]) {
+          mergedData[field] = prev.data[field];
+        }
+      }
+    }
+
+    buf.set(payload.id, {
+      ...prev,
+      ...payload,
+      data: mergedData,
+      changedFields: mergedChanged,
+      isRemoteUpdate: prev.isRemoteUpdate || payload.isRemoteUpdate,
+    });
   } else {
     buf.set(payload.id, payload);
   }
