@@ -259,6 +259,10 @@ export const AppDataProvider = ({ children, value }) => {
           ? nextDeliveries.filter((item) => item?.delivery_date === realtimeDate)
           : nextDeliveries;
 
+        const hasPolylineUpdate = deliveryUpserts.some(
+          (d) => d?.encoded_polyline || d?.polyline_saved_at
+        );
+
         window.dispatchEvent(new CustomEvent('deliveryUpdated', {
           detail: {
             delivery: deliveryUpserts.length === 1 ? deliveryUpserts[0] : null,
@@ -270,6 +274,24 @@ export const AppDataProvider = ({ children, value }) => {
             fromRealtime: true,
             fullReplacement: false,
             preserveLocalState: true
+          }
+        }));
+
+        // CRITICAL: Also fire deliveriesUpdated so the map polyline components
+        // (HereType1Polylines etc.) invalidate and re-render the new encoded_polyline.
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            freshDeliveries: selectedDateDeliveries,
+            deliveries: selectedDateDeliveries,
+            deletedIds: deliveryDeletes,
+            triggeredBy: 'realtimeBufferedFullRefresh',
+            source: 'realtime_sync',
+            fromRealtime: true,
+            fullReplacement: false,
+            preserveLocalState: true,
+            skipMapPhaseOneRefresh: true,
+            skipDriverLocationRefresh: true,
+            forcePolylineRefresh: hasPolylineUpdate,
           }
         }));
       }
