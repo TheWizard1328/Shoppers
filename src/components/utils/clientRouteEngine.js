@@ -1074,7 +1074,7 @@ export async function optimizeRouteClientSide({
   if (historicalRoute && routeStops.length > 0) {
     const firstStop = routeStops[0];
     let cumulativeTime = currentMinutes;
-    const firstStopWindowStart = parseTimeToMinutes(firstStop.windowStart || firstStop.delivery.time_window_start || firstStop.delivery.delivery_time_start);
+    const firstStopWindowStart = parseTimeToMinutes(firstStop.windowStart || firstStop.delivery.delivery_time_start || firstStop.delivery.time_window_start);
     if (Number.isFinite(firstStopWindowStart) && cumulativeTime < firstStopWindowStart) cumulativeTime = firstStopWindowStart;
     stageEtaMap.set(firstStop.delivery.id, formatMinutesToTime(cumulativeTime));
     cumulativeTime += firstStop.delivery.extra_time || (firstStop.isPickup ? 15 : 5);
@@ -1082,7 +1082,7 @@ export async function optimizeRouteClientSide({
       const stop = routeStops[i];
       const seg = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
       cumulativeTime += getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg });
-      const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start || stop.delivery.delivery_time_start);
+      const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || stop.delivery.time_window_start);
       if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
       stageEtaMap.set(stop.delivery.id, formatMinutesToTime(cumulativeTime));
       cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
@@ -1102,7 +1102,7 @@ export async function optimizeRouteClientSide({
         ? 0
         : getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline: seg });
       cumulativeTime += travelMinutes;
-      const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start);
+      const ws = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || stop.delivery.time_window_start);
       if (Number.isFinite(ws) && cumulativeTime < ws) cumulativeTime = ws;
       if (isFutureRoute && !routeOfficiallyStarted && stop.isPickup) {
         const pickupStart = parseTimeToMinutes(stop.delivery.delivery_time_start);
@@ -1311,7 +1311,7 @@ function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliv
     const pickupDeliveries = [
       ...activeDeliveries.filter(d => d.puid === pickup.stop_id),
       ...sortedPendingDeliveries.filter(d => d.puid === pickup.stop_id)
-    ].sort((a, b) => parseTimeToMinutes(a.time_window_start || a.delivery_time_start || '99:99') - parseTimeToMinutes(b.time_window_start || b.delivery_time_start || '99:99'));
+    ].sort((a, b) => parseTimeToMinutes(a.delivery_time_start || a.time_window_start || '99:99') - parseTimeToMinutes(b.delivery_time_start || b.time_window_start || '99:99'));
     for (const del of pickupDeliveries) { orderedStops.push({ delivery: del, isPickup: false }); addedDeliveryIds.add(del.id); }
   }
   for (const del of [...activeDeliveries, ...sortedPendingDeliveries]) {

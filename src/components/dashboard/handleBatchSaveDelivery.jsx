@@ -238,18 +238,16 @@ export const handleBatchSaveDelivery = async ({
           s.ampm_deliveries === stop.ampm_deliveries;
         });
 
-        if (stopPatient?.time_window_start) {
+        if (!stop.delivery_time_start && stopPatient?.time_window_start) {
           stop.delivery_time_start = stopPatient.time_window_start;
-        } else if (correspondingPickup?.delivery_time_start) {
+        } else if (!stop.delivery_time_start && correspondingPickup?.delivery_time_start) {
           stop.delivery_time_start = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
-        } else {
-          stop.delivery_time_start = stop.delivery_time_start || '10:00';
+        } else if (!stop.delivery_time_start) {
+          stop.delivery_time_start = '10:00';
         }
 
-        if (stopPatient?.time_window_end) {
+        if (!stop.delivery_time_end && stopPatient?.time_window_end) {
           stop.delivery_time_end = stopPatient.time_window_end;
-        } else {
-          stop.delivery_time_end = '';
         }
 
         stop.time_window_start = stop.delivery_time_start;
@@ -263,18 +261,16 @@ export const handleBatchSaveDelivery = async ({
       if (!stop || stop.patient_id === null) continue;
       const stopPatient = patients.find((p) => p.id === stop.patient_id);
       const correspondingPickup = optimizedRoute.find((s) => s && s.store_id === stop.store_id && s.patient_id === null && s.ampm_deliveries === stop.ampm_deliveries);
-      if (stopPatient?.time_window_start) {
+      if (!stop.delivery_time_start && stopPatient?.time_window_start) {
         stop.delivery_time_start = stopPatient.time_window_start;
-      } else if (correspondingPickup?.delivery_time_start) {
+      } else if (!stop.delivery_time_start && correspondingPickup?.delivery_time_start) {
         const p5 = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
         const eta5 = correspondingPickup.estimated_arrival ? addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
         if (eta5 && eta5 > p5) stop.delivery_time_start = eta5;else
         if (p5) stop.delivery_time_start = p5;
       }
-      if (stopPatient?.time_window_end) {
+      if (!stop.delivery_time_end && stopPatient?.time_window_end) {
         stop.delivery_time_end = stopPatient.time_window_end;
-      } else {
-        stop.delivery_time_end = '';
       }
       stop.time_window_start = stop.delivery_time_start;
       stop.time_window_end = stop.delivery_time_end || '';

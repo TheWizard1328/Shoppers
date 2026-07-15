@@ -237,13 +237,13 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       for (const stop of list) {
         if (!stop || stop.patient_id === null) continue;
         const sp = patients.find((p) => p.id === stop.patient_id);
-        if (sp?.time_window_start) { stop.delivery_time_start = sp.time_window_start; }
-        else {
+        if (!stop.delivery_time_start && sp?.time_window_start) { stop.delivery_time_start = sp.time_window_start; }
+        else if (!stop.delivery_time_start) {
           const cp = list.find((s) => s && !s.patient_id && s.store_id === stop.store_id && !(s.ampm_deliveries && stop.ampm_deliveries && s.ampm_deliveries !== stop.ampm_deliveries) && !finishedStatuses.includes(s.status));
           if (cp?.delivery_time_start) stop.delivery_time_start = addMinutes(cp.delivery_time_start, 5);
-          else stop.delivery_time_start = stop.delivery_time_start || '10:00';
+          else stop.delivery_time_start = '10:00';
         }
-        if (sp?.time_window_end) stop.delivery_time_end = sp.time_window_end;
+        if (!stop.delivery_time_end && sp?.time_window_end) stop.delivery_time_end = sp.time_window_end;
       }
     };
     applyTimes(stopsToProcess);
