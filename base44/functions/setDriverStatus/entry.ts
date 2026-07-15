@@ -15,6 +15,61 @@ const getEdmDate = () => {
   return `${year}-${month}-${day}`;
 };
 
+/**
+ * Record a DriverDailyActivity segment for a status transition.
+ * on_duty → open a new segment (close any dangling open segment first)
+ * on_break / off_duty → close the open segment with a tot
+ */
+const recordActivitySegment = async (base44, driverId, driverName, newStatus, previousStatus) => {
+  try {
+    const todayStr = getEdmDate();
+    const now = new Date().toISOString();
+    const nowMs = Date.now();
+
+    const existing = await base44.asServiceRole.entities.DriverDailyActivity.filter({
+      driver_id: driverId,
+      activity_date: todayStr
+    }).catch(() => []);
+
+    let record = existing?.[0] || null;
+
+    if (!record) {
+      record = await base44.asServiceRole.entities.DriverDailyActivity.create({
+        driver_id: driverId,
+        driver_name: driverName || '',
+        activity_date: todayStr,
+        activity_segments: []
+      });
+    }
+
+    const segments = Array.isArray(record.activity_segments) ? [...record.activity_segments] : [];
+
+    if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
+      // Close any dangling open segment (crash recovery)
+      const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
+      if (openIdx !== -1) {
+        const startMs = new Date(segments[openIdx].start_time).getTime();
+        segments[openIdx] = { ...segments[openIdx], end_time: now, tot: Math.max(0, Math.round((nowMs - startMs) / 60000)) };
+      }
+      segments.push({ start_time: now, end_time: null, tot: null });
+      await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
+      console.log(`⏱️ [setDriverStatus] Activity segment opened for ${driverId}`);
+
+    } else if ((newStatus === 'on_break' || newStatus === 'off_duty') && previousStatus === 'on_duty') {
+      const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
+      if (openIdx !== -1) {
+        const startMs = new Date(segments[openIdx].start_time).getTime();
+        const tot = Math.max(0, Math.round((nowMs - startMs) / 60000));
+        segments[openIdx] = { ...segments[openIdx], end_time: now, tot };
+        await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
+        console.log(`⏸️ [setDriverStatus] Activity segment closed — ${tot} min for ${driverId}`);
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ [setDriverStatus] recordActivitySegment failed (non-critical):', err?.message || err);
+  }
+};
+
 const clearNextDeliveryFlags = async (base44, driverId, deliveryDate) => {
   const deliveries = await base44.asServiceRole.entities.Delivery.filter({
     driver_id: driverId,
@@ -90,6 +145,9 @@ Deno.serve(async (req) => {
     if (!updatedAppUser) {
       return Response.json({ success: true, skipped: true, reason: 'app_user_not_found_during_update' });
     }
+
+    // Record DriverDailyActivity segment for this status transition
+    await recordActivitySegment(base44, subjectUserId, appUser.user_name || '', newStatus, previousStatus);
     
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);
