@@ -14,19 +14,15 @@
  */
 function extractPatientNamesFromReturnNotes(notes) {
   if (!notes) return null;
-  const forMatch = notes.match(/For:\s*(.+)/i);
+  const forMatch = notes.match(/For:\s*([\s\S]+?)(?=\(RTN\)|$)/i);
   if (!forMatch) return null;
 
-  const firstNames = forMatch[1].split('\n')[0];
-  const andMatches = [...notes.matchAll(/^and:\s*(.+)/gim)].map(m => m[1]);
-
-  const all = [firstNames, ...andMatches]
-    .join(',')
-    .split(',')
+  const names = forMatch[1]
+    .split(/,|\n|\band\b/i)
     .map(n => n.trim())
-    .filter(n => n.length > 0);
+    .filter(n => n.length > 0 && !/^for:/i.test(n) && !/^\(rtn\)$/i.test(n));
 
-  return all.length > 0 ? all.join(', ') : null;
+  return names.length > 0 ? names.join(', ') : null;
 }
 
 export const NOTIFICATION_EVENTS = {
