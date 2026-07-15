@@ -41,21 +41,11 @@ import UserSettingsTable from '../components/admin/UserSettingsTable';
 import InkbirdRawDiagnostic from '../components/admin/InkbirdRawDiagnostic';
 import InkbirdBleLog from '../components/devices/InkbirdBleLog';
 
-// Wrapper to reload data when Routes tab is opened or a breadcrumb save completes
+// Wrapper — keeps PolylineViewer mounted while the Routes tab is active.
+// PolylineViewer already updates its own state on breadcrumbSavedToDelivery,
+// so we must NOT remount it (via key change) on save — that resets all state.
 const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
-  const [reloadKey, setReloadKey] = useState(0);
-
-  // Force PolylineViewer to reload its data when a breadcrumb is saved to a delivery
-  useEffect(() => {
-    if (activeUtilityTab !== 'polylines') return;
-    const handleBreadcrumbSaved = () => {
-      setReloadKey(k => k + 1);
-    };
-    window.addEventListener('breadcrumbSavedToDelivery', handleBreadcrumbSaved);
-    return () => window.removeEventListener('breadcrumbSavedToDelivery', handleBreadcrumbSaved);
-  }, [activeUtilityTab]);
-
-  return <PolylineViewer key={`${activeUtilityTab === 'polylines' ? 'active' : 'inactive'}-${reloadKey}`} users={users} />;
+  return <PolylineViewer key={activeUtilityTab === 'polylines' ? 'active' : 'inactive'} users={users} />;
 };
 
 const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm, confirmText = "Delete", variant = "destructive" }) => (
