@@ -32,7 +32,7 @@ import PolylineViewer from '../components/admin/PolylineViewer';
 import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
-import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';import IntegrationCreditsTab from '../components/admin/IntegrationCreditsTab';import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';
+import PatientAnalysisReview from '../components/admin/PatientAnalysisReview';import SimpleDataViewTab from '../components/admin/SimpleDataViewTab';import DriverActivityTab from '../components/admin/DriverActivityTab';
 import DeliveryRouteDataCell from '../components/admin/DeliveryRouteDataCell';
 import { ResizableColumnHeader, ColumnVisibilityControl } from '../components/admin/AdminTableControls';
 import AdminDeliveriesTable from '../components/admin/AdminDeliveriesTable';
@@ -1715,7 +1715,7 @@ export default function AdminUtilities() {
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Deliveries</TabsTrigger>
                        <TabsTrigger value="patients" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Patients</TabsTrigger>
                        <TabsTrigger value="stores" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Stores</TabsTrigger><TabsTrigger value="temp-logs" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ Temp Logs</TabsTrigger>
-                       <TabsTrigger value="credits" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Credits</TabsTrigger>
+                       <TabsTrigger value="driver-activity" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Driver Activity</TabsTrigger>
                        <TabsTrigger value="ble-diagnostic" className="text-xs md:text-sm px-3 py-2 justify-center text-center">🌡️ BLE Diag</TabsTrigger>
                        </TabsList></div>
 
@@ -1866,7 +1866,7 @@ export default function AdminUtilities() {
                     
                     </SimpleDataViewTab>
                   </TabsContent>
-                  <TabsContent value="credits" className="mt-6"><IntegrationCreditsTab /></TabsContent><TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>
+                  <TabsContent value="driver-activity" className="mt-4"><DriverActivityTab appUsers={appUsers || []} cities={cities || []} stores={stores || []} /></TabsContent><TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>
                   <TabsContent value="companies" className="mt-6"><CompanyDataTab /></TabsContent>
                   <TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent></Tabs>
               </div>
