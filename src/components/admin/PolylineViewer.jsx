@@ -606,7 +606,7 @@ export default function PolylineViewer({ users = [] }) {
         const deliveryId = res.data.deliveryId;
         toast.success(`Stop #${item.stop_order} saved — ${travelDistKm != null ? travelDistKm.toFixed(2) + ' km' : ''}`);
         pendingCleanRef.current = null;
-        const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true };
+        const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true, imported_from_delivery: false };
         setBreadcrumbs(prev => prev.map(b =>
           b.id === item.id ? updatedItem : b
         ));
@@ -668,22 +668,23 @@ export default function PolylineViewer({ users = [] }) {
     const newPoly = matchingDelivery.encoded_polyline;
     const pts = decodePolyline(newPoly);
     try {
-      // Update online entity
+      // Update online entity — mark as imported (not yet saved back)
       await base44.entities.DeliveryBreadcrumbs.update(item.id, {
         encoded_polyline: newPoly,
         point_count: pts.length,
-        saved_to_route: true,
+        saved_to_route: false,
+        imported_from_delivery: true,
       });
       // Update offline DB
       const { offlineDB } = await import('../utils/offlineDatabase').catch(() => ({ offlineDB: null }));
       if (offlineDB) {
         const existing = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, item.id).catch(() => null);
         if (existing) {
-          await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: true });
+          await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: false, imported_from_delivery: true });
         }
       }
       // Update local state
-      const updatedItem = { ...item, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: true };
+      const updatedItem = { ...item, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: false, imported_from_delivery: true };
       setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
       setFocusedItem(updatedItem);
       // Enter cleaning mode with the imported points ready to edit
@@ -744,10 +745,13 @@ export default function PolylineViewer({ users = [] }) {
             >
               <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="font-medium text-sm truncate">{getDriverName(item.driver_id)}</span>
+                {isBreadcrumb && item.imported_from_delivery && !item.saved_to_route && (
+                  <Badge className="text-xs flex-shrink-0 ml-auto bg-purple-100 text-purple-700 border-0">↓ Imported</Badge>
+                )}
                 {isBreadcrumb && item.saved_to_route && (
                   <Badge className="text-xs flex-shrink-0 ml-auto bg-green-100 text-green-700 border-0">✓ Saved</Badge>
                 )}
-                <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className={`text-xs flex-shrink-0 ${!item.saved_to_route ? 'ml-auto' : ''}`}>
+                <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className={`text-xs flex-shrink-0 ${!item.saved_to_route && !item.imported_from_delivery ? 'ml-auto' : ''}`}>
                   {isBreadcrumb ? '🛤 BC' : '🗺 Poly'}
                 </Badge>
               </div>
