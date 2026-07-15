@@ -79,14 +79,21 @@ export async function handleReoptimizeRoute({
 
       // Push fresh deliveries to UI
       if (Array.isArray(result.freshDeliveries) && result.freshDeliveries.length > 0) {
-        updateDeliveriesLocally?.(result.freshDeliveries, true);
+        // CRITICAL: Use MERGE mode (false), NOT full replacement (true).
+        // freshDeliveries only contains THIS driver's deliveries for THIS date.
+        // Using fullReplacement=true would wipe ALL other drivers' deliveries and
+        // ALL other dates' deliveries from the in-memory state — the driver would
+        // see all cached data vanish after toggling status (which triggers this
+        // via ON_DUTY_FROM_TOGGLE). The deliveriesUpdated event below handles the
+        // merge correctly (it merges into existing state, never drops absent IDs).
+        updateDeliveriesLocally?.(result.freshDeliveries, false);
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
             driverId,
             deliveryDate,
             triggeredBy: 'reoptimizeRoute',
             alreadyOptimized: true,
-            fullReplacement: true,
+            fullReplacement: false,
             freshDeliveries: result.freshDeliveries,
           },
         }));

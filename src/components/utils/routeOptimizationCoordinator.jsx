@@ -214,10 +214,11 @@ export async function performRouteOptimization({
     if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
       const _freshPolyCount = freshDeliveries.filter(d => d?.encoded_polyline).length;
       console.log(`[RouteOptimization] ${source} — local merge: ${freshDeliveries.length} deliveries, ${_freshPolyCount} with polylines`);
-      // Persist to offline DB in the background — don't await
-      offlineDB.replaceRecordsByIndex(
-        offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDate, freshDeliveries
-      ).catch(() => {});
+      // CRITICAL: Use individual saves (merge), NOT replaceRecordsByIndex.
+      // freshDeliveries only contains THIS driver's deliveries — replaceRecordsByIndex
+      // would DELETE all other drivers' deliveries for the same date from IDB,
+      // causing cached data loss when optimization is triggered via status toggle.
+      Promise.all(freshDeliveries.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {}))).catch(() => {});
     }
 
     const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;
