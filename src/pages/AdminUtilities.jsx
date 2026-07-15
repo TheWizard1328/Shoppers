@@ -351,7 +351,7 @@ export default function AdminUtilities() {
   const [selectedDeliveryYear, setSelectedDeliveryYear] = useState(() => new Date().getFullYear().toString());
   const [selectedDeliveryMonth, setSelectedDeliveryMonth] = useState(() => (new Date().getMonth() + 1).toString());
   const [selectedDriver, setSelectedDriver] = useState('all');
-  const [selectedCodFilter, setSelectedCodFilter] = useState('all');
+  const [selectedCodFilter, setSelectedCodFilter] = useState('all_deliveries');
   const [availableDeliveryYears, setAvailableDeliveryYears] = useState([]);
   const [filtersReady, setFiltersReady] = useState(false);
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);

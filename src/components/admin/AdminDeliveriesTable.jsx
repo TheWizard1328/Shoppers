@@ -28,7 +28,7 @@ export default function AdminDeliveriesTable(props) {
 
   const [selectedDeliveries, setSelectedDeliveries] = useState(new Set());
   const [editingDriverId, setEditingDriverId] = useState(null);
-  const [showMostRecentOnly, setShowMostRecentOnly] = useState(false);
+  const [showMostRecentOnly, setShowMostRecentOnly] = useState(true);
   const [columnWidths] = useState({ checkbox: 50, date: 120, order: 80, sid_pid: 110, tracking: 90, delivery_to: 220, driver: 140, cod: 120, distance: 90, status: 110, actions: 110 });
   const isCodFilterActive = selectedCodFilter && selectedCodFilter !== 'all_deliveries';
 
