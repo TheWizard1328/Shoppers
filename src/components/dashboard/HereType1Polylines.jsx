@@ -253,8 +253,10 @@ function HereType1Polylines({
 
     if (isComplete || (!hasFinished && activeCount === 0)) return; // Path 3 or no stops — skip
 
-    // Find the current (next) active stop
-    const orderedIncomplete = [...stops.incomplete]
+    // Find the current (next) active stop.
+    // On Path 1 (not started), all stops are pending — include pending stops
+    // so the first-leg polyline is visible before any stop is accepted.
+    const orderedIncomplete = [...stops.incomplete, ...(hasFinished ? [] : stops.pending)]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
     const currentStop = orderedIncomplete.find((s) => s?.isNextDelivery === true) || orderedIncomplete[0];
     if (!currentStop) return;
