@@ -167,7 +167,28 @@ export default function useStopCardActions(params) {
     if (delivery?.delivery_date !== localDeviceTodayStr) return;
     try {
       const { data } = await setDriverStatus({ newStatus: 'on_duty' });
-      try { await locationTracker.startTracking({ ...currentUser, appUserId: data?.appUserId }); } catch {}
+      const appUserId = data?.appUserId;
+      // CRITICAL: Update the local IDB AppUser record so a page refresh doesn't
+      // show a stale 'off_duty' status.  The backend setDriverStatus already
+      // broadcast the change via WebSocket (which updates the toggle UI), but
+      // IDB is the boot-time source of truth and must be kept in sync.
+      if (appUserId) {
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
+          await offlineDB.save(offlineDB.STORES.APP_USERS, {
+            ...existingRecord,
+            ...currentUser,
+            driver_status: 'on_duty',
+            location_tracking_enabled: true,
+            location_updated_at: new Date().toISOString(),
+            id: appUserId,
+          });
+        } catch (idbErr) {
+          console.warn('[ensureDriverOnline] IDB update failed (non-critical):', idbErr?.message);
+        }
+      }
+      try { await locationTracker.startTracking({ ...currentUser, appUserId }); } catch {}
       if (onDriverStatusChange) onDriverStatusChange('on_duty');
     } catch (error) {
       console.error('Failed to auto-toggle driver online:', error);
