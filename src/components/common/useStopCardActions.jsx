@@ -28,6 +28,7 @@ import { performRouteOptimization } from '../utils/routeOptimizationCoordinator'
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 import { updatePreferredTravelMode } from '../dashboard/travelModeHelpers';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
+import { lockDeliveryFields } from '../utils/completionLockout';
 
 const START_ACTION_NAME = 'start_delivery';
 
@@ -1026,6 +1027,14 @@ export default function useStopCardActions(params) {
 
     const nextStop = incompleteDeliveries[0] || null;
     const routeIsFinished = incompleteDeliveries.length === 0;
+
+    // CRITICAL: Lock completion fields BEFORE setAndCenterNextDelivery fires.
+    // Without this, the fire-and-forget refreshDriverRoute (step 6) and WebSocket
+    // events from the backend update can read stale IDB data and revert the
+    // optimistic isNextDelivery flag, causing the visible "bounce" back to the
+    // old stop. This mirrors the lock pattern in handleStatusUpdate.jsx.
+    lockDeliveryFields(delivery.id, ['status', 'isNextDelivery']);
+    if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery']);
 
     // 5. Single authoritative isNextDelivery write — this is the ONLY place it fires
     await setAndCenterNextDelivery({
