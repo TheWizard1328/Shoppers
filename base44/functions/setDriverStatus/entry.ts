@@ -171,22 +171,22 @@ Deno.serve(async (req) => {
     // the polyline so the route line appears correctly.
     if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
       const targetDate = selectedDate || getEdmDate();
-      const ACTIVE_STATUSES = new Set(['in_transit', 'en_route', 'arrived']);
+      const INCOMPLETE_STATUSES = new Set(['in_transit', 'en_route', 'arrived', 'pending']);
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: subjectUserId,
         delivery_date: targetDate
       }, 'stop_order');
 
       const flaggedDeliveries = allTodayDeliveries.filter((d) => d?.isNextDelivery === true);
-      const activeDeliveries = allTodayDeliveries.filter((d) => d && ACTIVE_STATUSES.has(d.status));
+      const incompleteDeliveries = allTodayDeliveries.filter((d) => d && INCOMPLETE_STATUSES.has(d.status) && !d.is_cycling_marker);
       console.log(`📦 [setDriverStatus] Found ${allTodayDeliveries.length} deliveries for ${targetDate}`);
-      console.log(`📦 [setDriverStatus] Flagged: ${flaggedDeliveries.length}, Active: ${activeDeliveries.length}`);
+      console.log(`📦 [setDriverStatus] Flagged: ${flaggedDeliveries.length}, Incomplete: ${incompleteDeliveries.length}`);
 
-      // If no stop is currently flagged as next (e.g. coming back from on_break which cleared all flags),
-      // but there are active stops, re-establish the isNextDelivery flag before regenerating the polyline.
+      // Always re-establish the isNextDelivery flag when going on_duty:
+      // covers both returning from on_break (flags cleared) and first on_duty of the day (all pending).
       let resolvedFlagged = flaggedDeliveries;
-      if (flaggedDeliveries.length === 0 && activeDeliveries.length > 0) {
-        console.log(`🔄 [setDriverStatus] No isNextDelivery flag found after status restore — calling setNextDeliveryFlag to re-establish`);
+      if (incompleteDeliveries.length > 0) {
+        console.log(`🔄 [setDriverStatus] Calling setNextDeliveryFlag to establish next stop for on_duty`);
         await base44.asServiceRole.functions.invoke('setNextDeliveryFlag', {
           driverId: subjectUserId,
           deliveryDate: targetDate

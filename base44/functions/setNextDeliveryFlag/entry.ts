@@ -65,8 +65,14 @@ function buildStopOrderRepairs(deliveries) {
 
 const ACTIVE_STATUSES = new Set(['in_transit', 'en_route']);
 
-const getSortedActiveDeliveries = (deliveries) =>
-  (deliveries || [])
+/**
+ * Returns the sorted list of "next candidate" stops.
+ * Priority: in_transit/en_route stops first (driver is mid-delivery),
+ * then pending stops (driver going on duty for the first time).
+ * Cycling markers are included in the active set only.
+ */
+const getSortedActiveDeliveries = (deliveries) => {
+  const activeStops = (deliveries || [])
     .filter((delivery) =>
       delivery && (
         ACTIVE_STATUSES.has(delivery.status) ||
@@ -79,6 +85,19 @@ const getSortedActiveDeliveries = (deliveries) =>
       if (stopOrderDiff !== 0) return stopOrderDiff;
       return String(a.id || '').localeCompare(String(b.id || ''));
     });
+
+  // If there are in-transit/en-route stops, use those — driver is mid-route.
+  if (activeStops.length > 0) return activeStops;
+
+  // Fall back to pending stops sorted by stop_order (driver going on duty fresh).
+  return (deliveries || [])
+    .filter((delivery) => delivery && delivery.status === 'pending' && !delivery.is_cycling_marker)
+    .sort((a, b) => {
+      const stopOrderDiff = (a.stop_order || 0) - (b.stop_order || 0);
+      if (stopOrderDiff !== 0) return stopOrderDiff;
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+};
 
 Deno.serve(async (req) => {
   try {
