@@ -34,8 +34,10 @@ export const resumeRealtimeSync = () => {
   console.log(`▶️ [RealtimeSync] [${rsTime()}] UI broadcasts resumed`);
 };
 
-// Buffered inbound realtime events to reduce UI thrash
-const DEBOUNCE_MS = 0;
+// Buffered inbound realtime events to reduce UI thrash.
+// A non-zero debounce gives the IDB write lock time to commit both events from a
+// two-broadcast polyline save before flushBuffered reads the IDB snapshot back.
+const DEBOUNCE_MS = 50;
 const eventBuffers = {
   Delivery: new Map(),
   Patient: new Map(),
@@ -706,7 +708,17 @@ const subscribeToEntity = (entityName) => {
             // CRITICAL: For Delivery updates, merge incoming data with the existing offline record
             // to avoid wiping time window fields (delivery_time_start/end/eta) that may not be
             // included in a partial WebSocket update payload.
+            // We use a per-delivery lock so two rapid WS events (e.g. encoded_polyline then
+            // polyline_saved_at) don't race on the IDB read-merge-write cycle — the second
+            // would otherwise read the pre-first-write record (no polyline) and overwrite it.
             if (entityName === 'Delivery' && type === 'update' && data?.id) {
+              // Serialize concurrent writes for the same delivery id
+              if (!window.__deliveryIdbWriteLocks) window.__deliveryIdbWriteLocks = new Map();
+              const prevLock = window.__deliveryIdbWriteLocks.get(data.id) || Promise.resolve();
+              let resolveLock;
+              const newLock = new Promise((r) => { resolveLock = r; });
+              window.__deliveryIdbWriteLocks.set(data.id, newLock);
+              await prevLock; // wait for any in-progress write for this delivery to finish
               try {
                 const existing = await offlineDB.getById(storeName, data.id);
                 if (existing) {
@@ -759,6 +771,8 @@ const subscribeToEntity = (entityName) => {
                 }
               } catch (mergeErr) {
                 // Non-critical — fall back to using data as-is
+              } finally {
+                resolveLock(); // release the per-delivery write lock
               }
             }
             // CRITICAL: Merge AppUser data with existing offline record before saving.
