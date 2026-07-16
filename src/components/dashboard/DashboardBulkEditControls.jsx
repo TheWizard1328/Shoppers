@@ -36,7 +36,7 @@ export default function DashboardBulkEditControls({
   onBulkApplyComplete
 }) {
   const { isMobile } = useDevice();
-  const { appUsers } = useAppData();
+  const { appUsers, applyDeliveryChangesLocally } = useAppData();
   const effectiveDrivers = useMemo(() => {
     if (drivers && drivers.length > 0) return drivers;
     if (!appUsers) return [];
@@ -149,8 +149,8 @@ export default function DashboardBulkEditControls({
         }
       }
 
-      // STEP 1: Apply all delivery updates immediately — both offline DB and backend API in parallel.
-      await Promise.all(selectedDeliveries.map(async (delivery) => {
+      // STEP 1: Build per-delivery payloads
+      const perDeliveryPayloads = selectedDeliveries.map((delivery) => {
         const payload = { ...sharedUpdates };
 
         // Status is per-delivery (pickup vs delivery determines en_route vs in_transit)
@@ -165,12 +165,26 @@ export default function DashboardBulkEditControls({
           payload.puid = values.puid || null;
         }
 
-        if (Object.keys(payload).length === 0) return;
+        return { delivery, payload };
+      }).filter(({ payload }) => Object.keys(payload).length > 0);
 
-        return updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true, isBatchOperation: false });
-      }));
+      // STEP 2: Optimistically update React state immediately (before any async writes)
+      // This ensures the UI reflects the change right away without waiting for refreshData()
+      if (perDeliveryPayloads.length > 0) {
+        applyDeliveryChangesLocally({
+          upserts: perDeliveryPayloads.map(({ delivery, payload }) => ({
+            ...delivery,
+            ...payload
+          }))
+        });
+      }
 
-      // STEP 2: Save patient time window edits (updates Patient entity directly).
+      // STEP 3: Persist to offline DB + backend for each delivery
+      await Promise.all(perDeliveryPayloads.map(({ delivery, payload }) =>
+        updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true, isBatchOperation: false })
+      ));
+
+      // STEP 4: Save patient time window edits (updates Patient entity directly).
       const patientUpdates = Object.entries(patientWindowEdits).map(([patientId, edits]) => {
         return updatePatientLocal(patientId, {
           time_window_start: edits.time_window_start || null,
@@ -183,19 +197,6 @@ export default function DashboardBulkEditControls({
       }
 
       invalidate("Delivery");
-
-      // If transport_mode was explicitly changed, also write directly to the backend entity
-      // to ensure it persists even if the offline mutation pipeline strips or delays it.
-      if (sharedUpdates.transport_mode) {
-        const modeToApply = sharedUpdates.transport_mode;
-        Promise.all(
-          selectedDeliveries.map((delivery) =>
-            base44.entities.Delivery.update(delivery.id, { transport_mode: modeToApply }).catch(() => null)
-          )
-        ).catch(() => null); // fire-and-forget — non-blocking
-      }
-
-      await refreshData?.();
       clearSelection();
       onBulkApplyComplete?.();
     } finally {
