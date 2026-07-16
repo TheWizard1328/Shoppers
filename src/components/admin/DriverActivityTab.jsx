@@ -165,14 +165,35 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
                 const isFailed = del.status === 'failed';
                 const isReturn = del.status === 'cancelled' || (del.delivery_notes || '').toLowerCase().includes('return');
                 const store = storeMap[del.store_id];
+                const color = store?.color || '#6366f1';
 
-                let color = store?.color || '#6366f1';
-                if (isFailed) color = '#dc2626';
-                else if (isReturn) color = '#ea580c';
+                const lineHeight = isPickup ? '100%' : '70%';
+                const lineTop = isPickup ? '0%' : '15%';
+                const lineWidth = isPickup ? 3 : 2;
 
-                const height = isPickup ? '100%' : '70%';
-                const top = isPickup ? '0%' : '15%';
-                const width = isPickup ? 3 : 2;
+                // Midpoint icon: green circle for completed, red X for failed, red square for return, nothing for pickup/normal
+                let midIcon = null;
+                const iconSize = 7;
+                if (isFailed) {
+                  midIcon = (
+                    <svg width={iconSize + 2} height={iconSize + 2} viewBox="0 0 9 9" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
+                      <line x1="1" y1="1" x2="8" y2="8" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" />
+                      <line x1="8" y1="1" x2="1" y2="8" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  );
+                } else if (isReturn) {
+                  midIcon = (
+                    <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
+                      <rect x="0.5" y="0.5" width="6" height="6" rx="1" fill="#dc2626" stroke="#fff" strokeWidth="0.5" />
+                    </svg>
+                  );
+                } else if (!isPickup && del.status === 'completed') {
+                  midIcon = (
+                    <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
+                      <circle cx="3.5" cy="3.5" r="3" fill="#16a34a" stroke="#fff" strokeWidth="0.5" />
+                    </svg>
+                  );
+                }
 
                 return (
                   <div
@@ -180,16 +201,18 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
                     className="absolute"
                     style={{
                       left: `${pct}%`,
-                      top,
-                      height,
-                      width: `${width}px`,
+                      top: lineTop,
+                      height: lineHeight,
+                      width: `${lineWidth}px`,
                       backgroundColor: color,
                       opacity: 0.9,
                       transform: 'translateX(-50%)',
                       zIndex: 10,
                     }}
                     title={`${isPickup ? 'Pickup' : 'Delivery'} @ ${formatTime(timeStr)}${store ? ` — ${store.name}` : ''}${isFailed ? ' (Failed)' : isReturn ? ' (Return)' : ''}`}
-                  />
+                  >
+                    {midIcon}
+                  </div>
                 );
               })}
             </div>
