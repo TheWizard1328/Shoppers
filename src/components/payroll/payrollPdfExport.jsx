@@ -14,15 +14,19 @@ export function exportPayrollPdf({
   if (!currentPeriod) return;
 
   const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const formatFilenameDate = (date) => {
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${month}_${day}`;
-  };
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  const dateFrom = formatFilenameDate(currentPeriod.start);
-  const dateTo = formatFilenameDate(currentPeriod.end);
-  const year = currentPeriod.end.getFullYear();
+  const start = currentPeriod.start;
+  const end = currentPeriod.end;
+  const year = end.getFullYear();
+  const startMonth = MONTH_NAMES[start.getMonth()];
+  const endMonth = MONTH_NAMES[end.getMonth()];
+  const startDay = start.getDate();
+  const endDay = end.getDate();
+
+  const datePart = start.getMonth() === end.getMonth()
+    ? `${year} ${startMonth} ${startDay}-${endDay}`
+    : `${year} ${startMonth} ${startDay}-${endMonth} ${endDay}`;
 
   let filenameContext = '';
   if (selectedDriverId && selectedDriverId !== 'all') {
@@ -33,7 +37,7 @@ export function exportPayrollPdf({
     filenameContext = city?.name || 'All';
   }
 
-  const filename = `${dateFrom}-${dateTo}_${year} - ${filenameContext}.pdf`;
+  const filename = `${datePart}-${filenameContext}.pdf`;
   const isSingleDriver = selectedDriverId && selectedDriverId !== 'all';
 
   // Helper: build store data maps
