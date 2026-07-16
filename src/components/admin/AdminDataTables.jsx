@@ -171,6 +171,7 @@ export const PatientDataTable = ({
   }, [patients, duplicateFilter, storeFilter, portalLoginFilter, detectDuplicates, filterText, sortColumn, sortDirection, stores]);
 
   const dc = { address: detectDuplicates.address.size, name: detectDuplicates.name.size, phone: detectDuplicates.phone.size, pid: detectDuplicates.pid.size, nameAndAddress: detectDuplicates.nameAndAddress.size };
+  const portalPatientCount = useMemo(() => (patients || []).filter((p) => !!p.last_login_date).length, [patients]);
   const isAllSelected = filteredPatients.length > 0 && selectedPatients.size === filteredPatients.length;
   const isSomeSelected = selectedPatients.size > 0 && selectedPatients.size < filteredPatients.length;
 
@@ -199,21 +200,21 @@ export const PatientDataTable = ({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Button variant={duplicateFilter === 'none' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('none')}>All Patients ({patients?.length || 0})</Button>
+              <Button variant={duplicateFilter === 'nameAndAddress' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('nameAndAddress')} disabled={dc.nameAndAddress === 0}><Database className="w-4 h-4 mr-1" />Dup Name+Address ({dc.nameAndAddress})</Button>
+              <Button variant={duplicateFilter === 'phone' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('phone')} disabled={dc.phone === 0}><Database className="w-4 h-4 mr-1" />Duplicate Phones ({dc.phone})</Button>
+              <Button variant={duplicateFilter === 'pid' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('pid')} disabled={dc.pid === 0}><Database className="w-4 h-4 mr-1" />Duplicate PIDs ({dc.pid})</Button>
+            </div>
             <Button
               variant={portalLoginFilter ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPortalLoginFilter((v) => !v)}
               className={portalLoginFilter ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : ''}
             >
-              🔐 Portal Logins Only {portalLoginFilter && `(${filteredPatients.length})`}
+              🔐 Portal Logins ({portalPatientCount})
             </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant={duplicateFilter === 'none' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('none')}>All Patients ({patients?.length || 0})</Button>
-            <Button variant={duplicateFilter === 'nameAndAddress' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('nameAndAddress')} disabled={dc.nameAndAddress === 0}><Database className="w-4 h-4 mr-1" />Dup Name+Address ({dc.nameAndAddress})</Button>
-            <Button variant={duplicateFilter === 'phone' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('phone')} disabled={dc.phone === 0}><Database className="w-4 h-4 mr-1" />Duplicate Phones ({dc.phone})</Button>
-            <Button variant={duplicateFilter === 'pid' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('pid')} disabled={dc.pid === 0}><Database className="w-4 h-4 mr-1" />Duplicate PIDs ({dc.pid})</Button>
           </div>
         </div>
         <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
