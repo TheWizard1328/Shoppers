@@ -104,7 +104,7 @@ export const roundCompletionTime = (timeISO) => {
  * remeasuring right after a stop is completed in phase 2).
  */
 export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, statsCardBaseHeight, stopCardsBaseHeight, bottomNavHeight }) => {
-  consolelog ('isImmersiveModeOn: {isImmersiveModeOn}');
+  console.log ('isImmersiveModeOn: {isImmersiveModeOn}');
   const paddingBuffer = 60;
   // In immersive mode (UI hidden) the map gets 80px breathing room on both axes
   // so markers never sit flush against the screen edge.
