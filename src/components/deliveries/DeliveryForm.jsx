@@ -64,7 +64,7 @@ import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup
 import { createInterStoreTransfer } from './interStoreTransferHandler';
 import DeliveryFormView from './DeliveryFormView';
 
-const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label></div>);
+const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={!!checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label></div>);
 
 const statusColorMap = { 'Staged': 'text-purple-700 bg-purple-100 border-purple-200', 'pending': 'text-slate-500 bg-slate-100 border-slate-200', 'Ready For Pickup': 'text-amber-700 bg-amber-100 border-amber-200', 'in_transit': 'text-blue-700 bg-blue-100 border-blue-100', 'completed': 'text-emerald-700 bg-emerald-100 border-emerald-200', 'failed': 'text-red-700 bg-red-100 border-red-200', 'cancelled': 'text-red-700 bg-red-100 border-red-200', 'en_route': 'text-blue-700 bg-blue-100 border-blue-100', 'returned': 'text-red-700 bg-red-100 border-red-200' };
 const getStatusColorClass = (status) => statusColorMap[status] || 'text-slate-700 bg-slate-100 border-slate-200';
@@ -1014,24 +1014,17 @@ export default function DeliveryForm({
   useEffect(() => {
     if (shouldAutoFocusFields) requestAnimationFrame(() => { patientSearchInputRef.current?.focus?.(); });
     setIsFormOverlayOpen(true);
-    (async () => {
-      try {
-        const { smartRefreshManager } = await import('../utils/smartRefreshManager'); smartRefreshManager.pause();
-        const { routePolylineManager } = await import('../utils/routePolylineManager'); routePolylineManager?.pause?.();
-        const { fabControlEvents } = await import('../utils/fabControlEvents'); fabControlEvents.pauseFAB();
-      } catch (error) { console.warn('⚠️ [DeliveryForm] Failed to pause some managers:', error); }
-    })();
+    // Pause managers individually so one failure doesn't block the rest
+    import('../utils/smartRefreshManager').then(({ smartRefreshManager }) => smartRefreshManager.pause()).catch(() => {});
+    import('../utils/routePolylineManager').then(({ routePolylineManager }) => routePolylineManager?.pause?.()).catch(() => {});
+    import('../utils/fabControlEvents').then(({ fabControlEvents }) => fabControlEvents.pauseFAB()).catch(() => {});
     return () => {
       setIsFormOverlayOpen(false);
       loadedDeliveryIdRef.current = null;
-      (async () => {
-        try {
-          const { smartRefreshManager } = await import('../utils/smartRefreshManager'); smartRefreshManager.resume(); smartRefreshManager.resetTimers?.();
-          const { routePolylineManager } = await import('../utils/routePolylineManager'); routePolylineManager?.resume?.();
-          const { fabControlEvents } = await import('../utils/fabControlEvents'); fabControlEvents.resumeFAB();
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        } catch (error) { console.warn('⚠️ [DeliveryForm] Failed to resume some managers:', error); }
-      })();
+      import('../utils/smartRefreshManager').then(({ smartRefreshManager }) => { smartRefreshManager.resume(); smartRefreshManager.resetTimers?.(); }).catch(() => {});
+      import('../utils/routePolylineManager').then(({ routePolylineManager }) => routePolylineManager?.resume?.()).catch(() => {});
+      import('../utils/fabControlEvents').then(({ fabControlEvents }) => fabControlEvents.resumeFAB()).catch(() => {});
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     };
   }, [setIsFormOverlayOpen]);
 

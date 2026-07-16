@@ -1,11 +1,8 @@
 export async function resumeDeliveryFormManagers() {
-  const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-  const { routePolylineManager } = await import('../utils/routePolylineManager');
-  const { fabControlEvents } = await import('../utils/fabControlEvents');
-
-  smartRefreshManager.resume();
-  driverLocationPoller.resume();
-  routePolylineManager?.resume?.();
-  fabControlEvents.resumeFAB();
+  await Promise.allSettled([
+    import('../utils/smartRefreshManager').then(({ smartRefreshManager }) => smartRefreshManager.resume()),
+    import('../utils/driverLocationPoller').then(({ driverLocationPoller }) => driverLocationPoller.resume()),
+    import('../utils/routePolylineManager').then(({ routePolylineManager }) => routePolylineManager?.resume?.()),
+    import('../utils/fabControlEvents').then(({ fabControlEvents }) => fabControlEvents.resumeFAB()),
+  ]);
 }
