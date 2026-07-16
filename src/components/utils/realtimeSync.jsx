@@ -833,7 +833,7 @@ const subscribeToEntity = (entityName) => {
                     '_interstore_source_id', '_interstore_source_name',
                     '_interstore_dest_id', '_interstore_dest_name',
                     // Cycling
-                    'is_cycling_marker', 'cycling_latitude', 'cycling_longitude',
+                    'is_cycling_marker', 'cycling_latitude', 'cycling_longitude', 'cycling_location_id', 'cycling_location_name',
                     // Patient-denormalized (sent only on create, not on every update)
                     'patient_name', 'patient_phone', 'delivery_instructions', 'unit_number',
                     // COD

@@ -1626,6 +1626,8 @@ export default function DeliveryFormView({
                       ...(formData.arrival_time && { arrival_time: `${formData.delivery_date}T${formData.arrival_time}:00` }),
                       ...(formData.cycling_latitude != null && { cycling_latitude: formData.cycling_latitude }),
                       ...(formData.cycling_longitude != null && { cycling_longitude: formData.cycling_longitude }),
+                      ...(formData._cycling_location_name?.trim() && { cycling_location_name: formData._cycling_location_name.trim() }),
+                      ...(formData.cycling_location_id && { cycling_location_id: formData.cycling_location_id }),
                     };
 
                     // ── Time windows ──────────────────────────────────────────

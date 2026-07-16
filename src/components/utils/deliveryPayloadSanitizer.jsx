@@ -45,6 +45,8 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   // ── Cycling markers ───────────────────────────────────────────────────────
   'is_cycling_marker',
   'cycling_latitude',
+  'cycling_location_id',
+  'cycling_location_name',
   'cycling_longitude',
   // ── Route sequencing ──────────────────────────────────────────────────────
   'isNextDelivery',
