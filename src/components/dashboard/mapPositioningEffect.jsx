@@ -225,7 +225,7 @@ export function runMapPositioningEffect({
       const selectedCityId = globalFilters.getSelectedCityId();
       const currentCity = citiesRef.current?.find((c) => c && c.id === selectedCityId);
 
-      // Phase 1 always uses isImmersiveHidden=false (UI is visible, cards are shown)
+      // Phase 1 always uses isImmersiveModeOn=false (UI is visible, cards are shown)
       const p1Padding = getMapPadding(false);
 
       if (!hasStopMarkers && !hasDriverMarkers) {
