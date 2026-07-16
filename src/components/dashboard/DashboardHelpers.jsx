@@ -103,19 +103,20 @@ export const roundCompletionTime = (timeISO) => {
  * from bouncing when stopCardsBaseHeight is transiently 0 (e.g. cards
  * remeasuring right after a stop is completed in phase 2).
  */
-export const buildMapPadding = ({ isMobile, isImmersiveHidden, statsCardHeight, statsCardBaseHeight, stopCardsBaseHeight, bottomNavHeight }) => {
+export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, statsCardBaseHeight, stopCardsBaseHeight, bottomNavHeight }) => {
+  consolelog ('isImmersiveModeOn: {isImmersiveModeOn}');
   const paddingBuffer = 60;
   // In immersive mode (UI hidden) the map gets 80px breathing room on both axes
   // so markers never sit flush against the screen edge.
   const immersivePadding = 80;
-  const stopCardsHeight = isImmersiveHidden ? paddingBuffer : (stopCardsBaseHeight || paddingBuffer);
+  const stopCardsHeight = isImmersiveModeOn ? paddingBuffer : (stopCardsBaseHeight || paddingBuffer);
   const cardsArePresent = stopCardsHeight > 0;
 
   // Bottom padding rules (both desktop and mobile):
   //   Immersive — fixed 80px (no stop cards, no bottom nav obstruction)
   //   Cards present  — stop cards height + bottom nav + 10px breathing room
   //   Cards absent   — bottom nav + 10px (nav bar still overlaps the bottom edge)
-  const rawBottomPadding = isImmersiveHidden
+  const rawBottomPadding = isImmersiveModeOn
     ? immersivePadding
     : cardsArePresent
       ? stopCardsHeight + (bottomNavHeight || 0) + paddingBuffer
@@ -128,7 +129,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveHidden, statsCardHeight, 
   //   Mobile    — full stats panel container height + breathing room (min 25px)
   //   Desktop   — paddingBuffer
   let topPadding;
-  if (isImmersiveHidden) {
+  if (isImmersiveModeOn) {
     topPadding = immersivePadding;
   } else if (isMobile) {
     const mobileHeaderHeight = 0; //56; // fixed MobileHeader height
