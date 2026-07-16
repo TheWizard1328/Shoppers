@@ -447,6 +447,7 @@ export default function DashboardView({
           finalizedDutyTime={finalizedDutyTime}
           refreshUser={refreshUser} dataSource={dataSource}
           isMobile={isMobile}
+          getMapPadding={getMapPadding}
           mapStyle={mapStyle}
           setMapStyle={setMapStyle}
         />
