@@ -1,12 +1,10 @@
-import { isAppOwner } from '@/components/utils/userRoles';
-
 /**
- * Temporary debug overlay — visible to App Owners on mobile only.
+ * Temporary debug overlay — visible on mobile only.
  * Shows the live values from buildMapPadding to help diagnose immersive-mode padding issues.
  */
 export default function MapPaddingDebugOverlay({ currentUser, isMobile, debugValues }) {
   if (!isMobile) return null;
-  if (!currentUser || !isAppOwner(currentUser)) return null;
+  if (!currentUser) return null;
   if (!debugValues) return null;
 
   const {
