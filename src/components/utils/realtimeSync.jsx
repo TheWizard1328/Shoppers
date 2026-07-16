@@ -304,6 +304,12 @@ async function flushBuffered(entityName) {
         if (!existing && typeof itemData?.encoded_polyline === 'string' && itemData.encoded_polyline.length > 0) {
           snapshotMap.set(itemData.id, itemData);
         }
+        // CRITICAL: If the item IS in the snapshot but the snapshot's encoded_polyline is stale
+        // (IDB write hadn't committed yet when the snapshot was read), force the new polyline in.
+        // This is the primary cause of breadcrumb edits not updating on other devices.
+        if (existing && typeof itemData?.encoded_polyline === 'string' && itemData.encoded_polyline.length > 0) {
+          snapshotMap.set(itemData.id, { ...snapshotMap.get(itemData.id), encoded_polyline: itemData.encoded_polyline, travel_dist: itemData.travel_dist ?? existing.travel_dist, polyline_saved_at: itemData.polyline_saved_at ?? existing.polyline_saved_at });
+        }
       });
 
       // Read the in-memory Layout deliveries to find locally-set isNextDelivery=true flags.
@@ -345,11 +351,24 @@ async function flushBuffered(entityName) {
     // CRITICAL: Dispatch ALL deliveries for the selected date — never filter by driver here.
     // The UI layer (Dashboard) handles per-driver filtering. Filtering here would drop other
     // drivers' deliveries from Layout state, causing them to disappear from the dashboard.
-    const allDateDeliveries = (fullReplacementData || []).filter((delivery) => {
+    let allDateDeliveries = (fullReplacementData || []).filter((delivery) => {
       if (!delivery) return false;
       if (selectedDate && delivery.delivery_date && delivery.delivery_date !== selectedDate) return false;
       return true;
     });
+
+    // CRITICAL: For polyline updates — if the snapshot is empty or doesn't contain the updated
+    // delivery (e.g. different date filter, IDB not yet synced), inject the WS payload directly
+    // so the map on remote devices always receives the new encoded_polyline immediately.
+    if (hasPolylineUpdates && relevantItems.length > 0) {
+      const snapshotIds = new Set(allDateDeliveries.map(d => d.id));
+      const missing = relevantItems.filter(item =>
+        item?.data?.encoded_polyline && !snapshotIds.has(item.id)
+      );
+      if (missing.length > 0) {
+        allDateDeliveries = [...allDateDeliveries, ...missing.map(i => i.data)];
+      }
+    }
 
     // CRITICAL: Ensure ETA changes trigger immediate UI update
     const hasETAChanges = relevantItems.some((item) => 

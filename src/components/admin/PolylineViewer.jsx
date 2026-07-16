@@ -621,25 +621,27 @@ export default function PolylineViewer({ users = [] }) {
           detail: { breadcrumbId: item.id, deliveryId, stopOrder: item.stop_order, driverId: item.driver_id, deliveryDate: item.delivery_date, travelDistKm }
         }));
 
-        // Update offline DB delivery record and broadcast to Dashboard
-        import('../utils/offlineDatabase').then(({ offlineDB }) => {
+        // Update offline DB delivery record and broadcast to Dashboard + all remote devices
+        import('../utils/offlineDatabase').then(async ({ offlineDB }) => {
           if (!deliveryId) return;
-          offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId)
-            .then(existing => {
-              if (!existing) return;
-              const updatedDelivery = { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: polyToSave };
-              return offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).then(() => updatedDelivery);
-            })
-            .then(updatedDelivery => {
-              if (updatedDelivery) {
-                // Broadcast through realtimeSync so all active map views re-render the polyline
-                broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
-              }
-              window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-            })
-            .catch(() => {
-              window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-            });
+          try {
+            let existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId).catch(() => null);
+            // If not in offline DB, fetch from server so we have a complete record to broadcast
+            if (!existing) {
+              existing = await base44.entities.Delivery.get(deliveryId).catch(() => null);
+            }
+            const updatedDelivery = existing
+              ? { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: polyToSave, polyline_saved_at: new Date().toISOString() }
+              : { id: deliveryId, encoded_polyline: polyToSave, travel_dist: travelDistKm, polyline_saved_at: new Date().toISOString() };
+            await offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).catch(() => {});
+            // Broadcast through realtimeSync so all active map views on this device re-render
+            broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
+            // Force a pullToSyncDataReady so Dashboard re-fetches breadcrumbs immediately
+            window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+              detail: { source: 'breadcrumbSave', deliveryId, driverId: item.driver_id, deliveryDate: item.delivery_date }
+            }));
+          } catch (_) {}
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         }).catch(() => {});
       } else {
         toast.error(`Save failed: ${res?.data?.error || 'Unknown error'}`);
