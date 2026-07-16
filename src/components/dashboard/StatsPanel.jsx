@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
+import MapPaddingDebugOverlay from '@/components/dashboard/MapPaddingDebugOverlay';
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -59,7 +60,8 @@ export default function StatsPanel({
   preferredTravelMode,
   onTravelModeChange,
   mapStyle,
-  setMapStyle
+  setMapStyle,
+  mapPaddingDebugValues,
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
@@ -682,6 +684,13 @@ export default function StatsPanel({
           </div>
             }
         </div>{/* end stats card + legend */}
+
+        {/* Temporary debug overlay — App Owners on mobile only */}
+        <MapPaddingDebugOverlay
+          currentUser={currentUser}
+          isMobile={isMobile}
+          debugValues={mapPaddingDebugValues}
+        />
 
         {/* TravelModeDialog rendered OUTSIDE AnimatePresence so it survives StatsCard collapse */}
         {isDriver && !isAllDriversMode && travelModeDialogOpen &&
