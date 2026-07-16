@@ -952,6 +952,15 @@ export default function SquareManagement() {
       const searchableText = String(transaction.item_name || transaction.raw_square_data?.note || transaction.raw_square_data?.notes || '').trim();
       const nameMatches = !!patientName && !!searchableText && patientNamesMatch(patientName, searchableText);
 
+      // Chronology guard: a transaction can only match a delivery if the transaction date
+      // is ON or AFTER the delivery date. A payment from April can never match a July delivery.
+      const txOnOrAfterDelivery = (() => {
+        const txEffDate = parsedTransactionDateString || transactionCreatedDateString;
+        if (!txEffDate || !deliveryDateString) return true; // can't determine — allow
+        return txEffDate >= deliveryDateString;
+      })();
+      if (!txOnOrAfterDelivery) return false;
+
       // Amount + name alone is sufficient (handles plain-text transaction item names like "Wendy Paustian")
       if (amountsMatch && nameMatches) return true;
 
@@ -1406,8 +1415,12 @@ export default function SquareManagement() {
         const amountsMatch = txAmountCents === itemAmountCents;
         const txSearchableText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
         const txNameMatches = !!linkedPatientName && !!txSearchableText && patientNamesMatch(linkedPatientName, txSearchableText);
+        // Chronology guard: transaction must be ON or AFTER the catalog item's delivery date.
+        const catalogItemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+        const txEffDateForGuard = getTransactionEffectiveDateString(tx);
+        const txOnOrAfterItem = !txEffDateForGuard || !catalogItemDateStr || txEffDateForGuard >= catalogItemDateStr;
         // Amount + patient name match (handles plain-text transaction names)
-        if (amountsMatch && txNameMatches) return true;
+        if (amountsMatch && txNameMatches && txOnOrAfterItem) return true;
         // Amount + location + delivery date from item name
         if (!amountsMatch || !item.location_id || tx.location_id !== item.location_id) return false;
         const itemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
