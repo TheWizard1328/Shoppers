@@ -531,6 +531,12 @@ export default function SquareManagement() {
     if (nextStores.length > 0) setStores(nextStores);
   }, [appDataStores]);
 
+  // Keep patients in sync without triggering the heavy lookup-data sync effect
+  useEffect(() => {
+    const nextPatients = (appDataPatients || []).filter(Boolean);
+    if (nextPatients.length > 0) setPatients(nextPatients);
+  }, [appDataPatients]);
+
   // Always sync lookup data whenever appData changes (no early-return guard on stores length)
   useEffect(() => {
     if (!appCurrentUser) return;
@@ -606,28 +612,33 @@ export default function SquareManagement() {
       // Subsequent updates: just refresh lookup data so filters re-evaluate
       syncLookupData();
     }
-  }, [appCurrentUser, appDataAppUsers, appDataStores, appDataPatients]);
+  // Note: appDataPatients intentionally excluded — patient data is large and changes
+  // frequently (location updates etc.). We only need it for the lookup cache set via
+  // setPatients; re-running the full sync on every patient update was the primary
+  // cause of the Square COD page lagging.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appCurrentUser, appDataAppUsers, appDataStores]);
 
-  useEffect(() => {
-    if (!hasInitialLoadCompleted) return;
-    refreshUiFromOfflineOnly();
-  }, [hasInitialLoadCompleted, refreshUiFromOfflineOnly]);
+  // Intentionally no effect here — initial load already calls refreshUiFromOfflineOnly inline.
+  // A separate effect caused a redundant double-reload immediately after mount.
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
 
     let isActive = true;
+    // Debounce: wait 5s after a change before refreshing, and only if 60s have elapsed since last refresh.
+    // This prevents the heavy refreshOfflineSquareFromOnlineEntities from firing constantly during active syncs.
     const scheduleLocalRealtimeRefresh = () => {
       const now = Date.now();
-      if (now - lastRealtimeRefreshAtRef.current < 15000) return;
+      if (now - lastRealtimeRefreshAtRef.current < 60000) return; // 60s cooldown
       if (realtimeRefreshTimeoutRef.current) clearTimeout(realtimeRefreshTimeoutRef.current);
 
       realtimeRefreshTimeoutRef.current = setTimeout(async () => {
         if (!isActive || isSyncing || isReconciling || syncInFlightRef.current) return;
         lastRealtimeRefreshAtRef.current = Date.now();
-        await refreshOfflineSquareFromOnlineEntities();
+        // Only refresh the UI from the offline DB — skip the heavy entity pagination
         await refreshUiFromOfflineOnly();
-      }, 800);
+      }, 5000);
     };
 
     const unsubscribeCatalogItems = base44.entities.SquareCatalogItems.subscribe(scheduleLocalRealtimeRefresh);
@@ -639,7 +650,7 @@ export default function SquareManagement() {
       unsubscribeCatalogItems?.();
       unsubscribeTransactions?.();
     };
-  }, [hasInitialLoadCompleted, isSyncing, isReconciling, refreshOfflineSquareFromOnlineEntities, refreshUiFromOfflineOnly]);
+  }, [hasInitialLoadCompleted, isSyncing, isReconciling, refreshUiFromOfflineOnly]);
 
   // Resolve a SquareLocationConfig for a store by name match OR legacy ID
   const getConfigForStore = useCallback((store) => {
