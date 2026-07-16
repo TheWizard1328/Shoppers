@@ -46,11 +46,10 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
   const resolvedAddress = (() => {
     if (address) return address;
     if (isCyclingMarker) {
-      // Show GPS coordinates as the address (display name already shows location name)
-      const lat = delivery?.cycling_latitude;
-      const lng = delivery?.cycling_longitude;
-      if (lat != null && lng != null) return `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
-      return 'Cycling Route Marker';
+      // Display name already shows the location name (e.g. "Manning AMA")
+      // Sub-line: show start/end label derived from delivery notes
+      const notes = (delivery?.delivery_notes || '').trim().toLowerCase();
+      return notes.includes('end') ? 'Cycling End Marker' : 'Cycling Start Marker';
     }
     if (patient?.address) return patient.address;
     if (store?.address) return store.address;
