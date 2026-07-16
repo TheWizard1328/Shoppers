@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { isAppOwner } from '@/components/utils/userRoles';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
+import MapPaddingDebugOverlay from '@/components/dashboard/MapPaddingDebugOverlay';
 import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
 import StopCardsSection from "@/components/dashboard/StopCardsSection";
 import DashboardBulkEditControls from "@/components/dashboard/DashboardBulkEditControls";
@@ -452,6 +453,14 @@ export default function DashboardView({
           setMapStyle={setMapStyle}
         />
         </div>
+        {/* Debug overlay — slides below stats panel (non-immersive) or below immersive overlay (immersive) */}
+        <MapPaddingDebugOverlay
+          currentUser={currentUser}
+          isMobile={isMobile}
+          debugValues={typeof getMapPadding === 'function' ? getMapPadding(false)?._debug : null}
+          immersiveHidden={immersiveHidden}
+          statsCardBaseHeight={statsCardBaseHeight}
+        />
         <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
           deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers}
