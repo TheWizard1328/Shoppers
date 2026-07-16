@@ -13,7 +13,7 @@ import { format, parseISO, differenceInMinutes } from 'date-fns';
 const STATUS_COLORS = {
   on_duty: { bg: 'bg-emerald-500', light: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', label: 'On Duty' },
   on_break: { bg: 'bg-amber-400', light: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300', label: 'Break' },
-  off_duty: { bg: 'bg-slate-400', light: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300', label: 'Off Duty' },
+  off_duty: { bg: 'bg-slate-400', light: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300', label: 'Off Duty' }
 };
 
 const formatDuration = (minutes) => {
@@ -25,7 +25,7 @@ const formatDuration = (minutes) => {
 
 const formatTime = (isoStr) => {
   if (!isoStr) return '—';
-  try { return format(parseISO(isoStr), 'h:mm a'); } catch { return isoStr; }
+  try {return format(parseISO(isoStr), 'h:mm a');} catch {return isoStr;}
 };
 
 const calcSegmentMinutes = (seg) => {
@@ -54,7 +54,7 @@ const localMinutes = (timeStr) => {
     const d = new Date(timeStr);
     if (isNaN(d)) return null;
     return d.getHours() * 60 + d.getMinutes();
-  } catch { return null; }
+  } catch {return null;}
 };
 
 const formatHourLabel = (totalMinutes) => {
@@ -63,7 +63,7 @@ const formatHourLabel = (totalMinutes) => {
   if (m === 0) {
     return h === 12 ? '12p' : h === 0 ? '12a' : h < 12 ? `${h}a` : `${h - 12}p`;
   }
-  return h < 12 ? `${h}:${String(m).padStart(2,'0')}a` : `${h===12?12:h-12}:${String(m).padStart(2,'0')}p`;
+  return h < 12 ? `${h}:${String(m).padStart(2, '0')}a` : `${h === 12 ? 12 : h - 12}:${String(m).padStart(2, '0')}p`;
 };
 
 function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDelete }) {
@@ -79,7 +79,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
         if (em != null && em > latest) latest = em;
       });
     });
-    if (!isFinite(earliest)) { earliest = 8 * 60; latest = 18 * 60; }
+    if (!isFinite(earliest)) {earliest = 8 * 60;latest = 18 * 60;}
     // Round down/up to nearest 30 min
     const ws = Math.floor(earliest / 30) * 30;
     const we = Math.ceil(latest / 30) * 30;
@@ -91,7 +91,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
   const toPercent = (timeStr) => {
     const m = localMinutes(timeStr);
     if (m == null) return null;
-    return Math.max(0, Math.min(100, ((m - windowStart) / windowMinutes) * 100));
+    return Math.max(0, Math.min(100, (m - windowStart) / windowMinutes * 100));
   };
 
   // Build hour/half-hour markers within window
@@ -103,7 +103,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
   // Build a store lookup map
   const storeMap = useMemo(() => {
     const map = {};
-    stores.forEach((s) => { map[s.id] = s; });
+    stores.forEach((s) => {map[s.id] = s;});
     return map;
   }, [stores]);
 
@@ -111,14 +111,14 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
     <div className="space-y-3">
       {/* Hour ruler */}
       <div className="relative ml-28 mr-14 h-5 border-b border-slate-200">
-        {markers.map((m) => (
-          <span
-            key={m}
-            className="absolute top-0 text-[10px] text-slate-400 -translate-x-1/2 select-none"
-            style={{ left: `${((m - windowStart) / windowMinutes) * 100}%` }}>
+        {markers.map((m) =>
+        <span
+          key={m}
+          className="absolute top-0 text-[10px] text-slate-400 -translate-x-1/2 select-none"
+          style={{ left: `${(m - windowStart) / windowMinutes * 100}%` }}>
             {formatHourLabel(m)}
           </span>
-        ))}
+        )}
       </div>
 
       {records.map((record) => {
@@ -144,11 +144,11 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
                 return (
                   <div
                     key={i}
-                    className="absolute top-1 bottom-1 bg-emerald-500 rounded-sm opacity-90"
+                    className="absolute top-1 bottom-1 rounded-sm opacity-90 bg-[#00ffea]"
                     style={{ left: `${left}%`, width: `${width}%` }}
-                    title={`${formatTime(seg.start_time)} → ${seg.end_time ? formatTime(seg.end_time) : 'now'} (${formatDuration(calcSegmentMinutes(seg))})`}
-                  />
-                );
+                    title={`${formatTime(seg.start_time)} → ${seg.end_time ? formatTime(seg.end_time) : 'now'} (${formatDuration(calcSegmentMinutes(seg))})`} />);
+
+
               })}
 
               {/* Delivery event markers */}
@@ -175,24 +175,24 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
                 let midIcon = null;
                 const iconSize = 7;
                 if (isFailed) {
-                  midIcon = (
-                    <svg width={iconSize + 2} height={iconSize + 2} viewBox="0 0 9 9" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
+                  midIcon =
+                  <svg width={iconSize + 2} height={iconSize + 2} viewBox="0 0 9 9" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
                       <line x1="1" y1="1" x2="8" y2="8" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" />
                       <line x1="8" y1="1" x2="1" y2="8" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  );
+                    </svg>;
+
                 } else if (isReturn) {
-                  midIcon = (
-                    <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
+                  midIcon =
+                  <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
                       <rect x="0.5" y="0.5" width="6" height="6" rx="1" fill="#dc2626" stroke="#fff" strokeWidth="0.5" />
-                    </svg>
-                  );
+                    </svg>;
+
                 } else if (!isPickup && del.status === 'completed') {
-                  midIcon = (
-                    <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
+                  midIcon =
+                  <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
                       <circle cx="3.5" cy="3.5" r="3" fill="#16a34a" stroke="#fff" strokeWidth="0.5" />
-                    </svg>
-                  );
+                    </svg>;
+
                 }
 
                 return (
@@ -207,24 +207,24 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
                       backgroundColor: color,
                       opacity: 0.9,
                       transform: 'translateX(-50%)',
-                      zIndex: 10,
+                      zIndex: 10
                     }}
-                    title={`${isPickup ? 'Pickup' : 'Delivery'} @ ${formatTime(timeStr)}${store ? ` — ${store.name}` : ''}${isFailed ? ' (Failed)' : isReturn ? ' (Return)' : ''}`}
-                  >
+                    title={`${isPickup ? 'Pickup' : 'Delivery'} @ ${formatTime(timeStr)}${store ? ` — ${store.name}` : ''}${isFailed ? ' (Failed)' : isReturn ? ' (Return)' : ''}`}>
+                    
                     {midIcon}
-                  </div>
-                );
+                  </div>);
+
               })}
             </div>
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
               <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
             </div>
-          </div>
-        );
+          </div>);
+
       })}
-    </div>
-  );
+    </div>);
+
 }
 
 // ─── Card Grid View ───────────────────────────────────────────────────────────
@@ -251,21 +251,21 @@ function CardGridView({ records, driverNames, onEdit, onDelete }) {
             </CardHeader>
             <CardContent className="px-4 pb-3 space-y-1">
               {segments.length === 0 && <p className="text-xs text-slate-400 italic">No activity recorded</p>}
-              {segments.map((seg, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs">
+              {segments.map((seg, i) =>
+              <div key={i} className="flex items-center gap-2 text-xs">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
                   <span className="text-slate-600">{formatTime(seg.start_time)}</span>
                   <span className="text-slate-400">→</span>
                   <span className="text-slate-600">{seg.end_time ? formatTime(seg.end_time) : <span className="text-emerald-600 font-medium">Active</span>}</span>
                   {seg.tot != null && <span className="ml-auto text-slate-400">{formatDuration(seg.tot)}</span>}
                 </div>
-              ))}
+              )}
             </CardContent>
-          </Card>
-        );
+          </Card>);
+
       })}
-    </div>
-  );
+    </div>);
+
 }
 
 // ─── Summary Table View ───────────────────────────────────────────────────────
@@ -312,13 +312,13 @@ function TableView({ records, driverNames, onEdit, onDelete }) {
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </td>
-              </tr>
-            );
+              </tr>);
+
           })}
         </tbody>
       </table>
-    </div>
-  );
+    </div>);
+
 }
 
 // ─── Edit / Add Dialog ────────────────────────────────────────────────────────
@@ -327,7 +327,7 @@ function SegmentDialog({ record, onSave, onClose }) {
     (record?.activity_segments || []).map((s) => ({
       start_time: s.start_time ? format(parseISO(s.start_time), "yyyy-MM-dd'T'HH:mm") : '',
       end_time: s.end_time ? format(parseISO(s.end_time), "yyyy-MM-dd'T'HH:mm") : '',
-      tot: s.tot ?? '',
+      tot: s.tot ?? ''
     }))
   );
   const [saving, setSaving] = useState(false);
@@ -339,14 +339,14 @@ function SegmentDialog({ record, onSave, onClose }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const built = segments
-        .filter((s) => s.start_time)
-        .map((s) => {
-          const start = new Date(s.start_time).toISOString();
-          const end = s.end_time ? new Date(s.end_time).toISOString() : null;
-          const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
-          return { start_time: start, end_time: end, tot };
-        });
+      const built = segments.
+      filter((s) => s.start_time).
+      map((s) => {
+        const start = new Date(s.start_time).toISOString();
+        const end = s.end_time ? new Date(s.end_time).toISOString() : null;
+        const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
+        return { start_time: start, end_time: end, tot };
+      });
       await onSave({ activity_segments: built });
       onClose();
     } catch (e) {
@@ -363,8 +363,8 @@ function SegmentDialog({ record, onSave, onClose }) {
           <DialogTitle>{record?.id ? 'Edit Activity Segments' : 'Add Activity Record'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
-          {segments.map((seg, i) => (
-            <div key={i} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50">
+          {segments.map((seg, i) =>
+          <div key={i} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-600">Segment {i + 1}</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => removeSegment(i)}><Trash2 className="w-3 h-3" /></Button>
@@ -380,7 +380,7 @@ function SegmentDialog({ record, onSave, onClose }) {
                 </div>
               </div>
             </div>
-          ))}
+          )}
           <Button variant="outline" size="sm" onClick={addSegment} className="w-full">
             <Plus className="w-3 h-3 mr-1" /> Add Segment
           </Button>
@@ -393,8 +393,8 @@ function SegmentDialog({ record, onSave, onClose }) {
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>);
+
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -414,7 +414,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
   // Build driver name lookup from appUsers
   const driverNames = useMemo(() => {
     const map = {};
-    appUsers.forEach((u) => { if (u?.user_id) map[u.user_id] = u.user_name || u.user_id; });
+    appUsers.forEach((u) => {if (u?.user_id) map[u.user_id] = u.user_name || u.user_id;});
     return map;
   }, [appUsers]);
 
@@ -426,18 +426,18 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
     try {
       const filter = { activity_date: selectedDate };
       const [data, dels] = await Promise.all([
-        base44.entities.DriverDailyActivity.filter(filter),
-        base44.entities.Delivery.filter({ delivery_date: selectedDate }),
-      ]);
+      base44.entities.DriverDailyActivity.filter(filter),
+      base44.entities.Delivery.filter({ delivery_date: selectedDate })]
+      );
       setDeliveries(dels || []);
 
       // Filter by city if selected — driver's city_ids in appUsers
       let filtered = data || [];
       if (selectedCityId && selectedCityId !== 'all') {
         const driverIdsInCity = new Set(
-          appUsers
-            .filter((u) => (u.city_ids || [u.city_id]).filter(Boolean).includes(selectedCityId))
-            .map((u) => u.user_id)
+          appUsers.
+          filter((u) => (u.city_ids || [u.city_id]).filter(Boolean).includes(selectedCityId)).
+          map((u) => u.user_id)
         );
         filtered = filtered.filter((r) => driverIdsInCity.has(r.driver_id));
       }
@@ -453,8 +453,8 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
         // Primary: city sort_order (use the first city_id if multiple)
         const cityIdA = (auA?.city_ids?.[0] || auA?.city_id) ?? '';
         const cityIdB = (auB?.city_ids?.[0] || auB?.city_id) ?? '';
-        const cityOrderA = cityIdA ? (cityOrderMap.get(cityIdA) ?? 9999) : 9999;
-        const cityOrderB = cityIdB ? (cityOrderMap.get(cityIdB) ?? 9999) : 9999;
+        const cityOrderA = cityIdA ? cityOrderMap.get(cityIdA) ?? 9999 : 9999;
+        const cityOrderB = cityIdB ? cityOrderMap.get(cityIdB) ?? 9999 : 9999;
         if (cityOrderA !== cityOrderB) return cityOrderA - cityOrderB;
 
         // Secondary: driver sort_order
@@ -476,7 +476,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
     }
   };
 
-  useEffect(() => { loadRecords(); }, [selectedDate, selectedCityId]);
+  useEffect(() => {loadRecords();}, [selectedDate, selectedCityId]);
 
   // Live WebSocket subscription — reload when any DriverDailyActivity record changes
   useEffect(() => {
@@ -494,9 +494,9 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
     if (editingRecord?.id) {
       await base44.entities.DriverDailyActivity.update(editingRecord.id, updates);
     } else if (editingRecord === 'new') {
+
       // no-op: new record dialog handles driver selection separately — see below
-    }
-    await loadRecords();
+    }await loadRecords();
   };
 
   const handleDelete = async () => {
@@ -520,23 +520,23 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
   const [savingNew, setSavingNew] = useState(false);
 
   const handleCreateNew = async () => {
-    if (!newDriverId) { alert('Please select a driver.'); return; }
+    if (!newDriverId) {alert('Please select a driver.');return;}
     setSavingNew(true);
     try {
       const driver = appUsers.find((u) => u.user_id === newDriverId);
-      const built = newSegments
-        .filter((s) => s.start_time)
-        .map((s) => {
-          const start = new Date(s.start_time).toISOString();
-          const end = s.end_time ? new Date(s.end_time).toISOString() : null;
-          const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
-          return { start_time: start, end_time: end, tot };
-        });
+      const built = newSegments.
+      filter((s) => s.start_time).
+      map((s) => {
+        const start = new Date(s.start_time).toISOString();
+        const end = s.end_time ? new Date(s.end_time).toISOString() : null;
+        const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
+        return { start_time: start, end_time: end, tot };
+      });
       await base44.entities.DriverDailyActivity.create({
         driver_id: newDriverId,
         driver_name: driver?.user_name || '',
         activity_date: selectedDate,
-        activity_segments: built,
+        activity_segments: built
       });
       setShowNewForm(false);
       setNewDriverId('');
@@ -550,25 +550,25 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
   };
 
   const VIEW_TABS = [
-    { key: 'timeline', icon: BarChart2, label: 'Timeline' },
-    { key: 'cards', icon: LayoutGrid, label: 'Cards' },
-    { key: 'table', icon: List, label: 'Table' },
-  ];
+  { key: 'timeline', icon: BarChart2, label: 'Timeline' },
+  { key: 'cards', icon: LayoutGrid, label: 'Cards' },
+  { key: 'table', icon: List, label: 'Table' }];
+
 
   return (
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-          {VIEW_TABS.map(({ key, icon: Icon, label }) => (
-            <button
-              key={key}
-              onClick={() => setViewMode(key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === key ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
+          {VIEW_TABS.map(({ key, icon: Icon, label }) =>
+          <button
+            key={key}
+            onClick={() => setViewMode(key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === key ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
               <Icon className="w-3.5 h-3.5" />
               {label}
             </button>
-          ))}
+          )}
         </div>
 
         <Input
@@ -577,15 +577,15 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
           onChange={(e) => setSelectedDate(e.target.value)}
           className="w-36 h-9 text-sm" />
 
-        {cities.length > 0 && (
-          <Select value={selectedCityId} onValueChange={setSelectedCityId}>
+        {cities.length > 0 &&
+        <Select value={selectedCityId} onValueChange={setSelectedCityId}>
             <SelectTrigger className="w-36 h-9 text-sm"><SelectValue placeholder="All Cities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Cities</SelectItem>
               {cities.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
             </SelectContent>
           </Select>
-        )}
+        }
 
         <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" onClick={loadRecords} disabled={loading}>
@@ -611,36 +611,36 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
       </div>
 
       {/* Content */}
-      {loading ? (
-        <div className="flex justify-center py-16">
+      {loading ?
+      <div className="flex justify-center py-16">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-        </div>
-      ) : records.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
+        </div> :
+      records.length === 0 ?
+      <div className="text-center py-16 text-slate-400">
           <User className="w-10 h-10 mx-auto mb-3 opacity-40" />
           <p className="font-medium">No activity records for {selectedDate}</p>
           <p className="text-sm mt-1">Add a record or change the date.</p>
-        </div>
-      ) : viewMode === 'timeline' ? (
-        <TimelineView records={records} driverNames={driverNames} deliveries={deliveries} stores={stores} onEdit={setEditingRecord} onDelete={setDeleteTarget} />
-      ) : viewMode === 'cards' ? (
-        <CardGridView records={records} driverNames={driverNames} onEdit={setEditingRecord} onDelete={setDeleteTarget} />
-      ) : (
-        <TableView records={records} driverNames={driverNames} onEdit={setEditingRecord} onDelete={setDeleteTarget} />
-      )}
+        </div> :
+      viewMode === 'timeline' ?
+      <TimelineView records={records} driverNames={driverNames} deliveries={deliveries} stores={stores} onEdit={setEditingRecord} onDelete={setDeleteTarget} /> :
+      viewMode === 'cards' ?
+      <CardGridView records={records} driverNames={driverNames} onEdit={setEditingRecord} onDelete={setDeleteTarget} /> :
+
+      <TableView records={records} driverNames={driverNames} onEdit={setEditingRecord} onDelete={setDeleteTarget} />
+      }
 
       {/* Edit existing record dialog */}
-      {editingRecord && editingRecord !== 'new' && (
-        <SegmentDialog
-          record={editingRecord}
-          onSave={handleSave}
-          onClose={() => setEditingRecord(null)}
-        />
-      )}
+      {editingRecord && editingRecord !== 'new' &&
+      <SegmentDialog
+        record={editingRecord}
+        onSave={handleSave}
+        onClose={() => setEditingRecord(null)} />
+
+      }
 
       {/* Add new record dialog */}
-      {showNewForm && (
-        <Dialog open onOpenChange={(open) => { if (!open) setShowNewForm(false); }}>
+      {showNewForm &&
+      <Dialog open onOpenChange={(open) => {if (!open) setShowNewForm(false);}}>
           <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Add Activity Record</DialogTitle></DialogHeader>
             <div className="space-y-4 py-2">
@@ -654,35 +654,35 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
                 </Select>
               </div>
               <div className="space-y-2">
-                {newSegments.map((seg, i) => (
-                  <div key={i} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50">
+                {newSegments.map((seg, i) =>
+              <div key={i} className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-slate-600">Segment {i + 1}</span>
-                      {newSegments.length > 1 && (
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500"
-                          onClick={() => setNewSegments((prev) => prev.filter((_, idx) => idx !== i))}>
+                      {newSegments.length > 1 &&
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500"
+                  onClick={() => setNewSegments((prev) => prev.filter((_, idx) => idx !== i))}>
                           <Trash2 className="w-3 h-3" />
                         </Button>
-                      )}
+                  }
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs">Start Time</Label>
                         <Input type="datetime-local" value={seg.start_time}
-                          onChange={(e) => setNewSegments((prev) => prev.map((s, idx) => idx === i ? { ...s, start_time: e.target.value } : s))}
-                          className="text-xs h-8" />
+                    onChange={(e) => setNewSegments((prev) => prev.map((s, idx) => idx === i ? { ...s, start_time: e.target.value } : s))}
+                    className="text-xs h-8" />
                       </div>
                       <div>
                         <Label className="text-xs">End Time (blank = active)</Label>
                         <Input type="datetime-local" value={seg.end_time}
-                          onChange={(e) => setNewSegments((prev) => prev.map((s, idx) => idx === i ? { ...s, end_time: e.target.value } : s))}
-                          className="text-xs h-8" />
+                    onChange={(e) => setNewSegments((prev) => prev.map((s, idx) => idx === i ? { ...s, end_time: e.target.value } : s))}
+                    className="text-xs h-8" />
                       </div>
                     </div>
                   </div>
-                ))}
+              )}
                 <Button variant="outline" size="sm" className="w-full"
-                  onClick={() => setNewSegments((prev) => [...prev, { start_time: '', end_time: '', tot: '' }])}>
+              onClick={() => setNewSegments((prev) => [...prev, { start_time: '', end_time: '', tot: '' }])}>
                   <Plus className="w-3 h-3 mr-1" /> Add Segment
                 </Button>
               </div>
@@ -695,11 +695,11 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
+      }
 
       {/* Delete confirm */}
-      {deleteTarget && (
-        <Dialog open onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+      {deleteTarget &&
+      <Dialog open onOpenChange={(open) => {if (!open) setDeleteTarget(null);}}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-500" />Delete Activity Record?</DialogTitle></DialogHeader>
             <p className="text-sm text-slate-600">
@@ -713,7 +713,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
