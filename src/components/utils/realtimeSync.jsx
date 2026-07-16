@@ -187,6 +187,25 @@ async function flushBuffered(entityName) {
     }
   });
 
+  // CRITICAL: For polyline updates — if IDB returned null/empty (e.g. receiving device hasn't
+  // synced this date yet), build fullReplacementData from in-memory state merged with the
+  // incoming WS payload so the deliveriesUpdated event always fires with the new polyline.
+  if (typeof window !== 'undefined' && entityName === 'Delivery' && !Array.isArray(fullReplacementData)) {
+    const polylineItems = items.filter(item => item?.data?.encoded_polyline);
+    if (polylineItems.length > 0) {
+      const localDeliveries = window.__appDeliveries;
+      const base = Array.isArray(localDeliveries) ? localDeliveries : [];
+      const snapshotMap = new Map(base.map(d => [d.id, d]));
+      polylineItems.forEach(({ data: itemData }) => {
+        if (!itemData?.id) return;
+        const existing = snapshotMap.get(itemData.id);
+        snapshotMap.set(itemData.id, existing ? { ...existing, ...itemData } : itemData);
+      });
+      fullReplacementData = Array.from(snapshotMap.values());
+      console.log(`🗺️ [RealtimeSync] [${rsTime()}] Built polyline fallback snapshot: ${fullReplacementData.length} deliveries`);
+    }
+  }
+
   if (typeof window !== 'undefined' && entityName === 'Delivery' && Array.isArray(fullReplacementData)) {
     const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
     const selectedDriverId = (typeof window !== 'undefined' ? window.__appSelectedDriverId : null) || localStorage.getItem('global_selected_driver') || localStorage.getItem('app_selectedDriver');
@@ -347,6 +366,22 @@ async function flushBuffered(entityName) {
       fullReplacementData = Array.from(snapshotMap.values());
     }
 
+    // CRITICAL: If we have polyline updates but fullReplacementData is null/empty
+    // (e.g. the receiving device's IDB snapshot for this date is empty or not yet synced),
+    // build the delivery list directly from the buffered item data + in-memory state
+    // so the map always receives the new encoded_polyline immediately.
+    if (hasPolylineUpdates && (!fullReplacementData || fullReplacementData.length === 0)) {
+      const localDeliveries = window.__appDeliveries;
+      const base = Array.isArray(localDeliveries) ? localDeliveries : [];
+      const snapshotMap = new Map(base.map(d => [d.id, d]));
+      items.forEach(({ data: itemData }) => {
+        if (!itemData?.id) return;
+        const existing = snapshotMap.get(itemData.id);
+        snapshotMap.set(itemData.id, existing ? { ...existing, ...itemData } : itemData);
+      });
+      fullReplacementData = Array.from(snapshotMap.values());
+    }
+
     // CRITICAL: Dispatch ALL deliveries for the selected date — never filter by driver here.
     // The UI layer (Dashboard) handles per-driver filtering. Filtering here would drop other
     // drivers' deliveries from Layout state, causing them to disappear from the dashboard.
@@ -356,9 +391,8 @@ async function flushBuffered(entityName) {
       return true;
     });
 
-    // CRITICAL: For polyline updates — if the snapshot is empty or doesn't contain the updated
-    // delivery (e.g. different date filter, IDB not yet synced), inject the WS payload directly
-    // so the map on remote devices always receives the new encoded_polyline immediately.
+    // CRITICAL: For polyline updates — if the snapshot doesn't contain the updated
+    // delivery, inject the WS payload directly so it always reaches the map.
     if (hasPolylineUpdates && relevantItems.length > 0) {
       const snapshotIds = new Set(allDateDeliveries.map(d => d.id));
       const missing = relevantItems.filter(item =>
@@ -389,7 +423,8 @@ async function flushBuffered(entityName) {
         skipMapPhaseOneRefresh: true,
         preserveLocalState: true,
         skipDriverLocationRefresh: true,
-        forceETAUpdate: hasETAChanges
+        forceETAUpdate: hasETAChanges,
+        forcePolylineUpdate: hasPolylineUpdates,
       }
     }));
   }
