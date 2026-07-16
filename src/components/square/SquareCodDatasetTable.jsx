@@ -192,9 +192,24 @@ export default function SquareCodDatasetTable({
   headerActions,
   newCatalogRows
 }) {
+  // Deduplicate newCatalogRows against the main rows (Not Collected + Collected) so the
+  // same delivery never appears in both "New Catalog Items" and "Not Collected".
+  // Match by: delivery ID (most reliable), then by itemName+amount as a fallback.
+  const mainRowDeliveryIds = new Set((rows || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
+  const mainRowSignatures = new Set(
+    (rows || []).map((r) => `${String(r.itemName || '').toLowerCase().trim()}::${Number(r.amount || 0).toFixed(2)}`)
+  );
+  const dedupedNewCatalogRows = (newCatalogRows || []).filter((r) => {
+    const deliveryId = r.rawDelivery?.id || r.id;
+    if (deliveryId && mainRowDeliveryIds.has(deliveryId)) return false;
+    const sig = `${String(r.itemName || '').toLowerCase().trim()}::${Number(r.amount || 0).toFixed(2)}`;
+    if (mainRowSignatures.has(sig)) return false;
+    return true;
+  });
+
   const notCollected = groupByCollected ? rows.filter((r) => !isRowCollected(r)) : rows;
   const collected = groupByCollected ? rows.filter((r) => isRowCollected(r)) : [];
-  const hasNewCatalogRows = newCatalogRows && newCatalogRows.length > 0;
+  const hasNewCatalogRows = dedupedNewCatalogRows.length > 0;
   const colSpan = showLocationColumn ? 7 : 6;
 
   return (
@@ -235,9 +250,9 @@ export default function SquareCodDatasetTable({
                   </thead>
                   <tbody>
                     {hasNewCatalogRows &&
-                  <SectionDivider label={`New Catalog Items (${newCatalogRows.length})`} colSpan={colSpan} />
+                  <SectionDivider label={`New Catalog Items (${dedupedNewCatalogRows.length})`} colSpan={colSpan} />
                   }
-                    {hasNewCatalogRows && newCatalogRows.map((row, index) =>
+                    {hasNewCatalogRows && dedupedNewCatalogRows.map((row, index) =>
                   <DesktopRow key={getRowKey(row, index)} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
                   )}
                     {groupByCollected && notCollected.length > 0 &&
@@ -262,11 +277,11 @@ export default function SquareCodDatasetTable({
               {hasNewCatalogRows &&
             <div className="flex items-center gap-2 text-xs font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider py-1">
                   <div className="flex-1 h-px bg-blue-300 dark:bg-blue-600" />
-                  <span>New Catalog Items ({newCatalogRows.length})</span>
+                  <span>New Catalog Items ({dedupedNewCatalogRows.length})</span>
                   <div className="flex-1 h-px bg-blue-300 dark:bg-blue-600" />
                 </div>
             }
-              {hasNewCatalogRows && newCatalogRows.map((row, index) =>
+              {hasNewCatalogRows && dedupedNewCatalogRows.map((row, index) =>
             <MobileCard key={row.id || `${row.itemName}-new-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
             )}
               {groupByCollected && notCollected.length > 0 &&
