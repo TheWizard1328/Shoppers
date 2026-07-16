@@ -273,8 +273,8 @@ Deno.serve(async (req) => {
       if (!logEntry) return Response.json({ error: 'Log entry not found' }, { status: 404 });
 
       const sourcePatientId = logEntry.source_patient_id || logEntry.patient_id;
-      const newLatitude = toNumber(logEntry.new_latitude) != null ? Math.round(toNumber(logEntry.new_latitude) * 1e7) / 1e7 : null;
-      const newLongitude = toNumber(logEntry.new_longitude) != null ? Math.round(toNumber(logEntry.new_longitude) * 1e7) / 1e7 : null;
+      const newLatitude = toNumber(logEntry.new_latitude) != null ? Math.round(toNumber(logEntry.new_latitude) * 1e10) / 1e10 : null;
+      const newLongitude = toNumber(logEntry.new_longitude) != null ? Math.round(toNumber(logEntry.new_longitude) * 1e10) / 1e10 : null;
       const logStoreId = logEntry.store_id;
 
       if (newLatitude == null || newLongitude == null) {

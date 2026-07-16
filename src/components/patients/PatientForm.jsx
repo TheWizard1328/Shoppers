@@ -314,8 +314,8 @@ export default function PatientForm({
     let latitude = toFiniteNumber(addressData.latitude ?? addressData.lat);
     let longitude = toFiniteNumber(addressData.longitude ?? addressData.lng);
 
-    const roundedLatitude = latitude !== null ? parseFloat(latitude.toFixed(7)) : null;
-    const roundedLongitude = longitude !== null ? parseFloat(longitude.toFixed(7)) : null;
+    const roundedLatitude = latitude !== null ? parseFloat(latitude.toFixed(10)) : null;
+    const roundedLongitude = longitude !== null ? parseFloat(longitude.toFixed(10)) : null;
 
     // Set address immediately (no haversine placeholder — we wait for Google Distance Matrix)
     setFormData((prev) => ({
