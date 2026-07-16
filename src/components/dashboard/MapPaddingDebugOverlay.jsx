@@ -1,10 +1,20 @@
+import { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+
 /**
- * Temporary debug overlay — visible on mobile only.
+ * Temporary debug overlay — visible to App Owners on mobile only.
  * Shows the live values from buildMapPadding to help diagnose immersive-mode padding issues.
  */
 export default function MapPaddingDebugOverlay({ currentUser, isMobile, debugValues }) {
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    base44.auth.me().then((u) => setIsOwner(u?.role === 'admin')).catch(() => {});
+  }, [currentUser?.id]);
+
   if (!isMobile) return null;
-  if (!currentUser) return null;
+  if (!isOwner) return null;
   if (!debugValues) return null;
 
   const {
