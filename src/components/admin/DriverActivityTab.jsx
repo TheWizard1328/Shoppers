@@ -317,8 +317,27 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
         filtered = filtered.filter((r) => driverIdsInCity.has(r.driver_id));
       }
 
-      // Sort by driver name
+      // Sort by city sort_order, then driver sort_order, then name
+      const cityOrderMap = new Map(cities.map((c, i) => [c.id, c.sort_order ?? i]));
+      const appUserMap = new Map(appUsers.map((u) => [u.user_id, u]));
+
       filtered.sort((a, b) => {
+        const auA = appUserMap.get(a.driver_id);
+        const auB = appUserMap.get(b.driver_id);
+
+        // Primary: city sort_order (use the first city_id if multiple)
+        const cityIdA = (auA?.city_ids?.[0] || auA?.city_id) ?? '';
+        const cityIdB = (auB?.city_ids?.[0] || auB?.city_id) ?? '';
+        const cityOrderA = cityIdA ? (cityOrderMap.get(cityIdA) ?? 9999) : 9999;
+        const cityOrderB = cityIdB ? (cityOrderMap.get(cityIdB) ?? 9999) : 9999;
+        if (cityOrderA !== cityOrderB) return cityOrderA - cityOrderB;
+
+        // Secondary: driver sort_order
+        const sortA = auA?.sort_order ?? 9999;
+        const sortB = auB?.sort_order ?? 9999;
+        if (sortA !== sortB) return sortA - sortB;
+
+        // Tertiary: name
         const na = driverNames[a.driver_id] || '';
         const nb = driverNames[b.driver_id] || '';
         return na.localeCompare(nb);
