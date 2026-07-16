@@ -978,7 +978,13 @@ export default function DeliveryMap({
         // completed a stop, next stop is far away, need to zoom OUT to fit both
         // markers) — fall through to fitBounds which adjusts zoom + pan together.
         const zoomDiff = currentZoom - targetZoomForBounds;
-        const zoomAlreadyCorrect = zoomDiff >= -0.05 && zoomDiff <= 0.5;
+        // CRITICAL: When the user has manually zoomed in PAST the requestedMaxZoom
+        // (e.g. map maxZoom is 18 but Phase 2 caps at 17.5), we must NOT take the
+        // fast-pan shortcut — the map needs to zoom OUT to at least requestedMaxZoom
+        // so both markers are visible.  Without this, completing a stop while at
+        // zoom 18 leaves the map stuck at 18 even though the bounds need 17.5 or less.
+        const userOverZoomed = currentZoom > requestedMaxZoom + 0.01;
+        const zoomAlreadyCorrect = !userOverZoomed && zoomDiff >= -0.05 && zoomDiff <= 0.5;
 
         fitBoundsInFlightRef.current = true;
         let settled = false;
