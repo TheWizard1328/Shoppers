@@ -263,7 +263,7 @@ export function runMapPositioningEffect({
           const targetRadiusKm = 16, latDegPerKm = 1 / 111.32, lonDegPerKm = 1 / (111.32 * Math.cos(closestCity.latitude * Math.PI / 180));
           const latOffset = targetRadiusKm * latDegPerKm, lonOffset = targetRadiusKm * lonDegPerKm;
           const bounds = [[closestCity.latitude - latOffset, closestCity.longitude - lonOffset], [closestCity.latitude + latOffset, closestCity.longitude + lonOffset]];
-          setShouldFitBounds({ bounds, options: { ...p1Padding, maxZoom: 17.5, animate: true } });
+          setShouldFitBounds({ bounds, options: { ...p1Padding, maxZoom: 17.5, animate: true }, cancelInFlight: true });
           setMapCenter(null); setMapZoom(null);
         }
       } else if (allCoordinates.length > 0) {
@@ -281,7 +281,7 @@ export function runMapPositioningEffect({
         console.log(`🗺️ [mapPos P1] fitBounds total=${allCoordinates.length} outliers=${outliers.length} normal=${normal.length}`);
         // Filter outliers — only include coordinates within Edmonton metro area for Phase 1 bounds
         const safeBounds = normal.length >= 2 ? normal : allCoordinates;
-        setShouldFitBounds({ bounds: safeBounds, options: { ...p1Padding, maxZoom: 17.5, animate: true } });
+        setShouldFitBounds({ bounds: safeBounds, options: { ...p1Padding, maxZoom: 17.5, animate: true }, cancelInFlight: true });
         setMapCenter(null); setMapZoom(null);
       } else {
         console.warn(`🗺️ [mapPos P1] NO COORDS — hasStop=${hasStopMarkers} hasDriver=${hasDriverMarkers} deliveries=${deliveriesToMap?.length} allCoords=${allCoordinates.length}`);

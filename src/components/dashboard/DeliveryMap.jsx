@@ -907,10 +907,20 @@ export default function DeliveryMap({
     latestFitBoundsRef.current = shouldFitBounds;
 
     if (fitBoundsInFlightRef.current) {
-      // An animation from a very recent tick is still playing — the in-flight
-      // handler below will pick up this newer target the moment it settles.
-      onBoundsFitted?.();
-      return;
+      // Phase 1 (full-route overview) always takes priority — cancel the in-flight
+      // animation immediately so the zoom-out completes correctly. Without this,
+      // a Phase 2/3 GPS-follow animation in progress will silently absorb the Phase 1
+      // request and the map stays stuck at the tight Phase 2/3 zoom level.
+      if (shouldFitBounds.cancelInFlight) {
+        map.stop(); // abort the current Leaflet pan/zoom animation
+        fitBoundsInFlightRef.current = false;
+        // fall through to runFit below
+      } else {
+        // An animation from a very recent tick is still playing — the in-flight
+        // handler below will pick up this newer target the moment it settles.
+        onBoundsFitted?.();
+        return;
+      }
     }
 
     const runFit = (request) => {
