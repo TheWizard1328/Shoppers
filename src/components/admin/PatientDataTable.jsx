@@ -46,7 +46,7 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
       let bVal = b[sortField] || "";
 
       // Handle dates
-      if (sortField === "created_date" || sortField === "last_delivery_date") {
+      if (sortField === "created_date" || sortField === "last_delivery_date" || sortField === "last_login_date") {
         aVal = aVal ? new Date(aVal).getTime() : 0;
         bVal = bVal ? new Date(bVal).getTime() : 0;
       }
@@ -204,6 +204,14 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
                     Status <SortIcon field="status" />
                   </button>
                 </th>
+                <th className="text-left p-3 font-medium text-slate-700">
+                  <button
+                    onClick={() => handleSort("last_login_date")}
+                    className="flex items-center gap-2 hover:text-slate-900"
+                  >
+                    Portal Login <SortIcon field="last_login_date" />
+                  </button>
+                </th>
                 <th className="text-right p-3 font-medium text-slate-700">Actions</th>
               </tr>
             </thead>
@@ -228,6 +236,16 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
                     <Badge className={patient.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-800"}>
                       {patient.status || "active"}
                     </Badge>
+                  </td>
+                  <td className="p-3 text-slate-600 text-sm">
+                    {patient.last_login_date ? (
+                      <div>
+                        <div>{format(new Date(patient.last_login_date), 'MMM d, yyyy')}</div>
+                        <div className="text-xs text-slate-400">{patient.portal_login_count ?? 0} login{(patient.portal_login_count ?? 0) !== 1 ? 's' : ''}</div>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">Never</span>
+                    )}
                   </td>
                   <td className="p-3">
                     <div className="flex justify-end gap-2">
