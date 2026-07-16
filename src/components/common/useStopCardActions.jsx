@@ -335,6 +335,14 @@ export default function useStopCardActions(params) {
         console.warn('[AcceptAll] Failed to write route summary note:', noteErr?.message || noteErr);
       }
 
+      // Show the cycling stop selection dialog BEFORE optimization, if driver is in cycling mode.
+      // This lets the driver pick which stops are cycling BEFORE route optimization runs.
+      const driverAppUserForCycling = appUsers.find((u) => u?.user_id === delivery.driver_id);
+      const isCyclingMode = String(driverAppUserForCycling?.preferred_travel_mode || '').toLowerCase() === 'cycling';
+      if (isDriverAction && isCyclingMode) {
+        window.dispatchEvent(new CustomEvent('openCyclingModeDialog', { detail: { deliveryDate: delivery.delivery_date } }));
+      }
+
       // Small delay so React can render before switching to "Optimizing Route"
       await new Promise((resolve) => setTimeout(resolve, 400));
 
@@ -460,18 +468,6 @@ export default function useStopCardActions(params) {
 
       if (isDriverAction) {
         notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(() => {});
-
-        // Show the cycling stop selection dialog only when the driver's
-        // preferred travel mode is set to cycling. Pre-seeded with stops
-        // that already have transport_mode='cycling' (handled in useModeRouteDialog).
-        const driverAppUser = appUsers.find((u) => u?.user_id === delivery.driver_id);
-        const isCyclingMode = String(driverAppUser?.preferred_travel_mode || '').toLowerCase() === 'cycling';
-        if (isCyclingMode) {
-          // Small delay so the UI settles after optimization before showing the dialog
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('openCyclingModeDialog', { detail: { deliveryDate: delivery.delivery_date } }));
-          }, 1500);
-        }
       } else {
         const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
         if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: scopedPendingDeliveries, patients }).catch(() => {});

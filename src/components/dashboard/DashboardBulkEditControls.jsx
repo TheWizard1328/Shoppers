@@ -130,9 +130,9 @@ export default function DashboardBulkEditControls({
       }
 
       // Travel mode — apply whenever the user has explicitly selected a mode (not mixed)
+      // Only include transport_mode (not finished_leg_transport_mode — not an entity field)
       if (values.travelModeChoice && values.travelModeChoice !== "mixed") {
         sharedUpdates.transport_mode = values.travelModeChoice;
-        sharedUpdates.finished_leg_transport_mode = values.travelModeChoice;
       }
 
       // AM/PM (only if changed and not "unchanged")
@@ -183,6 +183,18 @@ export default function DashboardBulkEditControls({
       }
 
       invalidate("Delivery");
+
+      // If transport_mode was explicitly changed, also write directly to the backend entity
+      // to ensure it persists even if the offline mutation pipeline strips or delays it.
+      if (sharedUpdates.transport_mode) {
+        const modeToApply = sharedUpdates.transport_mode;
+        Promise.all(
+          selectedDeliveries.map((delivery) =>
+            base44.entities.Delivery.update(delivery.id, { transport_mode: modeToApply }).catch(() => null)
+          )
+        ).catch(() => null); // fire-and-forget — non-blocking
+      }
+
       await refreshData?.();
       clearSelection();
       onBulkApplyComplete?.();
