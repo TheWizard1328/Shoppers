@@ -144,7 +144,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
                 return (
                   <div
                     key={i}
-                    className="absolute top-1 bottom-1 rounded-sm opacity-90 bg-[#00ffea]"
+                    className="absolute top-1 bottom-1 rounded-sm opacity-90 bg-[#ffb700]"
                     style={{ left: `${left}%`, width: `${width}%` }}
                     title={`${formatTime(seg.start_time)} → ${seg.end_time ? formatTime(seg.end_time) : 'now'} (${formatDuration(calcSegmentMinutes(seg))})`} />);
 
@@ -495,9 +495,9 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
       await base44.entities.DriverDailyActivity.update(editingRecord.id, updates);
     } else if (editingRecord === 'new') {
 
+
       // no-op: new record dialog handles driver selection separately — see below
-    }await loadRecords();
-  };
+    }await loadRecords();};
 
   const handleDelete = async () => {
     if (!deleteTarget?.id) return;
