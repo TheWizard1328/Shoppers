@@ -104,7 +104,6 @@ export const roundCompletionTime = (timeISO) => {
  * remeasuring right after a stop is completed in phase 2).
  */
 export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, statsCardBaseHeight, stopCardsBaseHeight, bottomNavHeight }) => {
-  console.log ('isImmersiveModeOn: {isImmersiveModeOn}');
   const paddingBuffer = 60;
   // In immersive mode (UI hidden) the map gets 80px breathing room on both axes
   // so markers never sit flush against the screen edge.
@@ -142,6 +141,18 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   } else {
     topPadding = paddingBuffer;
   }
+
+  console.log(`[Imercive Check] isImmersiveModeOn: ${isImmersiveModeOn}`);
+  console.log(`[Imercive Check] paddingBuffer: ${paddingBuffer}`);
+  console.log(`[Imercive Check] immersivePadding: ${immersivePadding}`);
+  console.log(`[Imercive Check] stopCardsHeight: ${stopCardsHeight}`);
+  console.log(`[Imercive Check] cardsArePresent: ${cardsArePresent}`);
+  console.log(`[Imercive Check] rawBottomPadding: ${rawBottomPadding}`);
+  console.log(`[Imercive Check] rawStatsHeight: ${rawStatsHeight}`);
+  console.log(`[Imercive Check] fullObstructionHeight: ${fullObstructionHeight}`);
+
+  console.log(`[Imercive Check] topPadding: ${topPadding}`);
+  console.log(`[Imercive Check] bottomPadding: ${bottomPadding}`);
 
   return {
     paddingTopLeft:     [25,   topPadding],
