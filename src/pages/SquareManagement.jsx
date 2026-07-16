@@ -1584,7 +1584,23 @@ export default function SquareManagement() {
       const crossStoreStore = crossStoreConfig ? getStoreForConfig(crossStoreConfig) : null;
       const crossStoreName = crossStoreStore?.name || crossStoreConfig?.name || crossStoreTx?.location_id || null;
 
-      const linkedCatalogItem = (catalogItems || []).find((ci) => ci?.delivery_id === delivery.id);
+      // Match catalog item by delivery_id first; fall back to amount + location + formatted name
+      const formattedDeliveryName = formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patient?.full_name);
+      const deliveryAmountCentsForCatalog = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
+      const linkedCatalogItem = (catalogItems || []).find((ci) => {
+        if (ci?.delivery_id === delivery.id) return true;
+        // Fallback: same location + same amount + name overlap
+        const ciAmountCents = Math.round(Number(ci?.price_dollars || ci?.amount || 0) * 100);
+        if (ciAmountCents !== deliveryAmountCentsForCatalog) return false;
+        if (ci?.location_id && resolvedLocationId !== '--' && ci.location_id !== resolvedLocationId) return false;
+        const ciName = String(ci?.name || ci?.item_name || '');
+        if (!ciName) return false;
+        // Check if item name matches the formatted delivery name, or patient name appears in the catalog item name
+        if (ciName === formattedDeliveryName) return true;
+        if (patientName && ciName.toLowerCase().includes(patientName.toLowerCase())) return true;
+        if (patientName && patientNamesMatch(patientName, ciName)) return true;
+        return false;
+      });
       const catalogObjectId = linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || null;
 
       // Find any matching transaction (same-location or cross-store) for the Transaction ID column
