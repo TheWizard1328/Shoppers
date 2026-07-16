@@ -13,7 +13,6 @@ import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 import { getLocalTimestampFromDate } from './localTimeHelper';
-import { normalizeTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { applyRealtimeMergeWithLockout } from './completionLockout';
 
 const rsTime = () => new Date().toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
