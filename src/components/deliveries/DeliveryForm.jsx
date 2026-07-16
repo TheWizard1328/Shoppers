@@ -1156,10 +1156,13 @@ export default function DeliveryForm({
     const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, autoDriverId, allDeliveries);
     const puid = await resolvePickupPuid({ stagedDeliveries, allDeliveries, storeId: projected.store_id, deliveryDate: formData.delivery_date, driverId: autoDriverId, timeSlot });
     const newStagedItem = buildProjectedStagedItem({ projected, patient, store, formData, timeSlot, autoSelectedDriverId, autoSelectedDriverName, distanceFromStore });
+    const finalStagedItem = puid ? { ...newStagedItem, puid } : newStagedItem;
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
-    setStagedDeliveries((prev) => [...prev, puid ? { ...newStagedItem, puid } : newStagedItem]);
+    setStagedDeliveries((prev) => [...prev, finalStagedItem]);
     setHasChanges(true);
-  }, [formData, freshStores, stores, patients, drivers, allDeliveries, stagedDeliveries]);
+    // Auto-select the newly added item so it can be edited immediately
+    setTimeout(() => handleStagedDeliveryClick(finalStagedItem), 0);
+  }, [formData, freshStores, stores, patients, drivers, allDeliveries, stagedDeliveries, handleStagedDeliveryClick]);
 
   const sortedStagedDeliveries = useMemo(() => sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverId: formData.driver_id }), [stagedDeliveries, stores, formData.driver_id]);
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
