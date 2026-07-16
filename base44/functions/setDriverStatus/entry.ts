@@ -19,12 +19,16 @@ const getEdmDate = () => {
  * Record a DriverDailyActivity segment for a status transition.
  * on_duty → open a new segment (close any dangling open segment first)
  * on_break / off_duty → close the open segment with a tot
+ *
+ * anchorTime: optional ISO timestamp to use instead of "now" for the segment boundary.
+ *   - off_duty: should be the actual_delivery_time of the last completed stop
+ *   - on_duty (first of day): should be the actual_delivery_time of the first completed stop
  */
-const recordActivitySegment = async (base44, driverId, driverName, newStatus, previousStatus) => {
+const recordActivitySegment = async (base44, driverId, driverName, newStatus, previousStatus, anchorTime = null) => {
   try {
     const todayStr = getEdmDate();
-    const now = new Date().toISOString();
-    const nowMs = Date.now();
+    const now = anchorTime || new Date().toISOString();
+    const nowMs = new Date(now).getTime();
 
     const existing = await base44.asServiceRole.entities.DriverDailyActivity.filter({
       driver_id: driverId,
@@ -146,8 +150,53 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'app_user_not_found_during_update' });
     }
 
+    // Determine anchor time for activity segment boundaries:
+    // - off_duty: use actual_delivery_time of the last completed stop (so TOT ends at last delivery, not clock time)
+    // - on_duty (first segment of the day): use actual_delivery_time of the first completed stop if it predates now
+    // - all other cases: use current time
+    let activityAnchorTime = null;
+    const targetDate = selectedDate || getEdmDate();
+
+    if (newStatus === 'off_duty' && previousStatus === 'on_duty') {
+      const todayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: subjectUserId,
+        delivery_date: targetDate
+      }).catch(() => []);
+      const completed = todayDeliveries
+        .filter((d) => d?.actual_delivery_time && !d.is_cycling_marker)
+        .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime());
+      if (completed.length > 0) {
+        activityAnchorTime = completed[0].actual_delivery_time;
+        console.log(`⏱️ [setDriverStatus] Using last delivery time as off_duty anchor: ${activityAnchorTime}`);
+      }
+    } else if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
+      // Only anchor to delivery time if there are no existing open segments (first on_duty of day)
+      const existingActivity = await base44.asServiceRole.entities.DriverDailyActivity.filter({
+        driver_id: subjectUserId,
+        activity_date: targetDate
+      }).catch(() => []);
+      const hasExistingSegments = existingActivity?.[0]?.activity_segments?.length > 0;
+      if (!hasExistingSegments) {
+        const todayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+          driver_id: subjectUserId,
+          delivery_date: targetDate
+        }).catch(() => []);
+        const completed = todayDeliveries
+          .filter((d) => d?.actual_delivery_time && !d.is_cycling_marker)
+          .sort((a, b) => new Date(a.actual_delivery_time).getTime() - new Date(b.actual_delivery_time).getTime());
+        if (completed.length > 0) {
+          const firstDeliveryTime = completed[0].actual_delivery_time;
+          // Only use it if it's in the past (sanity check)
+          if (new Date(firstDeliveryTime).getTime() < Date.now()) {
+            activityAnchorTime = firstDeliveryTime;
+            console.log(`⏱️ [setDriverStatus] Using first delivery time as on_duty anchor: ${activityAnchorTime}`);
+          }
+        }
+      }
+    }
+
     // Record DriverDailyActivity segment for this status transition
-    await recordActivitySegment(base44, subjectUserId, appUser.user_name || '', newStatus, previousStatus);
+    await recordActivitySegment(base44, subjectUserId, appUser.user_name || '', newStatus, previousStatus, activityAnchorTime);
     
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);
