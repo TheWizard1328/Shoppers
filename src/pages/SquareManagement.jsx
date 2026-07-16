@@ -1802,7 +1802,12 @@ export default function SquareManagement() {
 
           {/* R2-C1: 4 stat cards (catalog view only) */}
           {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && (() => {
-            const newCatalogItems = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
+            const catalogDeliveryIdsForStats = new Set(filteredCatalogRows.map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
+            const newCatalogItems = reconciliationRows.filter((r) => {
+              if (r.catalogId && r.catalogId !== '--') return false;
+              const deliveryId = r.rawDelivery?.id || r.id;
+              return !catalogDeliveryIdsForStats.has(deliveryId);
+            });
             const newCatalogTotal = newCatalogItems.reduce((s, r) => s + Number(r.amount || 0), 0);
             const uncollectedRows = filteredCatalogRows.filter((row) => !row.isCollected);
             const collectedRows = filteredCatalogRows.filter((row) => row.isCollected);
@@ -1879,7 +1884,12 @@ export default function SquareManagement() {
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {(() => {
                 const storeCardMap = new Map();
-                const newCatalogItemsForStore = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
+                const catalogDeliveryIdsForStoreCards = new Set(filteredCatalogRows.map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
+                const newCatalogItemsForStore = reconciliationRows.filter((r) => {
+                  if (r.catalogId && r.catalogId !== '--') return false;
+                  const deliveryId = r.rawDelivery?.id || r.id;
+                  return !catalogDeliveryIdsForStoreCards.has(deliveryId);
+                });
                 for (const item of filteredCatalogRows) {
                   const parsed = parseSquareItemName(item.itemName || item.name || '');
                   const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
@@ -2068,7 +2078,15 @@ export default function SquareManagement() {
           navHeight={navHeight}
           showCatalogColumn
           groupByCollected
-          newCatalogRows={reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--')}
+          newCatalogRows={(() => {
+            // Exclude reconciliation rows whose delivery already has a catalog item in filteredCatalogRows
+            const catalogDeliveryIds = new Set(filteredCatalogRows.map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
+            return reconciliationRows.filter((r) => {
+              if (r.catalogId && r.catalogId !== '--') return false; // already has a catalog ID
+              const deliveryId = r.rawDelivery?.id || r.id;
+              return !catalogDeliveryIds.has(deliveryId); // exclude if already in catalog tab
+            });
+          })()}
           headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
           <Button
             onClick={updateCatalog}
