@@ -741,6 +741,20 @@ const subscribeToEntity = (entityName) => {
               } catch (_) { /* use partial data as fallback */ }
             }
 
+            // CRITICAL: For Delivery updates — if the incoming WS payload carries an encoded_polyline
+            // (i.e. a breadcrumb edit was saved), fetch the full delivery record from the server
+            // to guarantee the receiving device's offline DB gets the complete authoritative data,
+            // not just a partial merge. This is the primary fix for polylines not syncing to remote devices.
+            if (entityName === 'Delivery' && type === 'update' && data?.id && data?.encoded_polyline) {
+              try {
+                const full = await base44.entities.Delivery.get(data.id);
+                if (full?.id) {
+                  dataToSave = full;
+                  console.log(`🗺️ [RealtimeSync] [${rsTime()}] Fetched full delivery for polyline update: ${data.id}`);
+                }
+              } catch (_) { /* use incoming data as fallback */ }
+            }
+
             // CRITICAL: For Delivery updates, merge incoming data with the existing offline record
             // to avoid wiping time window fields (delivery_time_start/end/eta) that may not be
             // included in a partial WebSocket update payload.
@@ -892,8 +906,28 @@ const subscribeToEntity = (entityName) => {
         ? dataToSave
         : data;
 
+      // CRITICAL: If encoded_polyline is present in the merged dataToSave but was NOT in the
+      // raw incoming payload (it was preserved from IDB), changedFields won't include it —
+      // causing hasPolylineUpdates to be false and the UI broadcast to be suppressed on
+      // receiving devices. Force it into changedFields whenever the merged record carries it.
+      let effectiveChangedFields = changedFields;
+      if (
+        entityName === 'Delivery' &&
+        type === 'update' &&
+        dataToSave?.encoded_polyline &&
+        !changedFields.includes('encoded_polyline')
+      ) {
+        // Check if the raw incoming payload explicitly had encoded_polyline — if it did,
+        // changedFields already includes it. If it didn't (preserved from IDB), add it now
+        // so downstream hasPolylineUpdates detection fires correctly on all devices.
+        if (data?.encoded_polyline || dataToSave.encoded_polyline !== data?.encoded_polyline) {
+          effectiveChangedFields = [...changedFields, 'encoded_polyline'];
+          console.log(`🔀 [RealtimeSync] [${rsTime()}] Injected encoded_polyline into changedFields for delivery ${id} — was preserved from IDB merge`);
+        }
+      }
+
       // Buffer notifications to debounce UI updates
-      bufferEvent(entityName, { entityType: entityName, eventType: type, data: bufferData, id, updatedBy, changedFields, isRemoteUpdate });
+      bufferEvent(entityName, { entityType: entityName, eventType: type, data: bufferData, id, updatedBy, changedFields: effectiveChangedFields, isRemoteUpdate });
     });
 
     activeSubscriptions.set(entityName, unsubscribe);
