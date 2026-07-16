@@ -210,14 +210,15 @@ export function useLocalPerformanceStats({
         return anyDelivery?.delivery_date || new Date().toISOString().split('T')[0];
       })();
 
-      // Set stats immediately with a loading placeholder for time — avoids showing legacy value
-      setPerformanceStats({
+      // Set stats immediately — preserve existing totalTimeOnDuty while the async
+      // activity-segments fetch is in flight so the display never flickers to blank.
+      setPerformanceStats(prev => ({
         totalPay,
         totalKm,
         totalExtraKm,
-        totalTimeOnDuty: '--:--',
+        totalTimeOnDuty: prev?.totalTimeOnDuty ?? '--:--',
         extraKmLimit: singleDriverExtraKmLimit
-      });
+      }));
       setIsLoadingPayrollStats(false);
 
       (async () => {
