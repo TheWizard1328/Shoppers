@@ -981,7 +981,7 @@ export async function optimizeRouteClientSide({
   // Build the list of points for multi-stop routing: origin → each stop in order
   // ONLY generate polylines for active stops (en_route, in_transit) and cycling markers —
   // pending stops haven't been picked up yet so there's no driving path to them.
-  const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker);
+  const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
     const polylineOrigin = (() => {

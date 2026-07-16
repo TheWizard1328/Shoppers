@@ -291,7 +291,7 @@ export default function useModeRouteDialog({
         cyclingSegmentOnly: true,
         cyclingOrigin: startCoords,
         cyclingDestination: endCoords,
-        cyclingStopIds: crowSortedIds,
+        cyclingStopIds: [startMarker.id, endMarker.id, ...crowSortedIds],
         startingStopOrder: cyclingStartOrder,
         skipPolyline: false,
       }).catch((e) => { console.warn('[useModeRouteDialog] Stage 1 failed:', e?.message); return null; });

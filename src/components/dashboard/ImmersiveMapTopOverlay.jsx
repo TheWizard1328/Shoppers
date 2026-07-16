@@ -46,6 +46,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
   const resolvedAddress = (() => {
     if (address) return address;
     if (isCyclingMarker) {
+      // Show GPS coordinates as the address (display name already shows location name)
       const lat = delivery?.cycling_latitude;
       const lng = delivery?.cycling_longitude;
       if (lat != null && lng != null) return `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
