@@ -153,6 +153,9 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
 
               {/* Delivery event markers */}
               {driverDeliveries.map((del, i) => {
+                // Skip cycling markers entirely
+                if (del.is_cycling_marker) return null;
+
                 const timeStr = del.actual_delivery_time || del.arrival_time;
                 if (!timeStr) return null;
                 const pct = toPercent(timeStr);
