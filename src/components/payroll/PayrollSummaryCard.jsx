@@ -1300,6 +1300,7 @@ export default function PayrollSummaryCard({
               };
 
               const driverAppUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
+              const eTransEmail = driverAppUser?.ETrans_Email || data.driver?.ETrans_Email || null;
               return (
                 <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
@@ -1307,8 +1308,8 @@ export default function PayrollSummaryCard({
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                     {data.driver.user_name || data.driver.full_name}
-                    {driverAppUser?.ETrans_Email ? (
-                      <span className="text-xs font-normal text-slate-500 ml-1">(E-Trans: {driverAppUser.ETrans_Email})</span>
+                    {eTransEmail ? (
+                      <span className="text-xs font-normal text-slate-500 ml-1">(E-Trans: {eTransEmail})</span>
                     ) : isDriver && data.driver.id === currentUser?.id ? (
                       <span className="text-xs font-normal text-amber-600 ml-1">(No e-Transfer email set)</span>
                     ) : null}

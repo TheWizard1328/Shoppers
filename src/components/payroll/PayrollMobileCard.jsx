@@ -113,16 +113,17 @@ export default function PayrollMobileCard({
 
 
   const driverAppUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
+  const eTransEmail = driverAppUser?.ETrans_Email || data.driver?.ETrans_Email || null;
 
   return (
     <div className="bg-white px-2 rounded-lg space-y-3 dark:bg-slate-800/50 w-full max-w-full overflow-hidden">
       {/* Driver Name Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
             {data.driver.user_name || data.driver.full_name}
-            {driverAppUser?.ETrans_Email &&
-              <span className="text-xs font-normal text-slate-500 ml-1">(E-Trans: {driverAppUser.ETrans_Email})</span>
+            {eTransEmail &&
+              <span className="text-xs font-normal text-slate-500 ml-1">(E-Trans: {eTransEmail})</span>
             }
             {showBadge &&
             <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500"
