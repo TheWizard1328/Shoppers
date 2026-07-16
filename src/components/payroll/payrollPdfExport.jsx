@@ -21,8 +21,8 @@ export function exportPayrollPdf({
   const year = end.getFullYear();
   const startMonth = MONTH_NAMES[start.getMonth()];
   const endMonth = MONTH_NAMES[end.getMonth()];
-  const startDay = start.getDate();
-  const endDay = end.getDate();
+  const startDay = String(start.getDate()).padStart(2, '0');
+  const endDay = String(end.getDate()).padStart(2, '0');
 
   const datePart = start.getMonth() === end.getMonth()
     ? `${year} ${startMonth} ${startDay}-${endDay}`
