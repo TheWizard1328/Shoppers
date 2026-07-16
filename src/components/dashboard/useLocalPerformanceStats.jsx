@@ -200,20 +200,26 @@ export function useLocalPerformanceStats({
       totalDutyMinutes = Math.max(0, span);
     }
 
-    // ── Prefer activity_segments for single-driver view ──────────────────────
-    // If the selected driver has a DriverDailyActivity record with segments,
-    // use the segment sum (closed tots + live open segment) as the authoritative
-    // on-duty time rather than the first-stop to last-stop span.
-    // This is done asynchronously — it fires a second setPerformanceStats
-    // update once the DB read resolves, so the UI shows the span first then
-    // immediately corrects to the segment-based value.
+    // ── Single-driver: always use DriverDailyActivity segments, never the legacy span ──
+    // For single-driver view, fetch activity_segments and use their sum as the
+    // authoritative on-duty time. Only fall back to the legacy span if no segments exist.
     if (!isAllDrivers && driverIds.length === 1 && isDataLoaded) {
       const segDriverId = driverIds[0];
       const segDate = (() => {
-        // Derive selected date from filteredDeliveries
         const anyDelivery = (filteredDeliveries || []).find(d => d?.driver_id === segDriverId && d?.delivery_date);
         return anyDelivery?.delivery_date || new Date().toISOString().split('T')[0];
       })();
+
+      // Set stats immediately with a loading placeholder for time — avoids showing legacy value
+      setPerformanceStats({
+        totalPay,
+        totalKm,
+        totalExtraKm,
+        totalTimeOnDuty: '--:--',
+        extraKmLimit: singleDriverExtraKmLimit
+      });
+      setIsLoadingPayrollStats(false);
+
       (async () => {
         try {
           const recs = await base44.entities.DriverDailyActivity.filter({
@@ -235,9 +241,22 @@ export function useLocalPerformanceStats({
               ? { ...prev, totalTimeOnDuty: formatMinutes(segMinutes) }
               : null
             );
+          } else {
+            // No activity segments — fall back to legacy span calculation
+            setPerformanceStats(prev => prev
+              ? { ...prev, totalTimeOnDuty: formatMinutes(totalDutyMinutes) }
+              : null
+            );
           }
-        } catch (_) { /* non-critical — span fallback already set */ }
+        } catch (_) {
+          // On error, fall back to legacy span
+          setPerformanceStats(prev => prev
+            ? { ...prev, totalTimeOnDuty: formatMinutes(totalDutyMinutes) }
+            : null
+          );
+        }
       })();
+      return; // Don't fall through to the multi-driver setPerformanceStats below
     }
 
     setPerformanceStats({
