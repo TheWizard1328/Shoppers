@@ -89,9 +89,31 @@ export const AppDataProvider = ({ children, value }) => {
 
     try {
       const { offlineDB } = await import('./offlineDatabase');
+
+      // CRITICAL: AppUser upserts from the realtime batch are often PARTIAL records
+      // (e.g. only driver_status + location fields from a status toggle). A direct
+      // bulkSave would REPLACE the full IDB record and permanently wipe app_roles,
+      // user_name, store_ids, and all other fields that weren't in the WS payload.
+      // Always read-merge before writing AppUser records to IDB.
+      let safeAppUserUpserts = appUserUpserts;
+      if (appUserUpserts.length > 0) {
+        try {
+          safeAppUserUpserts = await Promise.all(
+            appUserUpserts.map(async (incoming) => {
+              if (!incoming?.id) return incoming;
+              const existing = await offlineDB.getById(offlineDB.STORES.APP_USERS, incoming.id).catch(() => null);
+              return existing ? { ...existing, ...incoming } : incoming;
+            })
+          );
+        } catch (_mergeErr) {
+          // Non-critical — fall back to raw upserts (still better than nothing)
+          safeAppUserUpserts = appUserUpserts;
+        }
+      }
+
       await Promise.all([
         deliveryUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryUpserts) : Promise.resolve(),
-        appUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserUpserts) : Promise.resolve(),
+        safeAppUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, safeAppUserUpserts) : Promise.resolve(),
         patientUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientUpserts) : Promise.resolve(),
         ...deliveryDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)),
         ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null)),

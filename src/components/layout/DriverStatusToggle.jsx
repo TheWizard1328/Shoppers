@@ -430,15 +430,28 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
 
       // Broadcast UI updates NOW — isTogglingRef is cleared so listeners won't drop them
       if (appUserId && updatePayload) {
-        const finalData = { id: appUserId, user_id: effectiveUser.id, ...updatePayload };
+        // CRITICAL: Read the full offline DB record and merge the status payload into it
+        // before dispatching events. The updatePayload only carries driver_status + location
+        // fields — dispatching a partial object causes updateAppUsersLocally to inject a
+        // partial record into the in-memory appUsers map, which then gets saved to IDB via
+        // flushRealtimeBatch as a partial record, wiping app_roles, user_name, store_ids, etc.
+        let fullAppUserRecord = { id: appUserId, user_id: effectiveUser.id, ...updatePayload };
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => null);
+          if (existingRecord) {
+            fullAppUserRecord = { ...existingRecord, ...updatePayload, id: appUserId, user_id: effectiveUser.id };
+          }
+        } catch (_) {}
+
         if (appDataContext?.updateAppUsersLocally) {
-          appDataContext.updateAppUsersLocally([finalData], false);
+          appDataContext.updateAppUsersLocally([fullAppUserRecord], false);
         }
-        window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: finalData } }));
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [finalData], mergeMode: 'merge' } }));
+        window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: fullAppUserRecord } }));
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [fullAppUserRecord], mergeMode: 'merge' } }));
         window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: effectiveUser.id, newStatus: updatePayload.driver_status } }));
         // Ensure other devices receive the update via WS broadcast
-        broadcastMutation('AppUser', 'update', appUserId, finalData);
+        broadcastMutation('AppUser', 'update', appUserId, fullAppUserRecord);
       }
 
       setTimeout(async () => {
