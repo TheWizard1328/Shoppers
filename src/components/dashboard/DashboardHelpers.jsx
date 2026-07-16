@@ -138,6 +138,9 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
     const fullObstructionHeight = rawStatsHeight + paddingBuffer / 2 + mobileHeaderHeight + legendBarHeight;
     // Never drop below 25px on mobile — guards against transient 0 heights
     topPadding = Math.max(fullObstructionHeight, 25);
+
+    console.log(`[Imercive Check] rawStatsHeight: ${rawStatsHeight}`);
+    console.log(`[Imercive Check] fullObstructionHeight: ${fullObstructionHeight}`);
   } else {
     topPadding = paddingBuffer;
   }
@@ -148,8 +151,6 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   console.log(`[Imercive Check] stopCardsHeight: ${stopCardsHeight}`);
   console.log(`[Imercive Check] cardsArePresent: ${cardsArePresent}`);
   console.log(`[Imercive Check] rawBottomPadding: ${rawBottomPadding}`);
-  console.log(`[Imercive Check] rawStatsHeight: ${rawStatsHeight}`);
-  console.log(`[Imercive Check] fullObstructionHeight: ${fullObstructionHeight}`);
 
   console.log(`[Imercive Check] topPadding: ${topPadding}`);
   console.log(`[Imercive Check] bottomPadding: ${bottomPadding}`);
