@@ -1307,16 +1307,12 @@ export default function PayrollSummaryCard({
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                     {data.driver.user_name || data.driver.full_name}
+                    {driverAppUser?.ETrans_Email ? (
+                      <span className="text-xs font-normal text-slate-500 ml-1">(E-Trans: {driverAppUser.ETrans_Email})</span>
+                    ) : isDriver && data.driver.id === currentUser?.id ? (
+                      <span className="text-xs font-normal text-amber-600 ml-1">(No e-Transfer email set)</span>
+                    ) : null}
                   </h3>
-                  {driverAppUser?.ETrans_Email ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                      💳 {driverAppUser.ETrans_Email}
-                    </span>
-                  ) : isDriver && data.driver.id === currentUser?.id ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                      ⚠️ No e-Transfer email set
-                    </span>
-                  ) : null}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {canShowConfirmButton &&

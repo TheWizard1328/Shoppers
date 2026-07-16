@@ -121,6 +121,9 @@ export default function PayrollMobileCard({
         <div>
           <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
             {data.driver.user_name || data.driver.full_name}
+            {driverAppUser?.ETrans_Email &&
+              <span className="text-xs font-normal text-slate-500 ml-1">(E-Trans: {driverAppUser.ETrans_Email})</span>
+            }
             {showBadge &&
             <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500"
             title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
@@ -130,9 +133,6 @@ export default function PayrollMobileCard({
               </span>
             }
           </h3>
-          {driverAppUser?.ETrans_Email &&
-            <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>e-Transfer: {driverAppUser.ETrans_Email}</p>
-          }
         </div>
         {canShowConfirmButton &&
         <button

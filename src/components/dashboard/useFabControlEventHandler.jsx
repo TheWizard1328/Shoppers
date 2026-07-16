@@ -163,6 +163,8 @@ export function useFabControlEventHandler({
           phaseBeforeBreakRef.current = event.previousPhase || mapViewPhaseRef.current;
           clearTimer();
           setFabPhase(1, false);
+          // Suppress proximity snap for 5 minutes so break-mode Phase 1 isn't auto-bounced
+          if (lastUserInteractionRef) lastUserInteractionRef.current = Date.now();
           break;
         }
         case 'BREAK_END': {
@@ -177,6 +179,8 @@ export function useFabControlEventHandler({
           clearTimer();
           setFabPhase(1, true);
           armTimer(event.duration || 3000);
+          // Suppress proximity snap for 5 minutes so Phase 1 isn't auto-bounced to Phase 2
+          if (lastUserInteractionRef) lastUserInteractionRef.current = Date.now();
           break;
         }
         case 'ACCEPT_ALL_CLICKED': {

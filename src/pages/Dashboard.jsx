@@ -762,6 +762,12 @@ function Dashboard() {
       // CRITICAL: Whenever goPhase fires for a real cycle advance, clear the free-pan flag.
       // This means the driver explicitly tapped the FAB — re-enable auto phase follow.
       mapUserUnlockedRef.current = false;
+      // CRITICAL: When user explicitly selects Phase 1 via FAB, suppress proximity snap
+      // for 5 minutes so the map doesn't auto-bounce back to Phase 2 when the driver
+      // is within 100m of the next stop.
+      if (nextPhase === 1) {
+        lastUserInteractionRef.current = Date.now();
+      }
       mapViewPhaseRef.current = nextPhase;
       isMapViewLockedRef.current = shouldLock;
       pendingPhaseRef.current = nextPhase;
