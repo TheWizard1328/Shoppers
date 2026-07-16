@@ -636,7 +636,7 @@ export default function DashboardView({
 
       <DashboardDialogs
          currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher}
-         deliveries={deliveries} patients={patients} stores={stores} drivers={driversList?.length ? driversList : drivers} appUsers={appUsers}
+         deliveries={deliveries} patients={patients} stores={stores} drivers={driversList?.length ? driversList : drivers} appUsers={appUsers} cities={[]}
          filteredDeliveries={filteredDeliveries} deliveriesWithStopOrder={deliveriesWithStopOrder}
          selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
          driverLocation={driverLocation}
@@ -659,6 +659,9 @@ export default function DashboardView({
         routeNotification={routeNotification} setRouteNotification={setRouteNotification}
         isAIEnabled={isAIEnabled}
         refreshUser={refreshUser}
+        setPreferredTravelMode={onTravelModeChange}
+        performanceStats={performanceStats}
+        localStats={stats}
       />
     </div>
   );

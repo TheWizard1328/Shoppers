@@ -2465,7 +2465,7 @@ useEffect(() => {
     currentToNextPolyline, driverRoutes, selectedCardId, highlightedCardId, isExpanded,
     areCardsVisible, statsPanelOpacity, stopCardsBaseHeight, statsCardBaseHeight, cardsReadyForFAB, isReoptimizing,
     optimizationMessage, showDeliveryForm, editingDelivery, showPatientForm, editingPatient,
-    patientFormMode, patientFormCallback, setPatientFormCallback,
+    patientFormMode, setPatientFormMode, patientFormCallback, setPatientFormCallback,
     showOptimizationSettings, showAIAssistant, isAIEnabled, hasUnreadAIAlerts,
     showQuickAdjustments, showEndOfDayStats, endOfDayDriver, skippedStopsDialogData,
     routeNotification, performanceStats, deliveryStats, liveDistance, liveTimeOnDuty,
