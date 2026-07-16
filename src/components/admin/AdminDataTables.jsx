@@ -99,6 +99,7 @@ export const PatientDataTable = ({
   const [selectedPatients, setSelectedPatients] = useState(new Set());
   const [duplicateFilter, setDuplicateFilter] = useState('none');
   const [storeFilter, setStoreFilter] = useState('all');
+  const [portalLoginFilter, setPortalLoginFilter] = useState(false);
 
   const updateColumnWidth = useCallback((columnId, width) => {
     setColumnWidths((prev) => { const nw = { ...prev, [columnId]: width }; localStorage.setItem('admin_patient_column_widths', JSON.stringify(nw)); return nw; });
@@ -137,6 +138,11 @@ export const PatientDataTable = ({
       if (map[duplicateFilter]) f = f.filter((p) => map[duplicateFilter].has(p.id));
     }
     if (storeFilter !== 'all') f = f.filter((p) => p.store_id === storeFilter);
+    if (portalLoginFilter) {
+      f = f.filter((p) => !!p.last_login_date);
+      f = [...f].sort((a, b) => new Date(b.last_login_date).getTime() - new Date(a.last_login_date).getTime());
+      return f;
+    }
     if (filterText?.trim()) {
       const q = filterText.toLowerCase().trim();
       f = f.filter((p) => {
@@ -162,7 +168,7 @@ export const PatientDataTable = ({
       });
     }
     return f;
-  }, [patients, duplicateFilter, storeFilter, detectDuplicates, filterText, sortColumn, sortDirection, stores]);
+  }, [patients, duplicateFilter, storeFilter, portalLoginFilter, detectDuplicates, filterText, sortColumn, sortDirection, stores]);
 
   const dc = { address: detectDuplicates.address.size, name: detectDuplicates.name.size, phone: detectDuplicates.phone.size, pid: detectDuplicates.pid.size, nameAndAddress: detectDuplicates.nameAndAddress.size };
   const isAllSelected = filteredPatients.length > 0 && selectedPatients.size === filteredPatients.length;
@@ -192,6 +198,16 @@ export const PatientDataTable = ({
                 {stores.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <Button
+              variant={portalLoginFilter ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPortalLoginFilter((v) => !v)}
+              className={portalLoginFilter ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : ''}
+            >
+              🔐 Portal Logins Only {portalLoginFilter && `(${filteredPatients.length})`}
+            </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant={duplicateFilter === 'none' ? 'default' : 'outline'} size="sm" onClick={() => setDuplicateFilter('none')}>All Patients ({patients?.length || 0})</Button>
