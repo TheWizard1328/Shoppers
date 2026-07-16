@@ -313,6 +313,39 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       if (isOwnUser) locationTracker.setDriverStatus(confirmedStatus);
       if (confirmedStatus === lastRequestedStatusRef.current) lastRequestedStatusRef.current = null;
 
+      // After going on_duty, sync the isNextDelivery flag back to offline DB + local React state.
+      // The backend (setDriverStatus → setNextDeliveryFlag) has already written it to the server,
+      // but the frontend doesn't know which stop was flagged — fetch and propagate now.
+      if (newStatus === 'on_duty') {
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const flaggedDeliveries = await base44.entities.Delivery.filter({
+            driver_id: effectiveUser.id,
+            delivery_date: optimizerDate,
+            isNextDelivery: true,
+          });
+          if (flaggedDeliveries?.length > 0) {
+            // Write to offline DB so it persists across refreshes
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, flaggedDeliveries);
+            // Update local React state immediately
+            if (appDataContext?.applyDeliveryChangesLocally) {
+              appDataContext.applyDeliveryChangesLocally({ upserts: flaggedDeliveries });
+            } else if (appDataContext?.updateDeliveriesLocally) {
+              appDataContext.updateDeliveriesLocally(flaggedDeliveries, false);
+            }
+            // Broadcast to other devices
+            flaggedDeliveries.forEach(d => {
+              window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+                detail: { deliveryId: d.id, updates: { isNextDelivery: true }, source: 'onDutyFlagSync' }
+              }));
+            });
+            console.log(`[DriverStatusToggle] Synced isNextDelivery flag to offline DB + UI for ${flaggedDeliveries.length} stop(s)`);
+          }
+        } catch (e) {
+          console.warn('[DriverStatusToggle] Could not sync isNextDelivery after on_duty:', e?.message);
+        }
+      }
+
       // NOTE: Do NOT invalidate caches here — it triggers full data reloads that wipe
       // the dashboard. The optimistic update and broadcastMutation at the end of this
       // handler are sufficient to sync all UI for a simple status change.
