@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
+import { enterBatchSilentMode, exitBatchSilentMode } from './entityMutations';
 
 const queueState = {
   completionJobs: new Map(),
@@ -97,7 +98,7 @@ const flushCompletionJob = async (entry) => {
   // Route optimization only runs on explicit user actions (Accept All, Start, FAB re-optimize)
   // or when stops are added/removed from the route (retry, return, restart).
 
-  // ── PRE-SEED IDB with all affected records BEFORE backend writes ──────────
+  // ── STEP 1: Pre-seed IDB with all affected records BEFORE backend writes ──
   // This ensures that when backend writes trigger WS broadcasts, the device's
   // own IDB is already authoritative — incoming WS events won't overwrite
   // optimistic local state with stale data.
@@ -108,9 +109,30 @@ const flushCompletionJob = async (entry) => {
     }
   }
 
+  // ── STEP 2: Register ALL affected delivery IDs in smartRefreshManager ──────
+  // This suppresses per-record UI re-renders when our own server writes trigger
+  // WebSocket broadcasts back to this device. The local IDB state (pre-seeded
+  // above) is already authoritative, so WS echoes should be silently merged
+  // without triggering a UI re-render cascade.
+  if (Array.isArray(affectedFullRecords) && driverId && deliveryDate) {
+    try {
+      const { smartRefreshManager } = await import('./smartRefreshManager');
+      for (const rec of affectedFullRecords) {
+        if (rec?.id) smartRefreshManager.registerPendingUpdate(rec.id, driverId, deliveryDate);
+      }
+    } catch (_) {}
+  }
+
+  // ── STEP 3: Write to server in batch silent mode ───────────────────────────
+  // enterBatchSilentMode suppresses per-record notifyMutation + broadcastMutation
+  // from entityMutations, so each server write does NOT trigger a separate UI
+  // update or outgoing WS broadcast. The server's own WS broadcasts are suppressed
+  // by the smartRefreshManager registration above.
+  enterBatchSilentMode();
+
   const tasks = [];
 
-  // 1. Persist full records for all affected stops to online DB (prevents stale-data bounce-back)
+  // 3a. Persist full records for all affected stops to online DB
   if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
     tasks.push(
       Promise.allSettled(
@@ -119,7 +141,8 @@ const flushCompletionJob = async (entry) => {
     );
   }
 
-  // 2. Set isNextDelivery flag on backend (authoritative server-side confirmation)
+  // 3b. Set isNextDelivery flag on backend (authoritative server-side confirmation)
+  //     This also repairs stop_order server-side via buildStopOrderRepairs.
   if (driverId && deliveryDate) {
     tasks.push(
       base44.functions.invoke('setNextDeliveryFlag', {
@@ -130,7 +153,7 @@ const flushCompletionJob = async (entry) => {
     );
   }
 
-  // 3. Set driver off-duty if last stop completed
+  // 3c. Set driver off-duty if last stop completed
   if (setOffDuty && entry.payload.appUserId && /^[a-f0-9]{24}$/i.test(String(entry.payload.appUserId))) {
     tasks.push(
       scheduleAppUserUpdate(entry.payload.appUserId, {
@@ -143,10 +166,16 @@ const flushCompletionJob = async (entry) => {
   entry.inFlight = Promise.allSettled(tasks);
   try {
     await entry.inFlight;
+    exitBatchSilentMode();
 
-    // ── BROADCAST after all backend writes complete ───────────────────────
-    // IDB is already pre-seeded above so this device ignores its own broadcast.
-    // Other devices receive fresh authoritative data.
+    // ── STEP 4: Broadcast to OTHER devices (not this one) ───────────────────
+    // IDB is already pre-seeded above + smartRefreshManager registered, so
+    // this device ignores incoming WS echoes. Other devices receive fresh
+    // authoritative data. We use broadcastMutation for cross-device delivery.
+    //
+    // CRITICAL: Only broadcast if we did NOT already write via entityMutations
+    // (which does its own broadcast). Since we're in batch silent mode above,
+    // the entity writes above don't broadcast. So we broadcast once here.
     if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0 && driverId && deliveryDate) {
       try {
         const { broadcastMutation } = await import('./realtimeSync');
@@ -156,7 +185,26 @@ const flushCompletionJob = async (entry) => {
       } catch (_) {}
     }
 
+    // ── STEP 5: Single deliveriesUpdated event for UI refresh ───────────────
+    // One event with all fresh data → one UI re-render, not N.
+    if (driverId && deliveryDate) {
+      try {
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            driverId,
+            deliveryDate,
+            triggeredBy: 'completionSideEffects',
+            freshDeliveries: affectedFullRecords || [],
+            preserveLocalState: true
+          }
+        }));
+      } catch (_) {}
+    }
+
     return;
+  } catch (err) {
+    exitBatchSilentMode();
+    throw err;
   } finally {
     entry.inFlight = null;
     if (entry.pendingPayload) {
@@ -174,9 +222,11 @@ const flushCompletionJob = async (entry) => {
  *
  * Called after a stop is completed/failed/cancelled.
  * Runs non-blocking background tasks:
- *  1. Persist full records for all affected stops to online DB
- *  2. setNextDeliveryFlag on backend
- *  3. Set driver off-duty if last stop
+ *  1. Pre-seed IDB with affected records
+ *  2. Register all affected IDs in smartRefreshManager (suppress WS echo)
+ *  3. Write to server in batch silent mode (suppress per-record UI updates)
+ *  4. Broadcast to other devices
+ *  5. Single deliveriesUpdated event for UI refresh
  *
  * @param {object} payload
  *   - driverId: string

@@ -50,10 +50,14 @@ function buildStopOrderRepairs(deliveries) {
     if (aPending && !bPending) return 1;
     if (!aPending && bPending) return -1;
 
-    const stopOrderDiff = getStopOrder(a) - getStopOrder(b);
-    if (stopOrderDiff !== 0) return stopOrderDiff;
+    // Sort by ETA first (delivery_time_eta), then by existing stop_order as fallback.
+    // This keeps incomplete stops ordered by their scheduled delivery time rather than
+    // relying solely on the optimizer's stop_order which may not reflect ETA ordering.
+    const aEta = getEta(a);
+    const bEta = getEta(b);
+    if (aEta !== bEta) return aEta.localeCompare(bEta);
 
-    return getEta(a).localeCompare(getEta(b));
+    return getStopOrder(a) - getStopOrder(b);
   });
 
   // Return only stops whose stop_order needs to change

@@ -256,7 +256,25 @@ async function flushBuffered(entityName) {
       (item?.data && typeof item.data.encoded_polyline === 'string' && item.data.encoded_polyline.length > 0)
     );
     const allFromLocalDevice = relevantItems.length > 0 && relevantItems.every((item) => !item.isRemoteUpdate);
-    if (allFromLocalDevice && deletedItems.length === 0 && !hasPolylineUpdates) {
+
+    // CRITICAL: Also check smartRefreshManager for pending local updates.
+    // Backend service-role writes (setNextDeliveryFlag, stop_order repairs) use
+    // asServiceRole which sets updated_by_name to the service account, not the
+    // current user. This makes isRemoteUpdate=true for our own server-side writes,
+    // defeating the allFromLocalDevice optimization. By also checking the
+    // smartRefreshManager pending registry, we can recognize WS echoes from our
+    // own completion/stop-order operations and skip the UI re-render cascade.
+    let allHavePendingUpdates = false;
+    if (!allFromLocalDevice && relevantItems.length > 0) {
+      try {
+        const { smartRefreshManager } = await import('./smartRefreshManager');
+        allHavePendingUpdates = relevantItems.every((item) =>
+          item?.id && smartRefreshManager.hasPendingUpdate(item.id)
+        );
+      } catch (_) {}
+    }
+
+    if ((allFromLocalDevice || allHavePendingUpdates) && deletedItems.length === 0 && !hasPolylineUpdates) {
       // Local-only writes — skip full replacement. The optimistic IDB state is already correct.
       // Individual offline DB saves in the subscription handler have already persisted each record.
       return;
