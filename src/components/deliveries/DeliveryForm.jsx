@@ -1151,10 +1151,7 @@ export default function DeliveryForm({
     const patient = patients.find((p) => p && p.id === projected.patient_id);
     if (!patient) { console.error('Patient not found for projected delivery:', projected.patient_id); return; }
     const distanceFromStore = resolveDistanceFromStore({ patient, store, calculateDistance });
-    const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
-    const { autoSelectedDriverId, autoSelectedDriverName } = isDispatcherOnly
-      ? { autoSelectedDriverId: '', autoSelectedDriverName: '' }
-      : resolveProjectedDeliveryDriver({ store, patient, deliveryDate: formData.delivery_date, drivers, getDriverNameForStorage, scheduledDriverMap: scheduledDriverMapRef.current });
+    const { autoSelectedDriverId, autoSelectedDriverName } = resolveProjectedDeliveryDriver({ store, patient, deliveryDate: formData.delivery_date, drivers, getDriverNameForStorage, scheduledDriverMap: scheduledDriverMapRef.current });
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
     const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, autoDriverId, allDeliveries);
     const puid = await resolvePickupPuid({ stagedDeliveries, allDeliveries, storeId: projected.store_id, deliveryDate: formData.delivery_date, driverId: autoDriverId, timeSlot });

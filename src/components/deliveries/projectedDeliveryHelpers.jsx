@@ -9,7 +9,9 @@ export const resolveProjectedDeliveryDriver = ({ store, patient, deliveryDate, d
   const deliveryAMPM = determineDeliveryAMPM(patient);
 
   // 1. Check scheduledDriverMap (override → store default, already resolved) for this store
-  const overrideDriverId = scheduledDriverMap[store?.id];
+  // Try slot-specific keys first (storeId_AM / storeId_PM), then base storeId
+  const slotKey = deliveryAMPM === 'PM' ? `${store?.id}_PM` : `${store?.id}_AM`;
+  const overrideDriverId = scheduledDriverMap[slotKey] || scheduledDriverMap[store?.id];
   if (overrideDriverId) {
     const driver = drivers.find((item) => item && (item.id === overrideDriverId || item.user_id === overrideDriverId));
     if (driver) {
