@@ -41,32 +41,82 @@ const totalOnDutyMinutes = (record) => {
 };
 
 // ─── Timeline Bar View ────────────────────────────────────────────────────────
-const DAY_START_HOUR = 6;
-const DAY_END_HOUR = 22;
-const DAY_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60;
 
-const timeToPercent = (isoStr) => {
-  if (!isoStr) return null;
+// Parse any time string to local minutes-since-midnight
+const localMinutes = (timeStr) => {
+  if (!timeStr) return null;
   try {
-    const d = parseISO(isoStr);
-    const minutesSinceDayStart = (d.getHours() - DAY_START_HOUR) * 60 + d.getMinutes();
-    return Math.max(0, Math.min(100, (minutesSinceDayStart / DAY_MINUTES) * 100));
+    // Handle short "HH:mm" strings (no date)
+    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+      const [h, m] = timeStr.split(':').map(Number);
+      return h * 60 + m;
+    }
+    const d = new Date(timeStr);
+    if (isNaN(d)) return null;
+    return d.getHours() * 60 + d.getMinutes();
   } catch { return null; }
 };
 
-function TimelineView({ records, driverNames, onEdit, onDelete }) {
-  const hourMarkers = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i);
+const formatHourLabel = (totalMinutes) => {
+  const h = Math.floor(totalMinutes / 60) % 24;
+  const m = totalMinutes % 60;
+  if (m === 0) {
+    return h === 12 ? '12p' : h === 0 ? '12a' : h < 12 ? `${h}a` : `${h - 12}p`;
+  }
+  return h < 12 ? `${h}:${String(m).padStart(2,'0')}a` : `${h===12?12:h-12}:${String(m).padStart(2,'0')}p`;
+};
+
+function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDelete }) {
+  // Compute dynamic window: nearest 30-min mark before earliest start, after latest end
+  const { windowStart, windowEnd } = useMemo(() => {
+    let earliest = Infinity;
+    let latest = -Infinity;
+    records.forEach((r) => {
+      (r.activity_segments || []).forEach((s) => {
+        const sm = localMinutes(s.start_time);
+        const em = s.end_time ? localMinutes(s.end_time) : localMinutes(new Date().toISOString());
+        if (sm != null && sm < earliest) earliest = sm;
+        if (em != null && em > latest) latest = em;
+      });
+    });
+    if (!isFinite(earliest)) { earliest = 8 * 60; latest = 18 * 60; }
+    // Round down/up to nearest 30 min
+    const ws = Math.floor(earliest / 30) * 30;
+    const we = Math.ceil(latest / 30) * 30;
+    return { windowStart: ws, windowEnd: Math.max(we, ws + 60) };
+  }, [records]);
+
+  const windowMinutes = windowEnd - windowStart;
+
+  const toPercent = (timeStr) => {
+    const m = localMinutes(timeStr);
+    if (m == null) return null;
+    return Math.max(0, Math.min(100, ((m - windowStart) / windowMinutes) * 100));
+  };
+
+  // Build hour/half-hour markers within window
+  const markers = [];
+  for (let m = windowStart; m <= windowEnd; m += 30) {
+    markers.push(m);
+  }
+
+  // Build a store lookup map
+  const storeMap = useMemo(() => {
+    const map = {};
+    stores.forEach((s) => { map[s.id] = s; });
+    return map;
+  }, [stores]);
 
   return (
     <div className="space-y-3">
       {/* Hour ruler */}
-      <div className="relative ml-28 h-5 border-b border-slate-200">
-        {hourMarkers.map((h) => (
+      <div className="relative ml-28 mr-14 h-5 border-b border-slate-200">
+        {markers.map((m) => (
           <span
-            key={h}
-            className="absolute top-0 text-[10px] text-slate-400 -translate-x-1/2"
-            style={{ left: `${((h - DAY_START_HOUR) / (DAY_END_HOUR - DAY_START_HOUR)) * 100}%` }}>
-            {h === 12 ? '12p' : h < 12 ? `${h}a` : `${h - 12}p`}
+            key={m}
+            className="absolute top-0 text-[10px] text-slate-400 -translate-x-1/2 select-none"
+            style={{ left: `${((m - windowStart) / windowMinutes) * 100}%` }}>
+            {formatHourLabel(m)}
           </span>
         ))}
       </div>
@@ -74,6 +124,10 @@ function TimelineView({ records, driverNames, onEdit, onDelete }) {
       {records.map((record) => {
         const name = driverNames[record.driver_id] || record.driver_name || record.driver_id?.slice(-6) || '?';
         const totalMin = totalOnDutyMinutes(record);
+
+        // Deliveries for this driver on this date
+        const driverDeliveries = deliveries.filter((d) => d.driver_id === record.driver_id);
+
         return (
           <div key={record.id} className="flex items-center gap-2 group">
             <div className="w-28 flex-shrink-0 text-right pr-2">
@@ -81,17 +135,57 @@ function TimelineView({ records, driverNames, onEdit, onDelete }) {
               <span className="text-[10px] text-slate-400">{formatDuration(totalMin)}</span>
             </div>
             <div className="flex-1 relative h-8 bg-slate-100 rounded overflow-hidden">
+              {/* On-duty segments */}
               {(record.activity_segments || []).map((seg, i) => {
-                const left = timeToPercent(seg.start_time);
-                const right = timeToPercent(seg.end_time || new Date().toISOString());
+                const left = toPercent(seg.start_time);
+                const right = toPercent(seg.end_time || new Date().toISOString());
                 if (left === null) return null;
-                const width = Math.max(0.5, (right ?? 100) - left);
+                const width = Math.max(0.3, (right ?? 100) - left);
                 return (
                   <div
                     key={i}
                     className="absolute top-1 bottom-1 bg-emerald-500 rounded-sm opacity-90"
                     style={{ left: `${left}%`, width: `${width}%` }}
                     title={`${formatTime(seg.start_time)} → ${seg.end_time ? formatTime(seg.end_time) : 'now'} (${formatDuration(calcSegmentMinutes(seg))})`}
+                  />
+                );
+              })}
+
+              {/* Delivery event markers */}
+              {driverDeliveries.map((del, i) => {
+                const timeStr = del.actual_delivery_time || del.arrival_time;
+                if (!timeStr) return null;
+                const pct = toPercent(timeStr);
+                if (pct == null) return null;
+
+                const isPickup = !del.patient_id || del.patient_id === '';
+                const isFailed = del.status === 'failed';
+                const isReturn = del.status === 'cancelled' || (del.delivery_notes || '').toLowerCase().includes('return');
+                const store = storeMap[del.store_id];
+
+                let color = store?.color || '#6366f1';
+                if (isFailed) color = '#dc2626';
+                else if (isReturn) color = '#ea580c';
+
+                const height = isPickup ? '100%' : '70%';
+                const top = isPickup ? '0%' : '15%';
+                const width = isPickup ? 3 : 2;
+
+                return (
+                  <div
+                    key={i}
+                    className="absolute"
+                    style={{
+                      left: `${pct}%`,
+                      top,
+                      height,
+                      width: `${width}px`,
+                      backgroundColor: color,
+                      opacity: 0.9,
+                      transform: 'translateX(-50%)',
+                      zIndex: 10,
+                    }}
+                    title={`${isPickup ? 'Pickup' : 'Delivery'} @ ${formatTime(timeStr)}${store ? ` — ${store.name}` : ''}${isFailed ? ' (Failed)' : isReturn ? ' (Return)' : ''}`}
                   />
                 );
               })}
@@ -285,6 +379,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
   const [selectedCityId, setSelectedCityId] = useState('all');
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' | 'cards' | 'table'
   const [records, setRecords] = useState([]);
+  const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null); // null | record | 'new'
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -304,7 +399,11 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
     setLoading(true);
     try {
       const filter = { activity_date: selectedDate };
-      const data = await base44.entities.DriverDailyActivity.filter(filter);
+      const [data, dels] = await Promise.all([
+        base44.entities.DriverDailyActivity.filter(filter),
+        base44.entities.Delivery.filter({ delivery_date: selectedDate }),
+      ]);
+      setDeliveries(dels || []);
 
       // Filter by city if selected — driver's city_ids in appUsers
       let filtered = data || [];
@@ -497,7 +596,7 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
           <p className="text-sm mt-1">Add a record or change the date.</p>
         </div>
       ) : viewMode === 'timeline' ? (
-        <TimelineView records={records} driverNames={driverNames} onEdit={setEditingRecord} onDelete={setDeleteTarget} />
+        <TimelineView records={records} driverNames={driverNames} deliveries={deliveries} stores={stores} onEdit={setEditingRecord} onDelete={setDeleteTarget} />
       ) : viewMode === 'cards' ? (
         <CardGridView records={records} driverNames={driverNames} onEdit={setEditingRecord} onDelete={setDeleteTarget} />
       ) : (
