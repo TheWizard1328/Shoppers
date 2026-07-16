@@ -341,11 +341,21 @@ export default function DashboardView({
     return stores.find((s) => s && s.id === immersiveOverlayDelivery.store_id) || null;
   }, [immersiveOverlayDelivery, stores]);
 
-  const immersiveOverlayIsPickup = !!immersiveOverlayDelivery && !immersiveOverlayDelivery.patient_id && !!immersiveOverlayDelivery.store_id;
+  const immersiveOverlayIsCyclingMarker = !!immersiveOverlayDelivery && !!immersiveOverlayDelivery.is_cycling_marker;
+  const immersiveOverlayIsPickup = !!immersiveOverlayDelivery && !immersiveOverlayDelivery.patient_id && !!immersiveOverlayDelivery.store_id && !immersiveOverlayIsCyclingMarker;
   const immersiveOverlayStoreColor = immersiveOverlayStore?.color || '#10B981';
-  const immersiveOverlayDisplayName = immersiveOverlayIsPickup
-    ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
-    : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
+  const immersiveOverlayCyclingLabel = (() => {
+    if (!immersiveOverlayIsCyclingMarker) return null;
+    const notes = (immersiveOverlayDelivery?.delivery_notes || '').trim().toLowerCase();
+    const isEnd = notes.includes('end');
+    const baseLabel = isEnd ? 'Cycling End' : 'Cycling Start';
+    return immersiveOverlayDelivery?.cycling_location_name || baseLabel;
+  })();
+  const immersiveOverlayDisplayName = immersiveOverlayIsCyclingMarker
+    ? immersiveOverlayCyclingLabel
+    : immersiveOverlayIsPickup
+      ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
+      : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
 
   const immersiveOverlayRemainingDistanceKm = useMemo(() => {
     if (!immersiveOverlayDelivery || !selectedDriverId || selectedDriverId === 'all') return null;

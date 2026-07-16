@@ -45,7 +45,12 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
   // Resolve display address
   const resolvedAddress = (() => {
     if (address) return address;
-    if (isCyclingMarker) return 'Cycling Route Marker';
+    if (isCyclingMarker) {
+      const lat = delivery?.cycling_latitude;
+      const lng = delivery?.cycling_longitude;
+      if (lat != null && lng != null) return `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
+      return 'Cycling Route Marker';
+    }
     if (patient?.address) return patient.address;
     if (store?.address) return store.address;
     return '--';

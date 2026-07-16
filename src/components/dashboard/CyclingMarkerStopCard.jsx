@@ -24,15 +24,18 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
   const [locationName, setLocationName] = useState(null);
 
-  // Look up CyclingLocation name by matching GPS coords (lat/lng)
+  // Use persisted cycling_location_name from the delivery record (set at creation time).
+  // Fall back to async CyclingLocation GPS lookup only if the field is missing (legacy records).
   useEffect(() => {
+    // Fast path: location name was persisted on the delivery record
+    if (delivery?.cycling_location_name) { setLocationName(delivery.cycling_location_name); return; }
     const lat = delivery?.cycling_latitude;
     const lng = delivery?.cycling_longitude;
     if (lat == null || lng == null) {setLocationName(null);return;}
+    // Legacy fallback: look up by GPS coords
     import('@/api/base44Client').then(({ base44 }) =>
     base44.entities.CyclingLocation.list().
     then((results) => {
-      // Find closest location within ~50m
       const THRESH = 0.0005; // ~50m in degrees
       const match = (results || []).find((loc) =>
       Math.abs(loc.latitude - lat) < THRESH && Math.abs(loc.longitude - lng) < THRESH
@@ -41,7 +44,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
     }).
     catch(() => null)
     );
-  }, [delivery?.cycling_latitude, delivery?.cycling_longitude]);
+  }, [delivery?.cycling_latitude, delivery?.cycling_longitude, delivery?.cycling_location_name]);
 
   const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);

@@ -470,6 +470,8 @@ export async function optimizeRouteClientSide({
   const preferredTravelMode = String(_driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
   const effectiveTravelMode = preferredTravelMode === 'cycling' ? 'driving' : preferredTravelMode;
   const hereTransportMode = effectiveTravelMode === 'pedestrian' ? 'pedestrian' : 'car';
+  // When optimizing a cycling-only segment, use bicycle mode for HERE sequencing
+  const cyclingHereMode = cyclingSegmentOnly ? 'bicycle' : hereTransportMode;
 
   // Current time in Edmonton
   const now = new Date();
@@ -898,7 +900,7 @@ export async function optimizeRouteClientSide({
         sequenceStart: seqOrigin,
         stops: stopsToSequence,
         origin: seqOrigin,
-        hereMode: hereTransportMode,
+        hereMode: cyclingSegmentOnly ? cyclingHereMode : hereTransportMode,
         withHome: true
       });
       routeStops = [...routeStops, ...orderedStops];
