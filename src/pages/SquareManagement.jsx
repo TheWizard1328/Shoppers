@@ -272,9 +272,22 @@ export default function SquareManagement() {
       }
 
       // ── Step 2: Add items without a Catalog ID to Square ────────────────
-      const rowsToAdd = (reconciliationRowsRef.current || []).filter(
-        (row) => !row.catalogId || row.catalogId === '--'
+      // Exclude any reconciliation row whose delivery already exists in the catalog tab
+      // (filteredCatalogRows) OR already has a non-empty catalogId itself.
+      const catalogDeliveryIds = new Set(
+        (filteredCatalogRowsRef.current || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean)
       );
+      const catalogObjectIds = new Set(
+        (filteredCatalogRowsRef.current || []).map((r) => r.catalogId).filter((id) => id && id !== '--')
+      );
+      const rowsToAdd = (reconciliationRowsRef.current || []).filter((row) => {
+        // Skip if it already has a catalog ID (already in Square)
+        if (row.catalogId && row.catalogId !== '--') return false;
+        // Skip if the delivery is already represented in the catalog tab
+        const deliveryId = row.rawDelivery?.id || row.id;
+        if (deliveryId && catalogDeliveryIds.has(deliveryId)) return false;
+        return true;
+      });
 
       const itemsToAdd = rowsToAdd.map((row) => {
         const delivery = row.rawDelivery;
