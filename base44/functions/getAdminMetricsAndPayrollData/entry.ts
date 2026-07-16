@@ -152,7 +152,8 @@ const DRIVER_FIELDS = [
   'extra_km_limit',
   'oversized_item_rate',
   'gst_hst_enabled',
-  'deductions'
+  'deductions',
+  'ETrans_Email'
 ];
 
 const PATIENT_FIELDS = ['id', 'full_name', 'distance_from_store', 'address'];
