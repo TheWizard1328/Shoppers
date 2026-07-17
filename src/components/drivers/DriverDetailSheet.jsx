@@ -11,8 +11,6 @@ import DriverDocUpload from './DriverDocUpload';
 const DOC_TYPES = [
   { value: 'license', label: "Driver's License" },
   { value: 'background_check', label: 'Background Check' },
-  { value: 'vehicle_registration', label: 'Vehicle Registration' },
-  { value: 'vehicle_insurance', label: 'Vehicle Insurance' },
 ];
 
 export default function DriverDetailSheet({ driver, currentUser, onClose }) {
