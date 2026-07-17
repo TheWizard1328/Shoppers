@@ -77,7 +77,7 @@ export default function MarkerInfoBalloon({
       {/* Row 1: Driver name */}
       <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--text-slate-900)' }}>
         <Truck className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="truncate">{driver?.user_name || driver?.full_name || 'Unknown Driver'}</span>
+        <span className="truncate">{driver?.user_name || driver?.full_name || delivery?.driver_name || 'Unknown Driver'}</span>
       </div>
 
       {/* Row 2: Store / location name */}
