@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
+import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
 
 /**
  * Auto Route Optimizer - Automatic AI-powered route optimization for drivers
@@ -80,19 +81,16 @@ export default function AutoRouteOptimizer({
         return;
       }
 
-      const now = new Date();
-      const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
       console.log('🤖 [Auto-Optimize] Running AI route optimization...');
       
-      const response = await base44.functions.invoke('optimizeRemainingStops', {
+      const result = await performRouteOptimization({
         driverId: currentUser.id,
         deliveryDate: dateStr,
-        currentLocalTime: localTimeString,
-        deviceTime: now.toISOString()
+        source: 'auto_optimize',
+        bypassDriverStatus: true,
       });
 
-      const data = response?.data || response;
+      const data = result?.optimizeData || result;
 
       if (data?.success) {
         setLastOptimized(new Date());
