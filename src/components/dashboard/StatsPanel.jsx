@@ -382,9 +382,9 @@ export default function StatsPanel({
                      const showGreen = hasFinishedStops && info.hasCompleted;
                      const showRed = hasFinishedStops && info.hasFailed;
                      return (
-                       <div className="relative w-full h-full flex items-center justify-center">
+                       <div className="flex flex-col items-center justify-center gap-0.5">
                          <span>{date.getDate()}</span>
-                         <span className="absolute top-0 right-0 flex gap-px" style={{ transform: 'translate(30%, -30%)' }}>
+                         <span className="flex gap-px">
                            {showBlue && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#3b82f6' }} />}
                            {showGreen && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#16a34a' }} />}
                            {showRed && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#ef4444' }} />}
