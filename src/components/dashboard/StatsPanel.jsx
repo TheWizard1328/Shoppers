@@ -365,27 +365,30 @@ export default function StatsPanel({
                      if (!d?.delivery_date || !d.driver_id) return;
                      if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return;
                      const ds = d.delivery_date;
-                     if (!dateInfo[ds]) dateInfo[ds] = { hasAny: false, hasFailed: false, hasActive: false };
+                     if (!dateInfo[ds]) dateInfo[ds] = { hasAny: false, hasFailed: false, hasCompleted: false };
                      dateInfo[ds].hasAny = true;
                      if (d.status === 'failed') dateInfo[ds].hasFailed = true;
-                     if (['pending', 'in_transit', 'en_route'].includes(d.status)) dateInfo[ds].hasActive = true;
+                     if (d.status === 'completed') dateInfo[ds].hasCompleted = true;
                    });
                    const DayContent = ({ date }) => {
                      const dateStr = format(date, 'yyyy-MM-dd');
                      const info = dateInfo[dateStr];
                      if (!info?.hasAny) return <span>{date.getDate()}</span>;
-                     const isPast = dateStr < todayStr;
-                     // Past dates: red if any failed, green otherwise. Future/today with no completed: blue.
-                     const dotColor = isPast
-                       ? (info.hasFailed ? '#ef4444' : '#16a34a')
-                       : '#3b82f6';
+                     const isPast = dateStr <= todayStr;
+                     const hasFinishedStops = info.hasCompleted || info.hasFailed;
+                     // Future/today with no finished stops yet: just blue dot
+                     // Past or dates with finished stops: green dot + optional red dot
+                     const showBlue = !hasFinishedStops;
+                     const showGreen = hasFinishedStops && info.hasCompleted;
+                     const showRed = hasFinishedStops && info.hasFailed;
                      return (
                        <div className="relative w-full h-full flex items-center justify-center">
                          <span>{date.getDate()}</span>
-                         <span
-                           className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full"
-                           style={{ backgroundColor: dotColor, transform: 'translate(25%, -25%)' }}
-                         />
+                         <span className="absolute top-0 right-0 flex gap-px" style={{ transform: 'translate(30%, -30%)' }}>
+                           {showBlue && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#3b82f6' }} />}
+                           {showGreen && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#16a34a' }} />}
+                           {showRed && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#ef4444' }} />}
+                         </span>
                        </div>
                      );
                    };
