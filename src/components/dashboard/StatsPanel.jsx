@@ -375,8 +375,10 @@ export default function StatsPanel({
                      const info = dateInfo[dateStr];
                      if (!info?.hasAny) return <span>{date.getDate()}</span>;
                      const isPast = dateStr < todayStr;
-                     // Dot color: red if any failed, green if active stops today/future, blue for past
-                     const dotColor = info.hasFailed ? '#ef4444' : isPast ? '#3b82f6' : '#16a34a';
+                     // Past dates: red if any failed, green otherwise. Future/today with no completed: blue.
+                     const dotColor = isPast
+                       ? (info.hasFailed ? '#ef4444' : '#16a34a')
+                       : '#3b82f6';
                      return (
                        <div className="relative w-full h-full flex items-center justify-center">
                          <span>{date.getDate()}</span>
