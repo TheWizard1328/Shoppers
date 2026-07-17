@@ -367,16 +367,16 @@ export default function StatsPanel({
                        return true;
                      }).map((d) => d.delivery_date)
                    );
-                   const DayWithDot = ({ date, displayMonth, ...dayProps }) => {
+                   const DayContent = ({ date }) => {
                      const dateStr = format(date, 'yyyy-MM-dd');
                      const hasActive = activeDates.has(dateStr);
                      return (
-                       <div className="relative">
-                         <button {...dayProps} />
+                       <div className="relative w-full h-full flex items-center justify-center">
+                         <span>{date.getDate()}</span>
                          {hasActive && (
                            <span
-                             className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 pointer-events-none"
-                             style={{ zIndex: 1 }}
+                             className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-emerald-500"
+                             style={{ transform: 'translate(25%, -25%)' }}
                            />
                          )}
                        </div>
@@ -393,7 +393,7 @@ export default function StatsPanel({
                        }}
                        month={calendarMonth}
                        onMonthChange={setCalendarMonth}
-                       components={{ Day: DayWithDot }}
+                       components={{ DayContent }}
                        footer={
                         <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                         <TooltipProvider><Tooltip>
