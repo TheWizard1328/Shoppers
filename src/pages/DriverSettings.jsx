@@ -355,7 +355,7 @@ export default function DriverSettings() {
                 : 'bg-red-100 text-red-700';
 
               if (!isAdmin) {
-                // Compact card for drivers/dispatchers with 3-row layout and bottom sheet click handler
+                // Compact card: 3-column grid layout
                 return (
                   <Card 
                     key={driver.id} 
@@ -364,50 +364,55 @@ export default function DriverSettings() {
                     style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
                   >
                     <CardContent className="p-3">
-                      <div className="flex flex-col gap-2">
-                        {/* Row 1: Avatar + Name + Distance badge */}
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            {/* Avatar */}
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor}`}>
-                              <span className="text-white font-bold text-sm">
-                                {(getDriverDisplayName(driver) || 'D')?.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                            {/* Name */}
-                            <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
-                              {getDriverDisplayName(driver)}
-                            </p>
-                          </div>
+                      {/* 3-column grid: Avatar | Name+Phone | Badges */}
+                      <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-0.5 items-start">
+                        {/* Col 1: Avatar — spans 2 rows */}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 row-span-2 self-center ${avatarColor}`}>
+                          <span className="text-white font-bold text-sm">
+                            {(getDriverDisplayName(driver) || 'D')?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+
+                        {/* Col 2 Row 1: Name */}
+                        <p className="font-semibold text-sm truncate leading-tight pt-0.5" style={{ color: 'var(--text-slate-900)' }}>
+                          {getDriverDisplayName(driver)}
+                        </p>
+
+                        {/* Col 3 Row 1: Duty status badge */}
+                        <div className="flex justify-center">
+                          <Badge className={`text-xs py-0 h-5 ${dutyStatus.color}`}>{dutyStatus.label}</Badge>
+                        </div>
+
+                        {/* Col 2 Row 2: Phone (non-tappable) */}
+                        <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                          {driver.phone ? (
+                            <>
+                              <Phone className="w-3 h-3 flex-shrink-0" />
+                              <span>{formatPhoneNumber(driver.phone)}</span>
+                            </>
+                          ) : (
+                            <span className="opacity-0 select-none">—</span>
+                          )}
+                        </div>
+
+                        {/* Col 3 Row 2: GPS + Distance badges */}
+                        <div className="flex items-center justify-center gap-1 flex-wrap">
+                          {gpsLabel && (
+                            <Badge className={`text-xs py-0 h-5 gap-0.5 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                              <Navigation className="w-2.5 h-2.5" />
+                              {gpsLabel.label}
+                            </Badge>
+                          )}
                           {distToStore && (
-                            <Badge className={`text-xs py-0 h-4 gap-0.5 flex-shrink-0 ${distBadgeClass}`}>
+                            <Badge className={`text-xs py-0 h-5 gap-0.5 flex-shrink-0 ${distBadgeClass}`}>
                               <MapPin className="w-2.5 h-2.5" />
                               {distToStore}
                             </Badge>
                           )}
                         </div>
 
-                        {/* Row 2: Duty status badge + GPS badge + Phone number (non-tappable display only) */}
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-1 flex-wrap">
-                            <Badge className={`text-xs py-0 h-4 ${dutyStatus.color}`}>{dutyStatus.label}</Badge>
-                            {gpsLabel && (
-                              <Badge className={`text-xs py-0 h-4 gap-0.5 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                                <Navigation className="w-2.5 h-2.5" />
-                                {gpsLabel.label}
-                              </Badge>
-                            )}
-                          </div>
-                          {driver.phone && (
-                            <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                              <Phone className="w-3 h-3" />
-                              {formatPhoneNumber(driver.phone)}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Row 3: Document management button/status */}
-                        <div className="flex items-center justify-start pt-1 border-t border-slate-100/50">
+                        {/* Row 3: spans col 2+3 — Doc request button / Docs Ready badge */}
+                        <div className="col-start-2 col-span-2 flex items-center pt-1.5 border-t border-slate-100/50 mt-1">
                           {currentUser?.app_roles?.includes('dispatcher') && (
                             activeDocRequests.has(driver.id) ? (
                               <Badge className="h-6 px-2 text-[10px] rounded-full gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -418,10 +423,7 @@ export default function DriverSettings() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedDriver(driver);
-                                }}
+                                onClick={(e) => { e.stopPropagation(); setSelectedDriver(driver); }}
                                 className="h-6 px-2 text-[10px] rounded-full flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
                               >
                                 <FileText className="w-2.5 h-2.5" />
