@@ -110,7 +110,7 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
   return (
     <div className="space-y-3">
       {/* Hour ruler */}
-      <div className="relative ml-28 mr-14 h-5 border-b border-slate-200">
+      <div className="relative ml-0 sm:ml-28 mr-0 sm:mr-14 h-5 border-b border-slate-200">
         {markers.map((m) =>
         <span
           key={m}
@@ -129,96 +129,76 @@ function TimelineView({ records, driverNames, deliveries, stores, onEdit, onDele
         const driverDeliveries = deliveries.filter((d) => d.driver_id === record.driver_id);
 
         return (
-          <div key={record.id} className="flex items-center gap-2 group">
-            <div className="w-28 flex-shrink-0 text-right pr-2">
-              <span className="text-xs font-medium text-slate-700 truncate block">{name}</span>
+          <div key={record.id} className="group">
+            {/* Mobile: name + time above bar, full-width bar */}
+            <div className="flex items-center gap-2 mb-0.5 sm:hidden">
+              <span className="text-xs font-medium text-slate-700 truncate">{name}</span>
               <span className="text-[10px] text-slate-400">{formatDuration(totalMin)}</span>
+              <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
+              </div>
             </div>
-            <div className="flex-1 relative h-8 bg-slate-100 rounded overflow-hidden">
-              {/* On-duty segments */}
-              {(record.activity_segments || []).map((seg, i) => {
-                const left = toPercent(seg.start_time);
-                const right = toPercent(seg.end_time || new Date().toISOString());
-                if (left === null) return null;
-                const width = Math.max(0.3, (right ?? 100) - left);
-                return (
-                  <div
-                    key={i}
-                    className="absolute top-1 bottom-1 rounded-sm opacity-90 bg-[#ffb700]"
-                    style={{ left: `${left}%`, width: `${width}%` }}
-                    title={`${formatTime(seg.start_time)} → ${seg.end_time ? formatTime(seg.end_time) : 'now'} (${formatDuration(calcSegmentMinutes(seg))})`} />);
+            <div className="flex items-center gap-2">
+              {/* Desktop: name on left */}
+              <div className="hidden sm:block w-28 flex-shrink-0 text-right pr-2">
+                <span className="text-xs font-medium text-slate-700 truncate block">{name}</span>
+                <span className="text-[10px] text-slate-400">{formatDuration(totalMin)}</span>
+              </div>
+              <div className="flex-1 relative h-8 bg-slate-100 rounded overflow-hidden">
+                {/* On-duty segments */}
+                {(record.activity_segments || []).map((seg, i) => {
+                  const left = toPercent(seg.start_time);
+                  const right = toPercent(seg.end_time || new Date().toISOString());
+                  if (left === null) return null;
+                  const width = Math.max(0.3, (right ?? 100) - left);
+                  return (
+                    <div
+                      key={i}
+                      className="absolute top-1 bottom-1 rounded-sm opacity-90 bg-[#ffb700]"
+                      style={{ left: `${left}%`, width: `${width}%` }}
+                      title={`${formatTime(seg.start_time)} → ${seg.end_time ? formatTime(seg.end_time) : 'now'} (${formatDuration(calcSegmentMinutes(seg))})`} />);
+                })}
 
-
-              })}
-
-              {/* Delivery event markers */}
-              {driverDeliveries.map((del, i) => {
-                // Skip cycling markers entirely
-                if (del.is_cycling_marker) return null;
-
-                const timeStr = del.actual_delivery_time || del.arrival_time;
-                if (!timeStr) return null;
-                const pct = toPercent(timeStr);
-                if (pct == null) return null;
-
-                const isPickup = !del.patient_id || del.patient_id === '';
-                const isFailed = del.status === 'failed';
-                const isReturn = del.status === 'cancelled' || (del.delivery_notes || '').toLowerCase().includes('return');
-                const store = storeMap[del.store_id];
-                const color = store?.color || '#6366f1';
-
-                const lineHeight = isPickup ? '100%' : '70%';
-                const lineTop = isPickup ? '0%' : '15%';
-                const lineWidth = isPickup ? 3 : 2;
-
-                // Midpoint icon: green circle for completed, red X for failed, red square for return, nothing for pickup/normal
-                let midIcon = null;
-                const iconSize = 7;
-                if (isFailed) {
-                  midIcon =
-                  <svg width={iconSize + 2} height={iconSize + 2} viewBox="0 0 9 9" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
-                      <line x1="1" y1="1" x2="8" y2="8" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" />
-                      <line x1="8" y1="1" x2="1" y2="8" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" />
-                    </svg>;
-
-                } else if (isReturn) {
-                  midIcon =
-                  <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
-                      <rect x="0.5" y="0.5" width="6" height="6" rx="1" fill="#dc2626" stroke="#fff" strokeWidth="0.5" />
-                    </svg>;
-
-                } else if (!isPickup && del.status === 'completed') {
-                  midIcon =
-                  <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}>
-                      <circle cx="3.5" cy="3.5" r="3" fill="#16a34a" stroke="#fff" strokeWidth="0.5" />
-                    </svg>;
-
-                }
-
-                return (
-                  <div
-                    key={i}
-                    className="absolute"
-                    style={{
-                      left: `${pct}%`,
-                      top: lineTop,
-                      height: lineHeight,
-                      width: `${lineWidth}px`,
-                      backgroundColor: color,
-                      opacity: 0.9,
-                      transform: 'translateX(-50%)',
-                      zIndex: 10
-                    }}
-                    title={`${isPickup ? 'Pickup' : 'Delivery'} @ ${formatTime(timeStr)}${store ? ` — ${store.name}` : ''}${isFailed ? ' (Failed)' : isReturn ? ' (Return)' : ''}`}>
-                    
-                    {midIcon}
-                  </div>);
-
-              })}
-            </div>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
+                {/* Delivery event markers */}
+                {driverDeliveries.map((del, i) => {
+                  if (del.is_cycling_marker) return null;
+                  const timeStr = del.actual_delivery_time || del.arrival_time;
+                  if (!timeStr) return null;
+                  const pct = toPercent(timeStr);
+                  if (pct == null) return null;
+                  const isPickup = !del.patient_id || del.patient_id === '';
+                  const isFailed = del.status === 'failed';
+                  const isReturn = del.status === 'cancelled' || (del.delivery_notes || '').toLowerCase().includes('return');
+                  const store = storeMap[del.store_id];
+                  const color = store?.color || '#6366f1';
+                  const lineHeight = isPickup ? '100%' : '70%';
+                  const lineTop = isPickup ? '0%' : '15%';
+                  const lineWidth = isPickup ? 3 : 2;
+                  let midIcon = null;
+                  const iconSize = 7;
+                  if (isFailed) {
+                    midIcon = <svg width={iconSize + 2} height={iconSize + 2} viewBox="0 0 9 9" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}><line x1="1" y1="1" x2="8" y2="8" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" /><line x1="8" y1="1" x2="1" y2="8" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" /></svg>;
+                  } else if (isReturn) {
+                    midIcon = <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}><rect x="0.5" y="0.5" width="6" height="6" rx="1" fill="#dc2626" stroke="#fff" strokeWidth="0.5" /></svg>;
+                  } else if (!isPickup && del.status === 'completed') {
+                    midIcon = <svg width={iconSize} height={iconSize} viewBox="0 0 7 7" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, overflow: 'visible' }}><circle cx="3.5" cy="3.5" r="3" fill="#16a34a" stroke="#fff" strokeWidth="0.5" /></svg>;
+                  }
+                  return (
+                    <div
+                      key={i}
+                      className="absolute"
+                      style={{ left: `${pct}%`, top: lineTop, height: lineHeight, width: `${lineWidth}px`, backgroundColor: color, opacity: 0.9, transform: 'translateX(-50%)', zIndex: 10 }}
+                      title={`${isPickup ? 'Pickup' : 'Delivery'} @ ${formatTime(timeStr)}${store ? ` — ${store.name}` : ''}${isFailed ? ' (Failed)' : isReturn ? ' (Return)' : ''}`}>
+                      {midIcon}
+                    </div>);
+                })}
+              </div>
+              {/* Desktop: edit/delete buttons on right */}
+              <div className="hidden sm:flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(record)}><Edit className="w-3 h-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => onDelete(record)}><Trash2 className="w-3 h-3" /></Button>
+              </div>
             </div>
           </div>);
 
