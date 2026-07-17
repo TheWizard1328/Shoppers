@@ -6,8 +6,9 @@ import GoogleAPILogViewer from '../admin/GoogleAPILogViewer';
 import RemoteLogsTab from '../admin/RemoteLogsTab';
 import PatientAnalysisReview from '../admin/PatientAnalysisReview';
 import DriverSyncManagementTab from '../admin/DriverSyncManagementTab';
+import DocAccessRequestsPanel from '../admin/DocAccessRequestsPanel';
 
-export default function AdminUtilitiesExtraTabs({ appUsers = [], stores = [] }) {
+export default function AdminUtilitiesExtraTabs({ appUsers = [], stores = [], currentUser }) {
   return (
     <>
       <TabsContent value="sync-management" className="mt-4 md:mt-6">
@@ -31,6 +32,10 @@ export default function AdminUtilitiesExtraTabs({ appUsers = [], stores = [] }) 
 
       <TabsContent value="patient-analysis">
         <PatientAnalysisReview stores={stores || []} />
+      </TabsContent>
+
+      <TabsContent value="doc-requests" className="mt-4 md:mt-6">
+        <DocAccessRequestsPanel currentUser={currentUser} />
       </TabsContent>
     </>);
 

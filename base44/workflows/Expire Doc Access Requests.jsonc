@@ -1,0 +1,45 @@
+{
+  "name": "Expire Doc Access Requests",
+  "description": "Every 5 minutes, checks all approved DocAccessRequest records and expires any that have passed midnight or exceeded the 30-minute viewing window from first_viewed_at.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 5,
+      "interval_unit": "minutes",
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "expire_doc_access",
+      "namespace": "base44",
+      "version": "1.0"
+    },
+    "do": [
+      {
+        "expire_requests": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "expireDocAccessRequests",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Expire stale access",
+            "description": "Mark expired doc access requests"
+          }
+        }
+      }
+    ]
+  }
+}

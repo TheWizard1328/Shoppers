@@ -1691,6 +1691,7 @@ export default function AdminUtilities() {
               <TabsTrigger value="api-logs" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Logs</TabsTrigger>
               <TabsTrigger value="remote-logs" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Remote Logs</TabsTrigger>
               <TabsTrigger value="sync-management" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Sync</TabsTrigger>
+              <TabsTrigger value="doc-requests" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Doc Requests</TabsTrigger>
             </TabsList>
           </div>
         </Tabs>
@@ -1889,7 +1890,7 @@ export default function AdminUtilities() {
             <PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} />
           </TabsContent>
 
-          <AdminUtilitiesExtraTabs appUsers={appUsers || []} stores={stores || []} />
+          <AdminUtilitiesExtraTabs appUsers={appUsers || []} stores={stores || []} currentUser={currentUser} />
         </Tabs>
       </div>
 
