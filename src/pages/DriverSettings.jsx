@@ -107,7 +107,7 @@ export default function DriverSettings() {
         });
         const now = new Date();
         const active = new Set();
-        for (const r of (approved || [])) {
+        for (const r of approved || []) {
           if (r.expires_at && now > new Date(r.expires_at)) continue;
           if (r.first_viewed_at) {
             const viewTime = new Date(r.first_viewed_at);
@@ -242,8 +242,8 @@ export default function DriverSettings() {
 
     if (minDist === Infinity) return null;
     return minDist < 1000 ?
-      `${Math.round(minDist)}m` :
-      `${(minDist / 1000).toFixed(1)}km`;
+    `${Math.round(minDist)}m` :
+    `${(minDist / 1000).toFixed(1)}km`;
   };
 
   const handleSaveDriver = async (userId, updates) => {
@@ -350,19 +350,19 @@ export default function DriverSettings() {
 
               const isOnDuty = dutyStatus.label === 'On Duty' || dutyStatus.label === 'On Break' || dutyStatus.label === 'Online';
               const distToStore = getDriverDistanceToStore(driver, latestAppUser, isOnDuty);
-              const distBadgeClass = isOnDuty
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'bg-red-100 text-red-700';
+              const distBadgeClass = isOnDuty ?
+              'bg-emerald-100 text-emerald-800' :
+              'bg-red-100 text-red-700';
 
               if (!isAdmin) {
                 // Compact card: 3-column grid layout
                 return (
-                  <Card 
-                    key={driver.id} 
+                  <Card
+                    key={driver.id}
                     onClick={() => setSelectedDriver(driver)}
-                    className="rounded-xl border shadow hover:shadow-md transition-shadow cursor-pointer active:opacity-70" 
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
-                  >
+                    className="rounded-xl border shadow hover:shadow-md transition-shadow cursor-pointer active:opacity-70"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                    
                     <CardContent className="p-3">
                       {/* 3-column grid: Avatar | Name+Phone | Badges */}
                       <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-0.5 items-start">
@@ -385,58 +385,58 @@ export default function DriverSettings() {
 
                         {/* Col 2 Row 2: Phone (non-tappable) */}
                         <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                          {driver.phone ? (
-                            <>
+                          {driver.phone ?
+                          <>
                               <Phone className="w-3 h-3 flex-shrink-0" />
                               <span>{formatPhoneNumber(driver.phone)}</span>
-                            </>
-                          ) : (
-                            <span className="opacity-0 select-none">—</span>
-                          )}
+                            </> :
+
+                          <span className="opacity-0 select-none">—</span>
+                          }
                         </div>
 
                         {/* Col 3 Row 2: GPS + Distance badges */}
                         <div className="flex items-center justify-center gap-1 flex-wrap">
-                          {gpsLabel && (
-                            <Badge className={`text-xs py-0 h-5 gap-0.5 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                          {gpsLabel &&
+                          <Badge className={`text-xs py-0 h-5 gap-0.5 hidden ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
                               <Navigation className="w-2.5 h-2.5" />
                               {gpsLabel.label}
                             </Badge>
-                          )}
-                          {distToStore && (
-                            <Badge className={`text-xs py-0 h-5 gap-0.5 flex-shrink-0 ${distBadgeClass}`}>
+                          }
+                          {distToStore &&
+                          <Badge className={`text-xs py-0 h-5 gap-0.5 flex-shrink-0 ${distBadgeClass}`}>
                               <MapPin className="w-2.5 h-2.5" />
                               {distToStore}
                             </Badge>
-                          )}
+                          }
                         </div>
 
                         {/* Row 3: spans col 2+3 — Doc request button / Docs Ready badge */}
                         <div className="col-start-2 col-span-2 flex items-center pt-1.5 border-t border-slate-100/50 mt-1">
                           {currentUser?.app_roles?.includes('dispatcher') && (
-                            activeDocRequests.has(driver.id) ? (
-                              <Badge className="h-6 px-2 text-[10px] rounded-full gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          activeDocRequests.has(driver.id) ?
+                          <Badge className="h-6 px-2 text-[10px] rounded-full gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <ShieldCheck className="w-2.5 h-2.5" />
                                 Docs Ready
-                              </Badge>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); setSelectedDriver(driver); }}
-                                className="h-6 px-2 text-[10px] rounded-full flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
-                              >
+                              </Badge> :
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {e.stopPropagation();setSelectedDriver(driver);}}
+                            className="h-6 px-2 text-[10px] rounded-full flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200">
+                            
                                 <FileText className="w-2.5 h-2.5" />
                                 Request Docs
-                              </Button>
-                            )
-                          )}
+                              </Button>)
+
+                          }
                           {!currentUser?.app_roles?.includes('dispatcher') && <div className="h-6" />}
                         </div>
                       </div>
                     </CardContent>
-                  </Card>
-                );
+                  </Card>);
+
               }
 
               // Full card for admins
@@ -562,13 +562,13 @@ export default function DriverSettings() {
 
       })()
       }
-      {selectedDriver && (
-        <DriverDetailSheet
-          driver={selectedDriver}
-          currentUser={currentUser}
-          onClose={() => setSelectedDriver(null)}
-        />
-      )}
+      {selectedDriver &&
+      <DriverDetailSheet
+        driver={selectedDriver}
+        currentUser={currentUser}
+        onClose={() => setSelectedDriver(null)} />
+
+      }
     </div>);
 
 }
