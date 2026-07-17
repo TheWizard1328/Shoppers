@@ -143,14 +143,15 @@ class LocationTracker {
     this._pendingEventUpdate = true;
     this._eventUpdateTime = Date.now();
     
-    // CRITICAL: Update liveDistanceTracker's driver status too.
-    // If it's not tracking yet (e.g. admin+driver whose GPS startTracking path didn't
-    // reach the start() call), lazily boot it now so segments are always recorded.
-    if (!liveDistanceTracker.isTracking && this.currentUser) {
-      liveDistanceTracker.start(this.currentUser).catch(e => console.warn('⚠️ [LocationTracker] liveDistanceTracker lazy-start failed:', e?.message));
-    }
-    if (liveDistanceTracker.isTracking) {
-      liveDistanceTracker.updateDriverStatus(status);
+    // CRITICAL: Only the primary device writes duty segments.
+    // Non-primary devices must NOT open/close segments — see start() comment.
+    if (this.isPrimaryDevice) {
+      if (!liveDistanceTracker.isTracking && this.currentUser) {
+        liveDistanceTracker.start(this.currentUser).catch(e => console.warn('⚠️ [LocationTracker] liveDistanceTracker lazy-start failed:', e?.message));
+      }
+      if (liveDistanceTracker.isTracking) {
+        liveDistanceTracker.updateDriverStatus(status);
+      }
     }
     
     return status === 'on_duty' || status === 'on_break';
@@ -830,10 +831,11 @@ class LocationTracker {
     this.lastBreadcrumbPosition = null;
     this.minBreadcrumbDistance = 100; // 100 meters
 
-    // CRITICAL: Start liveDistanceTracker here — BEFORE isPrimaryDevice guard.
-    // Segment logging (on-duty windows) must work for ALL driver devices, including
-    // admin+driver users whose phone is not the primary GPS tracker.
-    if (!liveDistanceTracker.isTracking) {
+    // CRITICAL: Only the primary device writes duty segments to DriverDailyActivity.
+    // Non-primary devices (e.g. a tablet viewing the dashboard) must NOT open/close
+    // segments — doing so creates duplicate segments that inflate the time-on-duty
+    // stat (e.g. tablet shows 33h vs phone's 3h because both opened segments).
+    if (this.isPrimaryDevice && !liveDistanceTracker.isTracking) {
       liveDistanceTracker.start(user).catch(e => console.warn('⚠️ [LocationTracker] liveDistanceTracker.start failed:', e?.message));
     }
 

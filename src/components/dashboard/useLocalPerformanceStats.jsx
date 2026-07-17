@@ -230,16 +230,38 @@ export function useLocalPerformanceStats({
           const segments = recs?.[0]?.activity_segments;
           if (Array.isArray(segments) && segments.length > 0) {
             const nowMs = Date.now();
-            const segMinutes = segments.reduce((sum, seg) => {
-              if (!seg?.start_time) return sum;
-              if (seg.end_time && typeof seg.tot === 'number') return sum + seg.tot;
-              if (!seg.end_time) {
-                return sum + Math.max(0, Math.round((nowMs - new Date(seg.start_time).getTime()) / 60000));
+
+            // ── Deduplicate overlapping segments ──
+            // Multiple devices (phone + tablet) may have opened concurrent segments
+            // for the same on-duty window. Merge overlapping time ranges so the total
+            // duty time reflects actual elapsed wall-clock, not the sum of N devices.
+            const ranges = segments
+              .filter(s => s?.start_time)
+              .map(s => ({
+                start: new Date(s.start_time).getTime(),
+                end: s.end_time ? new Date(s.end_time).getTime() : nowMs
+              }))
+              .sort((a, b) => a.start - b.start);
+
+            const merged = [];
+            for (const r of ranges) {
+              const last = merged[merged.length - 1];
+              if (last && r.start <= last.end) {
+                last.end = Math.max(last.end, r.end);
+              } else {
+                merged.push({ start: r.start, end: r.end });
               }
-              return sum;
+            }
+
+            const segMinutes = merged.reduce((sum, r) => {
+              return sum + Math.max(0, Math.round((r.end - r.start) / 60000));
             }, 0);
+
+            // Cap at 24 hours — a single day cannot have more than 1440 min of duty
+            const cappedMinutes = Math.min(segMinutes, 1440);
+
             setPerformanceStats(prev => prev
-              ? { ...prev, totalTimeOnDuty: formatMinutes(segMinutes) }
+              ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) }
               : null
             );
           } else {

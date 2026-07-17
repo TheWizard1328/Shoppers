@@ -179,11 +179,31 @@ function DashboardView({
         const segments = recs?.[0]?.activity_segments;
         let total = baseMinutes; // fallback: span of first→last stop
         if (Array.isArray(segments) && segments.length > 0) {
-          // Authoritative: sum all closed segment tots
-          total = segments.reduce((sum, seg) => {
-            if (seg?.end_time && typeof seg.tot === 'number') return sum + seg.tot;
-            return sum;
+          // Deduplicate overlapping segments (multiple devices may have
+          // opened concurrent segments). Merge overlapping time ranges.
+          const ranges = segments
+            .filter(s => s?.start_time)
+            .map(s => ({
+              start: new Date(s.start_time).getTime(),
+              end: s.end_time ? new Date(s.end_time).getTime() : Date.now()
+            }))
+            .sort((a, b) => a.start - b.start);
+
+          const merged = [];
+          for (const r of ranges) {
+            const last = merged[merged.length - 1];
+            if (last && r.start <= last.end) {
+              last.end = Math.max(last.end, r.end);
+            } else {
+              merged.push({ start: r.start, end: r.end });
+            }
+          }
+
+          total = merged.reduce((sum, r) => {
+            return sum + Math.max(0, Math.round((r.end - r.start) / 60000));
           }, 0);
+          // Cap at 24 hours
+          total = Math.min(total, 1440);
         }
         const hh = String(Math.floor(total / 60)).padStart(2, '0');
         const mm = String(total % 60).padStart(2, '0');
