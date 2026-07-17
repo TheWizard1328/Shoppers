@@ -14,6 +14,7 @@ import {
 "@/components/ui/alert-dialog";
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
 import { updateDeliveryLocal, deleteDeliveryLocal, updatePatientLocal } from "@/components/utils/offlineMutations";
+import { enterBatchSilentMode, exitBatchSilentMode } from "@/components/utils/entityMutations";
 import { useAppData } from "@/components/utils/AppDataContext";
 import { getDriverNameForStorage } from "@/components/utils/driverUtils";
 import { invalidate } from "@/components/utils/dataManager";
@@ -179,24 +180,73 @@ export default function DashboardBulkEditControls({
         });
       }
 
-      // STEP 3: Persist to offline DB + backend for each delivery
-      await Promise.all(perDeliveryPayloads.map(({ delivery, payload }) =>
-        updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true, isBatchOperation: false })
-      ));
+      // STEP 3: Register all affected delivery IDs in smartRefreshManager BEFORE
+      // any backend writes. This ensures that WebSocket echoes from our own
+      // backend writes are recognized as self-originated and skipped (not
+      // triggering full UI re-renders that would overwrite our optimistic state).
+      const affectedIds = perDeliveryPayloads.map(({ delivery }) => delivery.id);
+      const driverId = perDeliveryPayloads[0]?.delivery?.driver_id;
+      const deliveryDate = perDeliveryPayloads[0]?.delivery?.delivery_date;
+      try {
+        for (const id of affectedIds) {
+          smartRefreshManager.registerPendingUpdate(id, driverId, deliveryDate);
+        }
+      } catch (_) {}
 
-      // STEP 4: Save patient time window edits (updates Patient entity directly).
-      const patientUpdates = Object.entries(patientWindowEdits).map(([patientId, edits]) => {
-        return updatePatientLocal(patientId, {
-          time_window_start: edits.time_window_start || null,
-          time_window_end: edits.time_window_end || null
+      // STEP 4: Enter batch silent mode — suppresses ALL per-record notifyMutation
+      // and broadcastMutation calls during the writes below. Without this, each
+      // updateDeliveryLocal call would fire a separate notifyMutation →
+      // deliveriesUpdated event → UI re-render + downstream optimization triggers.
+      enterBatchSilentMode();
+
+      try {
+        // STEP 5: Write ALL deliveries to IDB + backend in parallel.
+        // isBatchOperation: true → IDB write still happens, backend write still
+        // happens, but per-record notifyMutation is suppressed by batch silent mode.
+        // We do NOT use isBatchOperation: true because that would QUEUE the backend
+        // write to pending mutations instead of writing immediately. We want
+        // immediate backend writes with suppressed UI notifications.
+        await Promise.all(perDeliveryPayloads.map(({ delivery, payload }) =>
+          updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true, isBatchOperation: false })
+        ));
+
+        // STEP 6: Save patient time window edits (updates Patient entity directly).
+        const patientUpdates = Object.entries(patientWindowEdits || {}).map(([patientId, edits]) => {
+          return updatePatientLocal(patientId, {
+            time_window_start: edits.time_window_start || null,
+            time_window_end: edits.time_window_end || null
+          });
         });
-      });
-      if (patientUpdates.length > 0) {
-        await Promise.all(patientUpdates);
-        invalidate("Patient");
+        if (patientUpdates.length > 0) {
+          await Promise.all(patientUpdates);
+          invalidate("Patient");
+        }
+
+        invalidate("Delivery");
+      } finally {
+        // Exit batch silent mode — restores per-record notifications for any
+        // future writes outside this batch
+        exitBatchSilentMode();
       }
 
-      invalidate("Delivery");
+      // STEP 7: Single deliveriesUpdated event with all fresh data → one re-render.
+      // This replaces the N per-record events that used to fire during the writes.
+      if (affectedIds.length > 0) {
+        const freshDeliveries = perDeliveryPayloads.map(({ delivery, payload }) => ({
+          ...delivery,
+          ...payload
+        }));
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            driverId,
+            deliveryDate,
+            triggeredBy: 'bulkEdit',
+            freshDeliveries,
+            preserveLocalState: true
+          }
+        }));
+      }
+
       clearSelection();
       onBulkApplyComplete?.();
     } finally {
