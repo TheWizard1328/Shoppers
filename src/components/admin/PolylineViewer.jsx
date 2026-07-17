@@ -625,14 +625,23 @@ export default function PolylineViewer({ users = [] }) {
         import('../utils/offlineDatabase').then(async ({ offlineDB }) => {
           if (!deliveryId) return;
           try {
+            // Touch the Delivery record on the server — this triggers the WebSocket entity
+            // subscription on ALL connected devices so they re-render the updated polyline
+            // without needing a manual refresh.
+            const nowIso = new Date().toISOString();
+            await base44.entities.Delivery.update(deliveryId, {
+              encoded_polyline: polyToSave,
+              travel_dist: travelDistKm ?? undefined,
+              polyline_saved_at: nowIso,
+            }).catch(() => {});
+
             let existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId).catch(() => null);
-            // If not in offline DB, fetch from server so we have a complete record to broadcast
             if (!existing) {
               existing = await base44.entities.Delivery.get(deliveryId).catch(() => null);
             }
             const updatedDelivery = existing
-              ? { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: polyToSave, polyline_saved_at: new Date().toISOString() }
-              : { id: deliveryId, encoded_polyline: polyToSave, travel_dist: travelDistKm, polyline_saved_at: new Date().toISOString() };
+              ? { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: polyToSave, polyline_saved_at: nowIso }
+              : { id: deliveryId, encoded_polyline: polyToSave, travel_dist: travelDistKm, polyline_saved_at: nowIso };
             await offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).catch(() => {});
             // Broadcast through realtimeSync so all active map views on this device re-render
             broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
