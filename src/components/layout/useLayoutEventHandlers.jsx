@@ -534,6 +534,24 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('driverResumedAfterAbsence', handleDriverResumedAfterAbsence);
 
+    // POLYLINE INVALIDATION: When a breadcrumb edit saves a new encoded_polyline,
+    // fetch the fresh delivery directly and merge it into state — bypassing the
+    // WebSocket dedup layer which can suppress or delay the update.
+    const handleForceInvalidateDelivery = async (event) => {
+      const { deliveryId } = event.detail || {};
+      if (!deliveryId) return;
+      try {
+        const freshDelivery = await base44.entities.Delivery.get(deliveryId);
+        if (!freshDelivery) return;
+        setDeliveries((prev) => prev.map((d) => d?.id === deliveryId ? { ...d, ...freshDelivery } : d));
+        offlineDB.save(offlineDB.STORES.DELIVERIES, freshDelivery).catch(() => {});
+        console.log(`✅ [Layout] Force-invalidated delivery ${deliveryId} — encoded_polyline updated`);
+      } catch (e) {
+        console.warn('⚠️ [Layout] forceInvalidateDelivery failed:', e?.message);
+      }
+    };
+    window.addEventListener('forceInvalidateDelivery', handleForceInvalidateDelivery);
+
     // AUTO-RECOVERY: Listen for force refresh after connection recovery
     const handleForceDataRefresh = async () => {
       console.log('🔄 [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
@@ -635,6 +653,7 @@ export function useLayoutEventHandlers({
       unsubscribeMessages();
       window.removeEventListener('offlinePatientsRefreshed', handleOfflinePatientsRefreshed);
       window.removeEventListener('driverResumedAfterAbsence', handleDriverResumedAfterAbsence);
+      window.removeEventListener('forceInvalidateDelivery', handleForceInvalidateDelivery);
     };
   }, [currentUser, currentPageName]);
 }
