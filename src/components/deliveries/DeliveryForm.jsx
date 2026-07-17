@@ -944,7 +944,9 @@ export default function DeliveryForm({
       if (statusChangedToCompletion) { triggerSquareCodDelete({ deliveryId: delivery?.id, nextStatus: formData.status, delivery: { ...delivery, ...dataToSave, cod_payments: formData.cod_payments, cod_payment_type: formData.cod_payment_type } }); }
       if (delivery?.id) {
         await syncDeliveryCodOnUpdate({ delivery, formData, stores, base44, dataToSave });
-        await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }));
+        // Register before the backend write so the WS echo is recognized as self-originated
+        try { const { smartRefreshManager: srm } = await import('../utils/smartRefreshManager'); srm.registerPendingUpdate(delivery.id, formData.driver_id, formData.delivery_date); } catch (_) {}
+        await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }), { skipSmartRefresh: true });
         const skipImmediateDeliveriesUpdatedEvent = Boolean(timeWindowChanged || travelModeOnly);
         if (['completed', 'failed', 'cancelled'].includes(formData.status)) {
           const expectedTravelDist = Number(dataToSave.travel_dist ?? formData.travel_dist ?? 0);
@@ -955,7 +957,7 @@ export default function DeliveryForm({
         if (statusChangedToCompletion) triggerPatientLastDeliverySync({ delivery: { ...delivery, ...dataToSave, status: formData.status, patient_id: delivery.patient_id, delivery_date: formData.delivery_date }, previousStatus: delivery.status });
         if (formData.status === 'completed') cleanupSquareCodCatalogForDate(formData.delivery_date);
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        if (!skipImmediateDeliveriesUpdatedEvent) { window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: travelModeOnly ? 'deliveryFormTravelModeOnly' : 'deliveryFormUpdate' } })); }
+        if (!skipImmediateDeliveriesUpdatedEvent) { window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: travelModeOnly ? 'deliveryFormTravelModeOnly' : 'deliveryFormUpdate', preserveLocalState: true } })); }
       } else {
         if (buttonState === 'add' || buttonState === 'updateStaged' || buttonState === 'done') { setIsSaving(false); return false; }
         let resolvedPuid = dataToSave.puid || '';

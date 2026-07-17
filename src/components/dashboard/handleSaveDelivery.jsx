@@ -105,13 +105,17 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       const ALL_TRACKED_FIELDS = [
         ...STRUCTURAL_FIELDS,
         'arrival_time', 'actual_delivery_time',
-        'delivery_notes', 'delivery_instructions', 'unit_number',
+        'delivery_notes', 'delivery_instructions', 'driver_notes', 'unit_number',
         'patient_name', 'patient_phone', 'store_phone',
-        'cod_total_amount_required', 'signature_needed', 'fridge_item',
+        'cod_total_amount_required', 'cod_required', 'no_charge',
+        'signature_needed', 'fridge_item',
         'oversized', 'mailbox_ok', 'call_upon_arrival', 'ring_bell',
         'dont_ring_bell', 'back_door', 'first_delivery',
         'prescription_number', 'barcode_values', 'receipt_barcode_values',
         'extra_time', 'ampm_deliveries',
+        'transport_mode', 'finished_leg_transport_mode',
+        'puid', 'store_id', 'paid_km_override',
+        'tracking_number', 'after_hours_pickup',
       ];
 
       const anyFieldChanged = ALL_TRACKED_FIELDS.some((field) => {
@@ -132,15 +136,23 @@ export async function handleSaveDelivery(deliveryData, ctx) {
         return;
       }
 
-      // Step 1: Save the changed fields to the DB
-      await updateDeliveryLocal(editingDelivery.id, deliveryData);
+      // Step 1: Register delivery ID in smartRefreshManager BEFORE the backend write.
+      // This ensures the WS echo from our own write is recognized as self-originated
+      // and skipped — preventing the echo from overwriting our optimistic UI state.
+      try {
+        smartRefreshManager.registerPendingUpdate(editingDelivery.id, driverId, deliveryDate);
+      } catch (_) {}
 
-      // Step 2: Optimistically update the UI
+      // Step 2: Optimistically update the UI first (before async write)
       if (applyDeliveryChangesLocally) {
         applyDeliveryChangesLocally({ upserts: [{ ...editingDelivery, ...deliveryData }] });
       } else if (updateDeliveriesLocally) {
         updateDeliveriesLocally([{ ...editingDelivery, ...deliveryData }], false);
       }
+
+      // Step 3: Save to IDB + backend. skipSmartRefresh=true because we already
+      // paused at the top of handleSaveDelivery and will resume at the end.
+      await updateDeliveryLocal(editingDelivery.id, deliveryData, { skipSmartRefresh: true });
 
       if (hasStructuralChange) {
         // Step 3: Re-sort stop orders and check if any actually changed
