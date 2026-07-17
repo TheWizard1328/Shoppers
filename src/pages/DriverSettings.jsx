@@ -397,12 +397,12 @@ export default function DriverSettings() {
 
                         {/* Col 3 Row 2: GPS + Distance badges — fixed width matching row 1 */}
                         <div className="flex items-center justify-center gap-1 w-20">
-                          {gpsLabel &&
-                          <Badge className={`text-xs py-0 h-5 gap-0.5 flex-1 justify-center hidden ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                              <Navigation className="w-2.5 h-2.5" />
-                              {gpsLabel.label}
-                            </Badge>
-                          }
+                          
+
+
+
+
+                          
                           {distToStore &&
                           <Badge className={`text-xs py-0 h-5 gap-0.5 flex-1 justify-center ${distBadgeClass}`}>
                               <MapPin className="w-2.5 h-2.5" />
