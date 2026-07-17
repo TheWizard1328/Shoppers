@@ -1,0 +1,71 @@
+{
+  "properties": {
+    "approved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "approved_by": {
+      "type": "string"
+    },
+    "approved_by_name": {
+      "type": "string"
+    },
+    "denied_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "denied_by": {
+      "type": "string"
+    },
+    "driver_id": {
+      "type": "string",
+      "required": true
+    },
+    "driver_name": {
+      "type": "string"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "first_viewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "requester_id": {
+      "type": "string",
+      "required": true
+    },
+    "requester_name": {
+      "type": "string"
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revoked_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revoked_by": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "denied",
+        "revoked",
+        "expired"
+      ]
+    }
+  },
+  "required": [
+    "requester_id",
+    "driver_id",
+    "status"
+  ],
+  "type": "object",
+  "name": "DocAccessRequest"
+}

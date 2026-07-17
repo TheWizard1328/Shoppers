@@ -1,0 +1,49 @@
+{
+  "properties": {
+    "document_expiry_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "document_type": {
+      "type": "string",
+      "enum": [
+        "license",
+        "background_check",
+        "vehicle_registration",
+        "vehicle_insurance"
+      ]
+    },
+    "driver_id": {
+      "type": "string"
+    },
+    "driver_name": {
+      "type": "string"
+    },
+    "file_uri": {
+      "type": "string"
+    },
+    "file_size": {
+      "type": "number"
+    },
+    "mime_type": {
+      "type": "string"
+    },
+    "uploaded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "uploaded_by": {
+      "type": "string"
+    },
+    "uploaded_by_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "driver_id",
+    "document_type",
+    "file_uri"
+  ],
+  "type": "object",
+  "name": "DriverDocument"
+}

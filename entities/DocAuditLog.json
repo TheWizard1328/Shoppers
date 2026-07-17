@@ -1,0 +1,54 @@
+{
+  "properties": {
+    "action": {
+      "enum": [
+        "viewed",
+        "requested",
+        "approved",
+        "denied",
+        "revoked",
+        "expired",
+        "uploaded"
+      ],
+      "type": "string"
+    },
+    "doc_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "driver_id": {
+      "type": "string"
+    },
+    "driver_name": {
+      "type": "string"
+    },
+    "ip_address": {
+      "type": "string"
+    },
+    "target_driver_id": {
+      "type": "string"
+    },
+    "user_agent": {
+      "type": "string"
+    },
+    "viewer_id": {
+      "type": "string"
+    },
+    "viewer_name": {
+      "type": "string"
+    },
+    "viewed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "viewer_id",
+    "action",
+    "driver_id"
+  ],
+  "type": "object",
+  "name": "DocAuditLog"
+}
