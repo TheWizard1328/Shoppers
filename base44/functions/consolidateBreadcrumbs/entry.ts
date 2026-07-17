@@ -141,6 +141,52 @@ function dedupeSequential(points) {
   return result;
 }
 
+// Haversine distance in meters between two [lat, lon] points
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Given a timestamp anchor and the stop's GPS coords, find the index in masterPoints
+// of the breadcrumb point that is spatially closest to the stop within a ±BUFFER_MS window.
+// Falls back to the pure timestamp anchor index if no GPS coords are available.
+const ANCHOR_BUFFER_MS = 10 * 60 * 1000; // ±10 minutes around the timestamp anchor
+
+function findBestAnchorIndex(masterPoints, timestampMs, stopLat, stopLon) {
+  // Find the index of the point closest in time to the timestamp anchor
+  let closestTimeIdx = 0;
+  let minTimeDiff = Infinity;
+  for (let i = 0; i < masterPoints.length; i++) {
+    const diff = Math.abs(masterPoints[i][2] - timestampMs);
+    if (diff < minTimeDiff) { minTimeDiff = diff; closestTimeIdx = i; }
+  }
+
+  // If no stop GPS coords available, use the pure time anchor
+  if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) {
+    return closestTimeIdx;
+  }
+
+  // Search within ±BUFFER_MS of the timestamp anchor for the spatially closest point
+  const windowStart = timestampMs - ANCHOR_BUFFER_MS;
+  const windowEnd   = timestampMs + ANCHOR_BUFFER_MS;
+  let bestIdx = closestTimeIdx;
+  let minDist = Infinity;
+
+  for (let i = 0; i < masterPoints.length; i++) {
+    const ts = masterPoints[i][2];
+    if (ts < windowStart || ts > windowEnd) continue;
+    const dist = haversineMeters(stopLat, stopLon, masterPoints[i][0], masterPoints[i][1]);
+    if (dist < minDist) { minDist = dist; bestIdx = i; }
+  }
+
+  return bestIdx;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -205,6 +251,26 @@ Deno.serve(async (req) => {
       .filter((d) => d && d.stop_order != null && TERMINAL_STATUSES.has(String(d.status || '')))
       .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
 
+    // ── 2b. Fetch patient GPS coords in one bulk call ─────────────────────────
+    // We need each stop's physical GPS coords for the spatial anchor refinement.
+    // Build a patient_id → {lat, lon} lookup from the Patient entity.
+    const patientIds = [...new Set(
+      (allDeliveries || []).map((d) => d.patient_id).filter(Boolean)
+    )];
+    const patientGpsMap = new Map(); // patient_id → { lat, lon }
+    if (patientIds.length > 0) {
+      const patients = await base44.asServiceRole.entities.Patient.filter(
+        { id: { $in: patientIds } },
+        'id',
+        50000
+      ).catch(() => []);
+      for (const p of (patients || [])) {
+        if (p?.id && Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude))) {
+          patientGpsMap.set(p.id, { lat: Number(p.latitude), lon: Number(p.longitude) });
+        }
+      }
+    }
+
     if (terminalStops.length === 0) {
       return Response.json({ success: true, skipped: true, reason: 'no_terminal_stops', driver_id, delivery_date });
     }
@@ -234,12 +300,11 @@ Deno.serve(async (req) => {
     }
 
     // ── 4. Slice master timeline into per-stop segments ───────────────────────
-    // Boundary rule:
-    //   Stop N covers points where: prevStopEndMs <= ts < thisStopEndMs
-    //   Stop 1 has no lower bound (takes all points from the start of the day)
-    //
-    // delivery_time_end is the authoritative boundary. If unavailable, fall back to
-    // actual_delivery_time, then arrival_time.
+    // Two-stage boundary detection per stop:
+    //   1. Use actual_delivery_time as the initial timestamp anchor for each boundary.
+    //   2. Within ±10min of that anchor, find the master-timeline point spatially
+    //      closest to the stop's patient GPS coords — this "snaps" the boundary to
+    //      where the driver physically was, not when the app recorded the completion.
 
     const results = [];
 
@@ -247,9 +312,9 @@ Deno.serve(async (req) => {
       const stop = stopsToSlice[i];
       const numericStopOrder = Number(stop.stop_order);
 
-      // Upper boundary: this stop's completion time
+      // Upper boundary: this stop's completion time (timestamp anchor)
       const stopEndMs = parseDeliveryTimeMs(
-        stop.delivery_time_end || stop.actual_delivery_time || stop.arrival_time,
+        stop.actual_delivery_time || stop.delivery_time_end || stop.arrival_time,
         delivery_date
       );
 
@@ -259,28 +324,50 @@ Deno.serve(async (req) => {
       }
 
       // Lower boundary: the previous terminal stop's completion time (if any)
-      // The previous stop is the highest stop_order below this one that is terminal
       const prevTerminalStop = terminalStops
         .filter((d) => Number(d.stop_order) < numericStopOrder)
         .at(-1) || null;
 
       const prevStopEndMs = prevTerminalStop
         ? parseDeliveryTimeMs(
-            prevTerminalStop.delivery_time_end || prevTerminalStop.actual_delivery_time || prevTerminalStop.arrival_time,
+            prevTerminalStop.actual_delivery_time || prevTerminalStop.delivery_time_end || prevTerminalStop.arrival_time,
             delivery_date
           )
         : null;
 
-      // Slice: include points in [prevStopEndMs, stopEndMs)
+      // ── Two-stage spatial anchor refinement ───────────────────────────────
+      // Stage 1: Find timestamp anchor in masterPoints for each boundary.
+      // Stage 2: Within ±10min of that anchor, find the point spatially closest
+      //          to the stop's GPS coordinates. This handles the case where the
+      //          driver has already departed before the stop's "completed" status
+      //          is written — the GPS coords ground the slice boundary to reality.
+
+      const stopGps = patientGpsMap.get(stop.patient_id) || null;
+      const stopLat = stopGps?.lat ?? NaN;
+      const stopLon = stopGps?.lon ?? NaN;
+
+      const endAnchorIdx = findBestAnchorIndex(masterPoints, stopEndMs, stopLat, stopLon);
+      const endAnchorTs  = masterPoints[endAnchorIdx]?.[2] ?? stopEndMs;
+
+      let startAnchorTs = null;
+      if (prevTerminalStop && prevStopEndMs) {
+        const prevGps = patientGpsMap.get(prevTerminalStop.patient_id) || null;
+        const prevLat = prevGps?.lat ?? NaN;
+        const prevLon = prevGps?.lon ?? NaN;
+        const startAnchorIdx = findBestAnchorIndex(masterPoints, prevStopEndMs, prevLat, prevLon);
+        startAnchorTs = masterPoints[startAnchorIdx]?.[2] ?? prevStopEndMs;
+      }
+
+      // Slice: include all master points between the two spatially-anchored timestamps
       const slicedPoints = masterPoints.filter((pt) => {
         const ts = pt[2];
-        if (ts >= stopEndMs) return false; // After this stop ends
-        if (prevStopEndMs && ts < prevStopEndMs) return false; // Before this leg started
+        if (ts > endAnchorTs) return false;
+        if (startAnchorTs && ts < startAnchorTs) return false;
         return true;
       });
 
       if (slicedPoints.length === 0) {
-        results.push({ stop_order: numericStopOrder, skipped: true, reason: 'no_points_in_window', prevStopEndMs, stopEndMs });
+        results.push({ stop_order: numericStopOrder, skipped: true, reason: 'no_points_in_window', startAnchorTs, endAnchorTs });
         continue;
       }
 
