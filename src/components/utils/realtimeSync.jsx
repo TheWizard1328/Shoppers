@@ -711,8 +711,12 @@ const subscribeToEntity = (entityName) => {
       // Deduplicate across ALL module instances using a window-level cache.
       // Two script bundles loaded simultaneously will share this cache, so only
       // the first instance to process a given event wins; the second is dropped.
+      // CRITICAL: Include changedFields in the key so two distinct update events
+      // for the same record (e.g. one with encoded_polyline, one with polyline_saved_at)
+      // are NOT collapsed — both must pass through to deliver the full polyline update.
       if (!window.__realtimeSyncDedupeCache) window.__realtimeSyncDedupeCache = new Map();
-      const dedupeKey = `${entityName}:${id}:${type}`;
+      const changedFieldsKey = changedFields.length > 0 ? changedFields.slice().sort().join(',') : '';
+      const dedupeKey = `${entityName}:${id}:${type}:${changedFieldsKey}`;
       const now = Date.now();
       const lastSeen = window.__realtimeSyncDedupeCache.get(dedupeKey) || 0;
       if (now - lastSeen < 500) {
