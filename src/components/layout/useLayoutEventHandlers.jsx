@@ -390,8 +390,11 @@ export function useLayoutEventHandlers({
         return;
       }
       const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId, fullReplacement } = event.detail || {};
+      const { forcePolylineUpdate } = event.detail || {};
       const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate', 'pullToSyncDataReady', 'pullToSyncComplete', 'initialDataReady', 'eta_recalculation'];
-      if (preserveLocalState || skipReloadTriggers.includes(triggeredBy)) {
+      // CRITICAL: If this is a polyline update from a remote device, do NOT short-circuit —
+      // fall through to the full merge below so the new encoded_polyline reaches the map.
+      if ((preserveLocalState || skipReloadTriggers.includes(triggeredBy)) && !forcePolylineUpdate) {
         // CRITICAL: Always remove deleted IDs even when preserving local state (cross-device realtime deletes)
         const idsToRemove = new Set([...(deletedIds || []), ...(deletedId ? [deletedId] : [])]);
         if (idsToRemove.size > 0) setDeliveries((prev) => prev.filter((d) => !idsToRemove.has(d?.id)));
