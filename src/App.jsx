@@ -14,6 +14,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { DeviceProvider } from '@/components/utils/DeviceContext';
 import SquareSyncAudit from '@/pages/SquareSyncAudit';
 import StatHolidays from '@/pages/StatHolidays';
+import SecureDocViewer from '@/pages/SecureDocViewer';
 import Companies from '@/pages/Companies';
 import DriverScheduleCalendar from '@/pages/DriverScheduleCalendar';
 import PatientLogin from '@/pages/PatientLogin';
@@ -139,6 +140,10 @@ const AuthenticatedApp = () => {
               <StatHolidays />
             </LayoutWrapper>
           }
+        />
+        <Route
+          path="/secure-docs/:driverId"
+          element={<SecureDocViewer />}
         />
       </Route>
 
