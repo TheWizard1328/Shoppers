@@ -357,17 +357,44 @@ export default function StatsPanel({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-                  <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={(date) => {
-                          if (!date) return;
-                          if (format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')) {setIsCalendarOpen(false);return;}
-                          handleDateChange(date);
-                        }}
-                        month={calendarMonth}
-                        onMonthChange={setCalendarMonth}
-                        footer={
+                 {(() => {
+                   // Build a set of date strings with active (pending/in_transit/en_route) stops for the selected driver
+                   const activeStatuses = new Set(['pending', 'in_transit', 'en_route']);
+                   const activeDates = new Set(
+                     (deliveries || []).filter((d) => {
+                       if (!d?.delivery_date || !activeStatuses.has(d.status)) return false;
+                       if (selectedDriverId && selectedDriverId !== 'all') return d.driver_id === selectedDriverId;
+                       return true;
+                     }).map((d) => d.delivery_date)
+                   );
+                   const DayWithDot = ({ date, displayMonth, ...dayProps }) => {
+                     const dateStr = format(date, 'yyyy-MM-dd');
+                     const hasActive = activeDates.has(dateStr);
+                     return (
+                       <div className="relative">
+                         <button {...dayProps} />
+                         {hasActive && (
+                           <span
+                             className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 pointer-events-none"
+                             style={{ zIndex: 1 }}
+                           />
+                         )}
+                       </div>
+                     );
+                   };
+                   return (
+                 <Calendar
+                       mode="single"
+                       selected={selectedDate}
+                       onSelect={(date) => {
+                         if (!date) return;
+                         if (format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')) {setIsCalendarOpen(false);return;}
+                         handleDateChange(date);
+                       }}
+                       month={calendarMonth}
+                       onMonthChange={setCalendarMonth}
+                       components={{ Day: DayWithDot }}
+                       footer={
                         <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                         <TooltipProvider><Tooltip>
                           <TooltipTrigger asChild>
@@ -384,6 +411,8 @@ export default function StatsPanel({
                       </div>
                         }
                         className="rdp p-3" style={{ color: 'var(--text-slate-900)' }} />
+                    );
+                  })()}
                 </PopoverContent>
               </Popover>
 
