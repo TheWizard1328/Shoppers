@@ -593,6 +593,29 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     return getClusterKey(delivery.driver_id, delivery.delivery_date, clusterIds.slice().sort());
   }, [delivery?.id, delivery?.patient_id, delivery?.driver_id, delivery?.delivery_date, coLocatedCount, patient, allDeliveries, patients]);
 
+  // Check if ANY stop in this cluster has isNextDelivery=true — the multi-arrival dialog
+  // should ONLY open when the driver's next stop is at this location, not when merely
+  // driving by a clustered location where none of the stops are next in line.
+  const clusterHasNextDelivery = useMemo(() => {
+    if (!delivery?.patient_id || coLocatedCount === 0) return false;
+    if (delivery.isNextDelivery) return true;
+    const GPS_THRESH = 0.025;
+    const R = 6371;
+    const origin = patient ? { lat: Number(patient.latitude), lon: Number(patient.longitude) } : null;
+    if (!origin) return false;
+    for (const d of allDeliveries) {
+      if (!d || d.id === delivery.id || !d.patient_id) continue;
+      if (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) continue;
+      const p = patients.find((x) => x?.id === d.patient_id);
+      if (!p?.latitude || !p?.longitude) continue;
+      const dLat = (Number(p.latitude) - origin.lat) * Math.PI / 180;
+      const dLon = (Number(p.longitude) - origin.lon) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(origin.lat * Math.PI / 180) * Math.cos(Number(p.latitude) * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      if (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= GPS_THRESH && d.isNextDelivery) return true;
+    }
+    return false;
+  }, [delivery?.id, delivery?.patient_id, delivery?.driver_id, delivery?.delivery_date, coLocatedCount, patient, allDeliveries, patients]);
+
   // Refs so the arrival effect below can read the latest isSelected/onClick/delivery without
   // needing them in its dependency array — those values (especially the `delivery` object
   // reference) change on almost every re-render, and we only want the collapse-on-open logic
@@ -608,7 +631,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   useEffect(() => {
     const isActiveUser = delivery?.driver_id === currentUser?.id;
     // Only show on the driver's primary device — non-primary devices must not pop this dialog
-    if (!isActivePatientStop || !hasArrived || coLocatedCount === 0 || !isActiveUser || !isPrimaryDevice) return;
+    if (!isActivePatientStop || !hasArrived || coLocatedCount === 0 || !isActiveUser || !isPrimaryDevice || !clusterHasNextDelivery) return;
     if (!clusterKey) return;
     // Only the first card in a cluster opens the dialog
     if (_openClusterKeys.has(clusterKey)) return;
@@ -620,7 +643,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     // closed when the card is already selected). This fires exactly once per dialog-open, not
     // on every re-render, so it never fights a manual re-expand while the dialog stays open.
     if (isSelectedRef.current) onClickRef.current && onClickRef.current(deliveryRef.current);
-  }, [hasArrived, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey, isPrimaryDevice]);
+  }, [hasArrived, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey, isPrimaryDevice, clusterHasNextDelivery]);
 
   // Derived: driver has physically arrived at this pickup stop AND there are pending deliveries to accept.
   // Triggers on arrival_time (30s stationary) OR immediately when within 100m (same
