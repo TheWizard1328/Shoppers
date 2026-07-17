@@ -1149,6 +1149,17 @@ export default function useStopCardActions(params) {
     }));
 
     // 9. Tail side-effects (polyline regen) — debounced, fire-and-forget
+    // CRITICAL: Pass affectedFullRecords so scheduleCompletionSideEffects can:
+    //   (a) pre-seed IDB with the correct optimistic state
+    //   (b) register all affected IDs in smartRefreshManager to suppress WS echoes
+    //       from setNextDeliveryFlag's asServiceRole writes
+    // Without this, setNextDeliveryFlag's WS broadcasts arrive as "remote" updates
+    // and overwrite the optimistic UI state, causing the completion bounce.
+    const affectedFullRecords = [
+      { ...delivery, ...criticalUpdate, isNextDelivery: false },
+      ...(nextStop ? [{ ...nextStop, isNextDelivery: true }] : []),
+      ...(incompleteDeliveries.filter((d) => d.id !== nextStop?.id).map((d) => ({ ...d }))),
+    ];
     Promise.resolve().then(() =>
       params.scheduleCompletionSideEffects({
         driverId: delivery.driver_id,
@@ -1159,6 +1170,7 @@ export default function useStopCardActions(params) {
         appUserId: currentDriverAppUser?.id || null,
         skipRouteOptimization: true,
         skipNextLegPolylineRefresh: true,
+        affectedFullRecords,
       }).catch(() => {})
     );
 

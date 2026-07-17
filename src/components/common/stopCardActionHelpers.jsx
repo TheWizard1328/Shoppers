@@ -520,7 +520,7 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
   }
 
   if (updateDeliveriesLocally) {
-    updateDeliveriesLocally(updatedDeliveries, true);
+    updateDeliveriesLocally(updatedDeliveries, false);
   }
 
   if (persistToBackend) {
@@ -558,8 +558,11 @@ export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshD
   }
 
   if (triggeredBy) {
+    // CRITICAL: preserveLocalState=true prevents downstream listeners (stopOrderManager,
+    // ImmediateNextDeliveryController, etc.) from triggering full re-processing that
+    // could revert optimistic completion state during the lockout window.
     window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
-      detail: { triggeredBy, driverId, deliveryDate }
+      detail: { triggeredBy, driverId, deliveryDate, preserveLocalState: true }
     }));
   }
 }
