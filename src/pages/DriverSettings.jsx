@@ -378,9 +378,9 @@ export default function DriverSettings() {
                           {getDriverDisplayName(driver)}
                         </p>
 
-                        {/* Col 3 Row 1: Duty status badge */}
-                        <div className="flex justify-center">
-                          <Badge className={`text-xs py-0 h-5 ${dutyStatus.color}`}>{dutyStatus.label}</Badge>
+                        {/* Col 3 Row 1: Duty status badge — fixed width */}
+                        <div className="flex justify-center w-20">
+                          <Badge className={`text-xs py-0 h-5 w-full justify-center ${dutyStatus.color}`}>{dutyStatus.label}</Badge>
                         </div>
 
                         {/* Col 2 Row 2: Phone (non-tappable) */}
@@ -395,24 +395,24 @@ export default function DriverSettings() {
                           }
                         </div>
 
-                        {/* Col 3 Row 2: GPS + Distance badges */}
-                        <div className="flex items-center justify-center gap-1 flex-wrap">
+                        {/* Col 3 Row 2: GPS + Distance badges — fixed width matching row 1 */}
+                        <div className="flex items-center justify-center gap-1 w-20">
                           {gpsLabel &&
-                          <Badge className={`text-xs py-0 h-5 gap-0.5 hidden ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                          <Badge className={`text-xs py-0 h-5 gap-0.5 flex-1 justify-center ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
                               <Navigation className="w-2.5 h-2.5" />
                               {gpsLabel.label}
                             </Badge>
                           }
                           {distToStore &&
-                          <Badge className={`text-xs py-0 h-5 gap-0.5 flex-shrink-0 ${distBadgeClass}`}>
+                          <Badge className={`text-xs py-0 h-5 gap-0.5 flex-1 justify-center ${distBadgeClass}`}>
                               <MapPin className="w-2.5 h-2.5" />
                               {distToStore}
                             </Badge>
                           }
                         </div>
 
-                        {/* Row 3: spans col 2+3 — Doc request button / Docs Ready badge */}
-                        <div className="col-start-2 col-span-2 flex items-center pt-1.5 border-t border-slate-100/50 mt-1">
+                        {/* Row 3: spans all 3 cols — fully centered doc button */}
+                        <div className="col-span-3 flex items-center justify-center pt-1.5 border-t border-slate-100/50 mt-1">
                           {currentUser?.app_roles?.includes('dispatcher') && (
                           activeDocRequests.has(driver.id) ?
                           <Badge className="h-6 px-2 text-[10px] rounded-full gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
