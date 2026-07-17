@@ -233,11 +233,32 @@ function DashboardView({
 
   const immersiveOverlayIsPickup = !!immersiveOverlayDelivery && !immersiveOverlayDelivery.patient_id && !!immersiveOverlayDelivery.store_id;
   const immersiveOverlayStoreColor = immersiveOverlayStore?.color || '#10B981';
+
+  // Cycling marker detection for immersive overlay
+  const immersiveIsCyclingMarker = !!immersiveOverlayDelivery?.is_cycling_marker;
+  const immersiveCyclingType = (() => {
+    const notes = (immersiveOverlayDelivery?.delivery_notes || '').trim().toLowerCase();
+    return notes.includes('end') ? 'end' : 'start';
+  })();
+
   const immersiveOverlayDisplayName = immersiveIsInterStore
     ? (immersiveInterStoreLocation?.store_name || immersiveOverlayDelivery?.patient_name || 'Inter-Store Stop')
-    : immersiveOverlayIsPickup
-      ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
-      : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
+    : immersiveIsCyclingMarker
+      ? (immersiveOverlayDelivery?.cycling_location_name || (immersiveCyclingType === 'end' ? 'Cycling End' : 'Cycling Start'))
+      : immersiveOverlayIsPickup
+        ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
+        : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
+
+  // For cycling markers, show formatted GPS coordinates as the address sub-line
+  const immersiveCyclingGpsLabel = (() => {
+    if (!immersiveIsCyclingMarker) return null;
+    const lat = immersiveOverlayDelivery?.cycling_latitude;
+    const lng = immersiveOverlayDelivery?.cycling_longitude;
+    if (lat == null || lng == null) return null;
+    const latStr = `${Math.abs(Number(lat)).toFixed(4)}°${Number(lat) >= 0 ? 'N' : 'S'}`;
+    const lngStr = `${Math.abs(Number(lng)).toFixed(4)}°${Number(lng) >= 0 ? 'E' : 'W'}`;
+    return `${latStr}, ${lngStr}`;
+  })();
 
   const immersiveOverlayRemainingDistanceKm = useMemo(() => {
     if (!immersiveOverlayDelivery || !selectedDriverId || selectedDriverId === 'all') return null;
@@ -364,7 +385,7 @@ function DashboardView({
           immersiveOverlayStoreColor={immersiveOverlayStoreColor}
           immersiveOverlayDisplayName={immersiveOverlayDisplayName}
           immersiveOverlayRemainingDistanceKm={immersiveOverlayRemainingDistanceKm}
-          immersiveOverlayAddress={immersiveIsInterStore ? (immersiveInterStoreLocation?.store_address || immersiveOverlayStore?.address || null) : null}
+          immersiveOverlayAddress={immersiveIsInterStore ? (immersiveInterStoreLocation?.store_address || immersiveOverlayStore?.address || null) : immersiveIsCyclingMarker ? immersiveCyclingGpsLabel : null}
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
           mapStyle={mapStyle}

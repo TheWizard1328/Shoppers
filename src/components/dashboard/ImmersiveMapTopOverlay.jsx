@@ -46,10 +46,18 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
   const resolvedAddress = (() => {
     if (address) return address;
     if (isCyclingMarker) {
-      // Display name already shows the location name (e.g. "Manning AMA")
-      // Sub-line: show start/end label derived from delivery notes
+      // Address prop (from DashboardView) carries formatted GPS coordinates.
+      // If it's missing (legacy path), format them inline from the delivery record.
+      const lat = delivery?.cycling_latitude;
+      const lng = delivery?.cycling_longitude;
+      if (lat != null && lng != null) {
+        const latStr = `${Math.abs(Number(lat)).toFixed(4)}°${Number(lat) >= 0 ? 'N' : 'S'}`;
+        const lngStr = `${Math.abs(Number(lng)).toFixed(4)}°${Number(lng) >= 0 ? 'E' : 'W'}`;
+        return `${latStr}, ${lngStr}`;
+      }
+      // Final fallback: show start/end label
       const notes = (delivery?.delivery_notes || '').trim().toLowerCase();
-      return notes.includes('end') ? 'Cycling End Marker' : 'Cycling Start Marker';
+      return notes.includes('end') ? 'Cycling End' : 'Cycling Start';
     }
     if (patient?.address) return patient.address;
     if (store?.address) return store.address;

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2, Navigation } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 
@@ -279,8 +279,26 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           return null;
         })()}
 
-        {/* Bottom row: action buttons — matches exact same rules as regular stop card */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '6px' }}>
+        {/* Bottom row: Navigate button (left) + action buttons (right) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+          {/* Navigate button — opens maps app with cycling marker GPS coordinates */}
+          {(() => {
+            const lat = delivery?.cycling_latitude;
+            const lng = delivery?.cycling_longitude;
+            if (lat == null || lng == null) return null;
+            const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${Number(lat)},${Number(lng)}`;
+            return (
+              <button
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(navUrl, '_blank'); }}
+                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold"
+                style={{ backgroundColor: accentColor + '22', color: accentColor, border: `1px solid ${accentColor}55`, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <Navigation size={12} />
+                Navigate
+              </button>
+            );
+          })()}
+          <div style={{ display: 'flex', gap: '6px' }}>
           {!isCompleted && delivery?.status !== 'cancelled' && (
             isActionable ? (
               <button
@@ -324,6 +342,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
               Restart
             </button>
           )}
+          </div>
         </div>
       </div>
 
