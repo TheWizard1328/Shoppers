@@ -358,27 +358,32 @@ export default function StatsPanel({
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                  {(() => {
-                   // Build a set of date strings with active (pending/in_transit/en_route) stops for the selected driver
-                   const activeStatuses = new Set(['pending', 'in_transit', 'en_route']);
-                   const activeDates = new Set(
-                     (deliveries || []).filter((d) => {
-                       if (!d?.delivery_date || !activeStatuses.has(d.status)) return false;
-                       if (selectedDriverId && selectedDriverId !== 'all') return d.driver_id === selectedDriverId;
-                       return true;
-                     }).map((d) => d.delivery_date)
-                   );
+                   const todayStr = format(new Date(), 'yyyy-MM-dd');
+                   // Build per-date info: has any delivery, has failed delivery, has active delivery
+                   const dateInfo = {};
+                   (deliveries || []).forEach((d) => {
+                     if (!d?.delivery_date || !d.driver_id) return;
+                     if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return;
+                     const ds = d.delivery_date;
+                     if (!dateInfo[ds]) dateInfo[ds] = { hasAny: false, hasFailed: false, hasActive: false };
+                     dateInfo[ds].hasAny = true;
+                     if (d.status === 'failed') dateInfo[ds].hasFailed = true;
+                     if (['pending', 'in_transit', 'en_route'].includes(d.status)) dateInfo[ds].hasActive = true;
+                   });
                    const DayContent = ({ date }) => {
                      const dateStr = format(date, 'yyyy-MM-dd');
-                     const hasActive = activeDates.has(dateStr);
+                     const info = dateInfo[dateStr];
+                     if (!info?.hasAny) return <span>{date.getDate()}</span>;
+                     const isPast = dateStr < todayStr;
+                     // Dot color: red if any failed, green if active stops today/future, blue for past
+                     const dotColor = info.hasFailed ? '#ef4444' : isPast ? '#3b82f6' : '#16a34a';
                      return (
                        <div className="relative w-full h-full flex items-center justify-center">
                          <span>{date.getDate()}</span>
-                         {hasActive && (
-                           <span
-                             className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-emerald-500"
-                             style={{ transform: 'translate(25%, -25%)' }}
-                           />
-                         )}
+                         <span
+                           className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full"
+                           style={{ backgroundColor: dotColor, transform: 'translate(25%, -25%)' }}
+                         />
                        </div>
                      );
                    };
