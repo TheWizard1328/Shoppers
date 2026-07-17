@@ -109,9 +109,10 @@ export default function RouteManagementContent({
     setSelectedBulkDeliveryIds([]);
   }, []);
 
-  const handleBulkEditApply = useCallback((values) => {
+  const handleBulkEditApply = useCallback((values, initialValues) => {
     return applyBulkEditStops({
       values,
+      initialValues,
       currentUser,
       deliveries,
       allDeliveries,

@@ -139,7 +139,9 @@ export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEdit
       ).values()
     );
 
-    await Promise.all(uniqueRoutes.map(async ({ driver_id, delivery_date }) => {
+    // Run route optimizations SEQUENTIALLY — concurrent performRouteOptimization calls
+    // each do HERE API calls + IDB reads/writes on the main thread, which freezes the UI.
+    for (const { driver_id, delivery_date } of uniqueRoutes) {
       const isFuture = String(delivery_date) > todayStr;
       const routeKey = `${driver_id}::${delivery_date}`;
 
@@ -165,7 +167,7 @@ export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEdit
         scope: 'active_only',
         reason: 'route_reordered'
       }).catch(() => null);
-    }));
+    }
 
     smartRefreshManager.restart();
     invalidate("Delivery");
@@ -235,6 +237,12 @@ export async function applyBulkEditStops({
 
   const allIdsToUpdate = [...selectedBulkDeliveryIds, ...linkedPendingDeliveryIds];
 
+  // CRITICAL: Enter batch silent mode to suppress per-record notifyMutation calls.
+  // Without this, each updateDeliveryLocal fires a UI notification, causing N concurrent
+  // re-renders that freeze the browser when many stops are selected.
+  const { enterBatchSilentMode } = await import("../utils/entityMutations");
+  enterBatchSilentMode();
+
   return Promise.all(
     allIdsToUpdate.map(async (deliveryId) => {
       const selectedDelivery = (deliveries || allDeliveries || []).find((delivery) => delivery.id === deliveryId);
@@ -258,7 +266,9 @@ export async function applyBulkEditStops({
       });
     })
   )
-    .then(() => {
+    .then(async () => {
+      const { exitBatchSilentMode } = await import("../utils/entityMutations");
+      exitBatchSilentMode();
       const freshDeliveries = (deliveries || []).map((delivery) => {
         if (linkedPendingDeliveryIds.has(delivery.id)) {
           return { ...delivery, ...baseUpdates };
@@ -374,7 +384,8 @@ export async function applyBulkEditStops({
         routeOptimizationMap,
       });
     })
-    .finally(() => {
+    .finally(async () => {
+      try { const { exitBatchSilentMode } = await import("../utils/entityMutations"); exitBatchSilentMode(); } catch {}
       setIsBulkUpdating(false);
     });
 }
