@@ -106,11 +106,12 @@ export const reorderStops = async (driverId, deliveryDate, allDeliveries, curren
 
   if (shouldOptimizeRemainingStops) {
     try {
-      await base44.functions.invoke('optimizeRemainingStops', {
+      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+      await performRouteOptimization({
         driverId,
         deliveryDate,
-        currentLocalTime: localTime,
-        preserveExistingOrder: etaOnly
+        preserveExistingOrder: etaOnly,
+        source: 'stop_reorder',
       });
       etaRefreshTriggered = true;
       fullOptimizationTriggered = !etaOnly;

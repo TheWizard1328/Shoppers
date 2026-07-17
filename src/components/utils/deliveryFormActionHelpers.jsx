@@ -1,5 +1,4 @@
 import { isAppOwner } from './userRoles';
-import { optimizeRemainingStops } from '@/functions/optimizeRemainingStops';
 import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
 import { base44 } from '@/api/base44Client';
 
@@ -105,11 +104,11 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
 
     try {
       if (hasTimeWindowChanges) {
-        const optimizationResponse = await optimizeRemainingStops({
+        const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+        const optimizationResponse = await performRouteOptimization({
           driverId,
           deliveryDate,
-          currentLocalTime,
-          deviceTime: currentLocalTime
+          source: 'post_delivery_sync',
         });
       } else {
         const [driverRecords, deliveryRecords] = await Promise.all([

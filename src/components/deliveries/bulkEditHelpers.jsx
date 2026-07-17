@@ -150,12 +150,12 @@ export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEdit
       }
 
       if (shouldOptimize) {
-        await base44.functions.invoke('optimizeRemainingStops', {
+        const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+        await performRouteOptimization({
           driverId: driver_id,
           deliveryDate: delivery_date,
           bypassDriverStatus: isFuture,
-          bypassDeduplication: true,
-          forceFutureMode: isFuture,
+          source: 'bulk_edit',
         }).catch(() => null);
       }
 

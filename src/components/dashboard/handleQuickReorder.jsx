@@ -1,7 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { invalidate } from '@/components/utils/dataManager';
-import { getOrFetchHereApiKey } from '@/components/utils/hereApiKeyStore';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
 /**
@@ -18,21 +17,14 @@ export async function handleQuickReorder(reorderUpdates, selectedDate, currentUs
     await updateDeliveryLocal(update.id, { stop_order: update.stop_order });
   }
 
-  // 2. Recalculate ETAs (preserving the new order) via the same optimizer as the FAB
-  const now = new Date();
-  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const hereApiKey = await getOrFetchHereApiKey();
-
-  await base44.functions.invoke('optimizeRemainingStops', {
+  // 2. Recalculate ETAs (preserving the new order) via client-side engine
+  const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+  await performRouteOptimization({
     driverId: currentUser.id,
     deliveryDate,
-    currentLocalTime,
-    deviceTime: now.toISOString(),
-    hereApiKey,
     preserveExistingOrder: true,
     bypassDriverStatus: true,
-    bypassDeduplication: true,
-    triggerSource: 'quick_reorder',
+    source: 'quick_reorder',
   });
 
   // 3. Regenerate polylines for the new stop sequence

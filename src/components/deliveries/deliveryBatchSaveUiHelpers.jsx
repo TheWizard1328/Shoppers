@@ -66,13 +66,14 @@ export const runDeleteOnlyBatchRefresh = ({ deliveryDate, driverId, allDeletedWe
         const { base44 } = await import('@/api/base44Client');
         // Skip optimization when all deleted stops were pending — route order is unchanged
         if (!allDeletedWerePending) {
-          base44.functions.invoke('optimizeRemainingStops', {
-            driverId,
-            deliveryDate,
-            bypassDriverStatus: true,
-            bypassDeduplication: true,
-            bypassHistoricalCheck: true
-          }).catch(() => {});
+          import('@/components/utils/routeOptimizationCoordinator').then(({ performRouteOptimization }) =>
+            performRouteOptimization({
+              driverId,
+              deliveryDate,
+              bypassDriverStatus: true,
+              source: 'batch_delete',
+            }).catch(() => {})
+          );
         }
         await base44.entities.Delivery.filter({
           driver_id: driverId,

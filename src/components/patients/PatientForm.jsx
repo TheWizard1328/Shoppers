@@ -575,16 +575,15 @@ export default function PatientForm({
                 { lat: Number(driverAppUser.current_latitude), lon: Number(driverAppUser.current_longitude) } :
                 null;
 
-                const optimizeResult = await base44.functions.invoke('optimizeRemainingStops', {
+                const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+                const optimizeResult = await performRouteOptimization({
                   driverId: selectedDriverId,
                   deliveryDate: selectedDate,
-                  forceFullRemainingRouteOptimization: true,
-                  bypassDeduplication: true,
+                  currentLocation,
                   bypassDriverStatus: true,
-                  triggerSource: 'patient_address_change',
-                  ...(currentLocation ? { currentLocation } : {})
+                  source: 'patient_address_change',
                 });
-                console.log('  ✅ Route re-optimized after patient location change:', optimizeResult?.data?.optimizedCount, 'stops');
+                console.log('  ✅ Route re-optimized after patient location change:', optimizeResult?.optimizeData?.optimizedCount, 'stops');
 
                 // Dispatch UI update event
                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -592,7 +591,7 @@ export default function PatientForm({
                 }));
 
                 // Trigger polyline regeneration
-                if (optimizeResult?.data?.shouldRefreshPolylines) {
+                if (optimizeResult?.optimizeData?.shouldRefreshPolylines) {
                   base44.functions.invoke('purgeAndRegeneratePolylines', {
                     driverId: selectedDriverId,
                     deliveryDate: selectedDate

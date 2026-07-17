@@ -821,7 +821,8 @@ export default function DeliveryForm({
       addedPickupRecordsRef.current = [];
       import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel?.(); });
       for (const { driverId, deliveryDate } of uniqueRoutes) {
-        await base44.functions.invoke('optimizeRemainingStops', { driverId, deliveryDate, bypassDriverStatus: true }).catch(() => null);
+        const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+        await performRouteOptimization({ driverId, deliveryDate, bypassDriverStatus: true, source: 'batch_save_pickup' }).catch(() => null);
         const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }).catch(() => []);
         const orderedIds = (freshDeliveries || [])
           .filter(d => d?.id && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d?.status))

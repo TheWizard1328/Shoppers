@@ -58,12 +58,14 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
     try { await forceRefreshDriverDeliveries(originalDelivery.driver_id, routeDate); } catch (_) {}
     window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } }));
     window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } }));
-    base44.functions.invoke('optimizeRemainingStops', {
-      driverId: originalDelivery.driver_id, deliveryDate: routeDate,
-      currentLocalTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
-      deviceTime: new Date().toISOString()
-    }).catch((e) => console.warn('⚠️ [CREATE RETURN] Background optimize failed:', e?.message || e))
-      .finally(() => window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } })));
+    import('@/components/utils/routeOptimizationCoordinator').then(({ performRouteOptimization }) =>
+      performRouteOptimization({
+        driverId: originalDelivery.driver_id,
+        deliveryDate: routeDate,
+        source: 'return',
+      }).catch((e) => console.warn('⚠️ [CREATE RETURN] Background optimize failed:', e?.message || e))
+        .finally(() => window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } })))
+    );
 
   } catch (error) {
     console.error('❌ [CREATE RETURN] Error:', error);

@@ -13,12 +13,12 @@ export async function deleteDeliveryWithPolylineRefresh({ deliveryId, deliveries
   if (!shouldSkipPolylineRefresh && deletedDelivery?.driver_id && deletedDelivery?.delivery_date) {
     try {
       // Deleting an active stop changes the route — run full optimization then regenerate polylines
-      await base44.functions.invoke("optimizeRemainingStops", {
+      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+      await performRouteOptimization({
         driverId: deletedDelivery.driver_id,
         deliveryDate: deletedDelivery.delivery_date,
         bypassDriverStatus: true,
-        bypassDeduplication: true,
-        bypassHistoricalCheck: true
+        source: 'delete_delivery',
       });
     } catch (error) {
       console.warn("[deleteDeliveryWithPolylineRefresh] Route optimization failed:", error?.message || error);
