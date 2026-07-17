@@ -4,8 +4,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Phone, Mail, Shield, FileText, CheckCircle, Clock, Upload, ArrowRight, AlertCircle } from 'lucide-react';
-import { formatPhoneNumber } from '../../utils/phoneFormatter';
-import { getDriverDisplayName } from '../../utils/driverUtils';
+import { formatPhoneNumber } from '../utils/phoneFormatter';
+import { getDriverDisplayName } from '../utils/driverUtils';
 import { base44 } from '@/api/base44Client';
 import DriverDocUpload from './DriverDocUpload';
 
