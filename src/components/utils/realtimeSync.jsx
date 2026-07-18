@@ -760,20 +760,9 @@ const subscribeToEntity = (entityName) => {
               } catch (_) { /* use partial data as fallback */ }
             }
 
-            // CRITICAL: For ALL Delivery updates — fetch the full record from the server.
-            // The WS payload is a partial diff; saving it merged over the offline record
-            // can produce inconsistent state on both the originating device and other devices.
-            // Fetching the full authoritative record guarantees every device converges to
-            // the same state regardless of which fields were in the WS diff.
-            if (entityName === 'Delivery' && type === 'update' && data?.id) {
-              try {
-                const full = await base44.entities.Delivery.get(data.id);
-                if (full?.id) {
-                  dataToSave = full;
-                  console.log(`📥 [RealtimeSync] [${rsTime()}] Fetched full delivery record from server: ${data.id}`)
-                }
-              } catch (_) { /* use incoming data as fallback */ }
-            }
+            // NOTE: Full server fetch for Delivery updates is done in the background AFTER
+            // the event is buffered so the UI updates immediately from the WS payload.
+            // The background fetch updates IDB to the authoritative version — see below.
 
             // CRITICAL: For Delivery updates, merge incoming data with the existing offline record
             // to avoid wiping time window fields (delivery_time_start/end/eta) that may not be
@@ -958,8 +947,26 @@ const subscribeToEntity = (entityName) => {
         }
       }
 
-      // Buffer notifications to debounce UI updates
+      // Buffer notifications to debounce UI updates — fires IMMEDIATELY with WS payload
       bufferEvent(entityName, { entityType: entityName, eventType: type, data: bufferData, id, updatedBy, changedFields: effectiveChangedFields });
+
+      // BACKGROUND: For Delivery updates, fetch the full authoritative record from the server
+      // and silently update IDB — the UI has already been updated above from the WS payload.
+      if (entityName === 'Delivery' && type === 'update' && data?.id) {
+        (async () => {
+          try {
+            const full = await base44.entities.Delivery.get(data.id);
+            if (!full?.id) return;
+            const { offlineDB: idb } = await import('./offlineDatabase');
+            const existing = await idb.getById(idb.STORES.DELIVERIES, data.id);
+            const merged = existing
+              ? { ...existing, ...full }
+              : full;
+            await idb.save(idb.STORES.DELIVERIES, merged);
+            console.log(`📥 [RealtimeSync] [${rsTime()}] Background full-record IDB sync: ${data.id}`);
+          } catch (_) { /* non-critical — IDB already has the partial WS data */ }
+        })();
+      }
     });
 
     activeSubscriptions.set(entityName, unsubscribe);
