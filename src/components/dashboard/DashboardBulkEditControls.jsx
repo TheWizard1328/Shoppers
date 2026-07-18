@@ -303,12 +303,35 @@ export default function DashboardBulkEditControls({
       } catch (_) {/* non-critical */}
 
       await refreshData?.();
+
+      // After batch delete, check if the affected driver has zero active/pending stops.
+      // If so, toggle them off duty and close the open DriverDailyActivity segment.
+      try {
+        const { checkAndToggleOffDutyAfterDelete } = await import('@/components/utils/postDeleteDutyCheck');
+        const batchDriverId = allToDelete[0]?.driver_id;
+        const batchDeliveryDate = allToDelete[0]?.delivery_date;
+        if (batchDriverId && batchDeliveryDate) {
+          const remainingForDriver = allDeliveries.filter(
+            (d) => d && d.driver_id === batchDriverId && d.delivery_date === batchDeliveryDate && !allDeletedIds.includes(d.id)
+          );
+          await checkAndToggleOffDutyAfterDelete({
+            driverId: batchDriverId,
+            deliveryDate: batchDeliveryDate,
+            remainingDeliveries: remainingForDriver,
+            appUsers,
+            base44,
+          });
+        }
+      } catch (dutyErr) {
+        console.warn('⚠️ [BulkDelete] Post-delete duty check failed:', dutyErr?.message || dutyErr);
+      }
+
       clearSelection();
       onBulkDeleteComplete?.();
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedDeliveries, allDeliveries, selectedDeliveryIds, refreshData, clearSelection, onBulkDeleteComplete]);
+  }, [selectedDeliveries, allDeliveries, selectedDeliveryIds, refreshData, clearSelection, onBulkDeleteComplete, appUsers]);
 
   if (immersiveHidden && selectedCount === 0) {
     return null;

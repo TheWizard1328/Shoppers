@@ -2108,6 +2108,25 @@ useEffect(() => {
         invalidate('Delivery'); await refreshData();
       }
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery', alreadyOptimized: true } }));
+
+      // After post-delete ops, check if the driver has zero active/pending stops remaining.
+      // If so, toggle them off duty and close the open DriverDailyActivity segment
+      // with end_time = last completed stop's actual_delivery_time.
+      try {
+        const { checkAndToggleOffDutyAfterDelete } = await import('../components/utils/postDeleteDutyCheck');
+        const remainingDriverDeliveries = (deliveriesRef.current || []).filter(
+          (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
+        );
+        await checkAndToggleOffDutyAfterDelete({
+          driverId,
+          deliveryDate,
+          remainingDeliveries: remainingDriverDeliveries,
+          appUsers,
+          base44,
+        });
+      } catch (dutyErr) {
+        console.warn('⚠️ [DELETE] Post-delete duty check failed:', dutyErr?.message || dutyErr);
+      }
     } catch (e) { console.error('❌ [DELETE] Background ops failed:', e); } finally { resumeOfflineSync(); setIsEntityUpdating(false); }
   };
 

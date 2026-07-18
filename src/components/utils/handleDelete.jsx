@@ -66,6 +66,22 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
     console.log('🗑️ [DELETE Handler] Step 5: Forcing full data refresh...');
     await refreshData(true);
 
+    // After delete, check if driver has zero active/pending stops — toggle off duty if so
+    try {
+      const { checkAndToggleOffDutyAfterDelete } = await import('./postDeleteDutyCheck');
+      const remainingForDriver = (deliveries || []).filter(
+        (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && d.id !== deliveryId
+      );
+      await checkAndToggleOffDutyAfterDelete({
+        driverId,
+        deliveryDate,
+        remainingDeliveries: remainingForDriver,
+        base44,
+      });
+    } catch (dutyErr) {
+      console.warn('⚠️ [DELETE Handler] Post-delete duty check failed:', dutyErr?.message || dutyErr);
+    }
+
     console.log('✅ [DELETE Handler] Delete complete');
   } catch (error) {
     console.error('❌ [DELETE Handler] Error:', error);
