@@ -102,7 +102,7 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
 
     payload.amount_money = { amount: Math.round(amountCents), currency_code: currencyCode };
     if (notes) payload.notes = notes;
-    if (locationId) payload.location_id = locationId;
+    // if (locationId) payload.location_id = locationId; // TEMP: location_id removed from payload
 
     const encoded = encodeURIComponent(JSON.stringify(payload));
     const squareUrl = `square-commerce-v1://payment/create?data=${encoded}`;
@@ -150,7 +150,7 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
       `S.com.squareup.pos.TENDER_TYPES=${encodeURIComponent(tenderTypes)}`,
     ];
     if (notes) parts.push(`S.com.squareup.pos.NOTE=${encodeURIComponent(notes)}`);
-    if (locationId) parts.push(`S.com.squareup.pos.LOCATION_ID=${encodeURIComponent(locationId)}`);
+    // if (locationId) parts.push(`S.com.squareup.pos.LOCATION_ID=${encodeURIComponent(locationId)}`); // TEMP: location_id removed from payload
     squareUrl = `intent:#Intent;${parts.join(';')};end`;
   }
 
