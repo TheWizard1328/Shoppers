@@ -3,10 +3,14 @@ import { base44 } from '@/api/base44Client';
 
 /**
  * Checks whether the driver's Square reader is currently active on the expected
- * location by peeking at recent orders for that locationId via the Square API.
- * Walks up to 50 recent orders to find the first one attributed to this specific
- * driver (matched by name via Square Team Members API), so multiple drivers at
- * the same location don't interfere with each other's status.
+ * location by peeking at recent orders across ALL configured Square locations.
+ *
+ * The backend searches orders at every SquareLocationConfig location_id, finds
+ * the most recent order attributed to this specific driver (matched by name via
+ * Square Team Members API), and returns that order's actual location_id. The hook
+ * then compares it against the expected locationId for the current delivery's
+ * store. If the driver's last transaction was at a different location, the badge
+ * shows a yellow warning triangle (mismatch).
  *
  * Returns: 'idle' | 'loading' | 'verified' | 'mismatch' | 'no_data'
  *

@@ -296,34 +296,54 @@ async function paginatedDeleteAll(entityApi, pageSize=50) {
 // Peek at the most recent completed Square order for a given locationId.
 // Returns { locationId, found: bool, orderCreatedAt } — used by the UI to verify
 // that the driver's Bluetooth reader is currently active on the expected location.
-async function handlePeekDriverTransaction(payload) {
+async function handlePeekDriverTransaction(base44, payload) {
   const accessToken = ensureSquareToken();
   const { locationId, driverName } = payload || {};
   if (!locationId) throw new HttpError(400, 'locationId is required');
 
-  // Fetch up to 50 recent completed/open orders at this location (DESC)
-  const json = await squareFetch('/v2/orders/search', 'POST', accessToken, {
-    location_ids: [locationId],
-    limit: 50,
-    query: {
-      filter: { state_filter: { states: ['COMPLETED', 'OPEN'] } },
-      sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' },
-    },
-  });
+  // Fetch ALL active SquareLocationConfig entities so we can search across every
+  // configured location — not just the expected one. This is critical: if we only
+  // search the expected location, the result is a tautology (lastLocationId always
+  // equals locationId) and we can never detect a mismatch.
+  const allConfigs = await base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []);
+  const allLocationIds = [...new Set((allConfigs || []).map((c) => c?.square_location_id).filter(Boolean))];
 
-  const orders = json?.orders || [];
-  if (!orders.length) {
+  // Always include the expected locationId even if not in configs (defensive)
+  if (!allLocationIds.includes(locationId)) allLocationIds.push(locationId);
+
+  // Square /v2/orders/search accepts up to 10 location_ids per request.
+  // Batch if we have more than 10 (unlikely for RxDeliver, but safe).
+  const BATCH_SIZE = 10;
+  let allOrders = [];
+
+  for (let i = 0; i < allLocationIds.length; i += BATCH_SIZE) {
+    const batchIds = allLocationIds.slice(i, i + BATCH_SIZE);
+    const json = await squareFetch('/v2/orders/search', 'POST', accessToken, {
+      location_ids: batchIds,
+      limit: 50,
+      query: {
+        filter: { state_filter: { states: ['COMPLETED', 'OPEN'] } },
+        sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' },
+      },
+    });
+    if (json?.orders?.length) allOrders = allOrders.concat(json.orders);
+  }
+
+  // Sort all collected orders by created_at DESC (since batches may interleave)
+  allOrders.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+
+  if (!allOrders.length) {
     return { found: false, locationId, lastLocationId: null, orderCreatedAt: null };
   }
 
   // If no driverName provided, fall back to returning the most recent order (legacy behaviour)
   if (!driverName || !driverName.trim()) {
-    const order = orders[0];
+    const order = allOrders[0];
     return { found: true, locationId, lastLocationId: order.location_id || null, orderCreatedAt: order.created_at || null };
   }
 
   // Collect unique team member IDs across the fetched orders
-  const teamMemberIds = [...new Set(orders.map((o) => o.created_by_team_member_id).filter(Boolean))];
+  const teamMemberIds = [...new Set(allOrders.map((o) => o.created_by_team_member_id).filter(Boolean))];
 
   // Fetch all team member profiles in parallel (one request per ID — typically ≤ 5 unique drivers)
   const teamMemberMap = new Map(); // id → "Given Family"
@@ -354,8 +374,10 @@ async function handlePeekDriverTransaction(payload) {
     return dr.includes(sq) || sq.includes(dr);
   };
 
-  // Walk orders newest-first, find the first one attributed to this driver
-  for (const order of orders) {
+  // Walk ALL orders (newest-first across all locations), find the first one
+  // attributed to this driver. That order's location_id is where the driver's
+  // Square reader is currently active — which may differ from the expected store.
+  for (const order of allOrders) {
     const tmId = order.created_by_team_member_id;
     if (!tmId) continue;
     const squareName = teamMemberMap.get(tmId);
@@ -370,7 +392,7 @@ async function handlePeekDriverTransaction(payload) {
     }
   }
 
-  // No order in the last 50 matched this driver — treat as first COD of day
+  // No order matched this driver — treat as first COD of day
   return { found: false, locationId, lastLocationId: null, orderCreatedAt: null };
 }
 
@@ -1104,7 +1126,7 @@ Deno.serve(async (req) => {
     if(action==='reconcile'){await requireUser(base44);return Response.json(await handleReconcile(base44,payload));}
     if(action==='mirrorCatalogFromSquare'){await requireAdminIfAuthenticated(base44);return Response.json(await handleMirrorCatalogFromSquare(base44));}
     if(action==='purgeAndRebuildCatalog'){await requireAdminIfAuthenticated(base44);return Response.json(await handlePurgeAndRebuildCatalog(base44));}
-    if(action==='peekDriverTransaction'){await requireUser(base44);return Response.json(await handlePeekDriverTransaction(payload));}
+    if(action==='peekDriverTransaction'){await requireUser(base44);return Response.json(await handlePeekDriverTransaction(base44,payload));}
     throw new HttpError(400,'Missing or invalid action');
   } catch(error){const status=error?.status||500;return Response.json({error:error?.message||'Internal Server Error'},{status});}
 });
