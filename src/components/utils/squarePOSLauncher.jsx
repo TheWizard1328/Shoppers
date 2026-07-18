@@ -45,7 +45,11 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
     return;
   }
 
-  const resolvedCallbackUrl = callbackUrl || (window.location.origin + window.location.pathname);
+  // iOS: callback must be a real HTTP URL that Square can redirect back to.
+  // We use the squarePosCallback backend function which does a 302 redirect to the app root.
+  // Android uses its own WEB_CALLBACK_URI which is handled separately.
+  const backendCallbackUrl = `${window.location.origin}/functions/squarePosCallback`;
+  const resolvedCallbackUrl = callbackUrl || backendCallbackUrl;
 
   // Bare launch — open Square POS without a payment payload (no amount/tender).
   // Used on first COD of the day or location mismatch so driver can set their location first.
@@ -62,14 +66,12 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
     const squareUrl = `square-commerce-v1://payment/create?data=${encoded}`;
     remoteLogger.info(`[Square POS] (iOS) Launching (bare=${bare})`, squareUrl);
     try {
-      const a = document.createElement('a');
-      a.href = squareUrl;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} }, 1000);
+      // iOS Safari/PWA: window.location.href is the only reliable way to launch
+      // a custom URL scheme from a PWA or Safari web page. programmatic anchor
+      // .click() is blocked in WKWebView/Safari when not directly in a gesture.
+      window.location.href = squareUrl;
     } catch (err) {
-      remoteLogger.error('[Square POS] (iOS) Anchor click FAILED', String(err));
+      remoteLogger.error('[Square POS] (iOS) window.location.href FAILED', String(err));
     }
     return;
   }

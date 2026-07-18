@@ -169,13 +169,11 @@ export default function StopCardActionButtons(props) {
       return;
     }
 
-    const callbackUrl = window.location.origin + window.location.pathname;
-
     // Bare launch (no amount) on first COD of day or location mismatch —
     // opens Square POS so driver can confirm/set their location before the real charge.
     const launchBare = squareLocationStatus === 'mismatch' || isFirstCodOfDay;
     if (launchBare) {
-      launchSquarePOS({ squareAppId: effectiveAppId, callbackUrl });
+      launchSquarePOS({ squareAppId: effectiveAppId });
       return;
     }
 
@@ -185,7 +183,7 @@ export default function StopCardActionButtons(props) {
       return;
     }
     const notes = generateSquareItemName(delivery, patient, store);
-    launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', callbackUrl, notes, locationId: currentSquareLocationId });
+    launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', notes, locationId: currentSquareLocationId });
   }, [delivery, patient, store, squareAppId, currentSquareLocationId, squareLocationStatus, isFirstCodOfDay]);
 
 
