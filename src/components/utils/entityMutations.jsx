@@ -973,18 +973,19 @@ export const createEntity = async (entityName, data, options = {}) => {
  */
 export const updateEntity = async (entityName, entityId, updates, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
-  
+
+  // INSTANT optimistic UI update — fire before any async work
+  notifyMutation({ type: 'update', entity: entityName, id: entityId, data: { id: entityId, ...updates } });
+
   try {
     const result = await base44.entities[entityName].update(entityId, updates);
 
     if (entityName === 'AppUser') {
-      // CRITICAL: Merge with existing offline record to preserve all fields.
-      // The SDK update response may omit fields like app_roles, user_name, etc.
-      // Saving a partial record would overwrite the full record in IndexedDB.
       const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, entityId).catch(() => ({})) || {};
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]);
+      offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]).catch(() => {});
     }
 
+    // Second notify with authoritative backend data
     notifyMutation({ type: 'update', entity: entityName, id: entityId, data: result });
     await broadcastMutation(entityName, 'update', entityId, result);
     return result;
@@ -999,14 +1000,16 @@ export const updateEntity = async (entityName, entityId, updates, options = {}) 
  */
 export const deleteEntity = async (entityName, entityId, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
-  
+
+  // INSTANT UI update before any async work
+  notifyMutation({ type: 'delete', entity: entityName, id: entityId, data: null });
+
   try {
     if (entityName === 'AppUser') {
-      await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, entityId).catch(() => null);
+      offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, entityId).catch(() => null);
     }
 
     await base44.entities[entityName].delete(entityId);
-    notifyMutation({ type: 'delete', entity: entityName, id: entityId, data: null });
     await broadcastMutation(entityName, 'delete', entityId, null);
     return true;
   } catch (error) {
@@ -1041,39 +1044,31 @@ export const deleteAppUser = (id, options) => deleteEntity('AppUser', id, option
  */
 export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
-  
+
+  // STEP 1: INSTANT optimistic UI update from in-memory state — no IDB read needed
+  const inMemory = Array.isArray(window.__appDeliveries) ? null : null; // AppUsers not mirrored on window yet
+  const optimisticRecord = { id: appUserId, ...updates };
+  notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: optimisticRecord });
+
   try {
-    console.log(`🔄 [EntityMutations] Updating AppUser ${appUserId}...`);
+    // STEP 2: Write to offline DB async (fire-and-forget, don't block UI)
+    offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})).then(existing => {
+      const merged = { ...(existing || {}), ...updates, id: appUserId };
+      offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [merged]).catch(() => {});
+    });
 
-    // STEP 1: Write to offline DB FIRST with optimistic data (merge with existing)
-    const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
-    const optimisticRecord = { ...existingRecord, ...updates, id: appUserId };
-    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [optimisticRecord]);
-    console.log(`💾 [EntityMutations] Optimistic AppUser write to offline DB: ${appUserId}`);
-
-    // STEP 2: Notify UI immediately with optimistic data
-    notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: optimisticRecord });
-    console.log(`🔔 [EntityMutations] UI notified of AppUser update (optimistic)`);
-
-    // STEP 3: Update backend (online database)
+    // STEP 3: Update backend
     const result = await base44.entities.AppUser.update(appUserId, updates);
-    console.log(`☁️ [EntityMutations] Backend AppUser updated: ${appUserId}`);
 
-    // STEP 4: Sync authoritative backend record to offline DB
-    try {
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]);
-      console.log(`💾 [EntityMutations] Synced authoritative AppUser to offline DB: ${appUserId}`);
-    } catch (offlineError) {
-      console.warn('⚠️ [EntityMutations] Failed to sync AppUser to offline DB:', offlineError.message);
-    }
+    // STEP 4: Sync authoritative record to offline DB
+    offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})).then(existing => {
+      offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...(existing || {}), ...result }]).catch(() => {});
+    });
 
-    // STEP 5: Notify UI again with authoritative backend data
+    // STEP 5: Second notify with authoritative backend data + broadcast
     notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: result });
-
-    // STEP 6: Broadcast to other devices for real-time sync
     broadcastMutation('AppUser', 'update', appUserId, result);
 
-    console.log(`✅ [EntityMutations] AppUser ${appUserId} updated, synced to offline DB, and broadcast to other devices`);
     return result;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to update AppUser ${appUserId}:`, error);
