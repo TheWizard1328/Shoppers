@@ -69,12 +69,18 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
     const squareUrl = `square-commerce-v1://payment/create?data=${encoded}`;
     remoteLogger.info(`[Square POS] (iOS) Launching (bare=${bare})`, squareUrl);
     try {
-      // iOS Safari/PWA: window.location.href is the only reliable way to launch
-      // a custom URL scheme from a PWA or Safari web page. programmatic anchor
-      // .click() is blocked in WKWebView/Safari when not directly in a gesture.
-      window.location.href = squareUrl;
+      // iOS Safari/PWA: Use a hidden <a> tag click rather than window.location.href.
+      // window.location.href navigates the current page away, causing Safari to immediately
+      // fire the callback_url as a "fallback" when it can't confirm Square opened.
+      // A programmatic anchor click hands off to the custom scheme without navigating away.
+      const a = document.createElement('a');
+      a.href = squareUrl;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => document.body.removeChild(a), 1000);
     } catch (err) {
-      remoteLogger.error('[Square POS] (iOS) window.location.href FAILED', String(err));
+      remoteLogger.error('[Square POS] (iOS) anchor click FAILED', String(err));
     }
     return;
   }
