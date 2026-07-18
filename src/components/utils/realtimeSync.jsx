@@ -754,7 +754,7 @@ const subscribeToEntity = (entityName) => {
                 const full = await base44.entities.Delivery.get(data.id);
                 if (full?.id) {
                   dataToSave = full;
-                  console.log(`🗺️ [RealtimeSync] [${rsTime()}] Fetched full delivery record for WS update: ${data.id}`);
+                  console.log(`📥 [RealtimeSync] [${rsTime()}] Fetched full delivery record from server: ${data.id}`)
                 }
               } catch (_) { /* use incoming data as fallback */ }
             }
@@ -810,10 +810,16 @@ const subscribeToEntity = (entityName) => {
                     // Proof
                     'signature_image_url', 'proof_photo_urls', 'barcode_values', 'receipt_barcode_values',
                   ];
-                  const merged = { ...existing, ...data };
+                  // CRITICAL: Use dataToSave (which is now the FULL server record, not the
+                  // partial WS payload) as the merge base. This ensures every field from the
+                  // server's authoritative record is written to IDB.
+                  const mergeSource = dataToSave || data;
+                  const merged = { ...existing, ...mergeSource };
                   for (const field of PRESERVE_FIELDS) {
-                    // Only restore from existing if the field is completely absent from the incoming payload
-                    if (!(field in data) && existing[field]) {
+                    // Only restore from existing if the field is completely absent from both
+                    // the WS payload AND the full server record (very rare — mainly for
+                    // fields like encoded_polyline that may be stripped by server-side sanitizers)
+                    if (!(field in mergeSource) && !(field in data) && existing[field]) {
                       merged[field] = existing[field];
                     }
                   }
@@ -886,6 +892,29 @@ const subscribeToEntity = (entityName) => {
         console.warn(`⚠️ [RealtimeSync] [${rsTime()}] Failed to update offline DB for ${entityName}:`, offlineError.message);
       }
       
+      // isRemoteUpdate controls whether remote devices dispatch deliveriesUpdated.
+      // For 'update' events: use the updated_by_name field to detect same-user writes.
+      // For 'create' and 'delete' events: ALWAYS treat as remote — the triggering device
+      // already applied optimistic state; all other devices (including other sessions of
+      // the same account) need the WS echo to update their IDB snapshot and UI.
+      let isRemoteUpdate;
+      if (type === 'update') {
+        // CRITICAL: When updated_by_name is missing from the WS payload, we CANNOT
+        // determine the sender. The previous logic fell back to the local session
+        // username (updatedBy), which made EVERY receiving device think it originated
+        // the event — silently suppressing the UI update via the allFromLocalDevice
+        // check in flushBuffered. Default to true (remote) when the sender is unknown.
+        const senderName = data?.updated_by_name || data?.updatedBy;
+        if (!senderName) {
+          isRemoteUpdate = true;  // Unknown sender — treat as remote to ensure UI updates
+        } else {
+          isRemoteUpdate = senderName !== currentUserName;
+        }
+      } else {
+        // create / delete — always propagate to all devices
+        isRemoteUpdate = true;
+      }
+
       // CRITICAL: For Delivery updates, use the merged dataToSave (which has patient_name
       // restored from the offline DB) so the toast and buffer always show the correct name.
       // For all other entities, use the raw incoming data as before.
