@@ -507,7 +507,19 @@ async function handleDeleteCodItem(base44, payload) {
   let primaryTransaction=null;const relatedTransactions=[];
   if(transactionId){const t=await base44.asServiceRole.entities.SquareTransaction.get(transactionId).catch(()=>null);if(t){primaryTransaction=t;relatedTransactions.push(t);}}
   if(deliveryId){const dts=await base44.asServiceRole.entities.SquareTransaction.filter({delivery_id:deliveryId},'-updated_date',50).catch(()=>[]);for(const t of dts||[])if(!relatedTransactions.some((x)=>x?.id===t?.id))relatedTransactions.push(t);if(!primaryTransaction&&relatedTransactions.length>0)primaryTransaction=relatedTransactions[0];}
-  const catId=catalogObjectId||primaryTransaction?.square_catalog_object_id||relatedTransactions[0]?.square_catalog_object_id||null;
+  let catId=catalogObjectId||primaryTransaction?.square_catalog_object_id||relatedTransactions[0]?.square_catalog_object_id||null;
+  // Fallback: if no catalogObjectId found from transaction records, search the live
+  // Square catalog by delivery_id (embedded in the item description) to prevent orphaned items.
+  if(!catId&&deliveryId){
+    try{
+      const liveItems=await listActiveCatalogItems(accessToken);
+      const liveMatch=liveItems.find((item)=>{
+        const desc=normalizeText(item?.item_data?.description||'').toLowerCase();
+        return desc.includes(`delivery ${deliveryId}`)||desc.includes(deliveryId);
+      });
+      if(liveMatch){catId=liveMatch.id;console.log(`[Square] Found orphaned catalog item ${catId} for delivery ${deliveryId} via live catalog search`);}
+    }catch(e){console.warn('[Square] Live catalog search failed during delete:',e?.message||e);}
+  }
   const sqDel=await safeDeleteSquareCatalogObject(catId,accessToken);
   const isTempFail=[408,429,500,502,503,504].includes(Number(sqDel?.status));
   if(catId&&!sqDel?.ok&&!isTempFail)throw new Error(`Failed to delete Square catalog item ${catId}`);

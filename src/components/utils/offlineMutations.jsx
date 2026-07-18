@@ -745,6 +745,18 @@ export const deleteDeliveryLocal = async (deliveryId) => {
           return { success: true, wasMissing: true };
         }
 
+        // Square COD cleanup: if this delivery has a COD amount, delete the corresponding
+        // Square catalog item before removing the delivery record.
+        if (Number(existing.cod_total_amount_required || 0) > 0) {
+          try {
+            const { base44 } = await import('@/api/base44Client');
+            await base44.functions.invoke('squareDeleteCodItem', { deliveryId, reason: 'delivery_deleted' });
+            console.log('💳 [OfflineMutations] Square COD catalog item deleted for delivery:', deliveryId);
+          } catch (squareErr) {
+            console.warn('⚠️ [OfflineMutations] Square COD delete failed (continuing):', squareErr?.message || squareErr);
+          }
+        }
+
         const db = await offlineDB.openDatabase();
         const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
         const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);

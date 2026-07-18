@@ -670,6 +670,17 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       console.warn('⚠️ [EntityMutations] IndexedDB delete check failed:', offlineError.message);
     }
 
+    // Square COD cleanup: if this delivery has a COD amount, delete the corresponding
+    // Square catalog item before removing the delivery record from the backend.
+    if (deletedDeliverySnapshot && Number(deletedDeliverySnapshot.cod_total_amount_required || 0) > 0) {
+      try {
+        await base44.functions.invoke('squareDeleteCodItem', { deliveryId, reason: 'delivery_deleted' });
+        console.log('💳 [EntityMutations] Square COD catalog item deleted for delivery:', deliveryId);
+      } catch (squareErr) {
+        console.warn('⚠️ [EntityMutations] Square COD delete failed (continuing):', squareErr?.message || squareErr);
+      }
+    }
+
     // STEP 2: Delete from backend (skip if not found)
     let existedOnline = false;
     try {
@@ -863,6 +874,16 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
         });
       }
       console.log(`💾 [EntityMutations] Deleted ${idsToDeleteOffline.length} from IndexedDB`);
+    }
+
+    // Square COD cleanup: delete catalog items for any delivery with a COD amount
+    const codDeliveries = offlineDeliveries.filter((d) => deliveryIds.includes(d.id) && Number(d?.cod_total_amount_required || 0) > 0);
+    if (codDeliveries.length > 0) {
+      console.log(`💳 [EntityMutations] Cleaning up ${codDeliveries.length} Square COD catalog items for batch delete`);
+      await Promise.all(codDeliveries.map((d) =>
+        base44.functions.invoke('squareDeleteCodItem', { deliveryId: d.id, reason: 'delivery_deleted' })
+          .catch((err) => console.warn('⚠️ [EntityMutations] Square COD delete failed for', d.id, ':', err?.message || err))
+      ));
     }
 
     // STEP 2: Delete from backend (skip if not found)

@@ -2122,7 +2122,7 @@ useEffect(() => {
       const pending = deliveriesWithStopOrder.filter((d) => d && d.puid === _sid && d.status === 'pending' && d.patient_id);
       if (pending.length) { const { deleteDeliveryLocal: ddl } = await import('../components/utils/offlineMutations'); for (const p of pending) await ddl(p.id); }
     }
-    if (_st === 'in_transit' && _cod > 0 && _pid) await base44.functions.invoke('squareDeleteCodItem', { deliveryId, reason: 'delivery_deleted' }).catch((e) => console.error('⚠️ Square delete failed:', e));
+    // Square COD cleanup is now handled inside deleteDeliveryLocal — no need for conditional delete here.
     const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
     const p = deleteDeliveryLocal(deliveryId);
     if (selectedCardId === deliveryId) setSelectedCardId(null);
