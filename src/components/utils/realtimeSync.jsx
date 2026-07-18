@@ -84,7 +84,6 @@ function bufferEvent(entityName, payload) {
       ...payload,
       data: mergedData,
       changedFields: mergedChanged,
-      isRemoteUpdate: prev.isRemoteUpdate || payload.isRemoteUpdate,
     });
   } else {
     buf.set(payload.id, payload);
@@ -107,6 +106,19 @@ async function flushBuffered(entityName) {
       const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
       if (selectedDate) {
         fullReplacementData = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
+      }
+      // Fallback: if no date-scoped data returned, use in-memory state merged with incoming
+      if (!Array.isArray(fullReplacementData) || fullReplacementData.length === 0) {
+        const localDeliveries = (typeof window !== 'undefined' ? window.__appDeliveries : null) || [];
+        if (localDeliveries.length > 0) {
+          const snapshotMap = new Map(localDeliveries.map(d => [d.id, d]));
+          items.forEach(({ data: itemData }) => {
+            if (!itemData?.id) return;
+            const existing = snapshotMap.get(itemData.id);
+            snapshotMap.set(itemData.id, existing ? { ...existing, ...itemData } : itemData);
+          });
+          fullReplacementData = Array.from(snapshotMap.values());
+        }
       }
     } else if (entityName === 'AppUser') {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
@@ -261,42 +273,10 @@ async function flushBuffered(entityName) {
       }
     });
 
-    // CRITICAL: If ALL buffered events came from the current device (same user), skip the
-    // full-replacement dispatch. The optimistic local state already reflects the correct
-    // values and an IDB snapshot taken mid-write would contain stale isNextDelivery/status
-    // values that would momentarily bounce the UI back before the next WebSocket event
-    // (for the isNextDelivery write) arrives to correct it.
-    // EXCEPTION: If any item carries polyline data (encoded_polyline), always dispatch so
-    // the map updates on all devices — polylines are written by the backend and never
-    // set optimistically on the client.
     const hasPolylineUpdates = relevantItems.some((item) =>
       item?.changedFields?.includes('encoded_polyline') ||
       (item?.data && typeof item.data.encoded_polyline === 'string' && item.data.encoded_polyline.length > 0)
     );
-    const allFromLocalDevice = relevantItems.length > 0 && relevantItems.every((item) => !item.isRemoteUpdate);
-
-    // CRITICAL: Also check smartRefreshManager for pending local updates.
-    // Backend service-role writes (setNextDeliveryFlag, stop_order repairs) use
-    // asServiceRole which sets updated_by_name to the service account, not the
-    // current user. This makes isRemoteUpdate=true for our own server-side writes,
-    // defeating the allFromLocalDevice optimization. By also checking the
-    // smartRefreshManager pending registry, we can recognize WS echoes from our
-    // own completion/stop-order operations and skip the UI re-render cascade.
-    let allHavePendingUpdates = false;
-    if (!allFromLocalDevice && relevantItems.length > 0) {
-      try {
-        const { smartRefreshManager } = await import('./smartRefreshManager');
-        allHavePendingUpdates = relevantItems.every((item) =>
-          item?.id && smartRefreshManager.hasPendingUpdate(item.id)
-        );
-      } catch (_) {}
-    }
-
-    if ((allFromLocalDevice || allHavePendingUpdates) && deletedItems.length === 0 && !hasPolylineUpdates) {
-      // Local-only writes — skip full replacement. The optimistic IDB state is already correct.
-      // Individual offline DB saves in the subscription handler have already persisted each record.
-      return;
-    }
 
     // CRITICAL: When a remote full-replacement snapshot arrives, preserve any optimistic
     // isNextDelivery=true flags set locally that the backend hasn't confirmed yet.
@@ -347,22 +327,6 @@ async function flushBuffered(entityName) {
           }
         });
       }
-      fullReplacementData = Array.from(snapshotMap.values());
-    } else if (hasPolylineUpdates && allFromLocalDevice) {
-      // Editing device — polyline was just saved by this user.
-      // The pullToSyncDataReady broadcast from PolylineViewer may not have settled yet,
-      // so build the snapshot from IDB (which PolylineViewer already wrote before
-      // calling the backend function) merged with buffered item data to guarantee
-      // the new encoded_polyline is present.
-      const localDeliveries = window.__appDeliveries;
-      const base = Array.isArray(localDeliveries) ? localDeliveries : [];
-      const snapshotMap = new Map(base.map(d => [d.id, d]));
-      items.forEach(({ data: itemData }) => {
-        if (!itemData?.id) return;
-        const existing = snapshotMap.get(itemData.id);
-        // Always overlay the buffered data — this is the authoritative new value
-        snapshotMap.set(itemData.id, existing ? { ...existing, ...itemData } : itemData);
-      });
       fullReplacementData = Array.from(snapshotMap.values());
     }
 
@@ -780,16 +744,17 @@ const subscribeToEntity = (entityName) => {
               } catch (_) { /* use partial data as fallback */ }
             }
 
-            // CRITICAL: For Delivery updates — if the incoming WS payload carries an encoded_polyline
-            // (i.e. a breadcrumb edit was saved), fetch the full delivery record from the server
-            // to guarantee the receiving device's offline DB gets the complete authoritative data,
-            // not just a partial merge. This is the primary fix for polylines not syncing to remote devices.
-            if (entityName === 'Delivery' && type === 'update' && data?.id && data?.encoded_polyline) {
+            // CRITICAL: For ALL Delivery updates — fetch the full record from the server.
+            // The WS payload is a partial diff; saving it merged over the offline record
+            // can produce inconsistent state on both the originating device and other devices.
+            // Fetching the full authoritative record guarantees every device converges to
+            // the same state regardless of which fields were in the WS diff.
+            if (entityName === 'Delivery' && type === 'update' && data?.id) {
               try {
                 const full = await base44.entities.Delivery.get(data.id);
                 if (full?.id) {
                   dataToSave = full;
-                  console.log(`🗺️ [RealtimeSync] [${rsTime()}] Fetched full delivery for polyline update: ${data.id}`);
+                  console.log(`🗺️ [RealtimeSync] [${rsTime()}] Fetched full delivery record for WS update: ${data.id}`);
                 }
               } catch (_) { /* use incoming data as fallback */ }
             }
@@ -921,23 +886,6 @@ const subscribeToEntity = (entityName) => {
         console.warn(`⚠️ [RealtimeSync] [${rsTime()}] Failed to update offline DB for ${entityName}:`, offlineError.message);
       }
       
-      // isRemoteUpdate controls whether remote devices dispatch deliveriesUpdated.
-      // For 'update' events: use the updated_by_name field to detect same-user writes.
-      // For 'create' and 'delete' events: ALWAYS treat as remote — the triggering device
-      // already applied optimistic state; all other devices (including other sessions of
-      // the same account) need the WS echo to update their IDB snapshot and UI.
-      // The username heuristic CANNOT be used for create/delete because those events carry
-      // no updated_by_name and fall back to the local session username, making every device
-      // think it originated the event and silently suppressing the UI update.
-      let isRemoteUpdate;
-      if (type === 'update') {
-        const senderName = data?.updated_by_name || data?.updatedBy || updatedBy;
-        isRemoteUpdate = senderName !== currentUserName;
-      } else {
-        // create / delete — always propagate to all devices
-        isRemoteUpdate = true;
-      }
-
       // CRITICAL: For Delivery updates, use the merged dataToSave (which has patient_name
       // restored from the offline DB) so the toast and buffer always show the correct name.
       // For all other entities, use the raw incoming data as before.
@@ -966,7 +914,7 @@ const subscribeToEntity = (entityName) => {
       }
 
       // Buffer notifications to debounce UI updates
-      bufferEvent(entityName, { entityType: entityName, eventType: type, data: bufferData, id, updatedBy, changedFields: effectiveChangedFields, isRemoteUpdate });
+      bufferEvent(entityName, { entityType: entityName, eventType: type, data: bufferData, id, updatedBy, changedFields: effectiveChangedFields });
     });
 
     activeSubscriptions.set(entityName, unsubscribe);
