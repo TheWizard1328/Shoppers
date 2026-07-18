@@ -422,7 +422,19 @@ async function handleCreateCodItem(base44, payload) {
   let catalogObjectId,catalogVersion;
   // Existing item with changed name/amount — update in-place
   if(existingPending?.length&&existingPending[0]?.square_catalog_object_id&&(existingPending[0]?.item_name!==itemName||existingPending[0]?.amount_cents!==amountCents)){const updated=await updateCatalogItem({catalogObjectId:existingPending[0].square_catalog_object_id,catalogVersion:existingPending[0].square_catalog_version,itemName,amountCents,locationId,deliveryId,patientName:resolvedPatientName,accessToken});catalogObjectId=updated?.id||existingPending[0].square_catalog_object_id;catalogVersion=updated?.version||existingPending[0].square_catalog_version;}
-  else{const ci=await createCatalogItem({itemName,amountCents,locationId,deliveryId,patientName:resolvedPatientName,accessToken});catalogObjectId=ci?.id||null;catalogVersion=ci?.version||null;if(!catalogObjectId)throw new Error(`Square did not return a catalog item for delivery ${deliveryId}`);}
+  else{
+    // No pending SquareTransaction record — but a catalog item may already exist in Square
+    // (e.g. previous creation timed out before the transaction record was saved, or the
+    // transaction record was cleaned up). Search the live Square catalog by delivery_id
+    // (embedded in the item description) to prevent duplicate catalog items.
+    const liveItems=await listActiveCatalogItems(accessToken);
+    const existingLive=liveItems.find((item)=>{
+      const desc=normalizeText(item?.item_data?.description||'').toLowerCase();
+      return desc.includes(`delivery ${deliveryId}`)||desc.includes(deliveryId);
+    });
+    if(existingLive){const updated=await updateCatalogItem({catalogObjectId:existingLive.id,catalogVersion:existingLive.version,itemName,amountCents,locationId,deliveryId,patientName:resolvedPatientName,accessToken});catalogObjectId=updated?.id||existingLive.id;catalogVersion=updated?.version||existingLive.version;}
+    else{const ci=await createCatalogItem({itemName,amountCents,locationId,deliveryId,patientName:resolvedPatientName,accessToken});catalogObjectId=ci?.id||null;catalogVersion=ci?.version||null;if(!catalogObjectId)throw new Error(`Square did not return a catalog item for delivery ${deliveryId}`);}
+  }
   const existingTx=await base44.asServiceRole.entities.SquareTransaction.filter({delivery_id:deliveryId,status:'pending'}).catch(()=>[]);
   const txPayload={square_catalog_object_id:catalogObjectId,square_catalog_version:catalogVersion,item_name:itemName,amount:Number(codAmount),amount_cents:amountCents,patient_id:resolvedPatientId,store_id:effectiveStoreId,location_id:locationId};
   const transaction=existingTx.length>0?await base44.asServiceRole.entities.SquareTransaction.update(existingTx[0].id,txPayload):await base44.asServiceRole.entities.SquareTransaction.create({...txPayload,type:'collection',status:'pending',delivery_id:deliveryId});

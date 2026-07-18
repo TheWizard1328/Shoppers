@@ -101,20 +101,12 @@ export async function updateSquareCODIfChanged({
       console.warn('⚠️ [Square] Failed to delete COD item:', squareError.message);
     }
   } else if (initialCodDollars > 0 && currentCodDollars > 0) {
-    // Case 3: COD amount changed (UPDATE via DELETE + CREATE)
+    // Case 3: COD amount changed (UPDATE IN-PLACE via createCodItem)
+    // The backend handleCreateCodItem already detects existing pending SquareTransaction
+    // records and calls updateCatalogItem to change the price/name in-place — no delete needed.
+    // Previous DELETE+CREATE approach caused duplicates when the delete timed out.
     try {
-      console.log('💳 [Square] COD amount changed - updating:', delivery.id, 'From:', initialCodDollars, 'To:', currentCodDollars);
-      
-      // Delete old item
-      await Promise.race([
-        base44.functions.invoke('squareDeleteCodItem', {
-          deliveryId: delivery.id,
-          reason: 'cod_amount_changed'
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Square timeout')), 8000))
-      ]).catch(err => console.warn('⚠️ [Square] Delete old COD failed (continuing):', err.message));
-      
-      // Create new item with updated amount
+      console.log('💳 [Square] COD amount changed - updating in-place:', delivery.id, 'From:', initialCodDollars, 'To:', currentCodDollars);
       await Promise.race([
         base44.functions.invoke('squareCreateCodItem', {
           deliveryId: delivery.id,
@@ -126,7 +118,7 @@ export async function updateSquareCODIfChanged({
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Square timeout')), 8000))
       ]);
-      console.log('✅ [Square] COD amount updated');
+      console.log('✅ [Square] COD amount updated in-place');
     } catch (squareError) {
       console.error('⚠️ [Square] Failed to update COD amount:', squareError.message);
     }
