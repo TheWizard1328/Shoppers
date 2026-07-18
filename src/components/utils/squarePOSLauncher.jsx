@@ -45,11 +45,14 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
     return;
   }
 
-  // iOS: callback must be a real HTTP URL that Square can redirect back to.
-  // We use the squarePosCallback backend function which does a 302 redirect to the app root.
-  // Android uses its own WEB_CALLBACK_URI which is handled separately.
-  const backendCallbackUrl = `${window.location.origin}/functions/squarePosCallback`;
-  const resolvedCallbackUrl = callbackUrl || backendCallbackUrl;
+  // Platform-specific callback URLs — these must point to the native app store page,
+  // NOT a web URL. When Square finishes payment and redirects, opening the app store
+  // URL causes the OS to deep-link back into the already-installed native app (PWA/APK).
+  // Using a plain web URL would open the browser instead, breaking the return flow.
+  const IOS_CALLBACK_URL = 'https://apps.apple.com/app/rxdeliver/id0000000000'; // TODO: replace with real App Store ID
+  const ANDROID_CALLBACK_URL = 'https://play.google.com/store/apps/details?id=com.rxdeliver.app'; // existing working Android callback
+  const platformCallbackUrl = isIOS() ? IOS_CALLBACK_URL : ANDROID_CALLBACK_URL;
+  const resolvedCallbackUrl = callbackUrl || platformCallbackUrl;
 
   // Bare launch — open Square POS without a payment payload (no amount/tender).
   // Used on first COD of the day or location mismatch so driver can set their location first.
