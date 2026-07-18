@@ -150,7 +150,7 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
       `S.com.squareup.pos.TENDER_TYPES=${encodeURIComponent(tenderTypes)}`,
     ];
     if (notes) parts.push(`S.com.squareup.pos.NOTE=${encodeURIComponent(notes)}`);
-    //if (locationId) parts.push(`S.com.squareup.pos.LOCATION_ID=${encodeURIComponent(locationId)}`);
+    if (locationId) parts.push(`S.com.squareup.pos.LOCATION_ID=${encodeURIComponent(locationId)}`);
     squareUrl = `intent:#Intent;${parts.join(';')};end`;
   }
 
