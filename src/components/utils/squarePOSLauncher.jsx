@@ -18,6 +18,10 @@ import { remoteLogger } from '@/components/utils/remoteLogger';
  *              Android app from web content; a bare square-commerce-v1:// scheme is NOT
  *              reliably honored by Android Chrome/WebView from a plain web page.
  *
+ * BARE LAUNCHES (yellow triangle / first COD of day): Both platforms open the Square
+ * POS app directly to its main screen WITHOUT triggering a payment/create flow. This
+ * lets the driver manually check or switch their Square location before the real charge.
+ *
  * IMPORTANT: Call this synchronously within a user gesture handler (onPointerDown/onClick) —
  * any await/state update before this call can break gesture trust needed for the handoff.
  */
@@ -59,15 +63,32 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   // Used on first COD of the day or location mismatch so driver can set their location first.
   const bare = !amountCents || amountCents <= 0;
 
+  // ── BARE LAUNCH: just open the Square POS app directly, no payment flow ──
+  // On iOS: call the custom URL scheme without /payment/create — this opens the app
+  // to its main screen without triggering any transaction flow.
+  // On Android: already handled below with android.intent.action.MAIN.
+  if (bare && platform === 'ios') {
+    const squareUrl = 'square-commerce-v1://';
+    remoteLogger.info('[Square POS] (iOS) Bare launch — opening app directly', squareUrl);
+    try {
+      const a = document.createElement('a');
+      a.href = squareUrl;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} }, 1000);
+    } catch (err) {
+      remoteLogger.error('[Square POS] (iOS) bare anchor click FAILED', String(err));
+    }
+    return;
+  }
+
   if (platform === 'ios') {
-    // ── iOS Mobile Web format — square-commerce-v1:// ───────────────────
+    // ── iOS Mobile Web format — square-commerce-v1://payment/create ────
     // The `options` object with `supported_tender_types` is REQUIRED by the iOS
     // Square POS app. Without it, Square opens, sees the request as invalid, and
     // immediately returns to the callback URL — which looks like "the callback
     // fires as soon as Square loads."
-    //
-    // Even for a bare launch (no amount), we include options with all tender types
-    // so Square at least shows a usable screen instead of erroring out immediately.
     const payload = {
       client_id: squareAppId,
       version: '1.3',
@@ -79,15 +100,13 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
       },
     };
 
-    if (!bare) {
-      payload.amount_money = { amount: Math.round(amountCents), currency_code: currencyCode };
-      if (notes) payload.notes = notes;
-      if (locationId) payload.location_id = locationId;
-    }
+    payload.amount_money = { amount: Math.round(amountCents), currency_code: currencyCode };
+    if (notes) payload.notes = notes;
+    if (locationId) payload.location_id = locationId;
 
     const encoded = encodeURIComponent(JSON.stringify(payload));
     const squareUrl = `square-commerce-v1://payment/create?data=${encoded}`;
-    remoteLogger.info(`[Square POS] (iOS) Launching (bare=${bare})`, squareUrl);
+    remoteLogger.info(`[Square POS] (iOS) Launching payment (bare=false)`, squareUrl);
     try {
       // iOS Safari/PWA: Use a hidden <a> tag click rather than window.location.href.
       // window.location.href navigates the current page away, causing Safari to immediately
@@ -98,7 +117,7 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
-      setTimeout(() => document.body.removeChild(a), 1000);
+      setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} }, 1000);
     } catch (err) {
       remoteLogger.error('[Square POS] (iOS) anchor click FAILED', String(err));
     }
