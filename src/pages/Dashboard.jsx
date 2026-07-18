@@ -365,10 +365,18 @@ function Dashboard() {
       .join('|');
 
     if (sortKey === _dwsoSortKeyRef.current) {
-      // Nothing that affects sort order changed — return the stable cached array.
-      // This prevents a re-sort (and new array reference) when only isNextDelivery,
-      // polylines, updated_date, or other non-sort fields changed.
-      return _dwsoCachedResult.current;
+      // Sort order hasn't changed, but the delivery objects themselves may have
+      // (e.g. a WebSocket update changed patient_name, COD, or other non-sort fields).
+      // Returning the same cached array reference would prevent memoized children
+      // (StopCardsSection, MapSection) from re-rendering with the updated data.
+      // Instead, build a new array that preserves the cached sort order but swaps in
+      // the fresh delivery objects from filteredDeliveries.
+      const freshMap = new Map(filteredDeliveries.map(d => [d?.id, d]));
+      const refreshed = _dwsoCachedResult.current.map(d =>
+        freshMap.has(d?.id) ? { ...freshMap.get(d.id), display_stop_order: d.display_stop_order } : d
+      );
+      _dwsoCachedResult.current = refreshed;
+      return refreshed;
     }
     _dwsoSortKeyRef.current = sortKey;
 
