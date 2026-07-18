@@ -8,18 +8,15 @@ import { remoteLogger } from '@/components/utils/remoteLogger';
  *
  *   - iOS:     square-commerce-v1://payment/create?data={percent-encoded JSON}
  *              dispatched via a same-frame navigation (hidden <a> click).
+ *              The JSON `data` object REQUIRES an `options.supported_tender_types` array —
+ *              omitting it causes Square to open, reject the request as invalid, and
+ *              immediately bounce back to the callback URL before the driver can interact.
  *
  *   - Android: an Android "intent:" URI — intent:#Intent;action=...;package=com.squareup;
  *              S.com.squareup.pos.*=...;end — dispatched via window.open(). This is
  *              Chrome's first-class, documented mechanism for handing off to a native
  *              Android app from web content; a bare square-commerce-v1:// scheme is NOT
  *              reliably honored by Android Chrome/WebView from a plain web page.
- *
- * Our driver fleet is 100% Android (confirmed via remote logs), and the previous version
- * of this file only ever built the iOS-style payload — every tap completed the full JS
- * chain successfully (payload built, anchor click dispatched) but Square never opened,
- * because Android was silently ignoring the wrong URI format. This version detects
- * platform and builds the correct request for each.
  *
  * IMPORTANT: Call this synchronously within a user gesture handler (onPointerDown/onClick) —
  * any await/state update before this call can break gesture trust needed for the handoff.
@@ -31,6 +28,10 @@ function isIOS() {
   // iPadOS 13+ reports as MacIntel with touch support
   return navigator?.platform === 'MacIntel' && (navigator?.maxTouchPoints || 0) > 1;
 }
+
+// iOS supported_tender_types values (different naming from Android's TENDER_* constants)
+// https://developer.squareup.com/docs/pos-api/web-technical-reference#mobile-web-on-ios
+const IOS_TENDER_TYPES = ['CREDIT_CARD', 'CASH', 'OTHER', 'SQUARE_GIFT_CARD', 'CARD_ON_FILE'];
 
 export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD', callbackUrl, notes, locationId }) {
   const platform = isIOS() ? 'ios' : 'android';
@@ -59,12 +60,31 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   const bare = !amountCents || amountCents <= 0;
 
   if (platform === 'ios') {
-    const payload = { client_id: squareAppId, version: '1.3', callback_url: resolvedCallbackUrl };
+    // ── iOS Mobile Web format — square-commerce-v1:// ───────────────────
+    // The `options` object with `supported_tender_types` is REQUIRED by the iOS
+    // Square POS app. Without it, Square opens, sees the request as invalid, and
+    // immediately returns to the callback URL — which looks like "the callback
+    // fires as soon as Square loads."
+    //
+    // Even for a bare launch (no amount), we include options with all tender types
+    // so Square at least shows a usable screen instead of erroring out immediately.
+    const payload = {
+      client_id: squareAppId,
+      version: '1.3',
+      callback_url: resolvedCallbackUrl,
+      options: {
+        supported_tender_types: IOS_TENDER_TYPES,
+        skip_receipt: true,
+        auto_return: true,
+      },
+    };
+
     if (!bare) {
       payload.amount_money = { amount: Math.round(amountCents), currency_code: currencyCode };
       if (notes) payload.notes = notes;
       if (locationId) payload.location_id = locationId;
     }
+
     const encoded = encodeURIComponent(JSON.stringify(payload));
     const squareUrl = `square-commerce-v1://payment/create?data=${encoded}`;
     remoteLogger.info(`[Square POS] (iOS) Launching (bare=${bare})`, squareUrl);
