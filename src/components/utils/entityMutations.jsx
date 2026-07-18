@@ -367,24 +367,27 @@ export const updatePatient = async (patientId, updates, options = {}) => {
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updated]);
     console.log('💾 [EntityMutations] Updated IndexedDB for patient:', patientId);
 
-    // STEP 2: Sync to backend
+    // STEP 2: Notify UI immediately with local version — don't wait for backend
+    notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: updated });
+
+    // STEP 3: Sync to backend
     try {
       const backendPatient = await base44.entities.Patient.update(patientId, updates);
       console.log('☁️ [EntityMutations] Backend updated patient:', patientId);
       
-      // STEP 3: Update IndexedDB with backend version
+      // STEP 4: Update IndexedDB with backend version
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
       await refreshOfflineEntitySnapshots('Patient', backendPatient);
       
-      // STEP 4: CRITICAL - Update cache directly to prevent UI flickering
+      // STEP 5: Update cache with authoritative backend version
       const { updateCache } = await import('./dataManager');
       updateCache('Patient', patientId, backendPatient);
       console.log('⚡ [EntityMutations] Updated Patient cache');
       
-      // STEP 5: Notify UI with backend version
+      // STEP 6: Notify UI again with backend version to overlay any server-side changes
       notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
       
-      // CRITICAL: Broadcast patient update event to delivery forms
+      // Broadcast patient update event to delivery forms
       window.dispatchEvent(new CustomEvent('patientUpdated', {
         detail: { patientId, updates: backendPatient }
       }));
@@ -618,12 +621,15 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updated]);
     console.log('💾 [EntityMutations] Updated IndexedDB for:', deliveryId);
 
-    // STEP 2: Update backend (sync to server)
+    // STEP 2: Notify UI immediately with local version — don't wait for backend
+    notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
+
+    // STEP 3: Update backend (sync to server)
     try {
       const backendDelivery = await base44.entities.Delivery.update(deliveryId, sanitizedUpdates);
       console.log('☁️ [EntityMutations] Backend updated for:', deliveryId);
       
-      // STEP 3: Update IndexedDB with backend response (authoritative version)
+      // STEP 4: Update IndexedDB with backend response (authoritative version)
       // CRITICAL: Preserve polyline fields that may not be returned in partial update responses
       const existingForMerge = deliveries.find(d => d.id === deliveryId);
       const deliveryToStore = existingForMerge ? {
@@ -635,12 +641,12 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [deliveryToStore]);
       await refreshOfflineEntitySnapshots('Delivery', deliveryToStore);
       
-      // STEP 4: CRITICAL - Update cache directly to prevent UI flickering
+      // STEP 5: Update cache with authoritative backend version
       const { updateCache } = await import('./dataManager');
       updateCache('Delivery', deliveryId, backendDelivery);
       console.log('⚡ [EntityMutations] Updated Delivery cache');
       
-      // STEP 5: Notify UI with backend version (most up-to-date)
+      // STEP 6: Notify UI again with backend version to overlay any server-side changes
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
       
       // Broadcast to other devices immediately
@@ -649,9 +655,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery update sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: deliveryId, payload: sanitizedUpdates });
-      
-      // STEP 5 (fallback): Notify UI with local version if backend fails
-      notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
+      // UI already notified with local version above — no extra notify needed
     }
     
     // CRITICAL: keep Smart Refresh calm after direct delivery edits
@@ -1087,31 +1091,35 @@ export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
   
   try {
     console.log(`🔄 [EntityMutations] Updating AppUser ${appUserId}...`);
-    
-    // STEP 1: Update backend (online database)
+
+    // STEP 1: Write to offline DB FIRST with optimistic data (merge with existing)
+    const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
+    const optimisticRecord = { ...existingRecord, ...updates, id: appUserId };
+    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [optimisticRecord]);
+    console.log(`💾 [EntityMutations] Optimistic AppUser write to offline DB: ${appUserId}`);
+
+    // STEP 2: Notify UI immediately with optimistic data
+    notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: optimisticRecord });
+    console.log(`🔔 [EntityMutations] UI notified of AppUser update (optimistic)`);
+
+    // STEP 3: Update backend (online database)
     const result = await base44.entities.AppUser.update(appUserId, updates);
     console.log(`☁️ [EntityMutations] Backend AppUser updated: ${appUserId}`);
-    
-    // STEP 2: CRITICAL - DUAL-WRITE to offline DB immediately
+
+    // STEP 4: Sync authoritative backend record to offline DB
     try {
-      // CRITICAL: Merge with existing offline record to preserve app_roles and all other fields.
-      // The SDK update response may only return changed fields, not the full record.
-      const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]);
-      console.log(`💾 [EntityMutations] Synced AppUser to offline DB: ${appUserId}`);
+      console.log(`💾 [EntityMutations] Synced authoritative AppUser to offline DB: ${appUserId}`);
     } catch (offlineError) {
       console.warn('⚠️ [EntityMutations] Failed to sync AppUser to offline DB:', offlineError.message);
-      // Don't throw - continue with UI update even if offline sync fails
     }
-    
-    // STEP 3: Notify UI immediately so components refresh
+
+    // STEP 5: Notify UI again with authoritative backend data
     notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: result });
-    console.log(`🔔 [EntityMutations] UI notified of AppUser update`);
-    
-    // STEP 4: CRITICAL: Broadcast to other devices for real-time sync
-    // This ensures driver location/status changes are instantly visible on all devices
+
+    // STEP 6: Broadcast to other devices for real-time sync
     broadcastMutation('AppUser', 'update', appUserId, result);
-    
+
     console.log(`✅ [EntityMutations] AppUser ${appUserId} updated, synced to offline DB, and broadcast to other devices`);
     return result;
   } catch (error) {

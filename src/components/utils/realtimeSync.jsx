@@ -612,6 +612,22 @@ const subscribeToEntity = (entityName) => {
     const { type, id } = event;
     const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
 
+    // SELF-ECHO SUPPRESSION for Delivery: If this Delivery update was written by this
+    // exact device (tracked via window.__localDeliveryWrites set by broadcastMutation),
+    // drop the incoming WS echo — the offline DB and UI state are already up to date.
+    if (entityName === 'Delivery' && type === 'update') {
+      const localWrites = window.__localDeliveryWrites;
+      if (localWrites && localWrites.has(id)) {
+        const writtenAt = localWrites.get(id);
+        if (Date.now() - writtenAt < 15000) {
+          console.log(`🔇 [RealtimeSync] Self-echo suppressed for Delivery ${id} — originated from this device (${Math.round((Date.now() - writtenAt) / 1000)}s ago)`);
+          localWrites.delete(id);
+          return;
+        }
+        localWrites.delete(id);
+      }
+    }
+
     // SELF-ECHO SUPPRESSION: If this AppUser update was written by this exact device
     // (tracked via window.__localAppUserWrites set in locationTrackerBroadcast),
     // drop the incoming WS echo — the offline DB and UI state are already up to date.
@@ -1132,6 +1148,11 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
 
     if (storeName) {
       if ((action === 'create' || action === 'update') && data) {
+        // Track local Delivery writes so the WS self-echo can be suppressed
+        if (entity === 'Delivery' && action === 'update' && id) {
+          if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+          window.__localDeliveryWrites.set(id, Date.now());
+        }
         // CRITICAL: Merge AppUser/Patient/Delivery data with existing offline record before saving.
         // broadcastMutation is called by DriverStatusToggle with partial finalData (only
         // driver_status, location fields) — saving that partial record directly via IndexedDB
@@ -1180,6 +1201,34 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     }));
 
     if (entity === 'Delivery') {
+      // For create/update: dispatch deliveriesUpdated immediately so the local device
+      // doesn't wait for the WebSocket echo to see its own changes reflected in the UI.
+      if ((action === 'create' || action === 'update') && data) {
+        const localDeliveries = window.__appDeliveries;
+        const base = Array.isArray(localDeliveries) ? localDeliveries : [];
+        const snapshotMap = new Map(base.map(d => [d.id, d]));
+        const existing = snapshotMap.get(data.id);
+        snapshotMap.set(data.id, existing ? { ...existing, ...data } : data);
+        const mergedDeliveries = Array.from(snapshotMap.values());
+        window.__appDeliveries = mergedDeliveries;
+        const selectedDate = window.__appSelectedDate || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            deliveries: mergedDeliveries,
+            freshDeliveries: mergedDeliveries,
+            immediate: true,
+            deliveryDate: selectedDate,
+            triggeredBy: 'localMutationBroadcast',
+            source: 'local_mutation',
+            fromRealtime: false,
+            fullReplacement: false,
+            skipMapPhaseOneRefresh: true,
+            preserveLocalState: true,
+            skipDriverLocationRefresh: true,
+          }
+        }));
+      }
+
       const shouldDispatchLocalDeliveryEvent = action === 'delete' || action === 'batch_delete';
       if (action === 'delete') {
         window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
