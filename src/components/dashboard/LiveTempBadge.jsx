@@ -2,7 +2,7 @@
  * LiveTempBadge.jsx
  *
  * Floating cooler temperature badge above the stop-card FAB.
- * Uses useInkbirdWorker — the same battle-tested GATT connection logic
+ * Uses useInkbirdUnified — routes to native BLE (Capacitor) or Web Bluetooth
  * as the InkbirdRawDiagnostic page (3-attempt connect, FFF2 poll fallback).
  * On every reading it persists to RxTempLogs via recordFridgeTemperature.
  */
@@ -12,7 +12,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Thermometer, Bluetooth, BluetoothSearching, BluetoothOff, RefreshCw, Check } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { isAdmin, isDriver as checkIsDriver } from '@/components/utils/userRoles';
-import { useInkbirdWorker } from '@/components/common/useInkbirdWorker';
+import { useInkbirdUnified } from '@/components/common/useInkbirdUnified';
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
 // Fridge temp defaults — overridden at runtime by AppSettings.fridge_temp_settings
 const DEFAULT_SAFE_MIN     = 2;
@@ -64,6 +65,9 @@ export default function LiveTempBadge({
 }) {
   const adminMode  = isAdmin(currentUser);
   const driverMode = checkIsDriver(currentUser);
+  const hasWebBluetooth = typeof navigator !== 'undefined' && !!navigator.bluetooth;
+  const hasNativeBle = isCapacitorNativeApp();
+  const bleAvailable = hasWebBluetooth || hasNativeBle;
 
   // ── Fridge temp thresholds — loaded from AppSettings ──────────────────────
   const [fridgeCfg, setFridgeCfg] = React.useState({
@@ -144,7 +148,7 @@ export default function LiveTempBadge({
   // ── BLE Worker ─────────────────────────────────────────────────────────
   // onReading fires on every reading from the worker (poll + notify)
   const { status: bleStatus, temp: bleTemp, sensorName: workerSensorName,
-          connect, disconnect, forget } = useInkbirdWorker({
+          connect, disconnect, forget } = useInkbirdUnified({
     onReading: useCallback((tempC) => {
       saveTempToDb(tempC);
       setIsPulsing(true);
@@ -350,7 +354,9 @@ export default function LiveTempBadge({
       return;
     }
 
-    if (!navigator?.bluetooth) return;
+    // On iOS Capacitor native, navigator.bluetooth is absent but native BLE
+    // is available via @capacitor-community/bluetooth-le. The unified hook
+    // handles routing internally — just call connect().
     connect();
   }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus, workerSensorName,
       loadFromDb, connect, forget]);
@@ -371,6 +377,8 @@ export default function LiveTempBadge({
     if (isUnpairing)                              return 'Unpaired';
     if (!isPastDate && showLiveBle && bleStatus === 'connecting') return 'Connecting…';
     if (!isPastDate && showLiveBle && bleStatus === 'error')      return 'Tap to retry';
+    if (!isPastDate && showLiveBle && !bleAvailable && displayTemp === null)
+      return 'No BLE';
     if (!isPastDate && showLiveBle && (bleStatus === 'disconnected' || bleStatus === 'idle') && displayTemp === null)
       return workerSensorName ? 'Tap to reconnect' : 'Tap to pair';
     if (displayTemp !== null) return isPastDate ? `∅ ${displayTemp}°C` : `${displayTemp}°C`;
