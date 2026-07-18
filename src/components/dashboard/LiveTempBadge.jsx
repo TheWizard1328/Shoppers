@@ -393,6 +393,8 @@ export default function LiveTempBadge({
       const to   = avgReading.to   ? formatTimestamp(avgReading.to)   : '?';
       return `Avg of ${avgReading.count} readings · ${from} – ${to}`;
     }
+    if (!isPastDate && showLiveBle && !bleAvailable && displayTemp === null)
+      return 'Bluetooth not supported on this browser. Use the native app.';
     const ts = lastReading?.timestamp;
     return ts ? `Last reading: ${formatTimestamp(ts)}` : null;
   })();
