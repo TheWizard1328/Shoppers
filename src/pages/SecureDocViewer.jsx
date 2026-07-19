@@ -286,7 +286,7 @@ export default function SecureDocViewer() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50" ref={containerRef}>
+    <div className="min-h-screen bg-slate-50 overflow-y-auto" ref={containerRef}>
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
