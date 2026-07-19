@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   FileText, Shield, ShieldCheck, CheckCircle, XCircle, Clock, Upload, Camera,
-  Search, RefreshCw, Trash2, Eye, AlertTriangle, Building2, User, Lock, ChevronRight } from
+  Search, RefreshCw, Trash2, Eye, AlertTriangle, Building2, User, Lock, ChevronRight,
+  RotateCcw, RotateCw, Crop } from
 'lucide-react';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
 import { appParams } from '@/lib/app-params';
@@ -95,6 +96,9 @@ export default function Documents() {
   const cropImageRef = useRef(null);
   const [cropDrag, setCropDrag] = useState(null);
   const [cropBox, setCropBox] = useState({ x: 0.05, y: 0.05, w: 0.9, h: 0.9 }); // relative 0-1
+  const [cropRotation, setCropRotation] = useState(0); // 0, 90, 180, 270
+  // Viewer image rotation
+  const [viewerRotation, setViewerRotation] = useState(0); // 0, 90, 180, 270
 
   const isAdmin = currentUser?.app_roles?.includes('admin');
   const isDispatcher = currentUser?.app_roles?.includes('dispatcher');
@@ -356,6 +360,7 @@ export default function Documents() {
     setDocLoading(true);
     setViewingDoc(doc);
     setDocUrl(null);
+    setViewerRotation(0);
     try {
       const me = await base44.auth.me();
       const resp = await base44.functions.invoke('serveDriverDoc', {
@@ -409,6 +414,7 @@ export default function Documents() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       setCropBox({ x: 0.05, y: 0.05, w: 0.9, h: 0.9 });
+      setCropRotation(0);
       setCropModal({ src: ev.target.result, file, docType, driverId, driverName, scope, storeId, storeName });
     };
     reader.readAsDataURL(file);
@@ -452,17 +458,31 @@ export default function Documents() {
     }
   };
 
-  // Confirm crop: draw cropped region to canvas and upload as blob
+  // Confirm crop: draw cropped region to canvas (with rotation) and upload as blob
   const handleCropConfirm = async () => {
     if (!cropModal || !cropImageRef.current) return;
     const img = cropImageRef.current;
     const { x, y, w, h } = cropBox;
-    const sw = img.naturalWidth * w;
-    const sh = img.naturalHeight * h;
-    const sx = img.naturalWidth * x;
-    const sy = img.naturalHeight * y;
 
-    // Scale down so longest side is max 1600px (reduces file size dramatically)
+    // First render the full image rotated onto an intermediate canvas
+    const rad = (cropRotation * Math.PI) / 180;
+    const isOdd = cropRotation === 90 || cropRotation === 270;
+    const rotW = isOdd ? img.naturalHeight : img.naturalWidth;
+    const rotH = isOdd ? img.naturalWidth : img.naturalHeight;
+    const rotCanvas = document.createElement('canvas');
+    rotCanvas.width = rotW;
+    rotCanvas.height = rotH;
+    const rotCtx = rotCanvas.getContext('2d');
+    rotCtx.translate(rotW / 2, rotH / 2);
+    rotCtx.rotate(rad);
+    rotCtx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+    // Now crop from the rotated canvas
+    const sx = rotW * x;
+    const sy = rotH * y;
+    const sw = rotW * w;
+    const sh = rotH * h;
+
     const MAX_SIDE = 1600;
     const scale = Math.min(1, MAX_SIDE / Math.max(sw, sh));
     const dw = Math.round(sw * scale);
@@ -471,10 +491,8 @@ export default function Documents() {
     const canvas = document.createElement('canvas');
     canvas.width = dw;
     canvas.height = dh;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
+    canvas.getContext('2d').drawImage(rotCanvas, sx, sy, sw, sh, 0, 0, dw, dh);
 
-    // Always encode as JPEG at 0.85 quality — keeps docs readable, < 500 KB typically
     canvas.toBlob(async (blob) => {
       if (!blob) {alert('Failed to process image.');return;}
       const croppedFile = new File([blob], `doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -1027,9 +1045,23 @@ export default function Documents() {
                 {viewingDoc.driver_name && ` — ${viewingDoc.driver_name}`}
                 {viewingDoc.store_name && ` — ${viewingDoc.store_name}`}
               </p>
-              <Button size="sm" variant="ghost" onClick={() => {setViewingDoc(null);setDocUrl(null);}}>
-                <XCircle className="w-4 h-4" /> Close
-              </Button>
+              <div className="flex items-center gap-1">
+                {docUrl && !viewingDoc.mime_type?.includes('pdf') && (
+                  <>
+                    <Button size="sm" variant="ghost" className="h-8 px-2" title="Rotate left"
+                      onClick={() => setViewerRotation((r) => (r - 90 + 360) % 360)}>
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-8 px-2" title="Rotate right"
+                      onClick={() => setViewerRotation((r) => (r + 90) % 360)}>
+                      <RotateCw className="w-4 h-4" />
+                    </Button>
+                  </>
+                )}
+                <Button size="sm" variant="ghost" onClick={() => {setViewingDoc(null);setDocUrl(null);}}>
+                  <XCircle className="w-4 h-4" /> Close
+                </Button>
+              </div>
             </div>
             <div className="flex-1 overflow-hidden relative">
               {docLoading ?
@@ -1042,7 +1074,7 @@ export default function Documents() {
                 <iframe src={`${docUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" title="Document" /> :
 
                 <img src={docUrl} alt="Document" className="w-full h-full object-contain"
-                style={{ pointerEvents: 'none' }} />
+                style={{ pointerEvents: 'none', transform: `rotate(${viewerRotation}deg)`, transition: 'transform 0.2s' }} />
                 }
                   {/* Watermark grid overlay — covers the full content area including thumbnails */}
                   <div className="absolute inset-0 pointer-events-none overflow-hidden select-none"
@@ -1073,7 +1105,17 @@ export default function Documents() {
           <div className="bg-card rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b">
               <p className="font-semibold text-sm">Adjust & Crop</p>
-              <button className="text-muted-foreground hover:text-foreground" onClick={() => setCropModal(null)}>✕</button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" className="h-8 px-2 gap-1" title="Rotate left"
+                  onClick={() => { setCropRotation((r) => (r - 90 + 360) % 360); setCropBox({ x: 0.05, y: 0.05, w: 0.9, h: 0.9 }); }}>
+                  <RotateCcw className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 px-2 gap-1" title="Rotate right"
+                  onClick={() => { setCropRotation((r) => (r + 90) % 360); setCropBox({ x: 0.05, y: 0.05, w: 0.9, h: 0.9 }); }}>
+                  <RotateCw className="w-4 h-4" />
+                </Button>
+                <button className="text-muted-foreground hover:text-foreground ml-1" onClick={() => setCropModal(null)}>✕</button>
+              </div>
             </div>
 
             {/* Image with draggable crop overlay */}
@@ -1101,7 +1143,7 @@ export default function Documents() {
                 src={cropModal.src}
                 alt="crop preview"
                 className="w-full object-contain"
-                style={{ maxHeight: '55vh', display: 'block' }}
+                style={{ maxHeight: '55vh', display: 'block', transform: `rotate(${cropRotation}deg)`, transition: 'transform 0.2s' }}
                 draggable={false} />
               
               {/* Dark overlay outside crop box */}
@@ -1165,18 +1207,24 @@ export default function Documents() {
               <p className="text-xs text-muted-foreground">Drag box to move • drag corner to resize</p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={async () => {
-                  // Skip crop — compress then upload
+                  // Skip crop — apply rotation + compress then upload
                   const { file, docType, driverId, driverName, scope, storeId, storeName } = cropModal;
+                  const rot = cropRotation;
                   setCropModal(null);
-                  // Compress image before upload
                   const img2 = new Image();
                   img2.onload = () => {
+                    const isOdd2 = rot === 90 || rot === 270;
+                    const rw = isOdd2 ? img2.naturalHeight : img2.naturalWidth;
+                    const rh = isOdd2 ? img2.naturalWidth : img2.naturalHeight;
                     const MAX = 1600;
-                    const scale2 = Math.min(1, MAX / Math.max(img2.naturalWidth, img2.naturalHeight));
+                    const scale2 = Math.min(1, MAX / Math.max(rw, rh));
                     const c2 = document.createElement('canvas');
-                    c2.width = Math.round(img2.naturalWidth * scale2);
-                    c2.height = Math.round(img2.naturalHeight * scale2);
-                    c2.getContext('2d').drawImage(img2, 0, 0, c2.width, c2.height);
+                    c2.width = Math.round(rw * scale2);
+                    c2.height = Math.round(rh * scale2);
+                    const ctx2 = c2.getContext('2d');
+                    ctx2.translate(c2.width / 2, c2.height / 2);
+                    ctx2.rotate((rot * Math.PI) / 180);
+                    ctx2.drawImage(img2, -img2.naturalWidth * scale2 / 2, -img2.naturalHeight * scale2 / 2, img2.naturalWidth * scale2, img2.naturalHeight * scale2);
                     c2.toBlob(async (b) => {
                       const f2 = new File([b || file], `doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
                       await handleUploadFile(f2, docType, driverId, driverName, scope, storeId, storeName);
