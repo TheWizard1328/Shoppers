@@ -146,20 +146,17 @@ export default function Documents() {
 
       // Driver (including driver+admin): load own driver-scoped docs
       if (isDriver) {
-        const myDocs = await base44.entities.DriverDocument.list({
-          filter: { driver_id: me.id, document_scope: 'driver' },
-          limit: 100
-        });
+        const myDocs = await base44.entities.DriverDocument.filter(
+          { driver_id: me.id, document_scope: 'driver' }, '-uploaded_at', 100
+        );
         allDocs.push(...(myDocs || []));
       }
 
       // Admin (including driver+admin): load ALL driver docs
       if (isAdmin) {
-        const allDriverDocs = await base44.entities.DriverDocument.list({
-          filter: { document_scope: 'driver' },
-          limit: 500,
-          sort: '-uploaded_at'
-        });
+        const allDriverDocs = await base44.entities.DriverDocument.filter(
+          { document_scope: 'driver' }, '-uploaded_at', 500
+        );
         // Deduplicate against driver's own docs already loaded
         const seenIds = new Set(allDocs.map(d => d.id));
         for (const doc of (allDriverDocs || [])) {
@@ -174,10 +171,9 @@ export default function Documents() {
       if (isDispatcher && !isAdmin && !isDriver) {
         const myStoreIds = me.store_ids || [];
         for (const sid of myStoreIds) {
-          const contracts = await base44.entities.DriverDocument.list({
-            filter: { store_id: sid, document_scope: 'store', document_type: 'contract' },
-            limit: 10
-          });
+          const contracts = await base44.entities.DriverDocument.filter(
+            { store_id: sid, document_scope: 'store', document_type: 'contract' }, '-uploaded_at', 10
+          );
           allDocs.push(...(contracts || []));
         }
       }
@@ -187,25 +183,15 @@ export default function Documents() {
       // Load access requests
       let requests = [];
       if (isAdmin) {
-        // Admin sees all requests
-        requests = await base44.entities.DocAccessRequest.list({
-          sort: '-requested_at',
-          limit: 200
-        });
+        requests = await base44.entities.DocAccessRequest.list('-requested_at', 200);
       } else if (isDispatcher) {
-        // Dispatcher sees their own outgoing requests
-        requests = await base44.entities.DocAccessRequest.list({
-          filter: { requester_id: me.id },
-          sort: '-requested_at',
-          limit: 100
-        });
+        requests = await base44.entities.DocAccessRequest.filter(
+          { requester_id: me.id }, '-requested_at', 100
+        );
       } else if (isDriver) {
-        // Driver sees requests targeting them
-        requests = await base44.entities.DocAccessRequest.list({
-          filter: { driver_id: me.id },
-          sort: '-requested_at',
-          limit: 100
-        });
+        requests = await base44.entities.DocAccessRequest.filter(
+          { driver_id: me.id }, '-requested_at', 100
+        );
       }
       setAccessRequests(requests || []);
     } catch (err) {
