@@ -409,7 +409,8 @@ export default function Documents() {
         mime_type: file.type || 'image/jpeg',
       });
 
-      if (!result?.success) throw new Error(result?.error || 'Upload failed');
+      const resultData = result?.data || result;
+      if (!resultData?.success) throw new Error(resultData?.error || 'Upload failed');
       await loadData(true);
     } catch (err) {
       console.error('Upload failed:', err);
