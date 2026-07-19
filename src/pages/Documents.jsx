@@ -940,7 +940,7 @@ export default function Documents() {
               ) : docUrl ? (
                 <div className="relative w-full h-full">
                   {viewingDoc.mime_type?.includes('pdf') ? (
-                    <iframe src={docUrl} className="w-full h-full border-0" title="Document" />
+                    <iframe src={`${docUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" title="Document" />
                   ) : (
                     <img src={docUrl} alt="Document" className="w-full h-full object-contain"
                       style={{ pointerEvents: 'none' }} />
