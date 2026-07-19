@@ -1,18 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-
-/**
- * docAccessManager — handles all document access request lifecycle operations:
- *   - createRequest: dispatcher requests to view driver docs (license, background_check)
- *   - approve: driver or admin approves a request → push to admins + requesting dispatcher
- *   - deny: driver or admin denies a request → push to requesting dispatcher
- *   - revoke: revoke an active request
- *
- * Push notification routing:
- *   - createRequest: push to the driver + all admins
- *   - approve (by driver): push to admins + requesting dispatcher
- *   - approve (by admin): push to the driver + requesting dispatcher
- *   - deny: push to requesting dispatcher
- */
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
 async function sendPush(base44, userId, title, body, url) {
   try {
@@ -39,22 +25,17 @@ async function getAllAdminIds(base44) {
   }
 }
 
-// Midnight the following day in Edmonton time
 function getExpiryTimestamp() {
   const now = new Date();
-  // Edmonton is UTC-6 (MDT) or UTC-7 (MST). We use a simple approach:
-  // calculate midnight the following day in local device time.
-  // The server may be UTC, so we use America/Edmonton explicitly.
   const edmontonNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Edmonton' }));
   const tomorrow = new Date(edmontonNow);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
-  // Convert back — the difference between UTC and Edmonton determines the offset
   const offsetMs = now.getTime() - edmontonNow.getTime();
   return new Date(tomorrow.getTime() - offsetMs).toISOString();
 }
 
-export default async function docAccessManager(req) {
+Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -63,6 +44,7 @@ export default async function docAccessManager(req) {
     const body = await req.json();
     const { action } = body;
 
+    // ── createRequest ───────────────────────────────────────────────────────
     if (action === 'createRequest') {
       const { driver_ids, driver_names, requested_doc_types } = body;
       if (!driver_ids || !Array.isArray(driver_ids) || driver_ids.length === 0) {
@@ -76,23 +58,20 @@ export default async function docAccessManager(req) {
       const requesterName = user.full_name || user.email || 'Dispatcher';
       const expiresAt = getExpiryTimestamp();
       const requestedAt = new Date().toISOString();
-
       const createdRequests = [];
 
       for (let i = 0; i < driver_ids.length; i++) {
         const driverId = driver_ids[i];
         const driverName = driver_names?.[i] || '';
 
-        // Check for existing pending request from this dispatcher for this driver
         const existing = await base44.asServiceRole.entities.DocAccessRequest.list({
           filter: { requester_id: requesterId, driver_id: driverId, status: 'pending' },
           limit: 1
         });
 
         if (existing && existing.length > 0) {
-          // Update existing request
           const updated = await base44.asServiceRole.entities.DocAccessRequest.update(existing[0].id, {
-            requested_doc_types: requested_doc_types,
+            requested_doc_types,
             requested_at: requestedAt,
             expires_at: expiresAt,
           });
@@ -104,14 +83,13 @@ export default async function docAccessManager(req) {
             driver_id: driverId,
             driver_name: driverName,
             status: 'pending',
-            requested_doc_types: requested_doc_types,
+            requested_doc_types,
             requested_at: requestedAt,
             expires_at: expiresAt,
           });
           createdRequests.push(created);
         }
 
-        // Audit log
         await base44.asServiceRole.entities.DocAuditLog.create({
           viewer_id: requesterId,
           viewer_name: requesterName,
@@ -123,7 +101,6 @@ export default async function docAccessManager(req) {
           user_agent: 'doc-access-manager',
         });
 
-        // Push notification to the driver
         await sendPush(base44, driverId,
           'Document Access Request',
           `${requesterName} requested to view your ${requested_doc_types.map(t => t.replace('_', ' ')).join(', ')}`,
@@ -131,7 +108,6 @@ export default async function docAccessManager(req) {
         );
       }
 
-      // Push notification to all admins
       const adminIds = await getAllAdminIds(base44);
       for (const adminId of adminIds) {
         if (adminId !== requesterId) {
@@ -146,6 +122,7 @@ export default async function docAccessManager(req) {
       return Response.json({ success: true, created_requests: createdRequests.length, requests: createdRequests });
     }
 
+    // ── approve ─────────────────────────────────────────────────────────────
     if (action === 'approve') {
       const { request_id } = body;
       if (!request_id) return Response.json({ error: 'request_id is required' }, { status: 400 });
@@ -171,7 +148,6 @@ export default async function docAccessManager(req) {
         approved_by_name: approverName,
       });
 
-      // Audit log
       await base44.asServiceRole.entities.DocAuditLog.create({
         viewer_id: approverId,
         viewer_name: approverName,
@@ -183,12 +159,8 @@ export default async function docAccessManager(req) {
         user_agent: 'doc-access-manager',
       });
 
-      // Push notifications
-      // If approved by driver → push to admins + requesting dispatcher
-      // If approved by admin → push to the driver + requesting dispatcher
       const pushTitle = 'Document Access Approved';
-      const pushBody = `${approverName} approved your request to view ${reqRecord.driver_name || 'driver'} documents. Access expires at midnight.`;
-
+      const pushBody = `${approverName} approved your request to view ${reqRecord.driver_name || 'driver'} documents.`;
       await sendPush(base44, reqRecord.requester_id, pushTitle, pushBody, '/Documents');
 
       if (isApproverDriver) {
@@ -196,7 +168,7 @@ export default async function docAccessManager(req) {
         for (const adminId of adminIds) {
           if (adminId !== approverId) {
             await sendPush(base44, adminId, pushTitle,
-              `${approverName} (driver) approved ${reqRecord.requester_name}'s request to view ${reqRecord.driver_name}'s documents.`,
+              `${approverName} (driver) approved ${reqRecord.requester_name}'s request.`,
               '/Documents'
             );
           }
@@ -211,6 +183,7 @@ export default async function docAccessManager(req) {
       return Response.json({ success: true, request_id });
     }
 
+    // ── deny ─────────────────────────────────────────────────────────────────
     if (action === 'deny') {
       const { request_id } = body;
       if (!request_id) return Response.json({ error: 'request_id is required' }, { status: 400 });
@@ -246,7 +219,6 @@ export default async function docAccessManager(req) {
         user_agent: 'doc-access-manager',
       });
 
-      // Push to requesting dispatcher
       await sendPush(base44, reqRecord.requester_id, 'Document Access Denied',
         `${denierName} denied your request to view ${reqRecord.driver_name || 'driver'} documents.`,
         '/Documents'
@@ -255,6 +227,7 @@ export default async function docAccessManager(req) {
       return Response.json({ success: true, request_id });
     }
 
+    // ── revoke ───────────────────────────────────────────────────────────────
     if (action === 'revoke') {
       const { request_id } = body;
       if (!request_id) return Response.json({ error: 'request_id is required' }, { status: 400 });
@@ -275,6 +248,7 @@ export default async function docAccessManager(req) {
         action: 'revoked',
         driver_id: reqRecord.driver_id,
         driver_name: reqRecord.driver_name,
+        doc_ids: [],
         viewed_at: now,
         user_agent: 'doc-access-manager',
       });
@@ -282,8 +256,8 @@ export default async function docAccessManager(req) {
       return Response.json({ success: true, request_id });
     }
 
+    // ── uploadDocumentBase64 ─────────────────────────────────────────────────
     if (action === 'uploadDocumentBase64') {
-      // Client sends a base64 data URL — we upload it server-side via integrations.Core.UploadFile
       const { document_type, document_scope, driver_id, driver_name, store_id, store_name,
               file_data_url, file_name, file_size, mime_type, expiry_date } = body;
 
@@ -291,7 +265,6 @@ export default async function docAccessManager(req) {
         return Response.json({ error: 'document_type and file_data_url are required' }, { status: 400 });
       }
 
-      // Convert base64 data URL → Blob → File for the upload API
       const matches = file_data_url.match(/^data:([^;]+);base64,(.+)$/);
       if (!matches) return Response.json({ error: 'Invalid file_data_url format' }, { status: 400 });
       const mimeType = matches[1] || mime_type || 'image/jpeg';
@@ -302,12 +275,12 @@ export default async function docAccessManager(req) {
       const blob = new Blob([byteNums], { type: mimeType });
       const fileObj = new File([blob], file_name || `doc_${Date.now()}.jpg`, { type: mimeType });
 
-      let fileUri: string;
+      let fileUri;
       try {
-        const uploadResult = await (base44 as any).integrations.Core.UploadFile({ file: fileObj });
+        const uploadResult = await base44.asServiceRole.integrations.Core.UploadFile({ file: fileObj });
         fileUri = uploadResult?.file_url || uploadResult?.data?.file_url || uploadResult?.uri || uploadResult?.file_uri;
         if (!fileUri) throw new Error('No URL returned from upload');
-      } catch (uploadErr: any) {
+      } catch (uploadErr) {
         console.error('[docAccessManager] UploadFile failed:', uploadErr?.message || uploadErr);
         return Response.json({ error: 'File upload failed: ' + (uploadErr?.message || 'server error') }, { status: 502 });
       }
@@ -329,6 +302,7 @@ export default async function docAccessManager(req) {
         uploaded_by_name: uploaderName,
         document_expiry_date: expiry_date || null,
       });
+
       await base44.asServiceRole.entities.DocAuditLog.create({
         viewer_id: uploaderId,
         viewer_name: uploaderName,
@@ -339,49 +313,11 @@ export default async function docAccessManager(req) {
         viewed_at: new Date().toISOString(),
         user_agent: 'doc-access-manager-base64',
       });
-      return Response.json({ success: true, document: docRecord });
-    }
-
-    if (action === 'uploadDocument') {
-      const { document_type, document_scope, driver_id, driver_name, store_id, store_name, file_uri, file_size, mime_type, expiry_date } = body;
-
-      if (!document_type || !file_uri) return Response.json({ error: 'document_type and file_uri are required' }, { status: 400 });
-      if (document_scope === 'driver' && !driver_id) return Response.json({ error: 'driver_id is required for driver-scoped documents' }, { status: 400 });
-      if (document_scope === 'store' && !store_id) return Response.json({ error: 'store_id is required for store-scoped documents' }, { status: 400 });
-
-      const uploaderId = user.id;
-      const uploaderName = user.full_name || user.email || 'Unknown';
-
-      const docRecord = await base44.asServiceRole.entities.DriverDocument.create({
-        document_type,
-        document_scope: document_scope || 'driver',
-        driver_id: driver_id || null,
-        driver_name: driver_name || null,
-        store_id: store_id || null,
-        store_name: store_name || null,
-        file_uri,
-        file_size: file_size || null,
-        mime_type: mime_type || 'image/jpeg',
-        uploaded_at: new Date().toISOString(),
-        uploaded_by: uploaderId,
-        uploaded_by_name: uploaderName,
-        document_expiry_date: expiry_date || null,
-      });
-
-      await base44.asServiceRole.entities.DocAuditLog.create({
-        viewer_id: uploaderId,
-        viewer_name: uploaderName,
-        action: 'uploaded',
-        driver_id: driver_id || null,
-        driver_name: driver_name || null,
-        doc_ids: [docRecord.id],
-        viewed_at: new Date().toISOString(),
-        user_agent: 'doc-access-manager',
-      });
 
       return Response.json({ success: true, document: docRecord });
     }
 
+    // ── deleteDocument ───────────────────────────────────────────────────────
     if (action === 'deleteDocument') {
       const { doc_id } = body;
       if (!doc_id) return Response.json({ error: 'doc_id is required' }, { status: 400 });
@@ -389,7 +325,6 @@ export default async function docAccessManager(req) {
       const doc = await base44.asServiceRole.entities.DriverDocument.get(doc_id);
       if (!doc) return Response.json({ error: 'Document not found' }, { status: 404 });
 
-      // Only the uploader, an admin, or the document's driver can delete
       const canDelete = user.app_roles?.includes('admin') || doc.uploaded_by === user.id ||
         (doc.document_scope === 'driver' && doc.driver_id === user.id);
       if (!canDelete) return Response.json({ error: 'Not authorized to delete this document' }, { status: 403 });
@@ -415,4 +350,4 @@ export default async function docAccessManager(req) {
     console.error('[docAccessManager] error:', error);
     return Response.json({ error: error.message || 'Unknown error' }, { status: 500 });
   }
-}
+});
