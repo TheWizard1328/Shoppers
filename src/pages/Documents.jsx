@@ -639,39 +639,39 @@ export default function Documents() {
               {REQUESTABLE_DOC_TYPES.map(({ key, label }) => {
                 const existingDoc = documents.find((d) => d.document_type === key && d.driver_id === currentUser?.id);
                 return (
-                  <div key={key} className="flex flex-col gap-2 p-4 border rounded-lg">
-                    {/* Row 1: icon + label */}
+                  <div key={key} className="flex flex-col gap-1.5 p-4 border rounded-lg">
+                    <input id={`file-input-${key}`} type="file" className="hidden"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={(e) => handleDriverFileInput(e, key)} />
+                    <input id={`camera-input-${key}`} type="file" className="hidden"
+                      accept="image/*" capture="environment"
+                      onChange={(e) => handleDriverFileInput(e, key)} />
+                    {/* Row 1: icon + label + upload/replace badge */}
                     <div className="flex items-center gap-2.5">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${existingDoc ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-muted'}`}>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${existingDoc ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-muted'}`}>
                         {existingDoc ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <FileText className="w-4 h-4 text-muted-foreground" />}
                       </div>
-                      <p className="font-semibold text-sm">{label}</p>
-                    </div>
-                    {/* Row 2: date/status */}
-                    <p className="text-xs text-muted-foreground pl-0.5">
-                      {existingDoc
-                        ? <>Uploaded {formatDateTime(existingDoc.uploaded_at)}{existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}</>
-                        : 'Not uploaded'}
-                    </p>
-                    {/* Row 3: action buttons */}
-                    <div className="flex items-center gap-2">
-                      <input id={`file-input-${key}`} type="file" className="hidden"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
-                        onChange={(e) => handleDriverFileInput(e, key)} />
-                      <input id={`camera-input-${key}`} type="file" className="hidden"
-                        accept="image/*" capture="environment"
-                        onChange={(e) => handleDriverFileInput(e, key)} />
-                      {existingDoc && (
-                        <Button size="sm" variant="outline" className="h-9 gap-1.5 px-3" onClick={() => handleViewDoc(existingDoc)}>
-                          <Eye className="w-3.5 h-3.5" /> View
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" className="h-9 gap-1.5 px-3"
-                        disabled={!!uploadingForDriver}
-                        onClick={() => document.getElementById(`file-input-${key}`)?.click()}>
-                        <Upload className="w-3.5 h-3.5" />
+                      <p className="font-semibold text-sm flex-1">{label}</p>
+                      <span
+                        onClick={() => !uploadingForDriver && document.getElementById(`file-input-${key}`)?.click()}
+                        className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex-shrink-0">
                         {existingDoc ? 'Replace' : 'Upload'}
-                      </Button>
+                      </span>
+                    </div>
+                    {/* Row 2: date/status + view badge */}
+                    <div className="flex items-center gap-2 pl-0.5">
+                      <p className="text-xs text-muted-foreground flex-1">
+                        {existingDoc
+                          ? <>Uploaded {formatDateTime(existingDoc.uploaded_at)}{existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}</>
+                          : 'Not uploaded'}
+                      </p>
+                      {existingDoc && (
+                        <span
+                          onClick={() => handleViewDoc(existingDoc)}
+                          className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
+                          View
+                        </span>
+                      )}
                     </div>
                   </div>);
 
