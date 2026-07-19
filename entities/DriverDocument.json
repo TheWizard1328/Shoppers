@@ -1,25 +1,25 @@
 {
   "properties": {
     "document_expiry_date": {
-      "format": "date",
-      "type": "string"
+      "type": "string",
+      "format": "date"
     },
     "document_scope": {
+      "type": "string",
       "enum": [
         "driver",
         "store"
-      ],
-      "type": "string"
+      ]
     },
     "document_type": {
+      "type": "string",
       "enum": [
         "license",
         "background_check",
         "contract",
         "vehicle_registration",
         "vehicle_insurance"
-      ],
-      "type": "string"
+      ]
     },
     "driver_id": {
       "type": "string"
@@ -27,11 +27,11 @@
     "driver_name": {
       "type": "string"
     },
-    "file_size": {
-      "type": "number"
-    },
     "file_uri": {
       "type": "string"
+    },
+    "file_size": {
+      "type": "number"
     },
     "mime_type": {
       "type": "string"
@@ -43,8 +43,8 @@
       "type": "string"
     },
     "uploaded_at": {
-      "format": "date-time",
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "uploaded_by": {
       "type": "string"

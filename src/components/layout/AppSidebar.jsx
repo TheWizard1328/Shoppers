@@ -21,7 +21,7 @@ let _sidebarFridgeCfg = { safe_min: 2, safe_max: 6, danger_buffer: 2 };
 })();
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 
-import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings } from 'lucide-react';
+import { MoreVertical, X, LayoutDashboard, Users, Package, Building, Truck, DollarSign, BarChart3, Smartphone, CalendarDays, Thermometer, Settings, FolderLock } from 'lucide-react';
 import { isMobileDevice as isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import SettingsMenu from './SettingsMenu';
@@ -485,6 +485,27 @@ export default function AppSidebar({
               }}>
           <BarChart3 className="w-5 h-5" />
           <span className="font-semibold">Route Metrics</span>
+        </Link>
+            }
+
+      {/* Documents — visible to all roles */}
+      {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+            <Link
+              to={createPageUrl('Documents')}
+              onClick={() => setSidebarOpen(false)}
+              className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0 ${
+              currentPageName === 'Documents' ?
+              'shadow-sm' :
+              'hover:opacity-80'}`
+              }
+              style={currentPageName === 'Documents' ? {
+                background: 'var(--bg-slate-100)',
+                color: 'var(--text-slate-900)'
+              } : {
+                color: 'var(--text-slate-600)'
+              }}>
+          <FolderLock className="w-5 h-5" />
+          <span className="font-semibold">Documents</span>
         </Link>
             }
 
