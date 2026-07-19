@@ -741,24 +741,25 @@ export default function Documents() {
                   r.status === 'pending' || isAccessActive(r))
                   );
                   return (
-                    <div key={doc.id} className="flex flex-col gap-1 p-3 border rounded-lg text-sm">
-                        {/* Row 1: doc type + driver name | View button */}
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <span className="font-semibold capitalize">{doc.document_type?.replace(/_/g, ' ')}</span>
-                            <span className="text-muted-foreground ml-1.5 text-xs">— {doc.driver_name || 'Unknown'}</span>
-                          </div>
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 flex-shrink-0" onClick={() => handleViewDoc(doc)}>
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                    <div key={doc.id} className="flex flex-col gap-1.5 p-3 border rounded-lg text-sm">
+                        {/* Row 1: doc type + driver name | View badge */}
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold capitalize flex-1">{doc.document_type?.replace(/_/g, ' ')}</span>
+                          <span className="text-muted-foreground text-xs">— {doc.driver_name || 'Unknown'}</span>
+                          <span
+                            onClick={() => handleViewDoc(doc)}
+                            className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
+                            View
+                          </span>
                         </div>
-                        {/* Row 2: date | Delete button */}
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-muted-foreground">{formatDateTime(doc.uploaded_at)}</span>
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 flex-shrink-0"
-                            onClick={() => handleDeleteDoc(doc.id)} disabled={actionLoading === 'delete-' + doc.id}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                        {/* Row 2: date | Delete badge */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground flex-1">{formatDateTime(doc.uploaded_at)}</span>
+                          <span
+                            onClick={() => !actionLoading && handleDeleteDoc(doc.id)}
+                            className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors flex-shrink-0">
+                            Delete
+                          </span>
                         </div>
                         {docAccessList.map((req) => {
                         const active = isAccessActive(req);
