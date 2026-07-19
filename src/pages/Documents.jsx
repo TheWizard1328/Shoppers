@@ -852,6 +852,14 @@ export default function Documents() {
                     const driverDocs = getDriverDocs(driver.id);
                     const hasLicense = driverDocs.some(d => d.document_type === 'license');
                     const hasBg = driverDocs.some(d => d.document_type === 'background_check');
+                    const now = new Date();
+                    const driverRequests = accessRequests.filter(r => r.driver_id === driver.id);
+                    const hasPending = driverRequests.some(r => r.status === 'pending');
+                    const hasReadyToView = driverRequests.some(r =>
+                      r.status === 'approved' &&
+                      !r.first_viewed_at &&
+                      (!r.expires_at || now < new Date(r.expires_at))
+                    );
                     return (
                       <div key={driver.id}
                         className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
@@ -860,7 +868,15 @@ export default function Documents() {
                         onClick={() => toggleDriver(driver.id)}>
                         <Checkbox checked={isSelected} onCheckedChange={() => {}} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{getDriverDisplayName(driver)}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium">{getDriverDisplayName(driver)}</p>
+                            {hasPending && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-700">⏳ Pending</span>
+                            )}
+                            {hasReadyToView && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700">✓ Ready to View</span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
                               {hasLicense ? '✓' : '✗'} License
