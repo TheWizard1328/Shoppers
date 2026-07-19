@@ -109,18 +109,43 @@ export default function Documents() {
       return true;
     });
 
-    // Dispatchers only see drivers from their store
-    // Cross-reference appUsers for store_ids since merged users may not carry them
+    // Dispatchers only see drivers matching their city(ies) AND company
     if (isDispatcher && !isAdmin) {
-      const dispatcherStoreIds = currentUser?.store_ids || [];
-      if (dispatcherStoreIds.length === 0) return sortUsers(driverUsers);
+      // Get dispatcher's own AppUser record for city/company info
+      const dispatcherAppUser = (appUsers || []).find(au => au.user_id === currentUser?.id);
+      const dispatcherCityIds = new Set([
+        ...(dispatcherAppUser?.city_ids || []),
+        ...(dispatcherAppUser?.city_id ? [dispatcherAppUser.city_id] : []),
+        ...(currentUser?.city_ids || []),
+        ...(currentUser?.city_id ? [currentUser.city_id] : []),
+      ].filter(Boolean));
+      const dispatcherCompanyId = dispatcherAppUser?.company_id || currentUser?.company_id;
+
       return sortUsers(driverUsers.filter((d) => {
-        // Check store_ids on the user object first, then fall back to appUsers record
-        const appUser = (appUsers || []).find(au => au.user_id === d.id);
-        const dStoreIds = appUser?.store_ids || d.store_ids || [];
-        // Also include if driver has no store assignment yet (show all to avoid blank list)
-        if (dStoreIds.length === 0) return true;
-        return dStoreIds.some(sid => dispatcherStoreIds.includes(sid));
+        const dAppUser = (appUsers || []).find(au => au.user_id === d.id);
+        
+        // Company match — skip check if dispatcher has no company set
+        if (dispatcherCompanyId) {
+          const dCompanyId = dAppUser?.company_id || d.company_id;
+          if (dCompanyId && dCompanyId !== dispatcherCompanyId) return false;
+        }
+
+        // City match — skip check if dispatcher has no cities set
+        if (dispatcherCityIds.size > 0) {
+          const dCityIds = new Set([
+            ...(dAppUser?.city_ids || []),
+            ...(dAppUser?.city_id ? [dAppUser.city_id] : []),
+            ...(d.city_ids || []),
+            ...(d.city_id ? [d.city_id] : []),
+          ].filter(Boolean));
+          // Driver with no city assigned — include them (unassigned)
+          if (dCityIds.size > 0) {
+            const hasOverlap = [...dCityIds].some(cid => dispatcherCityIds.has(cid));
+            if (!hasOverlap) return false;
+          }
+        }
+
+        return true;
       }));
     }
     return sortUsers(driverUsers);
