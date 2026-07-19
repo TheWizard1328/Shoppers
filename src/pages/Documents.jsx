@@ -204,8 +204,10 @@ export default function Documents() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(() => loadData(true), 30000);
-    return () => clearInterval(interval);
+    const unsubscribe = base44.entities.DriverDocument.subscribe(() => {
+      loadData(true);
+    });
+    return () => unsubscribe();
   }, [loadData]);
 
   // Get documents for a specific driver
