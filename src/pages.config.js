@@ -57,6 +57,7 @@ import DeliveryMetrics from './pages/DeliveryMetrics';
 import DeviceSettings from './pages/DeviceSettings';
 import DiagnosticsPage from './pages/DiagnosticsPage';
 import DriverPayroll from './pages/DriverPayroll';
+import Documents from './pages/Documents';
 import DriverSettings from './pages/DriverSettings';
 import Home from './pages/Home';
 import PatientActivityReview from './pages/PatientActivityReview';
@@ -80,6 +81,7 @@ export const PAGES = {
     "DeviceSettings": DeviceSettings,
     "DiagnosticsPage": DiagnosticsPage,
     "DriverPayroll": DriverPayroll,
+    "Documents": Documents,
     "DriverSettings": DriverSettings,
     "Home": Home,
     "PatientActivityReview": PatientActivityReview,
