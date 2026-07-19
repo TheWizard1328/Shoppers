@@ -699,8 +699,8 @@ export default function Documents() {
                       )}
                     </div>
                     </div>
-                    {/* Access request info per doc type */}
-                    {docRequests.map(req => {
+                    {/* Access request info per doc type — only shown when doc exists and has requests */}
+                    {existingDoc && docRequests.map(req => {
                       const active = isAccessActive(req);
                       const remaining = active ? getTimeRemaining(req) : null;
                       return (
