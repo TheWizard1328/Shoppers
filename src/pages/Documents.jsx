@@ -868,15 +868,7 @@ export default function Documents() {
                         onClick={() => toggleDriver(driver.id)}>
                         <Checkbox checked={isSelected} onCheckedChange={() => {}} />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-medium">{getDriverDisplayName(driver)}</p>
-                            {hasPending && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-700">⏳ Pending</span>
-                            )}
-                            {hasReadyToView && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700">✓ Ready to View</span>
-                            )}
-                          </div>
+                          <p className="text-sm font-medium">{getDriverDisplayName(driver)}</p>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
                               {hasLicense ? '✓' : '✗'} License
@@ -886,6 +878,14 @@ export default function Documents() {
                             </span>
                           </div>
                         </div>
+                        {(hasPending || hasReadyToView) && (
+                          <div className="flex-shrink-0 flex flex-col items-center justify-center min-h-[44px] px-2.5 py-1 rounded-lg text-xs font-semibold leading-tight text-center"
+                            style={hasPending
+                              ? { background: '#fee2e2', color: '#991b1b' }
+                              : { background: '#dcfce7', color: '#166534' }}>
+                            {hasPending ? <>⏳<br/>Pending</> : <>✓<br/>Ready</>}
+                          </div>
+                        )}
                       </div>
                     );
                   })
