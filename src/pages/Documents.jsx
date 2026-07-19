@@ -744,8 +744,10 @@ export default function Documents() {
                     <div key={doc.id} className="flex flex-col gap-1.5 p-3 border rounded-lg text-sm">
                         {/* Row 1: doc type + driver name | View badge */}
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold capitalize flex-1">{doc.document_type?.replace(/_/g, ' ')}</span>
-                          <span className="text-muted-foreground text-xs">— {doc.driver_name || 'Unknown'}</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold capitalize">{doc.document_type?.replace(/_/g, ' ')}</span>
+                            <span className="text-muted-foreground text-xs ml-1.5">{doc.driver_name || 'Unknown'}</span>
+                          </div>
                           <span
                             onClick={() => handleViewDoc(doc)}
                             className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
