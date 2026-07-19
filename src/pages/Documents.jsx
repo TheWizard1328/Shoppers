@@ -109,15 +109,21 @@ export default function Documents() {
     });
 
     // Dispatchers only see drivers from their store
+    // Cross-reference appUsers for store_ids since merged users may not carry them
     if (isDispatcher && !isAdmin) {
       const dispatcherStoreIds = currentUser?.store_ids || [];
+      if (dispatcherStoreIds.length === 0) return sortUsers(driverUsers);
       return sortUsers(driverUsers.filter((d) => {
-        const dStoreIds = d.store_ids || [];
+        // Check store_ids on the user object first, then fall back to appUsers record
+        const appUser = (appUsers || []).find(au => au.user_id === d.id);
+        const dStoreIds = appUser?.store_ids || d.store_ids || [];
+        // Also include if driver has no store assignment yet (show all to avoid blank list)
+        if (dStoreIds.length === 0) return true;
         return dStoreIds.some(sid => dispatcherStoreIds.includes(sid));
       }));
     }
     return sortUsers(driverUsers);
-  }, [users, currentUser, isAdmin, isDispatcher]);
+  }, [users, appUsers, currentUser, isAdmin, isDispatcher]);
 
   const filteredDrivers = useMemo(() => {
     if (!searchQuery.trim()) return drivers;
