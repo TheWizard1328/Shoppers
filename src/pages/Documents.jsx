@@ -984,21 +984,27 @@ export default function Documents() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {/* Doc type checkboxes */}
+              {/* Doc type checkboxes — only enable if at least one driver has that doc */}
               <div className="flex items-center gap-4 flex-wrap">
-                {REQUESTABLE_DOC_TYPES.map(({ key, label }) =>
-                <label key={key} className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox checked={selectedDocTypes.has(key)} onCheckedChange={() => toggleDocType(key)} />
-                    <span className="text-sm">{label}</span>
-                  </label>
-                )}
+                {REQUESTABLE_DOC_TYPES.map(({ key, label }) => {
+                  const anyDriverHasDoc = drivers.some((d) => getDriverDocs(d.id).some((doc) => doc.document_type === key));
+                  return (
+                    <label key={key} className={`flex items-center gap-2 ${anyDriverHasDoc ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}>
+                      <Checkbox
+                        checked={selectedDocTypes.has(key)}
+                        disabled={!anyDriverHasDoc}
+                        onCheckedChange={() => anyDriverHasDoc && toggleDocType(key)} />
+                      <span className="text-sm">{label}</span>
+                    </label>
+                  );
+                })}
                 <label className="flex items-center gap-2 cursor-pointer">
                   <Checkbox checked={includeContract} onCheckedChange={() => setIncludeContract(!includeContract)} />
                   <span className="text-sm">Include Contract (no approval needed)</span>
                 </label>
               </div>
 
-              {/* Driver list */}
+              {/* Driver list — disabled rows for drivers with no matching documents */}
               <div className="max-h-60 overflow-y-auto space-y-1 border rounded-lg p-2">
                 {filteredDrivers.length === 0 ?
                 <p className="text-center text-sm text-muted-foreground py-4">No drivers found</p> :
@@ -1008,6 +1014,11 @@ export default function Documents() {
                   const driverDocs = getDriverDocs(driver.id);
                   const hasLicense = driverDocs.some((d) => d.document_type === 'license');
                   const hasBg = driverDocs.some((d) => d.document_type === 'background_check');
+                  // Driver is selectable only if they have at least one of the selected doc types
+                  const hasAnyRequestedDoc = Array.from(selectedDocTypes).some((key) =>
+                    driverDocs.some((d) => d.document_type === key)
+                  );
+                  const isDisabled = !hasAnyRequestedDoc;
                   const now = new Date();
                   const driverRequests = accessRequests.filter((r) => r.driver_id === driver.id);
                   const hasPending = driverRequests.some((r) => r.status === 'pending');
@@ -1018,11 +1029,15 @@ export default function Documents() {
                   );
                   return (
                     <div key={driver.id}
-                    className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
-                    isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-muted'}`
-                    }
-                    onClick={() => toggleDriver(driver.id)}>
-                        <Checkbox checked={isSelected} onCheckedChange={() => {}} />
+                    className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
+                      isDisabled
+                        ? 'opacity-40 cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-blue-50 border border-blue-200 cursor-pointer'
+                          : 'hover:bg-muted cursor-pointer'
+                    }`}
+                    onClick={() => !isDisabled && toggleDriver(driver.id)}>
+                        <Checkbox checked={isSelected} disabled={isDisabled} onCheckedChange={() => {}} />
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                           <p className="text-sm font-medium flex-1 min-w-0 truncate">{getDriverDisplayName(driver)}</p>
                           <span className={`text-xs px-2 py-0.5 rounded font-medium w-20 text-center flex-shrink-0 ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
@@ -1032,7 +1047,7 @@ export default function Documents() {
                             {hasBg ? '✓ Background Check' : '✗ Background Check'}
                           </span>
                         </div>
-                        {(hasPending || hasReadyToView) &&
+                        {!isDisabled && (hasPending || hasReadyToView) &&
                       <div className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
                       style={hasPending ?
                       { background: '#fee2e2', color: '#991b1b' } :
