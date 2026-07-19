@@ -423,7 +423,8 @@ export default function Documents() {
   };
 
   // Upload document after optional crop — sends base64 via base44.functions.invoke
-  const handleUploadFile = async (file, docType, driverId, driverName, scope = 'driver', storeId = null, storeName = null) => {
+  // Pass existingDocId to replace an existing record rather than create a new one
+  const handleUploadFile = async (file, docType, driverId, driverName, scope = 'driver', storeId = null, storeName = null, existingDocId = null) => {
     if (!file) return;
     setUploadingForDriver(docType + (driverId || storeId || ''));
     try {
@@ -446,7 +447,8 @@ export default function Documents() {
         file_data_url: base64DataUrl,
         file_name: file.name || `doc_${Date.now()}.jpg`,
         file_size: file.size,
-        mime_type: file.type || 'image/jpeg'
+        mime_type: file.type || 'image/jpeg',
+        existing_doc_id: existingDocId || null,
       });
 
       const resultData = result?.data || result;
@@ -498,9 +500,9 @@ export default function Documents() {
     canvas.toBlob(async (blob) => {
       if (!blob) {alert('Failed to process image.');return;}
       const croppedFile = new File([blob], `doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      const { docType, driverId, driverName, scope, storeId, storeName } = cropModal;
+      const { docType, driverId, driverName, scope, storeId, storeName, existingDocId } = cropModal;
       setCropModal(null);
-      await handleUploadFile(croppedFile, docType, driverId, driverName, scope, storeId, storeName);
+      await handleUploadFile(croppedFile, docType, driverId, driverName, scope, storeId, storeName, existingDocId || null);
     }, 'image/jpeg', 0.85);
   };
 
@@ -581,7 +583,7 @@ export default function Documents() {
       ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.9));
       const file = new File([blob], `doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      await handleUploadFile(file, viewingDoc.document_type, viewingDoc.driver_id, viewingDoc.driver_name, viewingDoc.document_scope, viewingDoc.store_id, viewingDoc.store_name);
+      await handleUploadFile(file, viewingDoc.document_type, viewingDoc.driver_id, viewingDoc.driver_name, viewingDoc.document_scope, viewingDoc.store_id, viewingDoc.store_name, viewingDoc.id);
       setViewerRotation(0);
       // Reload the doc URL after save
       const resp = await base44.functions.invoke('serveDriverDoc', { doc_id: viewingDoc.id, viewer_id: (await base44.auth.me()).id, viewer_name: '' });
@@ -614,6 +616,7 @@ export default function Documents() {
           scope: viewingDoc.document_scope,
           storeId: viewingDoc.store_id,
           storeName: viewingDoc.store_name,
+          existingDocId: viewingDoc.id,
         });
         setViewingDoc(null);
         setDocUrl(null);
@@ -1126,7 +1129,7 @@ export default function Documents() {
         onClose={() => setCropModal(null)}
         onConfirm={handleCropConfirm}
         onSkip={async () => {
-          const { file, docType, driverId, driverName, scope, storeId, storeName } = cropModal;
+          const { file, docType, driverId, driverName, scope, storeId, storeName, existingDocId } = cropModal;
           const rot = cropRotation;
           setCropModal(null);
           const img2 = new Image();
@@ -1145,7 +1148,7 @@ export default function Documents() {
             ctx2.drawImage(img2, -img2.naturalWidth * scale2 / 2, -img2.naturalHeight * scale2 / 2, img2.naturalWidth * scale2, img2.naturalHeight * scale2);
             c2.toBlob(async (b) => {
               const f2 = new File([b || file], `doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
-              await handleUploadFile(f2, docType, driverId, driverName, scope, storeId, storeName);
+              await handleUploadFile(f2, docType, driverId, driverName, scope, storeId, storeName, existingDocId || null);
             }, 'image/jpeg', 0.85);
           };
           img2.src = URL.createObjectURL(file);

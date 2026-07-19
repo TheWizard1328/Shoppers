@@ -287,21 +287,36 @@ Deno.serve(async (req) => {
 
       const uploaderId = user.id;
       const uploaderName = user.full_name || user.email || 'Unknown';
-      const docRecord = await base44.asServiceRole.entities.DriverDocument.create({
-        document_type,
-        document_scope: document_scope || 'driver',
-        driver_id: driver_id || null,
-        driver_name: driver_name || null,
-        store_id: store_id || null,
-        store_name: store_name || null,
-        file_uri: fileUri,
-        file_size: file_size || byteNums.length,
-        mime_type: mimeType,
-        uploaded_at: new Date().toISOString(),
-        uploaded_by: uploaderId,
-        uploaded_by_name: uploaderName,
-        document_expiry_date: expiry_date || null,
-      });
+      const { existing_doc_id } = body;
+
+      let docRecord;
+      if (existing_doc_id) {
+        // Update existing document record (re-crop / rotate replace)
+        docRecord = await base44.asServiceRole.entities.DriverDocument.update(existing_doc_id, {
+          file_uri: fileUri,
+          file_size: file_size || byteNums.length,
+          mime_type: mimeType,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: uploaderId,
+          uploaded_by_name: uploaderName,
+        });
+      } else {
+        docRecord = await base44.asServiceRole.entities.DriverDocument.create({
+          document_type,
+          document_scope: document_scope || 'driver',
+          driver_id: driver_id || null,
+          driver_name: driver_name || null,
+          store_id: store_id || null,
+          store_name: store_name || null,
+          file_uri: fileUri,
+          file_size: file_size || byteNums.length,
+          mime_type: mimeType,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: uploaderId,
+          uploaded_by_name: uploaderName,
+          document_expiry_date: expiry_date || null,
+        });
+      }
 
       await base44.asServiceRole.entities.DocAuditLog.create({
         viewer_id: uploaderId,
