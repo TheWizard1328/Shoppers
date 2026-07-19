@@ -502,6 +502,23 @@ export default function Documents() {
     e.target.value = '';
   };
 
+  // Revoke access (deny an approved request)
+  const handleRevokeAccess = async (requestId) => {
+    setActionLoading('revoke-' + requestId);
+    try {
+      await base44.functions.invoke('docAccessManager', {
+        action: 'deny',
+        request_id: requestId,
+      });
+      await loadData(true);
+    } catch (err) {
+      console.error('Revoke failed:', err);
+      alert('Failed to revoke access: ' + (err.message || ''));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Delete a document
   const handleDeleteDoc = async (docId) => {
     if (!confirm('Delete this document? This cannot be undone.')) return;
@@ -621,24 +638,31 @@ export default function Documents() {
             <CardContent className="space-y-3">
               {REQUESTABLE_DOC_TYPES.map(({ key, label }) => {
                 const existingDoc = documents.find(d => d.document_type === key && d.driver_id === currentUser?.id);
+                // Find requests for this doc type involving this driver
+                const docRequests = accessRequests.filter(r =>
+                  r.driver_id === currentUser?.id &&
+                  (r.requested_doc_types || []).includes(key) &&
+                  (r.status === 'pending' || isAccessActive(r))
+                );
                 return (
-                  <div key={key} className="flex items-center justify-between gap-3 p-3 border rounded-lg">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                        {existingDoc ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <FileText className="w-5 h-5 text-slate-400" />}
+                  <div key={key} className="flex flex-col gap-2 p-3 border rounded-lg">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                          {existingDoc ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <FileText className="w-5 h-5 text-slate-400" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm">{label}</p>
+                          {existingDoc ? (
+                            <p className="text-xs text-muted-foreground">
+                              Uploaded {formatDateTime(existingDoc.uploaded_at)}
+                              {existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">Not uploaded</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm">{label}</p>
-                        {existingDoc ? (
-                          <p className="text-xs text-muted-foreground">
-                            Uploaded {formatDateTime(existingDoc.uploaded_at)}
-                            {existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}
-                          </p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">Not uploaded</p>
-                        )}
-                      </div>
-                    </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {existingDoc && (
                         <Button size="sm" variant="ghost" className="h-8" onClick={() => handleViewDoc(existingDoc)}>
@@ -674,6 +698,39 @@ export default function Documents() {
                         </Button>
                       )}
                     </div>
+                    </div>
+                    {/* Access request info per doc type */}
+                    {docRequests.map(req => {
+                      const active = isAccessActive(req);
+                      const remaining = active ? getTimeRemaining(req) : null;
+                      return (
+                        <div key={req.id} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs ${active ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-semibold">{req.requester_name}</span>
+                            <span className="text-muted-foreground ml-1">
+                              {active ? '— Access granted' : '— Pending approval'}
+                            </span>
+                            {req.first_viewed_at && (
+                              <span className="text-muted-foreground ml-1">• Last viewed {formatDateTime(req.first_viewed_at)}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {remaining && (
+                              <Badge variant="outline" className="text-xs gap-1 border-emerald-300 text-emerald-700">
+                                <Clock className="w-3 h-3" /> {remaining}
+                              </Badge>
+                            )}
+                            {active && (
+                              <Button size="sm" variant="ghost" className="h-6 text-red-600 hover:text-red-700 px-2"
+                                disabled={actionLoading === 'revoke-' + req.id}
+                                onClick={() => handleRevokeAccess(req.id)}>
+                                <XCircle className="w-3.5 h-3.5 mr-1" /> Revoke
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -735,25 +792,63 @@ export default function Documents() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-1">
-                  {documents.filter(d => d.document_scope === 'driver').map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between gap-2 p-2 border rounded-lg text-sm">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="font-medium">{doc.driver_name || 'Unknown'}</span>
-                        <span className="text-muted-foreground text-xs">{doc.document_type?.replace(/_/g, ' ')}</span>
+                  {documents.filter(d => d.document_scope === 'driver').map(doc => {
+                    const docAccessList = accessRequests.filter(r =>
+                      r.driver_id === doc.driver_id &&
+                      (r.requested_doc_types || []).includes(doc.document_type) &&
+                      (r.status === 'pending' || isAccessActive(r))
+                    );
+                    return (
+                      <div key={doc.id} className="flex flex-col gap-1.5 p-2 border rounded-lg text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            <span className="font-medium">{doc.driver_name || 'Unknown'}</span>
+                            <span className="text-muted-foreground text-xs capitalize">{doc.document_type?.replace(/_/g, ' ')}</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground">{formatDateTime(doc.uploaded_at)}</span>
+                            <Button size="sm" variant="ghost" className="h-6" onClick={() => handleViewDoc(doc)}>
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-6 text-red-600"
+                              onClick={() => handleDeleteDoc(doc.id)} disabled={actionLoading === 'delete-' + doc.id}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                        {docAccessList.map(req => {
+                          const active = isAccessActive(req);
+                          const remaining = active ? getTimeRemaining(req) : null;
+                          return (
+                            <div key={req.id} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded text-xs ${active ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
+                              <div className="min-w-0 flex-1">
+                                <span className={`font-semibold ${active ? 'text-emerald-800' : 'text-amber-800'}`}>{req.requester_name}</span>
+                                <span className="text-muted-foreground ml-1">{active ? '— Active access' : '— Pending'}</span>
+                                {req.first_viewed_at && (
+                                  <span className="text-muted-foreground ml-1">• Viewed {formatDateTime(req.first_viewed_at)}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {remaining && (
+                                  <Badge variant="outline" className="text-xs gap-1 border-emerald-300 text-emerald-700 h-5">
+                                    <Clock className="w-2.5 h-2.5" /> {remaining}
+                                  </Badge>
+                                )}
+                                {active && (
+                                  <Button size="sm" variant="ghost" className="h-5 text-red-600 hover:text-red-700 px-1.5 text-xs"
+                                    disabled={actionLoading === 'revoke-' + req.id}
+                                    onClick={() => handleRevokeAccess(req.id)}>
+                                    <XCircle className="w-3 h-3 mr-0.5" /> Revoke
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs text-muted-foreground">{formatDateTime(doc.uploaded_at)}</span>
-                        <Button size="sm" variant="ghost" className="h-6" onClick={() => handleViewDoc(doc)}>
-                          <Eye className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-6 text-red-600"
-                          onClick={() => handleDeleteDoc(doc.id)} disabled={actionLoading === 'delete-' + doc.id}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {documents.filter(d => d.document_scope === 'driver').length === 0 && (
                     <p className="text-center text-sm text-muted-foreground py-4">No documents uploaded yet</p>
                   )}
