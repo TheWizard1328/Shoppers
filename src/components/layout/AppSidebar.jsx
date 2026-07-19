@@ -127,17 +127,32 @@ export default function AppSidebar({
 
   // Pending doc access requests badge
   const [pendingDocRequestCount, setPendingDocRequestCount] = useState(0);
+  // Dispatcher-specific doc badges: red = pending requests count, green = approved+unviewed count
+  const [dispatcherDocBadges, setDispatcherDocBadges] = useState({ pending: 0, approvedUnviewed: 0 });
+
   useEffect(() => {
     if (!currentUser?.id) return;
     const fetchPending = async () => {
       try {
-        let requests = [];
         if (userHasRole(currentUser, 'admin')) {
-          requests = await base44.entities.DocAccessRequest.filter({ status: 'pending' }, '-requested_at', 100);
+          const requests = await base44.entities.DocAccessRequest.filter({ status: 'pending' }, '-requested_at', 100);
+          setPendingDocRequestCount((requests || []).length);
         } else if (userHasRole(currentUser, 'driver')) {
-          requests = await base44.entities.DocAccessRequest.filter({ driver_id: currentUser.id, status: 'pending' }, '-requested_at', 50);
+          const requests = await base44.entities.DocAccessRequest.filter({ driver_id: currentUser.id, status: 'pending' }, '-requested_at', 50);
+          setPendingDocRequestCount((requests || []).length);
+        } else if (userHasRole(currentUser, 'dispatcher')) {
+          const allMyRequests = await base44.entities.DocAccessRequest.filter({ requester_id: currentUser.id }, '-requested_at', 100);
+          const now = new Date();
+          const pending = (allMyRequests || []).filter(r => r.status === 'pending').length;
+          const approvedUnviewed = (allMyRequests || []).filter(r => {
+            if (r.status !== 'approved') return false;
+            if (r.first_viewed_at) return false; // already viewed
+            if (r.expires_at && now > new Date(r.expires_at)) return false; // expired
+            return true;
+          }).length;
+          setDispatcherDocBadges({ pending, approvedUnviewed });
+          setPendingDocRequestCount(pending + approvedUnviewed);
         }
-        setPendingDocRequestCount((requests || []).length);
       } catch (_) {}
     };
     fetchPending();
@@ -526,11 +541,24 @@ export default function AppSidebar({
               }}>
           <FolderLock className="w-5 h-5" />
           <span className="font-semibold">Documents</span>
-          {pendingDocRequestCount > 0 &&
+          {userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ? (
+            <div className="ml-auto flex items-center gap-1">
+              {dispatcherDocBadges.pending > 0 && (
+                <Badge className="justify-center rounded-[10px] px-2" style={{ background: '#fee2e2', color: '#991b1b' }}>
+                  {dispatcherDocBadges.pending}
+                </Badge>
+              )}
+              {dispatcherDocBadges.approvedUnviewed > 0 && (
+                <Badge className="justify-center rounded-[10px] px-2" style={{ background: '#dcfce7', color: '#166534' }}>
+                  {dispatcherDocBadges.approvedUnviewed}
+                </Badge>
+              )}
+            </div>
+          ) : pendingDocRequestCount > 0 && (
             <Badge className="ml-auto justify-center rounded-[10px] px-2" style={{ background: '#dcfce7', color: '#166534' }}>
               {pendingDocRequestCount}
             </Badge>
-          }
+          )}
         </Link>
             }
 
