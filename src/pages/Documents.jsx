@@ -613,22 +613,31 @@ export default function Documents() {
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
                       )}
-                      <input ref={fileInputRef} type="file" className="hidden"
+                      <input
+                        id={`file-input-${key}`}
+                        type="file"
+                        className="hidden"
                         accept="image/jpeg,image/png,image/webp,application/pdf"
-                        onChange={(e) => handleDriverFileInput(e, key)} />
-                      <input ref={cameraInputRef} type="file" className="hidden"
-                        accept="image/*" capture="environment"
-                        onChange={(e) => handleDriverFileInput(e, key)} />
+                        onChange={(e) => handleDriverFileInput(e, key)}
+                      />
+                      <input
+                        id={`camera-input-${key}`}
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => handleDriverFileInput(e, key)}
+                      />
                       <Button size="sm" variant="outline" className="h-8 gap-1.5"
                         disabled={!!uploadingForDriver}
-                        onClick={() => fileInputRef.current?.click()}>
+                        onClick={() => document.getElementById(`file-input-${key}`)?.click()}>
                         <Upload className="w-3.5 h-3.5" />
                         {existingDoc ? 'Replace' : 'Upload'}
                       </Button>
                       {!isMobile && (
                         <Button size="sm" variant="ghost" className="h-8"
                           disabled={!!uploadingForDriver}
-                          onClick={() => cameraInputRef.current?.click()}>
+                          onClick={() => document.getElementById(`camera-input-${key}`)?.click()}>
                           <Camera className="w-3.5 h-3.5" />
                         </Button>
                       )}
