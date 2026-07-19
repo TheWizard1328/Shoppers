@@ -1020,7 +1020,7 @@ export default function Documents() {
         style={{ left: isMobile ? 0 : 'var(--sidebar-width, 260px)' }}
         onClick={(e) => {if (e.target === e.currentTarget) {setViewingDoc(null);setDocUrl(null);}}}>
           <div className="bg-card rounded-xl shadow-2xl flex flex-col overflow-hidden"
-          style={{ width: '100%', maxWidth: '900px', height: '90vh' }}>
+          style={{ width: '100%', maxWidth: '900px', height: 'min(70vh, 70dvh)' }}>
             <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
               <p className="font-semibold text-sm capitalize">
                 {viewingDoc.document_type?.replace(/_/g, ' ')}
