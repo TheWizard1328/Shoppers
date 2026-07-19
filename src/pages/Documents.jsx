@@ -923,14 +923,14 @@ export default function Documents() {
                         }`}
                         onClick={() => toggleDriver(driver.id)}>
                         <Checkbox checked={isSelected} onCheckedChange={() => {}} />
-                        <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                         <p className="text-sm font-medium shrink-0">{getDriverDisplayName(driver)}</p>
-                         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                           {hasLicense ? '✓' : '✗'} Lic
-                         </span>
-                         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${hasBg ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                           {hasBg ? '✓' : '✗'} BG
-                         </span>
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <p className="text-sm font-medium flex-1 min-w-0 truncate">{getDriverDisplayName(driver)}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium w-20 text-center flex-shrink-0 ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                            {hasLicense ? '✓ License' : '✗ License'}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium w-16 text-center flex-shrink-0 ${hasBg ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                            {hasBg ? '✓ BG' : '✗ BG'}
+                          </span>
                         </div>
                         {(hasPending || hasReadyToView) && (
                           <div className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
