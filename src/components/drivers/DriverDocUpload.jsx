@@ -71,15 +71,19 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
       reader.onload = async () => {
         try {
           const base64Data = reader.result;
-          
-          // Upload to private storage
-          const uploadResult = await base44.files.upload({
-            filename: `driver-docs/${driver.id}/${selectedType}_${Date.now()}.${file.name.split('.').pop()}`,
-            contents: base64Data,
-            isPrivate: true
-          });
 
-          const fileUri = uploadResult?.uri || uploadResult?.file_uri || uploadResult;
+          // Convert base64 data URL to Blob for upload
+          const byteString = atob(base64Data.split(',')[1]);
+          const mimeType = base64Data.split(',')[0].split(':')[1].split(';')[0];
+          const ab = new ArrayBuffer(byteString.length);
+          const ia = new Uint8Array(ab);
+          for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+          const blob = new Blob([ab], { type: mimeType });
+
+          // Upload to private storage via the Core integration
+          const uploadResult = await base44.integrations.Core.UploadPrivateFile({ file: blob });
+
+          const fileUri = uploadResult?.file_uri || uploadResult?.uri || uploadResult;
           
           // Create the DriverDocument record
           await base44.entities.DriverDocument.create({
