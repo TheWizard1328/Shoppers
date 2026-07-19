@@ -1,0 +1,74 @@
+{
+  "name": "DocAccessRequest",
+  "type": "object",
+  "properties": {
+    "requester_id": {
+      "type": "string",
+      "description": "User ID of the person requesting access (dispatcher)"
+    },
+    "requester_name": {
+      "type": "string",
+      "description": "Display name of the requester"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "User ID of the driver whose documents are being requested"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Display name of the driver"
+    },
+    "requested_doc_types": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of document types being requested (e.g. license, background_check)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "denied",
+        "expired"
+      ],
+      "default": "pending",
+      "description": "Current status of the access request"
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the request was submitted"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the request was approved"
+    },
+    "denied_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the request was denied"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this access grant expires (typically midnight of the approval day)"
+    },
+    "first_viewed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the requester first viewed the documents (starts 30-min countdown)"
+    },
+    "denial_reason": {
+      "type": "string",
+      "description": "Optional reason for denial"
+    }
+  },
+  "required": [
+    "requester_id",
+    "driver_id",
+    "requested_doc_types"
+  ]
+}
