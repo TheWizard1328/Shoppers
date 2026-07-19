@@ -58,9 +58,11 @@ function getTimeRemaining(req) {
   const nearest = expires.reduce((a, b) => (a < b ? a : b));
   const ms = nearest - now;
   if (ms <= 0) return 'expired';
-  const mins = Math.floor(ms / 60000);
-  const secs = Math.floor((ms % 60000) / 1000);
-  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  const totalMins = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
 }
 
 export default function Documents() {
