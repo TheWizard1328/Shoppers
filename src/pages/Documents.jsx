@@ -976,51 +976,47 @@ export default function Documents() {
               {dispatcherStores.map((store) => {
                 const contracts = getStoreContracts(store.id);
                 return (
-                  <div key={store.id} className="p-3 border rounded-lg">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <p className="text-sm font-medium">{store?.name || 'Unknown Store'}</p>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <input ref={contractFileRef} type="file" className="hidden"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
-                        onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
-                        <input ref={contractCameraRef} type="file" className="hidden"
-                        accept="image/*" capture="environment"
-                        onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
-                        <Button size="sm" variant="outline" className="h-8 gap-1.5"
+                  <div key={store.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                    <input ref={contractFileRef} type="file" className="hidden"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
+                    <input ref={contractCameraRef} type="file" className="hidden"
+                      accept="image/*" capture="environment"
+                      onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
+                    <p className="text-sm font-medium flex-1 min-w-0 truncate">{store?.name || 'Unknown Store'}</p>
+                    {contracts.length === 0 ? (
+                      <span className="text-xs text-muted-foreground flex-shrink-0">No contract uploaded</span>
+                    ) : contracts.map((c) => (
+                      <span key={c.id} className="text-xs text-muted-foreground flex-shrink-0">
+                        {formatDateTime(c.uploaded_at)}
+                        {c.document_expiry_date && ` • expires ${c.document_expiry_date}`}
+                      </span>
+                    ))}
+                    {contracts.map((c) => (
+                      <div key={c.id} className="flex items-center gap-1 flex-shrink-0">
+                        <Button size="sm" variant="ghost" className="h-8" onClick={() => handleViewDoc(c)}>
+                          <Eye className="w-3.5 h-3.5" /> View
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 text-red-600"
+                          onClick={() => handleDeleteDoc(c.id)} disabled={actionLoading === 'delete-' + c.id}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button size="sm" variant="outline" className="h-8 gap-1.5"
                         disabled={uploadingContract}
                         onClick={() => contractFileRef.current?.click()}>
-                          <Upload className="w-3.5 h-3.5" /> Upload
-                        </Button>
-                        {!isMobile &&
+                        <Upload className="w-3.5 h-3.5" /> Upload
+                      </Button>
+                      {!isMobile && (
                         <Button size="sm" variant="ghost" className="h-8"
-                        disabled={uploadingContract}
-                        onClick={() => contractCameraRef.current?.click()}>
-                            <Camera className="w-3.5 h-3.5" />
-                          </Button>
-                        }
-                      </div>
+                          disabled={uploadingContract}
+                          onClick={() => contractCameraRef.current?.click()}>
+                          <Camera className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                     </div>
-                    {contracts.length === 0 ?
-                    <p className="text-xs text-muted-foreground">No contract uploaded</p> :
-
-                    contracts.map((c) =>
-                    <div key={c.id} className="flex items-center justify-between gap-2 mt-2">
-                          <span className="text-xs text-muted-foreground">
-                            {formatDateTime(c.uploaded_at)}
-                            {c.document_expiry_date && ` • expires ${c.document_expiry_date}`}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <Button size="sm" variant="ghost" className="h-7" onClick={() => handleViewDoc(c)}>
-                              <Eye className="w-3.5 h-3.5" /> View
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-7 text-red-600"
-                        onClick={() => handleDeleteDoc(c.id)} disabled={actionLoading === 'delete-' + c.id}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                    )
-                    }
                   </div>);
 
               })}
