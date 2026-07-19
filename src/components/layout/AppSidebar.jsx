@@ -527,7 +527,7 @@ export default function AppSidebar({
           <FolderLock className="w-5 h-5" />
           <span className="font-semibold">Documents</span>
           {pendingDocRequestCount > 0 &&
-            <Badge className="ml-auto justify-center rounded-[10px] px-2" style={{ background: '#fef3c7', color: '#92400e' }}>
+            <Badge className="ml-auto justify-center rounded-[10px] px-2" style={{ background: '#dcfce7', color: '#166534' }}>
               {pendingDocRequestCount}
             </Badge>
           }
