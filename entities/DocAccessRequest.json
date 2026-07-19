@@ -1,8 +1,8 @@
 {
   "properties": {
     "approved_at": {
-      "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "type": "string"
     },
     "approved_by": {
       "type": "string"
@@ -11,54 +11,58 @@
       "type": "string"
     },
     "denied_at": {
-      "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "type": "string"
     },
     "denied_by": {
       "type": "string"
     },
     "driver_id": {
-      "type": "string",
-      "required": true
+      "type": "string"
     },
     "driver_name": {
       "type": "string"
     },
     "expires_at": {
-      "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "type": "string"
     },
     "first_viewed_at": {
-      "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "type": "string"
+    },
+    "requested_doc_types": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     },
     "requester_id": {
-      "type": "string",
-      "required": true
+      "type": "string"
     },
     "requester_name": {
       "type": "string"
     },
     "requested_at": {
-      "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "type": "string"
     },
     "revoked_at": {
-      "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "type": "string"
     },
     "revoked_by": {
       "type": "string"
     },
     "status": {
-      "type": "string",
       "enum": [
         "pending",
         "approved",
         "denied",
         "revoked",
         "expired"
-      ]
+      ],
+      "type": "string"
     }
   },
   "required": [

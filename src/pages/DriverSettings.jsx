@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation, Building2, FileText, ShieldCheck } from 'lucide-react';
+import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation, Building2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppData } from '../components/utils/AppDataContext';
@@ -30,7 +30,6 @@ export default function DriverSettings() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingDriver, setEditingDriver] = useState(null);
   const [selectedDriver, setSelectedDriver] = useState(null);
-  const [activeDocRequests, setActiveDocRequests] = useState(new Set()); // driver_ids with active approved requests
   const [userEmails, setUserEmails] = useState({});
   let selectedCityId = globalFilters.getSelectedCityId();
 
@@ -95,39 +94,11 @@ export default function DriverSettings() {
     window.addEventListener('driverLocationsUpdated', handleDriverLocationsUpdated);
 
     // Only refresh on manual action or long intervals to avoid rate limits
-    // Fetch active doc access requests (for dispatcher badge)
-    const fetchDocRequests = async () => {
-      try {
-        if (!currentUser?.app_roles?.includes('dispatcher')) return;
-        const me = await base44.auth.me();
-        if (!me) return;
-        const approved = await base44.entities.DocAccessRequest.list({
-          filter: { requester_id: me.id, status: 'approved' },
-          limit: 50
-        });
-        const now = new Date();
-        const active = new Set();
-        for (const r of approved || []) {
-          if (r.expires_at && now > new Date(r.expires_at)) continue;
-          if (r.first_viewed_at) {
-            const viewTime = new Date(r.first_viewed_at);
-            if (now > new Date(viewTime.getTime() + 30 * 60 * 1000)) continue;
-          }
-          active.add(r.driver_id);
-        }
-        setActiveDocRequests(active);
-      } catch (e) {
-        console.warn('Failed to fetch doc requests:', e);
-      }
-    };
-    fetchDocRequests();
-    const docInterval = setInterval(fetchDocRequests, 60000);
 
     const interval = setInterval(fetchFreshData, 60000); // Refresh every 60 seconds max
 
     return () => {
       clearInterval(interval);
-      clearInterval(docInterval);
       unsubscribeMutations();
       window.removeEventListener('driverLocationsUpdated', handleDriverLocationsUpdated);
     };
@@ -411,28 +382,8 @@ export default function DriverSettings() {
                           }
                         </div>
 
-                        {/* Row 3: spans all 3 cols — fully centered doc button */}
-                        <div className="col-span-3 flex items-center justify-center pt-1.5 border-t border-slate-100/50 mt-1">
-                          {currentUser?.app_roles?.includes('dispatcher') && (
-                          activeDocRequests.has(driver.id) ?
-                          <Badge className="h-6 px-2 text-[10px] rounded-full gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <ShieldCheck className="w-2.5 h-2.5" />
-                                Docs Ready
-                              </Badge> :
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {e.stopPropagation();setSelectedDriver(driver);}}
-                            className="h-6 px-2 text-[10px] rounded-full flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200">
-                            
-                                <FileText className="w-2.5 h-2.5" />
-                                Request Docs
-                              </Button>)
-
-                          }
-                          {!currentUser?.app_roles?.includes('dispatcher') && <div className="h-6" />}
-                        </div>
+                        {/* Row 3: spacer — document requests moved to Documents page */}
+                        <div className="col-span-3 h-6" />
                       </div>
                     </CardContent>
                   </Card>);
