@@ -507,7 +507,7 @@ export default function Documents() {
     setActionLoading('revoke-' + requestId);
     try {
       await base44.functions.invoke('docAccessManager', {
-        action: 'deny',
+        action: 'revoke',
         request_id: requestId,
       });
       await loadData(true);
@@ -781,9 +781,9 @@ export default function Documents() {
                           const active = isAccessActive(req);
                           const remaining = active ? getTimeRemaining(req) : null;
                           return (
-                            <div key={req.id} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded text-xs ${active ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
+                            <div key={req.id} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded text-xs ${active ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800' : 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800'}`}>
                               <div className="min-w-0 flex-1">
-                                <span className={`font-semibold ${active ? 'text-emerald-800' : 'text-amber-800'}`}>{req.requester_name}</span>
+                                <span className={`font-semibold ${active ? 'text-emerald-800 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-300'}`}>{req.requester_name}</span>
                                 <span className="text-muted-foreground ml-1">{active ? '— Active access' : '— Pending'}</span>
                                 {req.first_viewed_at && (
                                   <span className="text-muted-foreground ml-1">• Viewed {formatDateTime(req.first_viewed_at)}</span>
@@ -791,7 +791,7 @@ export default function Documents() {
                               </div>
                               <div className="flex items-center gap-1.5 flex-shrink-0">
                                 {remaining && (
-                                  <Badge variant="outline" className="text-xs gap-1 border-emerald-300 text-emerald-700 h-5">
+                                  <Badge variant="outline" className="text-xs gap-1 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 h-5">
                                     <Clock className="w-2.5 h-2.5" /> {remaining}
                                   </Badge>
                                 )}
