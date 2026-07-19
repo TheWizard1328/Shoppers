@@ -199,7 +199,7 @@ export default function Documents() {
         }
       }
 
-      // Dispatcher (not admin, not driver): store contracts for their stores
+      // Dispatcher (not admin, not driver): store contracts + driver docs for availability display
       if (isDispatcher && !isAdmin && !isDriver) {
         const myStoreIds = me.store_ids || [];
         for (const sid of myStoreIds) {
@@ -207,6 +207,17 @@ export default function Documents() {
             { store_id: sid, document_scope: 'store', document_type: 'contract' }, '-uploaded_at', 10
           );
           allDocs.push(...(contracts || []));
+        }
+        // Load all driver-scoped docs so dispatcher can see what's available per driver
+        const driverDocs = await base44.entities.DriverDocument.filter(
+          { document_scope: 'driver' }, '-uploaded_at', 500
+        );
+        const seenIds = new Set(allDocs.map(d => d.id));
+        for (const doc of (driverDocs || [])) {
+          if (!seenIds.has(doc.id)) {
+            allDocs.push(doc);
+            seenIds.add(doc.id);
+          }
         }
       }
 
