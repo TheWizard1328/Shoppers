@@ -945,8 +945,18 @@ export default function Documents() {
                     <img src={docUrl} alt="Document" className="w-full h-full object-contain"
                       style={{ pointerEvents: 'none' }} />
                   )}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="text-black/10 font-bold text-3xl rotate-[-30deg] select-none">CONFIDENTIAL</div>
+                  {/* Watermark grid overlay — covers the full content area including thumbnails */}
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden select-none"
+                    style={{ zIndex: 10 }}>
+                    {Array.from({ length: 20 }).map((_, i) => (
+                      <div key={i} className="absolute font-bold text-2xl text-black/[0.07] whitespace-nowrap rotate-[-35deg]"
+                        style={{
+                          top: `${(i % 5) * 22 - 5}%`,
+                          left: `${Math.floor(i / 5) * 28 - 10}%`,
+                        }}>
+                        CONFIDENTIAL
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : (
