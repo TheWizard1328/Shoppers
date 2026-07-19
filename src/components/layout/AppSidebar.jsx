@@ -125,6 +125,26 @@ export default function AppSidebar({
     return unsubscribe;
   }, [currentUser?.id]);
 
+  // Pending doc access requests badge
+  const [pendingDocRequestCount, setPendingDocRequestCount] = useState(0);
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const fetchPending = async () => {
+      try {
+        let requests = [];
+        if (userHasRole(currentUser, 'admin')) {
+          requests = await base44.entities.DocAccessRequest.filter({ status: 'pending' }, '-requested_at', 100);
+        } else if (userHasRole(currentUser, 'driver')) {
+          requests = await base44.entities.DocAccessRequest.filter({ driver_id: currentUser.id, status: 'pending' }, '-requested_at', 50);
+        }
+        setPendingDocRequestCount((requests || []).length);
+      } catch (_) {}
+    };
+    fetchPending();
+    const unsubscribe = base44.entities.DocAccessRequest.subscribe(() => fetchPending());
+    return unsubscribe;
+  }, [currentUser?.id]);
+
   const bookedOffCount = useMemo(() => {
     const today = new Date();
     const year = today.getFullYear();
@@ -506,6 +526,11 @@ export default function AppSidebar({
               }}>
           <FolderLock className="w-5 h-5" />
           <span className="font-semibold">Documents</span>
+          {pendingDocRequestCount > 0 &&
+            <Badge className="ml-auto justify-center rounded-[10px] px-2" style={{ background: '#fef3c7', color: '#92400e' }}>
+              {pendingDocRequestCount}
+            </Badge>
+          }
         </Link>
             }
 
