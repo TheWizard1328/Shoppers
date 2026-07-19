@@ -573,8 +573,8 @@ export default function Documents() {
       {/* === DRIVER SECTION === */}
       {isDriver && (
         <div className="space-y-4">
-          {/* Incoming access requests (driver approves/denies) */}
-          {myPendingRequests.length > 0 && (
+          {/* Incoming access requests (driver approves/denies) — hidden for admins since they see the full admin panel */}
+          {myPendingRequests.length > 0 && !isAdmin && (
             <Card className="border-amber-200 bg-amber-50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
