@@ -13,7 +13,7 @@ const SQUARE_BATCH_PAUSE_MS = 400;
 const SQUARE_BATCH_SIZE = 8;
 const DELIVERY_BULK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_TRANSACTION_ORDERS = 2000;
-const BASE44_SYNC_CHUNK_DELAY_MS = 300;
+const BASE44_SYNC_CHUNK_DELAY_MS = 0; // Eliminated artificial delay — was 300ms per chunk
 
 class HttpError extends Error { constructor(s, m) { super(m); this.status = s; } }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -289,8 +289,8 @@ function createSquareRequestQueue(monitor) {
   return{async run(step,task){const idx=counter++;if(idx>0)await sleep(SQUARE_REQUEST_SPACING_MS);if(idx>0&&idx%SQUARE_BATCH_SIZE===0)await sleep(SQUARE_BATCH_PAUSE_MS);monitor.state.requestCount++;return task();}};
 }
 
-async function paginatedDeleteAll(entityApi, pageSize=50) {
-  while(true){const records=await entityApi.list('-updated_date',pageSize).catch(()=>[]);if(!records?.length)break;for(let i=0;i<records.length;i+=5){const chunk=records.slice(i,i+5);await Promise.all(chunk.map((r)=>entityApi.delete(r.id).catch(()=>null)));if(i+5<records.length)await sleep(BASE44_SYNC_CHUNK_DELAY_MS*4);}if(records.length<pageSize)break;await sleep(BASE44_SYNC_CHUNK_DELAY_MS*4);}
+async function paginatedDeleteAll(entityApi, pageSize=200) {
+  while(true){const records=await entityApi.list('-updated_date',pageSize).catch(()=>[]);if(!records?.length)break;await Promise.all(records.map((r)=>entityApi.delete(r.id).catch(()=>null)));if(records.length<pageSize)break;}
 }
 
 // Peek at the most recent completed Square order for a given locationId.
@@ -583,12 +583,20 @@ async function handleGetCodData(base44, payload={}) {
   const daysBack=Math.max(1,Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
   const transactionRetentionStartMs=Date.now()-daysBack*86400000;const refreshDeliveries=shouldRefreshDeliveries(payload?.lastDeliverySyncAt,payload?.forceDeliveryRefresh===true);
   // quickSync: only query Square API for the daysBack window — caller merges with existing offline data
-  // CRITICAL: Purge and rebuild online SquareTransaction DB from Square API so it exactly
-  // mirrors Square. This eliminates orphaned transactions that no longer exist in Square.
-  await base44.asServiceRole.entities.SquareTransaction.deleteMany({}).catch(() => null);
-  await sleep(400);
-
-  const[allLocationConfigs,stores,existingTransactions]=await Promise.all([base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.Store.list('-updated_date',500).catch(()=>[]),Promise.resolve([])]);  // existingTransactions always empty after purge
+  // Fetch existing transactions BEFORE the purge so we can preserve matched delivery_id/patient_id
+  // during the rebuild. The old code deleted everything first (losing all match data).
+  const[allLocationConfigs,stores,existingTransactionsRaw]=await Promise.all([
+    base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',500).catch(()=>[]),
+    base44.asServiceRole.entities.Store.list('-updated_date',500).catch(()=>[]),
+    base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000).catch(()=>[])
+  ]);
+  const existingTransactions=(Array.isArray(existingTransactionsRaw)?existingTransactionsRaw:[]).map(unwrapEntityRecord).filter(Boolean);
+  // Build a quick lookup map for matching: orderId::lineItemUid → existing record
+  const existingTxByKey=new Map();
+  for(const t of existingTransactions){const k=`${normalizeText(t?.square_transaction_id)}::${normalizeText(t?.raw_square_data?.line_item_uid)}`;if(k&&k!=='::')existingTxByKey.set(k,t);}
+  // Build a quick lookup by catalog_object_id for catalog matching
+  const existingTxByCatalogId=new Map();
+  for(const t of existingTransactions){if(t?.square_catalog_object_id)existingTxByCatalogId.set(normalizeText(t.square_catalog_object_id),t);}
   const safeAllConfigs=(Array.isArray(allLocationConfigs)?allLocationConfigs:[]).map(unwrapEntityRecord).filter(Boolean);
   // Active configs are used for store-matching; ALL configs (including inactive) are used for the Square API location query
   const safeConfigs=safeAllConfigs.filter((c)=>c?.status==='active');
@@ -617,6 +625,14 @@ async function handleGetCodData(base44, payload={}) {
   const seenTxKeys=new Set();const recentTxRecords=[];
   for(const item of paidOrderItems){const uk=`${item?.order_id}::${item?.line_item_uid}`;if(!item?.order_id||seenTxKeys.has(uk))continue;seenTxKeys.add(uk);const store=resolveStoreForItem(item?.item_name,item?.location_id,storesByLocationIdGCD);const mt=(existingTransactions||[]).find((t)=>normalizeText(t?.square_transaction_id)===normalizeText(item?.order_id)&&normalizeText(t?.raw_square_data?.line_item_uid)===normalizeText(item?.line_item_uid));const ac=toAmountCents(item?.amount_cents);recentTxRecords.push({id:mt?.id||`${item?.order_id}:${item?.line_item_uid}`,square_transaction_id:item?.order_id||null,square_payment_id:`${item?.order_id||'order'}:${item?.line_item_uid||'line'}`,square_catalog_object_id:item?.catalog_object_id||null,item_name:item?.item_name||'',amount:ac/100,amount_cents:ac,type:'collection',status:item?.transaction_status||'pending',delivery_id:mt?.delivery_id||null,patient_id:mt?.patient_id||null,store_id:mt?.store_id||store?.id||null,location_id:item?.location_id||null,driver_id:mt?.driver_id||null,dispatcher_id:mt?.dispatcher_id||null,payment_method:mt?.payment_method||'card',created_date:item?.payment_date||mt?.created_date||null,updated_date:item?.payment_date||mt?.updated_date||null,raw_square_data:{...(mt?.raw_square_data||{}),line_item_uid:item?.line_item_uid||null,payment_date:item?.payment_date||null,order_created_at:item?.order_created_at||null,order_state:item?.order_state||null,notes:item?.note||''}});}
   const strippedDeliveries=safeDeliveries.map((d)=>({id:d?.id,delivery_id:d?.delivery_id,delivery_date:d?.delivery_date,status:d?.status,cod_total_amount_required:d?.cod_total_amount_required,cod_payments:d?.cod_payments,store_id:d?.store_id,patient_id:d?.patient_id,driver_id:d?.driver_id,driver_name:d?.driver_name}));
+  // Smart upsert: only delete transactions that are NOT in the new set, then bulk insert new ones.
+  // This preserves the DB during the sync instead of nuking everything first.
+  const newTxKeys=new Set(recentTxRecords.map((r)=>`${normalizeText(r?.square_transaction_id)}::${normalizeText(r?.raw_square_data?.line_item_uid)}`));
+  const staleTxIds=existingTransactions.filter((t)=>{const k=`${normalizeText(t?.square_transaction_id)}::${normalizeText(t?.raw_square_data?.line_item_uid)}`;return k&&!newTxKeys.has(k);}).map((t)=>t.id).filter(Boolean);
+  // Delete stale records in parallel (no artificial delays)
+  if(staleTxIds.length>0){await Promise.all(staleTxIds.map((id)=>base44.asServiceRole.entities.SquareTransaction.delete(id).catch(()=>null)));}
+  // Upsert new/updated transactions in parallel batches (no artificial delays)
+  if(recentTxRecords.length>0){const upsertBatch=async(records)=>{const cs=50;for(let i=0;i<records.length;i+=cs){const chunk=records.slice(i,i+cs);await Promise.all(chunk.map((r)=>{const existing=existingTxByKey.get(`${normalizeText(r?.square_transaction_id)}::${normalizeText(r?.raw_square_data?.line_item_uid)}`);if(existing?.id){return base44.asServiceRole.entities.SquareTransaction.update(existing.id,r).catch(()=>null);}return base44.asServiceRole.entities.SquareTransaction.create(r).catch(()=>null);}));}};await upsertBatch(recentTxRecords);}
   await monitor.finish(monitor.state.rateLimitHits>0?'warning':'success','Square COD data sync completed',{catalogCount:catalogRecords.length,transactionCount:recentTxRecords.length,deliveriesLoaded:strippedDeliveries.length,locationCount:locationIds.length});
   return{success:true,deliveries:strippedDeliveries,shouldRefreshDeliveries:refreshDeliveries,deliverySyncWindow:{startDate:startDateStr,endDate:endDateStr,daysBack,refreshedAt:refreshDeliveries?new Date().toISOString():null},catalogRecords,transactionRecords:recentTxRecords,locationConfigs:safeConfigs,locationIds};
 }
@@ -638,12 +654,8 @@ async function handleSyncCatalogItems(base44, payload={}) {
   const lookbackStartStr=formatLocalDate(new Date(Date.now()-daysBack*86400000));
   const todayStr=formatLocalDate(new Date());
 
-  // CRITICAL: Purge online SquareCatalogItems DB before sync so stale/orphaned records are removed.
-  // This ensures the DB exactly mirrors what is in the live Square catalog after this sync.
-  await base44.asServiceRole.entities.SquareCatalogItems.deleteMany({}).catch(() => null);
-  await sleep(300);
-
-  const[deliveries,stores,squareConfigs,squareTransactions]=await Promise.all([base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:lookbackStartStr,$lte:todayStr}},'-updated_date',5000),base44.asServiceRole.entities.Store.list('-updated_date',200),base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',200),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000)]);
+  // Fetch existing first — we'll do a smart diff instead of nuke-and-rebuild
+  const[deliveries,stores,squareConfigs,squareTransactions,existingCatalogDb]=await Promise.all([base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:lookbackStartStr,$lte:todayStr}},'-updated_date',5000),base44.asServiceRole.entities.Store.list('-updated_date',200),base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',200),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000),base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date',5000).catch(()=>[])]);
   const activeConfigById=new Map((squareConfigs||[]).filter((c)=>c?.status==='active'&&c?.square_location_id).map((c)=>[c.id,c]));
   const storeById=new Map((stores||[]).map((s)=>[s.id,s]));const deliveryById=new Map((deliveries||[]).map((d)=>[d.id,d]));
   // Query ALL location IDs (active + inactive) so we catch paid transactions from any terminal
@@ -792,20 +804,17 @@ async function handlePurgeAndRebuildCatalog(base44) {
     return acc;
   }, []);
 
-  // Step 3: Hard wipe the entire online DB
-  await base44.asServiceRole.entities.SquareCatalogItems.deleteMany({}).catch(() => null);
-  // Brief pause to ensure deleteMany propagates before inserts
-  await sleep(500);
-
-  // Step 4: Bulk insert all live records into the now-empty DB
-  const chunkSize = 20;
-  const insertedRecords = [];
-  for (let i = 0; i < liveRecords.length; i += chunkSize) {
-    const chunk = liveRecords.slice(i, i + chunkSize);
-    const created = await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(chunk).catch(() => []);
-    insertedRecords.push(...(created || []));
-    if (i + chunkSize < liveRecords.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
-  }
+  // Smart upsert: diff live records against existing DB records, only delete stale, upsert changed
+  const existingByObjId=new Map();
+  for(const r of (existingCatalogDb||[])){const oid=r?.square_catalog_object_id||r?.data?.square_catalog_object_id;if(oid)existingByObjId.set(oid,r);}
+  const liveObjIds=new Set(liveRecords.map((r)=>r.square_catalog_object_id));
+  // Delete stale records (in DB but not in live Square catalog) in parallel
+  const staleIds=(existingCatalogDb||[]).filter((r)=>{const oid=r?.square_catalog_object_id||r?.data?.square_catalog_object_id;return oid&&!liveObjIds.has(oid);}).map((r)=>r.id).filter(Boolean);
+  if(staleIds.length>0){await Promise.all(staleIds.map((id)=>base44.asServiceRole.entities.SquareCatalogItems.delete(id).catch(()=>null)));}
+  // Upsert live records in parallel batches (no artificial delays)
+  const insertedRecords=[];
+  const upsertCs=50;
+  for(let i=0;i<liveRecords.length;i+=upsertCs){const chunk=liveRecords.slice(i,i+upsertCs);const results=await Promise.all(chunk.map((r)=>{const existing=existingByObjId.get(r.square_catalog_object_id);if(existing?.id){return base44.asServiceRole.entities.SquareCatalogItems.update(existing.id,r).catch(()=>null);}return base44.asServiceRole.entities.SquareCatalogItems.create(r).catch(()=>null);}));insertedRecords.push(...results.filter(Boolean));}
 
   return {
     success: true,
@@ -867,10 +876,9 @@ async function handleMirrorCatalogFromSquare(base44) {
     const id = r?.square_catalog_object_id || r?.data?.square_catalog_object_id;
     return id && !liveObjectIds.has(id);
   });
-  for (let i = 0; i < toDelete.length; i += 10) {
-    const chunk = toDelete.slice(i, i + 10);
+  for (let i = 0; i < toDelete.length; i += 50) {
+    const chunk = toDelete.slice(i, i + 50);
     await Promise.all(chunk.map((r) => base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null)));
-    if (i + 10 < toDelete.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
   }
 
   // Upsert all live records into DB
@@ -887,7 +895,6 @@ async function handleMirrorCatalogFromSquare(base44) {
       await base44.asServiceRole.entities.SquareCatalogItems.create(record).catch(() => null);
     }
     upserted++;
-    if (upserted % 10 === 0) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
   }
 
   return { success: true, live_catalog_count: liveRecords.length, purged: toDelete.length, upserted };
@@ -899,7 +906,7 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   const stripMeta=(r)=>{const{id,created_date,updated_date,created_by,created_by_id,is_sample,...rest}=r||{};return rest;};
   const normCatalog=(r)=>{const c=stripMeta(r);if(!c)return null;return{square_catalog_object_id:c.square_catalog_object_id||c.catalog_object_id||null,square_catalog_version:c.square_catalog_version||c.version||null,item_name:c.item_name||c.name||null,description:c.description||'',amount:c.amount??c.price_dollars??(c.price_cents!=null?Number(c.price_cents)/100:null),amount_cents:c.amount_cents??c.price_cents??null,delivery_id:c.delivery_id||null,delivery_date:c.delivery_date||null,patient_id:c.patient_id||null,store_id:c.store_id||null,location_id:c.location_id||null,status:c.status||'active'};};
   const cleanCatalog=catalogRecords.map(normCatalog).filter((r)=>r?.square_catalog_object_id&&r?.item_name&&r?.amount!=null&&r?.location_id);const cleanTx=transactionRecords.map(stripMeta).filter(Boolean);
-  const bulkCreate=async(api,records)=>{if(!records.length)return;const cs=20;for(let i=0;i<records.length;i+=cs){await api.bulkCreate(records.slice(i,i+cs));if(i+cs<records.length)await sleep(100);}};
+  const bulkCreate=async(api,records)=>{if(!records.length)return;const cs=50;for(let i=0;i<records.length;i+=cs){await api.bulkCreate(records.slice(i,i+cs));}};
   await Promise.all([paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems,100),paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction,100)]);
   await Promise.all([cleanCatalog.length>0?bulkCreate(base44.asServiceRole.entities.SquareCatalogItems,cleanCatalog):Promise.resolve(),cleanTx.length>0?bulkCreate(base44.asServiceRole.entities.SquareTransaction,cleanTx):Promise.resolve()]);
   return{success:true,paused:false,catalogCount:cleanCatalog.length,transactionCount:cleanTx.length};

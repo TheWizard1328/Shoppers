@@ -881,32 +881,35 @@ export default function SquareManagement() {
     const patientName = parsedItem?.patientName || '';
     const txLocationId = transaction?.location_id || null;
 
+    // O(1) lookup: try direct match by delivery_id first
+    if (transaction.delivery_id) {
+      const directMatch = lookupIndexes.deliveryById.get(transaction.delivery_id);
+      if (directMatch) return directMatch;
+    }
+
     // All store IDs valid for this transaction's location (handles shared location IDs)
     const validStoreIds = txLocationId ?
     new Set(storeIdsByLocationId.get(txLocationId) || []) :
     null;
-    // If we have a resolved store, prefer it but don't block matches from sibling stores at the same location
-    const preferredStoreId = resolvedStoreId || transaction?.store_id || null;
 
     return (deliveries || []).find((delivery) => {
       if (!delivery) return false;
       if (transaction.delivery_id && delivery.id === transaction.delivery_id) return true;
-      // Only filter by store if the delivery's store is NOT in the valid location pool
       if (validStoreIds && validStoreIds.size > 0 && !validStoreIds.has(delivery.store_id)) return false;
       if (!amountSetsIntersect(getDeliveryPaymentAmountSet(delivery), transactionAmountSet)) return false;
       if (transactionDate && delivery.delivery_date === transactionDate) {
         if (!patientName) return true;
-        const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
+        const patient = lookupIndexes.resolvePatient(delivery);
         if (patient?.full_name && patientNamesMatch(patient.full_name, patientName)) return true;
         return true;
       }
       if (patientName) {
-        const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
+        const patient = lookupIndexes.resolvePatient(delivery);
         return !!(patient?.full_name && patientNamesMatch(patient.full_name, patientName));
       }
       return false;
     }) || null;
-  }, [deliveries, getTransactionEffectiveDateString, patients, storeIdsByLocationId]);
+  }, [deliveries, getTransactionEffectiveDateString, lookupIndexes, storeIdsByLocationId]);
 
   const formatItemNameForDisplay = useCallback((deliveryDate, storeAbbreviation, patientName) => {
     const [, month, day] = String(deliveryDate || '').split('-');
@@ -921,9 +924,9 @@ export default function SquareManagement() {
   };
 
   const hasMatchingSquareTransaction = useCallback((delivery, locationId, transactionsPool = allTransactions) => {
-    const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
+    const patient = lookupIndexes.resolvePatient(delivery);
     const patientName = patient?.full_name || '';
-    const store = stores.find((s) => s?.id === delivery?.store_id);
+    const store = lookupIndexes.storeById.get(delivery?.store_id);
     const deliveryAmountSet = getDeliveryPaymentAmountSet(delivery);
     const deliveryDateString = delivery?.delivery_date ? String(delivery.delivery_date).slice(0, 10) : null;
     const storeAbbreviation = String(store?.abbreviation || '').trim().toLowerCase();
@@ -985,7 +988,7 @@ export default function SquareManagement() {
 
       return false;
     });
-  }, [allTransactions, patients, stores, getTransactionCreatedDate, storeIdsByLocationId]);
+  }, [allTransactions, lookupIndexes, storeIdsByLocationId, getTransactionCreatedDate]);
 
   const confirmDelete = async () => {
     if (!itemToDelete) return;
@@ -1020,6 +1023,96 @@ export default function SquareManagement() {
     }
   };
 
+  // ═════════════════════════════════════════════════════════════════
+  // UNIFIED INDEX: Build all Map indexes in a single pass to enable O(1)
+  // lookups instead of O(N) .find() calls inside render loops.
+  // ═════════════════════════════════════════════════════════════════
+  const lookupIndexes = useMemo(() => {
+    // Patient lookups: by id and by patient_id
+    const patientById = new Map();
+    const patientByPid = new Map();
+    for (const p of (patients || [])) {
+      if (p?.id) patientById.set(p.id, p);
+      if (p?.patient_id) patientByPid.set(p.patient_id, p);
+    }
+    const resolvePatient = (delivery) => {
+      if (!delivery?.patient_id) return null;
+      return patientById.get(delivery.patient_id) || patientByPid.get(delivery.patient_id) || null;
+    };
+
+    // Store lookups: by id
+    const storeById = new Map();
+    for (const s of (stores || [])) {
+      if (s?.id) storeById.set(s.id, s);
+    }
+
+    // Transaction lookups: by delivery_id, by catalog_object_id, by order::line key
+    const txByDeliveryId = new Map();
+    const txByCatalogObjId = new Map();
+    const txByKey = new Map();
+    // Also build a settled set for fast "is collected?" checks
+    const settledTxCatalogIds = new Set();
+    const settledTxDeliveryIds = new Set();
+    // And a signature index for amount+name fallback matching
+    const txByAmountName = new Map(); // key: amountCents::lowercaseitemName → tx
+    for (const tx of (allTransactions || [])) {
+      if (!tx) continue;
+      if (tx.delivery_id) txByDeliveryId.set(tx.delivery_id, tx);
+      if (tx.square_catalog_object_id) {
+        txByCatalogObjId.set(tx.square_catalog_object_id, tx);
+        if (['completed', 'refunded'].includes(tx.status)) {
+          settledTxCatalogIds.add(tx.square_catalog_object_id);
+        }
+      }
+      const orderKey = `${tx?.square_transaction_id || ''}::${tx?.raw_square_data?.line_item_uid || ''}`;
+      if (orderKey !== '::') txByKey.set(orderKey, tx);
+      if (['completed', 'refunded'].includes(tx.status) && tx.delivery_id) {
+        settledTxDeliveryIds.add(tx.delivery_id);
+      }
+      // Amount+name signature for fallback matching
+      const amtC = Math.round(Number(tx.amount || 0) * 100);
+      const nameLower = String(tx.item_name || '').toLowerCase().trim();
+      if (amtC > 0 && nameLower) {
+        txByAmountName.set(`${amtC}::${nameLower}`, tx);
+      }
+    }
+
+    // Catalog item lookups: by delivery_id, by catalog_object_id
+    const catalogByDeliveryId = new Map();
+    const catalogByObjId = new Map();
+    for (const ci of (catalogItems || [])) {
+      if (ci?.delivery_id) catalogByDeliveryId.set(ci.delivery_id, ci);
+      const oid = ci?.catalog_object_id || ci?.id;
+      if (oid) catalogByObjId.set(oid, ci);
+    }
+
+    // Delivery lookups: by id
+    const deliveryById = new Map();
+    for (const d of (deliveries || [])) {
+      if (d?.id) deliveryById.set(d.id, d);
+    }
+
+    // LocationConfig lookups: by square_location_id, by store_name, by id
+    const configByLocationId = new Map();
+    const configByStoreName = new Map();
+    const configById = new Map();
+    for (const c of (locationConfigs || [])) {
+      if (c?.square_location_id) configByLocationId.set(c.square_location_id, c);
+      if (c?.store_name) configByStoreName.set(c.store_name, c);
+      if (c?.id) configById.set(c.id, c);
+    }
+
+    return {
+      patientById, patientByPid, resolvePatient,
+      storeById,
+      txByDeliveryId, txByCatalogObjId, txByKey, txByAmountName,
+      settledTxCatalogIds, settledTxDeliveryIds,
+      catalogByDeliveryId, catalogByObjId,
+      deliveryById,
+      configByLocationId, configByStoreName, configById,
+    };
+  }, [patients, stores, allTransactions, catalogItems, deliveries, locationConfigs]);
+
   const filteredCatalogItems = useMemo(() => {
     if (!currentUser) return [];
     const userIsAppOwner = isAppOwner(currentUser);
@@ -1040,20 +1133,10 @@ export default function SquareManagement() {
       items = catalogItems.filter((item) => squareLocationIds.includes(item.location_id));
     }
 
-    // Build a fast lookup of settled transaction delivery IDs and catalog object IDs
-    const settledTxCatalogIds = new Set(
-      (allTransactions || []).
-      filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.square_catalog_object_id).
-      map((t) => t.square_catalog_object_id)
-    );
-    const settledTxDeliveryIds = new Set(
-      (allTransactions || []).
-      filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.delivery_id).
-      map((t) => t.delivery_id)
-    );
+    const { settledTxCatalogIds, settledTxDeliveryIds, deliveryById } = lookupIndexes;
 
     items = items.filter((item) => {
-      const linkedDelivery = deliveries.find((d) => d?.id === item.delivery_id);
+      const linkedDelivery = deliveryById.get(item.delivery_id);
       if (linkedDelivery?.status === 'pending') return false;
       // Direct match by catalog object ID or delivery_id against settled transactions
       const catalogObjId = item.catalog_object_id || item.id;
@@ -1078,7 +1161,7 @@ export default function SquareManagement() {
       const bStoreName = bStore?.name || bConfig?.name || '';
       return aStoreName.localeCompare(bStoreName);
     });
-  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores]);
+  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, lookupIndexes]);
 
   const selectedDriverUserIds = useMemo(() => {
     if (selectedDriverFilter && selectedDriverFilter !== 'all') {
@@ -1197,35 +1280,40 @@ export default function SquareManagement() {
     }).
     sort((a, b) => String(b.delivery_date || '').localeCompare(String(a.delivery_date || ''))).
     map((delivery) => {
-      const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
-      const store = stores.find((s) => s?.id === delivery.store_id);
+      const patient = lookupIndexes.resolvePatient(delivery);
+      const store = lookupIndexes.storeById.get(delivery.store_id);
       const config = getConfigForStore(store);
-      const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
+      const linkedCatalog = lookupIndexes.catalogByDeliveryId.get(delivery.id);
       const resolvedLocationId = config?.square_location_id || null;
-      const hasMatch = hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions);
-      const matchingTx = hasMatch ?
-      (allTransactions || []).find((tx) => {
-        if (!tx || tx.type !== 'collection') return false;
-        if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
-        if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
-        const deliveryPatient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
-        const txSearchText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
-        const nameMatches = !!(deliveryPatient?.full_name && txSearchText && patientNamesMatch(deliveryPatient.full_name, txSearchText));
-        const txAmountSet = getTransactionAmountSet(tx);
-        const amountsMatch = amountSetsIntersect(getDeliveryPaymentAmountSet(delivery), txAmountSet);
-        // Amount + name is sufficient
-        if (amountsMatch && nameMatches) return true;
-        if (!amountsMatch) return false;
-        const parsed = parseSquareItemName(String(tx.item_name || ''));
-        const txDate = parsed?.deliveryDate || null;
-        const txStoreAbbr = String(parsed?.storeAbbr || '').trim().toLowerCase();
+
+      // O(1) lookup: try direct match by delivery_id first
+      let matchingTx = lookupIndexes.txByDeliveryId.get(delivery.id) || null;
+
+      // Fallback: scan transactions only if no direct match (much smaller scope)
+      if (!matchingTx) {
+        const deliveryAmountSet = getDeliveryPaymentAmountSet(delivery);
+        const patientName = patient?.full_name || '';
         const deliveryStoreAbbr = String(store?.abbreviation || '').trim().toLowerCase();
-        const abbrMatches = !!deliveryStoreAbbr && (txStoreAbbr === deliveryStoreAbbr || String(tx.item_name || '').toLowerCase().includes(deliveryStoreAbbr));
-        if (txDate === delivery.delivery_date && (abbrMatches || nameMatches || tx.location_id === resolvedLocationId)) return true;
-        if (abbrMatches && nameMatches) return true;
-        return false;
-      }) :
-      null;
+        matchingTx = (allTransactions || []).find((tx) => {
+          if (!tx || tx.type !== 'collection') return false;
+          if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
+          if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
+          const txSearchText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
+          const nameMatches = !!(patientName && txSearchText && patientNamesMatch(patientName, txSearchText));
+          const txAmountSet = getTransactionAmountSet(tx);
+          const amountsMatch = amountSetsIntersect(deliveryAmountSet, txAmountSet);
+          if (amountsMatch && nameMatches) return true;
+          if (!amountsMatch) return false;
+          const parsed = parseSquareItemName(String(tx.item_name || ''));
+          const txDate = parsed?.deliveryDate || null;
+          const txStoreAbbr = String(parsed?.storeAbbr || '').trim().toLowerCase();
+          const abbrMatches = !!deliveryStoreAbbr && (txStoreAbbr === deliveryStoreAbbr || String(tx.item_name || '').toLowerCase().includes(deliveryStoreAbbr));
+          if (txDate === delivery.delivery_date && (abbrMatches || nameMatches || tx.location_id === resolvedLocationId)) return true;
+          if (abbrMatches && nameMatches) return true;
+          return false;
+        }) || null;
+      }
+      const hasMatch = !!matchingTx;
       const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
       Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
       null;
@@ -1408,38 +1496,39 @@ export default function SquareManagement() {
       return true;
     }).
     map((item) => {
-      const config = locationConfigs.find((c) => c?.square_location_id === item.location_id);
-      const store = stores.find((s) => s?.id === item.store_id) || getStoreForConfig(config);
-      const linkedDelivery = item.delivery_id ? deliveries.find((d) => d?.id === item.delivery_id) : null;
-      // A catalog item is "Collected" ONLY if there is a matching transaction in the transactions list.
-      // Match by: square_catalog_object_id on the transaction, OR delivery_id on the transaction.
+      const config = lookupIndexes.configByLocationId.get(item.location_id);
+      const store = lookupIndexes.storeById.get(item.store_id) || getStoreForConfig(config);
+      const linkedDelivery = item.delivery_id ? lookupIndexes.deliveryById.get(item.delivery_id) : null;
       const catalogObjectId = item.catalog_object_id || item.id;
-      const linkedPatient = linkedDelivery?.patient_id ?
-      patients.find((p) => p?.id === linkedDelivery.patient_id || p?.patient_id === linkedDelivery.patient_id) : null;
+      const linkedPatient = linkedDelivery?.patient_id ? lookupIndexes.resolvePatient(linkedDelivery) : null;
       const linkedPatientName = linkedPatient?.full_name || parseSquareItemName(item.name || item.item_name)?.patientName || '';
-      const matchingTx = (allTransactions || []).find((tx) => {
-        if (!tx) return false;
-        // Match by delivery_id (most reliable)
-        if (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id) return true;
-        // Match by catalog object ID on the transaction
-        if (tx.square_catalog_object_id && (tx.square_catalog_object_id === catalogObjectId || tx.square_catalog_object_id === item.id)) return true;
-        const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
-        const itemAmountCents = Math.round(Number(item.price_dollars || item.amount || 0) * 100);
-        const amountsMatch = txAmountCents === itemAmountCents;
-        const txSearchableText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
-        const txNameMatches = !!linkedPatientName && !!txSearchableText && patientNamesMatch(linkedPatientName, txSearchableText);
-        // Chronology guard: transaction must be ON or AFTER the catalog item's delivery date.
-        const catalogItemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
-        const txEffDateForGuard = getTransactionEffectiveDateString(tx);
-        const txOnOrAfterItem = !txEffDateForGuard || !catalogItemDateStr || txEffDateForGuard >= catalogItemDateStr;
-        // Amount + patient name match (handles plain-text transaction names)
-        if (amountsMatch && txNameMatches && txOnOrAfterItem) return true;
-        // Amount + location + delivery date from item name
-        if (!amountsMatch || !item.location_id || tx.location_id !== item.location_id) return false;
-        const itemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
-        const txDateStr = getTransactionEffectiveDateString(tx);
-        return !!(itemDateStr && txDateStr && itemDateStr === txDateStr);
-      });
+
+      // O(1) lookup: try direct match by delivery_id or catalog_object_id first
+      let matchingTx = null;
+      if (linkedDelivery?.id) matchingTx = lookupIndexes.txByDeliveryId.get(linkedDelivery.id);
+      if (!matchingTx && catalogObjectId) matchingTx = lookupIndexes.txByCatalogObjId.get(catalogObjectId) || lookupIndexes.txByCatalogObjId.get(item.id);
+
+      // Fallback: scan only if no direct match
+      if (!matchingTx) {
+        matchingTx = (allTransactions || []).find((tx) => {
+          if (!tx) return false;
+          if (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id) return true;
+          if (tx.square_catalog_object_id && (tx.square_catalog_object_id === catalogObjectId || tx.square_catalog_object_id === item.id)) return true;
+          const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
+          const itemAmountCents = Math.round(Number(item.price_dollars || item.amount || 0) * 100);
+          const amountsMatch = txAmountCents === itemAmountCents;
+          const txSearchableText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
+          const txNameMatches = !!linkedPatientName && !!txSearchableText && patientNamesMatch(linkedPatientName, txSearchableText);
+          const catalogItemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+          const txEffDateForGuard = getTransactionEffectiveDateString(tx);
+          const txOnOrAfterItem = !txEffDateForGuard || !catalogItemDateStr || txEffDateForGuard >= catalogItemDateStr;
+          if (amountsMatch && txNameMatches && txOnOrAfterItem) return true;
+          if (!amountsMatch || !item.location_id || tx.location_id !== item.location_id) return false;
+          const itemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+          const txDateStr = getTransactionEffectiveDateString(tx);
+          return !!(itemDateStr && txDateStr && itemDateStr === txDateStr);
+        }) || null;
+      }
       const isCollected = !!matchingTx;
       return {
         id: catalogObjectId,
@@ -1483,7 +1572,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, hasMatchingSquareTransaction, getDriverColorForId]);
+  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, lookupIndexes, getDriverColorForId]);
 
   // Build a fast set of delivery IDs that are already matched in the Transactions tab
   const transactionMatchedDeliveryIds = useMemo(() => {
@@ -1558,8 +1647,8 @@ export default function SquareManagement() {
     }).
     sort((a, b) => String(b.delivery_date || '').localeCompare(String(a.delivery_date || ''))).
     map((delivery) => {
-      const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
-      const store = stores.find((s) => s?.id === delivery?.store_id);
+      const patient = lookupIndexes.resolvePatient(delivery);
+      const store = lookupIndexes.storeById.get(delivery?.store_id);
       const config = getConfigForStore(store);
       const resolvedLocationId = config?.square_location_id || '--';
       const deliveryAmountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
@@ -1587,24 +1676,26 @@ export default function SquareManagement() {
       // Match catalog item by delivery_id first; fall back to amount + location + formatted name
       const formattedDeliveryName = formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patient?.full_name);
       const deliveryAmountCentsForCatalog = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
-      const linkedCatalogItem = (catalogItems || []).find((ci) => {
-        if (ci?.delivery_id === delivery.id) return true;
-        // Fallback: same location + same amount + name overlap
-        const ciAmountCents = Math.round(Number(ci?.price_dollars || ci?.amount || 0) * 100);
-        if (ciAmountCents !== deliveryAmountCentsForCatalog) return false;
-        if (ci?.location_id && resolvedLocationId !== '--' && ci.location_id !== resolvedLocationId) return false;
-        const ciName = String(ci?.name || ci?.item_name || '');
-        if (!ciName) return false;
-        // Check if item name matches the formatted delivery name, or patient name appears in the catalog item name
-        if (ciName === formattedDeliveryName) return true;
-        if (patientName && ciName.toLowerCase().includes(patientName.toLowerCase())) return true;
-        if (patientName && patientNamesMatch(patientName, ciName)) return true;
-        return false;
-      });
+      // O(1) lookup: try direct match by delivery_id first
+      let linkedCatalogItem = lookupIndexes.catalogByDeliveryId.get(delivery.id);
+      // Fallback: scan only if no direct match
+      if (!linkedCatalogItem) {
+        linkedCatalogItem = (catalogItems || []).find((ci) => {
+          const ciAmountCents = Math.round(Number(ci?.price_dollars || ci?.amount || 0) * 100);
+          if (ciAmountCents !== deliveryAmountCentsForCatalog) return false;
+          if (ci?.location_id && resolvedLocationId !== '--' && ci.location_id !== resolvedLocationId) return false;
+          const ciName = String(ci?.name || ci?.item_name || '');
+          if (!ciName) return false;
+          if (ciName === formattedDeliveryName) return true;
+          if (patientName && ciName.toLowerCase().includes(patientName.toLowerCase())) return true;
+          if (patientName && patientNamesMatch(patientName, ciName)) return true;
+          return false;
+        }) || null;
+      }
       const catalogObjectId = linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || null;
 
       // Find any matching transaction (same-location or cross-store) for the Transaction ID column
-      const anyMatchingTx = crossStoreTx || (allTransactions || []).find((tx) => {
+      const anyMatchingTx = crossStoreTx || lookupIndexes.txByDeliveryId.get(delivery.id) || (allTransactions || []).find((tx) => {
         if (!tx || tx.type !== 'collection') return false;
         if (!['completed', 'pending'].includes(tx.status)) return false;
         if (tx.delivery_id === delivery.id) return true;
@@ -1653,7 +1744,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, lookupIndexes, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId]);
 
   reconciliationRowsRef.current = reconciliationRows;
   filteredCatalogRowsRef.current = filteredCatalogRows;
