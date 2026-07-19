@@ -14,8 +14,6 @@ import {
 } from 'lucide-react';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
 import { sortUsers } from '../components/utils/sorting';
-import { formatPhoneNumber } from '../components/utils/phoneFormatter';
-import { createPageUrl } from '../utils';
 
 const DOC_TYPES = [
   { key: 'license', label: "Driver's License", icon: FileText },
@@ -360,12 +358,33 @@ export default function Documents() {
   // Upload document (driver self-upload)
   const handleUploadFile = async (file, docType, driverId, driverName, scope = 'driver', storeId = null, storeName = null) => {
     if (!file) return;
-    setUploadingForDriver(docType + driverId);
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File too large. Maximum size is 10MB.');
+      return;
+    }
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Invalid file type. Please upload a photo (JPG, PNG, WebP) or PDF.');
+      return;
+    }
+    setUploadingForDriver(docType + (driverId || storeId));
     try {
+      // Read file as base64 for upload
+      const reader = new FileReader();
+      const base64Data = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
       // Upload to private storage
-      const formData = new FormData();
-      formData.append('file', file);
-      const uploadResp = await base44.files.upload(file, { private: true });
+      const uploadResp = await base44.files.upload({
+        filename: `${scope === 'store' ? 'store-contracts' : 'driver-docs'}/${driverId || storeId}/${docType}_${Date.now()}.${file.name.split('.').pop()}`,
+        contents: base64Data,
+        isPrivate: true,
+      });
       const fileUri = uploadResp?.uri || uploadResp?.file_uri || uploadResp;
 
       await base44.functions.invoke('docAccessManager', {
@@ -546,14 +565,14 @@ export default function Documents() {
                       <input ref={fileInputRef} type="file" accept="image/*,application/pdf" className="hidden"
                         onChange={(e) => handleDriverFileInput(e, key)} />
                       <Button size="sm" variant="outline" onClick={() => cameraInputRef.current?.click()}
-                        disabled={uploadingForDriver === key + currentUser?.id} className="gap-1.5 h-8">
+                        disabled={!!uploadingForDriver} className="gap-1.5 h-8">
                         {uploadingForDriver === key + currentUser?.id ?
                           <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" /> :
                           <Camera className="w-3.5 h-3.5" />}
                         Photo
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}
-                        disabled={uploadingForDriver === key + currentUser?.id} className="gap-1.5 h-8">
+                        disabled={!!uploadingForDriver} className="gap-1.5 h-8">
                         <Upload className="w-3.5 h-3.5" /> File
                       </Button>
                       {existingDoc && (
