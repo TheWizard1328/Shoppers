@@ -282,6 +282,66 @@ export default async function docAccessManager(req) {
       return Response.json({ success: true, request_id });
     }
 
+    if (action === 'uploadDocumentBase64') {
+      // Client sends a base64 data URL — we upload it server-side via integrations.Core.UploadFile
+      const { document_type, document_scope, driver_id, driver_name, store_id, store_name,
+              file_data_url, file_name, file_size, mime_type, expiry_date } = body;
+
+      if (!document_type || !file_data_url) {
+        return Response.json({ error: 'document_type and file_data_url are required' }, { status: 400 });
+      }
+
+      // Convert base64 data URL → Blob → File for the upload API
+      const matches = file_data_url.match(/^data:([^;]+);base64,(.+)$/);
+      if (!matches) return Response.json({ error: 'Invalid file_data_url format' }, { status: 400 });
+      const mimeType = matches[1] || mime_type || 'image/jpeg';
+      const base64Str = matches[2];
+      const byteChars = atob(base64Str);
+      const byteNums = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteNums], { type: mimeType });
+      const fileObj = new File([blob], file_name || `doc_${Date.now()}.jpg`, { type: mimeType });
+
+      let fileUri: string;
+      try {
+        const uploadResult = await (base44 as any).integrations.Core.UploadFile({ file: fileObj });
+        fileUri = uploadResult?.file_url || uploadResult?.data?.file_url || uploadResult?.uri || uploadResult?.file_uri;
+        if (!fileUri) throw new Error('No URL returned from upload');
+      } catch (uploadErr: any) {
+        console.error('[docAccessManager] UploadFile failed:', uploadErr?.message || uploadErr);
+        return Response.json({ error: 'File upload failed: ' + (uploadErr?.message || 'server error') }, { status: 502 });
+      }
+
+      const uploaderId = user.id;
+      const uploaderName = user.full_name || user.email || 'Unknown';
+      const docRecord = await base44.asServiceRole.entities.DriverDocument.create({
+        document_type,
+        document_scope: document_scope || 'driver',
+        driver_id: driver_id || null,
+        driver_name: driver_name || null,
+        store_id: store_id || null,
+        store_name: store_name || null,
+        file_uri: fileUri,
+        file_size: file_size || byteNums.length,
+        mime_type: mimeType,
+        uploaded_at: new Date().toISOString(),
+        uploaded_by: uploaderId,
+        uploaded_by_name: uploaderName,
+        document_expiry_date: expiry_date || null,
+      });
+      await base44.asServiceRole.entities.DocAuditLog.create({
+        viewer_id: uploaderId,
+        viewer_name: uploaderName,
+        action: 'uploaded',
+        driver_id: driver_id || null,
+        driver_name: driver_name || null,
+        doc_ids: [docRecord.id],
+        viewed_at: new Date().toISOString(),
+        user_agent: 'doc-access-manager-base64',
+      });
+      return Response.json({ success: true, document: docRecord });
+    }
+
     if (action === 'uploadDocument') {
       const { document_type, document_scope, driver_id, driver_name, store_id, store_name, file_uri, file_size, mime_type, expiry_date } = body;
 

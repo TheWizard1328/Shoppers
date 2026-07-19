@@ -13,6 +13,7 @@ import {
   Search, RefreshCw, Trash2, Eye, AlertTriangle, Building2, User, Lock, ChevronRight
 } from 'lucide-react';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
+import { appParams } from '@/lib/app-params';
 import { sortUsers } from '../components/utils/sorting';
 
 const DOC_TYPES = [
@@ -381,29 +382,34 @@ export default function Documents() {
     reader.readAsDataURL(file);
   };
 
-  // Upload document after optional crop
+  // Upload document after optional crop — sends base64 via base44.functions.invoke
   const handleUploadFile = async (file, docType, driverId, driverName, scope = 'driver', storeId = null, storeName = null) => {
     if (!file) return;
     setUploadingForDriver(docType + (driverId || storeId || ''));
     try {
-      // Use base44.integrations.Core.UploadFile — the correct client-side upload API
-      const uploadResp = await base44.integrations.Core.UploadFile({ file });
-      const fileUri = uploadResp?.file_url || uploadResp?.data?.file_url || uploadResp?.uri || uploadResp?.file_uri;
-      if (!fileUri) throw new Error('Upload returned no file URL');
+      // Encode file as base64 data URL — then the backend handles the actual storage upload
+      const base64DataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-      await base44.functions.invoke('docAccessManager', {
-        action: 'uploadDocument',
+      const result = await base44.functions.invoke('docAccessManager', {
+        action: 'uploadDocumentBase64',
         document_type: docType,
         document_scope: scope,
-        driver_id: driverId,
-        driver_name: driverName,
-        store_id: storeId,
-        store_name: storeName,
-        file_uri: fileUri,
+        driver_id: driverId || null,
+        driver_name: driverName || null,
+        store_id: storeId || null,
+        store_name: storeName || null,
+        file_data_url: base64DataUrl,
+        file_name: file.name || `doc_${Date.now()}.jpg`,
         file_size: file.size,
         mime_type: file.type || 'image/jpeg',
       });
 
+      if (!result?.success) throw new Error(result?.error || 'Upload failed');
       await loadData(true);
     } catch (err) {
       console.error('Upload failed:', err);
