@@ -103,6 +103,7 @@ export default function Documents() {
     const seen = new Set();
     const driverUsers = (users || []).filter((u) => {
       if (!u?.app_roles?.includes('driver')) return false;
+      if (u.status !== 'active') return false;
       if (seen.has(u.id)) return false;
       seen.add(u.id);
       return true;
