@@ -917,44 +917,42 @@ export default function Documents() {
 
       {/* === Document Viewer Modal === */}
       {viewingDoc && (
-        <Card className="fixed inset-4 z-50 bg-card shadow-2xl">
-          <CardHeader className="pb-3 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setViewingDoc(null); setDocUrl(null); } }}>
+          <div className="bg-card rounded-xl shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
+            <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
+              <p className="font-semibold text-sm capitalize">
                 {viewingDoc.document_type?.replace(/_/g, ' ')}
-                {viewingDoc.driver_name && ` \u2014 ${viewingDoc.driver_name}`}
-                {viewingDoc.store_name && ` \u2014 ${viewingDoc.store_name}`}
-              </CardTitle>
+                {viewingDoc.driver_name && ` — ${viewingDoc.driver_name}`}
+                {viewingDoc.store_name && ` — ${viewingDoc.store_name}`}
+              </p>
               <Button size="sm" variant="ghost" onClick={() => { setViewingDoc(null); setDocUrl(null); }}>
                 <XCircle className="w-4 h-4" /> Close
               </Button>
             </div>
-          </CardHeader>
-          <CardContent className="overflow-y-auto">
-            {docLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-              </div>
-            ) : docUrl ? (
-              <div className="relative">
-                {viewingDoc.mime_type?.includes('pdf') ? (
-                  <iframe src={docUrl} className="w-full h-[70vh] border rounded-lg" title="Document" />
-                ) : (
-                  <img src={docUrl} alt="Document" className="w-full max-h-[70vh] object-contain border rounded-lg"
-                    style={{ pointerEvents: 'none' }} />
-                )}
-                {/* Watermark overlay */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-white/20 font-bold text-2xl rotate-[-30deg] select-none">
-                    CONFIDENTIAL
+            <div className="overflow-y-auto flex-1 p-4">
+              {docLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                </div>
+              ) : docUrl ? (
+                <div className="relative">
+                  {viewingDoc.mime_type?.includes('pdf') ? (
+                    <iframe src={docUrl} className="w-full border rounded-lg" style={{ height: '70vh' }} title="Document" />
+                  ) : (
+                    <img src={docUrl} alt="Document" className="w-full object-contain border rounded-lg"
+                      style={{ maxHeight: '75vh', pointerEvents: 'none' }} />
+                  )}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-black/10 font-bold text-3xl rotate-[-30deg] select-none">CONFIDENTIAL</div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <p className="text-center text-sm text-muted-foreground py-8">Failed to load document</p>
-            )}
-          </CardContent>
-        </Card>
+              ) : (
+                <p className="text-center text-sm text-muted-foreground py-8">Failed to load document</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* === CROP MODAL === */}
