@@ -641,11 +641,11 @@ export default function Documents() {
                 return (
                   <div key={key} className="p-3 border rounded-lg">
                    <input id={`file-input-${key}`} type="file" className="hidden"
-                     accept="image/jpeg,image/png,image/webp,application/pdf"
-                     onChange={(e) => handleDriverFileInput(e, key)} />
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={(e) => handleDriverFileInput(e, key)} />
                    <input id={`camera-input-${key}`} type="file" className="hidden"
-                     accept="image/*" capture="environment"
-                     onChange={(e) => handleDriverFileInput(e, key)} />
+                    accept="image/*" capture="environment"
+                    onChange={(e) => handleDriverFileInput(e, key)} />
                    {/* Desktop: single row — Icon + Label left | Date + Upload/Replace right */}
                    {/* Mobile: two rows */}
                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
@@ -659,13 +659,13 @@ export default function Documents() {
                      {/* Right: date + action badge */}
                      <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto">
                        <p className="text-xs text-muted-foreground flex-1 sm:flex-none">
-                         {existingDoc
-                           ? <>Uploaded {formatDateTime(existingDoc.uploaded_at)}{existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}</>
-                           : 'Not uploaded'}
+                         {existingDoc ?
+                          <>Uploaded {formatDateTime(existingDoc.uploaded_at)}{existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}</> :
+                          'Not uploaded'}
                        </p>
                        <span
-                         onClick={() => !uploadingForDriver && document.getElementById(`file-input-${key}`)?.click()}
-                         className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex-shrink-0">
+                          onClick={() => !uploadingForDriver && document.getElementById(`file-input-${key}`)?.click()}
+                          className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex-shrink-0">
                          {existingDoc ? 'Replace' : 'Upload'}
                        </span>
                      </div>
@@ -749,15 +749,15 @@ export default function Documents() {
                           </div>
                           {/* Right: date + View + Delete */}
                           <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
-                            <span className="text-xs text-muted-foreground flex-1 sm:flex-none">{formatDateTime(doc.uploaded_at)}</span>
+                            <span className="text-xs text-muted-foreground flex-1 sm:flex-none hidden">{formatDateTime(doc.uploaded_at)}</span>
                             <span
-                              onClick={() => handleViewDoc(doc)}
-                              className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
+                            onClick={() => handleViewDoc(doc)}
+                            className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
                               View
                             </span>
                             <span
-                              onClick={() => !actionLoading && handleDeleteDoc(doc.id)}
-                              className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors flex-shrink-0">
+                            onClick={() => !actionLoading && handleDeleteDoc(doc.id)}
+                            className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors flex-shrink-0">
                               Delete
                             </span>
                           </div>
@@ -963,44 +963,44 @@ export default function Documents() {
                 return (
                   <div key={store.id} className="flex items-center gap-3 p-3 border rounded-lg">
                     <input ref={contractFileRef} type="file" className="hidden"
-                      accept="image/jpeg,image/png,image/webp,application/pdf"
-                      onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
                     <input ref={contractCameraRef} type="file" className="hidden"
-                      accept="image/*" capture="environment"
-                      onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
+                    accept="image/*" capture="environment"
+                    onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
                     <p className="text-sm font-medium flex-1 min-w-0 truncate">{store?.name || 'Unknown Store'}</p>
-                    {contracts.length === 0 ? (
-                      <span className="text-xs text-muted-foreground flex-shrink-0">No contract uploaded</span>
-                    ) : contracts.map((c) => (
-                      <span key={c.id} className="text-xs text-muted-foreground flex-shrink-0">
+                    {contracts.length === 0 ?
+                    <span className="text-xs text-muted-foreground flex-shrink-0">No contract uploaded</span> :
+                    contracts.map((c) =>
+                    <span key={c.id} className="text-xs text-muted-foreground flex-shrink-0">
                         {formatDateTime(c.uploaded_at)}
                         {c.document_expiry_date && ` • expires ${c.document_expiry_date}`}
                       </span>
-                    ))}
-                    {contracts.map((c) => (
-                      <div key={c.id} className="flex items-center gap-1 flex-shrink-0">
+                    )}
+                    {contracts.map((c) =>
+                    <div key={c.id} className="flex items-center gap-1 flex-shrink-0">
                         <Button size="sm" variant="ghost" className="h-8" onClick={() => handleViewDoc(c)}>
                           <Eye className="w-3.5 h-3.5" /> View
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 text-red-600"
-                          onClick={() => handleDeleteDoc(c.id)} disabled={actionLoading === 'delete-' + c.id}>
+                      onClick={() => handleDeleteDoc(c.id)} disabled={actionLoading === 'delete-' + c.id}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
-                    ))}
+                    )}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <Button size="sm" variant="outline" className="h-8 gap-1.5"
-                        disabled={uploadingContract}
-                        onClick={() => contractFileRef.current?.click()}>
+                      disabled={uploadingContract}
+                      onClick={() => contractFileRef.current?.click()}>
                         <Upload className="w-3.5 h-3.5" /> Upload
                       </Button>
-                      {!isMobile && (
-                        <Button size="sm" variant="ghost" className="h-8"
-                          disabled={uploadingContract}
-                          onClick={() => contractCameraRef.current?.click()}>
+                      {!isMobile &&
+                      <Button size="sm" variant="ghost" className="h-8"
+                      disabled={uploadingContract}
+                      onClick={() => contractCameraRef.current?.click()}>
                           <Camera className="w-3.5 h-3.5" />
                         </Button>
-                      )}
+                      }
                     </div>
                   </div>);
 
