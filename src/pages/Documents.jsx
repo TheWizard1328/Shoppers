@@ -86,6 +86,12 @@ export default function Documents() {
   const cameraInputRef = useRef(null);
   const contractFileRef = useRef(null);
   const contractCameraRef = useRef(null);
+  // Crop modal state
+  const [cropModal, setCropModal] = useState(null); // { src, file, docType, driverId, driverName, scope, storeId, storeName }
+  const cropCanvasRef = useRef(null);
+  const cropImageRef = useRef(null);
+  const [cropDrag, setCropDrag] = useState(null);
+  const [cropBox, setCropBox] = useState({ x: 0.05, y: 0.05, w: 0.9, h: 0.9 }); // relative 0-1
 
   const isAdmin = currentUser?.app_roles?.includes('admin');
   const isDispatcher = currentUser?.app_roles?.includes('dispatcher');
@@ -353,37 +359,37 @@ export default function Documents() {
     }
   };
 
-  // Upload document (driver self-upload)
+  // Open crop modal for image files, direct upload for PDFs
+  const openCropOrUpload = (file, docType, driverId, driverName, scope = 'driver', storeId = null, storeName = null) => {
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { alert('File too large. Maximum 15MB.'); return; }
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) { alert('Invalid file type. Use JPG, PNG, WebP, or PDF.'); return; }
+
+    if (file.type === 'application/pdf') {
+      // PDFs go straight to upload — no crop
+      handleUploadFile(file, docType, driverId, driverName, scope, storeId, storeName);
+      return;
+    }
+
+    // Images: show crop modal
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setCropBox({ x: 0.05, y: 0.05, w: 0.9, h: 0.9 });
+      setCropModal({ src: ev.target.result, file, docType, driverId, driverName, scope, storeId, storeName });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Upload document after optional crop
   const handleUploadFile = async (file, docType, driverId, driverName, scope = 'driver', storeId = null, storeName = null) => {
     if (!file) return;
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File too large. Maximum size is 10MB.');
-      return;
-    }
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!allowedTypes.includes(file.type)) {
-      alert('Invalid file type. Please upload a photo (JPG, PNG, WebP) or PDF.');
-      return;
-    }
-    setUploadingForDriver(docType + (driverId || storeId));
+    setUploadingForDriver(docType + (driverId || storeId || ''));
     try {
-      // Read file as base64 for upload
-      const reader = new FileReader();
-      const base64Data = await new Promise((resolve, reject) => {
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      // Upload to private storage
-      const uploadResp = await base44.files.upload({
-        filename: `${scope === 'store' ? 'store-contracts' : 'driver-docs'}/${driverId || storeId}/${docType}_${Date.now()}.${file.name.split('.').pop()}`,
-        contents: base64Data,
-        isPrivate: true,
-      });
-      const fileUri = uploadResp?.uri || uploadResp?.file_uri || uploadResp;
+      // Use base44.integrations.Core.UploadFile — the correct client-side upload API
+      const uploadResp = await base44.integrations.Core.UploadFile({ file });
+      const fileUri = uploadResp?.file_url || uploadResp?.data?.file_url || uploadResp?.uri || uploadResp?.file_uri;
+      if (!fileUri) throw new Error('Upload returned no file URL');
 
       await base44.functions.invoke('docAccessManager', {
         action: 'uploadDocument',
@@ -401,17 +407,42 @@ export default function Documents() {
       await loadData(true);
     } catch (err) {
       console.error('Upload failed:', err);
-      alert('Upload failed: ' + (err.message || ''));
+      alert('Upload failed: ' + (err.message || 'Unknown error'));
     } finally {
       setUploadingForDriver(null);
     }
+  };
+
+  // Confirm crop: draw cropped region to canvas and upload as blob
+  const handleCropConfirm = async () => {
+    if (!cropModal || !cropImageRef.current) return;
+    const img = cropImageRef.current;
+    const { x, y, w, h } = cropBox;
+    const sw = img.naturalWidth * w;
+    const sh = img.naturalHeight * h;
+    const sx = img.naturalWidth * x;
+    const sy = img.naturalHeight * y;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+    canvas.toBlob(async (blob) => {
+      const ext = cropModal.file.name.split('.').pop() || 'jpg';
+      const croppedFile = new File([blob], `cropped_${Date.now()}.${ext}`, { type: cropModal.file.type || 'image/jpeg' });
+      const { docType, driverId, driverName, scope, storeId, storeName } = cropModal;
+      setCropModal(null);
+      await handleUploadFile(croppedFile, docType, driverId, driverName, scope, storeId, storeName);
+    }, cropModal.file.type || 'image/jpeg', 0.92);
   };
 
   // Handle file input for driver doc upload
   const handleDriverFileInput = (e, docType) => {
     const file = e.target.files?.[0];
     if (file) {
-      handleUploadFile(file, docType, currentUser.id, getDriverDisplayName(currentUser), 'driver');
+      openCropOrUpload(file, docType, currentUser.id, getDriverDisplayName(currentUser), 'driver');
     }
     e.target.value = '';
   };
@@ -420,7 +451,7 @@ export default function Documents() {
   const handleContractFileInput = (e, storeId, storeName) => {
     const file = e.target.files?.[0];
     if (file) {
-      handleUploadFile(file, 'contract', null, null, 'store', storeId, storeName);
+      openCropOrUpload(file, 'contract', null, null, 'store', storeId, storeName);
     }
     e.target.value = '';
   };
@@ -915,6 +946,123 @@ export default function Documents() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* === CROP MODAL === */}
+      {cropModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setCropModal(null); }}>
+          <div className="bg-card rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <p className="font-semibold text-sm">Adjust & Crop</p>
+              <button className="text-muted-foreground hover:text-foreground" onClick={() => setCropModal(null)}>✕</button>
+            </div>
+
+            {/* Image with draggable crop overlay */}
+            <div className="relative select-none overflow-hidden bg-black"
+              style={{ maxHeight: '55vh' }}
+              onPointerMove={(e) => {
+                if (!cropDrag) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const rx = (e.clientX - rect.left) / rect.width;
+                const ry = (e.clientY - rect.top) / rect.height;
+                if (cropDrag.type === 'move') {
+                  const nx = Math.max(0, Math.min(rx - cropDrag.ox, 1 - cropBox.w));
+                  const ny = Math.max(0, Math.min(ry - cropDrag.oy, 1 - cropBox.h));
+                  setCropBox(b => ({ ...b, x: nx, y: ny }));
+                } else if (cropDrag.type === 'resize') {
+                  const nw = Math.max(0.1, Math.min(rx - cropBox.x, 1 - cropBox.x));
+                  const nh = Math.max(0.1, Math.min(ry - cropBox.y, 1 - cropBox.y));
+                  setCropBox(b => ({ ...b, w: nw, h: nh }));
+                }
+              }}
+              onPointerUp={() => setCropDrag(null)}
+              onPointerLeave={() => setCropDrag(null)}>
+              <img
+                ref={cropImageRef}
+                src={cropModal.src}
+                alt="crop preview"
+                className="w-full object-contain"
+                style={{ maxHeight: '55vh', display: 'block' }}
+                draggable={false}
+              />
+              {/* Dark overlay outside crop box */}
+              <div className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: `linear-gradient(to bottom,
+                    rgba(0,0,0,0.5) ${cropBox.y * 100}%,
+                    transparent ${cropBox.y * 100}%,
+                    transparent ${(cropBox.y + cropBox.h) * 100}%,
+                    rgba(0,0,0,0.5) ${(cropBox.y + cropBox.h) * 100}%)`,
+                }}>
+                <div className="absolute"
+                  style={{
+                    left: 0,
+                    top: `${cropBox.y * 100}%`,
+                    width: `${cropBox.x * 100}%`,
+                    height: `${cropBox.h * 100}%`,
+                    background: 'rgba(0,0,0,0.5)'
+                  }} />
+                <div className="absolute"
+                  style={{
+                    right: 0,
+                    top: `${cropBox.y * 100}%`,
+                    width: `${(1 - cropBox.x - cropBox.w) * 100}%`,
+                    height: `${cropBox.h * 100}%`,
+                    background: 'rgba(0,0,0,0.5)'
+                  }} />
+              </div>
+              {/* Crop box border + handles */}
+              <div className="absolute border-2 border-white"
+                style={{
+                  left: `${cropBox.x * 100}%`,
+                  top: `${cropBox.y * 100}%`,
+                  width: `${cropBox.w * 100}%`,
+                  height: `${cropBox.h * 100}%`,
+                  cursor: 'move',
+                  touchAction: 'none',
+                }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.parentElement.getBoundingClientRect();
+                  const rx = (e.clientX - rect.left) / rect.width;
+                  const ry = (e.clientY - rect.top) / rect.height;
+                  setCropDrag({ type: 'move', ox: rx - cropBox.x, oy: ry - cropBox.y });
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                }}>
+                {/* Corner handles */}
+                {[['0%','0%','-4px','-4px'], ['100%','0%','-4px','auto'], ['0%','100%','auto','-4px'], ['100%','100%','auto','auto']].map(([l,t,mt,ml], i) => (
+                  <div key={i} className="absolute w-4 h-4 bg-white border border-gray-400 rounded-sm"
+                    style={{ left: l, top: t, marginTop: mt === 'auto' ? undefined : mt, marginLeft: ml === 'auto' ? undefined : ml, transform: 'translate(-50%, -50%)', cursor: 'se-resize', touchAction: 'none' }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setCropDrag({ type: 'resize' });
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                    }} />
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-t">
+              <p className="text-xs text-muted-foreground">Drag box to move • drag corner to resize</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  // Skip crop — upload original
+                  const { file, docType, driverId, driverName, scope, storeId, storeName } = cropModal;
+                  setCropModal(null);
+                  handleUploadFile(file, docType, driverId, driverName, scope, storeId, storeName);
+                }}>Skip Crop</Button>
+                <Button size="sm" onClick={handleCropConfirm}
+                  disabled={!!uploadingForDriver}
+                  className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5">
+                  {uploadingForDriver ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : '✓'} Crop & Upload
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       </div>
