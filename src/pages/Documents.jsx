@@ -646,9 +646,8 @@ export default function Documents() {
                    <input id={`camera-input-${key}`} type="file" className="hidden"
                     accept="image/*" capture="environment"
                     onChange={(e) => handleDriverFileInput(e, key)} />
-                   {/* Desktop: single row — Icon + Label left | Date + Upload/Replace right */}
-                   {/* Mobile: two rows */}
-                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                   {/* Single row on all screen sizes */}
+                   <div className="flex items-center gap-2">
                      {/* Left: icon + label */}
                      <div className="flex items-center gap-2 flex-1 min-w-0">
                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${existingDoc ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-muted'}`}>
@@ -656,9 +655,9 @@ export default function Documents() {
                        </div>
                        <p className="font-semibold text-sm truncate">{label}</p>
                      </div>
-                     {/* Right: date + action badge */}
-                     <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto">
-                       <p className="text-xs text-muted-foreground flex-1 sm:flex-none">
+                     {/* Right: date (desktop only) + action badge */}
+                     <div className="flex items-center gap-2 flex-shrink-0">
+                       <p className="text-xs text-muted-foreground hidden sm:block">
                          {existingDoc ?
                           <>Uploaded {formatDateTime(existingDoc.uploaded_at)}{existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}</> :
                           'Not uploaded'}
@@ -739,17 +738,16 @@ export default function Documents() {
                   );
                   return (
                     <div key={doc.id} className="p-3 border rounded-lg text-sm">
-                        {/* Desktop: single row — [Driver Name · Doc Type] left | [Date · View · Delete] right */}
-                        {/* Mobile: row 1 = Driver + Doc Type + Date, row 2 = View + Delete badges */}
-                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                        {/* Single row on all screen sizes */}
+                        <div className="flex items-center gap-2">
                           {/* Left: driver name + doc type */}
                           <div className="flex items-center gap-1.5 flex-1 min-w-0">
                             <span className="font-semibold">{doc.driver_name || 'Unknown'}</span>
                             <span className="text-muted-foreground text-xs capitalize">{doc.document_type?.replace(/_/g, ' ')}</span>
                           </div>
-                          {/* Right: date + View + Delete */}
-                          <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
-                            <span className="text-xs text-muted-foreground flex-1 sm:flex-none hidden">{formatDateTime(doc.uploaded_at)}</span>
+                          {/* Right: date (desktop only) + View + Delete */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground hidden sm:inline">{formatDateTime(doc.uploaded_at)}</span>
                             <span
                             onClick={() => handleViewDoc(doc)}
                             className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
