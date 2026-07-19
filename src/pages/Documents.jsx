@@ -716,6 +716,34 @@ export default function Documents() {
             </Card>
           }
 
+          {/* My uploaded files — view/re-crop/rotate */}
+          {documents.filter((d) => d.driver_id === currentUser?.id && d.document_scope === 'driver').length > 0 &&
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">My Uploaded Documents</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                {documents.filter((d) => d.driver_id === currentUser?.id && d.document_scope === 'driver').map((doc) =>
+                <div key={doc.id} className="p-3 border rounded-lg text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="font-semibold capitalize">{doc.document_type?.replace(/_/g, ' ')}</span>
+                        <span className="text-muted-foreground text-xs">{formatDateTime(doc.uploaded_at)}</span>
+                      </div>
+                      <span
+                        onClick={() => handleViewDoc(doc)}
+                        className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
+                        View
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          }
+
           {/* My documents — upload area */}
           <Card>
             <CardHeader className="pb-3">
