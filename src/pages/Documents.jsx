@@ -918,6 +918,7 @@ export default function Documents() {
       {/* === Document Viewer Modal === */}
       {viewingDoc && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+          style={{ left: isMobile ? 0 : 'var(--sidebar-width, 260px)' }}
           onClick={(e) => { if (e.target === e.currentTarget) { setViewingDoc(null); setDocUrl(null); } }}>
           <div className="bg-card rounded-xl shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
             <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
