@@ -423,19 +423,26 @@ export default function Documents() {
     const sx = img.naturalWidth * x;
     const sy = img.naturalHeight * y;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = sw;
-    canvas.height = sh;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    // Scale down so longest side is max 1600px (reduces file size dramatically)
+    const MAX_SIDE = 1600;
+    const scale = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+    const dw = Math.round(sw * scale);
+    const dh = Math.round(sh * scale);
 
+    const canvas = document.createElement('canvas');
+    canvas.width = dw;
+    canvas.height = dh;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
+
+    // Always encode as JPEG at 0.85 quality — keeps docs readable, < 500 KB typically
     canvas.toBlob(async (blob) => {
-      const ext = cropModal.file.name.split('.').pop() || 'jpg';
-      const croppedFile = new File([blob], `cropped_${Date.now()}.${ext}`, { type: cropModal.file.type || 'image/jpeg' });
+      if (!blob) { alert('Failed to process image.'); return; }
+      const croppedFile = new File([blob], `doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
       const { docType, driverId, driverName, scope, storeId, storeName } = cropModal;
       setCropModal(null);
       await handleUploadFile(croppedFile, docType, driverId, driverName, scope, storeId, storeName);
-    }, cropModal.file.type || 'image/jpeg', 0.92);
+    }, 'image/jpeg', 0.85);
   };
 
   // Handle file input for driver doc upload
@@ -1046,11 +1053,25 @@ export default function Documents() {
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-t">
               <p className="text-xs text-muted-foreground">Drag box to move • drag corner to resize</p>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => {
-                  // Skip crop — upload original
+                <Button variant="outline" size="sm" onClick={async () => {
+                  // Skip crop — compress then upload
                   const { file, docType, driverId, driverName, scope, storeId, storeName } = cropModal;
                   setCropModal(null);
-                  handleUploadFile(file, docType, driverId, driverName, scope, storeId, storeName);
+                  // Compress image before upload
+                  const img2 = new Image();
+                  img2.onload = () => {
+                    const MAX = 1600;
+                    const scale2 = Math.min(1, MAX / Math.max(img2.naturalWidth, img2.naturalHeight));
+                    const c2 = document.createElement('canvas');
+                    c2.width = Math.round(img2.naturalWidth * scale2);
+                    c2.height = Math.round(img2.naturalHeight * scale2);
+                    c2.getContext('2d').drawImage(img2, 0, 0, c2.width, c2.height);
+                    c2.toBlob(async (b) => {
+                      const f2 = new File([b || file], `doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                      await handleUploadFile(f2, docType, driverId, driverName, scope, storeId, storeName);
+                    }, 'image/jpeg', 0.85);
+                  };
+                  img2.src = URL.createObjectURL(file);
                 }}>Skip Crop</Button>
                 <Button size="sm" onClick={handleCropConfirm}
                   disabled={!!uploadingForDriver}
