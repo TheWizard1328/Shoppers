@@ -920,7 +920,8 @@ export default function Documents() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
           style={{ left: isMobile ? 0 : 'var(--sidebar-width, 260px)' }}
           onClick={(e) => { if (e.target === e.currentTarget) { setViewingDoc(null); setDocUrl(null); } }}>
-          <div className="bg-card rounded-xl shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
+          <div className="bg-card rounded-xl shadow-2xl flex flex-col overflow-hidden"
+            style={{ width: '100%', maxWidth: '900px', height: '90vh' }}>
             <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
               <p className="font-semibold text-sm capitalize">
                 {viewingDoc.document_type?.replace(/_/g, ' ')}
@@ -931,18 +932,18 @@ export default function Documents() {
                 <XCircle className="w-4 h-4" /> Close
               </Button>
             </div>
-            <div className="overflow-y-auto flex-1 p-4">
+            <div className="flex-1 overflow-hidden relative">
               {docLoading ? (
-                <div className="flex items-center justify-center h-64">
+                <div className="flex items-center justify-center h-full">
                   <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
                 </div>
               ) : docUrl ? (
-                <div className="relative">
+                <div className="relative w-full h-full">
                   {viewingDoc.mime_type?.includes('pdf') ? (
-                    <iframe src={docUrl} className="w-full border rounded-lg" style={{ height: '70vh' }} title="Document" />
+                    <iframe src={docUrl} className="w-full h-full border-0" title="Document" />
                   ) : (
-                    <img src={docUrl} alt="Document" className="w-full object-contain border rounded-lg"
-                      style={{ maxHeight: '75vh', pointerEvents: 'none' }} />
+                    <img src={docUrl} alt="Document" className="w-full h-full object-contain"
+                      style={{ pointerEvents: 'none' }} />
                   )}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-black/10 font-bold text-3xl rotate-[-30deg] select-none">CONFIDENTIAL</div>
