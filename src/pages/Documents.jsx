@@ -850,9 +850,14 @@ export default function Documents() {
                         <Checkbox checked={isSelected} onCheckedChange={() => {}} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">{getDriverDisplayName(driver)}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {hasLicense ? '\u2713' : '\u2717'} License • {hasBg ? '\u2713' : '\u2717'} Background Check
-                          </p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                              {hasLicense ? '✓' : '✗'} License
+                            </span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${hasBg ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                              {hasBg ? '✓' : '✗'} Background Check
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
