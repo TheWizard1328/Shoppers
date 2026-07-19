@@ -136,15 +136,35 @@ export default function Documents() {
 
       // Load documents
       let allDocs = [];
+
+      // Driver (including driver+admin): load own driver-scoped docs
       if (isDriver) {
-        // Driver sees their own docs + store contracts for their store
         const myDocs = await base44.entities.DriverDocument.list({
           filter: { driver_id: me.id, document_scope: 'driver' },
           limit: 100
         });
         allDocs.push(...(myDocs || []));
+      }
 
-        // Store contracts for their stores
+      // Admin (including driver+admin): load ALL driver docs
+      if (isAdmin) {
+        const allDriverDocs = await base44.entities.DriverDocument.list({
+          filter: { document_scope: 'driver' },
+          limit: 500,
+          sort: '-uploaded_at'
+        });
+        // Deduplicate against driver's own docs already loaded
+        const seenIds = new Set(allDocs.map(d => d.id));
+        for (const doc of (allDriverDocs || [])) {
+          if (!seenIds.has(doc.id)) {
+            allDocs.push(doc);
+            seenIds.add(doc.id);
+          }
+        }
+      }
+
+      // Dispatcher (not admin, not driver): store contracts for their stores
+      if (isDispatcher && !isAdmin && !isDriver) {
         const myStoreIds = me.store_ids || [];
         for (const sid of myStoreIds) {
           const contracts = await base44.entities.DriverDocument.list({
@@ -152,28 +172,6 @@ export default function Documents() {
             limit: 10
           });
           allDocs.push(...(contracts || []));
-        }
-      } else {
-        // Dispatcher/Admin: see store contracts + driver docs they have access to
-        const myStoreIds = me.store_ids || [];
-
-        // Store contracts
-        for (const sid of myStoreIds) {
-          const contracts = await base44.entities.DriverDocument.list({
-            filter: { store_id: sid, document_scope: 'store', document_type: 'contract' },
-            limit: 10
-          });
-          allDocs.push(...(contracts || []));
-        }
-
-        // Admin can see all driver docs
-        if (isAdmin) {
-          const allDriverDocs = await base44.entities.DriverDocument.list({
-            filter: { document_scope: 'driver' },
-            limit: 500,
-            sort: '-uploaded_at'
-          });
-          allDocs.push(...(allDriverDocs || []));
         }
       }
 
@@ -181,25 +179,25 @@ export default function Documents() {
 
       // Load access requests
       let requests = [];
-      if (isDispatcher && !isAdmin) {
-        // Dispatcher sees their own requests
+      if (isAdmin) {
+        // Admin sees all requests
+        requests = await base44.entities.DocAccessRequest.list({
+          sort: '-requested_at',
+          limit: 200
+        });
+      } else if (isDispatcher) {
+        // Dispatcher sees their own outgoing requests
         requests = await base44.entities.DocAccessRequest.list({
           filter: { requester_id: me.id },
           sort: '-requested_at',
           limit: 100
         });
-      } else if (isDriver && !isAdmin) {
-        // Driver sees requests for their documents
+      } else if (isDriver) {
+        // Driver sees requests targeting them
         requests = await base44.entities.DocAccessRequest.list({
           filter: { driver_id: me.id },
           sort: '-requested_at',
           limit: 100
-        });
-      } else if (isAdmin) {
-        // Admin sees all requests
-        requests = await base44.entities.DocAccessRequest.list({
-          sort: '-requested_at',
-          limit: 200
         });
       }
       setAccessRequests(requests || []);
@@ -451,13 +449,13 @@ export default function Documents() {
 
   // Get driver's pending incoming requests (for driver view)
   const myPendingRequests = useMemo(() => {
-    if (!isDriver || isAdmin) return [];
+    if (!isDriver) return [];
     return accessRequests.filter(r => r.status === 'pending' && r.driver_id === currentUser?.id);
   }, [accessRequests, isDriver, isAdmin, currentUser]);
 
   // Get dispatcher's active approved requests
   const myActiveAccess = useMemo(() => {
-    if (!isDispatcher && !isAdmin) return [];
+    if (!isDispatcher) return [];
     return accessRequests.filter(r => isAccessActive(r));
   }, [accessRequests, isDispatcher, isAdmin]);
 
@@ -476,25 +474,30 @@ export default function Documents() {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <Shield className="w-6 h-6 text-blue-600" />
-          <h1 className="text-xl font-bold">Documents</h1>
-          <Badge variant="secondary" className="ml-2">
-            {documents.length} files
-          </Badge>
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Header — fixed */}
+      <div className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-3 max-w-7xl w-full mx-auto">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <Shield className="w-6 h-6 text-blue-600" />
+            <h1 className="text-xl font-bold">Documents</h1>
+            <Badge variant="secondary" className="ml-2">
+              {documents.length} files
+            </Badge>
+          </div>
+          <Button onClick={() => loadData()} variant="ghost" size="sm" disabled={refreshing}>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
-        <Button onClick={() => loadData()} variant="ghost" size="sm" disabled={refreshing}>
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-        </Button>
       </div>
 
-      {/* === DRIVER VIEW === */}
-      {isDriver && !isAdmin && (
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 max-w-7xl w-full mx-auto space-y-4">
+
+      {/* === DRIVER SECTION === */}
+      {isDriver && (
         <div className="space-y-4">
-          {/* Incoming access requests */}
+          {/* Incoming access requests (driver approves/denies) */}
           {myPendingRequests.length > 0 && (
             <Card className="border-amber-200 bg-amber-50">
               <CardHeader className="pb-3">
@@ -559,89 +562,60 @@ export default function Documents() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1.5 flex-shrink-0">
-                      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
-                        onChange={(e) => handleDriverFileInput(e, key)} />
-                      <input ref={fileInputRef} type="file" accept="image/*,application/pdf" className="hidden"
-                        onChange={(e) => handleDriverFileInput(e, key)} />
-                      <Button size="sm" variant="outline" onClick={() => cameraInputRef.current?.click()}
-                        disabled={!!uploadingForDriver} className="gap-1.5 h-8">
-                        {uploadingForDriver === key + currentUser?.id ?
-                          <div className="w-3.5 h-3.5 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" /> :
-                          <Camera className="w-3.5 h-3.5" />}
-                        Photo
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}
-                        disabled={!!uploadingForDriver} className="gap-1.5 h-8">
-                        <Upload className="w-3.5 h-3.5" /> File
-                      </Button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {existingDoc && (
-                        <Button size="sm" variant="ghost" onClick={() => handleViewDoc(existingDoc)} className="h-8">
+                        <Button size="sm" variant="ghost" className="h-8" onClick={() => handleViewDoc(existingDoc)}>
                           <Eye className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      <input ref={fileInputRef} type="file" className="hidden"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        onChange={(e) => handleDriverFileInput(e, key)} />
+                      <input ref={cameraInputRef} type="file" className="hidden"
+                        accept="image/*" capture="environment"
+                        onChange={(e) => handleDriverFileInput(e, key)} />
+                      <Button size="sm" variant="outline" className="h-8 gap-1.5"
+                        disabled={!!uploadingForDriver}
+                        onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="w-3.5 h-3.5" />
+                        {existingDoc ? 'Replace' : 'Upload'}
+                      </Button>
+                      {!isMobile && (
+                        <Button size="sm" variant="ghost" className="h-8"
+                          disabled={!!uploadingForDriver}
+                          onClick={() => cameraInputRef.current?.click()}>
+                          <Camera className="w-3.5 h-3.5" />
                         </Button>
                       )}
                     </div>
                   </div>
                 );
               })}
+              {uploadingForDriver && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="w-4 h-4 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                  Uploading...
+                </div>
+              )}
             </CardContent>
           </Card>
-
-          {/* Store contracts (read-only) */}
-          {(currentUser?.store_ids || []).length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Building2 className="w-4 h-4" /> Store Contracts
-                </CardTitle>
-                <CardDescription>Contracts for your assigned stores</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {(currentUser?.store_ids || []).map(sid => {
-                  const store = stores?.find(s => s?.id === sid);
-                  const contracts = getStoreContracts(sid);
-                  return (
-                    <div key={sid} className="p-3 border rounded-lg">
-                      <p className="text-sm font-medium mb-1">{store?.name || 'Unknown Store'}</p>
-                      {contracts.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No contract uploaded</p>
-                      ) : (
-                        contracts.map(c => (
-                          <div key={c.id} className="flex items-center justify-between gap-2 mt-2">
-                            <span className="text-xs text-muted-foreground">
-                              {formatDateTime(c.uploaded_at)}
-                              {c.document_expiry_date && ` • expires ${c.document_expiry_date}`}
-                            </span>
-                            <Button size="sm" variant="ghost" onClick={() => handleViewDoc(c)} className="h-7">
-                              <Eye className="w-3.5 h-3.5" /> View
-                            </Button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
 
-      {/* === DISPATCHER / ADMIN VIEW === */}
-      {(isDispatcher || isAdmin) && (
+      {/* === ADMIN SECTION (not dispatcher-only) === */}
+      {isAdmin && (
         <div className="space-y-4">
-          {/* Pending requests (admin sees all, dispatcher sees their own outgoing) */}
-          {(allPendingRequests.length > 0 || myActiveAccess.length > 0) && (
+          {/* Pending requests for admin to approve */}
+          {allPendingRequests.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-600" />
-                  {isAdmin ? 'All Access Requests' : 'My Access Requests'}
+                  Access Requests to Review ({allPendingRequests.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {/* Admin: pending requests to approve */}
-                {isAdmin && allPendingRequests.map(req => (
+                {allPendingRequests.map(req => (
                   <div key={req.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg bg-amber-50/50">
                     <div className="min-w-0">
                       <p className="font-medium text-sm">
@@ -663,8 +637,60 @@ export default function Documents() {
                     </div>
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          )}
 
-                {/* Active approved access with countdown */}
+          {/* All documents table */}
+          {!viewingDoc && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">All Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1">
+                  {documents.filter(d => d.document_scope === 'driver').map(doc => (
+                    <div key={doc.id} className="flex items-center justify-between gap-2 p-2 border rounded-lg text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="font-medium">{doc.driver_name || 'Unknown'}</span>
+                        <span className="text-muted-foreground text-xs">{doc.document_type?.replace(/_/g, ' ')}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-xs text-muted-foreground">{formatDateTime(doc.uploaded_at)}</span>
+                        <Button size="sm" variant="ghost" className="h-6" onClick={() => handleViewDoc(doc)}>
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-6 text-red-600"
+                          onClick={() => handleDeleteDoc(doc.id)} disabled={actionLoading === 'delete-' + doc.id}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {documents.filter(d => d.document_scope === 'driver').length === 0 && (
+                    <p className="text-center text-sm text-muted-foreground py-4">No documents uploaded yet</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* === DISPATCHER SECTION (dispatchers only, not admins) === */}
+      {isDispatcher && !isAdmin && (
+        <div className="space-y-4">
+          {/* Active approved access */}
+          {myActiveAccess.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  Active Access ({myActiveAccess.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
                 {myActiveAccess.map(req => (
                   <div key={req.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg bg-emerald-50/50">
                     <div className="min-w-0">
@@ -751,7 +777,7 @@ export default function Documents() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">{getDriverDisplayName(driver)}</p>
                           <p className="text-xs text-muted-foreground">
-                            {hasLicense ? '✓' : '✗'} License • {hasBg ? '✓' : '✗'} Background Check
+                            {hasLicense ? '\u2713' : '\u2717'} License • {hasBg ? '\u2713' : '\u2717'} Background Check
                           </p>
                         </div>
                       </div>
@@ -784,133 +810,114 @@ export default function Documents() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Building2 className="w-4 h-4" /> Store Contracts
               </CardTitle>
-              <CardDescription>Upload and manage driver contracts for your stores</CardDescription>
+              <CardDescription>Upload and manage driver contracts for your store(s)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {(dispatcherStores.length > 0 ? dispatcherStores : (isAdmin ? stores : [])).map(store => {
-                const contracts = getStoreContracts(store?.id);
+              {dispatcherStores.map(store => {
+                const contracts = getStoreContracts(store.id);
                 return (
-                  <div key={store?.id} className="p-3 border rounded-lg">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-sm">{store?.name}</p>
-                      <div className="flex gap-1.5">
-                        <input ref={contractCameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-                          onChange={(e) => handleContractFileInput(e, store?.id, store?.name)} />
-                        <input ref={contractFileRef} type="file" accept="image/*,application/pdf" className="hidden"
-                          onChange={(e) => handleContractFileInput(e, store?.id, store?.name)} />
-                        <Button size="sm" variant="outline" className="gap-1.5 h-8"
-                          onClick={() => contractCameraRef.current?.click()}>
-                          <Camera className="w-3.5 h-3.5" /> Photo
-                        </Button>
-                        <Button size="sm" variant="outline" className="gap-1.5 h-8"
+                  <div key={store.id} className="p-3 border rounded-lg">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="text-sm font-medium">{store?.name || 'Unknown Store'}</p>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <input ref={contractFileRef} type="file" className="hidden"
+                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
+                        <input ref={contractCameraRef} type="file" className="hidden"
+                          accept="image/*" capture="environment"
+                          onChange={(e) => handleContractFileInput(e, store.id, store?.name)} />
+                        <Button size="sm" variant="outline" className="h-8 gap-1.5"
+                          disabled={uploadingContract}
                           onClick={() => contractFileRef.current?.click()}>
                           <Upload className="w-3.5 h-3.5" /> Upload
                         </Button>
+                        {!isMobile && (
+                          <Button size="sm" variant="ghost" className="h-8"
+                            disabled={uploadingContract}
+                            onClick={() => contractCameraRef.current?.click()}>
+                            <Camera className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                     {contracts.length === 0 ? (
-                      <p className="text-xs text-muted-foreground mt-2">No contract uploaded</p>
+                      <p className="text-xs text-muted-foreground">No contract uploaded</p>
                     ) : (
-                      <div className="mt-2 space-y-1">
-                        {contracts.map(c => (
-                          <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
-                            <span className="text-muted-foreground">
-                              Uploaded {formatDateTime(c.uploaded_at)} by {c.uploaded_by_name}
-                              {c.document_expiry_date && ` • expires ${c.document_expiry_date}`}
-                            </span>
-                            <div className="flex gap-1">
-                              <Button size="sm" variant="ghost" className="h-6" onClick={() => handleViewDoc(c)}>
-                                <Eye className="w-3 h-3" />
-                              </Button>
-                              {(isAdmin || c.uploaded_by === currentUser?.id) && (
-                                <Button size="sm" variant="ghost" className="h-6 text-red-600" disabled={actionLoading === 'delete-' + c.id}
-                                  onClick={() => handleDeleteDoc(c.id)}>
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              )}
-                            </div>
+                      contracts.map(c => (
+                        <div key={c.id} className="flex items-center justify-between gap-2 mt-2">
+                          <span className="text-xs text-muted-foreground">
+                            {formatDateTime(c.uploaded_at)}
+                            {c.document_expiry_date && ` • expires ${c.document_expiry_date}`}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="ghost" className="h-7" onClick={() => handleViewDoc(c)}>
+                              <Eye className="w-3.5 h-3.5" /> View
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-red-600"
+                              onClick={() => handleDeleteDoc(c.id)} disabled={actionLoading === 'delete-' + c.id}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))
                     )}
                   </div>
                 );
               })}
+              {uploadingContract && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="w-4 h-4 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                  Uploading contract...
+                </div>
+              )}
             </CardContent>
           </Card>
-
-          {/* Document viewer (inline, right side on desktop / below on mobile) */}
-          {viewingDoc && (
-            <Card className="border-blue-200">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-blue-600" />
-                    Viewing: {viewingDoc.document_type?.replace(/_/g, ' ')}
-                    {viewingDoc.driver_name && ` — ${viewingDoc.driver_name}`}
-                    {viewingDoc.store_name && ` — ${viewingDoc.store_name}`}
-                  </CardTitle>
-                  <Button size="sm" variant="ghost" onClick={() => { setViewingDoc(null); setDocUrl(null); }}>
-                    <XCircle className="w-4 h-4" /> Close
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {docLoading ? (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-                  </div>
-                ) : docUrl ? (
-                  <div className="relative">
-                    {viewingDoc.mime_type?.includes('pdf') ? (
-                      <iframe src={docUrl} className="w-full h-[70vh] border rounded-lg" title="Document" />
-                    ) : (
-                      <img src={docUrl} alt="Document" className="w-full max-h-[70vh] object-contain border rounded-lg"
-                        style={{ pointerEvents: 'none' }} />
-                    )}
-                    {/* Watermark overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="text-white/20 font-bold text-2xl rotate-[-30deg] select-none">
-                        CONFIDENTIAL
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-center text-sm text-muted-foreground py-8">Failed to load document</p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Admin: all documents table */}
-          {isAdmin && !viewingDoc && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">All Documents</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-1 max-h-80 overflow-y-auto">
-                  {documents.filter(d => d.document_scope === 'driver').map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between gap-2 p-2 border rounded-lg text-sm">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="font-medium">{doc.driver_name || 'Unknown'}</span>
-                        <span className="text-muted-foreground text-xs">{doc.document_type?.replace(/_/g, ' ')}</span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs text-muted-foreground">{formatDateTime(doc.uploaded_at)}</span>
-                        <Button size="sm" variant="ghost" className="h-6" onClick={() => handleViewDoc(doc)}>
-                          <Eye className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
+
+      {/* === Document Viewer Modal === */}
+      {viewingDoc && (
+        <Card className="fixed inset-4 z-50 bg-card shadow-2xl">
+          <CardHeader className="pb-3 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">
+                {viewingDoc.document_type?.replace(/_/g, ' ')}
+                {viewingDoc.driver_name && ` \u2014 ${viewingDoc.driver_name}`}
+                {viewingDoc.store_name && ` \u2014 ${viewingDoc.store_name}`}
+              </CardTitle>
+              <Button size="sm" variant="ghost" onClick={() => { setViewingDoc(null); setDocUrl(null); }}>
+                <XCircle className="w-4 h-4" /> Close
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="overflow-y-auto">
+            {docLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+              </div>
+            ) : docUrl ? (
+              <div className="relative">
+                {viewingDoc.mime_type?.includes('pdf') ? (
+                  <iframe src={docUrl} className="w-full h-[70vh] border rounded-lg" title="Document" />
+                ) : (
+                  <img src={docUrl} alt="Document" className="w-full max-h-[70vh] object-contain border rounded-lg"
+                    style={{ pointerEvents: 'none' }} />
+                )}
+                {/* Watermark overlay */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-white/20 font-bold text-2xl rotate-[-30deg] select-none">
+                    CONFIDENTIAL
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-center text-sm text-muted-foreground py-8">Failed to load document</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      </div>
     </div>
   );
 }
