@@ -247,10 +247,9 @@ export default function Documents() {
 
   useEffect(() => {
     loadData();
-    const unsubscribe = base44.entities.DriverDocument.subscribe(() => {
-      loadData(true);
-    });
-    return () => unsubscribe();
+    const unsubDoc = base44.entities.DriverDocument.subscribe(() => loadData(true));
+    const unsubReq = base44.entities.DocAccessRequest.subscribe(() => loadData(true));
+    return () => { unsubDoc(); unsubReq(); };
   }, [loadData]);
 
   // Get documents for a specific driver
