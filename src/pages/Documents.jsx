@@ -928,8 +928,8 @@ export default function Documents() {
                           <span className={`text-xs px-2 py-0.5 rounded font-medium w-20 text-center flex-shrink-0 ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
                             {hasLicense ? '✓ License' : '✗ License'}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium w-16 text-center flex-shrink-0 ${hasBg ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                            {hasBg ? '✓ BG' : '✗ BG'}
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium w-36 text-center flex-shrink-0 ${hasBg ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                            {hasBg ? '✓ Background Check' : '✗ Background Check'}
                           </span>
                         </div>
                         {(hasPending || hasReadyToView) && (
