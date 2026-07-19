@@ -741,25 +741,17 @@ export default function Documents() {
                   r.status === 'pending' || isAccessActive(r))
                   );
                   return (
-                    <div key={doc.id} className="flex flex-col gap-1.5 p-3 border rounded-lg text-sm">
-                        {/* Row 1: doc type + driver name | View badge */}
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold capitalize">{doc.document_type?.replace(/_/g, ' ')}</span>
-                            <span className="text-muted-foreground text-xs ml-1.5">{doc.driver_name || 'Unknown'}</span>
-                          </div>
-                          <span
-                            onClick={() => handleViewDoc(doc)}
-                            className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
-                            View
-                          </span>
-                        </div>
-                        {/* Row 2: date | Delete badge */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground flex-1">{formatDateTime(doc.uploaded_at)}</span>
+                    <div key={doc.id} className="p-3 border rounded-lg text-sm">
+                        {/* Desktop: single row — Driver Name | Doc Type | Date | Delete */}
+                        {/* Mobile: row 1 = Driver Name + Doc Type + Date, row 2 = Delete */}
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                          <span className="font-semibold capitalize flex-shrink-0">{doc.driver_name || 'Unknown'}</span>
+                          <span className="text-muted-foreground text-xs flex-shrink-0">{doc.document_type?.replace(/_/g, ' ')}</span>
+                          <span className="text-xs text-muted-foreground flex-1 min-w-0 sm:text-right truncate">{formatDateTime(doc.uploaded_at)}</span>
+                          {/* Delete badge — on mobile pushes to its own row via w-full sm:w-auto */}
                           <span
                             onClick={() => !actionLoading && handleDeleteDoc(doc.id)}
-                            className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors flex-shrink-0">
+                            className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors flex-shrink-0 sm:ml-auto w-full sm:w-auto text-center sm:text-left mt-0.5 sm:mt-0">
                             Delete
                           </span>
                         </div>
