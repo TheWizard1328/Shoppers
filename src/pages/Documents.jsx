@@ -639,40 +639,37 @@ export default function Documents() {
               {REQUESTABLE_DOC_TYPES.map(({ key, label }) => {
                 const existingDoc = documents.find((d) => d.document_type === key && d.driver_id === currentUser?.id);
                 return (
-                  <div key={key} className="flex flex-col gap-1.5 p-4 border rounded-lg">
-                    <input id={`file-input-${key}`} type="file" className="hidden"
-                      accept="image/jpeg,image/png,image/webp,application/pdf"
-                      onChange={(e) => handleDriverFileInput(e, key)} />
-                    <input id={`camera-input-${key}`} type="file" className="hidden"
-                      accept="image/*" capture="environment"
-                      onChange={(e) => handleDriverFileInput(e, key)} />
-                    {/* Row 1: icon + label + upload/replace badge */}
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${existingDoc ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-muted'}`}>
-                        {existingDoc ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <FileText className="w-4 h-4 text-muted-foreground" />}
-                      </div>
-                      <p className="font-semibold text-sm flex-1">{label}</p>
-                      <span
-                        onClick={() => !uploadingForDriver && document.getElementById(`file-input-${key}`)?.click()}
-                        className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex-shrink-0">
-                        {existingDoc ? 'Replace' : 'Upload'}
-                      </span>
-                    </div>
-                    {/* Row 2: date/status + view badge */}
-                    <div className="flex items-center gap-2 pl-0.5">
-                      <p className="text-xs text-muted-foreground flex-1">
-                        {existingDoc
-                          ? <>Uploaded {formatDateTime(existingDoc.uploaded_at)}{existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}</>
-                          : 'Not uploaded'}
-                      </p>
-                      {existingDoc && (
-                        <span
-                          onClick={() => handleViewDoc(existingDoc)}
-                          className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
-                          View
-                        </span>
-                      )}
-                    </div>
+                  <div key={key} className="p-3 border rounded-lg">
+                   <input id={`file-input-${key}`} type="file" className="hidden"
+                     accept="image/jpeg,image/png,image/webp,application/pdf"
+                     onChange={(e) => handleDriverFileInput(e, key)} />
+                   <input id={`camera-input-${key}`} type="file" className="hidden"
+                     accept="image/*" capture="environment"
+                     onChange={(e) => handleDriverFileInput(e, key)} />
+                   {/* Desktop: single row — Icon + Label left | Date + Upload/Replace right */}
+                   {/* Mobile: two rows */}
+                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                     {/* Left: icon + label */}
+                     <div className="flex items-center gap-2 flex-1 min-w-0">
+                       <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${existingDoc ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-muted'}`}>
+                         {existingDoc ? <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground" />}
+                       </div>
+                       <p className="font-semibold text-sm truncate">{label}</p>
+                     </div>
+                     {/* Right: date + action badge */}
+                     <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto">
+                       <p className="text-xs text-muted-foreground flex-1 sm:flex-none">
+                         {existingDoc
+                           ? <>Uploaded {formatDateTime(existingDoc.uploaded_at)}{existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}</>
+                           : 'Not uploaded'}
+                       </p>
+                       <span
+                         onClick={() => !uploadingForDriver && document.getElementById(`file-input-${key}`)?.click()}
+                         className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex-shrink-0">
+                         {existingDoc ? 'Replace' : 'Upload'}
+                       </span>
+                     </div>
+                   </div>
                   </div>);
 
               })}
@@ -742,18 +739,28 @@ export default function Documents() {
                   );
                   return (
                     <div key={doc.id} className="p-3 border rounded-lg text-sm">
-                        {/* Desktop: single row — Driver Name | Doc Type | Date | Delete */}
-                        {/* Mobile: row 1 = Driver Name + Doc Type + Date, row 2 = Delete */}
+                        {/* Desktop: single row — [Driver Name · Doc Type] left | [Date · View · Delete] right */}
+                        {/* Mobile: row 1 = Driver + Doc Type + Date, row 2 = View + Delete badges */}
                         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-                          <span className="font-semibold capitalize flex-shrink-0">{doc.driver_name || 'Unknown'}</span>
-                          <span className="text-muted-foreground text-xs flex-shrink-0">{doc.document_type?.replace(/_/g, ' ')}</span>
-                          <span className="text-xs text-muted-foreground flex-1 min-w-0 sm:text-right truncate">{formatDateTime(doc.uploaded_at)}</span>
-                          {/* Delete badge — on mobile pushes to its own row via w-full sm:w-auto */}
-                          <span
-                            onClick={() => !actionLoading && handleDeleteDoc(doc.id)}
-                            className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors flex-shrink-0 sm:ml-auto w-full sm:w-auto text-center sm:text-left mt-0.5 sm:mt-0">
-                            Delete
-                          </span>
+                          {/* Left: driver name + doc type */}
+                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                            <span className="font-semibold">{doc.driver_name || 'Unknown'}</span>
+                            <span className="text-muted-foreground text-xs capitalize">{doc.document_type?.replace(/_/g, ' ')}</span>
+                          </div>
+                          {/* Right: date + View + Delete */}
+                          <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+                            <span className="text-xs text-muted-foreground flex-1 sm:flex-none">{formatDateTime(doc.uploaded_at)}</span>
+                            <span
+                              onClick={() => handleViewDoc(doc)}
+                              className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
+                              View
+                            </span>
+                            <span
+                              onClick={() => !actionLoading && handleDeleteDoc(doc.id)}
+                              className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors flex-shrink-0">
+                              Delete
+                            </span>
+                          </div>
                         </div>
                         {docAccessList.map((req) => {
                         const active = isAccessActive(req);
