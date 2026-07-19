@@ -639,19 +639,22 @@ export default function Documents() {
               {REQUESTABLE_DOC_TYPES.map(({ key, label }) => {
                 const existingDoc = documents.find((d) => d.document_type === key && d.driver_id === currentUser?.id);
                 return (
-                  <div key={key} className="flex items-center gap-3 p-4 border rounded-lg">
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${existingDoc ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-muted'}`}>
-                      {existingDoc ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <FileText className="w-5 h-5 text-muted-foreground" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
+                  <div key={key} className="flex flex-col gap-2 p-4 border rounded-lg">
+                    {/* Row 1: icon + label */}
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${existingDoc ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-muted'}`}>
+                        {existingDoc ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <FileText className="w-4 h-4 text-muted-foreground" />}
+                      </div>
                       <p className="font-semibold text-sm">{label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {existingDoc
-                          ? <>Uploaded {formatDateTime(existingDoc.uploaded_at)}{existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}</>
-                          : 'Not uploaded'}
-                      </p>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {/* Row 2: date/status */}
+                    <p className="text-xs text-muted-foreground pl-0.5">
+                      {existingDoc
+                        ? <>Uploaded {formatDateTime(existingDoc.uploaded_at)}{existingDoc.document_expiry_date && ` • expires ${existingDoc.document_expiry_date}`}</>
+                        : 'Not uploaded'}
+                    </p>
+                    {/* Row 3: action buttons */}
+                    <div className="flex items-center gap-2">
                       <input id={`file-input-${key}`} type="file" className="hidden"
                         accept="image/jpeg,image/png,image/webp,application/pdf"
                         onChange={(e) => handleDriverFileInput(e, key)} />
@@ -659,8 +662,8 @@ export default function Documents() {
                         accept="image/*" capture="environment"
                         onChange={(e) => handleDriverFileInput(e, key)} />
                       {existingDoc && (
-                        <Button size="sm" variant="ghost" className="h-9 w-9 p-0" onClick={() => handleViewDoc(existingDoc)}>
-                          <Eye className="w-4 h-4" />
+                        <Button size="sm" variant="outline" className="h-9 gap-1.5 px-3" onClick={() => handleViewDoc(existingDoc)}>
+                          <Eye className="w-3.5 h-3.5" /> View
                         </Button>
                       )}
                       <Button size="sm" variant="outline" className="h-9 gap-1.5 px-3"
@@ -738,24 +741,24 @@ export default function Documents() {
                   r.status === 'pending' || isAccessActive(r))
                   );
                   return (
-                    <div key={doc.id} className="flex flex-col gap-2 p-3 border rounded-lg text-sm">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                            <div className="min-w-0">
-                              <span className="font-semibold block">{doc.driver_name || 'Unknown'}</span>
-                              <span className="text-muted-foreground text-xs capitalize block mt-0.5">{doc.document_type?.replace(/_/g, ' ')} • {formatDateTime(doc.uploaded_at)}</span>
-                            </div>
+                    <div key={doc.id} className="flex flex-col gap-1 p-3 border rounded-lg text-sm">
+                        {/* Row 1: doc type + driver name | View button */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <span className="font-semibold capitalize">{doc.document_type?.replace(/_/g, ' ')}</span>
+                            <span className="text-muted-foreground ml-1.5 text-xs">— {doc.driver_name || 'Unknown'}</span>
                           </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleViewDoc(doc)}>
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600"
-                              onClick={() => handleDeleteDoc(doc.id)} disabled={actionLoading === 'delete-' + doc.id}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 flex-shrink-0" onClick={() => handleViewDoc(doc)}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        {/* Row 2: date | Delete button */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">{formatDateTime(doc.uploaded_at)}</span>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 flex-shrink-0"
+                            onClick={() => handleDeleteDoc(doc.id)} disabled={actionLoading === 'delete-' + doc.id}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                         {docAccessList.map((req) => {
                         const active = isAccessActive(req);
