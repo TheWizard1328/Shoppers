@@ -575,7 +575,7 @@ export default function Documents() {
           <div className="flex items-center gap-2">
             <Shield className="w-6 h-6 text-blue-600" />
             <h1 className="text-xl font-bold">Documents</h1>
-            <Badge variant="secondary" className="ml-2">
+            <Badge className="ml-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-0">
               {documents.length} files
             </Badge>
           </div>
@@ -749,7 +749,7 @@ export default function Documents() {
                           </div>
                           {/* Right: date + View + Delete */}
                           <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
-                            
+                            <span className="text-xs text-muted-foreground flex-1 sm:flex-none hidden">{formatDateTime(doc.uploaded_at)}</span>
                             <span
                             onClick={() => handleViewDoc(doc)}
                             className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors flex-shrink-0">
