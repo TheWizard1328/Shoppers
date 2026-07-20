@@ -67,10 +67,7 @@ export default function InAppMessageDialog({ currentUser, onOpenConversation }) 
       setReplyText('');
       setShowReply(false);
 
-      // Auto-dismiss after 15 seconds if no interaction
-      autoDismissRef.current = setTimeout(() => {
-        setMessage(null);
-      }, 15000);
+      // No auto-dismiss — user must explicitly act
     };
 
     const unsubscribe = base44.entities.Message.subscribe(handleNewMessage);
@@ -137,11 +134,11 @@ export default function InAppMessageDialog({ currentUser, onOpenConversation }) 
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 30, scale: 0.96 }}
           transition={{ type: 'spring', stiffness: 300, damping: 26 }}
-          className="fixed bottom-24 left-1/2 z-[10050] w-[calc(100%-2rem)] max-w-md"
-          style={{ transform: 'translateX(-50%)' }}
+          className="fixed inset-0 z-[10050] flex items-center justify-center p-4 pointer-events-none"
+          style={{}}
         >
           <div
-            className="rounded-2xl shadow-2xl overflow-hidden"
+            className="rounded-2xl shadow-2xl overflow-hidden w-full max-w-md pointer-events-auto"
             style={{ background: 'var(--bg-white)', border: '1px solid var(--border-slate-200)' }}
           >
             {/* Header */}
