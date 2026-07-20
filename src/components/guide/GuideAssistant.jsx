@@ -57,6 +57,7 @@ export default function GuideAssistant() {
   const navigate = useNavigate();
   const { currentUser, deliveries: appDeliveries, patients: appPatients, stores: appStores, drivers: appDrivers } = useAppData();
   const [isOpen, setIsOpen] = useState(false);
+  const lastClosedAtRef = useRef(null);
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
   });
@@ -760,6 +761,22 @@ export default function GuideAssistant() {
     try { localStorage.setItem(STORAGE_KEY, 'true'); } catch { /* ignore */ }
     setHasSeenIntro(true);
 
+    // Auto-clear if closed for more than 5 minutes
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    const shouldReset = lastClosedAtRef.current && (Date.now() - lastClosedAtRef.current) > FIVE_MINUTES;
+    if (shouldReset && messages.length > 0) {
+      setMessages([]);
+      setActiveFlow(null);
+      setCurrentStepId(null);
+      setShowQuickActions(true);
+      setQuickActionsCollapsed(false);
+      setShowTips(false);
+      try { localStorage.removeItem(CONVERSATION_KEY); } catch { /* ignore */ }
+      addBotMessage("Welcome back! 👋 How can I help you?", []);
+      setTimeout(() => inputRef.current?.focus(), 300);
+      return;
+    }
+
     // If no messages yet, show appropriate greeting
     if (messages.length === 0) {
       if (!hasShownDailyGreeting) {
@@ -788,6 +805,7 @@ export default function GuideAssistant() {
 
   const handleClose = useCallback(() => {
     setIsOpen(false);
+    lastClosedAtRef.current = Date.now();
   }, []);
 
   const handleClear = useCallback(() => {
