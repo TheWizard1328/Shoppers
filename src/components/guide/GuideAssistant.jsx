@@ -47,10 +47,7 @@ const MOTIVATIONAL_QUOTES = [
   "Smooth roads never make good drivers. Keep pushing! 💪",
 ];
 
-// FAB is h-10 (40px) + 10px gap above stop cards + 8px gap above FAB
-const FAB_HEIGHT = 40;
-const FAB_GAP = 10;
-const GUIDE_GAP = 8;
+
 
 export default function GuideAssistant() {
   const location = useLocation();
@@ -80,67 +77,51 @@ export default function GuideAssistant() {
   const [guideBottomPx, setGuideBottomPx] = useState(80);
 
   useEffect(() => {
-    const compute = () => {
-      const isMobileScreen = window.innerWidth < 850;
-
-      // Measure actual bottom nav height (CSS var is always 0px)
+    const compute = (e) => {
+      // Measure bottom nav height by querying the DOM element directly
       let bottomNavHeight = 0;
       const navEl = document.querySelector('[data-mobile-bottom-nav]');
-      if (navEl) {
-        bottomNavHeight = navEl.offsetHeight || 0;
-      }
+      if (navEl) bottomNavHeight = navEl.offsetHeight || 0;
 
-      // --stop-cards-height is set by Dashboard.jsx on mount, removed on unmount.
-      // If it exists (even '0px'), we're on the Dashboard page.
+      // --stop-cards-height is set by Dashboard.jsx — presence means we're on Dashboard
       const stopCardsHeightStr = getComputedStyle(document.documentElement).getPropertyValue('--stop-cards-height') || '';
       const isOnDashboard = stopCardsHeightStr.trim() !== '';
 
       if (isOnDashboard) {
-        // In immersive mode the stop cards are hidden — match the other FABs
-        // which use bottomNavHeight + 10 (ignoring stop cards entirely).
-        const immersiveMode = getComputedStyle(document.documentElement).getPropertyValue('--immersive-mode').trim() === '1';
-        const stopCardsHeight = immersiveMode ? 0 : (parseInt(stopCardsHeightStr, 10) || 0);
-        const fabBottom = stopCardsHeight + bottomNavHeight + FAB_GAP;
-        const guideBottom = fabBottom + FAB_HEIGHT + GUIDE_GAP;
-        setGuideBottomPx(guideBottom);
-      } else if (!isMobileScreen) {
-        // Non-Dashboard desktop: bottom-right corner
+        // Mirror MapViewCycleFAB's exact formula:
+        //   bottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10
+        // Read immersive flag — either from the event detail or from the CSS var
+        const isImmersive = e?.detail?.hidden === true ||
+          getComputedStyle(document.documentElement).getPropertyValue('--immersive-mode').trim() === '1';
+        const stopCardsHeight = parseInt(stopCardsHeightStr, 10) || 0;
+        const hasVisibleCards = stopCardsHeight > 0;
+        // This is exactly what MapViewCycleFAB computes as its own bottom
+        const mapFabBottom = ((hasVisibleCards && !isImmersive) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
+        // Guide FAB sits above the map FAB: + FAB height (40px) + 8px gap
+        setGuideBottomPx(mapFabBottom + 40 + 8);
+      } else if (window.innerWidth >= 850) {
         setGuideBottomPx(24);
       } else {
-        // Non-Dashboard mobile: just above the bottom nav bar
         setGuideBottomPx(bottomNavHeight + 12);
       }
     };
 
     compute();
 
-    // Re-compute when CSS variables change (stop cards height updates)
-    const observer = new MutationObserver(() => compute());
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    });
-
-    // Re-compute on resize (mobile <-> desktop transition)
+    window.addEventListener('immersiveModeChanged', compute);
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
-
-    // Re-compute on SPA navigation (bottom nav may mount/unmount)
     window.addEventListener('popstate', compute);
 
-    // Re-compute immediately when immersive mode toggles
-    window.addEventListener('immersiveModeChanged', compute);
-
-    // Brief startup poll so CSS vars settle after initial mount
+    // Brief startup poll so --stop-cards-height settles after mount
     const interval = setInterval(compute, 500);
     const timeout = setTimeout(() => clearInterval(interval), 3000);
 
     return () => {
-      observer.disconnect();
+      window.removeEventListener('immersiveModeChanged', compute);
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
       window.removeEventListener('popstate', compute);
-      window.removeEventListener('immersiveModeChanged', compute);
       clearInterval(interval);
       clearTimeout(timeout);
     };
