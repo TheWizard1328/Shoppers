@@ -1,3 +1,5 @@
+src/components/guide/guideFlows.jsx
+
 /**
  * guideFlows.jsx — Conversation flow definitions for the RxDeliver Guide Assistant.
  * Each flow is a state machine: steps → responses → next steps.
@@ -41,7 +43,7 @@ export const FLOWS = {
       },
       {
         id: 'open_form',
-        bot: "On the Dashboard, look for the green 'New Delivery' button — it's usually in the top-right area or as a floating button (+). Tap it to open the delivery form.",
+        bot: "On the Dashboard, look for the green 'New Delivery' button — it's usually in the top-right corner of the Dashboard card as a floating green button (+). Tap it to open the delivery form.",
         actions: [
           { label: 'I see the form', type: 'next' },
           { label: 'I can\'t find it', type: 'jump', target: 'cant_find' },
@@ -49,44 +51,53 @@ export const FLOWS = {
       },
       {
         id: 'select_patient',
-        bot: "Great! The delivery form has a patient search field at the top. You can:\n\n• Search for an existing patient by name\n• Create a new patient by typing their name and selecting 'Create New Patient'\n\nIf the patient is new, I can guide you through that too.",
+        bot: "Great! The delivery form has a patient search field at the top. You can:\n\n• Search for an existing patient by Name, Address, Phone Number or something within the Patient Notes.\n• If now patients show up in the search list, then the '+ Add New Patient' button will appear.\n\nIf the patient is new, I can guide you through that too.",
         actions: [
           { label: 'Create a new patient', type: 'jump', target: 'create_patient_inline' },
           { label: 'I have an existing patient', type: 'next' },
         ],
       },
       {
-        id: 'select_store',
-        bot: "Now select the pickup store. This is the pharmacy the delivery will be picked up from. Tap the store dropdown and select the correct pharmacy location.",
-        actions: [
-          { label: 'Got it', type: 'next' },
-        ],
-      },
-      {
         id: 'select_driver',
-        bot: "Next, assign a driver. If you're a driver creating this for yourself, it'll auto-select you. If you're a dispatcher, tap the driver dropdown and pick the right person.",
+        bot: "Next, assign a driver if one has not already been preselected.\n• If you're a driver creating this for yourself, it'll auto-select you.\n• If you're a dispatcher and a driver has not already been assigned, tap the driver dropdown and pick your driver.",
         actions: [
           { label: 'Continue', type: 'next' },
         ],
       },
       {
         id: 'set_cod',
-        bot: "If this delivery requires Cash on Delivery (COD), enter the amount in the COD field. This is the amount the driver needs to collect from the patient. You can also set the payment method (Cash, Debit, Credit).",
+        bot: "If this delivery requires Cash on Delivery (COD), enter the amount in the COD field. This is the amount the driver needs to collect from the patient.",
         actions: [
           { label: 'No COD needed', type: 'next' },
           { label: 'Got it', type: 'next' },
         ],
       },
       {
-        id: 'delivery_notes',
-        bot: "Add any delivery notes — special instructions like 'Leave at front door', 'Call before delivery', or 'Fridge item — keep cold'. This helps the driver know what to expect.",
+        id: 'delivery_options',
+        bot: "Add any 'Delivery Options'\n• Special instructions like 'Oversized Items', 'Fridge item — keep cold', or 'Extra Signature Required'.\n• This helps the driver know what to expect.",
         actions: [
           { label: 'Continue', type: 'next' },
         ],
       },
       {
-        id: 'save',
-        bot: "Review the details and tap 'Save' to create the delivery. The delivery will appear on the dashboard and be assigned to the selected driver's route.\n\nThat's it! The delivery is now created and will be optimized into the driver's route automatically.",
+        id: 'stage',
+        bot: "Review the details and tap '+ Add' to stage the delivery.\n• The delivery will appear on the staged list to the right of the form and be pre-assigned to the selected driver's route.",
+        actions: [
+          { label: 'Continue', type: 'next' },
+        ],
+      },
+      {
+        id: 'done',
+        bot: "Review all the staged deliveries on the right.\n• Select a staged/pending delivery to make any final edits. Select Update to save the changes.\n• Select 'Done' for commit all staged deliveries to your driver(s).",
+        actions: [
+          { label: 'Done! 🎉', type: 'end' },
+          { label: 'Projections', type: 'jump', target: 'projections' },
+          { label: 'Start over', type: 'restart' },
+        ],
+      },
+      {
+        id: 'projections',
+        bot: "You can also add deliveries to your Driver(s) via the Projections list.\n• These are deliveries for patients that have reocurring delivery patterns set up.\n• These will appear in your deliveries list on the right side panel.\nClicking the green '+' will add them to your staged list and set them as ready to to edit. Once ready to commit to your drivers route click the '+ Add' button.",
         actions: [
           { label: 'Done! 🎉', type: 'end' },
           { label: 'Start over', type: 'restart' },
