@@ -1,5 +1,3 @@
-src/components/guide/guideFlows.jsx
-
 /**
  * guideFlows.jsx — Conversation flow definitions for the RxDeliver Guide Assistant.
  * Each flow is a state machine: steps → responses → next steps.
