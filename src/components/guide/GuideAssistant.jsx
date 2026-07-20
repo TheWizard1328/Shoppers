@@ -128,7 +128,10 @@ export default function GuideAssistant() {
     // Re-compute on SPA navigation (bottom nav may mount/unmount)
     window.addEventListener('popstate', compute);
 
-    // Also poll briefly for the CSS variable to settle (Dashboard sets it async)
+    // Re-compute immediately when immersive mode toggles
+    window.addEventListener('immersiveModeChanged', compute);
+
+    // Brief startup poll so CSS vars settle after initial mount
     const interval = setInterval(compute, 500);
     const timeout = setTimeout(() => clearInterval(interval), 3000);
 
@@ -137,6 +140,7 @@ export default function GuideAssistant() {
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
       window.removeEventListener('popstate', compute);
+      window.removeEventListener('immersiveModeChanged', compute);
       clearInterval(interval);
       clearTimeout(timeout);
     };
