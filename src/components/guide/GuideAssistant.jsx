@@ -57,6 +57,7 @@ export default function GuideAssistant() {
   const navigate = useNavigate();
   const { currentUser, deliveries: appDeliveries, patients: appPatients, stores: appStores, drivers: appDrivers } = useAppData();
   const [isOpen, setIsOpen] = useState(false);
+  const [isStopCardExpanded, setIsStopCardExpanded] = useState(false);
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
   });
@@ -69,6 +70,13 @@ export default function GuideAssistant() {
   const [pageTipIndex, setPageTipIndex] = useState(0);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+
+  // ── Track stop card expansion to lower z-index on narrow mobile ──────────────
+  useEffect(() => {
+    const handleExpand = (e) => setIsStopCardExpanded(!!(e?.detail?.cardId));
+    window.addEventListener('stopCardExpandedChange', handleExpand);
+    return () => window.removeEventListener('stopCardExpandedChange', handleExpand);
+  }, []);
 
   // ── Dynamic bottom offset — tracks MapViewCycleFAB via getBoundingClientRect ────
   // Uses direct DOM measurement (viewport-accurate regardless of position context).
@@ -791,8 +799,12 @@ export default function GuideAssistant() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="fixed z-[10060]"
-            style={{ bottom: `${guideBottomPx}px`, right: `${guideRightPx}px` }}
+            className="fixed"
+            style={{
+              bottom: `${guideBottomPx}px`,
+              right: `${guideRightPx}px`,
+              zIndex: (isStopCardExpanded && window.innerWidth < 850) ? 10050 : 10060,
+            }}
           >
             <button
               onClick={handleOpen}
