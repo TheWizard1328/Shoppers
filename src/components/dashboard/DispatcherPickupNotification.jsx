@@ -68,6 +68,12 @@ export default function DispatcherPickupNotification({
 
     if (!store || !driver) return;
 
+    // Don't show notification if driver is off duty or on break
+    if (driver.driver_status === 'off_duty' || driver.driver_status === 'on_break') {
+      setActiveNotification(null);
+      return;
+    }
+
     // Check if driver is within 500m of store
     let hasArrived = false;
     if (driver.current_latitude && driver.current_longitude && store.latitude && store.longitude) {
