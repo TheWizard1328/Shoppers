@@ -17,6 +17,7 @@ import { QUICK_ACTIONS, FLOWS, PAGE_TIPS, PAGE_CONTEXT, matchIntent } from './gu
 import {
   detectPatientQuery,
   findPatientByName,
+  findAllPatientsByName,
   findCurrentDeliveryPatient,
   getPatientDeliveryStats,
   buildPatientResponse,
@@ -400,6 +401,133 @@ export default function GuideAssistant() {
     }
   }, [activeFlow, addBotMessage]);
 
+  // ── Role-scoped patient list ──────────────────────────────────────
+  const getAllowedPatients = useCallback(() => {
+    if (!currentUser || !appPatients) return [];
+    if (userRole === 'admin') return appPatients;
+    if (userRole === 'dispatcher') {
+      const storeIds = new Set(currentUser.store_ids || []);
+      return appPatients.filter(p => p && storeIds.has(p.store_id));
+    }
+    if (userRole === 'driver') {
+      const myDeliveryStoreIds = new Set(
+        (appDeliveries || [])
+          .filter(d => d && d.driver_id === currentUser.id && d.delivery_date === todayStr)
+          .map(d => d.store_id)
+          .filter(Boolean)
+      );
+      return appPatients.filter(p => p && myDeliveryStoreIds.has(p.store_id));
+    }
+    return [];
+  }, [currentUser, userRole, appPatients, appDeliveries, todayStr]);
+
+  // ── Patient info lookup ──────────────────────────────────────────
+  const handlePatientQuery = useCallback((queryResult) => {
+    const isDriver = userRole === 'driver';
+    const isDispatcher = userRole === 'dispatcher';
+    const isAdmin = userRole === 'admin';
+
+    if (!isDriver && !isDispatcher && !isAdmin) {
+      addBotMessage("Patient lookups are available for drivers, dispatchers, and admins only.", []);
+      setShowQuickActions(true);
+      return;
+    }
+
+    let patient = null;
+    let delivery = null;
+    let includeAdvice = false;
+
+    if (queryResult.type === 'current') {
+      const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr);
+      if (!result) {
+        addBotMessage(
+          "You don't have an active delivery right now. Once you start a route, type **'info'** to get patient details for your next stop.",
+          []
+        );
+        setShowQuickActions(true);
+        return;
+      }
+      patient = result.patient;
+      delivery = result.delivery;
+      includeAdvice = isDriver || isAdmin;
+    } else if (queryResult.patientId) {
+      const allowedPatients = getAllowedPatients();
+      patient = allowedPatients?.find(p => p?.id === queryResult.patientId);
+      if (!patient) {
+        addBotMessage("You don't have access to that patient's information. Only patients from your assigned stores/deliveries can be looked up.", []);
+        setShowQuickActions(true);
+        return;
+      }
+      const activeDelivery = (appDeliveries || []).find(d =>
+        d && d.delivery_date === todayStr &&
+        d.patient_id === patient.id &&
+        !['completed', 'returned', 'cancelled'].includes(d.status)
+      );
+      if (activeDelivery) {
+        delivery = activeDelivery;
+        includeAdvice = isDriver || isAdmin;
+      }
+    } else {
+      const allowedPatients = getAllowedPatients();
+      const matches = findAllPatientsByName(queryResult.patientName, allowedPatients);
+      if (matches.length === 0) {
+        const scopeMsg = isDispatcher
+          ? 'Only patients from your assigned stores can be searched.'
+          : isDriver
+          ? 'Only patients from stores you have deliveries for can be searched.'
+          : '';
+        addBotMessage(
+          `I couldn't find a patient named "**${queryResult.patientName}**" in your accessible patients. ${scopeMsg} Could you double-check the spelling? You can also type **'info'** for your current delivery patient.`,
+          []
+        );
+        setShowQuickActions(true);
+        return;
+      }
+      if (matches.length > 1) {
+        const disambiguationActions = matches.slice(0, 8).map(({ patient: p }) => {
+          const store = appStores?.find(s => s?.id === p.store_id);
+          const storeAbbr = store?.abbreviation || '';
+          const storeColor = store?.color || '#666';
+          return {
+            label: p.full_name || 'Unknown',
+            type: 'select_patient',
+            patientId: p.id,
+            badgeText: storeAbbr || undefined,
+            badgeColor: storeAbbr ? storeColor : undefined,
+          };
+        });
+        addBotMessage(
+          `I found **${matches.length}** patients matching "**${queryResult.patientName}**". Which one are you looking for?`,
+          disambiguationActions
+        );
+        return;
+      }
+      patient = matches[0].patient;
+      const activeDelivery = (appDeliveries || []).find(d =>
+        d && d.delivery_date === todayStr &&
+        d.patient_id === patient.id &&
+        !['completed', 'returned', 'cancelled'].includes(d.status)
+      );
+      if (activeDelivery) {
+        delivery = activeDelivery;
+        includeAdvice = isDriver || isAdmin;
+      }
+    }
+
+    const store = delivery ? appStores?.find(s => s?.id === delivery.store_id) : null;
+    let cityAdmins = [];
+    if (includeAdvice && currentUser?.city_id) {
+      cityAdmins = (appDrivers || []).filter(u =>
+        u && u.app_roles?.includes('admin') &&
+        (u.city_id === currentUser.city_id || (u.city_ids && u.city_ids.includes(currentUser.city_id)))
+      );
+    }
+    const stats = getPatientDeliveryStats(patient.id, appDeliveries);
+    const response = buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice });
+    addBotMessage(response, []);
+    setShowQuickActions(true);
+  }, [userRole, currentUser, appDeliveries, appPatients, appStores, appDrivers, todayStr, addBotMessage, getAllowedPatients]);
+
   // ── Handle action button clicks ──────────────────────────────────
   const handleAction = useCallback((action) => {
     if (!action) return;
@@ -491,130 +619,6 @@ export default function GuideAssistant() {
   }, [activeFlow, currentStepId, goToStep, startFlow, addBotMessage, addUserMessage, navigate, appPatients, handlePatientQuery]);
 
   // ── Handle user input ────────────────────────────────────────────
-  // ── Patient info lookup ──────────────────────────────────────────
-  const handlePatientQuery = useCallback((queryResult) => {
-    const userRole = currentUser ? (isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver') : 'driver';
-    const isDriver = userRole === 'driver';
-    const isDispatcher = userRole === 'dispatcher';
-    const isAdmin = userRole === 'admin';
-
-    // Drivers, dispatchers, and admins can use patient lookup
-    if (!isDriver && !isDispatcher && !isAdmin) {
-      addBotMessage("Patient lookups are available for drivers, dispatchers, and admins only.", []);
-      setShowQuickActions(true);
-      return;
-    }
-
-    let patient = null;
-    let delivery = null;
-    let includeAdvice = false;
-
-    if (queryResult.type === 'current') {
-      // Current delivery patient
-      const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr);
-      if (!result) {
-        addBotMessage(
-          "You don't have an active delivery right now. Once you start a route, type **'info'** to get patient details for your next stop.",
-          []
-        );
-        setShowQuickActions(true);
-        return;
-      }
-      patient = result.patient;
-      delivery = result.delivery;
-      includeAdvice = isDriver || isAdmin;
-    } else if (queryResult.patientId) {
-      // Direct patient ID from disambiguation selection — verify it's in allowed set
-      const allowedPatients = getAllowedPatients();
-      patient = allowedPatients?.find(p => p?.id === queryResult.patientId);
-      if (!patient) {
-        addBotMessage("You don't have access to that patient's information. Only patients from your assigned stores/deliveries can be looked up.", []);
-        setShowQuickActions(true);
-        return;
-      }
-      // Try to find a current delivery for this patient
-      const today = todayStr;
-      const activeDelivery = (appDeliveries || []).find(d =>
-        d && d.delivery_date === today &&
-        d.patient_id === patient.id &&
-        !['completed', 'returned', 'cancelled'].includes(d.status)
-      );
-      if (activeDelivery) {
-        delivery = activeDelivery;
-        includeAdvice = isDriver || isAdmin;
-      }
-    } else {
-      // Named patient search — scoped to allowed patients for this role
-      const allowedPatients = getAllowedPatients();
-      const matches = findAllPatientsByName(queryResult.patientName, allowedPatients);
-      if (matches.length === 0) {
-        const scopeMsg = isDispatcher
-          ? 'Only patients from your assigned stores can be searched.'
-          : isDriver
-          ? 'Only patients from stores you have deliveries for can be searched.'
-          : '';
-        addBotMessage(
-          `I couldn't find a patient named "**${queryResult.patientName}**" in your accessible patients. ${scopeMsg} Could you double-check the spelling? You can also type **'info'** for your current delivery patient.`,
-          []
-        );
-        setShowQuickActions(true);
-        return;
-      }
-      if (matches.length > 1) {
-        // Multiple matches — show disambiguation with store badges
-        const disambiguationActions = matches.slice(0, 8).map(({ patient: p }) => {
-          const store = appStores?.find(s => s?.id === p.store_id);
-          const storeAbbr = store?.abbreviation || '';
-          const storeColor = store?.color || '#666';
-          return {
-            label: p.full_name || 'Unknown',
-            type: 'select_patient',
-            patientId: p.id,
-            badgeText: storeAbbr || undefined,
-            badgeColor: storeAbbr ? storeColor : undefined,
-          };
-        });
-        addBotMessage(
-          `I found **${matches.length}** patients matching "**${queryResult.patientName}**". Which one are you looking for?`,
-          disambiguationActions
-        );
-        return; // Wait for user to select
-      }
-      // Single match — proceed directly
-      patient = matches[0].patient;
-      const today = todayStr;
-      const activeDelivery = (appDeliveries || []).find(d =>
-        d && d.delivery_date === today &&
-        d.patient_id === patient.id &&
-        !['completed', 'returned', 'cancelled'].includes(d.status)
-      );
-      if (activeDelivery) {
-        delivery = activeDelivery;
-        includeAdvice = isDriver || isAdmin;
-      }
-    }
-
-    // Find the store
-    const store = delivery ? appStores?.find(s => s?.id === delivery.store_id) : null;
-
-    // Find city admins for no-answer advice
-    let cityAdmins = [];
-    if (includeAdvice && currentUser?.city_id) {
-      cityAdmins = (appDrivers || []).filter(u =>
-        u && u.app_roles?.includes('admin') &&
-        (u.city_id === currentUser.city_id || (u.city_ids && u.city_ids.includes(currentUser.city_id)))
-      );
-    }
-
-    // Compute delivery stats
-    const stats = getPatientDeliveryStats(patient.id, appDeliveries);
-
-    // Build the response
-    const response = buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice });
-    addBotMessage(response, []);
-    setShowQuickActions(true);
-  }, [currentUser, appDeliveries, appPatients, appStores, appDrivers, addBotMessage, setShowQuickActions, getAllowedPatients]);
-
   const handleSend = useCallback(() => {
     const text = inputValue.trim();
     if (!text) return;
