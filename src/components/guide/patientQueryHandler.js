@@ -115,18 +115,25 @@ export function findCurrentDeliveryPatient(currentUser, deliveries, patients, se
   if (!deliveries || deliveries.length === 0) return null;
   const today = selectedDate || new Date().toISOString().slice(0, 10);
 
-  // Check if user is admin — admins see all deliveries
   const roles = currentUser?.app_roles || [];
   const isAdmin = roles.includes('admin');
+  const isDispatcher = roles.includes('dispatcher') && !isAdmin;
+
+  // Build store filter for dispatchers
+  let storeIds = null;
+  if (isDispatcher) {
+    storeIds = new Set(currentUser?.store_ids || []);
+    if (storeIds.size === 0) return null;
+  }
 
   const myDeliveries = deliveries.filter(d =>
     d && d.delivery_date === today &&
-    (isAdmin || d.driver_id === currentUser?.id) &&
+    (isAdmin || d.driver_id === currentUser?.id || (isDispatcher && storeIds.has(d.store_id))) &&
     !['completed', 'returned', 'cancelled'].includes(d.status)
   );
   if (myDeliveries.length === 0) return null;
 
-  // For non-admins, prefer isNextDelivery; for admins, just take the first active
+  // For drivers, prefer isNextDelivery; for admins/dispatchers, just take the first active
   const nextDelivery =
     myDeliveries.find(d => d.isNextDelivery === true) ||
     myDeliveries.sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999))[0];
