@@ -342,6 +342,54 @@ export const FLOWS = {
       },
     ],
   },
+  manage_schedule: {
+    title: 'Manage the Driver Schedule',
+    steps: [
+      {
+        id: 'intro',
+        bot: "The Schedule calendar shows which driver is assigned to each store for AM and PM time slots. Let me walk you through how it works.",
+        actions: [
+          { label: 'Continue', type: 'next' },
+        ],
+      },
+      {
+        id: 'defaults',
+        bot: "Each store has default drivers configured in Store settings — one for weekday AM, weekday PM, Saturday, and Sunday. The calendar auto-fills these defaults for every day. You only need to make changes when someone needs a substitute or a day off.",
+        actions: [
+          { label: 'Got it', type: 'next' },
+        ],
+      },
+      {
+        id: 'reassign',
+        bot: "To reassign a slot, tap the driver name in any calendar cell. A dropdown appears — select a different driver from the list. The change is saved as an override, and the original driver is notified. The system logs who made the change.",
+        actions: [
+          { label: 'Continue', type: 'next' },
+        ],
+      },
+      {
+        id: 'book_off',
+        bot: "To book a driver off, tap the slot and select 'Book Off'. This marks the slot as unavailable and automatically unassigns any pending deliveries for that driver in that slot. The cell will show a 'Booked Off' badge.",
+        actions: [
+          { label: 'Continue', type: 'next' },
+        ],
+      },
+      {
+        id: 'locking',
+        bot: "Past slots are locked — they can't be edited to prevent history changes. Slots that have active deliveries are also locked. Admins can unlock a slot by tapping the lock icon to make edits if needed.",
+        actions: [
+          { label: 'Continue', type: 'next' },
+        ],
+      },
+      {
+        id: 'holidays',
+        bot: "Stat holidays are highlighted on the calendar. On holidays, the schedule entries are built from actual deliveries instead of default drivers, so you can see who actually worked.",
+        actions: [
+          { label: 'Done! 🎉', type: 'end' },
+          { label: 'Start over', type: 'restart' },
+        ],
+      },
+    ],
+  },
 };
 
 // ── Page-specific tips ────────────────────────────────────────────────
@@ -420,56 +468,7 @@ export const PAGE_TIPS = {
     "Stat holidays are highlighted and built from actual deliveries instead of defaults.",
     "Driver swaps are logged — the system tracks who made the override.",
     "Booking a driver off automatically unassigns their pending deliveries for that slot.",
-  ],
-  manage_schedule: {
-    title: 'Manage the Driver Schedule',
-    steps: [
-      {
-        id: 'intro',
-        bot: "The Schedule calendar shows which driver is assigned to each store for AM and PM time slots. Let me walk you through how it works.",
-        actions: [
-          { label: 'Continue', type: 'next' },
-        ],
-      },
-      {
-        id: 'defaults',
-        bot: "Each store has default drivers configured in Store settings — one for weekday AM, weekday PM, Saturday, and Sunday. The calendar auto-fills these defaults for every day. You only need to make changes when someone needs a substitute or a day off.",
-        actions: [
-          { label: 'Got it', type: 'next' },
-        ],
-      },
-      {
-        id: 'reassign',
-        bot: "To reassign a slot, tap the driver name in any calendar cell. A dropdown appears — select a different driver from the list. The change is saved as an override, and the original driver is notified. The system logs who made the change.",
-        actions: [
-          { label: 'Continue', type: 'next' },
-        ],
-      },
-      {
-        id: 'book_off',
-        bot: "To book a driver off, tap the slot and select 'Book Off'. This marks the slot as unavailable and automatically unassigns any pending deliveries for that driver in that slot. The cell will show a 'Booked Off' badge.",
-        actions: [
-          { label: 'Continue', type: 'next' },
-        ],
-      },
-      {
-        id: 'locking',
-        bot: "Past slots are locked — they can't be edited to prevent history changes. Slots that have active deliveries are also locked. Admins can unlock a slot by tapping the lock icon to make edits if needed.",
-        actions: [
-          { label: 'Continue', type: 'next' },
-        ],
-      },
-      {
-        id: 'holidays',
-        bot: "Stat holidays are highlighted on the calendar. On holidays, the schedule entries are built from actual deliveries instead of default drivers, so you can see who actually worked.",
-        actions: [
-          { label: 'Done! 🎉', type: 'end' },
-          { label: 'Start over', type: 'restart' },
-        ],
-      },
-    ],
-  },
-};
+  ],};
 
 // ── Help index for natural language matching ─────────────────────────
 
