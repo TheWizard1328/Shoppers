@@ -482,9 +482,10 @@ export default function GuideAssistant() {
     const userRole = currentUser ? (isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver') : 'driver';
     const isDriver = userRole === 'driver';
     const isDispatcher = userRole === 'dispatcher';
+    const isAdmin = userRole === 'admin';
 
-    // Only drivers and dispatchers can use patient lookup
-    if (!isDriver && !isDispatcher) {
+    // Drivers, dispatchers, and admins can use patient lookup
+    if (!isDriver && !isDispatcher && !isAdmin) {
       addBotMessage("Patient lookups are available for drivers and dispatchers only.", []);
       setShowQuickActions(true);
       return;
@@ -507,7 +508,7 @@ export default function GuideAssistant() {
       }
       patient = result.patient;
       delivery = result.delivery;
-      includeAdvice = isDriver; // drivers get no-answer troubleshooting advice
+      includeAdvice = isDriver || isAdmin; // drivers get no-answer troubleshooting advice
     } else {
       // Named patient search
       patient = findPatientByName(queryResult.patientName, appPatients);
@@ -528,7 +529,7 @@ export default function GuideAssistant() {
       );
       if (activeDelivery) {
         delivery = activeDelivery;
-        includeAdvice = isDriver;
+        includeAdvice = isDriver || isAdmin;
       }
     }
 
@@ -574,7 +575,7 @@ export default function GuideAssistant() {
           // Temporarily set a flag — handlePatientQuery will include advice
           // We call it with a modified query result
           const userRole = currentUser ? (isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver') : 'driver';
-          if (userRole !== 'driver') {
+          if (userRole !== 'driver' && userRole !== 'admin') {
             addBotMessage("No-answer troubleshooting is most useful for drivers on active deliveries. As a dispatcher, you can look up a patient by name instead!", []);
             setShowQuickActions(true);
             return;

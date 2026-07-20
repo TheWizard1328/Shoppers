@@ -97,17 +97,24 @@ export function findPatientByName(query, patients) {
 
 /**
  * Get the "current" patient — the one for the driver's next/active delivery.
+ * For admins, returns the first active delivery of the day (any driver).
  */
 export function findCurrentDeliveryPatient(currentUser, deliveries, patients, selectedDate) {
   if (!deliveries || deliveries.length === 0) return null;
   const today = selectedDate || new Date().toISOString().slice(0, 10);
 
+  // Check if user is admin — admins see all deliveries
+  const roles = currentUser?.app_roles || [];
+  const isAdmin = roles.includes('admin');
+
   const myDeliveries = deliveries.filter(d =>
-    d && d.delivery_date === today && d.driver_id === currentUser?.id &&
+    d && d.delivery_date === today &&
+    (isAdmin || d.driver_id === currentUser?.id) &&
     !['completed', 'returned', 'cancelled'].includes(d.status)
   );
   if (myDeliveries.length === 0) return null;
 
+  // For non-admins, prefer isNextDelivery; for admins, just take the first active
   const nextDelivery =
     myDeliveries.find(d => d.isNextDelivery === true) ||
     myDeliveries.sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999))[0];
