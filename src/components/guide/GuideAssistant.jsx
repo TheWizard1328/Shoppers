@@ -292,6 +292,46 @@ export default function GuideAssistant() {
     } catch { /* ignore */ }
   }, []);
 
+  // ── Auto-open on first app load of the day ──────────────────────
+  useEffect(() => {
+    // Only fire on mount (empty deps). Check if daily greeting already shown.
+    if (hasShownDailyGreeting) return;
+
+    // If there's a restored conversation from a previous session, don't
+    // auto-open — the user can open the guide manually.
+    try {
+      const saved = localStorage.getItem(CONVERSATION_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return;
+      }
+    } catch { /* ignore */ }
+
+    // Small delay so data (deliveries, patients) has time to load
+    // before generating the greeting, and to avoid jarring instant popup.
+    const timer = setTimeout(() => {
+      // Double-check in case user manually opened during the delay
+      if (!isOpen) {
+        setIsOpen(true);
+        setShowPulse(false);
+        try { localStorage.setItem(STORAGE_KEY, 'true'); } catch { /* ignore */ }
+        setHasSeenIntro(true);
+
+        const greetingMessages = generateDailyGreeting();
+        for (const msg of greetingMessages) {
+          addBotMessage(msg.text, msg.actions);
+        }
+        markDailyGreetingShown();
+        if (!greetingMessages.some((m) => m.actions && m.actions.length > 0)) {
+          setShowQuickActions(true);
+        }
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Auto-scroll to bottom ────────────────────────────────────────
   useEffect(() => {
     if (scrollRef.current) {
