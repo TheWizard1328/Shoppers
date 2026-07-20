@@ -28,6 +28,11 @@ function StopCardsSection({
   stopCardsBaseHeight = 75,
 }) {
 
+  // Notify GuideAssistant when a card expands/collapses so it can lower its z-index
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('stopCardExpandedChange', { detail: { cardId: selectedCardId || null } }));
+  }, [selectedCardId]);
+
   // Fridge items for the selected driver + date (used to gate the temp badge)
   const selectedDateStr = selectedDate instanceof Date
     ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
