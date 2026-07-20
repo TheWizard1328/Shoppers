@@ -72,11 +72,7 @@ export function detectPatientQuery(message) {
 export function findAllPatientsByName(query, patients) {
   if (!patients || patients.length === 0) return [];
   const q = query.toLowerCase().trim();
-  if (q.length < 2) return [];
   const results = [];
-
-  // Normalize query: if input is "Last, First" convert to "first last" for comparison
-  const qNormalized = q.replace(/^(\S+),\s*(\S+)$/, '$2 $1');
 
   for (const p of patients) {
     if (!p) continue;
@@ -84,25 +80,17 @@ export function findAllPatientsByName(query, patients) {
     if (!fullName) continue;
 
     let score = 0;
-    // Highest priority: exact match for "First Last" or "Last, First" input
-    if (fullName === q || fullName === qNormalized) {
-      score = 200;
-    } else if (fullName === q) {
-      // Exact full name match (redundant but kept for clarity)
+    if (fullName === q) {
       score = 100;
     } else if (fullName.includes(q)) {
-      // Full query is a substring of the name (e.g. "hagen" in "Daniela Hagen")
       score = 80;
     } else {
-      // Word-by-word: each query word must be a PREFIX of a name word (not substring of query)
-      // This prevents "hagen" matching "Bardenhagen" via qw.includes(nw)
       const queryWords = q.split(/\s+/).filter(w => w.length >= 2);
       const nameWords = fullName.split(/\s+/);
       let matchedWords = 0;
       for (const qw of queryWords) {
         for (const nw of nameWords) {
-          // Name word starts with query word (prefix match), or exact match
-          if (nw === qw || nw.startsWith(qw)) { matchedWords++; break; }
+          if (nw.includes(qw) || qw.includes(nw)) { matchedWords++; break; }
         }
       }
       if (queryWords.length > 0 && matchedWords === queryWords.length) {
@@ -310,11 +298,6 @@ export function buildPatientResponse({ patient, delivery, stats, store, cityAdmi
   lines.push('\n**Delivery History:**');
   lines.push(`Total: ${stats.total} | ✅ Completed: ${stats.completed} | ↩️ Returned: ${stats.returned} | ❌ Failed: ${stats.failed}`);
   lines.push(`Completion rate: ${stats.completionRate}%`);
-  if (patient.last_delivery_date) {
-    const d = new Date(patient.last_delivery_date + 'T00:00:00');
-    const formatted = d.toLocaleDateString('en-CA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
-    lines.push(`📅 Last delivery: ${formatted}`);
-  }
 
   if (delivery) {
     lines.push('\n**Current Delivery:**');

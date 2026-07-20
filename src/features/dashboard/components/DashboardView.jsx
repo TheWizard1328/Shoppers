@@ -116,13 +116,6 @@ export default function DashboardView({
     };
   }, [setOptimizationMessage]);
 
-  // Sync immersive mode as a CSS variable + event so GuideAssistant repositions immediately
-  useEffect(() => {
-    document.documentElement.style.setProperty('--immersive-mode', immersiveHidden ? '1' : '0');
-    window.dispatchEvent(new CustomEvent('immersiveModeChanged', { detail: { hidden: immersiveHidden } }));
-    return () => document.documentElement.style.removeProperty('--immersive-mode');
-  }, [immersiveHidden]);
-
   const handleSnapshotSelect = (snapshot) => {
     if (!snapshot) return;
     setSnapshotData({
