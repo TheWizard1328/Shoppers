@@ -39,18 +39,24 @@ export function detectPatientQuery(message) {
     }
   }
 
-  // "Tell me about X" / "info on X" / "patient X" — extract a name
-  const namePatterns = [
-    /(?:tell me about|info(?:rmation)? (?:on|for|about)|patient (?:info(?:rmation)? (?:on|for|about) )?|about|who is|lookup|look up|find)\s+(.+)/i,
-    /(.+?)\s+(?:info|information|details|patient info)/i,
-  ];
-  for (const pattern of namePatterns) {
-    const match = lower.match(pattern);
-    if (match && match[1]) {
-      let name = match[1].trim().replace(/\b(the|this|that|a|an|my)\b/g, '').trim();
-      if (name.length >= 2) {
-        return { type: 'named', patientName: name };
-      }
+  // "Tell me about X" / "info on X" / "patient info X" / "patient X" — extract a name
+  // Pattern 1: prefix commands followed by a name
+  const p1 = /^(?:tell me about|info(?:rmation)?(?:\s+(?:on|for|about))?|patient(?:\s+info(?:rmation)?)?(?:\s+(?:on|for|about))?|about|who is|look(?:up| up)|find)\s+(.+)$/i;
+  // Pattern 2: "NAME info/information/details" (name comes FIRST)
+  const p2 = /^(.+?)\s+(?:info|information|details)$/i;
+
+  const m1 = lower.match(p1);
+  if (m1 && m1[1]) {
+    let name = m1[1].trim().replace(/\b(the|this|that|a|an|my)\b/g, '').trim();
+    if (name.length >= 2) return { type: 'named', patientName: name };
+  }
+  const m2 = lower.match(p2);
+  if (m2 && m2[1]) {
+    let name = m2[1].trim().replace(/\b(the|this|that|a|an|my)\b/g, '').trim();
+    // Exclude bare keywords that are not real names
+    const notAName = ['patient', 'delivery', 'current', 'next'];
+    if (name.length >= 2 && !notAName.includes(name)) {
+      return { type: 'named', patientName: name };
     }
   }
 
