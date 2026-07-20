@@ -59,11 +59,14 @@ export function detectPatientQuery(message) {
 
 // ── Patient matching ──────────────────────────────────────────────────
 
-export function findPatientByName(query, patients) {
-  if (!patients || patients.length === 0) return null;
+/**
+ * Find ALL patients matching a name query, sorted by relevance score.
+ * Returns an array of { patient, score } objects.
+ */
+export function findAllPatientsByName(query, patients) {
+  if (!patients || patients.length === 0) return [];
   const q = query.toLowerCase().trim();
-  let bestPatient = null;
-  let bestScore = 0;
+  const results = [];
 
   for (const p of patients) {
     if (!p) continue;
@@ -90,9 +93,18 @@ export function findPatientByName(query, patients) {
         score = matchedWords * 15;
       }
     }
-    if (score > bestScore) { bestScore = score; bestPatient = p; }
+    if (score >= 15) results.push({ patient: p, score });
   }
-  return bestScore >= 15 ? bestPatient : null;
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+
+/**
+ * Backward-compatible single-patient lookup.
+ */
+export function findPatientByName(query, patients) {
+  const results = findAllPatientsByName(query, patients);
+  return results.length > 0 ? results[0].patient : null;
 }
 
 /**

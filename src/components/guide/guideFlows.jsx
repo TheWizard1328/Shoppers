@@ -539,7 +539,7 @@ export const HELP_TOPICS = [
   },
   {
     keywords: ['patient info', 'patient lookup', 'tell me about', 'no answer', 'no response', 'not home', "can't reach", "can't contact", 'patient details', 'patient name'],
-    response: "I can look up patient info for you! Type **'info'** to get details for your current delivery patient, or **'Tell me about [name]'** to search for a specific patient. I'll show their address, phone, delivery history, and recommended actions based on their preferences. If you're having trouble reaching them, just say **'no answer'** and I'll give you a step-by-step troubleshooting guide.",
+    response: "I can look up patient info for you! Type **'info'** for your current delivery patient, **'Tell me about [name]'** to search, or just type a patient's name directly. I'll show their address, phone, delivery history, and recommended actions based on their preferences. If you're having trouble reaching them, just say **'no answer'** and I'll give you a step-by-step troubleshooting guide.",
   },
 ];
 

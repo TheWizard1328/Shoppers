@@ -471,10 +471,24 @@ export default function GuideAssistant() {
         setShowQuickActions(true);
         break;
       }
+      case 'select_patient': {
+        // Disambiguation selection — look up the specific patient
+        if (action.patientId) {
+          const selected = appPatients?.find(p => p?.id === action.patientId);
+          if (selected) {
+            addUserMessage(action.label || selected.full_name);
+            setShowQuickActions(false);
+            setTimeout(() => handlePatientQuery({ type: 'named', patientName: selected.full_name, patientId: selected.id }), 300);
+          } else {
+            addBotMessage("I couldn't find that patient. They may have been removed.");
+          }
+        }
+        break;
+      }
       default:
         break;
     }
-  }, [activeFlow, currentStepId, goToStep, startFlow, addBotMessage, addUserMessage, navigate]);
+  }, [activeFlow, currentStepId, goToStep, startFlow, addBotMessage, addUserMessage, navigate, appPatients, handlePatientQuery]);
 
   // ── Handle user input ────────────────────────────────────────────
   // ── Patient info lookup ──────────────────────────────────────────
@@ -486,7 +500,7 @@ export default function GuideAssistant() {
 
     // Drivers, dispatchers, and admins can use patient lookup
     if (!isDriver && !isDispatcher && !isAdmin) {
-      addBotMessage("Patient lookups are available for drivers and dispatchers only.", []);
+      addBotMessage("Patient lookups are available for drivers, dispatchers, and admins only.", []);
       setShowQuickActions(true);
       return;
     }
@@ -508,11 +522,30 @@ export default function GuideAssistant() {
       }
       patient = result.patient;
       delivery = result.delivery;
-      includeAdvice = isDriver || isAdmin; // drivers get no-answer troubleshooting advice
-    } else {
-      // Named patient search
-      patient = findPatientByName(queryResult.patientName, appPatients);
+      includeAdvice = isDriver || isAdmin;
+    } else if (queryResult.patientId) {
+      // Direct patient ID from disambiguation selection — skip search
+      patient = appPatients?.find(p => p?.id === queryResult.patientId);
       if (!patient) {
+        addBotMessage("I couldn't find that patient. They may have been removed.", []);
+        setShowQuickActions(true);
+        return;
+      }
+      // Try to find a current delivery for this patient
+      const today = todayStr;
+      const activeDelivery = (appDeliveries || []).find(d =>
+        d && d.delivery_date === today &&
+        d.patient_id === patient.id &&
+        !['completed', 'returned', 'cancelled'].includes(d.status)
+      );
+      if (activeDelivery) {
+        delivery = activeDelivery;
+        includeAdvice = isDriver || isAdmin;
+      }
+    } else {
+      // Named patient search — check for multiple matches
+      const matches = findAllPatientsByName(queryResult.patientName, appPatients);
+      if (matches.length === 0) {
         addBotMessage(
           `I couldn't find a patient named "**${queryResult.patientName}**". Could you double-check the spelling? You can also type **'info'** for your current delivery patient.`,
           []
@@ -520,7 +553,28 @@ export default function GuideAssistant() {
         setShowQuickActions(true);
         return;
       }
-      // Try to find a current delivery for this patient (for dispatchers/drivers)
+      if (matches.length > 1) {
+        // Multiple matches — show disambiguation with store badges
+        const disambiguationActions = matches.slice(0, 8).map(({ patient: p }) => {
+          const store = appStores?.find(s => s?.id === p.store_id);
+          const storeAbbr = store?.abbreviation || '';
+          const storeColor = store?.color || '#666';
+          return {
+            label: p.full_name || 'Unknown',
+            type: 'select_patient',
+            patientId: p.id,
+            badgeText: storeAbbr || undefined,
+            badgeColor: storeAbbr ? storeColor : undefined,
+          };
+        });
+        addBotMessage(
+          `I found **${matches.length}** patients matching "**${queryResult.patientName}**". Which one are you looking for?`,
+          disambiguationActions
+        );
+        return; // Wait for user to select
+      }
+      // Single match — proceed directly
+      patient = matches[0].patient;
       const today = todayStr;
       const activeDelivery = (appDeliveries || []).find(d =>
         d && d.delivery_date === today &&
@@ -623,10 +677,16 @@ export default function GuideAssistant() {
         }, 300);
       }
     } else {
+      // ── Last resort: try patient name match ──
+      const patientMatches = findAllPatientsByName(text, appPatients);
+      if (patientMatches.length > 0) {
+        setTimeout(() => handlePatientQuery({ type: 'named', patientName: text }), 300);
+        return;
+      }
       // Fallback response
       setTimeout(() => {
         addBotMessage(
-          "I'm not sure about that specific question, but I can help you with:\n\n• Creating deliveries or patients\n• Starting your route\n• Collecting COD payments\n• Uploading documents\n• Learning the app\n• **Patient info** — type 'info' for your current delivery patient, or 'Tell me about [name]' for a specific patient\n\nTry one of the quick actions below, or ask me about one of these topics!",
+          "I'm not sure about that specific question, but I can help you with:\n\n• Creating deliveries or patients\n• Starting your route\n• Collecting COD payments\n• Uploading documents\n• Learning the app\n• **Patient info** — type 'info' for your current delivery patient, or just type a patient's name\n\nTry one of the quick actions below, or ask me about one of these topics!",
           []
         );
         setShowQuickActions(true);
@@ -966,16 +1026,25 @@ function MessageBubble({ message, onAction }) {
               <button
                 key={idx}
                 onClick={() => onAction(action)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                 style={{
-                  backgroundColor: 'var(--primary-color)',
-                  color: '#fff',
+                  backgroundColor: action.badgeColor ? 'var(--bg-white)' : 'var(--primary-color)',
+                  color: action.badgeColor ? 'var(--text-slate-900)' : '#fff',
+                  border: action.badgeColor ? `1px solid ${action.badgeColor}` : 'none',
                   opacity: action.type === 'dismiss' ? 0.75 : 1,
                 }}
                 onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
                 onMouseLeave={e => { e.currentTarget.style.opacity = action.type === 'dismiss' ? '0.75' : '1'; }}
               >
                 {action.label}
+                {action.badgeText && (
+                  <span
+                    className="ml-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white"
+                    style={{ backgroundColor: action.badgeColor || '#666' }}
+                  >
+                    {action.badgeText}
+                  </span>
+                )}
                 {action.type === 'next' && <ChevronRight className="w-3 h-3" />}
               </button>
             ))}
