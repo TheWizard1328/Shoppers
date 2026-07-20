@@ -72,6 +72,7 @@ export function detectPatientQuery(message) {
 export function findAllPatientsByName(query, patients) {
   if (!patients || patients.length === 0) return [];
   const q = query.toLowerCase().trim();
+  if (q.length < 2) return [];
   const results = [];
 
   for (const p of patients) {
@@ -81,16 +82,21 @@ export function findAllPatientsByName(query, patients) {
 
     let score = 0;
     if (fullName === q) {
+      // Exact full name match
       score = 100;
     } else if (fullName.includes(q)) {
+      // Full query is a substring of the name (e.g. "hagen" in "Daniela Hagen")
       score = 80;
     } else {
+      // Word-by-word: each query word must be a PREFIX of a name word (not substring of query)
+      // This prevents "hagen" matching "Bardenhagen" via qw.includes(nw)
       const queryWords = q.split(/\s+/).filter(w => w.length >= 2);
       const nameWords = fullName.split(/\s+/);
       let matchedWords = 0;
       for (const qw of queryWords) {
         for (const nw of nameWords) {
-          if (nw.includes(qw) || qw.includes(nw)) { matchedWords++; break; }
+          // Name word starts with query word (prefix match), or exact match
+          if (nw === qw || nw.startsWith(qw)) { matchedWords++; break; }
         }
       }
       if (queryWords.length > 0 && matchedWords === queryWords.length) {
