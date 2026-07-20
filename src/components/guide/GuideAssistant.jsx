@@ -641,6 +641,7 @@ export default function GuideAssistant() {
     addUserMessage(text);
     setInputValue('');
     setShowQuickActions(false);
+    setQuickActionsCollapsed(true);
 
     // ── Check for patient query FIRST (before generic intent matching) ──
     const patientQuery = detectPatientQuery(text);
@@ -726,6 +727,7 @@ export default function GuideAssistant() {
 
   // ── Handle quick action click ───────────────────────────────────
   const handleQuickAction = useCallback((actionId) => {
+    setQuickActionsCollapsed(true);
     // Patient info quick action — triggers current delivery patient lookup
     if (actionId === 'patient_info') {
       addUserMessage('Patient Info');
@@ -1002,7 +1004,7 @@ export default function GuideAssistant() {
                     }}
                   />
                   <button
-                    onClick={() => { handleSend(); setQuickActionsCollapsed(true); }}
+                    onClick={handleSend}
                     disabled={!inputValue.trim()}
                     className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ backgroundColor: 'var(--primary-color)', color: '#fff' }}
