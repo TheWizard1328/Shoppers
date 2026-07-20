@@ -70,11 +70,9 @@ export default function GuideAssistant() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
-  // ── Dynamic bottom offset — tracks MapViewCycleFAB via CSS var ────
-  // MapViewCycleFAB writes its computed bottom px to --map-cycle-fab-bottom
-  // on documentElement.style whenever it changes. We observe that attribute
-  // so we update immediately after every render of MapViewCycleFAB, including
-  // when returning to Dashboard from another page (where stop cards may render late).
+  // ── Dynamic bottom offset — tracks MapViewCycleFAB via getBoundingClientRect ────
+  // Uses direct DOM measurement (viewport-accurate regardless of position context).
+  // Polls every 300ms so it catches any layout changes quickly.
   const [guideBottomPx, setGuideBottomPx] = useState(80);
   const [guideRightPx] = useState(16);
 
@@ -84,29 +82,26 @@ export default function GuideAssistant() {
         setGuideBottomPx(24);
         return;
       }
-      const val = document.documentElement.style.getPropertyValue('--map-cycle-fab-bottom');
-      const mapFabBottomPx = val ? parseInt(val, 10) : 0;
-      if (mapFabBottomPx > 0) {
-        // Sit above MapCycleFAB: its bottom offset + its height (40px) + 8px gap
-        setGuideBottomPx(mapFabBottomPx + 40 + 8);
+      const fabEl = document.querySelector('[data-map-cycle-fab]');
+      if (fabEl) {
+        const rect = fabEl.getBoundingClientRect();
+        // viewport bottom → top of MapCycleFAB + 8px gap
+        const fromBottom = window.innerHeight - rect.top + 8;
+        setGuideBottomPx(fromBottom);
       } else {
-        // MapCycleFAB not mounted yet (non-Dashboard page) — sit above bottom nav
+        // No MapCycleFAB (non-Dashboard page) — sit above bottom nav
         const navEl = document.querySelector('[data-mobile-bottom-nav]');
         setGuideBottomPx((navEl ? navEl.offsetHeight : 0) + 12);
       }
     };
 
     compute();
-
-    // React immediately when MapViewCycleFAB sets/updates the CSS var
-    const observer = new MutationObserver(compute);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
-
+    const interval = setInterval(compute, 300);
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
 
     return () => {
-      observer.disconnect();
+      clearInterval(interval);
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
     };

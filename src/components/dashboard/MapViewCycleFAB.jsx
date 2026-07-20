@@ -127,17 +127,7 @@ export default function MapViewCycleFAB({
   const fabPosition = isMobile ? 'absolute' : 'fixed';
   const rightPixels = immersiveHidden ? 12 : 16;
 
-  // Publish viewport-relative bottom position to CSS var so GuideAssistant (fixed-positioned)
-  // can track it reliably. On mobile the FAB is absolute inside the dashboard container,
-  // so we add the bottom nav height to convert to a viewport-bottom offset.
-  useEffect(() => {
-    const navHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
-    const viewportBottomPx = isMobile ? bottomPixels + navHeight : bottomPixels;
-    document.documentElement.style.setProperty('--map-cycle-fab-bottom', `${viewportBottomPx}`);
-    return () => {
-      document.documentElement.style.removeProperty('--map-cycle-fab-bottom');
-    };
-  }, [bottomPixels, isMobile]);
+  // No longer needed — GuideAssistant uses getBoundingClientRect directly.
 
   const fabOpacity = useMemo(() => {
     if (!isEnabled) return 0.65;
