@@ -62,6 +62,7 @@ import { getCompanyBranding, applyBrandingStyles } from './components/utils/bran
 // OptimizationSpinner removed — replaced by the black KITT bar above stop cards in DashboardView
 import PatientViewOverlay from './components/patient-portal/PatientViewOverlay';
 import MobileBottomNav from './components/layout/MobileBottomNav';
+import GuideAssistant from './components/guide/GuideAssistant';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
 import AdminNavigationSection from './components/layout/AdminNavigationSection';
 import AppLoadingScreen from './components/layout/AppLoadingScreen';
@@ -1284,6 +1285,7 @@ export default function Layout({ children, currentPageName }) {
               }
               </div>
             </div>
+            <GuideAssistant />
           </AppDataProvider>
           </UserProvider>
       }
