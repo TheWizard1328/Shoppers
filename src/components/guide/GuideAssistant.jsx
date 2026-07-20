@@ -616,7 +616,7 @@ export default function GuideAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="fixed bottom-0 md:bottom-6 right-0 md:right-4 z-[10060] w-full md:w-[400px] h-[70vh] md:h-[600px] md:max-h-[80vh]"
+            className="fixed bottom-0 md:bottom-6 right-0 md:right-4 z-[10060] w-full md:w-[400px] h-[70vh] md:h-[650px] md:max-h-[80vh]"
           >
             <div
               className="flex flex-col h-full rounded-t-xl md:rounded-xl shadow-2xl overflow-hidden"
