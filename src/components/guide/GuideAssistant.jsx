@@ -795,6 +795,7 @@ export default function GuideAssistant() {
     setActiveFlow(null);
     setCurrentStepId(null);
     setShowQuickActions(true);
+    setQuickActionsCollapsed(false);
     setShowTips(false);
     try { localStorage.removeItem(CONVERSATION_KEY); } catch { /* ignore */ }
     addBotMessage("Conversation cleared. How can I help you?", []);
