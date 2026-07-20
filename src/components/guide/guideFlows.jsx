@@ -224,22 +224,22 @@ export const FLOWS = {
       },
       {
         id: 'identify',
-        bot: "When a delivery has COD, you'll see a dollar amount badge on the stop card. The amount is set by the dispatcher when creating the delivery. Common payment methods are:\n\n• Cash\n• Debit\n• Credit\n• Check",
+        bot: "When a delivery has COD, you'll see a dollar sign badge and a Square payment button next to the 'Complete' button on the delivery card. The amount is set by the dispatcher when creating the delivery. Common payment methods are:\n\n• Cash\n• Debit\n• Credit\n• Check",
         actions: [{ label: 'Continue', type: 'next' }],
       },
       {
         id: 'collect',
-        bot: "When you complete a COD delivery, you'll be prompted to record the payment:\n\n1. Tap 'Complete Delivery'\n2. Select the payment method (Cash, Debit, Credit, etc.)\n3. Enter the amount collected\n4. The payment is recorded in the system\n\nFor card payments (Debit/Credit), you can use the Square POS integration to process the payment directly through a connected Square reader.",
+        bot: "Before you complete a COD delivery, you'll need to record the payment:\n\n1. Tap the delivery card to expand it.\n2. Select the Collect option next to the 'COD Required' amount to collet.\n3. Select the payment method (Cash, Debit, Credit, etc.)\n4. Enter/confirm the amount collected\n5. Select 'Save and Complete' to record the payment is recorded in the system\n\nFor card payments (Debit/Credit), you can use the Square POS button next to the 'Complete' button to process the payment directly through a connected Square reader.",
         actions: [{ label: 'Continue', type: 'next' }],
       },
       {
         id: 'square',
-        bot: "To use the Square reader:\n\n1. Make sure your Bluetooth Square reader is connected\n2. Tap 'Process Card Payment' on the delivery completion screen\n3. The Square app will open with the pre-filled amount\n4. Complete the transaction on the reader\n5. Return to RxDeliver — the payment will be automatically verified\n\nThe transaction will show up in the COD Management page for reconciliation.",
+        bot: "To use the Square reader:\n\n1. Make sure your Bluetooth Square reader is connected\n2. Tap 'Square Payment' button on the delivery card next to the 'Complete' button\n3. The Square app will open with the pre-filled amount\n4. Complete the transaction on the reader\n5. Return to RxDeliver — to finalize the delivery with the required payment method.\n\nThe transaction will show up in the COD Management page for reconciliation.",
         actions: [{ label: 'Continue', type: 'next' }],
       },
       {
         id: 'verify',
-        bot: "Dispatchers and admins can verify COD collections in the COD Management page:\n\n• Green 'Collected' badge = payment verified via Square\n• Orange 'Not Collected' = delivery completed but no payment recorded\n• The Reconciliation tab shows unmatched deliveries and transactions\n\nDaily COD totals are shown in the dashboard stats cards.",
+        bot: "Admins and Drivers can verify COD collections in the COD Management page:\n\n• Green 'Collected' badge = payment verified via Square\n• Orange 'Not Collected' = delivery completed but no payment recorded\n• The Reconciliation tab shows unmatched deliveries and transactions\n\nDaily COD totals are shown in the dashboard stats cards.",
         actions: [
           { label: 'Got it! 🎉', type: 'end' },
           { label: 'Start over', type: 'restart' },
