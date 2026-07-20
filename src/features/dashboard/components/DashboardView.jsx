@@ -116,6 +116,12 @@ export default function DashboardView({
     };
   }, [setOptimizationMessage]);
 
+  // Sync immersive mode as a CSS variable so GuideAssistant can read it without prop drilling
+  useEffect(() => {
+    document.documentElement.style.setProperty('--immersive-mode', immersiveHidden ? '1' : '0');
+    return () => document.documentElement.style.removeProperty('--immersive-mode');
+  }, [immersiveHidden]);
+
   const handleSnapshotSelect = (snapshot) => {
     if (!snapshot) return;
     setSnapshotData({

@@ -96,9 +96,10 @@ export default function GuideAssistant() {
       const isOnDashboard = stopCardsHeightStr.trim() !== '';
 
       if (isOnDashboard) {
-        // Dashboard (all devices): sit above the FABs which are above the stop cards.
-        // On desktop, bottomNavHeight is 0 (no bottom nav shown).
-        const stopCardsHeight = parseInt(stopCardsHeightStr, 10) || 0;
+        // In immersive mode the stop cards are hidden — match the other FABs
+        // which use bottomNavHeight + 10 (ignoring stop cards entirely).
+        const immersiveMode = getComputedStyle(document.documentElement).getPropertyValue('--immersive-mode').trim() === '1';
+        const stopCardsHeight = immersiveMode ? 0 : (parseInt(stopCardsHeightStr, 10) || 0);
         const fabBottom = stopCardsHeight + bottomNavHeight + FAB_GAP;
         const guideBottom = fabBottom + FAB_HEIGHT + GUIDE_GAP;
         setGuideBottomPx(guideBottom);
@@ -117,7 +118,7 @@ export default function GuideAssistant() {
     const observer = new MutationObserver(() => compute());
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['style'],
+      attributeFilter: ['style', 'class'],
     });
 
     // Re-compute on resize (mobile <-> desktop transition)
