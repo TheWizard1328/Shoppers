@@ -9,6 +9,7 @@ import MessagingPanel from '../messaging/MessagingPanel';
 import InviteQRCodeModal from '../common/InviteQRCodeModal';
 import ConflictManager from '../dashboard/ConflictManager';
 import MessageNotificationBalloon from '../messaging/MessageNotificationBalloon';
+import InAppMessageDialog from '../messaging/InAppMessageDialog';
 import WebSocketDiagnosticsCard from './WebSocketDiagnosticsCard';
 import { isAppOwner } from '../utils/userRoles';
 import { useDevice } from '../utils/DeviceContext';
@@ -93,14 +94,25 @@ export default function GlobalOverlays({
                   
                   {/* Message Notification Balloon */}
                                {currentUser && !showMessaging &&
-      <MessageNotificationBalloon
-        currentUser={currentUser}
-        onOpenConversation={(conversationId, otherUserId, otherUserName) => {
-          setInitialConversation({ conversationId, otherUserId, otherUserName });
-          setShowMessaging(true);
-          setUnreadMessageCount(0);
-        }} />
-      }
+                  <MessageNotificationBalloon
+                  currentUser={currentUser}
+                  onOpenConversation={(conversationId, otherUserId, otherUserName) => {
+                  setInitialConversation({ conversationId, otherUserId, otherUserName });
+                  setShowMessaging(true);
+                  setUnreadMessageCount(0);
+                  }} />
+                  }
+
+                  {/* In-App Message Dialog — auto-opens for dispatchers/admins on new messages */}
+                  {currentUser && !showMessaging &&
+                  <InAppMessageDialog
+                  currentUser={currentUser}
+                  onOpenConversation={(conversationId, otherUserId, otherUserName) => {
+                  setInitialConversation({ conversationId, otherUserId, otherUserName });
+                  setShowMessaging(true);
+                  setUnreadMessageCount(0);
+                  }} />
+                  }
                                {/* WebSocket Diagnostics Card - App Owners only, non-primary devices */}
                                {isAppOwner(currentUser) &&
       <WebSocketDiagnosticsCard />
