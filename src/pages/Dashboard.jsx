@@ -1863,6 +1863,16 @@ useEffect(() => {
     return () => window.removeEventListener('collapseAllStopCards', handleCollapseAllStopCardsEvent);
   }, [selectedCardId, deliveries, previousMapState]);
 
+  // ── GuideAssistant: open add-delivery form directly from Dashboard ──────────
+  useEffect(() => {
+    const handleOpenAddDelivery = () => {
+      setEditingDelivery(null);
+      setShowDeliveryForm(true);
+    };
+    window.addEventListener('rxdeliver_open_add_to_route', handleOpenAddDelivery);
+    return () => window.removeEventListener('rxdeliver_open_add_to_route', handleOpenAddDelivery);
+  }, [setEditingDelivery, setShowDeliveryForm]);
+
   const handleCardClick = useCallback((delivery) => {
     if (!delivery || !delivery.id) {
       return;

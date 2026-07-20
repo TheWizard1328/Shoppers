@@ -18,7 +18,7 @@ import { getLocalDeliveryPredictions } from '@/components/deliveries/getLocalDel
 
 const STORAGE_KEY = 'rxdeliver_guide_seen';
 const CONVERSATION_KEY = 'rxdeliver_guide_conversation';
-const DAILY_GREETING_KEY = 'rxdeliver_guide_daily_greeting_v2';
+const DAILY_GREETING_KEY = 'rxdeliver_guide_daily_greeting_v3';
 
 
 const MOTIVATIONAL_QUOTES = [
@@ -439,13 +439,23 @@ export default function GuideAssistant() {
         break;
       }
       case 'open_add_to_route': {
-        addBotMessage("Taking you to the Add To Route form... 📅");
-        setShowQuickActions(true);
-        navigate('/Deliveries');
-        // Dispatch event for Deliveries page to pick up
-        setTimeout(() => {
+        // Close the guide panel first
+        setIsOpen(false);
+        // Fire the event immediately — Dashboard listener opens the form in-place,
+        // Deliveries page listener also handles it if we're already there.
+        // We do NOT navigate away on mobile (stay on Dashboard).
+        const currentPath = window.location.hash.replace('#', '') || '/';
+        const isOnDashboard = currentPath === '/' || currentPath.startsWith('/Dashboard');
+        if (!isOnDashboard) {
+          // Only navigate if we're on a different page
+          navigate('/Deliveries');
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('rxdeliver_open_add_to_route'));
+          }, 600);
+        } else {
+          // Already on Dashboard — fire event immediately, form opens in-place
           window.dispatchEvent(new CustomEvent('rxdeliver_open_add_to_route'));
-        }, 600);
+        }
         break;
       }
       case 'dismiss': {
