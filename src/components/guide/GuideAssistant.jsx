@@ -17,6 +17,7 @@ import { QUICK_ACTIONS, FLOWS, PAGE_TIPS, PAGE_CONTEXT, matchIntent } from './gu
 import {
   detectPatientQuery,
   findPatientByName,
+  findAllPatientsByName,
   findCurrentDeliveryPatient,
   getPatientDeliveryStats,
   buildPatientResponse,
@@ -400,29 +401,24 @@ export default function GuideAssistant() {
     }
   }, [activeFlow, addBotMessage]);
 
-  // ── Patient pool scoped to role (must be before handleAction) ─────
-  // Memoized so handlePatientQuery deps are stable across renders.
-  const getAllowedPatients = useMemo(() => {
-    if (!appPatients || !currentUser) return [];
-    const userRole = isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver';
+  // ── Role-scoped patient list ──────────────────────────────────────
+  const getAllowedPatients = useCallback(() => {
+    if (!currentUser || !appPatients) return [];
     if (userRole === 'admin') return appPatients;
     if (userRole === 'dispatcher') {
-      const myStoreIds = new Set(currentUser?.store_ids || []);
-      if (myStoreIds.size === 0) return [];
-      return appPatients.filter(p => p && myStoreIds.has(p.store_id));
+      const storeIds = new Set(currentUser.store_ids || []);
+      return appPatients.filter(p => p && storeIds.has(p.store_id));
     }
-    // Driver: patients from stores they have deliveries for
-    const myStoreIds = new Set();
-    for (const d of (appDeliveries || [])) {
-      if (d && d.driver_id === currentUser?.id && d.store_id) {
-        myStoreIds.add(d.store_id);
-      }
-    }
-    if (myStoreIds.size === 0) return [];
+    // Driver: scope to stores they have deliveries for today
+    const myStoreIds = new Set(
+      (appDeliveries || [])
+        .filter(d => d && d.driver_id === currentUser.id && d.delivery_date === todayStr)
+        .map(d => d.store_id)
+        .filter(Boolean)
+    );
     return appPatients.filter(p => p && myStoreIds.has(p.store_id));
-  }, [appPatients, currentUser, appDeliveries]);
+  }, [currentUser, userRole, appPatients, appDeliveries, todayStr]);
 
-  // ── Handle user input ────────────────────────────────────────────────────────
   // ── Patient info lookup ──────────────────────────────────────────
   const handlePatientQuery = useCallback((queryResult) => {
     const userRole = currentUser ? (isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver') : 'driver';
