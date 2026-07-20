@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, X, Send, ChevronRight, RotateCcw, Lightbulb, Navigation } from 'lucide-react';
+import { Sparkles, X, Send, ChevronRight, ChevronDown, RotateCcw, Lightbulb, Navigation } from 'lucide-react';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { isAppOwner, userHasRole, getPrimaryRole } from '@/components/utils/userRoles';
 import { QUICK_ACTIONS, FLOWS, PAGE_TIPS, PAGE_CONTEXT, matchIntent } from './guideFlows';
@@ -66,6 +66,7 @@ export default function GuideAssistant() {
   const [currentStepId, setCurrentStepId] = useState(null);
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [showTips, setShowTips] = useState(false);
+  const [quickActionsCollapsed, setQuickActionsCollapsed] = useState(false);
   const [pageTipIndex, setPageTipIndex] = useState(0);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
@@ -935,35 +936,44 @@ export default function GuideAssistant() {
               {/* Quick Actions */}
               {showQuickActions && (
                 <div
-                  className="px-3 py-2"
                   style={{
                     borderTop: '1px solid var(--border-slate-200)',
                     backgroundColor: 'var(--bg-white)',
                   }}
                 >
-                  <div className="flex flex-wrap gap-1.5">
-                    {visibleQuickActions.map((action) => (
-                      <button
-                        key={action.id}
-                        onClick={() => handleQuickAction(action.id)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
-                        style={{
-                          backgroundColor: 'var(--bg-slate-100)',
-                          color: 'var(--text-slate-700)',
-                          border: '1px solid var(--border-slate-200)',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.backgroundColor = 'var(--bg-slate-200)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.backgroundColor = 'var(--bg-slate-100)';
-                        }}
-                      >
-                        <span className="text-xs">{action.icon}</span>
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
+                  {/* Header row with collapse toggle */}
+                  <button
+                    onClick={() => setQuickActionsCollapsed(c => !c)}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium"
+                    style={{ color: 'var(--text-slate-500)' }}
+                  >
+                    <span>Quick Actions</span>
+                    <ChevronDown
+                      className="w-3.5 h-3.5 transition-transform"
+                      style={{ transform: quickActionsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                    />
+                  </button>
+                  {!quickActionsCollapsed && (
+                    <div className="px-3 pb-2 flex flex-wrap gap-1.5">
+                      {visibleQuickActions.map((action) => (
+                        <button
+                          key={action.id}
+                          onClick={() => handleQuickAction(action.id)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
+                          style={{
+                            backgroundColor: 'var(--bg-slate-100)',
+                            color: 'var(--text-slate-700)',
+                            border: '1px solid var(--border-slate-200)',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-slate-200)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--bg-slate-100)'; }}
+                        >
+                          <span className="text-xs">{action.icon}</span>
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
