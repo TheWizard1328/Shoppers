@@ -2,19 +2,26 @@
  * GuideAssistant.jsx — Floating conversational guide assistant for RxDeliver.
  * Provides step-by-step guidance, quick actions, contextual tips, and onboarding.
  * Works offline — no API calls required for core functionality.
+ *
+ * Positioning: On mobile, the floating button sits above the FAB controls which
+ * sit above the stop cards. It reads --stop-cards-height (set by Dashboard) and
+ * --bottom-nav-height to compute its position dynamically.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, Send, ChevronRight, RotateCcw, Lightbulb, Navigation } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { isAppOwner, userHasRole, getPrimaryRole } from '@/components/utils/userRoles';
 import { QUICK_ACTIONS, FLOWS, PAGE_TIPS, PAGE_CONTEXT, matchIntent } from './guideFlows';
 
 const STORAGE_KEY = 'rxdeliver_guide_seen';
 const CONVERSATION_KEY = 'rxdeliver_guide_conversation';
+
+// FAB is h-10 (40px) + 10px gap above stop cards + 8px gap above FAB
+const FAB_HEIGHT = 40;
+const FAB_GAP = 10;
+const GUIDE_GAP = 8;
 
 export default function GuideAssistant() {
   const location = useLocation();
@@ -32,6 +39,74 @@ export default function GuideAssistant() {
   const [pageTipIndex, setPageTipIndex] = useState(0);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+
+  // ── Dynamic bottom offset for the floating button ───────────────
+  // On the Dashboard, we need to sit above the FABs which sit above stop cards.
+  // --stop-cards-height is set by Dashboard.jsx. --bottom-nav-height is the
+  // mobile bottom nav. On non-Dashboard pages, stop-cards-height is 0 so we
+  // just sit above the bottom nav (or at a default position on desktop).
+  const [guideBottomPx, setGuideBottomPx] = useState(80);
+
+  useEffect(() => {
+    const compute = () => {
+      const isMobileScreen = window.innerWidth < 850;
+
+      if (!isMobileScreen) {
+        // Desktop: sit at a fixed comfortable position
+        setGuideBottomPx(24);
+        return;
+      }
+
+      // Mobile: sit above the FABs which are above the stop cards.
+      // --stop-cards-height is set by Dashboard.jsx.
+      // --bottom-nav-height is always 0px in CSS, so measure the actual nav element.
+      const stopCardsHeight = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--stop-cards-height') || '0',
+        10
+      ) || 0;
+
+      let bottomNavHeight = 0;
+      const navEl = document.querySelector('[data-mobile-bottom-nav]');
+      if (navEl) {
+        bottomNavHeight = navEl.offsetHeight || 0;
+      }
+
+      // FAB bottom (from viewport) = stopCardsHeight + bottomNavHeight + FAB_GAP
+      // Guide bottom = FAB bottom + FAB_HEIGHT + GUIDE_GAP
+      const fabBottom = stopCardsHeight + bottomNavHeight + FAB_GAP;
+      const guideBottom = fabBottom + FAB_HEIGHT + GUIDE_GAP;
+      setGuideBottomPx(guideBottom);
+    };
+
+    compute();
+
+    // Re-compute when CSS variables change (stop cards height updates)
+    const observer = new MutationObserver(() => compute());
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style'],
+    });
+
+    // Re-compute on resize (mobile <-> desktop transition)
+    window.addEventListener('resize', compute);
+    window.addEventListener('orientationchange', compute);
+
+    // Re-compute on SPA navigation (bottom nav may mount/unmount)
+    window.addEventListener('popstate', compute);
+
+    // Also poll briefly for the CSS variable to settle (Dashboard sets it async)
+    const interval = setInterval(compute, 500);
+    const timeout = setTimeout(() => clearInterval(interval), 3000);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('orientationchange', compute);
+      window.removeEventListener('popstate', compute);
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, []);
 
   // ── Determine current page and role ───────────────────────────────
   const currentPageName = useMemo(() => {
@@ -285,7 +360,7 @@ export default function GuideAssistant() {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Button — positioned above FABs on mobile */}
       <AnimatePresence>
         {!isOpen && (
           <motion.div
@@ -293,7 +368,8 @@ export default function GuideAssistant() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="fixed bottom-20 md:bottom-6 right-4 z-[9999]"
+            className="fixed right-4 z-[9999]"
+            style={{ bottom: `${guideBottomPx}px` }}
           >
             <button
               onClick={handleOpen}

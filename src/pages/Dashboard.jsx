@@ -511,6 +511,12 @@ function Dashboard() {
   useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId });
   useStopCardsBaseHeight({ horizontalStopCardsRef, selectedCardId, deliveriesWithStopOrder, stopCardsBaseHeight, setStopCardsBaseHeight, statsCardRef, setStatsCardBaseHeight });
 
+  // Expose stop cards height as CSS variable for GuideAssistant positioning
+  useEffect(() => {
+    document.documentElement.style.setProperty('--stop-cards-height', `${stopCardsBaseHeight || 0}px`);
+    return () => { document.documentElement.style.removeProperty('--stop-cards-height'); };
+  }, [stopCardsBaseHeight]);
+
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !isFiltersReady) return;
     smartRefreshManager.setCurrentUser(currentUser);
