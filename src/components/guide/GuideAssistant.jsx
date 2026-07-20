@@ -400,102 +400,10 @@ export default function GuideAssistant() {
     }
   }, [activeFlow, addBotMessage]);
 
-  // ── Handle action button clicks ──────────────────────────────────
-  const handleAction = useCallback((action) => {
-    if (!action) return;
-
-    switch (action.type) {
-      case 'next': {
-        const flow = activeFlow ? FLOWS[activeFlow] : null;
-        if (!flow) return;
-        const currentIdx = flow.steps.findIndex(s => s.id === currentStepId);
-        const nextStep = flow.steps[currentIdx + 1];
-        if (nextStep) {
-          goToStep(nextStep.id);
-        } else {
-          addBotMessage("That's all for this guide! Is there anything else you'd like help with?");
-          setActiveFlow(null);
-          setCurrentStepId(null);
-          setShowQuickActions(true);
-        }
-        break;
-      }
-      case 'jump': {
-        goToStep(action.target);
-        break;
-      }
-      case 'restart': {
-        if (activeFlow) startFlow(activeFlow);
-        break;
-      }
-      case 'end': {
-        addBotMessage("You're all set! 👍 Feel free to ask if you need more help. I'm always here.");
-        setActiveFlow(null);
-        setCurrentStepId(null);
-        setShowQuickActions(true);
-        break;
-      }
-      case 'flow': {
-        addUserMessage(action.label || action.target);
-        startFlow(action.target);
-        break;
-      }
-      case 'navigate': {
-        if (action.page) {
-          window.location.hash = `/${action.page}`;
-          addBotMessage(`Taking you to the ${action.page} page...`);
-        }
-        break;
-      }
-      case 'open_add_to_route': {
-        // Close the guide panel first
-        setIsOpen(false);
-        // Fire the event immediately — Dashboard listener opens the form in-place,
-        // Deliveries page listener also handles it if we're already there.
-        // We do NOT navigate away on mobile (stay on Dashboard).
-        const currentPath = window.location.hash.replace('#', '') || '/';
-        const isOnDashboard = currentPath === '/' || currentPath.startsWith('/Dashboard');
-        if (!isOnDashboard) {
-          // Only navigate if we're on a different page
-          navigate('/Deliveries');
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('rxdeliver_open_add_to_route'));
-          }, 600);
-        } else {
-          // Already on Dashboard — fire event immediately, form opens in-place
-          window.dispatchEvent(new CustomEvent('rxdeliver_open_add_to_route'));
-        }
-        break;
-      }
-      case 'dismiss': {
-        setShowQuickActions(true);
-        break;
-      }
-      case 'select_patient': {
-        // Disambiguation selection — look up the specific patient
-        if (action.patientId) {
-          const selected = appPatients?.find(p => p?.id === action.patientId);
-          if (selected) {
-            addUserMessage(action.label || selected.full_name);
-            setShowQuickActions(false);
-            setTimeout(() => handlePatientQuery({ type: 'named', patientName: selected.full_name, patientId: selected.id }), 300);
-          } else {
-            addBotMessage("I couldn't find that patient. They may have been removed.");
-          }
-        }
-        break;
-      }
-      default:
-        break;
-    }
-  }, [activeFlow, currentStepId, goToStep, startFlow, addBotMessage, addUserMessage, navigate, appPatients, handlePatientQuery]);
-
-  // ── Patient pool scoped to role ────────────────────────────────────
-  // Inline function (not useCallback) so handlePatientQuery can call it
-  // without a circular dep. Pure derivation from existing state refs.
-  const getAllowedPatients = (() => {
+  // ── Patient pool scoped to role (must be before handleAction) ─────
+  // Memoized so handlePatientQuery deps are stable across renders.
+  const getAllowedPatients = useMemo(() => {
     if (!appPatients || !currentUser) return [];
-    const roles = currentUser?.app_roles || [];
     const userRole = isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver';
     if (userRole === 'admin') return appPatients;
     if (userRole === 'dispatcher') {
@@ -503,7 +411,7 @@ export default function GuideAssistant() {
       if (myStoreIds.size === 0) return [];
       return appPatients.filter(p => p && myStoreIds.has(p.store_id));
     }
-    // Driver: stores they have deliveries for on today's date
+    // Driver: patients from stores they have deliveries for
     const myStoreIds = new Set();
     for (const d of (appDeliveries || [])) {
       if (d && d.driver_id === currentUser?.id && d.store_id) {
@@ -512,7 +420,7 @@ export default function GuideAssistant() {
     }
     if (myStoreIds.size === 0) return [];
     return appPatients.filter(p => p && myStoreIds.has(p.store_id));
-  })();
+  }, [appPatients, currentUser, appDeliveries]);
 
   // ── Handle user input ────────────────────────────────────────────────────────
   // ── Patient info lookup ──────────────────────────────────────────
@@ -638,6 +546,96 @@ export default function GuideAssistant() {
     addBotMessage(response, []);
     setShowQuickActions(true);
   }, [currentUser, appDeliveries, appPatients, appStores, appDrivers, addBotMessage, setShowQuickActions, getAllowedPatients]);
+
+  // ── Handle action button clicks ──────────────────────────────────
+  const handleAction = useCallback((action) => {
+    if (!action) return;
+
+    switch (action.type) {
+      case 'next': {
+        const flow = activeFlow ? FLOWS[activeFlow] : null;
+        if (!flow) return;
+        const currentIdx = flow.steps.findIndex(s => s.id === currentStepId);
+        const nextStep = flow.steps[currentIdx + 1];
+        if (nextStep) {
+          goToStep(nextStep.id);
+        } else {
+          addBotMessage("That's all for this guide! Is there anything else you'd like help with?");
+          setActiveFlow(null);
+          setCurrentStepId(null);
+          setShowQuickActions(true);
+        }
+        break;
+      }
+      case 'jump': {
+        goToStep(action.target);
+        break;
+      }
+      case 'restart': {
+        if (activeFlow) startFlow(activeFlow);
+        break;
+      }
+      case 'end': {
+        addBotMessage("You're all set! 👍 Feel free to ask if you need more help. I'm always here.");
+        setActiveFlow(null);
+        setCurrentStepId(null);
+        setShowQuickActions(true);
+        break;
+      }
+      case 'flow': {
+        addUserMessage(action.label || action.target);
+        startFlow(action.target);
+        break;
+      }
+      case 'navigate': {
+        if (action.page) {
+          window.location.hash = `/${action.page}`;
+          addBotMessage(`Taking you to the ${action.page} page...`);
+        }
+        break;
+      }
+      case 'open_add_to_route': {
+        // Close the guide panel first
+        setIsOpen(false);
+        // Fire the event immediately — Dashboard listener opens the form in-place,
+        // Deliveries page listener also handles it if we're already there.
+        // We do NOT navigate away on mobile (stay on Dashboard).
+        const currentPath = window.location.hash.replace('#', '') || '/';
+        const isOnDashboard = currentPath === '/' || currentPath.startsWith('/Dashboard');
+        if (!isOnDashboard) {
+          // Only navigate if we're on a different page
+          navigate('/Deliveries');
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('rxdeliver_open_add_to_route'));
+          }, 600);
+        } else {
+          // Already on Dashboard — fire event immediately, form opens in-place
+          window.dispatchEvent(new CustomEvent('rxdeliver_open_add_to_route'));
+        }
+        break;
+      }
+      case 'dismiss': {
+        setShowQuickActions(true);
+        break;
+      }
+      case 'select_patient': {
+        // Disambiguation selection — look up the specific patient
+        if (action.patientId) {
+          const selected = appPatients?.find(p => p?.id === action.patientId);
+          if (selected) {
+            addUserMessage(action.label || selected.full_name);
+            setShowQuickActions(false);
+            setTimeout(() => handlePatientQuery({ type: 'named', patientName: selected.full_name, patientId: selected.id }), 300);
+          } else {
+            addBotMessage("I couldn't find that patient. They may have been removed.");
+          }
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }, [activeFlow, currentStepId, goToStep, startFlow, addBotMessage, addUserMessage, navigate, appPatients, handlePatientQuery]);
 
   const handleSend = useCallback(() => {
     const text = inputValue.trim();
