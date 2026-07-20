@@ -716,8 +716,8 @@ export default function Documents() {
             </Card>
           }
 
-          {/* My uploaded files — view/re-crop/rotate */}
-          {documents.filter((d) => d.driver_id === currentUser?.id && d.document_scope === 'driver').length > 0 &&
+          {/* My uploaded files — view/re-crop/rotate (drivers only, not admins) */}
+          {!isAdmin && documents.filter((d) => d.driver_id === currentUser?.id && d.document_scope === 'driver').length > 0 &&
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">My Uploaded Documents</CardTitle>
