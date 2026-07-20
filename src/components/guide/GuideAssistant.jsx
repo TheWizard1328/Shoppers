@@ -63,20 +63,16 @@ export default function GuideAssistant() {
       const stopCardsHeightStr = getComputedStyle(document.documentElement).getPropertyValue('--stop-cards-height') || '';
       const isOnDashboard = stopCardsHeightStr.trim() !== '';
 
-      if (!isMobileScreen) {
-        // Desktop: bottom-right corner
-        setGuideBottomPx(24);
-        return;
-      }
-
       if (isOnDashboard) {
-        // Dashboard: sit above the FABs which are above the stop cards.
+        // Dashboard (all devices): sit above the FABs which are above the stop cards.
+        // On desktop, bottomNavHeight is 0 (no bottom nav shown).
         const stopCardsHeight = parseInt(stopCardsHeightStr, 10) || 0;
-        // FAB bottom (from viewport) = stopCardsHeight + bottomNavHeight + FAB_GAP
-        // Guide bottom = FAB bottom + FAB_HEIGHT + GUIDE_GAP
         const fabBottom = stopCardsHeight + bottomNavHeight + FAB_GAP;
         const guideBottom = fabBottom + FAB_HEIGHT + GUIDE_GAP;
         setGuideBottomPx(guideBottom);
+      } else if (!isMobileScreen) {
+        // Non-Dashboard desktop: bottom-right corner
+        setGuideBottomPx(24);
       } else {
         // Non-Dashboard mobile: just above the bottom nav bar
         setGuideBottomPx(bottomNavHeight + 12);
