@@ -524,10 +524,11 @@ export default function GuideAssistant() {
       delivery = result.delivery;
       includeAdvice = isDriver || isAdmin;
     } else if (queryResult.patientId) {
-      // Direct patient ID from disambiguation selection — skip search
-      patient = appPatients?.find(p => p?.id === queryResult.patientId);
+      // Direct patient ID from disambiguation selection — verify it's in allowed set
+      const allowedPatients = getAllowedPatients();
+      patient = allowedPatients?.find(p => p?.id === queryResult.patientId);
       if (!patient) {
-        addBotMessage("I couldn't find that patient. They may have been removed.", []);
+        addBotMessage("You don't have access to that patient's information. Only patients from your assigned stores/deliveries can be looked up.", []);
         setShowQuickActions(true);
         return;
       }
@@ -543,11 +544,17 @@ export default function GuideAssistant() {
         includeAdvice = isDriver || isAdmin;
       }
     } else {
-      // Named patient search — check for multiple matches
-      const matches = findAllPatientsByName(queryResult.patientName, appPatients);
+      // Named patient search — scoped to allowed patients for this role
+      const allowedPatients = getAllowedPatients();
+      const matches = findAllPatientsByName(queryResult.patientName, allowedPatients);
       if (matches.length === 0) {
+        const scopeMsg = isDispatcher
+          ? 'Only patients from your assigned stores can be searched.'
+          : isDriver
+          ? 'Only patients from stores you have deliveries for can be searched.'
+          : '';
         addBotMessage(
-          `I couldn't find a patient named "**${queryResult.patientName}**". Could you double-check the spelling? You can also type **'info'** for your current delivery patient.`,
+          `I couldn't find a patient named "**${queryResult.patientName}**" in your accessible patients. ${scopeMsg} Could you double-check the spelling? You can also type **'info'** for your current delivery patient.`,
           []
         );
         setShowQuickActions(true);
@@ -606,7 +613,7 @@ export default function GuideAssistant() {
     const response = buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice });
     addBotMessage(response, []);
     setShowQuickActions(true);
-  }, [currentUser, appDeliveries, appPatients, appStores, appDrivers, addBotMessage, setShowQuickActions]);
+  }, [currentUser, appDeliveries, appPatients, appStores, appDrivers, addBotMessage, setShowQuickActions, getAllowedPatients]);
 
   const handleSend = useCallback(() => {
     const text = inputValue.trim();
@@ -677,8 +684,12 @@ export default function GuideAssistant() {
         }, 300);
       }
     } else {
-      // ── Last resort: try patient name match ──
-      const patientMatches = findAllPatientsByName(text, appPatients);
+      // ── Last resort: try patient name match (scoped to allowed patients) ──
+      // handlePatientQuery does the actual scoping, so we just pass the raw name
+      // and let it filter. But we can pre-check to avoid showing a fallback when
+      // the name actually matches a scoped patient.
+      const allowedPatients = getAllowedPatients();
+      const patientMatches = findAllPatientsByName(text, allowedPatients);
       if (patientMatches.length > 0) {
         setTimeout(() => handlePatientQuery({ type: 'named', patientName: text }), 300);
         return;
@@ -692,7 +703,7 @@ export default function GuideAssistant() {
         setShowQuickActions(true);
       }, 300);
     }
-  }, [inputValue, addUserMessage, addBotMessage, startFlow, handlePatientQuery, currentUser, appDeliveries, appPatients, appStores, appDrivers]);
+  }, [inputValue, addUserMessage, addBotMessage, startFlow, handlePatientQuery, currentUser, appDeliveries, appPatients, appStores, appDrivers, getAllowedPatients]);
 
   // ── Handle quick action click ───────────────────────────────────
   const handleQuickAction = useCallback((actionId) => {
