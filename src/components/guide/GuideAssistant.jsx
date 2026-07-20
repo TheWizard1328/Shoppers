@@ -77,53 +77,64 @@ export default function GuideAssistant() {
   const [guideBottomPx, setGuideBottomPx] = useState(80);
 
   useEffect(() => {
+    // Track immersive state in a ref so the interval always sees the latest value
+    let isImmersive = false;
+
     const compute = (e) => {
-      // Measure bottom nav height by querying the DOM element directly
-      let bottomNavHeight = 0;
-      const navEl = document.querySelector('[data-mobile-bottom-nav]');
-      if (navEl) bottomNavHeight = navEl.offsetHeight || 0;
+      // Update immersive state from event if provided
+      if (e?.detail?.hidden !== undefined) {
+        isImmersive = e.detail.hidden === true;
+      }
 
-      // --stop-cards-height is set by Dashboard.jsx — presence means we're on Dashboard
-      const stopCardsHeightStr = getComputedStyle(document.documentElement).getPropertyValue('--stop-cards-height') || '';
-      const isOnDashboard = stopCardsHeightStr.trim() !== '';
+      // Bottom nav height — same source as FABControls
+      const bottomNavHeight = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0'
+      ) || 0;
 
-      if (isOnDashboard) {
-        // Mirror MapViewCycleFAB's exact formula:
-        //   bottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10
-        // Read immersive flag — either from the event detail or from the CSS var
-        const isImmersive = e?.detail?.hidden === true ||
-          getComputedStyle(document.documentElement).getPropertyValue('--immersive-mode').trim() === '1';
-        const stopCardsHeight = parseInt(stopCardsHeightStr, 10) || 0;
-        const hasVisibleCards = stopCardsHeight > 0;
-        // This is exactly what MapViewCycleFAB computes as its own bottom
-        const mapFabBottom = ((hasVisibleCards && !isImmersive) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
-        // Guide FAB sits above the map FAB: + FAB height (40px) + 8px gap
-        setGuideBottomPx(mapFabBottom + 40 + 8);
-      } else if (window.innerWidth >= 850) {
+      // Stop cards container — query the actual DOM element (same element MapViewCycleFAB reacts to)
+      const stopCardsEl = document.querySelector('[data-stop-cards-container]');
+      const stopCardsHeight = stopCardsEl ? (stopCardsEl.offsetHeight || 0) : 0;
+      const hasVisibleCards = stopCardsHeight > 0;
+
+      // Mirror MapViewCycleFAB's exact bottom formula (line 126 in MapViewCycleFAB.jsx)
+      const mapFabBottom = ((hasVisibleCards && !isImmersive) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
+
+      if (window.innerWidth >= 850) {
+        // Desktop: fixed 24px from bottom (no mobile nav / stop cards)
         setGuideBottomPx(24);
       } else {
-        setGuideBottomPx(bottomNavHeight + 12);
+        // Mobile: Guide FAB sits above the MapCycleFAB (40px tall) + 8px gap
+        setGuideBottomPx(mapFabBottom + 40 + 8);
       }
     };
 
     compute();
 
-    window.addEventListener('immersiveModeChanged', compute);
+    const handleImmersive = (e) => {
+      isImmersive = e?.detail?.hidden === true;
+      compute(e);
+    };
+
+    window.addEventListener('immersiveModeChanged', handleImmersive);
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
-    window.addEventListener('popstate', compute);
 
-    // Brief startup poll so --stop-cards-height settles after mount
-    const interval = setInterval(compute, 500);
-    const timeout = setTimeout(() => clearInterval(interval), 3000);
+    // Poll briefly on mount so stop cards height settles, then keep a slow heartbeat
+    const fastInterval = setInterval(compute, 300);
+    const fastTimeout = setTimeout(() => {
+      clearInterval(fastInterval);
+      // After 3s settle, poll every 2s as a fallback for late-loading stop cards
+      slowInterval = setInterval(compute, 2000);
+    }, 3000);
+    let slowInterval;
 
     return () => {
-      window.removeEventListener('immersiveModeChanged', compute);
+      window.removeEventListener('immersiveModeChanged', handleImmersive);
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
-      window.removeEventListener('popstate', compute);
-      clearInterval(interval);
-      clearTimeout(timeout);
+      clearInterval(fastInterval);
+      clearInterval(slowInterval);
+      clearTimeout(fastTimeout);
     };
   }, []);
 

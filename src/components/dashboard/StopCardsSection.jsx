@@ -93,7 +93,7 @@ function StopCardsSection({
 
   return (
     <div
-      ref={stopCardsContainerRef} className="horizontal-cards-container absolute left-0 right-0 z-[10001] pointer-events-none flex flex-col justify-end transition-transform duration-500 ease-in-out will-change-transform"
+      ref={stopCardsContainerRef} data-stop-cards-container className="horizontal-cards-container absolute left-0 right-0 z-[10001] pointer-events-none flex flex-col justify-end transition-transform duration-500 ease-in-out will-change-transform"
 
       style={{
         position: 'absolute',
