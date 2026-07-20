@@ -8,15 +8,36 @@
  * --bottom-nav-height to compute its position dynamically.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, Send, ChevronRight, RotateCcw, Lightbulb, Navigation } from 'lucide-react';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { isAppOwner, userHasRole, getPrimaryRole } from '@/components/utils/userRoles';
 import { QUICK_ACTIONS, FLOWS, PAGE_TIPS, PAGE_CONTEXT, matchIntent } from './guideFlows';
+import { getLocalDeliveryPredictions } from '@/components/deliveries/getLocalDeliveryPredictions';
 
 const STORAGE_KEY = 'rxdeliver_guide_seen';
 const CONVERSATION_KEY = 'rxdeliver_guide_conversation';
+const DAILY_GREETING_KEY = 'rxdeliver_guide_daily_greeting';
+
+
+const MOTIVATIONAL_QUOTES = [
+  "The way to get started is to quit talking and begin doing. — Walt Disney",
+  "Success is not final, failure is not fatal: it is the courage to continue that counts. — Winston Churchill",
+  "Believe you can and you're halfway there. — Theodore Roosevelt",
+  "It always seems impossible until it's done. — Nelson Mandela",
+  "The only way to do great work is to love what you do. — Steve Jobs",
+  "Don't watch the clock; do what it does. Keep going. — Sam Levenson",
+  "The future depends on what you do today. — Mahatma Gandhi",
+  "Every accomplishment starts with the decision to try. — Unknown",
+  "You don't have to be great to start, but you have to start to be great. — Zig Ziglar",
+  "The hard days are what make you stronger. — Aly Raisman",
+  "Mile by mile, it's a style; but yard by yard, it's hard. — Unknown",
+  "Done is better than perfect.",
+  "Small steps every day add up to big results.",
+  "Your patients are counting on you. Let's make it happen! 🚀",
+  "Smooth roads never make good drivers. Keep pushing! 💪",
+];
 
 // FAB is h-10 (40px) + 10px gap above stop cards + 8px gap above FAB
 const FAB_HEIGHT = 40;
@@ -25,7 +46,8 @@ const GUIDE_GAP = 8;
 
 export default function GuideAssistant() {
   const location = useLocation();
-  const { currentUser } = useAppData();
+  const navigate = useNavigate();
+  const { currentUser, deliveries: appDeliveries, patients: appPatients, stores: appStores, drivers: appDrivers } = useAppData();
   const [isOpen, setIsOpen] = useState(false);
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
@@ -123,6 +145,116 @@ export default function GuideAssistant() {
 
   const pageContext = PAGE_CONTEXT[currentPageName] || null;
   const pageTips = pageContext ? PAGE_TIPS[pageContext.tips] || [] : [];
+
+  // ── Daily greeting logic ──────────────────────────────────────────
+  const [hasShownDailyGreeting, setHasShownDailyGreeting] = useState(() => {
+    try {
+      const stored = localStorage.getItem(DAILY_GREETING_KEY);
+      const today = new Date().toLocaleDateString('en-CA');
+      return stored === today;
+    } catch { return false; }
+  });
+
+  const getLocalDateString = useCallback((date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
+  const generateDailyGreeting = useCallback(() => {
+    const today = getLocalDateString(new Date());
+    const roleLabel = userRole === 'admin' ? 'admin' : userRole === 'dispatcher' ? 'dispatcher' : 'driver';
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    const quote = MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)];
+
+    if (userRole === 'driver') {
+      // Count pending stops for today
+      const myDeliveries = (appDeliveries || []).filter((d) =>
+        d && d.delivery_date === today &&
+        d.driver_id === currentUser?.id &&
+        !['completed', 'returned', 'cancelled'].includes(d.status)
+      );
+      const count = myDeliveries.length;
+      const completed = (appDeliveries || []).filter((d) =>
+        d && d.delivery_date === today &&
+        d.driver_id === currentUser?.id &&
+        d.status === 'completed'
+      ).length;
+
+      let msg = `${greeting}! ☀️\n\n`;
+      if (count > 0) {
+        msg += `You have **${count} stop${count !== 1 ? 's' : ''}** lined up for today`;
+        if (completed > 0) msg += ` (${completed} already completed ✅)`;
+        msg += `.\n\n`;
+      } else {
+        msg += `No pending stops for today. Enjoy the lighter day! 😊\n\n`;
+      }
+      msg += `💪 \"${quote}\"`;
+      return [{ text: msg, actions: [] }];
+    }
+
+    if (userRole === 'dispatcher' || userRole === 'admin') {
+      // Get projected deliveries for today
+      const predictions = getLocalDeliveryPredictions({
+        currentUser,
+        stores: appStores,
+        patients: appPatients,
+        allDeliveries: appDeliveries,
+        selectedDate: today,
+        scheduledDriverMap: {},
+      });
+
+      // Also count existing staged/pending deliveries for today
+      const todaysDeliveries = (appDeliveries || []).filter((d) =>
+        d && d.delivery_date === today &&
+        !['completed', 'returned', 'cancelled'].includes(d.status)
+      );
+
+      let msg = `${greeting}! ☀️\n\n`;
+      msg += `**Today's Overview:**\n`;
+      msg += `• ${todaysDeliveries.length} active delivery${todaysDeliveries.length !== 1 ? 's' : ''} in progress\n`;
+      msg += `• ${predictions.length} projected delivery${predictions.length !== 1 ? 's' : ''} from recurring schedules\n\n`;
+
+      if (predictions.length > 0) {
+        msg += `**Potential deliveries to add:**\n`;
+        const top = predictions.slice(0, 5);
+        for (const p of top) {
+          const store = (appStores || []).find((s) => s.id === p.store_id);
+          const storeName = store?.name || store?.abbreviation || 'Unknown store';
+          msg += `• ${p.patient_name} — ${storeName} (${p.reason})\n`;
+        }
+        if (predictions.length > 5) {
+          msg += `• ...and ${predictions.length - 5} more\n`;
+        }
+        msg += `\n💪 \"${quote}\"`;
+
+        return [{
+          text: msg,
+          actions: [
+            { label: '📅 Add To Route', type: 'open_add_to_route' },
+            { label: 'Dismiss', type: 'dismiss' },
+          ],
+        }];
+      } else {
+        msg += `No new projected deliveries for today.\n\n💪 \"${quote}\"`;
+        return [{ text: msg, actions: [] }];
+      }
+    }
+
+    return [{ text: `${greeting}! 💪 \"${quote}\"`, actions: [] }];
+  }, [userRole, currentUser, appDeliveries, appPatients, appStores, getLocalDateString]);
+
+  const markDailyGreetingShown = useCallback(() => {
+    try {
+      const today = new Date().toLocaleDateString('en-CA');
+      localStorage.setItem(DAILY_GREETING_KEY, today);
+      setHasShownDailyGreeting(true);
+    } catch { /* ignore */ }
+  }, []);
+
+
 
   // ── Role-filtered quick actions ──────────────────────────────────
   const visibleQuickActions = useMemo(() => {
@@ -257,10 +389,24 @@ export default function GuideAssistant() {
         }
         break;
       }
+      case 'open_add_to_route': {
+        addBotMessage("Taking you to the Add To Route form... 📅");
+        setShowQuickActions(true);
+        navigate('/Deliveries');
+        // Dispatch event for Deliveries page to pick up
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('rxdeliver_open_add_to_route'));
+        }, 600);
+        break;
+      }
+      case 'dismiss': {
+        setShowQuickActions(true);
+        break;
+      }
       default:
         break;
     }
-  }, [activeFlow, currentStepId, goToStep, startFlow, addBotMessage, addUserMessage]);
+  }, [activeFlow, currentStepId, goToStep, startFlow, addBotMessage, addUserMessage, navigate]);
 
   // ── Handle user input ────────────────────────────────────────────
   const handleSend = useCallback(() => {
@@ -321,18 +467,31 @@ export default function GuideAssistant() {
     try { localStorage.setItem(STORAGE_KEY, 'true'); } catch { /* ignore */ }
     setHasSeenIntro(true);
 
-    // If no messages and first time, show welcome
+    // If no messages yet, show appropriate greeting
     if (messages.length === 0) {
-      const roleLabel = userRole === 'admin' ? 'admin' : userRole === 'dispatcher' ? 'dispatcher' : 'driver';
-      addBotMessage(
-        `Hi! 👋 I'm your RxDeliver guide assistant. I can help you create deliveries, add patients, start routes, collect COD, and learn how to use the app.\n\nI see you're a ${roleLabel} — here are some things I can help with:`,
-        []
-      );
-      setShowQuickActions(true);
+      if (!hasShownDailyGreeting) {
+        // First open of the day — show daily greeting
+        const greetingMessages = generateDailyGreeting();
+        for (const msg of greetingMessages) {
+          addBotMessage(msg.text, msg.actions);
+        }
+        markDailyGreetingShown();
+        // Show quick actions after the greeting (unless actions are present)
+        if (!greetingMessages.some((m) => m.actions && m.actions.length > 0)) {
+          setShowQuickActions(true);
+        }
+      } else {
+        // Returning later same day — simple welcome
+        addBotMessage(
+          `Welcome back! 👋 How can I help you today?`,
+          []
+        );
+        setShowQuickActions(true);
+      }
     }
 
     setTimeout(() => inputRef.current?.focus(), 300);
-  }, [messages.length, userRole, addBotMessage]);
+  }, [messages.length, userRole, hasShownDailyGreeting, generateDailyGreeting, markDailyGreetingShown, addBotMessage]);
 
   const handleClose = useCallback(() => {
     setIsOpen(false);

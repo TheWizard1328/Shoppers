@@ -639,6 +639,16 @@ export default function DeliveriesPage() {
     };
   }, []);
 
+  // Listen for GuideAssistant 'Add To Route' event to auto-open the delivery form
+  useEffect(() => {
+    const handleOpenAddToRoute = () => {
+      setEditingDelivery(null);
+      setShowDeliveryForm(true);
+    };
+    window.addEventListener('rxdeliver_open_add_to_route', handleOpenAddToRoute);
+    return () => window.removeEventListener('rxdeliver_open_add_to_route', handleOpenAddToRoute);
+  }, [setEditingDelivery, setShowDeliveryForm]);
+
   // CRITICAL: Listen for smart refresh and import completion to update date cards
   useEffect(() => {
     const handleSmartRefreshComplete = () => {
