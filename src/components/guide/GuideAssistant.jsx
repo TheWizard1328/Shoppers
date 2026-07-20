@@ -58,6 +58,7 @@ export default function GuideAssistant() {
   const { currentUser, deliveries: appDeliveries, patients: appPatients, stores: appStores, drivers: appDrivers } = useAppData();
   const [isOpen, setIsOpen] = useState(false);
   const [isStopCardExpanded, setIsStopCardExpanded] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
   });
@@ -71,12 +72,27 @@ export default function GuideAssistant() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
-  // ── Track stop card expansion to lower z-index on narrow mobile ──────────────
+  // ── Track stop card expansion and dialog open state ──────────────────────────
+  // Hide the FAB when a stop card is expanded but no dialog/form is open.
   useEffect(() => {
     const handleExpand = (e) => setIsStopCardExpanded(!!(e?.detail?.cardId));
+    const handleDialogOpen = () => setIsDialogOpen(true);
+    const handleDialogClose = () => setIsDialogOpen(false);
+
     window.addEventListener('stopCardExpandedChange', handleExpand);
-    return () => window.removeEventListener('stopCardExpandedChange', handleExpand);
+    // Re-use the existing pauseBackgroundSync / resumeBackgroundSync events which
+    // are fired when forms/dialogs open and close (DeliveryForm, PatientForm, etc.)
+    window.addEventListener('pauseBackgroundSync', handleDialogOpen);
+    window.addEventListener('resumeBackgroundSync', handleDialogClose);
+    return () => {
+      window.removeEventListener('stopCardExpandedChange', handleExpand);
+      window.removeEventListener('pauseBackgroundSync', handleDialogOpen);
+      window.removeEventListener('resumeBackgroundSync', handleDialogClose);
+    };
   }, []);
+
+  // FAB should be hidden when a stop card is expanded and no dialog is open
+  const hideFabForExpandedCard = isStopCardExpanded && !isDialogOpen && !isOpen;
 
   // ── Dynamic bottom offset — tracks MapViewCycleFAB via getBoundingClientRect ────
   // Uses direct DOM measurement (viewport-accurate regardless of position context).
@@ -799,11 +815,13 @@ export default function GuideAssistant() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="fixed"
+            className="fixed z-[10060]"
             style={{
               bottom: `${guideBottomPx}px`,
               right: `${guideRightPx}px`,
-              zIndex: (isStopCardExpanded && window.innerWidth < 850) ? 10050 : 10060,
+              opacity: hideFabForExpandedCard ? 0 : 1,
+              pointerEvents: hideFabForExpandedCard ? 'none' : 'auto',
+              transition: 'opacity 0.15s ease',
             }}
           >
             <button
