@@ -11,6 +11,7 @@ export const QUICK_ACTIONS = [
   { id: 'collect_cod', label: 'Collect COD', icon: '💳' },
   { id: 'upload_docs', label: 'Upload Documents', icon: '📄' },
   { id: 'manage_schedule', label: 'Manage Schedule', icon: '📅' },
+  { id: 'patient_info', label: 'Patient Info', icon: '🏥' },
   { id: 'getting_started', label: 'Getting Started', icon: '✨' },
 ];
 
@@ -535,6 +536,10 @@ export const HELP_TOPICS = [
     keywords: ['schedule', 'calendar', 'assign', 'reassign', 'book off', 'swap', 'shift', 'slot', 'who is driving', 'coverage'],
     response: "The Schedule page shows which driver is assigned to each store for AM/PM time slots. Default drivers come from store settings. You can tap a slot to reassign or book someone off. Past slots and slots with active deliveries are locked — admins can unlock them. Want me to walk you through it?",
     action: { type: 'flow', target: 'manage_schedule' },
+  },
+  {
+    keywords: ['patient info', 'patient lookup', 'tell me about', 'no answer', 'no response', 'not home', "can't reach", "can't contact", 'patient details', 'patient name'],
+    response: "I can look up patient info for you! Type **'info'** to get details for your current delivery patient, or **'Tell me about [name]'** to search for a specific patient. I'll show their address, phone, delivery history, and recommended actions based on their preferences. If you're having trouble reaching them, just say **'no answer'** and I'll give you a step-by-step troubleshooting guide.",
   },
 ];
 

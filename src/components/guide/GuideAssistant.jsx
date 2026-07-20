@@ -14,11 +14,18 @@ import { Sparkles, X, Send, ChevronRight, RotateCcw, Lightbulb, Navigation } fro
 import { useAppData } from '@/components/utils/AppDataContext';
 import { isAppOwner, userHasRole, getPrimaryRole } from '@/components/utils/userRoles';
 import { QUICK_ACTIONS, FLOWS, PAGE_TIPS, PAGE_CONTEXT, matchIntent } from './guideFlows';
+import {
+  detectPatientQuery,
+  findPatientByName,
+  findCurrentDeliveryPatient,
+  getPatientDeliveryStats,
+  buildPatientResponse,
+} from './patientQueryHandler';
 import { getLocalDeliveryPredictions } from '@/components/deliveries/getLocalDeliveryPredictions';
 
 const STORAGE_KEY = 'rxdeliver_guide_seen';
 const CONVERSATION_KEY = 'rxdeliver_guide_conversation';
-const DAILY_GREETING_KEY = 'rxdeliver_guide_daily_greeting_v3';
+const DAILY_GREETING_KEY = 'rxdeliver_guide_daily_greeting_v4';
 
 
 const MOTIVATIONAL_QUOTES = [
@@ -143,6 +150,8 @@ export default function GuideAssistant() {
     return getPrimaryRole(currentUser) || 'driver';
   }, [currentUser]);
 
+  // Today0027s date for patient queries and delivery lookups
+  const todayStr = new Date().toLocaleDateString("en-CA");
   const pageContext = PAGE_CONTEXT[currentPageName] || null;
   const pageTips = pageContext ? PAGE_TIPS[pageContext.tips] || [] : [];
 
@@ -263,12 +272,12 @@ export default function GuideAssistant() {
   const visibleQuickActions = useMemo(() => {
     if (userRole === 'driver') {
       return QUICK_ACTIONS.filter(a =>
-        ['start_route', 'collect_cod', 'upload_docs', 'manage_schedule', 'getting_started'].includes(a.id)
+        ['start_route', 'collect_cod', 'upload_docs', 'manage_schedule', 'patient_info', 'getting_started'].includes(a.id)
       );
     }
     if (userRole === 'dispatcher') {
       return QUICK_ACTIONS.filter(a =>
-        ['create_delivery', 'create_patient', 'getting_started'].includes(a.id)
+        ['create_delivery', 'create_patient', 'patient_info', 'getting_started'].includes(a.id)
       );
     }
     // Admin sees all
@@ -468,6 +477,82 @@ export default function GuideAssistant() {
   }, [activeFlow, currentStepId, goToStep, startFlow, addBotMessage, addUserMessage, navigate]);
 
   // ── Handle user input ────────────────────────────────────────────
+  // ── Patient info lookup ──────────────────────────────────────────
+  const handlePatientQuery = useCallback((queryResult) => {
+    const userRole = currentUser ? (isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver') : 'driver';
+    const isDriver = userRole === 'driver';
+    const isDispatcher = userRole === 'dispatcher';
+
+    // Only drivers and dispatchers can use patient lookup
+    if (!isDriver && !isDispatcher) {
+      addBotMessage("Patient lookups are available for drivers and dispatchers only.", []);
+      setShowQuickActions(true);
+      return;
+    }
+
+    let patient = null;
+    let delivery = null;
+    let includeAdvice = false;
+
+    if (queryResult.type === 'current') {
+      // Current delivery patient
+      const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr);
+      if (!result) {
+        addBotMessage(
+          "You don't have an active delivery right now. Once you start a route, type **'info'** to get patient details for your next stop.",
+          []
+        );
+        setShowQuickActions(true);
+        return;
+      }
+      patient = result.patient;
+      delivery = result.delivery;
+      includeAdvice = isDriver; // drivers get no-answer troubleshooting advice
+    } else {
+      // Named patient search
+      patient = findPatientByName(queryResult.patientName, appPatients);
+      if (!patient) {
+        addBotMessage(
+          `I couldn't find a patient named "**${queryResult.patientName}**". Could you double-check the spelling? You can also type **'info'** for your current delivery patient.`,
+          []
+        );
+        setShowQuickActions(true);
+        return;
+      }
+      // Try to find a current delivery for this patient (for dispatchers/drivers)
+      const today = todayStr;
+      const activeDelivery = (appDeliveries || []).find(d =>
+        d && d.delivery_date === today &&
+        d.patient_id === patient.id &&
+        !['completed', 'returned', 'cancelled'].includes(d.status)
+      );
+      if (activeDelivery) {
+        delivery = activeDelivery;
+        includeAdvice = isDriver;
+      }
+    }
+
+    // Find the store
+    const store = delivery ? appStores?.find(s => s?.id === delivery.store_id) : null;
+
+    // Find city admins for no-answer advice
+    let cityAdmins = [];
+    if (includeAdvice && currentUser?.city_id) {
+      cityAdmins = (appDrivers || []).filter(u =>
+        u && u.app_roles?.includes('admin') &&
+        (u.city_id === currentUser.city_id || (u.city_ids && u.city_ids.includes(currentUser.city_id)))
+      );
+    }
+
+    // Compute delivery stats
+    const stats = getPatientDeliveryStats(patient.id, appDeliveries);
+
+    // Build the response
+    const response = buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice });
+    addBotMessage(response, []);
+    setShowQuickActions(true);
+  }, [currentUser, appDeliveries, appPatients, appStores, appDrivers, addBotMessage, setShowQuickActions]);
+
   const handleSend = useCallback(() => {
     const text = inputValue.trim();
     if (!text) return;
@@ -476,7 +561,56 @@ export default function GuideAssistant() {
     setInputValue('');
     setShowQuickActions(false);
 
-    // Try to match an intent
+    // ── Check for patient query FIRST (before generic intent matching) ──
+    const patientQuery = detectPatientQuery(text);
+    if (patientQuery) {
+      // Check for "no answer" / "can't reach" triggers that add troubleshooting
+      const lower = text.toLowerCase();
+      const wantsNoAnswer = /no answer|no response|can.?t reach|can.?t contact|not home|not answering|no one home|nobody home|trouble reaching/.test(lower);
+
+      // If it's a current-delivery query with no-answer keywords, force advice
+      if (patientQuery.type === 'current' && wantsNoAnswer) {
+        setTimeout(() => {
+          // Temporarily set a flag — handlePatientQuery will include advice
+          // We call it with a modified query result
+          const userRole = currentUser ? (isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver') : 'driver';
+          if (userRole !== 'driver') {
+            addBotMessage("No-answer troubleshooting is most useful for drivers on active deliveries. As a dispatcher, you can look up a patient by name instead!", []);
+            setShowQuickActions(true);
+            return;
+          }
+          const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr);
+          if (!result) {
+            addBotMessage("You don't have an active delivery right now to troubleshoot.", []);
+            setShowQuickActions(true);
+            return;
+          }
+          const store = appStores?.find(s => s?.id === result.delivery.store_id);
+          const cityAdmins = (appDrivers || []).filter(u =>
+            u && u.app_roles?.includes('admin') &&
+            (u.city_id === currentUser.city_id || (u.city_ids && u.city_ids.includes(currentUser.city_id)))
+          );
+          const stats = getPatientDeliveryStats(result.patient.id, appDeliveries);
+          const response = buildPatientResponse({
+            patient: result.patient,
+            delivery: result.delivery,
+            stats,
+            store,
+            cityAdmins,
+            includeAdvice: true,
+          });
+          addBotMessage(response, []);
+          setShowQuickActions(true);
+        }, 300);
+        return;
+      }
+
+      // Standard patient query
+      setTimeout(() => handlePatientQuery(patientQuery), 300);
+      return;
+    }
+
+    // Try to match a generic intent
     const match = matchIntent(text);
     if (match) {
       if (match.action?.type === 'flow') {
@@ -491,21 +625,28 @@ export default function GuideAssistant() {
       // Fallback response
       setTimeout(() => {
         addBotMessage(
-          "I'm not sure about that specific question, but I can help you with:\n\n• Creating deliveries or patients\n• Starting your route\n• Collecting COD payments\n• Uploading documents\n• Learning the app\n\nTry one of the quick actions below, or ask me about one of these topics!",
+          "I'm not sure about that specific question, but I can help you with:\n\n• Creating deliveries or patients\n• Starting your route\n• Collecting COD payments\n• Uploading documents\n• Learning the app\n• **Patient info** — type 'info' for your current delivery patient, or 'Tell me about [name]' for a specific patient\n\nTry one of the quick actions below, or ask me about one of these topics!",
           []
         );
         setShowQuickActions(true);
       }, 300);
     }
-  }, [inputValue, addUserMessage, addBotMessage, startFlow]);
+  }, [inputValue, addUserMessage, addBotMessage, startFlow, handlePatientQuery, currentUser, appDeliveries, appPatients, appStores, appDrivers]);
 
   // ── Handle quick action click ───────────────────────────────────
   const handleQuickAction = useCallback((actionId) => {
+    // Patient info quick action — triggers current delivery patient lookup
+    if (actionId === 'patient_info') {
+      addUserMessage('Patient Info');
+      setShowQuickActions(false);
+      setTimeout(() => handlePatientQuery({ type: 'current' }), 300);
+      return;
+    }
     const action = QUICK_ACTIONS.find(a => a.id === actionId);
     if (!action) return;
     addUserMessage(action.label);
     startFlow(actionId);
-  }, [addUserMessage, startFlow]);
+  }, [addUserMessage, startFlow, handlePatientQuery]);
 
   // ── Show contextual tip ──────────────────────────────────────────
   const handleShowTip = useCallback(() => {
