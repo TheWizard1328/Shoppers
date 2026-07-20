@@ -51,31 +51,36 @@ export default function GuideAssistant() {
     const compute = () => {
       const isMobileScreen = window.innerWidth < 850;
 
-      if (!isMobileScreen) {
-        // Desktop: sit at a fixed comfortable position
-        setGuideBottomPx(24);
-        return;
-      }
-
-      // Mobile: sit above the FABs which are above the stop cards.
-      // --stop-cards-height is set by Dashboard.jsx.
-      // --bottom-nav-height is always 0px in CSS, so measure the actual nav element.
-      const stopCardsHeight = parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--stop-cards-height') || '0',
-        10
-      ) || 0;
-
+      // Measure actual bottom nav height (CSS var is always 0px)
       let bottomNavHeight = 0;
       const navEl = document.querySelector('[data-mobile-bottom-nav]');
       if (navEl) {
         bottomNavHeight = navEl.offsetHeight || 0;
       }
 
-      // FAB bottom (from viewport) = stopCardsHeight + bottomNavHeight + FAB_GAP
-      // Guide bottom = FAB bottom + FAB_HEIGHT + GUIDE_GAP
-      const fabBottom = stopCardsHeight + bottomNavHeight + FAB_GAP;
-      const guideBottom = fabBottom + FAB_HEIGHT + GUIDE_GAP;
-      setGuideBottomPx(guideBottom);
+      // --stop-cards-height is set by Dashboard.jsx on mount, removed on unmount.
+      // If it exists (even '0px'), we're on the Dashboard page.
+      const stopCardsHeightStr = getComputedStyle(document.documentElement).getPropertyValue('--stop-cards-height') || '';
+      const isOnDashboard = stopCardsHeightStr.trim() !== '';
+
+      if (!isMobileScreen) {
+        // Desktop: bottom-right corner
+        setGuideBottomPx(24);
+        return;
+      }
+
+      if (isOnDashboard) {
+        // Dashboard: sit above the FABs which are above the stop cards.
+        const stopCardsHeight = parseInt(stopCardsHeightStr, 10) || 0;
+        // FAB bottom (from viewport) = stopCardsHeight + bottomNavHeight + FAB_GAP
+        // Guide bottom = FAB bottom + FAB_HEIGHT + GUIDE_GAP
+        const fabBottom = stopCardsHeight + bottomNavHeight + FAB_GAP;
+        const guideBottom = fabBottom + FAB_HEIGHT + GUIDE_GAP;
+        setGuideBottomPx(guideBottom);
+      } else {
+        // Non-Dashboard mobile: just above the bottom nav bar
+        setGuideBottomPx(bottomNavHeight + 12);
+      }
     };
 
     compute();
