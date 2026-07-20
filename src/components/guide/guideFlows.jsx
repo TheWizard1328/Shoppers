@@ -200,23 +200,18 @@ export const FLOWS = {
         actions: [{ label: 'I\'m On Duty', type: 'next' }],
       },
       {
-        id: 'check_location',
-        bot: "Make sure location tracking is enabled — there's a location icon in the sidebar. When it's active, you'll see your position on the map as a blue dot. This is essential for route optimization and arrival detection.",
-        actions: [{ label: 'Location is on', type: 'next' }],
-      },
-      {
         id: 'view_deliveries',
-        bot: "On the Dashboard, you'll see your deliveries for today as stop cards below the map. Each card shows:\n\n• Patient name and address\n• Stop number (if route is optimized)\n• COD amount (if applicable)\n• Delivery status\n\nYour stops are ordered by the optimized route. If you need to reorder, use the 'Optimize Route' button.",
+        bot: "On the Dashboard, you'll see your deliveries for today as stop cards below the map. Each card shows:\n\n• Patient/Store name and address\n• Stop number (if route is optimized)\n• COD amount (if applicable)\n• Delivery status\n\nYour stops are ordered by the optimized route. If you need to reorder, use the 'Adjust' button in the Dashboard card.",
         actions: [{ label: 'Continue', type: 'next' }],
       },
       {
         id: 'start_first',
-        bot: "To start your route, tap the 'Start' button on your first delivery. This will:\n\n• Set your status to 'In Transit'\n• Begin route tracking\n• Show your progress on the map\n• Start the estimated arrival timer\n\nThe map will show a polyline (colored line) from your current position to the destination.",
+        bot: "To start your route, tap the 'Start' button on your first delivery, if one has not already been selected. This will:\n\n• Set your status to 'On Duty'(If not already done)\n• Begin route tracking\n• Show your progress on the map\n• Start the estimated arrival timer\n\nThe map will show a polyline (blue line) from your current position to the destination.",
         actions: [{ label: 'Continue', type: 'next' }],
       },
       {
         id: 'arrive',
-        bot: "When you arrive at a delivery location, the app will auto-detect your arrival based on GPS proximity. You'll see an 'Arrived' prompt. From there you can:\n\n• Complete the delivery (mark as delivered)\n• Collect COD payment if required\n• Take a proof photo\n• Get a signature\n• Add delivery notes\n\nAfter completing, the next stop card will automatically expand.",
+        bot: "When you arrive at a delivery location, the app will auto-detect your arrival based on GPS proximity. On the delivery card, you can:\n\n• 'Complete' the delivery (mark as delivered)\n• Collect COD payment if required\n• Get a signature\n• Add delivery notes\n\nAfter completing, the next stop card will automatically center on your screen.",
         actions: [
           { label: 'Got it! 🎉', type: 'end' },
           { label: 'What about COD?', type: 'jump', target: 'collect_cod' },
