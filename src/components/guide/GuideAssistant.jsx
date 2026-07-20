@@ -569,7 +569,7 @@ export default function GuideAssistant() {
 
   return (
     <>
-      {/* Floating Button — positioned above FABs on mobile */}
+      {/* Floating Sparkles Button */}
       <AnimatePresence>
         {!isOpen && (
           <motion.div
@@ -582,15 +582,16 @@ export default function GuideAssistant() {
           >
             <button
               onClick={handleOpen}
-              className="relative flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-shadow"
+              className="relative flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+              style={{ backgroundColor: 'var(--primary-color)', color: '#fff' }}
               aria-label="Open guide assistant"
             >
               <Sparkles className="w-5 h-5 md:w-6 md:h-6" />
               {showPulse && (
-                <span className="absolute inset-0 rounded-full bg-primary animate-ping opacity-30" />
+                <span className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ backgroundColor: 'var(--primary-color)' }} />
               )}
               {!hasSeenIntro && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full ring-2 ring-background" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" style={{ boxShadow: '0 0 0 2px var(--bg-white)' }} />
               )}
             </button>
           </motion.div>
@@ -607,23 +608,40 @@ export default function GuideAssistant() {
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
             className="fixed bottom-0 md:bottom-6 right-0 md:right-4 z-[10060] w-full md:w-[400px] h-[70vh] md:h-[600px] md:max-h-[80vh]"
           >
-            <div className="flex flex-col h-full rounded-t-xl md:rounded-xl border border-border shadow-2xl overflow-hidden" style={{backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))"}}>
+            <div
+              className="flex flex-col h-full rounded-t-xl md:rounded-xl shadow-2xl overflow-hidden"
+              style={{
+                backgroundColor: 'var(--bg-white)',
+                color: 'var(--text-slate-900)',
+                border: '1px solid var(--border-slate-200)',
+              }}
+            >
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b" style={{backgroundColor: "hsl(var(--card))"}}>
+              <div
+                className="flex items-center justify-between px-4 py-3"
+                style={{
+                  borderBottom: '1px solid var(--border-slate-200)',
+                  backgroundColor: 'var(--bg-slate-50)',
+                }}
+              >
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-primary" />
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: 'var(--primary-color)', opacity: 0.9 }}
+                  >
+                    <Sparkles className="w-4 h-4" style={{ color: '#fff' }} />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold leading-none">RxDeliver Guide</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Your app assistant</p>
+                    <p className="text-sm font-semibold leading-none" style={{ color: 'var(--text-slate-900)' }}>RxDeliver Guide</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>Your app assistant</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
                   {messages.length > 0 && (
                     <button
                       onClick={handleClear}
-                      className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                      className="p-1.5 rounded-md transition-colors"
+                      style={{ color: 'var(--text-slate-500)' }}
                       title="Clear conversation"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -631,7 +649,8 @@ export default function GuideAssistant() {
                   )}
                   <button
                     onClick={handleClose}
-                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    className="p-1.5 rounded-md transition-colors"
+                    style={{ color: 'var(--text-slate-500)' }}
                     title="Close"
                   >
                     <X className="w-4 h-4" />
@@ -641,12 +660,19 @@ export default function GuideAssistant() {
 
               {/* Page context badge */}
               {pageContext && (
-                <div className="px-4 py-1.5 border-b flex items-center gap-2" style={{backgroundColor: "hsl(var(--card))"}}>
-                  <Navigation className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">On {pageContext.label}</span>
+                <div
+                  className="px-4 py-1.5 flex items-center gap-2"
+                  style={{
+                    borderBottom: '1px solid var(--border-slate-200)',
+                    backgroundColor: 'var(--bg-slate-100)',
+                  }}
+                >
+                  <Navigation className="w-3 h-3" style={{ color: 'var(--text-slate-500)' }} />
+                  <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>On {pageContext.label}</span>
                   <button
                     onClick={handleShowTip}
-                    className="ml-auto flex items-center gap-1 text-xs text-primary hover:underline"
+                    className="ml-auto flex items-center gap-1 text-xs hover:underline"
+                    style={{ color: 'var(--primary-color)' }}
                   >
                     <Lightbulb className="w-3 h-3" />
                     Tip
@@ -655,7 +681,11 @@ export default function GuideAssistant() {
               )}
 
               {/* Messages */}
-              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{backgroundColor: "hsl(var(--popover))"}}>
+              <div
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
+                style={{ backgroundColor: 'var(--bg-slate-50)' }}
+              >
                 {messages.map((msg) => (
                   <MessageBubble key={msg.id} message={msg} onAction={handleAction} />
                 ))}
@@ -663,13 +693,30 @@ export default function GuideAssistant() {
 
               {/* Quick Actions */}
               {showQuickActions && (
-                <div className="px-3 py-2 border-t" style={{backgroundColor: "hsl(var(--card))"}}>
+                <div
+                  className="px-3 py-2"
+                  style={{
+                    borderTop: '1px solid var(--border-slate-200)',
+                    backgroundColor: 'var(--bg-white)',
+                  }}
+                >
                   <div className="flex flex-wrap gap-1.5">
                     {visibleQuickActions.map((action) => (
                       <button
                         key={action.id}
                         onClick={() => handleQuickAction(action.id)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors border border-border" style={{backgroundColor: "hsl(var(--secondary))", color: "hsl(var(--secondary-foreground))"}}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
+                        style={{
+                          backgroundColor: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-700)',
+                          border: '1px solid var(--border-slate-200)',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.backgroundColor = 'var(--bg-slate-200)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.backgroundColor = 'var(--bg-slate-100)';
+                        }}
                       >
                         <span className="text-xs">{action.icon}</span>
                         {action.label}
@@ -680,7 +727,13 @@ export default function GuideAssistant() {
               )}
 
               {/* Input */}
-              <div className="px-3 py-3 border-t" style={{backgroundColor: "hsl(var(--card))"}}>
+              <div
+                className="px-3 py-3"
+                style={{
+                  borderTop: '1px solid var(--border-slate-200)',
+                  backgroundColor: 'var(--bg-white)',
+                }}
+              >
                 <div className="flex items-center gap-2">
                   <input
                     ref={inputRef}
@@ -689,12 +742,19 @@ export default function GuideAssistant() {
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Ask me anything..."
-                    className="flex-1 px-3 py-2 rounded-lg text-sm text-foreground placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-2 focus:ring-ring" style={{backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))"}}
+                    className="flex-1 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2"
+                    style={{
+                      backgroundColor: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)',
+                      border: '1px solid var(--border-slate-200)',
+                      '--tw-ring-color': 'var(--primary-color)',
+                    }}
                   />
                   <button
                     onClick={handleSend}
                     disabled={!inputValue.trim()}
-                    className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors flex-shrink-0"
+                    className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: 'var(--primary-color)', color: '#fff' }}
                   >
                     <Send className="w-4 h-4" />
                   </button>
@@ -708,12 +768,12 @@ export default function GuideAssistant() {
   );
 }
 
-// ── Message Bubble Component ──────────────────────────────────────────
+// ── Message Bubble Component ─────────────────────────────────────────
 
 function MessageBubble({ message, onAction }) {
   const isBot = message.role === 'bot';
 
-  // Render **bold** markdown-style text
+  // Render **bold** markdown inline
   const renderText = (text) => {
     if (!text) return null;
     return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
@@ -728,19 +788,19 @@ function MessageBubble({ message, onAction }) {
     <div className={`flex ${isBot ? 'justify-start' : 'justify-end'}`}>
       <div className="max-w-[85%]">
         <div
-          className="px-3.5 py-2.5 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed"
+          className="px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed"
           style={
             isBot
               ? {
                   borderRadius: '18px 18px 18px 4px',
-                  backgroundColor: 'hsl(var(--card))',
-                  color: 'hsl(var(--card-foreground))',
-                  border: '1px solid hsl(var(--border))',
+                  backgroundColor: 'var(--bg-white)',
+                  color: 'var(--text-slate-900)',
+                  border: '1px solid var(--border-slate-200)',
                 }
               : {
                   borderRadius: '18px 18px 4px 18px',
-                  backgroundColor: 'hsl(var(--primary))',
-                  color: 'hsl(var(--primary-foreground))',
+                  backgroundColor: 'var(--primary-color)',
+                  color: '#fff',
                 }
           }
         >
@@ -754,11 +814,14 @@ function MessageBubble({ message, onAction }) {
               <button
                 key={idx}
                 onClick={() => onAction(action)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-border"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                 style={{
-                  backgroundColor: 'hsl(var(--secondary))',
-                  color: 'hsl(var(--secondary-foreground))',
+                  backgroundColor: 'var(--primary-color)',
+                  color: '#fff',
+                  opacity: action.type === 'dismiss' ? 0.75 : 1,
                 }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = action.type === 'dismiss' ? '0.75' : '1'; }}
               >
                 {action.label}
                 {action.type === 'next' && <ChevronRight className="w-3 h-3" />}
