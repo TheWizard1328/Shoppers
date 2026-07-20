@@ -17,6 +17,7 @@ import { QUICK_ACTIONS, FLOWS, PAGE_TIPS, PAGE_CONTEXT, matchIntent } from './gu
 import {
   detectPatientQuery,
   findPatientByName,
+  findAllPatientsByName,
   findCurrentDeliveryPatient,
   getPatientDeliveryStats,
   buildPatientResponse,
@@ -69,81 +70,45 @@ export default function GuideAssistant() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
-  // ── Dynamic bottom offset for the floating button ───────────────
-  // On the Dashboard, we need to sit above the FABs which sit above stop cards.
-  // --stop-cards-height is set by Dashboard.jsx. --bottom-nav-height is the
-  // mobile bottom nav. On non-Dashboard pages, stop-cards-height is 0 so we
-  // just sit above the bottom nav (or at a default position on desktop).
+  // ── Dynamic bottom offset — tracks MapViewCycleFAB via CSS var ────
+  // MapViewCycleFAB writes its computed bottom px to --map-cycle-fab-bottom
+  // on documentElement.style whenever it changes. We observe that attribute
+  // so we update immediately after every render of MapViewCycleFAB, including
+  // when returning to Dashboard from another page (where stop cards may render late).
   const [guideBottomPx, setGuideBottomPx] = useState(80);
-  const [guideRightPx, setGuideRightPx] = useState(16);
+  const [guideRightPx] = useState(16);
 
   useEffect(() => {
-    const GUIDE_FAB_HEIGHT = 48; // h-12 on mobile (w-12 = 48px)
-    const GAP_ABOVE_CYCLE_FAB = 8;
-
     const compute = () => {
-      // PRIMARY: track the MapCycleFAB DOM element directly so the guide FAB
-      // always sits exactly GAP_ABOVE_CYCLE_FAB pixels above it regardless of
-      // immersive mode, card expansion, or any other layout state.
-      const cycleFabEl = document.querySelector('[data-map-cycle-fab]');
-      if (cycleFabEl) {
-        const rect = cycleFabEl.getBoundingClientRect();
-        // Bottom offset: distance from viewport bottom to top of cycle FAB + gap
-        const viewportH = window.innerHeight;
-        const fabTopFromBottom = viewportH - rect.top;
-        setGuideBottomPx(fabTopFromBottom + GAP_ABOVE_CYCLE_FAB);
-        // Right offset: align guide FAB right edge with cycle FAB right edge
-        const viewportW = window.innerWidth;
-        const fabRightFromRight = viewportW - rect.right;
-        setGuideRightPx(Math.max(4, fabRightFromRight));
+      if (window.innerWidth >= 850) {
+        setGuideBottomPx(24);
         return;
       }
-
-      // FALLBACK (non-Dashboard pages): sit above the bottom nav
-      const isMobileScreen = window.innerWidth < 850;
-      let bottomNavHeight = 0;
-      const navEl = document.querySelector('[data-mobile-bottom-nav]');
-      if (navEl) bottomNavHeight = navEl.offsetHeight || 0;
-
-      if (!isMobileScreen) {
-        setGuideBottomPx(24);
+      const val = document.documentElement.style.getPropertyValue('--map-cycle-fab-bottom');
+      const mapFabBottomPx = val ? parseInt(val, 10) : 0;
+      if (mapFabBottomPx > 0) {
+        // Sit above MapCycleFAB: its bottom offset + its height (40px) + 8px gap
+        setGuideBottomPx(mapFabBottomPx + 40 + 8);
       } else {
-        setGuideBottomPx(bottomNavHeight + 12);
+        // MapCycleFAB not mounted yet (non-Dashboard page) — sit above bottom nav
+        const navEl = document.querySelector('[data-mobile-bottom-nav]');
+        setGuideBottomPx((navEl ? navEl.offsetHeight : 0) + 12);
       }
     };
 
     compute();
 
-    // Re-compute whenever the DOM or CSS vars change (covers card expand/collapse,
-    // immersive mode toggle, stop card height changes, orientation changes)
-    const observer = new MutationObserver(() => compute());
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style'],
-      subtree: false,
-    });
-    // Also observe body so we catch when MapCycleFAB mounts/unmounts
-    // Debounced to avoid thrashing on rapid DOM changes
-    let rafId = null;
-    const debouncedCompute = () => { if (rafId) return; rafId = requestAnimationFrame(() => { rafId = null; compute(); }); };
-    const bodyObserver = new MutationObserver(debouncedCompute);
-    bodyObserver.observe(document.body, { childList: true, subtree: false, attributes: false });
+    // React immediately when MapViewCycleFAB sets/updates the CSS var
+    const observer = new MutationObserver(compute);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
 
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
-    window.addEventListener('popstate', compute);
-    // Poll for a short window after mount so async layout settles
-    const interval = setInterval(compute, 200);
-    const timeout = setTimeout(() => clearInterval(interval), 4000);
 
     return () => {
       observer.disconnect();
-      bodyObserver.disconnect();
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
-      window.removeEventListener('popstate', compute);
-      clearInterval(interval);
-      clearTimeout(timeout);
     };
   }, []);
 
