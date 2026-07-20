@@ -501,16 +501,17 @@ function DashboardView({
           </div>
         )}
 
-        <StopCardCheckboxToggle
-          checked={showStopCardCheckboxes}
-          onCheckedChange={(checked) => setShowStopCardCheckboxes(!!checked)}
-          stopCardsHeight={stopCardsBaseHeight}
-          hasVisibleCards={deliveriesWithStopOrder.length > 0}
-          immersiveHidden={immersiveHidden}
-        >
-          <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
-        </StopCardCheckboxToggle>
       </div>
+
+      <StopCardCheckboxToggle
+        checked={showStopCardCheckboxes}
+        onCheckedChange={(checked) => setShowStopCardCheckboxes(!!checked)}
+        stopCardsHeight={stopCardsBaseHeight}
+        hasVisibleCards={deliveriesWithStopOrder.length > 0}
+        immersiveHidden={immersiveHidden}
+      >
+        <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
+      </StopCardCheckboxToggle>
 
       {currentUser &&
         <FABControls
