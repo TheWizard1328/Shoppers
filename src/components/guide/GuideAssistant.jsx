@@ -10,14 +10,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, X, Send, ChevronRight, ChevronDown, RotateCcw, Lightbulb, Navigation } from 'lucide-react';
+import { Sparkles, X, Send, ChevronRight, RotateCcw, Lightbulb, Navigation } from 'lucide-react';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { isAppOwner, userHasRole, getPrimaryRole } from '@/components/utils/userRoles';
 import { QUICK_ACTIONS, FLOWS, PAGE_TIPS, PAGE_CONTEXT, matchIntent } from './guideFlows';
 import {
   detectPatientQuery,
   findPatientByName,
-  findAllPatientsByName,
   findCurrentDeliveryPatient,
   getPatientDeliveryStats,
   buildPatientResponse,
@@ -47,14 +46,16 @@ const MOTIVATIONAL_QUOTES = [
   "Smooth roads never make good drivers. Keep pushing! 💪",
 ];
 
-
+// FAB is h-10 (40px) + 10px gap above stop cards + 8px gap above FAB
+const FAB_HEIGHT = 40;
+const FAB_GAP = 10;
+const GUIDE_GAP = 8;
 
 export default function GuideAssistant() {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser, deliveries: appDeliveries, patients: appPatients, stores: appStores, drivers: appDrivers } = useAppData();
   const [isOpen, setIsOpen] = useState(false);
-  const lastClosedAtRef = useRef(null);
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
   });
@@ -64,48 +65,85 @@ export default function GuideAssistant() {
   const [currentStepId, setCurrentStepId] = useState(null);
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [showTips, setShowTips] = useState(false);
-  const [quickActionsCollapsed, setQuickActionsCollapsed] = useState(false);
   const [pageTipIndex, setPageTipIndex] = useState(0);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
-  // ── Dynamic bottom offset — tracks MapViewCycleFAB exactly ────────
-  // MapViewCycleFAB publishes its own bottom pixel to --map-cycle-fab-bottom.
-  // We sit 48px above it (FAB height 40px + 8px gap). On desktop, fixed 24px.
+  // ── Dynamic bottom offset for the floating button ───────────────
+  // On the Dashboard, we need to sit above the FABs which sit above stop cards.
+  // --stop-cards-height is set by Dashboard.jsx. --bottom-nav-height is the
+  // mobile bottom nav. On non-Dashboard pages, stop-cards-height is 0 so we
+  // just sit above the bottom nav (or at a default position on desktop).
   const [guideBottomPx, setGuideBottomPx] = useState(80);
+  const [guideRightPx, setGuideRightPx] = useState(16);
 
   useEffect(() => {
+    const GUIDE_FAB_HEIGHT = 48; // h-12 on mobile (w-12 = 48px)
+    const GAP_ABOVE_CYCLE_FAB = 8;
+
     const compute = () => {
-      if (window.innerWidth >= 850) {
-        setGuideBottomPx(24);
+      // PRIMARY: track the MapCycleFAB DOM element directly so the guide FAB
+      // always sits exactly GAP_ABOVE_CYCLE_FAB pixels above it regardless of
+      // immersive mode, card expansion, or any other layout state.
+      const cycleFabEl = document.querySelector('[data-map-cycle-fab]');
+      if (cycleFabEl) {
+        const rect = cycleFabEl.getBoundingClientRect();
+        // Bottom offset: distance from viewport bottom to top of cycle FAB + gap
+        const viewportH = window.innerHeight;
+        const fabTopFromBottom = viewportH - rect.top;
+        setGuideBottomPx(fabTopFromBottom + GAP_ABOVE_CYCLE_FAB);
+        // Right offset: align guide FAB right edge with cycle FAB right edge
+        const viewportW = window.innerWidth;
+        const fabRightFromRight = viewportW - rect.right;
+        setGuideRightPx(Math.max(4, fabRightFromRight));
         return;
       }
-      const mapFabBottomPx = parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--map-cycle-fab-bottom') || '0'
-      ) || 0;
-      // Sit above the MapCycleFAB: its bottom + its height (40px) + 8px gap
-      setGuideBottomPx(mapFabBottomPx + 40 + 8);
+
+      // FALLBACK (non-Dashboard pages): sit above the bottom nav
+      const isMobileScreen = window.innerWidth < 850;
+      let bottomNavHeight = 0;
+      const navEl = document.querySelector('[data-mobile-bottom-nav]');
+      if (navEl) bottomNavHeight = navEl.offsetHeight || 0;
+
+      if (!isMobileScreen) {
+        setGuideBottomPx(24);
+      } else {
+        setGuideBottomPx(bottomNavHeight + 12);
+      }
     };
 
     compute();
 
-    // Poll until MapViewCycleFAB mounts and sets the CSS var, then slow down
-    const fastInterval = setInterval(compute, 200);
-    const fastTimeout = setTimeout(() => {
-      clearInterval(fastInterval);
-      slowInterval = setInterval(compute, 1000);
-    }, 3000);
-    let slowInterval;
+    // Re-compute whenever the DOM or CSS vars change (covers card expand/collapse,
+    // immersive mode toggle, stop card height changes, orientation changes)
+    const observer = new MutationObserver(() => compute());
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style'],
+      subtree: false,
+    });
+    // Also observe body so we catch when MapCycleFAB mounts/unmounts
+    // Debounced to avoid thrashing on rapid DOM changes
+    let rafId = null;
+    const debouncedCompute = () => { if (rafId) return; rafId = requestAnimationFrame(() => { rafId = null; compute(); }); };
+    const bodyObserver = new MutationObserver(debouncedCompute);
+    bodyObserver.observe(document.body, { childList: true, subtree: false, attributes: false });
 
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
+    window.addEventListener('popstate', compute);
+    // Poll for a short window after mount so async layout settles
+    const interval = setInterval(compute, 200);
+    const timeout = setTimeout(() => clearInterval(interval), 4000);
 
     return () => {
+      observer.disconnect();
+      bodyObserver.disconnect();
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
-      clearInterval(fastInterval);
-      clearInterval(slowInterval);
-      clearTimeout(fastTimeout);
+      window.removeEventListener('popstate', compute);
+      clearInterval(interval);
+      clearTimeout(timeout);
     };
   }, []);
 
@@ -371,24 +409,29 @@ export default function GuideAssistant() {
     }
   }, [activeFlow, addBotMessage]);
 
-  // ── Role-scoped patient list ──────────────────────────────────────
-  const getAllowedPatients = useCallback(() => {
-    if (!currentUser || !appPatients) return [];
+  // ── Patient pool scoped to role (must be before handleAction) ─────
+  // Memoized so handlePatientQuery deps are stable across renders.
+  const getAllowedPatients = useMemo(() => {
+    if (!appPatients || !currentUser) return [];
+    const userRole = isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver';
     if (userRole === 'admin') return appPatients;
     if (userRole === 'dispatcher') {
-      const storeIds = new Set(currentUser.store_ids || []);
-      return appPatients.filter(p => p && storeIds.has(p.store_id));
+      const myStoreIds = new Set(currentUser?.store_ids || []);
+      if (myStoreIds.size === 0) return [];
+      return appPatients.filter(p => p && myStoreIds.has(p.store_id));
     }
-    // Driver: scope to stores they have deliveries for today
-    const myStoreIds = new Set(
-      (appDeliveries || [])
-        .filter(d => d && d.driver_id === currentUser.id && d.delivery_date === todayStr)
-        .map(d => d.store_id)
-        .filter(Boolean)
-    );
+    // Driver: patients from stores they have deliveries for
+    const myStoreIds = new Set();
+    for (const d of (appDeliveries || [])) {
+      if (d && d.driver_id === currentUser?.id && d.store_id) {
+        myStoreIds.add(d.store_id);
+      }
+    }
+    if (myStoreIds.size === 0) return [];
     return appPatients.filter(p => p && myStoreIds.has(p.store_id));
-  }, [currentUser, userRole, appPatients, appDeliveries, todayStr]);
+  }, [appPatients, currentUser, appDeliveries]);
 
+  // ── Handle user input ────────────────────────────────────────────────────────
   // ── Patient info lookup ──────────────────────────────────────────
   const handlePatientQuery = useCallback((queryResult) => {
     const userRole = currentUser ? (isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver') : 'driver';
@@ -610,7 +653,6 @@ export default function GuideAssistant() {
     addUserMessage(text);
     setInputValue('');
     setShowQuickActions(false);
-    setQuickActionsCollapsed(true);
 
     // ── Check for patient query FIRST (before generic intent matching) ──
     const patientQuery = detectPatientQuery(text);
@@ -696,7 +738,6 @@ export default function GuideAssistant() {
 
   // ── Handle quick action click ───────────────────────────────────
   const handleQuickAction = useCallback((actionId) => {
-    setQuickActionsCollapsed(true);
     // Patient info quick action — triggers current delivery patient lookup
     if (actionId === 'patient_info') {
       addUserMessage('Patient Info');
@@ -729,22 +770,6 @@ export default function GuideAssistant() {
     try { localStorage.setItem(STORAGE_KEY, 'true'); } catch { /* ignore */ }
     setHasSeenIntro(true);
 
-    // Auto-clear if closed for more than 5 minutes
-    const FIVE_MINUTES = 5 * 60 * 1000;
-    const shouldReset = lastClosedAtRef.current && (Date.now() - lastClosedAtRef.current) > FIVE_MINUTES;
-    if (shouldReset && messages.length > 0) {
-      setMessages([]);
-      setActiveFlow(null);
-      setCurrentStepId(null);
-      setShowQuickActions(true);
-      setQuickActionsCollapsed(false);
-      setShowTips(false);
-      try { localStorage.removeItem(CONVERSATION_KEY); } catch { /* ignore */ }
-      addBotMessage("Welcome back! 👋 How can I help you?", []);
-      setTimeout(() => inputRef.current?.focus(), 300);
-      return;
-    }
-
     // If no messages yet, show appropriate greeting
     if (messages.length === 0) {
       if (!hasShownDailyGreeting) {
@@ -773,7 +798,6 @@ export default function GuideAssistant() {
 
   const handleClose = useCallback(() => {
     setIsOpen(false);
-    lastClosedAtRef.current = Date.now();
   }, []);
 
   const handleClear = useCallback(() => {
@@ -781,7 +805,6 @@ export default function GuideAssistant() {
     setActiveFlow(null);
     setCurrentStepId(null);
     setShowQuickActions(true);
-    setQuickActionsCollapsed(false);
     setShowTips(false);
     try { localStorage.removeItem(CONVERSATION_KEY); } catch { /* ignore */ }
     addBotMessage("Conversation cleared. How can I help you?", []);
@@ -808,8 +831,8 @@ export default function GuideAssistant() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="fixed right-4 z-[10059]"
-            style={{ bottom: `${guideBottomPx}px` }}
+            className="fixed z-[10060]"
+            style={{ bottom: `${guideBottomPx}px`, right: `${guideRightPx}px` }}
           >
             <button
               onClick={handleOpen}
@@ -837,7 +860,7 @@ export default function GuideAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="fixed bottom-0 md:bottom-6 right-0 md:right-4 z-[10059] w-full md:w-[500px] h-[70vh] md:h-[650px] md:max-h-[80vh]"
+            className="fixed bottom-0 md:bottom-6 right-0 md:right-4 z-[10060] w-full md:w-[500px] h-[70vh] md:h-[650px] md:max-h-[80vh]"
           >
             <div
               className="flex flex-col h-full rounded-t-xl md:rounded-xl shadow-2xl overflow-hidden"
@@ -925,44 +948,35 @@ export default function GuideAssistant() {
               {/* Quick Actions */}
               {showQuickActions && (
                 <div
+                  className="px-3 py-2"
                   style={{
                     borderTop: '1px solid var(--border-slate-200)',
                     backgroundColor: 'var(--bg-white)',
                   }}
                 >
-                  {/* Header row with collapse toggle */}
-                  <button
-                    onClick={() => setQuickActionsCollapsed(c => !c)}
-                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium"
-                    style={{ color: 'var(--text-slate-500)' }}
-                  >
-                    <span>Quick Actions</span>
-                    <ChevronDown
-                      className="w-3.5 h-3.5 transition-transform"
-                      style={{ transform: quickActionsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
-                    />
-                  </button>
-                  {!quickActionsCollapsed && (
-                    <div className="px-3 pb-2 flex flex-wrap gap-1.5">
-                      {visibleQuickActions.map((action) => (
-                        <button
-                          key={action.id}
-                          onClick={() => handleQuickAction(action.id)}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
-                          style={{
-                            backgroundColor: 'var(--bg-slate-100)',
-                            color: 'var(--text-slate-700)',
-                            border: '1px solid var(--border-slate-200)',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-slate-200)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--bg-slate-100)'; }}
-                        >
-                          <span className="text-xs">{action.icon}</span>
-                          {action.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {visibleQuickActions.map((action) => (
+                      <button
+                        key={action.id}
+                        onClick={() => handleQuickAction(action.id)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
+                        style={{
+                          backgroundColor: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-700)',
+                          border: '1px solid var(--border-slate-200)',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.backgroundColor = 'var(--bg-slate-200)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.backgroundColor = 'var(--bg-slate-100)';
+                        }}
+                      >
+                        <span className="text-xs">{action.icon}</span>
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
