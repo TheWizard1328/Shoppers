@@ -10,6 +10,7 @@ export const QUICK_ACTIONS = [
   { id: 'start_route', label: 'Start My Route', icon: '🚀' },
   { id: 'collect_cod', label: 'Collect COD', icon: '💳' },
   { id: 'upload_docs', label: 'Upload Documents', icon: '📄' },
+  { id: 'manage_schedule', label: 'Manage Schedule', icon: '📅' },
   { id: 'getting_started', label: 'Getting Started', icon: '✨' },
 ];
 
@@ -23,6 +24,7 @@ export const PAGE_CONTEXT = {
   AppUsers: { label: 'App Users', tips: 'users' },
   Stores: { label: 'Stores', tips: 'stores' },
   Settings: { label: 'Settings', tips: 'settings' },
+  DriverScheduleCalendar: { label: 'Schedule', tips: 'schedule' },
 };
 
 // ── Guided flows ──────────────────────────────────────────────────────
@@ -414,6 +416,64 @@ export const PAGE_TIPS = {
     "VAPID keys are configured for push notifications.",
     "Only admins can modify app settings.",
   ],
+  schedule: [
+    "The calendar shows which driver is assigned to each store for AM/PM slots.",
+    "Default drivers come from each store's schedule settings — admins configure these.",
+    "Tap a slot to reassign a driver or book someone off for that day.",
+    "Past slots are locked — only admins can unlock and edit them.",
+    "Slots with active deliveries are locked until an admin unlocks them.",
+    "Stat holidays are highlighted and built from actual deliveries instead of defaults.",
+    "Driver swaps are logged — the system tracks who made the override.",
+    "Booking a driver off automatically unassigns their pending deliveries for that slot.",
+  ],
+  manage_schedule: {
+    title: 'Manage the Driver Schedule',
+    steps: [
+      {
+        id: 'intro',
+        bot: "The Schedule calendar shows which driver is assigned to each store for AM and PM time slots. Let me walk you through how it works.",
+        actions: [
+          { label: 'Continue', type: 'next' },
+        ],
+      },
+      {
+        id: 'defaults',
+        bot: "Each store has default drivers configured in Store settings — one for weekday AM, weekday PM, Saturday, and Sunday. The calendar auto-fills these defaults for every day. You only need to make changes when someone needs a substitute or a day off.",
+        actions: [
+          { label: 'Got it', type: 'next' },
+        ],
+      },
+      {
+        id: 'reassign',
+        bot: "To reassign a slot, tap the driver name in any calendar cell. A dropdown appears — select a different driver from the list. The change is saved as an override, and the original driver is notified. The system logs who made the change.",
+        actions: [
+          { label: 'Continue', type: 'next' },
+        ],
+      },
+      {
+        id: 'book_off',
+        bot: "To book a driver off, tap the slot and select 'Book Off'. This marks the slot as unavailable and automatically unassigns any pending deliveries for that driver in that slot. The cell will show a 'Booked Off' badge.",
+        actions: [
+          { label: 'Continue', type: 'next' },
+        ],
+      },
+      {
+        id: 'locking',
+        bot: "Past slots are locked — they can't be edited to prevent history changes. Slots that have active deliveries are also locked. Admins can unlock a slot by tapping the lock icon to make edits if needed.",
+        actions: [
+          { label: 'Continue', type: 'next' },
+        ],
+      },
+      {
+        id: 'holidays',
+        bot: "Stat holidays are highlighted on the calendar. On holidays, the schedule entries are built from actual deliveries instead of default drivers, so you can see who actually worked.",
+        actions: [
+          { label: 'Done! 🎉', type: 'end' },
+          { label: 'Start over', type: 'restart' },
+        ],
+      },
+    ],
+  },
 };
 
 // ── Help index for natural language matching ─────────────────────────
@@ -476,6 +536,11 @@ export const HELP_TOPICS = [
   {
     keywords: ['payroll', 'earnings', 'pay', 'wage', 'salary'],
     response: "Driver payroll tracks daily earnings, delivery counts, completion rates, and COD collected. Admins can view all drivers, add notes, and make adjustments. Drivers can view their own earnings. Go to the Payroll page in the sidebar.",
+  },
+  {
+    keywords: ['schedule', 'calendar', 'assign', 'reassign', 'book off', 'swap', 'shift', 'slot', 'who is driving', 'coverage'],
+    response: "The Schedule page shows which driver is assigned to each store for AM/PM time slots. Default drivers come from store settings. You can tap a slot to reassign or book someone off. Past slots and slots with active deliveries are locked — admins can unlock them. Want me to walk you through it?",
+    action: { type: 'flow', target: 'manage_schedule' },
   },
 ];
 

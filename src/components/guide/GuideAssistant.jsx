@@ -128,7 +128,7 @@ export default function GuideAssistant() {
   const visibleQuickActions = useMemo(() => {
     if (userRole === 'driver') {
       return QUICK_ACTIONS.filter(a =>
-        ['start_route', 'collect_cod', 'upload_docs', 'getting_started'].includes(a.id)
+        ['start_route', 'collect_cod', 'upload_docs', 'manage_schedule', 'getting_started'].includes(a.id)
       );
     }
     return QUICK_ACTIONS;
