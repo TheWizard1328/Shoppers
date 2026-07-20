@@ -69,67 +69,38 @@ export default function GuideAssistant() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
-  // ── Dynamic bottom offset for the floating button ───────────────
-  // On the Dashboard, we need to sit above the FABs which sit above stop cards.
-  // --stop-cards-height is set by Dashboard.jsx. --bottom-nav-height is the
-  // mobile bottom nav. On non-Dashboard pages, stop-cards-height is 0 so we
-  // just sit above the bottom nav (or at a default position on desktop).
+  // ── Dynamic bottom offset — tracks MapViewCycleFAB exactly ────────
+  // MapViewCycleFAB publishes its own bottom pixel to --map-cycle-fab-bottom.
+  // We sit 48px above it (FAB height 40px + 8px gap). On desktop, fixed 24px.
   const [guideBottomPx, setGuideBottomPx] = useState(80);
 
   useEffect(() => {
-    // Track immersive state in a ref so the interval always sees the latest value
-    let isImmersive = false;
-
-    const compute = (e) => {
-      // Update immersive state from event if provided
-      if (e?.detail?.hidden !== undefined) {
-        isImmersive = e.detail.hidden === true;
-      }
-
-      // Bottom nav height — same source as FABControls
-      const bottomNavHeight = parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0'
-      ) || 0;
-
-      // Stop cards container — query the actual DOM element (same element MapViewCycleFAB reacts to)
-      const stopCardsEl = document.querySelector('[data-stop-cards-container]');
-      const stopCardsHeight = stopCardsEl ? (stopCardsEl.offsetHeight || 0) : 0;
-      const hasVisibleCards = stopCardsHeight > 0;
-
-      // Mirror MapViewCycleFAB's exact bottom formula (line 126 in MapViewCycleFAB.jsx)
-      const mapFabBottom = ((hasVisibleCards && !isImmersive) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
-
+    const compute = () => {
       if (window.innerWidth >= 850) {
-        // Desktop: fixed 24px from bottom (no mobile nav / stop cards)
         setGuideBottomPx(24);
-      } else {
-        // Mobile: Guide FAB sits above the MapCycleFAB (40px tall) + 8px gap
-        setGuideBottomPx(mapFabBottom + 40 + 8);
+        return;
       }
+      const mapFabBottomPx = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--map-cycle-fab-bottom') || '0'
+      ) || 0;
+      // Sit above the MapCycleFAB: its bottom + its height (40px) + 8px gap
+      setGuideBottomPx(mapFabBottomPx + 40 + 8);
     };
 
     compute();
 
-    const handleImmersive = (e) => {
-      isImmersive = e?.detail?.hidden === true;
-      compute(e);
-    };
-
-    window.addEventListener('immersiveModeChanged', handleImmersive);
-    window.addEventListener('resize', compute);
-    window.addEventListener('orientationchange', compute);
-
-    // Poll briefly on mount so stop cards height settles, then keep a slow heartbeat
-    const fastInterval = setInterval(compute, 300);
+    // Poll until MapViewCycleFAB mounts and sets the CSS var, then slow down
+    const fastInterval = setInterval(compute, 200);
     const fastTimeout = setTimeout(() => {
       clearInterval(fastInterval);
-      // After 3s settle, poll every 2s as a fallback for late-loading stop cards
-      slowInterval = setInterval(compute, 2000);
+      slowInterval = setInterval(compute, 1000);
     }, 3000);
     let slowInterval;
 
+    window.addEventListener('resize', compute);
+    window.addEventListener('orientationchange', compute);
+
     return () => {
-      window.removeEventListener('immersiveModeChanged', handleImmersive);
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
       clearInterval(fastInterval);
@@ -837,7 +808,7 @@ export default function GuideAssistant() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="fixed right-4 z-[10060]"
+            className="fixed right-4 z-[10059]"
             style={{ bottom: `${guideBottomPx}px` }}
           >
             <button
@@ -866,7 +837,7 @@ export default function GuideAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="fixed bottom-0 md:bottom-6 right-0 md:right-4 z-[10060] w-full md:w-[500px] h-[70vh] md:h-[650px] md:max-h-[80vh]"
+            className="fixed bottom-0 md:bottom-6 right-0 md:right-4 z-[10059] w-full md:w-[500px] h-[70vh] md:h-[650px] md:max-h-[80vh]"
           >
             <div
               className="flex flex-col h-full rounded-t-xl md:rounded-xl shadow-2xl overflow-hidden"

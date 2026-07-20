@@ -127,6 +127,11 @@ export default function MapViewCycleFAB({
   const fabPosition = isMobile ? 'absolute' : 'fixed';
   const rightPixels = immersiveHidden ? 12 : 16;
 
+  // Publish our exact bottom pixel to a CSS var so GuideAssistant can track us
+  useEffect(() => {
+    document.documentElement.style.setProperty('--map-cycle-fab-bottom', `${bottomPixels}px`);
+  }, [bottomPixels]);
+
   const fabOpacity = useMemo(() => {
     if (!isEnabled) return 0.65;
     return isMotionDimmed ? 0.45 : 1;
