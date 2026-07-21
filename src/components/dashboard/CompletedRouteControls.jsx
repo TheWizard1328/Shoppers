@@ -1,7 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { isAppOwner } from '@/components/utils/userRoles';
-import { loadBreadcrumbsForDriver } from '@/components/utils/breadcrumbsManager';
+import { loadBreadcrumbsForDriver as fetchBreadcrumbsForDriver } from '@/components/utils/breadcrumbsManager';
 import ResetPolylinesButton from '@/components/dashboard/ResetPolylinesButton';
 
 export default function CompletedRouteControls({

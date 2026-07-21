@@ -1,4 +1,5 @@
 import { base44 } from "@/api/base44Client";
+import { locationTracker } from "./locationTracker";
 
 /**
  * Detects when driver arrives at delivery/pickup locations (geofence detection)
@@ -329,6 +330,9 @@ class ArrivalTimeDetector {
                   // Invalidate cache so next tick sees updated arrival_time
                   this._lastCacheTime = 0;
 
+                  // Slow breadcrumbs to 60s — driver is at the stop
+                  locationTracker.slowBreadcrumbsForStop();
+
                   this.stationaryStartTime = Date.now();
                   console.log(`💾 [ARRIVAL] Saved arrival_time for ${nextDelivery.id}${coLocatedStops.length > 0 ? ` + ${coLocatedStops.length} co-located stops` : ''}`);
                 } catch (error) {
@@ -453,6 +457,9 @@ class ArrivalTimeDetector {
 
         // Also invalidate the cache so next processLocationUpdate sees the new arrival_time
         this._lastCacheTime = 0;
+
+        // Slow breadcrumbs to 60s — driver is at the stop
+        locationTracker.slowBreadcrumbsForStop();
 
         console.log(`💾 [ARRIVAL immediate] Saved arrival_time for ${nextStop.id}${coLocatedImmediate.length > 0 ? ` + ${coLocatedImmediate.length} co-located stops` : ''}`);
       } catch (error) {
