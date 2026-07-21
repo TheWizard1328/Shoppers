@@ -797,7 +797,16 @@ export default function PolylineViewer({ users = [] }) {
       const data = res?.data ?? res;
       if (data?.success) {
         toast.success(`Saved — ${data.zones_snapped} zone(s) snapped, ${data.snapped_point_count} pts. Segments re-consolidated.`);
+        // Update local state immediately so the map re-renders without a full reload
+        const savedPolyline = snapPreview.encodedPolyline;
+        const savedItem = snapPreview.item;
+        const updatedItem = { ...savedItem, encoded_polyline: savedPolyline, point_count: data.snapped_point_count };
+        setBreadcrumbs(prev => prev.map(b => b.id === savedItem.id ? updatedItem : b));
+        setFocusedItem(updatedItem);
         setSnapPreview(null);
+        setIsCleaningMode(false);
+        setCleanedPoints([]);
+        setUndoStack([]);
         await loadData();
       } else {
         toast.error(`Save failed: ${data?.error || 'Unknown error'}`);
