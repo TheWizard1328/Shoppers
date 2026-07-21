@@ -94,9 +94,17 @@ async function snapChunkWithHere(
     `&mode=retrieveLinks` +
     `&apiKey=${apiKey}`;
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    console.warn(`[snapMasterTimeline] HERE RouteMatch HTTP ${res.status} — using raw points for chunk`);
+  // Retry with exponential backoff on 429 (rate limit)
+  let res: Response | null = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    res = await fetch(url);
+    if (res.status !== 429) break;
+    const delay = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s, 8s
+    console.warn(`[snapMasterTimeline] HERE RouteMatch 429 — retry ${attempt + 1} in ${delay}ms`);
+    await new Promise(r => setTimeout(r, delay));
+  }
+  if (!res || !res.ok) {
+    console.warn(`[snapMasterTimeline] HERE RouteMatch HTTP ${res?.status} — using raw points for chunk`);
     return chunk.map(([lat, lon]) => [lat, lon]);
   }
 
@@ -198,9 +206,9 @@ Deno.serve(async (req) => {
       const sliceFrom = i > 0 ? 1 : 0;
       snappedCoords.push(...snapped.slice(sliceFrom));
 
-      // Small pause between chunks to avoid rate limiting
+      // Pause between chunks to respect HERE rate limits
       if (i + CHUNK_SIZE < masterPoints.length) {
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
 

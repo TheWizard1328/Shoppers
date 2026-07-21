@@ -726,20 +726,21 @@ export default function PolylineViewer({ users = [] }) {
         run_consolidate: false,
         preview_only: true,
       });
-      if (res?.success && res?.snapped_polyline) {
-        const coords = decodePolyline(res.snapped_polyline);
+      const data = res?.data ?? res;
+      if (data?.success && data?.snapped_polyline) {
+        const coords = decodePolyline(data.snapped_polyline);
         setSnapPreview({
           itemId: item.id,
           item,
           coords,
-          encodedPolyline: res.snapped_polyline,
-          timestamps: res.snapped_timestamps || '',
-          pointCount: res.snapped_point_count,
+          encodedPolyline: data.snapped_polyline,
+          timestamps: data.snapped_timestamps || '',
+          pointCount: data.snapped_point_count,
           isSaving: false,
         });
-        toast.info(`Preview ready — ${res.raw_point_count} → ${res.snapped_point_count} pts. Accept or cancel.`);
+        toast.info(`Preview ready — ${data.raw_point_count} → ${data.snapped_point_count} pts. Accept or cancel.`);
       } else {
-        toast.error(`Snap preview failed: ${res?.error || 'Unknown error'}`);
+        toast.error(`Snap preview failed: ${data?.error || 'Unknown error'}`);
       }
     } catch (e) {
       toast.error(`Snap preview failed: ${e.message}`);
@@ -758,12 +759,13 @@ export default function PolylineViewer({ users = [] }) {
         delivery_date: snapPreview.item.delivery_date,
         run_consolidate: true,
       });
-      if (res?.success) {
-        toast.success(`Snapped & saved — ${res.snapped_point_count} pts. Segments re-consolidated.`);
+      const data = res?.data ?? res;
+      if (data?.success) {
+        toast.success(`Snapped & saved — ${data.snapped_point_count} pts. Segments re-consolidated.`);
         setSnapPreview(null);
         await loadData();
       } else {
-        toast.error(`Save failed: ${res?.error || 'Unknown error'}`);
+        toast.error(`Save failed: ${data?.error || 'Unknown error'}`);
         setSnapPreview(p => ({ ...p, isSaving: false }));
       }
     } catch (e) {
