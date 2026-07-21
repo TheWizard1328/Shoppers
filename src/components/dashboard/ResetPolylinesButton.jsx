@@ -70,6 +70,24 @@ export default function ResetPolylinesButton({
         try {
           let result;
 
+          // Pre-resegment: rebuild unsaved breadcrumb segments from master trail
+          try {
+            const resegResponse = await base44.functions.invoke('resegmentAllStops', {
+              driver_id: driverId,
+              delivery_date: selectedDate
+            });
+            const resegData = resegResponse?.data || resegResponse || {};
+            if (resegData.success && resegData.stops_sliced > 0) {
+              toast({
+                title: 'Breadcrumb re-segmented',
+                description: `Re-segmented ${resegData.stops_sliced} stop${resegData.stops_sliced !== 1 ? 's' : ''} from master trail${resegData.stops_skipped_saved > 0 ? ` (skipped ${resegData.stops_skipped_saved} saved)` : ''}`
+              });
+            }
+          } catch (resegErr) {
+            console.warn(`[ResetPolylinesButton] Pre-resegment failed for ${driverId}:`, resegErr?.message || resegErr);
+            // Don't abort — continue with existing flow even if resegment fails
+          }
+
           if (selectedPolylineOption === 'breadcrumbs') {
             const response = await base44.functions.invoke('processOrphanedBreadcrumbs', {
               driverId,
