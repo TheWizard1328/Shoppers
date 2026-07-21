@@ -166,8 +166,12 @@ export default function MapSection({
           preferredTravelMode={preferredTravelMode}
           onTravelModeChange={onTravelModeChange}
           onMapReady={useCallback(() => {
+            // STAGGERED LOAD: Only activate map markers on map ready.
+            // Route lines, driver location, and shared locations are handled
+            // by the staggered effect chain in Dashboard.jsx with deliberate delays
+            // to prevent the hard freeze caused by all layers rendering at once.
             if (!renderSequence.mapMarkers) {
-              setRenderSequence(prev => ({ ...prev, mapMarkers: true, routeLines: true, driverLiveLocation: true, sharedLocations: true }));
+              setRenderSequence(prev => ({ ...prev, mapMarkers: true }));
             }
           // eslint-disable-next-line react-hooks/exhaustive-deps
           }, [renderSequence.mapMarkers])} />

@@ -1400,6 +1400,9 @@ function Dashboard() {
   }, [rsStatsAndCardsRef.current, rsFabsRef.current]);
 
   // RENDER SEQUENCE EFFECT 3: Map Markers ready (triggers re-render)
+  // STAGGERED LOAD: Only activate map markers here. Route lines, driver location,
+  // and shared locations are gated by subsequent effects with deliberate delays
+  // so the main thread isn't blocked by all map layers rendering at once.
   useEffect(() => {
     if (!rsFabsRef.current) return;
     if (rsMapMarkersReady) return;
@@ -1408,19 +1411,30 @@ function Dashboard() {
     const hasStores = stores.length > 0;
     const hasRequiredData = (hasDeliveries && hasPatients && hasStores) || (!hasDeliveries && hasStores);
     if (hasRequiredData) {
-      rsRouteLinesRef.current = true;
-      rsDriverLiveLocRef.current = true;
       setRsMapMarkersReady(true);
     }
   }, [rsFabsRef.current, rsMapMarkersReady, deliveriesWithStopOrder.length, patients.length, stores.length]);
 
-  // RENDER SEQUENCE EFFECT 5: driverLiveLocation gate
+  // RENDER SEQUENCE EFFECT 3b: Route lines ready (staggered — 200ms after markers)
+  useEffect(() => {
+    if (!rsMapMarkersReady) return;
+    if (rsRouteLinesRef.current) return;
+    const timer = setTimeout(() => {
+      rsRouteLinesRef.current = true;
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [rsMapMarkersReady]);
+
+  // RENDER SEQUENCE EFFECT 5: driverLiveLocation gate (staggered — 150ms after routeLines)
   useEffect(() => {
     if (!rsRouteLinesRef.current) return;
     if (rsDriverLiveLocRef.current) return;
     const hasLocation = driverLocation?.latitude && driverLocation?.longitude;
     if (!isDriver || hasLocation) {
-      rsDriverLiveLocRef.current = true;
+      const timer = setTimeout(() => {
+        rsDriverLiveLocRef.current = true;
+      }, 150);
+      return () => clearTimeout(timer);
     }
   }, [rsRouteLinesRef.current, rsDriverLiveLocRef.current, driverLocation, isDriver]);
 
