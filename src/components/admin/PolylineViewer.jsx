@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Eraser, Undo2, Download, Magnet, Check, X } from 'lucide-react';
+import SnapAnalysisDialog from './SnapAnalysisDialog';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
@@ -188,6 +189,9 @@ export default function PolylineViewer({ users = [] }) {
   const [isSavingCrumb, setIsSavingCrumb]         = useState(false);
   const [isImportingCrumb, setIsImportingCrumb]   = useState(false);
   const [isSnappingMaster, setIsSnappingMaster]   = useState(false);
+  // snapAnalysis: analysis result from analyze_only call
+  const [snapAnalysis, setSnapAnalysis]           = useState(null); // { item, ...analysisData }
+  const [isAnalyzing, setIsAnalyzing]             = useState(false);
   // snapPreview: { itemId, coords: [[lat,lon],...], encodedPolyline, timestamps, isSaving }
   const [snapPreview, setSnapPreview]             = useState(null);
   const draggingRef = useRef(false); // true while a marker drag is in progress
@@ -715,20 +719,44 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
-  // ── Auto-snap master timeline — STEP 1: fetch preview (no save yet) ──────
-  const handleSnapPreview = async (item) => {
-    setIsSnappingMaster(true);
+  // ── Auto-snap STEP 1: Analyze gaps (no API calls, no save) ──────────────
+  const handleSnapAnalyze = async (item) => {
+    setIsAnalyzing(true);
     try {
-      // run_consolidate=false — only snap, don't save or reslice yet
       const res = await base44.functions.invoke('snapMasterTimeline', {
         driver_id: item.driver_id,
         delivery_date: item.delivery_date,
-        run_consolidate: false,
+        analyze_only: true,
+      });
+      const data = res?.data ?? res;
+      if (data?.success) {
+        setSnapAnalysis({ item, ...data });
+      } else {
+        toast.error(`Analysis failed: ${data?.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      toast.error(`Analysis failed: ${e.message}`);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // ── STEP 2: User confirmed — run surgical snapping (preview, then accept) ─
+  const handleSnapConfirmed = async () => {
+    if (!snapAnalysis) return;
+    const item = snapAnalysis.item;
+    setIsSnappingMaster(true);
+    try {
+      const res = await base44.functions.invoke('snapMasterTimeline', {
+        driver_id: item.driver_id,
+        delivery_date: item.delivery_date,
         preview_only: true,
+        run_consolidate: false,
       });
       const data = res?.data ?? res;
       if (data?.success && data?.snapped_polyline) {
         const coords = decodePolyline(data.snapped_polyline);
+        setSnapAnalysis(null);
         setSnapPreview({
           itemId: item.id,
           item,
@@ -736,20 +764,23 @@ export default function PolylineViewer({ users = [] }) {
           encodedPolyline: data.snapped_polyline,
           timestamps: data.snapped_timestamps || '',
           pointCount: data.snapped_point_count,
+          zonesSnapped: data.zones_snapped,
           isSaving: false,
         });
-        toast.info(`Preview ready — ${data.raw_point_count} → ${data.snapped_point_count} pts. Accept or cancel.`);
+        toast.info(`Preview ready — ${data.zones_snapped} zone(s) snapped. Accept or cancel.`);
       } else {
-        toast.error(`Snap preview failed: ${data?.error || 'Unknown error'}`);
+        toast.error(`Snap failed: ${data?.error || 'Unknown error'}`);
+        setSnapAnalysis(null);
       }
     } catch (e) {
-      toast.error(`Snap preview failed: ${e.message}`);
+      toast.error(`Snap failed: ${e.message}`);
+      setSnapAnalysis(null);
     } finally {
       setIsSnappingMaster(false);
     }
   };
 
-  // ── STEP 2a: Accept — save snapped polyline + re-consolidate ─────────────
+  // ── STEP 3a: Accept preview — save + re-consolidate ──────────────────────
   const handleSnapAccept = async () => {
     if (!snapPreview) return;
     setSnapPreview(p => ({ ...p, isSaving: true }));
@@ -761,7 +792,7 @@ export default function PolylineViewer({ users = [] }) {
       });
       const data = res?.data ?? res;
       if (data?.success) {
-        toast.success(`Snapped & saved — ${data.snapped_point_count} pts. Segments re-consolidated.`);
+        toast.success(`Saved — ${data.zones_snapped} zone(s) snapped, ${data.snapped_point_count} pts. Segments re-consolidated.`);
         setSnapPreview(null);
         await loadData();
       } else {
@@ -774,7 +805,7 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
-  // ── STEP 2b: Cancel — discard preview, restore magnet button ─────────────
+  // ── STEP 3b: Cancel preview ───────────────────────────────────────────────
   const handleSnapCancel = () => setSnapPreview(null);
 
   // ── List item renderer ────────────────────────────────────────────────────
@@ -915,14 +946,14 @@ export default function PolylineViewer({ users = [] }) {
                                 </button>
                               </>
                             ) : (
-                              // Normal — show magnet button (disabled while snapping or if another preview is active)
+                              // Normal — show magnet button (disabled while analyzing/snapping or if another preview is active)
                               <button
-                                title="Auto-Snap master timeline to roads (HERE API) — preview first"
-                                onClick={e => { e.stopPropagation(); handleSnapPreview(item); }}
-                                disabled={isSnappingMaster || !!snapPreview}
+                                title="Analyze gaps & snap master timeline to roads (HERE API)"
+                                onClick={e => { e.stopPropagation(); handleSnapAnalyze(item); }}
+                                disabled={isAnalyzing || isSnappingMaster || !!snapPreview || !!snapAnalysis}
                                 className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto"
                               >
-                                {isSnappingMaster ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
+                                {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
                               </button>
                             )
                           )}
@@ -1010,6 +1041,16 @@ export default function PolylineViewer({ users = [] }) {
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col min-h-0 gap-3">
+        {/* Snap gap analysis dialog — fixed overlay, lives here for simplicity */}
+        {snapAnalysis && (
+          <SnapAnalysisDialog
+            analysis={snapAnalysis}
+            isSnapping={isSnappingMaster}
+            onConfirm={handleSnapConfirmed}
+            onCancel={() => setSnapAnalysis(null)}
+          />
+        )}
+
         {/* Progress */}
         {(isDeleting) && opProgress.total > 0 && (
           <div className="flex items-center gap-2 p-3 bg-slate-50 border rounded text-sm text-slate-700">
