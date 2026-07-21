@@ -472,12 +472,17 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
 
   const handleSave = async (updates) => {
     if (editingRecord?.id) {
-      await base44.entities.DriverDailyActivity.update(editingRecord.id, updates);
-    } else if (editingRecord === 'new') {
-
-
-      // no-op: new record dialog handles driver selection separately — see below
-    }await loadRecords();};
+      const updated = await base44.entities.DriverDailyActivity.update(editingRecord.id, updates);
+      // Persist to offline DB
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const existing = await offlineDB.getById(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, editingRecord.id).catch(() => null);
+        const merged = { ...(existing || { id: editingRecord.id }), ...updates, ...(updated || {}) };
+        await offlineDB.save(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, merged);
+      } catch (_) {}
+    }
+    await loadRecords();
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget?.id) return;
@@ -512,12 +517,19 @@ export default function DriverActivityTab({ appUsers = [], cities = [], stores =
         const tot = start && end ? differenceInMinutes(new Date(end), new Date(start)) : null;
         return { start_time: start, end_time: end, tot };
       });
-      await base44.entities.DriverDailyActivity.create({
+      const created = await base44.entities.DriverDailyActivity.create({
         driver_id: newDriverId,
         driver_name: driver?.user_name || '',
         activity_date: selectedDate,
         activity_segments: built
       });
+      // Persist to offline DB
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        if (created?.id) {
+          await offlineDB.save(offlineDB.STORES.DRIVER_DAILY_ACTIVITY, created);
+        }
+      } catch (_) {}
       setShowNewForm(false);
       setNewDriverId('');
       setNewSegments([{ start_time: '', end_time: '', tot: '' }]);
