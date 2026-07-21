@@ -142,15 +142,15 @@ const MapClickHandler = ({ isActive, onAddPoint }) => {
 
 // ── View mode tab labels ────────────────────────────────────────────────────
 const VIEW_MODES = [
-  { id: 'polylines',   label: 'Delivery Polylines' },
   { id: 'breadcrumbs', label: 'GPS Breadcrumbs' },
+  { id: 'polylines',   label: 'Delivery Polylines' },
   { id: 'combined',    label: 'Combined Overlay' },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
 export default function PolylineViewer({ users = [] }) {
   const { currentUser } = useUser();
-  const [viewMode, setViewMode]         = useState('polylines');
+  const [viewMode, setViewMode]         = useState('breadcrumbs');
   const [dataSource, setDataSource]     = useState('online');
   const [isLoading, setIsLoading]       = useState(true);
 
