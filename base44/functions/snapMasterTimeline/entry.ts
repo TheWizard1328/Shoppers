@@ -233,31 +233,45 @@ function decodeHereFlexiblePolyline(encoded: string): [number, number][] {
 }
 
 // ── Route a single gap segment directly via HERE Router v8 ───────────────────
-// Calls HERE directly (bypassing getHereDirections) so we control the exact
-// origin/destination coordinates without any sequencing-API snap-to-road drift.
-// The origin and destination are passed as their exact GPS coordinates from the
-// decoded breadcrumb — HERE will route FROM that precise point ON THE ROAD it
-// finds nearest, but since we also clamp the returned polyline's first/last point
-// back to the exact breadcrumb coordinates, the segment always starts and ends
-// exactly where the breadcrumbs dictate.
+// Strategy: use a few dense breadcrumb points BEFORE the gap as a via passThrough
+// near the origin, and a few AFTER the gap as a via passThrough near the destination.
+// This tells HERE which specific road to anchor to — preventing it from choosing a
+// parallel highway, ramp, or service road — without forcing walkway connections.
+// We do NOT clamp endpoints back to raw GPS coords; we let HERE's road-snap work
+// correctly, anchored by the context vias.
+//
+// contextBefore: up to 3 real GPS points immediately before the gap (closest last)
+// contextAfter:  up to 3 real GPS points immediately after the gap (closest first)
 async function routeOneSegment(
   hereApiKey: string,
   fromLat: number, fromLon: number,
   toLat: number, toLon: number,
   transportMode: 'car' | 'bicycle',
+  contextBefore: [number, number][] = [],
+  contextAfter: [number, number][] = [],
 ): Promise<[number, number][]> {
   const mode = transportMode === 'bicycle' ? 'bicycle' : 'car';
-
-  // Use full floating-point precision (up to 7 decimal places) in the HERE API request
-  // so the router anchors to the correct road and not a nearby parallel one.
   const fmt = (v: number) => v.toFixed(7);
+
+  // Use the closest pre-gap point as origin (it's ON the road the driver was on)
+  // and the closest post-gap point as destination (it's ON the road they resumed on).
+  // The raw gap boundary points are just used for passThrough vias to keep HERE
+  // from detouring through a completely different road.
+  const originPt = contextBefore.length > 0 ? contextBefore[contextBefore.length - 1] : [fromLat, fromLon];
+  const destPt   = contextAfter.length > 0  ? contextAfter[0]                          : [toLat, toLon];
 
   const params = new URLSearchParams();
   params.set('apiKey', hereApiKey);
   params.set('transportMode', mode);
-  params.set('origin', `${fmt(fromLat)},${fmt(fromLon)}`);
-  params.set('destination', `${fmt(toLat)},${fmt(toLon)}`);
+  params.set('origin', `${fmt(originPt[0])},${fmt(originPt[1])}`);
+  params.set('destination', `${fmt(destPt[0])},${fmt(destPt[1])}`);
   params.set('return', 'polyline,summary');
+
+  // Add the gap boundary points as passThrough vias so HERE must cross them.
+  // passThrough=true means no stop-over — it just constrains the route to pass
+  // through that map location, keeping the route on the correct road.
+  params.append('via', `${fmt(fromLat)},${fmt(fromLon)}!passThrough=true`);
+  params.append('via', `${fmt(toLat)},${fmt(toLon)}!passThrough=true`);
 
   try {
     const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
@@ -265,29 +279,31 @@ async function routeOneSegment(
       headers: { accept: 'application/json' },
     });
     const data = await resp.json().catch(() => null);
-    const section = data?.routes?.[0]?.sections?.[0];
-    if (!section?.polyline) {
-      console.warn('[snapMasterTimeline] HERE returned no polyline section', { fromLat, fromLon, toLat, toLon });
+
+    // Collect all sections (origin→via1, via1→via2, via2→dest) and merge them
+    const sections: any[] = data?.routes?.[0]?.sections ?? [];
+    if (sections.length === 0) {
+      console.warn('[snapMasterTimeline] HERE returned no sections', { fromLat, fromLon, toLat, toLon, status: resp.status });
       return [[fromLat, fromLon], [toLat, toLon]];
     }
 
-    let coords = decodeHereFlexiblePolyline(section.polyline);
-    if (coords.length < 2) {
-      // Fallback: try Google-encoded polyline if present
-      coords = section.encoded_polyline ? decodeGooglePolyline(section.encoded_polyline) : [];
+    const allCoords: [number, number][] = [];
+    for (const section of sections) {
+      const decoded = section?.polyline ? decodeHereFlexiblePolyline(section.polyline) : [];
+      if (decoded.length < 2) continue;
+      if (allCoords.length === 0) {
+        allCoords.push(...decoded);
+      } else {
+        // Skip first point of subsequent sections to avoid duplicates at junctions
+        allCoords.push(...decoded.slice(1));
+      }
     }
-    if (coords.length < 2) {
+
+    if (allCoords.length < 2) {
       return [[fromLat, fromLon], [toLat, toLon]];
     }
 
-    // ── CRITICAL: Clamp first and last points to the EXACT breadcrumb coords ──
-    // HERE may snap the route start/end to a slightly different road node.
-    // Replacing those with the exact GPS points from the breadcrumb ensures
-    // the regenerated segment connects perfectly to the adjacent real GPS data.
-    coords[0] = [fromLat, fromLon];
-    coords[coords.length - 1] = [toLat, toLon];
-
-    return coords;
+    return allCoords;
   } catch (err: unknown) {
     console.warn('[snapMasterTimeline] HERE direct route failed:', (err as Error)?.message);
     return [[fromLat, fromLon], [toLat, toLon]];
@@ -297,7 +313,12 @@ async function routeOneSegment(
 // ── Route one snap zone, loading the HERE key on first call ─────────────────
 async function getRoutedSegments(
   base44: any,
-  segments: Array<{ fromLat: number; fromLon: number; toLat: number; toLon: number }>,
+  segments: Array<{
+    fromLat: number; fromLon: number;
+    toLat: number; toLon: number;
+    contextBefore?: [number, number][];
+    contextAfter?: [number, number][];
+  }>,
   transportMode: 'car' | 'bicycle',
 ): Promise<Array<[number, number][]>> {
   if (segments.length === 0) return [];
@@ -307,7 +328,10 @@ async function getRoutedSegments(
     return segments.map(s => [[s.fromLat, s.fromLon], [s.toLat, s.toLon]]);
   }
   return Promise.all(
-    segments.map(s => routeOneSegment(hereApiKey, s.fromLat, s.fromLon, s.toLat, s.toLon, transportMode))
+    segments.map(s => routeOneSegment(
+      hereApiKey, s.fromLat, s.fromLon, s.toLat, s.toLon, transportMode,
+      s.contextBefore ?? [], s.contextAfter ?? [],
+    ))
   );
 }
 
@@ -436,18 +460,40 @@ Deno.serve(async (req) => {
       fromLat: number; fromLon: number;
       toLat: number; toLon: number;
       travelMode: 'car' | 'bicycle';
+      contextBefore: [number, number][];
+      contextAfter: [number, number][];
     }
+
+    // How many dense real GPS points to use as road-context anchors on each side of a gap.
+    const CONTEXT_PTS = 3;
 
     const zoneSegments: ZoneSegment[] = zones.map((zone, zi) => {
       const startPt = masterPoints[zone.startIdx];
       const endPt = masterPoints[zone.endIdx];
       const travelMode = isZoneCycling(startPt[2], endPt[2]) ? 'bicycle' : 'car';
+
+      // Points immediately BEFORE the gap — these are real GPS points on the road
+      // the driver was on. Use up to CONTEXT_PTS of them, closest to gap last.
+      const beforeStart = Math.max(0, zone.startIdx - CONTEXT_PTS);
+      const contextBefore: [number, number][] = masterPoints
+        .slice(beforeStart, zone.startIdx)
+        .map(p => [p[0], p[1]]);
+
+      // Points immediately AFTER the gap — these are real GPS points on the road
+      // the driver resumed on. Use up to CONTEXT_PTS of them, closest to gap first.
+      const afterEnd = Math.min(masterPoints.length, zone.endIdx + 1 + CONTEXT_PTS);
+      const contextAfter: [number, number][] = masterPoints
+        .slice(zone.endIdx + 1, afterEnd)
+        .map(p => [p[0], p[1]]);
+
       return {
         zoneIndex: zi,
         zone,
         fromLat: startPt[0], fromLon: startPt[1],
         toLat: endPt[0], toLon: endPt[1],
         travelMode,
+        contextBefore,
+        contextAfter,
       };
     });
 
@@ -459,7 +505,12 @@ Deno.serve(async (req) => {
 
     for (const seg of zoneSegments) {
       console.log(`[snapMasterTimeline] Snapping zone ${seg.zoneIndex + 1}/${zoneSegments.length} mode=${seg.travelMode}`);
-      const routedResults = await getRoutedSegments(base44, [seg], seg.travelMode);
+      const routedResults = await getRoutedSegments(base44, [{
+        fromLat: seg.fromLat, fromLon: seg.fromLon,
+        toLat: seg.toLat, toLon: seg.toLon,
+        contextBefore: seg.contextBefore,
+        contextAfter: seg.contextAfter,
+      }], seg.travelMode);
       totalApiCalls += 1;
       routedCoordsByZoneIndex.set(seg.zoneIndex, routedResults[0]);
     }
