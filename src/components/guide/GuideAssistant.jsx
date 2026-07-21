@@ -812,16 +812,14 @@ export default function GuideAssistant() {
         {!isOpen && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            animate={{ scale: 1, opacity: hideFabForExpandedCard ? 0 : 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20, opacity: { duration: 0.2, ease: 'easeInOut' } }}
             className="fixed z-[10060]"
             style={{
               bottom: `${guideBottomPx}px`,
               right: `${guideRightPx}px`,
-              opacity: hideFabForExpandedCard ? 0 : 1,
               pointerEvents: hideFabForExpandedCard ? 'none' : 'auto',
-              transition: 'opacity 0.15s ease',
             }}
           >
             <button
