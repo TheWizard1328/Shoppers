@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { userHasRole } from '@/components/utils/userRoles';
+import { isAppOwner } from '@/components/utils/userRoles';
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import ResetPolylinesButton from '@/components/dashboard/ResetPolylinesButton';
@@ -60,7 +60,7 @@ export default function CompletedRouteControls({
   deliveriesWithStopOrder,
 }) {
   if (isMobile) return null;
-  if (!currentUser || !userHasRole(currentUser, 'admin')) return null;
+  if (!isAppOwner(currentUser)) return null;
   if (!selectedDriverId || selectedDriverId === 'all') return null;
   if (!isRouteComplete) return null;
 
