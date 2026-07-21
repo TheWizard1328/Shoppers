@@ -212,12 +212,49 @@ async function getRoutedSegments(
   }
 }
 
+// ── API Usage Logger ──────────────────────────────────────────────────────────
+async function logApiUsage(base44: any, {
+  userId, userName, success, durationMs, callCount, errorMessage, metadata = {}
+}: {
+  userId?: string; userName?: string; success: boolean; durationMs: number;
+  callCount: number; errorMessage?: string; metadata?: Record<string, unknown>;
+}) {
+  try {
+    await base44.asServiceRole.entities.GoogleAPILog.create({
+      timestamp: new Date().toISOString(),
+      api_type: 'Directions (HERE)',
+      purpose: 'snapMasterTimeline — batch gap-fill via HERE Router',
+      function_name: 'snapMasterTimeline',
+      user_id: userId || null,
+      user_name: userName || null,
+      metadata: {
+        api_provider: 'here',
+        call_count: callCount,
+        success,
+        duration_ms: durationMs,
+        error_message: errorMessage || undefined,
+        ...metadata,
+      },
+    });
+  } catch (e: unknown) {
+    console.warn('[snapMasterTimeline] Failed to write API log:', (e as Error)?.message);
+  }
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
+  const startedAt = Date.now();
+  let totalApiCalls = 0;
+  let logUserId: string | undefined;
+  let logUserName: string | undefined;
+
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+    logUserId = user.id;
+    logUserName = user.full_name || user.email;
 
     const body = await req.json().catch(() => ({}));
     const {
@@ -368,7 +405,22 @@ Deno.serve(async (req) => {
 
     for (const group of groups) {
       console.log(`[snapMasterTimeline] Calling getHereDirections: ${group.segs.length} zone(s), mode=${group.mode}`);
+      const groupStart = Date.now();
       const routedResults = await getRoutedSegments(base44, group.segs, group.mode);
+      totalApiCalls += 1;
+      await logApiUsage(base44, {
+        userId: logUserId,
+        userName: logUserName,
+        success: true,
+        durationMs: Date.now() - groupStart,
+        callCount: 1,
+        metadata: {
+          transport_mode: group.mode,
+          zone_count: group.segs.length,
+          driver_id,
+          delivery_date,
+        },
+      });
       group.segs.forEach((seg, i) => {
         routedCoordsByZoneIndex.set(seg.zoneIndex, routedResults[i]);
       });
@@ -450,6 +502,18 @@ Deno.serve(async (req) => {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error('[snapMasterTimeline] Error:', msg);
+    // Log the failure if we got far enough to have a base44 client
+    try {
+      const base44Err = createClientFromRequest(req);
+      await logApiUsage(base44Err, {
+        userId: logUserId,
+        userName: logUserName,
+        success: false,
+        durationMs: Date.now() - startedAt,
+        callCount: totalApiCalls,
+        errorMessage: msg,
+      });
+    } catch (_) { /* swallow */ }
     return Response.json({ error: msg || 'Internal error' }, { status: 500 });
   }
 });
