@@ -29,21 +29,29 @@ import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStart
 import { updatePreferredTravelMode } from '../dashboard/travelModeHelpers';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
+import { consolidateBreadcrumbSegment } from "@/functions/consolidateBreadcrumbSegment";
 
 const START_ACTION_NAME = 'start_delivery';
 
-const queueConsolidateBreadcrumbs = ({ driverId, deliveryDate, stopOrder, status }) => {
+const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, stopOrder, status, deliveryId, actualDeliveryTime, transportMode }) => {
   if (!driverId || !deliveryDate || !Number.isFinite(Number(stopOrder))) return;
-  Promise.resolve().then(() =>
-    base44.functions.invoke('consolidateBreadcrumbs', {
+  try {
+    const result = await consolidateBreadcrumbSegment({
       driver_id: driverId,
       delivery_date: deliveryDate,
+      delivery_id: deliveryId,
       stop_order: Number(stopOrder),
-      delivery_status: status
-    }).catch((error) => {
-      console.warn('⚠️ [Breadcrumbs] Consolidation failed:', error?.message || error);
-    })
-  );
+      actual_delivery_time: actualDeliveryTime || new Date().toISOString(),
+      transport_mode: transportMode || 'driving'
+    });
+    if (result?.success) {
+      console.log(`✅ [Breadcrumbs] Segment consolidated: ${result.point_count} points for stop ${stopOrder}`);
+    } else {
+      console.warn(`⚠️ [Breadcrumbs] Consolidation returned non-success:`, result?.error || result);
+    }
+  } catch (error) {
+    console.warn('⚠️ [Breadcrumbs] Consolidation failed:', error?.message || error);
+  }
 };
 const ETA_REFRESH_THRESHOLD_MINUTES = 5;
 
@@ -1336,7 +1344,7 @@ export default function useStopCardActions(params) {
 
         dispatchStopCardActionCollapse();
         onClick?.(null);
-        queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status: 'completed' });
+        await queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status: 'completed', deliveryId: delivery.id, actualDeliveryTime: completionUpdate.actual_delivery_time, transportMode: currentPreferredTravelMode });
 
         // ── Cycling end marker completed: reset driver travel mode back to driving ──
         // When the driver taps Complete on the Cycling Route End marker we know the
@@ -1453,7 +1461,7 @@ export default function useStopCardActions(params) {
         if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded(status === 'failed' ? 'Failed' : 'Cancelled');
         dispatchStopCardActionCollapse();
         onClick?.(null);
-        queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status });
+        await queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status, deliveryId: delivery.id, actualDeliveryTime: criticalUpdate.actual_delivery_time, transportMode: currentPreferredTravelMode });
         if (userHasRole(currentUser, 'driver')) {
           await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });
         }
