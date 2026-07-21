@@ -385,7 +385,7 @@ function DashboardView({
           mapMode={mapMode} setMapMode={setMapMode}
           driverLocation={driverLocation} allDriverLocations={allDriverLocations} currentToNextPolyline={currentToNextPolyline}
           showRoutes={showRoutes} showAllDriverMarkers={showAllDriverMarkers}
-          showBreadcrumbs={showBreadcrumbs} breadcrumbsData={breadcrumbsData}
+          showBreadcrumbs={showBreadcrumbs} breadcrumbsData={breadcrumbsData} setShowRoutes={setShowRoutes} setShowBreadcrumbs={setShowBreadcrumbs} setBreadcrumbsData={setBreadcrumbsData}
           highlightedCardId={highlightedCardId} retractClustersRef={retractClustersRef} googleApiKey={googleApiKey}
           setDriverRoutes={setDriverRoutes} renderSequence={renderSequence} setRenderSequence={setRenderSequence}
           stopCardsBaseHeight={stopCardsBaseHeight} handleMarkerClick={handleMarkerClick}
@@ -510,7 +510,7 @@ function DashboardView({
         hasVisibleCards={deliveriesWithStopOrder.length > 0}
         immersiveHidden={immersiveHidden}
       >
-        <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
+        <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} setShowRoutes={setShowRoutes} setShowBreadcrumbs={setShowBreadcrumbs} showBreadcrumbs={showBreadcrumbs} showRoutes={showRoutes} />
       </StopCardCheckboxToggle>
 
       {currentUser &&
