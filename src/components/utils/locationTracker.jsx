@@ -63,7 +63,9 @@ class LocationTracker {
         this.minTimeBetweenPolylineRefresh = 30000;
         this.lastBreadcrumbSavedAt = 0;
         this.breadcrumbSaveInterval = 5000; // 5 seconds — offline DB write frequency
-        this.breadcrumbInterval = null; // Independent 5s timer for breadcrumb collection
+        this.breadcrumbInterval = null; // Independent 5s timer for breadcrumb collection (fallback)
+        this.breadcrumbWatchdog = null; // Watchdog timer — detects missed breadcrumb ticks
+        this.lastBreadcrumbTickAt = 0; // Updated on every successful breadcrumb collection
         this.lastHeartbeatAt = 0;
         this.lastFocusLostAt = 0;
 
@@ -695,6 +697,20 @@ class LocationTracker {
 
     if (!this.isTracking) return;
 
+    // ── BREADCRUMB COLLECTION FROM watchPosition (PRIMARY SOURCE) ──────────────
+    // Collect a breadcrumb on EVERY GPS hardware lock, not just the 5s setInterval.
+    // watchPosition callbacks fire at the hardware level (1-5s) and are far more
+    // resilient to JS timer throttling than setInterval. The collectBreadcrumb()
+    // method has its own 5s gate via lastBreadcrumbSavedAt, so calling it on every
+    // tick is safe — extra calls within the 5s window are simply skipped.
+    // This is the fix for "entire leg missing" — the setInterval was being throttled
+    // or killed by Android Chrome during backgrounding, but watchPosition survives.
+    if (this.driverStatus === 'on_duty' && this.appUserId && this.currentUser?.id) {
+      this.collectBreadcrumb(latitude, longitude, Date.now()).catch((e) => {
+        console.warn('🍞 [LocationTracker] watchPosition breadcrumb failed:', e?.message);
+      });
+    }
+
     // CRITICAL: For web watchPosition, GPS callbacks can fire every 1-5s — far more
     // often than our intended 15s interval. Throttle DB uploads here so we only
     // upload once per updateInterval. The heartbeat setInterval is the authoritative
@@ -993,7 +1009,47 @@ class LocationTracker {
           }
         }, this.breadcrumbSaveInterval);
 
-        console.log(`✅ [${providerName} PROVIDER] Location tracking started${useNativeBackgroundWatcher ? ' - streaming native updates' : ` - uploads every ${this.updateInterval/1000}s`} | Breadcrumbs every ${this.breadcrumbSaveInterval/1000}s`);
+        // ── BREADCRUMB WATCHDOG (FALLBACK SAFETY NET) ──────────────────────────
+        // A second 3s timer that checks if breadcrumbs are actually being collected.
+        // If the last breadcrumb was >7s ago while on_duty, force a fresh GPS fix
+        // and collect. This catches:
+        //   1. setInterval throttling by Android Chrome (interval fires at 1/min)
+        //   2. watchPosition callback suppression during heavy main-thread activity
+        //   3. GPS re-acquisition delays after backgrounding
+        // Two independent timers are more resilient than one — if either fires
+        // and collects a breadcrumb, the watchdog resets its deadline.
+        if (this.breadcrumbWatchdog) {
+          clearInterval(this.breadcrumbWatchdog);
+          this.breadcrumbWatchdog = null;
+        }
+        this.breadcrumbWatchdog = setInterval(async () => {
+          if (!this.isTracking || this.driverStatus !== 'on_duty') return;
+          const now = Date.now();
+          const timeSinceLastCrumb = now - (this.lastBreadcrumbTickAt || this.lastBreadcrumbSavedAt || 0);
+          if (timeSinceLastCrumb > 7000) {
+            console.warn(`🍞 [Breadcrumb Watchdog] Gap detected — ${Math.round(timeSinceLastCrumb / 1000)}s since last breadcrumb. Forcing fresh GPS fix.`);
+            try {
+              const freshPos = await this.locationProvider.getCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 4000,
+                maximumAge: 0,
+                requestPermissions: false
+              });
+              this.lastPosition = {
+                latitude: freshPos.coords.latitude,
+                longitude: freshPos.coords.longitude,
+                accuracy: freshPos.coords.accuracy
+              };
+              // Reset the gate so collectBreadcrumb doesn't skip it
+              this.lastBreadcrumbSavedAt = 0;
+              await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, now);
+            } catch (e) {
+              console.warn('🍞 [Breadcrumb Watchdog] Force fix failed:', e?.message);
+            }
+          }
+        }, 3000);
+
+        console.log(`✅ [${providerName} PROVIDER] Location tracking started${useNativeBackgroundWatcher ? ' - streaming native updates' : ` - uploads every ${this.updateInterval/1000}s`} | Breadcrumbs every ${this.breadcrumbSaveInterval/1000}s + 3s watchdog`);
       } catch (error) {
         console.error('❌ Failed to start location provider:', error);
         reject(this.handleLocationError(error));
@@ -1014,7 +1070,11 @@ class LocationTracker {
       clearInterval(this.breadcrumbInterval);
       this.breadcrumbInterval = null;
     }
-    console.log('💓 [LocationTracker] Stopped heartbeat + breadcrumb intervals');
+    if (this.breadcrumbWatchdog) {
+      clearInterval(this.breadcrumbWatchdog);
+      this.breadcrumbWatchdog = null;
+    }
+    console.log('💓 [LocationTracker] Stopped heartbeat + breadcrumb intervals + watchdog');
     this.isTracking = false;
     this._webOnlyMode = false;
     this._dispatcherHeartbeatMode = false;
@@ -1031,6 +1091,7 @@ class LocationTracker {
     this.currentDeliveryDate = null;
     this.lastBreadcrumbPosition = null;
     this.lastBreadcrumbSavedAt = 0;
+    this.lastBreadcrumbTickAt = 0;
     this.lastEtaRefreshPosition = null;
     this.lastEtaRefreshAt = 0;
     this.lastPolylineRefreshPosition = null;
@@ -1159,8 +1220,18 @@ class LocationTracker {
     }
 
     if (this.lastBreadcrumbSavedAt && timestamp - this.lastBreadcrumbSavedAt < this.breadcrumbSaveInterval) {
-      console.log(`🍞 [LocationTracker] Skipping breadcrumb - waiting ${Math.ceil((this.breadcrumbSaveInterval - (timestamp - this.lastBreadcrumbSavedAt)) / 1000)}s for ${this.breadcrumbSaveInterval / 1000}s interval`);
-      return;
+      return; // Silent skip — 5s gate handled by the interval
+    }
+
+    // ── GAP DETECTION ──────────────────────────────────────────────────────
+    // Log gaps >10s between consecutive breadcrumbs for diagnostics.
+    // Common causes: app backgrounding, main-thread blocking during completion,
+    // GPS re-acquisition delay, or setInterval throttling by the OS.
+    if (this.lastBreadcrumbTickAt > 0) {
+      const gapMs = timestamp - this.lastBreadcrumbTickAt;
+      if (gapMs > 10000) {
+        console.warn(`🍞 [Breadcrumb Gap] ${Math.round(gapMs / 1000)}s gap detected between breadcrumbs. Last: ${new Date(this.lastBreadcrumbTickAt).toISOString()}, Now: ${new Date(timestamp).toISOString()}`);
+      }
     }
 
     try {
@@ -1180,6 +1251,7 @@ class LocationTracker {
 
       this.lastBreadcrumbPosition = { latitude, longitude, timestamp };
       this.lastBreadcrumbSavedAt = timestamp;
+      this.lastBreadcrumbTickAt = timestamp; // Track for watchdog + gap detection
       console.log(`🍞 [LocationTracker] Collected breadcrumb for ${result.pendingKey}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
@@ -1454,5 +1526,43 @@ if (typeof document !== 'undefined') {
         _focusDate
       ).catch(() => {});
     }
+  });
+
+  // ── F: Breadcrumb resume after stop completion/fail/cancel ──────────────────
+  // The completion chain in useStopCardActions can block the main thread for several
+  // seconds, causing the 5s breadcrumb timer to miss ticks. When the chain finishes,
+  // it dispatches 'breadcrumbResumeAfterAction'. We immediately collect a breadcrumb
+  // at the current GPS position to bridge the gap.
+  window.addEventListener('breadcrumbResumeAfterAction', () => {
+    if (!locationTracker.isTracking || locationTracker.driverStatus !== 'on_duty') return;
+    if (!locationTracker.appUserId || !locationTracker.currentUser?.id) return;
+
+    // Reset the 5s gate so collectBreadcrumb doesn't skip this forced collection
+    locationTracker.lastBreadcrumbSavedAt = 0;
+
+    // Try to get a fresh GPS fix and collect immediately
+    locationTracker.locationProvider?.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 4000,
+      maximumAge: 0,
+      requestPermissions: false
+    }).then((pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      locationTracker.lastPosition = { latitude, longitude, accuracy };
+      locationTracker.collectBreadcrumb(latitude, longitude, Date.now()).catch(() => {});
+      console.log('🍞 [LocationTracker] Post-completion breadcrumb collected');
+    }).catch((err) => {
+      // Fallback: use last known position if fresh fix fails
+      if (locationTracker.lastPosition?.latitude) {
+        locationTracker.collectBreadcrumb(
+          locationTracker.lastPosition.latitude,
+          locationTracker.lastPosition.longitude,
+          Date.now()
+        ).catch(() => {});
+        console.log('🍞 [LocationTracker] Post-completion breadcrumb (stale position fallback)');
+      } else {
+        console.warn('🍞 [LocationTracker] Post-completion breadcrumb failed — no GPS fix', err?.message);
+      }
+    });
   });
 }

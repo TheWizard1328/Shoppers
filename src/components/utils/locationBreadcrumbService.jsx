@@ -101,7 +101,11 @@ export const collectBreadcrumbForTracker = async ({
     existingPoints = coords.map((coord, i) => [coord[0], coord[1], tsArr[i] || 0]);
   }
 
-  // Distance filter: reject GPS jumps > 250m unless the last point is stale (heartbeat)
+  // Distance filter: LOG large GPS jumps but still ACCEPT the point.
+  // Previously, jumps >250m were rejected, which caused gaps in the trail exactly
+  // when the driver was moving fast (highway) or after a GPS re-acquisition.
+  // The spatial anchor refinement in consolidateBreadcrumbs can handle minor GPS
+  // noise. A gap in the trail is worse than a potentially-imperfect point.
   if (existingPoints.length > 0) {
     const lastPoint = existingPoints[existingPoints.length - 1];
     const timeSinceLast = timestamp - (lastPoint[2] || 0);
@@ -114,8 +118,7 @@ export const collectBreadcrumbForTracker = async ({
       const distanceM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
       if (distanceM > MAX_BREADCRUMB_DISTANCE_M) {
-        console.warn(`🍞 [Breadcrumbs] REJECTED point — GPS jump: ${distanceM.toFixed(0)}m > ${MAX_BREADCRUMB_DISTANCE_M}m`);
-        return null;
+        console.warn(`🍞 [Breadcrumbs] Large GPS jump: ${distanceM.toFixed(0)}m > ${MAX_BREADCRUMB_DISTANCE_M}m — accepting (was previously rejected, causing gaps)`);
       }
     } else {
       console.log(`🍞 [Breadcrumbs] Heartbeat accepted — ${Math.round(timeSinceLast / 1000)}s since last point`);

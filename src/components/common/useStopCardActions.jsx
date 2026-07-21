@@ -35,6 +35,32 @@ const START_ACTION_NAME = 'start_delivery';
 
 const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, stopOrder, status, deliveryId, actualDeliveryTime, transportMode }) => {
   if (!driverId || !deliveryDate || !Number.isFinite(Number(stopOrder))) return;
+
+  // ── C: FLUSH the offline master trail to the server BEFORE slicing ────────
+  // The master trail on the server is only updated every 3rd offline save (15s).
+  // If the completion happens within that window, the server's master trail is
+  // missing the last 1-2 points. Force-flushing ensures the slicing function
+  // has the absolute latest GPS data.
+  try {
+    const { offlineDB } = await import('../utils/offlineDatabase');
+    const offlineKey = `${driverId}__TODAY__${deliveryDate}`;
+    const masterRecord = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey);
+    if (masterRecord?.encoded_polyline && masterRecord?.timestamps) {
+      const { base44 } = await import('@/api/base44Client');
+      await base44.functions.invoke('syncPendingBreadcrumbs', {
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+        encoded_polyline: masterRecord.encoded_polyline,
+        timestamps: masterRecord.timestamps,
+        point_count: masterRecord.point_count,
+      });
+      console.log(`☁️ [Breadcrumbs] Pre-slice flush: ${masterRecord.point_count} points synced to server`);
+    }
+  } catch (flushErr) {
+    console.warn('⚠️ [Breadcrumbs] Pre-slice flush failed:', flushErr?.message || flushErr);
+    // Don't abort — the slicer will use whatever the server already has
+  }
+
   try {
     const result = await consolidateBreadcrumbSegment({
       driver_id: driverId,
@@ -1369,6 +1395,13 @@ export default function useStopCardActions(params) {
         backgroundSyncManager.resume();
         resumeRealtimeSync();
         resetActionLocks(true);
+        // ── F: Signal breadcrumb resume after completion ──────────────────────
+        // The completion chain may have blocked the main thread for several seconds,
+        // causing the 5s breadcrumb timer to miss ticks. Dispatch an event so
+        // locationTracker immediately collects a breadcrumb at the current GPS
+        // position, bridging any gap. The watchdog would eventually catch this,
+        // but explicit signaling is faster (0s vs up to 7s watchdog delay).
+        window.dispatchEvent(new CustomEvent('breadcrumbResumeAfterAction'));
       }
     });
     if (lockResult?.skipped) return;
@@ -1475,6 +1508,8 @@ export default function useStopCardActions(params) {
         backgroundSyncManager.resume();
         resumeRealtimeSync();
         resetActionLocks(true);
+        // ── F: Signal breadcrumb resume after fail/cancel ────────────────────
+        window.dispatchEvent(new CustomEvent('breadcrumbResumeAfterAction'));
       }
     });
     if (lockResult?.skipped) return;
