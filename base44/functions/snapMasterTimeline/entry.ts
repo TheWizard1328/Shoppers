@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
       gap_threshold_m,
       raw_gaps_found: gaps.length,
       snap_zones: zones.length,
-      estimated_api_calls: zones.length > 0 ? 1 : 0, // now 1 batch call instead of N
+      estimated_api_calls: zones.length, // 1 call per snap zone (each zone is independent)
       zone_details: zones.map((z, i) => ({
         zone_index: i + 1,
         start_idx: z.startIdx,
@@ -387,43 +387,32 @@ Deno.serve(async (req) => {
       };
     });
 
-    // ── 6. Group by transport mode and call getHereDirections per group ────────
-    // Typically this is one call for a pure-driving route, two calls if cycling loops exist.
+    // ── 6. Call getHereDirections once per snap zone (each zone is independent) ──
+    // Zones are spatially disjoint — they must NOT be batched together into one
+    // multi-waypoint call, as the routing engine would try to connect them as a
+    // single continuous route across distant unrelated legs.
     const routedCoordsByZoneIndex = new Map<number, [number, number][]>();
 
-    const groups: Array<{ mode: 'car' | 'bicycle'; segs: ZoneSegment[] }> = [];
-    let currentGroup: ZoneSegment[] = [zoneSegments[0]];
-    for (let i = 1; i < zoneSegments.length; i++) {
-      if (zoneSegments[i].travelMode === currentGroup[0].travelMode) {
-        currentGroup.push(zoneSegments[i]);
-      } else {
-        groups.push({ mode: currentGroup[0].travelMode, segs: currentGroup });
-        currentGroup = [zoneSegments[i]];
-      }
-    }
-    groups.push({ mode: currentGroup[0].travelMode, segs: currentGroup });
-
-    for (const group of groups) {
-      console.log(`[snapMasterTimeline] Calling getHereDirections: ${group.segs.length} zone(s), mode=${group.mode}`);
-      const groupStart = Date.now();
-      const routedResults = await getRoutedSegments(base44, group.segs, group.mode);
+    for (const seg of zoneSegments) {
+      console.log(`[snapMasterTimeline] Snapping zone ${seg.zoneIndex + 1}/${zoneSegments.length} mode=${seg.travelMode}`);
+      const zoneStart = Date.now();
+      const routedResults = await getRoutedSegments(base44, [seg], seg.travelMode);
       totalApiCalls += 1;
       await logApiUsage(base44, {
         userId: logUserId,
         userName: logUserName,
         success: true,
-        durationMs: Date.now() - groupStart,
+        durationMs: Date.now() - zoneStart,
         callCount: 1,
         metadata: {
-          transport_mode: group.mode,
-          zone_count: group.segs.length,
+          transport_mode: seg.travelMode,
+          zone_index: seg.zoneIndex + 1,
+          zone_count: zoneSegments.length,
           driver_id,
           delivery_date,
         },
       });
-      group.segs.forEach((seg, i) => {
-        routedCoordsByZoneIndex.set(seg.zoneIndex, routedResults[i]);
-      });
+      routedCoordsByZoneIndex.set(seg.zoneIndex, routedResults[0]);
     }
 
     // ── 7. Stitch results back into master points ─────────────────────────────
