@@ -432,10 +432,29 @@ Deno.serve(async (req) => {
         (a.arrival_time || '').localeCompare(b.arrival_time || '')
       );
 
+      // arrival_time is stored as local device time (e.g. "2026-07-20T15:31:00") with NO
+      // timezone suffix. The Deno runtime is UTC, so new Date("2026-07-20T15:31:00") would
+      // be parsed as UTC — 6 hours too early for Edmonton (MDT = UTC-6).
+      // breadcrumb timestamps are true UTC epoch ms, so we must shift arrival_time to UTC
+      // by appending the MDT offset before parsing.
+      const MDT_OFFSET = '-06:00'; // Mountain Daylight Time (UTC-6, May–Nov)
+      const toUtcMs = (localStr: string): number | null => {
+        if (!localStr) return null;
+        const trimmed = localStr.trim();
+        // Already has a timezone designator — parse as-is
+        if (/[Z+-]\d{2}:?\d{2}$/.test(trimmed) || trimmed.endsWith('Z')) {
+          const ms = new Date(trimmed).getTime();
+          return Number.isNaN(ms) ? null : ms;
+        }
+        // No offset — treat as local MDT and convert to UTC
+        const ms = new Date(trimmed + MDT_OFFSET).getTime();
+        return Number.isNaN(ms) ? null : ms;
+      };
+
       let pendingStartMs: number | null = null;
       for (const stop of markerStops) {
         const notes: string = (stop.delivery_notes || '').trim();
-        const ts = parseTimestampMs(stop.arrival_time);
+        const ts = toUtcMs(stop.arrival_time);
         if (!ts) continue;
         if (notes === 'Cycling Route Start') {
           pendingStartMs = ts;
