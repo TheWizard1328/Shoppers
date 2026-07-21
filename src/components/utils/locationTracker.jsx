@@ -69,6 +69,11 @@ class LocationTracker {
         this.lastHeartbeatAt = 0;
         this.lastFocusLostAt = 0;
 
+        // At-stop breadcrumb throttle — when driver is at a delivery location,
+        // reduce breadcrumb frequency to 60s instead of 5s.
+        this.isBreadcrumbSlowed = false;
+        this._atStopBreadcrumbInterval = null;
+
       // Load settings from RouteOptimizationSettings
       this.loadSettings();
     }
@@ -157,6 +162,88 @@ class LocationTracker {
     }
     
     return status === 'on_duty' || status === 'on_break';
+  }
+
+  /**
+   * Slow down breadcrumb collection to 60s when driver is at a delivery stop.
+   * Called by arrivalTimeDetector after confirming arrival at isNextDelivery stop.
+   */
+  slowBreadcrumbsForStop() {
+    if (this.isBreadcrumbSlowed) return; // already slowed
+    this.isBreadcrumbSlowed = true;
+    console.log('🐢 [LocationTracker] At-stop detected — slowing breadcrumbs to 60s interval');
+
+    // Clear the normal 5s interval and watchdog
+    if (this.breadcrumbInterval) {
+      clearInterval(this.breadcrumbInterval);
+      this.breadcrumbInterval = null;
+    }
+    if (this.breadcrumbWatchdog) {
+      clearInterval(this.breadcrumbWatchdog);
+      this.breadcrumbWatchdog = null;
+    }
+
+    // Start a 60s at-stop interval — just keeps the timeline from having a huge gap
+    if (this._atStopBreadcrumbInterval) clearInterval(this._atStopBreadcrumbInterval);
+    this._atStopBreadcrumbInterval = setInterval(async () => {
+      if (!this.isTracking || this.driverStatus !== 'on_duty' || !this.isBreadcrumbSlowed) return;
+      try {
+        const freshPos = await this.locationProvider.getCurrentPosition({
+          enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false
+        });
+        this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
+        this.lastBreadcrumbSavedAt = 0; // bypass gate for this forced tick
+        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now());
+      } catch (e) {
+        console.warn('🍞 [At-stop breadcrumb] GPS fix failed:', e?.message);
+      }
+    }, 60000);
+  }
+
+  /**
+   * Resume normal 5s breadcrumb collection after a stop is completed/failed/cancelled.
+   * Called from the breadcrumbResumeAfterAction listener.
+   */
+  resumeNormalBreadcrumbs() {
+    if (!this.isBreadcrumbSlowed) return; // already normal
+    this.isBreadcrumbSlowed = false;
+    console.log('🏃 [LocationTracker] Stop finished — resuming normal 5s breadcrumb interval');
+
+    if (this._atStopBreadcrumbInterval) {
+      clearInterval(this._atStopBreadcrumbInterval);
+      this._atStopBreadcrumbInterval = null;
+    }
+
+    // Restart the normal 5s breadcrumb interval
+    if (this.breadcrumbInterval) clearInterval(this.breadcrumbInterval);
+    this.breadcrumbInterval = setInterval(async () => {
+      if (!this.isTracking || this.driverStatus !== 'on_duty' || this.isBreadcrumbSlowed) return;
+      try {
+        const freshPos = await this.locationProvider.getCurrentPosition({
+          enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false
+        });
+        this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
+        await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, Date.now());
+      } catch (e) {
+        console.warn('⚠️ [Breadcrumb Timer] GPS fix failed:', e?.message);
+      }
+    }, this.breadcrumbSaveInterval);
+
+    // Restart watchdog
+    if (this.breadcrumbWatchdog) clearInterval(this.breadcrumbWatchdog);
+    this.breadcrumbWatchdog = setInterval(async () => {
+      if (!this.isTracking || this.driverStatus !== 'on_duty' || this.isBreadcrumbSlowed) return;
+      const now = Date.now();
+      const timeSinceLastCrumb = now - (this.lastBreadcrumbTickAt || this.lastBreadcrumbSavedAt || 0);
+      if (timeSinceLastCrumb > 7000) {
+        try {
+          const freshPos = await this.locationProvider.getCurrentPosition({ enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false });
+          this.lastPosition = { latitude: freshPos.coords.latitude, longitude: freshPos.coords.longitude, accuracy: freshPos.coords.accuracy };
+          this.lastBreadcrumbSavedAt = 0;
+          await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, now);
+        } catch (e) {}
+      }
+    }, 3000);
   }
 
   /**
@@ -1074,6 +1161,11 @@ class LocationTracker {
       clearInterval(this.breadcrumbWatchdog);
       this.breadcrumbWatchdog = null;
     }
+    if (this._atStopBreadcrumbInterval) {
+      clearInterval(this._atStopBreadcrumbInterval);
+      this._atStopBreadcrumbInterval = null;
+    }
+    this.isBreadcrumbSlowed = false;
     console.log('💓 [LocationTracker] Stopped heartbeat + breadcrumb intervals + watchdog');
     this.isTracking = false;
     this._webOnlyMode = false;
@@ -1216,6 +1308,12 @@ class LocationTracker {
 
   async collectBreadcrumb(latitude, longitude, timestamp) {
     if (this.driverStatus !== 'on_duty' || !this.appUserId || !this.currentUser?.id) {
+      return;
+    }
+
+    // When at a stop, only the explicit 60s at-stop interval should collect crumbs.
+    // watchPosition and the watchdog should be suppressed.
+    if (this.isBreadcrumbSlowed) {
       return;
     }
 
@@ -1536,6 +1634,9 @@ if (typeof document !== 'undefined') {
   window.addEventListener('breadcrumbResumeAfterAction', () => {
     if (!locationTracker.isTracking || locationTracker.driverStatus !== 'on_duty') return;
     if (!locationTracker.appUserId || !locationTracker.currentUser?.id) return;
+
+    // Resume normal 5s breadcrumb frequency — stop is done
+    locationTracker.resumeNormalBreadcrumbs();
 
     // Reset the 5s gate so collectBreadcrumb doesn't skip this forced collection
     locationTracker.lastBreadcrumbSavedAt = 0;
