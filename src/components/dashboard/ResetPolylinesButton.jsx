@@ -5,6 +5,7 @@ import { toast } from "@/components/ui/use-toast";
 
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
+import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { Loader2, RotateCcw } from "lucide-react";
 
 export default function ResetPolylinesButton({
@@ -15,6 +16,8 @@ export default function ResetPolylinesButton({
   disabled = false,
   className = "",
   forceDrivingMode = false,  // When true, all polylines are generated as driving regardless of stop transport_mode
+  appUsers = [],             // Needed for loadBreadcrumbsForDriver after resegment
+  onBreadcrumbsReloaded,     // Callback(driverId, breadcrumbsData) after resegment completes
 }) {
   const [isResetting, setIsResetting] = useState(false);
 
@@ -71,22 +74,51 @@ export default function ResetPolylinesButton({
           let result;
 
           if (selectedPolylineOption === 'breadcrumbs') {
-            const response = await base44.functions.invoke('processOrphanedBreadcrumbs', {
-              driverId,
-              deliveryDate: selectedDate
+            // ── Step 1: Sync online → offline DB ──────────────────────────────
+            // Always pull fresh records from the server so we have the latest
+            // master timeline (stop_order = -1) and any already-sliced segments.
+            const onlineBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
+              driver_id: driverId,
+              delivery_date: selectedDate,
             });
-            result = response?.data || response || {};
-            if (!result.success) {
-              throw new Error(result.error || 'Breadcrumb reconciliation failed');
+            if (Array.isArray(onlineBreadcrumbs) && onlineBreadcrumbs.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS, onlineBreadcrumbs);
             }
 
-            const mergedRows = Number(result?.sourceRows || 0);
-            const integratedStops = Number(result?.updatedDeliveryIds?.length || 0);
+            // ── Step 2: Resegment all stops (always overwrites existing records) ──
+            const response = await base44.functions.invoke('consolidateBreadcrumbs', {
+              driver_id: driverId,
+              delivery_date: selectedDate,
+              // No stop_order → slice ALL terminal stops
+            });
+            result = response?.data || response || {};
+            if (!result.success && !result.skipped) {
+              throw new Error(result.error || 'Breadcrumb resegmentation failed');
+            }
+
+            // ── Step 3: Sync updated per-stop records back to offline DB ──────
+            const freshSegments = await base44.entities.DeliveryBreadcrumbs.filter({
+              driver_id: driverId,
+              delivery_date: selectedDate,
+            });
+            if (Array.isArray(freshSegments) && freshSegments.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS, freshSegments);
+            }
+
+            // ── Step 4: Reload breadcrumbs into map state ─────────────────────
+            try {
+              const reloaded = await loadBreadcrumbsForDriver(driverId, selectedDate, appUsers);
+              onBreadcrumbsReloaded?.(driverId, reloaded);
+            } catch (_) {}
+
+            const stopsSliced = Number(result?.stops_sliced || 0);
+            const stopsSkipped = Number(result?.stops_skipped || 0);
             breadcrumbIntegrationResults.push({
               driverId,
-              mergedRows,
-              integratedStops,
-              pendingBreadcrumbIds: Array.isArray(result?.pendingBreadcrumbIds) ? result.pendingBreadcrumbIds : []
+              stopsSliced,
+              stopsSkipped,
+              skipped: !!result.skipped,
+              skipReason: result.reason || null,
             });
           } else {
             const routeDeliveries = await base44.entities.Delivery.filter(
@@ -271,28 +303,16 @@ export default function ResetPolylinesButton({
       }
 
       if (selectedPolylineOption === 'breadcrumbs') {
-        const totalDrivers = driverIds.length;
-        const successfulDrivers = breadcrumbIntegrationResults.filter((item) => item.integratedStops > 0).length;
-        const mergedRows = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.mergedRows, 0);
-        const integratedStops = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.integratedStops, 0);
-        const successRate = totalDrivers > 0 ? Math.round(successfulDrivers / totalDrivers * 100) : 0;
-        const pendingBreadcrumbIds = breadcrumbIntegrationResults.flatMap((item) => item.pendingBreadcrumbIds || []);
+        const totalStopsSliced = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.stopsSliced, 0);
+        const totalStopsSkipped = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.stopsSkipped, 0);
+        const allSkipped = breadcrumbIntegrationResults.every((item) => item.skipped);
 
         toast({
-          title: 'Breadcrumb consolidation complete',
-          description: `${successRate}% matched • ${integratedStops} stop${integratedStops === 1 ? '' : 's'} aligned by timestamp • ${mergedRows} breadcrumb row${mergedRows === 1 ? '' : 's'} merged`
+          title: allSkipped ? 'No master timeline found' : 'Breadcrumb resegmentation complete',
+          description: allSkipped
+            ? 'No master GPS timeline record exists for this driver/date.'
+            : `${totalStopsSliced} stop${totalStopsSliced === 1 ? '' : 's'} resegmented • ${totalStopsSkipped} skipped`
         });
-
-        if (pendingBreadcrumbIds.length > 0) {
-          const shouldDelete = window.confirm(`Delete ${pendingBreadcrumbIds.length} reconciled breadcrumb row${pendingBreadcrumbIds.length === 1 ? '' : 's'} from live pending storage?`);
-          if (shouldDelete) {
-            await base44.functions.invoke('deletePendingBreadcrumbs', { pendingBreadcrumbIds });
-            toast({
-              title: 'Pending breadcrumbs deleted',
-              description: `${pendingBreadcrumbIds.length} reconciled row${pendingBreadcrumbIds.length === 1 ? '' : 's'} removed.`
-            });
-          }
-        }
       }
     } finally {
       smartRefreshManager.restart();

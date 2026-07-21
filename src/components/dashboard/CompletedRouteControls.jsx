@@ -16,6 +16,7 @@ export default function CompletedRouteControls({
   setShowBreadcrumbs,
   setBreadcrumbsData,
   deliveriesWithStopOrder,
+  appUsers = [],
 }) {
   if (isMobile) return null;
   if (!isAppOwner(currentUser)) return null;
@@ -79,6 +80,12 @@ export default function CompletedRouteControls({
               disabled={!deliveriesWithStopOrder?.length}
               className="h-8 w-8 p-0"
               forceDrivingMode={true}
+              appUsers={appUsers}
+              onBreadcrumbsReloaded={(_driverId, reloaded) => {
+                setBreadcrumbsData(reloaded);
+                setShowBreadcrumbs(true);
+                setShowRoutes(false);
+              }}
             />
           </div>
         </div>
