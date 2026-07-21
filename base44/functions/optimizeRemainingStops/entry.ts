@@ -572,7 +572,7 @@ Deno.serve(async (req) => {
         delivery,
         lat: coords?.lat,
         lng: coords?.lng,
-        isPickup: !delivery.patient_id,
+        isPickup: !delivery.patient_id && !delivery._interstore_source_id && !delivery._interstore_dest_id,
         windowStart,
         windowEnd,
         hasLateWindow: isLateWindowStop(windowStart, currentMinutes),
@@ -629,7 +629,7 @@ Deno.serve(async (req) => {
       };
 
       // Separate pickups and pending deliveries
-      const pickups = optimizableDeliveries.filter(d => !d.patient_id);
+      const pickups = optimizableDeliveries.filter(d => !d.patient_id && !d._interstore_source_id && !d._interstore_dest_id);
       const pendingDeliveries = optimizableDeliveries.filter(d => d.patient_id && d.status === 'pending');
       const activeDeliveries = optimizableDeliveries.filter(d => d.patient_id && d.status !== 'pending');
 
@@ -1315,7 +1315,10 @@ Deno.serve(async (req) => {
 
       // CRITICAL: Pickup stops (no patient_id) must always be en_route unless completed/cancelled.
       // If a pickup somehow got stamped as in_transit (a bug), correct it here during optimization.
-      const isPickupStop = !stop.patient_id && !stop.is_cycling_marker;
+      // InterStore stops (ISP/ISD) have no patient_id but are NOT regular store pickups —
+      // they use in_transit → completed transitions only. Never force them to en_route.
+      const isInterStoreStop = !!(stop._interstore_source_id || stop._interstore_dest_id);
+      const isPickupStop = !stop.patient_id && !stop.is_cycling_marker && !isInterStoreStop;
       const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
       const correctedStatus = isPickupStop && stop.status === 'in_transit' ? 'en_route' : undefined;
       if (correctedStatus) {

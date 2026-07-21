@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
       store_id: storeId,
       delivery_date: deliveryDate,
       driver_id: driverId
-    }, '-created_date', 50)).filter((pickup) => !pickup.patient_id);
+    }, '-created_date', 50)).filter((pickup) => !pickup.patient_id && !pickup._interstore_source_id && !pickup._interstore_dest_id);
 
     let allPickups = null;
 
@@ -386,6 +386,8 @@ Deno.serve(async (req) => {
 
     const slotPickups = allPickups.filter((pickup) =>
       !pickup.patient_id &&
+      !pickup._interstore_source_id &&
+      !pickup._interstore_dest_id &&
       (pickup.ampm_deliveries || 'AM') === chosenSlot
     );
     const trackingNumber = getNextPickupTrackingNumber(slotPickups);

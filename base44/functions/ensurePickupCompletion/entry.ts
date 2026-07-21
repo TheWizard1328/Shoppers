@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
       driver_id: delivery.driver_id
     }, '-created_date', 10);
 
-    const pickup = (pickupMatches || []).find((candidate) => !candidate?.patient_id);
+    const pickup = (pickupMatches || []).find((candidate) => !candidate?.patient_id && !candidate?._interstore_source_id && !candidate?._interstore_dest_id);
     if (!pickup) {
       return Response.json({ success: true, skipped: true, reason: 'pickup_not_found' });
     }

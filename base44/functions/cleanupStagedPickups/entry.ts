@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     const toProcess = pickups.slice(0, maxN);
 
     for (const p of toProcess) { if ((Date.now() - startTs) > (Number(timeBudgetMs) || 4000)) break;
-      if (!p || p.patient_id) continue; // Only pickups (no patient)
+      if (!p || p.patient_id || p._interstore_source_id || p._interstore_dest_id) continue; // Only regular pickups (no patient, not interstore)
       const stopId = p.stop_id;
       if (!stopId) continue;
 

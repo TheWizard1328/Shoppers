@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     const targetStore = (stores || []).find((store) => store?.id === targetStoreId);
     const requestedSlot = ampmDeliveries === 'PM' ? 'PM' : 'AM';
     const dayOfWeek = new Date(`${effectiveDate}T00:00:00`).getDay();
-    if ((dateDeliveries || []).filter((delivery) => !delivery?.patient_id).length === 0) {
+    if ((dateDeliveries || []).filter((delivery) => !delivery?.patient_id && !delivery?._interstore_source_id && !delivery?._interstore_dest_id).length === 0) {
       const assignedStores = (stores || [])
         .filter((store) => !!store)
         .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
       for (const store of assignedStores) {
         const slots = getAssignedSlotsForStore(store, driverAppUser, dayOfWeek);
         for (const slot of slots) {
-          const existingPickup = (dateDeliveries || []).find((delivery) => !delivery?.patient_id && delivery?.store_id === store.id && (delivery?.ampm_deliveries || 'AM') === slot);
+          const existingPickup = (dateDeliveries || []).find((delivery) => !delivery?.patient_id && !delivery?._interstore_source_id && !delivery?._interstore_dest_id && delivery?.store_id === store.id && (delivery?.ampm_deliveries || 'AM') === slot);
           if (existingPickup) continue;
           const times = getSlotTimes(store, dayOfWeek, slot);
           const pickupTracking = `${store?.abbreviation || ''}${String(pickupCounter).padStart(2, '0')}`;

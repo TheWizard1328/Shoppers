@@ -169,7 +169,7 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     driver_id: driverId,
   }, '-created_date', 50);
 
-  const pickups = (existingStoreDeliveries || []).filter((item) => !item?.patient_id);
+  const pickups = (existingStoreDeliveries || []).filter((item) => !item?.patient_id && !item?._interstore_source_id && !item?._interstore_dest_id);
   const reusablePickup = findReusablePickup(pickups, slot);
   if (reusablePickup) {
     // If today and current time is past the pickup's window end, update times to now+30/now+90
@@ -402,7 +402,7 @@ Deno.serve(async (req) => {
     }, 'stop_order', 50000);
 
     const pickupNameFixes = (refreshedPickups || [])
-      .filter((pickup) => pickup && !pickup.patient_id && pickup.driver_id === driverId && !pickup.driver_name)
+      .filter((pickup) => pickup && !pickup.patient_id && !pickup._interstore_source_id && !pickup._interstore_dest_id && pickup.driver_id === driverId && !pickup.driver_name)
       .map((pickup) => base44.asServiceRole.entities.Delivery.update(pickup.id, { driver_name: driverName || '' }).catch((error) => {
         if (isNotFoundError(error)) return null;
         throw error;
@@ -423,7 +423,7 @@ Deno.serve(async (req) => {
       success: true,
       driver_id: driverId,
       delivery_date: deliveryDate,
-      pickups: (finalPickups || []).filter((pickup) => pickup && !pickup.patient_id),
+      pickups: (finalPickups || []).filter((pickup) => pickup && !pickup.patient_id && !pickup._interstore_source_id && !pickup._interstore_dest_id),
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
