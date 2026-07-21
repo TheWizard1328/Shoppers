@@ -17,7 +17,7 @@ export default function MapSection({
   selectedDate, selectedDateStr, selectedDriverId,
   mapCenter, mapZoom, shouldFitBounds, setShouldFitBounds, setMapCenter, setMapZoom,
   mapMode, setMapMode, driverLocation, allDriverLocations, currentToNextPolyline,
-  showRoutes, showAllDriverMarkers, showBreadcrumbs, setShowBreadcrumbs: setShowBreadcrumbsProp, setBreadcrumbsData: setBreadcrumbsDataProp, breadcrumbsData,
+  showRoutes, setShowRoutes, showAllDriverMarkers, showBreadcrumbs, setShowBreadcrumbs: setShowBreadcrumbsProp, setBreadcrumbsData: setBreadcrumbsDataProp, breadcrumbsData,
   highlightedCardId, retractClustersRef,
   setDriverRoutes, renderSequence, setRenderSequence,
   stopCardsBaseHeight, handleMarkerClick, handleCardInteraction,
@@ -97,9 +97,9 @@ export default function MapSection({
         selectedDate={selectedDate}
         isRouteComplete={routeCompleteForSelectedDriver}
         showRoutes={showRoutes}
-        setShowRoutes={window.__dashboardCompletedRouteControls?.setShowRoutes || (() => {})}
+        setShowRoutes={setShowRoutes || (() => {})}
         showBreadcrumbs={showBreadcrumbs}
-        setShowBreadcrumbs={setShowBreadcrumbsProp || window.__dashboardCompletedRouteControls?.setShowBreadcrumbs || (() => {})}
+        setShowBreadcrumbs={setShowBreadcrumbsProp || (() => {})}
         setBreadcrumbsData={setBreadcrumbsDataProp || (() => {})}
         appUsers={appUsers}
         deliveriesWithStopOrder={deliveriesWithStopOrder}

@@ -15,7 +15,7 @@ import {
 // Props:
 // - currentUser: object (used by parent to gate rendering)
 // - stopCardsHeight: number (px) to position the badge just above stop cards
-export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [], selectedPolylineOption = 'polylines', onPolylineOptionChange, children = null }) {
+export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, setShowRoutes, showBreadcrumbs = false, setShowBreadcrumbs, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [], selectedPolylineOption = 'polylines', onPolylineOptionChange, children = null }) {
   const [googleCount, setGoogleCount] = useState(null);
   const [hereRoutingCount, setHereRoutingCount] = useState(null);
   const [hereTileCount, setHereTileCount] = useState(null);
@@ -163,8 +163,8 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
               value={selectedPolylineOption}
               onValueChange={(value) => {
                 onPolylineOptionChange?.(value);
-                window.__dashboardCompletedRouteControls?.setShowRoutes?.(value === 'polylines');
-                window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(value === 'breadcrumbs');
+                setShowRoutes?.(value === 'polylines');
+                setShowBreadcrumbs?.(value === 'breadcrumbs');
               }}
               className="gap-2">
               
