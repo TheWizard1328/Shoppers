@@ -446,6 +446,19 @@ Deno.serve(async (req) => {
     const snappedTimestamps = resultTs.join(',');
 
     if (preview_only) {
+      // Return only the per-zone bridging segments so the UI can overlay just the gaps,
+      // not the entire merged route.
+      const previewZoneSegments = zoneSegments.map(seg => {
+        const coords = routedCoordsByZoneIndex.get(seg.zoneIndex) ?? [[seg.fromLat, seg.fromLon], [seg.toLat, seg.toLon]];
+        return {
+          zone_index: seg.zoneIndex,
+          from: [seg.fromLat, seg.fromLon],
+          to: [seg.toLat, seg.toLon],
+          encoded_polyline: encodePolyline(coords as [number, number][]),
+          point_count: coords.length,
+        };
+      });
+
       return Response.json({
         success: true,
         preview_only: true,
@@ -454,9 +467,10 @@ Deno.serve(async (req) => {
         ...analysisResult,
         snapped_point_count: resultCoords.length,
         zones_snapped: zones.length,
-        api_calls_made: groups.length,
+        api_calls_made: totalApiCalls,
         snapped_polyline: snappedPolyline,
         snapped_timestamps: snappedTimestamps,
+        preview_zone_segments: previewZoneSegments,
       });
     }
 

@@ -755,13 +755,17 @@ export default function PolylineViewer({ users = [] }) {
       });
       const data = res?.data ?? res;
       if (data?.success && data?.snapped_polyline) {
-        const coords = decodePolyline(data.snapped_polyline);
+        // Decode only the per-zone bridging segments for the blue overlay
+        const zoneSegments = (data.preview_zone_segments || []).map(z => ({
+          ...z,
+          coords: decodePolyline(z.encoded_polyline),
+        })).filter(z => z.coords.length > 1);
         setSnapAnalysis(null);
         setSnapPreview({
           itemId: item.id,
           item,
-          coords,
-          encodedPolyline: data.snapped_polyline,
+          zoneSegments,                          // only the gap bridges
+          encodedPolyline: data.snapped_polyline, // full merged — kept for save step
           timestamps: data.snapped_timestamps || '',
           pointCount: data.snapped_point_count,
           zonesSnapped: data.zones_snapped,
@@ -1310,15 +1314,16 @@ export default function PolylineViewer({ users = [] }) {
                       );
                     })}
 
-                    {/* Snap preview — blue overlay on top of original amber breadcrumb */}
-                    {snapPreview && snapPreview.coords.length > 1 && (
+                    {/* Snap preview — blue overlays on top of original breadcrumb, one per gap zone */}
+                    {snapPreview && (snapPreview.zoneSegments || []).map(z => (
                       <Polyline
-                        positions={snapPreview.coords}
+                        key={`snap-zone-${z.zone_index}`}
+                        positions={z.coords}
                         color="#2563eb"
-                        weight={3}
-                        opacity={0.85}
+                        weight={4}
+                        opacity={0.9}
                       />
-                    )}
+                    ))}
 
                     <MapClickHandler
                       isActive={isCleaningMode}
