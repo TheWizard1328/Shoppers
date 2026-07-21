@@ -37,6 +37,31 @@ function parseTimestampMs(value: any) {
   return null;
 }
 
+function getEdmontonOffsetString(date: Date): string {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: EDMONTON_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  });
+  const parts = dtf.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) map[p.type] = p.value;
+  const edmontonAsUTC = Date.UTC(
+    Number(map.year), Number(map.month) - 1, Number(map.day),
+    Number(map.hour === '24' ? '00' : map.hour), Number(map.minute), Number(map.second)
+  );
+  // Edmonton is BEHIND UTC, so offset is negative.
+  // offsetMs = UTC - Edmonton wall-clock = positive (e.g. +6h in summer MDT)
+  // The timezone string needs the NEGATIVE: "-06:00" means local is 6h behind UTC
+  const offsetMs = date.getTime() - edmontonAsUTC;
+  const offsetHours = Math.trunc(offsetMs / 3600000);
+  const sign = offsetHours >= 0 ? '-' : '+';  // Inverted: positive offset means behind UTC
+  const absHours = Math.abs(offsetHours);
+  const absMinutes = Math.abs((offsetMs % 3600000) / 60000);
+  return `${sign}${String(absHours).padStart(2, '0')}:${String(absMinutes).padStart(2, '0')}`;
+}
+
 function parseDeliveryTimeMs(timeValue: any, deliveryDate: string) {
   if (!timeValue || !deliveryDate) return null;
   const trimmed = String(timeValue).trim();
@@ -44,13 +69,13 @@ function parseDeliveryTimeMs(timeValue: any, deliveryDate: string) {
     const normalized = trimmed.replace(' ', 'T');
     const withTz = /[Zz]|[+-]\d{2}:?\d{2}$/.test(normalized)
       ? normalized
-      : `${normalized}-06:00`;
+      : `${normalized}${getEdmontonOffsetString(new Date(normalized + 'Z'))}`;
     const ms = new Date(withTz).getTime();
     return Number.isNaN(ms) ? null : ms;
   }
   if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) {
     const candidate = `${deliveryDate}T${trimmed}`;
-    const withTz = `${candidate}-06:00`;
+    const withTz = `${candidate}${getEdmontonOffsetString(new Date(candidate + 'Z'))}`;
     const ms = new Date(withTz).getTime();
     return Number.isNaN(ms) ? null : ms;
   }

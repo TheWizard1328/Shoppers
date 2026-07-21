@@ -50,11 +50,59 @@ function decodePolyline(encoded) {
 }
 
 // ── Time parsing ──────────────────────────────────────────────────────────────
+// actual_delivery_time is stored as a NAIVE local ISO string (e.g. "2026-07-21T14:30:00")
+// with NO timezone suffix. It represents Edmonton local time (America/Edmonton).
+// The Deno runtime would interpret a naive ISO string as UTC, which is 6-7 hours ahead
+// of Edmonton. This caused every breadcrumb segment to start at the driver's home because
+// the slicing window ended 6-7 hours before any master trail GPS points existed.
+//
+// This function detects naive strings and applies the correct Edmonton UTC offset
+// (dynamically, to handle DST: -07:00 in summer MDT, -06:00 in winter MST).
+
+function getEdmontonOffsetMs(date) {
+  // Use Intl.DateTimeFormat to get the timezone offset for a given date.
+  // We compare the wall-clock time in Edmonton vs UTC to derive the offset.
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Edmonton',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  });
+  const parts = dtf.formatToParts(date);
+  const map = {};
+  for (const p of parts) map[p.type] = p.value;
+  // Build a UTC date from the Edmonton wall-clock parts
+  const edmontonAsUTC = Date.UTC(
+    Number(map.year), Number(map.month) - 1, Number(map.day),
+    Number(map.hour === '24' ? '00' : map.hour), Number(map.minute), Number(map.second)
+  );
+  // Offset = actual UTC - Edmonton wall-clock-as-UTC
+  return date.getTime() - edmontonAsUTC;
+}
+
 function toEpochMs(value) {
   if (!value) return null;
   if (typeof value === 'number' && Number.isFinite(value)) return value;
-  const ts = new Date(value).getTime();
-  return Number.isFinite(ts) ? ts : null;
+  if (typeof value !== 'string') {
+    const ts = new Date(value).getTime();
+    return Number.isFinite(ts) ? ts : null;
+  }
+  // Check if the string has a timezone suffix (Z, +HH:MM, -HH:MM)
+  const hasTZ = /([Zz]|[+-]\d{2}:?\d{2})$/.test(value.trim());
+  if (hasTZ) {
+    // Already has timezone info — parse normally
+    const ts = new Date(value).getTime();
+    return Number.isFinite(ts) ? ts : null;
+  }
+  // Naive ISO string — treat as Edmonton local time.
+  // Parse the naive string as if it were UTC, then subtract the Edmonton offset
+  // to get the true UTC epoch.
+  const asUTC = new Date(value + 'Z').getTime(); // Temporarily treat as UTC
+  if (!Number.isFinite(asUTC)) return null;
+  // The Edmonton offset for this date (positive = Edmonton is behind UTC)
+  const offsetMs = getEdmontonOffsetMs(new Date(asUTC));
+  // asUTC is "14:30 treated as UTC". Real UTC is 14:30 + offset (e.g. +7h in summer)
+  return asUTC + offsetMs;
 }
 
 Deno.serve(async (req) => {
