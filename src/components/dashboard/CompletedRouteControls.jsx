@@ -1,50 +1,8 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { isAppOwner } from '@/components/utils/userRoles';
-import { base44 } from '@/api/base44Client';
-import { offlineDB } from '@/components/utils/offlineDatabase';
+import { loadBreadcrumbsForDriver } from '@/components/utils/breadcrumbsManager';
 import ResetPolylinesButton from '@/components/dashboard/ResetPolylinesButton';
-
-// Decode Google-encoded polyline into [[lat, lng], ...]
-const decodePolyline = (encoded) => {
-  if (!encoded || typeof encoded !== 'string') return [];
-  let index = 0, lat = 0, lng = 0;
-  const coords = [];
-  while (index < encoded.length) {
-    let shift = 0, result = 0, byte;
-    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
-    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    coords.push([lat / 1e5, lng / 1e5]);
-  }
-  return coords;
-};
-
-async function fetchBreadcrumbsForDriver(driverId, dateStr) {
-  // Try API first
-  try {
-    const records = await base44.entities.DeliveryBreadcrumbs.filter(
-      { driver_id: driverId, delivery_date: dateStr }
-    );
-    if (Array.isArray(records) && records.length > 0) {
-      return records.filter(r => r?.encoded_polyline);
-    }
-  } catch (_) {}
-
-  // Fall back to offline DB
-  try {
-    const offline = await offlineDB.getByCompoundIndex(
-      offlineDB.STORES.DELIVERY_BREADCRUMBS,
-      'date_driver',
-      [dateStr, driverId]
-    );
-    return (offline || []).filter(r => r?.encoded_polyline);
-  } catch (_) {}
-
-  return [];
-}
 
 export default function CompletedRouteControls({
   currentUser,
@@ -58,6 +16,7 @@ export default function CompletedRouteControls({
   setShowBreadcrumbs,
   setBreadcrumbsData,
   deliveriesWithStopOrder,
+  appUsers = [],
 }) {
   if (isMobile) return null;
   if (!isAppOwner(currentUser)) return null;
@@ -129,6 +88,12 @@ export default function CompletedRouteControls({
               disabled={!deliveriesWithStopOrder?.length}
               className="h-8 w-8 p-0"
               forceDrivingMode={true}
+              appUsers={appUsers}
+              onBreadcrumbsReloaded={(_driverId, reloaded) => {
+                setBreadcrumbsData(reloaded);
+                setShowBreadcrumbs(true);
+                setShowRoutes(false);
+              }}
             />
           </div>
         </div>
