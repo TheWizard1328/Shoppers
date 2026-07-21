@@ -33,9 +33,15 @@ function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): num
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Decode a Google-format polyline. Supports both 1e5 (standard) and 1e7 (high-precision)
+// encoded data. We auto-detect precision by checking whether the raw accumulated integer
+// values are in a plausible coordinate range for 1e5 first; if not, we fall back to 1e7.
+// In practice breadcrumbs stored by this app may have been written at either precision,
+// so auto-detection is the safest approach.
 function decodePolyline(encoded: string): [number, number][] {
   if (!encoded) return [];
-  const poly: [number, number][] = [];
+  const rawLats: number[] = [];
+  const rawLngs: number[] = [];
   let index = 0, lat = 0, lng = 0;
   while (index < encoded.length) {
     let b, shift = 0, result = 0;
@@ -44,9 +50,14 @@ function decodePolyline(encoded: string): [number, number][] {
     shift = 0; result = 0;
     do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
     lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    poly.push([lat / 1e5, lng / 1e5]);
+    rawLats.push(lat);
+    rawLngs.push(lng);
   }
-  return poly;
+  // Auto-detect precision: 1e5 values for valid earth coords are in ±9000000 (lat) / ±18000000 (lng).
+  // 1e7 values would be in ±900000000 / ±1800000000. Check the first point.
+  const firstLat = rawLats[0] ?? 0;
+  const divisor = Math.abs(firstLat) > 9_000_000 ? 1e7 : 1e5;
+  return rawLats.map((rawLat, i) => [rawLat / divisor, rawLngs[i] / divisor]);
 }
 
 function encodePolylineValue(value: number): string {
@@ -148,7 +159,31 @@ function consolidateGapsIntoZones(gaps: GapInfo[], minDensePoints: number): Snap
   return zones;
 }
 
-// ── Decode Google polyline returned by getHereDirections ──────────────────────
+// ── HERE API key cache (mirrors getHereDirections to avoid extra DB round-trip) ──
+const _HERE_SECRET_MAP_SNAP: Record<string, string> = {
+  HERE_API_KEY: 'HERE_API_KEY',
+  Here_API_Key_2: 'Here_API_Key_2',
+  Here_API_Key_3: 'Here_API_Key_3',
+};
+let _snapHereSecretName: string | null = null;
+let _snapHereSecretExpiresAt = 0;
+
+async function getSnapHereApiKey(base44: any): Promise<string | null> {
+  const now = Date.now();
+  if (_snapHereSecretName && now < _snapHereSecretExpiresAt) {
+    return Deno.env.get(_snapHereSecretName) || null;
+  }
+  const settings = await base44.asServiceRole.entities.AppSettings.filter(
+    { setting_key: 'refresh_intervals' }, '-updated_date', 1
+  );
+  const val = settings?.[0]?.setting_value || {};
+  const selected = val.selected_api_key || val.selected_here_api_key || 'HERE_API_KEY';
+  _snapHereSecretName = _HERE_SECRET_MAP_SNAP[selected] || 'HERE_API_KEY';
+  _snapHereSecretExpiresAt = now + 5 * 60 * 1000;
+  return Deno.env.get(_snapHereSecretName) || null;
+}
+
+// ── Decode Google polyline returned by HERE (via encodeGooglePolyline in getHereDirections) ──
 function decodeGooglePolyline(encoded: string): [number, number][] {
   if (!encoded) return [];
   const coords: [number, number][] = [];
@@ -165,51 +200,115 @@ function decodeGooglePolyline(encoded: string): [number, number][] {
   return coords;
 }
 
-// ── Call getHereDirections for a batch of segments ────────────────────────────
-// Uses the same multi-segment / preserveWaypointOrder pattern as purgeAndRegeneratePolylines.
-// Returns one decoded [lat,lon][] per segment (falls back to straight-line on error).
+// ── HERE flexible polyline decoder ───────────────────────────────────────────
+const HERE_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const HERE_DECODE_MAP: Record<string, number> = {};
+for (let i = 0; i < HERE_ALPHA.length; i++) HERE_DECODE_MAP[HERE_ALPHA[i]] = i;
+
+function decodeHereFlexiblePolyline(encoded: string): [number, number][] {
+  if (!encoded) return [];
+  const values: number[] = [];
+  let cur = 0, shift = 0;
+  for (const ch of encoded) {
+    const v = HERE_DECODE_MAP[ch];
+    if (v == null) return [];
+    cur |= (v & 0x1f) << shift;
+    if (v & 0x20) { shift += 5; continue; }
+    values.push(cur); cur = 0; shift = 0;
+  }
+  if (values.length < 2 || values[0] !== 1) return [];
+  const precision = values[1] & 15;
+  const thirdDim = (values[1] >> 4) & 7;
+  const factor = 10 ** precision;
+  const dim = thirdDim ? 3 : 2;
+  const toSigned = (v: number) => (v & 1) ? ~(v >> 1) : v >> 1;
+  let latAcc = 0, lngAcc = 0;
+  const coords: [number, number][] = [];
+  for (let i = 2; i < values.length; i += dim) {
+    latAcc += toSigned(values[i]);
+    lngAcc += toSigned(values[i + 1]);
+    coords.push([latAcc / factor, lngAcc / factor]);
+  }
+  return coords;
+}
+
+// ── Route a single gap segment directly via HERE Router v8 ───────────────────
+// Calls HERE directly (bypassing getHereDirections) so we control the exact
+// origin/destination coordinates without any sequencing-API snap-to-road drift.
+// The origin and destination are passed as their exact GPS coordinates from the
+// decoded breadcrumb — HERE will route FROM that precise point ON THE ROAD it
+// finds nearest, but since we also clamp the returned polyline's first/last point
+// back to the exact breadcrumb coordinates, the segment always starts and ends
+// exactly where the breadcrumbs dictate.
+async function routeOneSegment(
+  hereApiKey: string,
+  fromLat: number, fromLon: number,
+  toLat: number, toLon: number,
+  transportMode: 'car' | 'bicycle',
+): Promise<[number, number][]> {
+  const mode = transportMode === 'bicycle' ? 'bicycle' : 'car';
+
+  // Use full floating-point precision (up to 7 decimal places) in the HERE API request
+  // so the router anchors to the correct road and not a nearby parallel one.
+  const fmt = (v: number) => v.toFixed(7);
+
+  const params = new URLSearchParams();
+  params.set('apiKey', hereApiKey);
+  params.set('transportMode', mode);
+  params.set('origin', `${fmt(fromLat)},${fmt(fromLon)}`);
+  params.set('destination', `${fmt(toLat)},${fmt(toLon)}`);
+  params.set('return', 'polyline,summary');
+
+  try {
+    const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+      signal: AbortSignal.timeout(15000),
+      headers: { accept: 'application/json' },
+    });
+    const data = await resp.json().catch(() => null);
+    const section = data?.routes?.[0]?.sections?.[0];
+    if (!section?.polyline) {
+      console.warn('[snapMasterTimeline] HERE returned no polyline section', { fromLat, fromLon, toLat, toLon });
+      return [[fromLat, fromLon], [toLat, toLon]];
+    }
+
+    let coords = decodeHereFlexiblePolyline(section.polyline);
+    if (coords.length < 2) {
+      // Fallback: try Google-encoded polyline if present
+      coords = section.encoded_polyline ? decodeGooglePolyline(section.encoded_polyline) : [];
+    }
+    if (coords.length < 2) {
+      return [[fromLat, fromLon], [toLat, toLon]];
+    }
+
+    // ── CRITICAL: Clamp first and last points to the EXACT breadcrumb coords ──
+    // HERE may snap the route start/end to a slightly different road node.
+    // Replacing those with the exact GPS points from the breadcrumb ensures
+    // the regenerated segment connects perfectly to the adjacent real GPS data.
+    coords[0] = [fromLat, fromLon];
+    coords[coords.length - 1] = [toLat, toLon];
+
+    return coords;
+  } catch (err: unknown) {
+    console.warn('[snapMasterTimeline] HERE direct route failed:', (err as Error)?.message);
+    return [[fromLat, fromLon], [toLat, toLon]];
+  }
+}
+
+// ── Route one snap zone, loading the HERE key on first call ─────────────────
 async function getRoutedSegments(
   base44: any,
   segments: Array<{ fromLat: number; fromLon: number; toLat: number; toLon: number }>,
   transportMode: 'car' | 'bicycle',
 ): Promise<Array<[number, number][]>> {
   if (segments.length === 0) return [];
-
-  const hereMode = transportMode === 'bicycle' ? 'cycling' : 'driving';
-  const origin = { lat: segments[0].fromLat, lng: segments[0].fromLon };
-  const destination = { lat: segments[segments.length - 1].toLat, lng: segments[segments.length - 1].toLon };
-  // All intermediate "to" points become waypoints
-  const waypoints = segments.slice(0, -1).map(s => ({ lat: s.toLat, lng: s.toLon }));
-
-  try {
-    const response = await base44.functions.invoke('getHereDirections', {
-      origin,
-      destination,
-      waypoints,
-      preserveWaypointOrder: true,
-      skipSequenceApi: true,
-      transportMode: hereMode,
-      caller: 'snapMasterTimeline',
-      caller_context: { segmentCount: segments.length },
-    });
-
-    const data = response?.data || response || {};
-    const sections: any[] = Array.isArray(data?.sections) ? data.sections : [];
-
-    return segments.map((seg, i) => {
-      const section = sections[i];
-      const ep: string | null = section?.encoded_polyline || null;
-      if (ep) {
-        const decoded = decodeGooglePolyline(ep);
-        if (decoded.length >= 2) return decoded;
-      }
-      // Fallback: straight line
-      return [[seg.fromLat, seg.fromLon], [seg.toLat, seg.toLon]];
-    });
-  } catch (err: unknown) {
-    console.warn('[snapMasterTimeline] getHereDirections batch failed:', (err as Error)?.message);
-    return segments.map(seg => [[seg.fromLat, seg.fromLon], [seg.toLat, seg.toLon]]);
+  const hereApiKey = await getSnapHereApiKey(base44);
+  if (!hereApiKey) {
+    console.warn('[snapMasterTimeline] No HERE API key — using straight-line fallback');
+    return segments.map(s => [[s.fromLat, s.fromLon], [s.toLat, s.toLon]]);
   }
+  return Promise.all(
+    segments.map(s => routeOneSegment(hereApiKey, s.fromLat, s.fromLon, s.toLat, s.toLon, transportMode))
+  );
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
@@ -431,7 +530,7 @@ Deno.serve(async (req) => {
       point_count: resultCoords.length,
     });
 
-    console.log(`[snapMasterTimeline] ✅ Saved — ${masterPoints.length} pts → ${resultCoords.length} pts, ${zones.length} zones snapped in ${groups.length} API call(s)`);
+    console.log(`[snapMasterTimeline] ✅ Saved — ${masterPoints.length} pts → ${resultCoords.length} pts, ${zones.length} zones snapped in ${totalApiCalls} API call(s)`);
 
     // ── 9. Re-consolidate stop segments ──────────────────────────────────────
     let consolidateResult = null;
@@ -448,7 +547,7 @@ Deno.serve(async (req) => {
       ...analysisResult,
       snapped_point_count: resultCoords.length,
       zones_snapped: zones.length,
-      api_calls_made: groups.length,
+      api_calls_made: totalApiCalls,
       consolidate_result: consolidateResult,
     });
 
