@@ -152,28 +152,35 @@ function consolidateGapsIntoZones(gaps: GapInfo[], minDensePoints: number): Snap
 }
 
 // ── HERE RouteMatch call ──────────────────────────────────────────────────────
+// Rotates through all available API keys on 429 before giving up.
 async function snapZoneWithHere(
   waypoints: [number, number, number][],
-  apiKey: string,
+  apiKeys: string[],
   travelMode: 'car' | 'bicycle' = 'car',
 ): Promise<[number, number][]> {
   const wpStr = waypoints
     .map(([lat, lon, ts]) => `${lat.toFixed(6)},${lon.toFixed(6)},${Math.round(ts / 1000)}`)
     .join('&waypoint=');
 
-  const url =
-    `https://routematching.hereapi.com/v8/match/routelinks` +
-    `?waypoint=${wpStr}` +
-    `&mode=fastest;${travelMode};traffic:disabled` +
-    `&apiKey=${apiKey}`;
-
   let res: Response | null = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
+
+  // Try each key in order; move to the next on 429
+  for (let ki = 0; ki < apiKeys.length; ki++) {
+    const apiKey = apiKeys[ki];
+    const url =
+      `https://routematching.hereapi.com/v8/match/routelinks` +
+      `?waypoint=${wpStr}` +
+      `&mode=fastest;${travelMode};traffic:disabled` +
+      `&apiKey=${apiKey}`;
+
     res = await fetch(url);
-    if (res.status !== 429) break;
-    const delay = 1000 * Math.pow(2, attempt);
-    console.warn(`[snapMasterTimeline] HERE 429 — retry ${attempt + 1} in ${delay}ms`);
-    await new Promise(r => setTimeout(r, delay));
+
+    if (res.status !== 429) break; // success or a real error — stop rotating
+
+    console.warn(`[snapMasterTimeline] HERE 429 on key[${ki + 1}/${apiKeys.length}] — ${ki + 1 < apiKeys.length ? 'rotating to next key' : 'all keys exhausted'}`);
+    if (ki + 1 < apiKeys.length) {
+      await new Promise(r => setTimeout(r, 500)); // brief pause before rotating
+    }
   }
 
   if (!res || !res.ok) {
@@ -320,22 +327,28 @@ Deno.serve(async (req) => {
     const isZoneCycling = (zoneStartMs: number, zoneEndMs: number): boolean =>
       cyclingBrackets.some(b => zoneStartMs >= b.startMs && zoneEndMs <= b.endMs);
 
-    // ── 5. Fetch HERE API key ─────────────────────────────────────────────────
-    const HERE_SECRET_MAP: Record<string, string> = {
-      HERE_API_KEY: 'HERE_API_KEY',
-      Here_API_Key_2: 'Here_API_Key_2',
-      Here_API_Key_3: 'Here_API_Key_3',
-    };
+    // ── 5. Fetch HERE API keys — load all 3, rotate on 429 ───────────────────
+    // Pull the preferred key first, then append the other two as fallbacks.
     const settings = await base44.asServiceRole.entities.AppSettings.filter(
       { setting_key: 'refresh_intervals' }, '-updated_date', 1
     ).catch(() => []);
     const settingValue = (settings as any[])?.[0]?.setting_value || {};
     const selectedKey = settingValue.selected_api_key || settingValue.selected_here_api_key || 'HERE_API_KEY';
-    const secretName = HERE_SECRET_MAP[selectedKey] || 'HERE_API_KEY';
-    const hereApiKey: string | undefined = Deno.env.get(secretName);
-    if (!hereApiKey) {
-      return Response.json({ error: `No HERE API key configured (secret: ${secretName})` }, { status: 500 });
+
+    const ALL_KEY_NAMES = ['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3'];
+    // Put selected key first, then the others
+    const orderedKeyNames = [
+      selectedKey,
+      ...ALL_KEY_NAMES.filter(k => k !== selectedKey),
+    ];
+    const hereApiKeys: string[] = orderedKeyNames
+      .map(name => Deno.env.get(name))
+      .filter((k): k is string => !!k);
+
+    if (hereApiKeys.length === 0) {
+      return Response.json({ error: 'No HERE API keys configured' }, { status: 500 });
     }
+    console.log(`[snapMasterTimeline] Loaded ${hereApiKeys.length} HERE API key(s) for rotation`);
 
     // ── 6. Surgical snapping — build a mutable copy of master coords ──────────
     // We'll replace the points inside each snap zone with snapped bridge points,
@@ -373,7 +386,7 @@ Deno.serve(async (req) => {
 
       console.log(`[snapMasterTimeline] Zone ${zi + 1}/${zones.length}: idx ${zone.startIdx}–${zone.endIdx} (${waypoints.length} waypoints → HERE, mode=${travelMode})`);
 
-      const snappedZone = await snapZoneWithHere(waypoints, hereApiKey, travelMode);
+      const snappedZone = await snapZoneWithHere(waypoints, hereApiKeys, travelMode);
 
       // Assign timestamps to snapped points proportionally from original zone timestamps
       const zoneTs = zonePoints.map(p => p[2]);
@@ -389,9 +402,9 @@ Deno.serve(async (req) => {
       resultTs.splice(adjStart, deleteCount, ...snappedZoneTs);
       offset += snappedZone.length - deleteCount;
 
-      // Pause between calls
+      // Pause between calls — 2s gives the HERE rate limiter time to recover
       if (zi < zones.length - 1) {
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
 
