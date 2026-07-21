@@ -72,38 +72,40 @@ export default function CompletedRouteControls({
       >
         <div className="flex items-stretch">
           <div className="px-3 py-2 flex flex-col gap-2 min-w-[148px]">
-            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
-              <span
-                className={`h-4 w-4 min-h-4 min-w-4 rounded-full border flex items-center justify-center ${showRoutes ? 'border-amber-600' : 'border-slate-400'}`}
-                onClick={() => {
-                  setShowRoutes(true);
-                  setShowBreadcrumbs(false);
-                  setBreadcrumbsData({ historical: [], current: [] });
-                  localStorage.setItem('rxdeliver_show_routes', 'true');
-                }}
-              >
+            <label
+              className="flex items-center gap-2 text-sm cursor-pointer select-none"
+              style={{ color: 'var(--text-slate-900)' }}
+              onClick={() => {
+                setShowRoutes(true);
+                setShowBreadcrumbs(false);
+                setBreadcrumbsData({ historical: [], current: [] });
+                localStorage.setItem('rxdeliver_show_routes', 'true');
+              }}
+            >
+              <span className={`h-4 w-4 min-h-4 min-w-4 rounded-full border flex items-center justify-center flex-shrink-0 ${showRoutes ? 'border-amber-600' : 'border-slate-400'}`}>
                 {showRoutes && <span className="h-2 w-2 rounded-full bg-amber-600" />}
               </span>
               <span>Show Polylines</span>
             </label>
 
-            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
-              <span
-                className={`h-4 w-4 min-h-4 min-w-4 rounded-full border flex items-center justify-center ${showBreadcrumbs ? 'border-amber-600' : 'border-slate-400'}`}
-                onClick={async () => {
-                  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                  const records = await fetchBreadcrumbsForDriver(selectedDriverId, selectedDateStr);
-                  if (records.length === 0) {
-                    setShowBreadcrumbs(false);
-                    setBreadcrumbsData({ historical: [], current: [] });
-                    return;
-                  }
-                  setBreadcrumbsData({ historical: records, current: [] });
-                  setShowBreadcrumbs(true);
-                  setShowRoutes(false);
-                  localStorage.setItem('rxdeliver_show_routes', 'false');
-                }}
-              >
+            <label
+              className="flex items-center gap-2 text-sm cursor-pointer select-none"
+              style={{ color: 'var(--text-slate-900)' }}
+              onClick={async () => {
+                const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                const records = await fetchBreadcrumbsForDriver(selectedDriverId, selectedDateStr);
+                if (records.length === 0) {
+                  setShowBreadcrumbs(false);
+                  setBreadcrumbsData({ historical: [], current: [] });
+                  return;
+                }
+                setBreadcrumbsData({ historical: records, current: [] });
+                setShowBreadcrumbs(true);
+                setShowRoutes(false);
+                localStorage.setItem('rxdeliver_show_routes', 'false');
+              }}
+            >
+              <span className={`h-4 w-4 min-h-4 min-w-4 rounded-full border flex items-center justify-center flex-shrink-0 ${showBreadcrumbs ? 'border-amber-600' : 'border-slate-400'}`}>
                 {showBreadcrumbs && <span className="h-2 w-2 rounded-full bg-amber-600" />}
               </span>
               <span>Show Breadcrumbs</span>
