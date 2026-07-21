@@ -386,6 +386,13 @@ Deno.serve(async (req) => {
       };
 
       const existingRec = existingByStopOrder.get(numericStopOrder);
+
+      // Skip segments already manually edited/saved to the route
+      if (existingRec?.saved_to_route === true) {
+        results.push({ stop_order: numericStopOrder, skipped: true, reason: 'already_saved_to_route' });
+        continue;
+      }
+
       if (existingRec?.id) {
         await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existingRec.id, breadcrumbData);
       } else {
