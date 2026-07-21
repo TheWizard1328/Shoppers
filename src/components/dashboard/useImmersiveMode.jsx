@@ -171,8 +171,24 @@ export default function useImmersiveMode({
       }
     };
 
+    // Listen to both events: deliveriesUpdated (used by handleStatusUpdate, acceptAll, start, etc.)
+    // AND deliveryStatusChanged (used by useStopCardActions for complete/fail/cancel flows).
+    // Previously only deliveriesUpdated was monitored, so the post-stop cooldown never engaged
+    // when a driver completed/failed/cancelled via the stop card action buttons — causing
+    // immersive mode to immediately re-activate while the driver was still parked at the stop.
+    const onDeliveryStatusChanged = (e) => {
+      const trigger = e?.detail?.triggeredBy;
+      if (['completed', 'complete', 'failed', 'cancelled', 'canceled', 'returned', 'return', 'retry', 'restart'].includes(trigger)) {
+        engage();
+      }
+    };
+
     window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
-    return () => window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    window.addEventListener('deliveryStatusChanged', onDeliveryStatusChanged);
+    return () => {
+      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+      window.removeEventListener('deliveryStatusChanged', onDeliveryStatusChanged);
+    };
   }, []);
 
   // ── Cleanup on unmount ──────────────────────────────────────────────────────
