@@ -1185,8 +1185,11 @@ export async function optimizeRouteClientSide({
       : (typeof seg?.estimatedDistanceKm === 'number' ? seg.estimatedDistanceKm : null);
     const isPending = stop.status === 'pending';
 
-    // Correct pickup status if somehow in_transit
-    const isPickupStop = !stop.patient_id && !stop.is_cycling_marker;
+    // Correct pickup status if somehow in_transit.
+    // InterStore stops (ISP/ISD) have no patient_id but are NOT regular store pickups —
+    // they use in_transit → completed transitions only. Never force them to en_route.
+    const isInterStoreStop = !!(stop._interstore_source_id || stop._interstore_dest_id);
+    const isPickupStop = !stop.patient_id && !stop.is_cycling_marker && !isInterStoreStop;
     const correctedStatus = isPickupStop && stop.status === 'in_transit' ? 'en_route' : undefined;
 
     const updateData = {

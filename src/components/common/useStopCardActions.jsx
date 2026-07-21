@@ -655,7 +655,8 @@ export default function useStopCardActions(params) {
           await collapseDriverStopCards();
           await new Promise((resolve) => setTimeout(resolve, 100));
           const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-          const newStatus = isPickup ? 'en_route' : 'in_transit';
+          const isInterStoreStop = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
+          const newStatus = (isPickup && !isInterStoreStop) ? 'en_route' : 'in_transit';
           const restartedRouteDeliveries = reorderActiveRouteLocally(driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null, travel_dist: 0, PolylineUpdated: false } : { ...item, isNextDelivery: false }), delivery.id);
           await Promise.all(restartedRouteDeliveries.filter((item) => item && (item.id === delivery.id || item.isNextDelivery === false)).map((item) => {
             const existingRouteItem = driverDeliveries.find((routeItem) => routeItem?.id === item.id);
@@ -838,7 +839,8 @@ export default function useStopCardActions(params) {
 
         // Put the started stop first among active stops, clear isNextDelivery on all others
         const reorderedActiveStops = activeStops.filter((d) => d?.id !== delivery.id);
-        reorderedActiveStops.unshift({ ...delivery, status: isPickup ? 'en_route' : 'in_transit' });
+        const isInterStoreStart = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
+        reorderedActiveStops.unshift({ ...delivery, status: (isPickup && !isInterStoreStart) ? 'en_route' : 'in_transit' });
         const startedRouteDeliveries = [...completedStops, ...reorderedActiveStops, ...pendingStops]
           .filter(Boolean)
           .map((d, index) => ({
@@ -867,7 +869,8 @@ export default function useStopCardActions(params) {
             if (Number(existing.stop_order || 0) !== Number(item.stop_order || 0)) updates.stop_order = item.stop_order;
             // For the started stop: persist status immediately (no delivery_time_start on Start)
             if (item.id === delivery.id) {
-              const expectedStartStatus = isPickup ? 'en_route' : 'in_transit';
+              const isInterStoreStart = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
+              const expectedStartStatus = (isPickup && !isInterStoreStart) ? 'en_route' : 'in_transit';
               if (existing.status !== expectedStartStatus) updates.status = expectedStartStatus;
             }
             if (Object.keys(updates).length === 0) return Promise.resolve(null);

@@ -58,8 +58,11 @@ export async function handleStartDelivery({
   const deliveryDate = deliveryFromUI.delivery_date;
   const isCyclingMarker = !!deliveryFromUI.is_cycling_marker;
   // Cycling markers are NOT pickups (no patient_id but also not a store pickup).
-  // Regular pickups use en_route; patient stops and cycling markers use in_transit.
-  const isPickup = !deliveryFromUI.patient_id && !isCyclingMarker;
+  // InterStore stops (ISP/ISD) also have no patient_id but are NOT regular store pickups —
+  // they use in_transit → completed transitions only.
+  // Regular pickups use en_route; patient stops, cycling markers, and interstore stops use in_transit.
+  const isInterStoreStop = !!(deliveryFromUI._interstore_source_id || deliveryFromUI._interstore_dest_id);
+  const isPickup = !deliveryFromUI.patient_id && !isCyclingMarker && !isInterStoreStop;
   const newStatus = isPickup ? 'en_route' : 'in_transit';
   const now = new Date();
   const etaMinutes = now.getHours() * 60 + now.getMinutes() + 5;
