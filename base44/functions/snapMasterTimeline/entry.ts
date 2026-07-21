@@ -155,6 +155,7 @@ function consolidateGapsIntoZones(gaps: GapInfo[], minDensePoints: number): Snap
 async function snapZoneWithHere(
   waypoints: [number, number, number][],
   apiKey: string,
+  travelMode: 'car' | 'bicycle' = 'car',
 ): Promise<[number, number][]> {
   const wpStr = waypoints
     .map(([lat, lon, ts]) => `${lat.toFixed(6)},${lon.toFixed(6)},${Math.round(ts / 1000)}`)
@@ -163,7 +164,7 @@ async function snapZoneWithHere(
   const url =
     `https://routematching.hereapi.com/v8/match/routelinks` +
     `?waypoint=${wpStr}` +
-    `&mode=retrieveLinks` +
+    `&mode=fastest;${travelMode};traffic:disabled` +
     `&apiKey=${apiKey}`;
 
   let res: Response | null = null;
@@ -278,7 +279,48 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── 4. Fetch HERE API key ─────────────────────────────────────────────────
+    // ── 4. Build cycling brackets from marker stops ───────────────────────────
+    // Fetch all cycling marker stops for this driver/date, sorted by arrival_time.
+    // Pair "Cycling Route Start" with the next "Cycling Route End" to define time brackets.
+    // Any snap zone whose timestamps fall within a bracket uses bicycle mode.
+    interface CyclingBracket { startMs: number; endMs: number; }
+    const cyclingBrackets: CyclingBracket[] = [];
+    try {
+      const markerStops = await base44.asServiceRole.entities.Delivery.filter(
+        { driver_id, delivery_date, is_cycling_marker: true },
+        'arrival_time',
+        100
+      ) as any[];
+
+      markerStops.sort((a: any, b: any) =>
+        (a.arrival_time || '').localeCompare(b.arrival_time || '')
+      );
+
+      let pendingStartMs: number | null = null;
+      for (const stop of markerStops) {
+        const notes: string = (stop.delivery_notes || '').trim();
+        const ts = parseTimestampMs(stop.arrival_time);
+        if (!ts) continue;
+
+        if (notes === 'Cycling Route Start') {
+          pendingStartMs = ts;
+        } else if (notes === 'Cycling Route End' && pendingStartMs !== null) {
+          cyclingBrackets.push({ startMs: pendingStartMs, endMs: ts });
+          pendingStartMs = null;
+        }
+      }
+      console.log(`[snapMasterTimeline] Found ${cyclingBrackets.length} cycling bracket(s):`, cyclingBrackets.map(b => ({
+        start: new Date(b.startMs).toISOString(),
+        end: new Date(b.endMs).toISOString(),
+      })));
+    } catch (e: unknown) {
+      console.warn('[snapMasterTimeline] Could not fetch cycling markers — defaulting all zones to car mode:', (e as Error)?.message);
+    }
+
+    const isZoneCycling = (zoneStartMs: number, zoneEndMs: number): boolean =>
+      cyclingBrackets.some(b => zoneStartMs >= b.startMs && zoneEndMs <= b.endMs);
+
+    // ── 5. Fetch HERE API key ─────────────────────────────────────────────────
     const HERE_SECRET_MAP: Record<string, string> = {
       HERE_API_KEY: 'HERE_API_KEY',
       Here_API_Key_2: 'Here_API_Key_2',
@@ -295,7 +337,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: `No HERE API key configured (secret: ${secretName})` }, { status: 500 });
     }
 
-    // ── 5. Surgical snapping — build a mutable copy of master coords ──────────
+    // ── 6. Surgical snapping — build a mutable copy of master coords ──────────
     // We'll replace the points inside each snap zone with snapped bridge points,
     // leaving all points outside zones completely untouched.
     const resultCoords: [number, number][] = masterPoints.map(p => [p[0], p[1]]);
@@ -325,9 +367,13 @@ Deno.serve(async (req) => {
         waypoints = [zonePoints[0], ...sampled, zonePoints[zonePoints.length - 1]];
       }
 
-      console.log(`[snapMasterTimeline] Zone ${zi + 1}/${zones.length}: idx ${zone.startIdx}–${zone.endIdx} (${waypoints.length} waypoints → HERE)`);
+      const zoneStartMs = masterPoints[zone.startIdx][2];
+      const zoneEndMs   = masterPoints[zone.endIdx][2];
+      const travelMode  = isZoneCycling(zoneStartMs, zoneEndMs) ? 'bicycle' : 'car';
 
-      const snappedZone = await snapZoneWithHere(waypoints, hereApiKey);
+      console.log(`[snapMasterTimeline] Zone ${zi + 1}/${zones.length}: idx ${zone.startIdx}–${zone.endIdx} (${waypoints.length} waypoints → HERE, mode=${travelMode})`);
+
+      const snappedZone = await snapZoneWithHere(waypoints, hereApiKey, travelMode);
 
       // Assign timestamps to snapped points proportionally from original zone timestamps
       const zoneTs = zonePoints.map(p => p[2]);
@@ -352,7 +398,7 @@ Deno.serve(async (req) => {
     const snappedPolyline = encodePolyline(resultCoords);
     const snappedTimestamps = resultTs.join(',');
 
-    // ── 6. Preview-only → return without saving ───────────────────────────────
+    // ── 7. Preview-only → return without saving ───────────────────────────────
     if (preview_only) {
       return Response.json({
         success: true,
@@ -367,7 +413,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── 7. Save ───────────────────────────────────────────────────────────────
+    // ── 8. Save ───────────────────────────────────────────────────────────────
     await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(master.id, {
       encoded_polyline: snappedPolyline,
       timestamps: snappedTimestamps,
@@ -376,7 +422,7 @@ Deno.serve(async (req) => {
 
     console.log(`[snapMasterTimeline] ✅ Saved — ${masterPoints.length} pts → ${resultCoords.length} pts, ${zones.length} zones snapped`);
 
-    // ── 8. Re-consolidate stop segments ──────────────────────────────────────
+    // ── 9. Re-consolidate stop segments ──────────────────────────────────────
     let consolidateResult = null;
     if (run_consolidate) {
       consolidateResult = await base44.functions
