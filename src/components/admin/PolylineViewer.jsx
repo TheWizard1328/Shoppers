@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Eraser, Undo2, Download } from 'lucide-react';
+import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Eraser, Undo2, Download, Magnet } from 'lucide-react';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
@@ -187,6 +187,7 @@ export default function PolylineViewer({ users = [] }) {
   const [undoStack, setUndoStack]                 = useState([]); // up to 5 previous states
   const [isSavingCrumb, setIsSavingCrumb]         = useState(false);
   const [isImportingCrumb, setIsImportingCrumb]   = useState(false);
+  const [isSnappingMaster, setIsSnappingMaster]   = useState(false);
   const draggingRef = useRef(false); // true while a marker drag is in progress
 
   // Track the item currently being cleaned so we can auto-save on focus change
@@ -712,6 +713,34 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
+  // ── Auto-snap master timeline to roads via HERE RouteMatch ───────────────
+  const handleSnapMasterTimeline = async (item) => {
+    if (!window.confirm(
+      `Auto-Snap will call the HERE RouteMatch API (1 API call) to snap the entire day's GPS track to real roads for ${getDriverName(item.driver_id)} on ${item.delivery_date}.\n\nAfter snapping, all per-stop segments will be automatically re-consolidated.\n\nContinue?`
+    )) return;
+
+    setIsSnappingMaster(true);
+    try {
+      const res = await base44.functions.invoke('snapMasterTimeline', {
+        driver_id: item.driver_id,
+        delivery_date: item.delivery_date,
+        run_consolidate: true,
+      });
+      if (res?.success) {
+        toast.success(
+          `Snapped ${res.raw_point_count} → ${res.snapped_point_count} pts across ${res.chunks_processed} chunk(s). Segments re-consolidated.`
+        );
+        await loadData();
+      } else {
+        toast.error(`Snap failed: ${res?.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      toast.error(`Snap failed: ${e.message}`);
+    } finally {
+      setIsSnappingMaster(false);
+    }
+  };
+
   // ── List item renderer ────────────────────────────────────────────────────
   const renderListItem = (item, inSheet = false) => {
     const isBreadcrumb = breadcrumbs.some(b => b.id === item.id);
@@ -827,6 +856,16 @@ export default function PolylineViewer({ users = [] }) {
                           >
                             {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                           </button>
+                          {item.stop_order === -1 && (
+                            <button
+                              title="Auto-Snap master timeline to roads (HERE API)"
+                              onClick={e => { e.stopPropagation(); handleSnapMasterTimeline(item); }}
+                              disabled={isSnappingMaster}
+                              className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto"
+                            >
+                              {isSnappingMaster ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
                         </div>
                       )}
                     </>
