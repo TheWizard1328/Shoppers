@@ -370,11 +370,19 @@ export default function useStopCardActions(params) {
       }
 
       // Show the cycling stop selection dialog BEFORE optimization, if driver is in cycling mode.
-      // This lets the driver pick which stops are cycling BEFORE route optimization runs.
+      // We WAIT for the dialog to close (confirm OR cancel) before running optimization.
       const driverAppUserForCycling = appUsers.find((u) => u?.user_id === delivery.driver_id);
       const isCyclingMode = String(driverAppUserForCycling?.preferred_travel_mode || '').toLowerCase() === 'cycling';
       if (isDriverAction && isCyclingMode) {
-        window.dispatchEvent(new CustomEvent('openCyclingModeDialog', { detail: { deliveryDate: delivery.delivery_date } }));
+        await new Promise((resolve) => {
+          // Listen for the dialog to signal it is done (confirm or cancel — either continues)
+          const onDone = () => {
+            window.removeEventListener('cyclingModeDialogDone', onDone);
+            resolve();
+          };
+          window.addEventListener('cyclingModeDialogDone', onDone);
+          window.dispatchEvent(new CustomEvent('openCyclingModeDialog', { detail: { deliveryDate: delivery.delivery_date } }));
+        });
       }
 
       // Small delay so React can render before switching to "Optimizing Route"

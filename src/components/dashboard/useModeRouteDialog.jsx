@@ -114,6 +114,11 @@ export default function useModeRouteDialog({
 
   const isRunningRef = useRef(false);
 
+  // Signal Accept All waiter that the dialog is done (confirm OR cancel)
+  const signalDialogDone = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('cyclingModeDialogDone'));
+  }, []);
+
   const handleModeOptimize = useCallback(async () => {
     if (selectedModeStopIds.length === 0 || !currentUser?.id) return;
     if (isRunningRef.current) return;
@@ -122,6 +127,8 @@ export default function useModeRouteDialog({
 
     // Close the dialog immediately — driver should not be blocked waiting
     setModeDialogOpen(false);
+    // Signal Accept All that the dialog is confirmed and closed
+    signalDialogDone();
 
     try {
       const now = new Date();
@@ -342,6 +349,7 @@ export default function useModeRouteDialog({
     appUsers,
     setPreferredTravelMode,
     currentModeLocation,
+    signalDialogDone,
     deliveriesWithStopOrder,
     patients,
     stores,
@@ -349,9 +357,16 @@ export default function useModeRouteDialog({
     applyDeliveryChangesLocally,
   ]);
 
+  // Wrap setModeDialogOpen so that closing the dialog (cancel / backdrop click)
+  // always fires cyclingModeDialogDone to unblock the Accept All waiter.
+  const handleModeDialogOpenChange = useCallback((open) => {
+    if (!open) signalDialogDone();
+    setModeDialogOpen(open);
+  }, [signalDialogDone]);
+
   return {
     modeDialogOpen,
-    setModeDialogOpen,
+    setModeDialogOpen: handleModeDialogOpenChange,
     nearbyModeStops,
     selectedModeStopIds,
     toggleModeStop,
