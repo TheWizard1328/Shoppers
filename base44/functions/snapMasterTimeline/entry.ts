@@ -135,11 +135,21 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
     }
 
-    // ── 1. Fetch HERE API key ─────────────────────────────────────────────────
-    const apiKeyRes = await base44.functions.invoke('getActiveHereApiKey', {}).catch(() => null);
-    const hereApiKey: string | undefined = apiKeyRes?.apiKey;
+    // ── 1. Fetch HERE API key — read directly from env (same as getHereDirections) ──
+    const HERE_SECRET_MAP: Record<string, string> = {
+      HERE_API_KEY: 'HERE_API_KEY',
+      Here_API_Key_2: 'Here_API_Key_2',
+      Here_API_Key_3: 'Here_API_Key_3',
+    };
+    const settings = await base44.asServiceRole.entities.AppSettings.filter(
+      { setting_key: 'refresh_intervals' }, '-updated_date', 1
+    ).catch(() => []);
+    const settingValue = (settings as any[])?.[0]?.setting_value || {};
+    const selectedKey = settingValue.selected_api_key || settingValue.selected_here_api_key || 'HERE_API_KEY';
+    const secretName = HERE_SECRET_MAP[selectedKey] || 'HERE_API_KEY';
+    const hereApiKey: string | undefined = Deno.env.get(secretName);
     if (!hereApiKey) {
-      return Response.json({ error: 'No HERE API key configured' }, { status: 500 });
+      return Response.json({ error: `No HERE API key configured (secret: ${secretName})` }, { status: 500 });
     }
 
     // ── 2. Fetch master breadcrumb record (stop_order = -1) ──────────────────
