@@ -78,9 +78,13 @@ export default function ResetPolylinesButton({
             });
             const resegData = resegResponse?.data || resegResponse || {};
             if (resegData.success && resegData.stops_sliced > 0) {
+              const parts = [`Re-segmented ${resegData.stops_sliced} stop${resegData.stops_sliced !== 1 ? 's' : ''} from master trail`];
+              if (resegData.stops_missing > 0) parts.push(`${resegData.stops_missing} missing`);
+              if (resegData.stops_thin > 0) parts.push(`${resegData.stops_thin} thin (origin/dest only)`);
+              if (resegData.stops_skipped_saved > 0) parts.push(`skipped ${resegData.stops_skipped_saved} saved`);
               toast({
                 title: 'Breadcrumb re-segmented',
-                description: `Re-segmented ${resegData.stops_sliced} stop${resegData.stops_sliced !== 1 ? 's' : ''} from master trail${resegData.stops_skipped_saved > 0 ? ` (skipped ${resegData.stops_skipped_saved} saved)` : ''}`
+                description: parts.join(' • ')
               });
             }
           } catch (resegErr) {

@@ -184,6 +184,8 @@ Deno.serve(async (req) => {
         stops_sliced: 0,
         stops_skipped_saved: 0,
         stops_skipped_other: 0,
+        stops_missing: 0,
+        stops_thin: 0,
         results: [],
         reason: 'no_master_timeline_record',
       });
@@ -209,6 +211,8 @@ Deno.serve(async (req) => {
         stops_sliced: 0,
         stops_skipped_saved: 0,
         stops_skipped_other: 0,
+        stops_missing: 0,
+        stops_thin: 0,
         results: [],
         reason: 'empty_master_timeline',
       });
@@ -253,6 +257,8 @@ Deno.serve(async (req) => {
         stops_sliced: 0,
         stops_skipped_saved: 0,
         stops_skipped_other: 0,
+        stops_missing: 0,
+        stops_thin: 0,
         results: [],
         reason: 'no_terminal_stops',
       });
@@ -277,13 +283,15 @@ Deno.serve(async (req) => {
     let stops_sliced = 0;
     let stops_skipped_saved = 0;
     let stops_skipped_other = 0;
+    let stops_missing = 0;     // No existing record at all
+    let stops_thin = 0;         // Existing record had ≤2 points (origin/destination only)
     const results: any[] = [];
 
     for (let i = 0; i < terminalStops.length; i++) {
       const stop = terminalStops[i];
       const numericStopOrder = Number(stop.stop_order);
 
-      // Check if existing record has saved_to_route === true
+      // Check if existing record has saved_to_route === true (manually edited — skip)
       const existingRec = existingByStopOrder.get(numericStopOrder);
       if (existingRec?.saved_to_route === true) {
         stops_skipped_saved++;
@@ -293,6 +301,13 @@ Deno.serve(async (req) => {
           reason: 'saved_to_route',
         });
         continue;
+      }
+
+      // Track whether this stop was missing or thin
+      if (!existingRec) {
+        stops_missing++;
+      } else if (Number(existingRec.point_count) <= 2) {
+        stops_thin++;
       }
 
       // Upper boundary: this stop's completion time (timestamp anchor)
@@ -396,6 +411,8 @@ Deno.serve(async (req) => {
       stops_sliced,
       stops_skipped_saved,
       stops_skipped_other,
+      stops_missing,
+      stops_thin,
       results,
     });
 
