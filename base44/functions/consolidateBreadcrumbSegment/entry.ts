@@ -1,0 +1,265 @@
+/* global Deno */
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+
+// ── Polyline encode/decode (Google polyline format) ──────────────────────────
+function encodePolylineValue(value) {
+  let v = Math.round(value * 1e5);
+  v = v < 0 ? ~(v << 1) : v << 1;
+  let result = '';
+  while (v >= 0x20) {
+    result += String.fromCharCode((0x20 | (v & 0x1f)) + 63);
+    v >>= 5;
+  }
+  result += String.fromCharCode(v + 63);
+  return result;
+}
+
+function encodePolyline(points) {
+  let prevLat = 0, prevLon = 0, result = '';
+  for (const point of points) {
+    result += encodePolylineValue(point[0] - prevLat);
+    result += encodePolylineValue(point[1] - prevLon);
+    prevLat = point[0];
+    prevLon = point[1];
+  }
+  return result;
+}
+
+function decodePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const coordinates = [];
+  while (index < encoded.length) {
+    let shift = 0, result = 0, byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+  return coordinates;
+}
+
+// ── Time parsing ──────────────────────────────────────────────────────────────
+function toEpochMs(value) {
+  if (!value) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) ? ts : null;
+}
+
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const {
+      driver_id,
+      delivery_date,
+      delivery_id,
+      stop_order,
+      actual_delivery_time,
+      transport_mode = 'driving'
+    } = body || {};
+
+    // ── Validate inputs ───────────────────────────────────────────────────────
+    if (!driver_id || !delivery_date) {
+      return Response.json({ success: false, error: 'driver_id and delivery_date are required' }, { status: 400 });
+    }
+    if (!Number.isFinite(Number(stop_order))) {
+      return Response.json({ success: false, error: 'stop_order must be a finite number' }, { status: 400 });
+    }
+
+    const currentStopOrder = Number(stop_order);
+    const currentStopTime = toEpochMs(actual_delivery_time);
+
+    if (!currentStopTime) {
+      return Response.json({ success: false, error: 'Could not parse actual_delivery_time' }, { status: 400 });
+    }
+
+    // ── 1. Read the master trail (stop_order = -1) ─────────────────────────────
+    const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+      driver_id,
+      delivery_date,
+      stop_order: -1
+    });
+
+    const masterRecord = Array.isArray(masterRecords) && masterRecords.length > 0
+      ? masterRecords[0]
+      : null;
+
+    if (!masterRecord?.encoded_polyline || !masterRecord?.timestamps) {
+      return Response.json({
+        success: false,
+        error: 'No master breadcrumb trail found for this driver/date',
+        driver_id,
+        delivery_date,
+        point_count: 0
+      }, { status: 404 });
+    }
+
+    // Decode master trail into [lat, lng, timestamp] points
+    const masterCoords = decodePolyline(masterRecord.encoded_polyline);
+    const masterTsArr = masterRecord.timestamps.split(',').map(Number);
+    const masterPoints = masterCoords
+      .map((coord, i) => [coord[0], coord[1], masterTsArr[i] || 0])
+      .filter((pt) => Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && Number.isFinite(pt[2]));
+
+    if (masterPoints.length === 0) {
+      return Response.json({ success: false, error: 'Master trail has no valid points', point_count: 0 }, { status: 500 });
+    }
+
+    // ── 2. Find the previous completed stop's actual_delivery_time ─────────────
+    const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+      driver_id,
+      delivery_date
+    });
+
+    const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const previousStops = (allDeliveries || [])
+      .filter((d) => {
+        if (!d || d.id === delivery_id) return false;
+        if (!FINISHED_STATUSES.has(d.status)) return false;
+        const dStopOrder = Number(d.stop_order || 0);
+        return dStopOrder < currentStopOrder;
+      })
+      .sort((a, b) => Number(b.stop_order || 0) - Number(a.stop_order || 0));
+
+    // Determine the time window start:
+    // - If there's a previous completed stop, use its actual_delivery_time
+    // - If this is the first stop, use the earliest master trail point
+    let windowStart = null;
+    if (previousStops.length > 0) {
+      const prevTime = toEpochMs(
+        previousStops[0].actual_delivery_time ||
+        previousStops[0].arrival_time ||
+        previousStops[0].updated_date
+      );
+      if (prevTime) windowStart = prevTime;
+    }
+
+    if (!windowStart) {
+      // First stop — use the earliest master trail timestamp
+      windowStart = masterPoints[0][2];
+    }
+
+    // ── 3. Slice the master trail between windowStart and currentStopTime ──────
+    const startBuffer = 5000; // 5 seconds
+    const adjustedStart = windowStart - startBuffer;
+
+    const segmentPoints = masterPoints.filter(
+      (pt) => pt[2] >= adjustedStart && pt[2] <= currentStopTime
+    );
+
+    // If no points in the window, find the closest master point to currentStopTime
+    if (segmentPoints.length === 0) {
+      let closest = masterPoints[0];
+      let minDiff = Math.abs(masterPoints[0][2] - currentStopTime);
+      for (const pt of masterPoints) {
+        const diff = Math.abs(pt[2] - currentStopTime);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = pt;
+        }
+      }
+      segmentPoints.push(closest);
+    }
+
+    // ── 4. Encode the sliced segment ──────────────────────────────────────────
+    const segmentCoords = segmentPoints.map((pt) => [pt[0], pt[1]]);
+    const segmentEncoded = encodePolyline(segmentCoords);
+    const segmentTimestamps = segmentPoints.map((pt) => pt[2]).join(',');
+
+    // ── 5. Create or update the per-stop DeliveryBreadcrumbs record ────────────
+    const existingSegments = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+      driver_id,
+      delivery_date,
+      stop_order: currentStopOrder
+    });
+
+    const existingRecord = Array.isArray(existingSegments) && existingSegments.length > 0
+      ? existingSegments[0]
+      : null;
+
+    const segmentPayload = {
+      driver_id,
+      delivery_date,
+      stop_order: currentStopOrder,
+      delivery_id: delivery_id || null,
+      encoded_polyline: segmentEncoded,
+      timestamps: segmentTimestamps,
+      transport_mode,
+      point_count: segmentPoints.length,
+      saved_to_route: false
+    };
+
+    let savedRecord;
+    if (existingRecord?.id) {
+      // Update existing segment — merge points by timestamp to avoid losing data
+      const existingCoords = decodePolyline(existingRecord.encoded_polyline || '');
+      const existingTsArr = (existingRecord.timestamps || '').split(',').map(Number);
+      const existingPoints = existingCoords
+        .map((coord, i) => [coord[0], coord[1], existingTsArr[i] || 0])
+        .filter((pt) => Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && Number.isFinite(pt[2]));
+
+      const mergedMap = new Map();
+      [...existingPoints, ...segmentPoints]
+        .sort((a, b) => a[2] - b[2])
+        .forEach((pt) => {
+          mergedMap.set(String(pt[2]), pt);
+        });
+      const mergedPoints = Array.from(mergedMap.values()).sort((a, b) => a[2] - b[2]);
+
+      const mergedEncoded = encodePolyline(mergedPoints.map((pt) => [pt[0], pt[1]]));
+      const mergedTimestamps = mergedPoints.map((pt) => pt[2]).join(',');
+
+      segmentPayload.encoded_polyline = mergedEncoded;
+      segmentPayload.timestamps = mergedTimestamps;
+      segmentPayload.point_count = mergedPoints.length;
+
+      savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(
+        existingRecord.id,
+        segmentPayload
+      );
+    } else {
+      savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(segmentPayload);
+    }
+
+    console.log(`✅ [consolidateBreadcrumbSegment] Created/updated segment for stop ${currentStopOrder}: ${segmentPayload.point_count} points, driver=${driver_id}, date=${delivery_date}`);
+
+    return Response.json({
+      success: true,
+      segment: {
+        id: savedRecord?.id || existingRecord?.id,
+        stop_order: currentStopOrder,
+        point_count: segmentPayload.point_count,
+        has_polyline: !!segmentPayload.encoded_polyline
+      },
+      point_count: segmentPayload.point_count,
+      window_start: windowStart,
+      window_end: currentStopTime,
+      master_point_count: masterPoints.length
+    });
+
+  } catch (error) {
+    console.error('❌ [consolidateBreadcrumbSegment] Error:', error?.message || error);
+    return Response.json({
+      success: false,
+      error: error?.message || 'Unknown error during breadcrumb consolidation'
+    }, { status: 500 });
+  }
+});
