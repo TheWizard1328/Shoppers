@@ -384,7 +384,7 @@ function DashboardView({
           setShouldFitBounds={setShouldFitBounds} setMapCenter={setMapCenter} setMapZoom={setMapZoom}
           mapMode={mapMode} setMapMode={setMapMode}
           driverLocation={driverLocation} allDriverLocations={allDriverLocations} currentToNextPolyline={currentToNextPolyline}
-          showRoutes={showRoutes} showAllDriverMarkers={showAllDriverMarkers}
+          showRoutes={showRoutes} setShowRoutes={setShowRoutes} showAllDriverMarkers={showAllDriverMarkers}
           showBreadcrumbs={showBreadcrumbs} breadcrumbsData={breadcrumbsData}
           highlightedCardId={highlightedCardId} retractClustersRef={retractClustersRef} googleApiKey={googleApiKey}
           setDriverRoutes={setDriverRoutes} renderSequence={renderSequence} setRenderSequence={setRenderSequence}
