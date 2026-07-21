@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Eraser, Undo2, Download, Magnet } from 'lucide-react';
+import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Eraser, Undo2, Download, Magnet, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
@@ -188,6 +188,8 @@ export default function PolylineViewer({ users = [] }) {
   const [isSavingCrumb, setIsSavingCrumb]         = useState(false);
   const [isImportingCrumb, setIsImportingCrumb]   = useState(false);
   const [isSnappingMaster, setIsSnappingMaster]   = useState(false);
+  // snapPreview: { itemId, coords: [[lat,lon],...], encodedPolyline, timestamps, isSaving }
+  const [snapPreview, setSnapPreview]             = useState(null);
   const draggingRef = useRef(false); // true while a marker drag is in progress
 
   // Track the item currently being cleaned so we can auto-save on focus change
@@ -713,33 +715,65 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
-  // ── Auto-snap master timeline to roads via HERE RouteMatch ───────────────
-  const handleSnapMasterTimeline = async (item) => {
-    if (!window.confirm(
-      `Auto-Snap will call the HERE RouteMatch API (1 API call) to snap the entire day's GPS track to real roads for ${getDriverName(item.driver_id)} on ${item.delivery_date}.\n\nAfter snapping, all per-stop segments will be automatically re-consolidated.\n\nContinue?`
-    )) return;
-
+  // ── Auto-snap master timeline — STEP 1: fetch preview (no save yet) ──────
+  const handleSnapPreview = async (item) => {
     setIsSnappingMaster(true);
     try {
+      // run_consolidate=false — only snap, don't save or reslice yet
       const res = await base44.functions.invoke('snapMasterTimeline', {
         driver_id: item.driver_id,
         delivery_date: item.delivery_date,
-        run_consolidate: true,
+        run_consolidate: false,
+        preview_only: true,
       });
-      if (res?.success) {
-        toast.success(
-          `Snapped ${res.raw_point_count} → ${res.snapped_point_count} pts across ${res.chunks_processed} chunk(s). Segments re-consolidated.`
-        );
-        await loadData();
+      if (res?.success && res?.snapped_polyline) {
+        const coords = decodePolyline(res.snapped_polyline);
+        setSnapPreview({
+          itemId: item.id,
+          item,
+          coords,
+          encodedPolyline: res.snapped_polyline,
+          timestamps: res.snapped_timestamps || '',
+          pointCount: res.snapped_point_count,
+          isSaving: false,
+        });
+        toast.info(`Preview ready — ${res.raw_point_count} → ${res.snapped_point_count} pts. Accept or cancel.`);
       } else {
-        toast.error(`Snap failed: ${res?.error || 'Unknown error'}`);
+        toast.error(`Snap preview failed: ${res?.error || 'Unknown error'}`);
       }
     } catch (e) {
-      toast.error(`Snap failed: ${e.message}`);
+      toast.error(`Snap preview failed: ${e.message}`);
     } finally {
       setIsSnappingMaster(false);
     }
   };
+
+  // ── STEP 2a: Accept — save snapped polyline + re-consolidate ─────────────
+  const handleSnapAccept = async () => {
+    if (!snapPreview) return;
+    setSnapPreview(p => ({ ...p, isSaving: true }));
+    try {
+      const res = await base44.functions.invoke('snapMasterTimeline', {
+        driver_id: snapPreview.item.driver_id,
+        delivery_date: snapPreview.item.delivery_date,
+        run_consolidate: true,
+      });
+      if (res?.success) {
+        toast.success(`Snapped & saved — ${res.snapped_point_count} pts. Segments re-consolidated.`);
+        setSnapPreview(null);
+        await loadData();
+      } else {
+        toast.error(`Save failed: ${res?.error || 'Unknown error'}`);
+        setSnapPreview(p => ({ ...p, isSaving: false }));
+      }
+    } catch (e) {
+      toast.error(`Save failed: ${e.message}`);
+      setSnapPreview(p => ({ ...p, isSaving: false }));
+    }
+  };
+
+  // ── STEP 2b: Cancel — discard preview, restore magnet button ─────────────
+  const handleSnapCancel = () => setSnapPreview(null);
 
   // ── List item renderer ────────────────────────────────────────────────────
   const renderListItem = (item, inSheet = false) => {
@@ -857,14 +891,38 @@ export default function PolylineViewer({ users = [] }) {
                             {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                           </button>
                           {item.stop_order === -1 && (
-                            <button
-                              title="Auto-Snap master timeline to roads (HERE API)"
-                              onClick={e => { e.stopPropagation(); handleSnapMasterTimeline(item); }}
-                              disabled={isSnappingMaster}
-                              className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto"
-                            >
-                              {isSnappingMaster ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
-                            </button>
+                            snapPreview?.itemId === item.id ? (
+                              // Preview mode — show Accept (✓) and Cancel (✗)
+                              <>
+                                <span className="text-xs text-cyan-700 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
+                                <button
+                                  title="Accept snapped route & save"
+                                  onClick={e => { e.stopPropagation(); handleSnapAccept(); }}
+                                  disabled={snapPreview.isSaving}
+                                  className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50 transition-colors ml-auto"
+                                >
+                                  {snapPreview.isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  title="Cancel — discard preview"
+                                  onClick={e => { e.stopPropagation(); handleSnapCancel(); }}
+                                  disabled={snapPreview.isSaving}
+                                  className="p-1 rounded bg-red-100 hover:bg-red-200 text-red-700 disabled:opacity-50 transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              // Normal — show magnet button (disabled while snapping or if another preview is active)
+                              <button
+                                title="Auto-Snap master timeline to roads (HERE API) — preview first"
+                                onClick={e => { e.stopPropagation(); handleSnapPreview(item); }}
+                                disabled={isSnappingMaster || !!snapPreview}
+                                className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto"
+                              >
+                                {isSnappingMaster ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
+                              </button>
+                            )
                           )}
                         </div>
                       )}
@@ -1208,6 +1266,16 @@ export default function PolylineViewer({ users = [] }) {
                         </MapSegment>
                       );
                     })}
+
+                    {/* Snap preview — blue overlay on top of original amber breadcrumb */}
+                    {snapPreview && snapPreview.coords.length > 1 && (
+                      <Polyline
+                        positions={snapPreview.coords}
+                        color="#2563eb"
+                        weight={3}
+                        opacity={0.85}
+                      />
+                    )}
 
                     <MapClickHandler
                       isActive={isCleaningMode}

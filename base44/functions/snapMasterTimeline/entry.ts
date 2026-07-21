@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { driver_id, delivery_date, run_consolidate = true } = body;
+    const { driver_id, delivery_date, run_consolidate = true, preview_only = false } = body;
 
     if (!driver_id || !delivery_date) {
       return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
@@ -211,7 +211,22 @@ Deno.serve(async (req) => {
     const snappedPolyline = encodePolyline(snappedCoords);
     const snappedTimestamps = snappedTs.join(',');
 
-    // ── 6. Update the master record ───────────────────────────────────────────
+    // ── 6. Preview-only mode — return snapped data without saving ────────────
+    if (preview_only) {
+      return Response.json({
+        success: true,
+        preview_only: true,
+        driver_id,
+        delivery_date,
+        raw_point_count: masterPoints.length,
+        snapped_point_count: snappedCoords.length,
+        chunks_processed: totalChunks,
+        snapped_polyline: snappedPolyline,
+        snapped_timestamps: snappedTimestamps,
+      });
+    }
+
+    // ── 7. Save the snapped master record ────────────────────────────────────
     await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(master.id, {
       encoded_polyline: snappedPolyline,
       timestamps: snappedTimestamps,
@@ -220,7 +235,7 @@ Deno.serve(async (req) => {
 
     console.log(`[snapMasterTimeline] ✅ Master updated — ${masterPoints.length} raw pts → ${snappedCoords.length} snapped`);
 
-    // ── 7. Optionally trigger consolidateBreadcrumbs ──────────────────────────
+    // ── 8. Optionally trigger consolidateBreadcrumbs ──────────────────────────
     let consolidateResult = null;
     if (run_consolidate) {
       consolidateResult = await base44.functions
