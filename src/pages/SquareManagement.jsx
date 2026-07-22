@@ -909,7 +909,7 @@ export default function SquareManagement() {
       }
       return false;
     }) || null;
-  }, [deliveries, getTransactionEffectiveDateString, lookupIndexes, storeIdsByLocationId]);
+  }, [deliveries, getTransactionEffectiveDateString, storeIdsByLocationId]);
 
   const formatItemNameForDisplay = useCallback((deliveryDate, storeAbbreviation, patientName) => {
     const [, month, day] = String(deliveryDate || '').split('-');
@@ -988,7 +988,7 @@ export default function SquareManagement() {
 
       return false;
     });
-  }, [allTransactions, lookupIndexes, storeIdsByLocationId, getTransactionCreatedDate]);
+  }, [allTransactions, storeIdsByLocationId, getTransactionCreatedDate]);
 
   const confirmDelete = async () => {
     if (!itemToDelete) return;
