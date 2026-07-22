@@ -775,8 +775,11 @@ async function handlePurgeAndRebuildCatalog(base44) {
   const activeConfigById = new Map(safeConfigs.filter((c) => c?.status === 'active').map((c) => [c.id, c]));
   const storesByLocationId = buildStoresByLocationId(safeStores, activeConfigById);
 
-  // Step 1: Fetch live catalog from Square FIRST (before touching the DB)
-  const liveCatalogItems = await listActiveCatalogItems(accessToken);
+  // Step 1: Fetch existing DB records and live catalog in parallel
+  const [liveCatalogItems, existingCatalogDb] = await Promise.all([
+    listActiveCatalogItems(accessToken),
+    base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []),
+  ]);
 
   // Step 2: Build canonical records from live Square data
   const liveRecords = (liveCatalogItems || []).reduce((acc, item) => {
