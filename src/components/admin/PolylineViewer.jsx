@@ -125,7 +125,7 @@ const useMapBounds = () => {
 // ── Viewport-culled cleaning dot markers ────────────────────────────────────
 // Renders CleanDotMarker only for points currently visible in the map viewport.
 // A 20% padding buffer prevents markers from popping in/out at the exact edge.
-const CulledCleanDotMarkers = React.memo(({ points, onMove, onRemove }) => {
+const CulledCleanDotMarkers = React.memo(({ points, onMove, onRemove, onBrushRemove, isBrushMode }) => {
   const bounds = useMapBounds();
   // Expand bounds by ~20% to keep markers visible slightly past the edge
   const sw = bounds.getSouthWest();
@@ -146,6 +146,8 @@ const CulledCleanDotMarkers = React.memo(({ points, onMove, onRemove }) => {
         idx={realIdx}
         onMove={(lat, lng) => onMove(realIdx, lat, lng)}
         onRemove={() => onRemove(realIdx)}
+        onBrushRemove={onBrushRemove}
+        isBrushMode={isBrushMode}
       />
     );
   });
@@ -191,14 +193,14 @@ const makeDotIcon = (idx) => L.divIcon({
 });
 
 // ── Memoized dot marker to avoid re-mounting on pan/zoom ────────────────────
-const CleanDotMarker = React.memo(({ pt, idx, onMove, onRemove }) => {
+const CleanDotMarker = React.memo(({ pt, idx, onMove, onRemove, onBrushRemove, isBrushMode }) => {
   const icon = React.useMemo(() => makeDotIcon(idx), [idx]);
   return (
     <Marker
       position={pt}
       icon={icon}
       zIndexOffset={2000}
-      draggable={true}
+      draggable={!isBrushMode}
       eventHandlers={{
         dragstart: (e) => { e.target._dragging = true; },
         dragend: (e) => {
@@ -206,7 +208,10 @@ const CleanDotMarker = React.memo(({ pt, idx, onMove, onRemove }) => {
           e.target._dragging = false;
           onMove(lat, lng);
         },
-        click: (e) => { if (!e.target._dragging) onRemove(); },
+        click: (e) => {
+          if (isBrushMode) { onBrushRemove(pt[0], pt[1]); return; }
+          if (!e.target._dragging) onRemove();
+        },
       }}
     >
       <Popup>
@@ -659,39 +664,38 @@ export default function PolylineViewer({ users = [] }) {
     setCleanedPoints(prev => prev.map((pt, i) => i === idx ? [newLat, newLng] : pt));
   }, []);
 
-  const handleAddPoint = (lat, lng) => {
-    // ── Brush pick mode: remove consecutive points within 25m of the clicked location ──
-    if (isBrushPickMode) {
-      const RADIUS_M = 25;
-      const pts = cleanedPointsRef.current;
+  // ── Brush removal: find the consecutive run near the clicked/tapped point ──
+  const handleBrushRemove = useCallback((lat, lng) => {
+    const RADIUS_M = 25;
+    const pts = cleanedPointsRef.current;
 
-      // Find the closest point to the click
-      let closestIdx = -1;
-      let closestDist = Infinity;
-      pts.forEach((pt, i) => {
-        const d = haversineKm(pt[0], pt[1], lat, lng) * 1000;
-        if (d < closestDist) { closestDist = d; closestIdx = i; }
-      });
+    // Find the closest point to the tapped location
+    let closestIdx = -1;
+    let closestDist = Infinity;
+    pts.forEach((pt, i) => {
+      const d = haversineKm(pt[0], pt[1], lat, lng) * 1000;
+      if (d < closestDist) { closestDist = d; closestIdx = i; }
+    });
 
-      if (closestIdx === -1 || closestDist > RADIUS_M) {
-        toast.info('No points found within 25 m of that location.');
-        return;
-      }
-
-      // Expand outward from closestIdx to find the consecutive run within radius
-      let start = closestIdx;
-      let end = closestIdx;
-      while (start > 0 && haversineKm(pts[start - 1][0], pts[start - 1][1], lat, lng) * 1000 <= RADIUS_M) start--;
-      while (end < pts.length - 1 && haversineKm(pts[end + 1][0], pts[end + 1][1], lat, lng) * 1000 <= RADIUS_M) end++;
-
-      const removed = end - start + 1;
-      const surviving = [...pts.slice(0, start), ...pts.slice(end + 1)];
-
-      setUndoStack(prev => [...prev.slice(-4), pts]);
-      setCleanedPoints(surviving);
-      toast.success(`Removed ${removed} consecutive point${removed !== 1 ? 's' : ''} within 25 m.`);
+    if (closestIdx === -1 || closestDist > RADIUS_M) {
+      toast.info('No points found within 25 m.');
       return;
     }
+
+    // Expand outward to find consecutive run within radius
+    let start = closestIdx;
+    let end = closestIdx;
+    while (start > 0 && haversineKm(pts[start - 1][0], pts[start - 1][1], lat, lng) * 1000 <= RADIUS_M) start--;
+    while (end < pts.length - 1 && haversineKm(pts[end + 1][0], pts[end + 1][1], lat, lng) * 1000 <= RADIUS_M) end++;
+
+    const removed = end - start + 1;
+    const surviving = [...pts.slice(0, start), ...pts.slice(end + 1)];
+    setUndoStack(prev => [...prev.slice(-4), pts]);
+    setCleanedPoints(surviving);
+    toast.success(`Removed ${removed} consecutive point${removed !== 1 ? 's' : ''}.`);
+  }, []);
+
+  const handleAddPoint = (lat, lng) => {
     // ── Normal mode: insert a new point along the closest segment ──
     setUndoStack(prev => [...prev.slice(-4), cleanedPoints]);
     if (cleanedPoints.length === 0) {
@@ -1331,7 +1335,7 @@ export default function PolylineViewer({ users = [] }) {
             {isBrushPickMode && (
               <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
                 <Brush className="w-4 h-4 flex-shrink-0" />
-                <span><strong>Brush active</strong> — click anywhere on the map to remove all breadcrumb points within 25 m of that spot. Click the Brush button again to exit.</span>
+                <span><strong>Brush active</strong> — click any dot on the route to remove that dot and all consecutive points within 25 m of it. Click the Brush button again to exit.</span>
               </div>
             )}
 
@@ -1422,6 +1426,8 @@ export default function PolylineViewer({ users = [] }) {
                               points={cleanedPoints}
                               onMove={handleMovePoint}
                               onRemove={handleRemovePoint}
+                              onBrushRemove={handleBrushRemove}
+                              isBrushMode={isBrushPickMode}
                             />
                           )}
 
@@ -1496,7 +1502,7 @@ export default function PolylineViewer({ users = [] }) {
                     ))}
 
                     <MapClickHandler
-                      isActive={isCleaningMode || isBrushPickMode}
+                      isActive={isCleaningMode && !isBrushPickMode}
                       onAddPoint={handleAddPoint}
                     />
                     <MapUpdater
