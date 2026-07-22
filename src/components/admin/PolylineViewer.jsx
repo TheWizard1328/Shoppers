@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Eraser, Undo2, Download, Magnet, Check, X } from 'lucide-react';
+import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Pencil, Undo2, Download, Magnet, Check, X, Brush } from 'lucide-react';
 import SnapAnalysisDialog from './SnapAnalysisDialog';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
@@ -259,6 +259,9 @@ export default function PolylineViewer({ users = [] }) {
   const [sheetOpen, setSheetOpen]       = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(40);
+
+  // ── Crumb cluster-cleanup state ───────────────────────────────────────────
+  const [isCleaningClusters, setIsCleaningClusters] = useState(false);
 
   // ── Crumb cleaning state ──────────────────────────────────────────────────
   const [isCleaningMode, setIsCleaningMode]       = useState(false);
@@ -937,6 +940,61 @@ export default function PolylineViewer({ users = [] }) {
   // ── STEP 3b: Cancel preview ───────────────────────────────────────────────
   const handleSnapCancel = () => setSnapPreview(null);
 
+  // ── Stationary cluster cleanup ────────────────────────────────────────────
+  const handleCleanupClusters = async (item) => {
+    setIsCleaningClusters(true);
+    try {
+      // Dry-run first to preview the change
+      const res = await base44.functions.invoke('cleanupBreadcrumbClusters', {
+        breadcrumbId: item.id,
+        radiusM: 30,
+        minClusterSize: 5,
+        dryRun: true,
+      });
+      const data = res?.data ?? res;
+      if (!data?.success) {
+        toast.error(`Cleanup failed: ${data?.error || 'Unknown error'}`);
+        return;
+      }
+
+      const { originalPointCount, cleanedPointCount, removedCount, cleanedPolyline } = data;
+
+      if (removedCount === 0) {
+        toast.info('No stationary clusters found — route is already clean.');
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Found ${removedCount} clustered points to remove (${originalPointCount} → ${cleanedPointCount} pts).\n\nApply cleanup?`
+      );
+      if (!confirmed) return;
+
+      // Apply the cleanup
+      const saveRes = await base44.functions.invoke('cleanupBreadcrumbClusters', {
+        breadcrumbId: item.id,
+        radiusM: 30,
+        minClusterSize: 5,
+        dryRun: false,
+      });
+      const saveData = saveRes?.data ?? saveRes;
+      if (saveData?.success) {
+        const updatedItem = { ...item, encoded_polyline: cleanedPolyline, point_count: cleanedPointCount };
+        setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
+        setFocusedItem(updatedItem);
+        if (isCleaningMode && focusedItem?.id === item.id) {
+          setCleanedPoints(decodePolyline(cleanedPolyline));
+        }
+        toast.success(`Cleaned! Removed ${removedCount} clustered pts (${originalPointCount} → ${cleanedPointCount}).`);
+      } else {
+        toast.error(`Save failed: ${saveData?.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      toast.error(`Cleanup failed: ${e.message}`);
+    } finally {
+      setIsCleaningClusters(false);
+    }
+  };
+
   // ── List item renderer ────────────────────────────────────────────────────
   const renderListItem = (item, inSheet = false) => {
     const isBreadcrumb = breadcrumbs.some(b => b.id === item.id);
@@ -1030,11 +1088,19 @@ export default function PolylineViewer({ users = [] }) {
                             </button>
                           )}
                           <button
-                            title={isCleaningMode && focusedItem?.id === item.id ? 'Exit cleaning mode' : 'Clean crumb points'}
+                            title={isCleaningMode && focusedItem?.id === item.id ? 'Exit cleaning mode' : 'Edit crumb points manually'}
                             onClick={e => { e.stopPropagation(); handleToggleCleaningMode(item); }}
                             className={`p-1 rounded transition-colors ${isCleaningMode && focusedItem?.id === item.id ? 'bg-orange-200 text-orange-800' : 'hover:bg-orange-100 text-orange-600'}`}
                           >
-                            <Eraser className="w-3.5 h-3.5" />
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            title="Auto-remove stationary delivery clusters"
+                            onClick={e => { e.stopPropagation(); handleCleanupClusters(item); }}
+                            disabled={isCleaningClusters}
+                            className="p-1 rounded hover:bg-amber-100 text-amber-700 disabled:opacity-50 transition-colors"
+                          >
+                            {isCleaningClusters ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brush className="w-3.5 h-3.5" />}
                           </button>
                           <button
                             title="Save crumb polyline to delivery"
