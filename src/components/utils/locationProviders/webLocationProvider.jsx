@@ -1,3 +1,8 @@
+const isValidCoord = (lat, lon) =>
+  typeof lat === 'number' && typeof lon === 'number' &&
+  isFinite(lat) && isFinite(lon) &&
+  !(Math.abs(lat) < 0.0001 && Math.abs(lon) < 0.0001);
+
 const normalizeWebPosition = (position) => ({
   coords: {
     latitude: position.coords.latitude,
@@ -24,7 +29,14 @@ class WebLocationProvider {
 
     return await new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
-        (position) => resolve(normalizeWebPosition(position)),
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          if (!isValidCoord(latitude, longitude)) {
+            reject(new Error(`Invalid GPS fix [${latitude}, ${longitude}] — not yet locked`));
+            return;
+          }
+          resolve(normalizeWebPosition(position));
+        },
         reject,
         {
           enableHighAccuracy: true,
@@ -42,7 +54,14 @@ class WebLocationProvider {
     }
 
     return navigator.geolocation.watchPosition(
-      (position) => onSuccess?.(normalizeWebPosition(position)),
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        if (!isValidCoord(latitude, longitude)) {
+          console.warn(`🌐 [WebProvider] Dropping invalid GPS fix [${latitude}, ${longitude}] — not yet locked`);
+          return;
+        }
+        onSuccess?.(normalizeWebPosition(position));
+      },
       (error) => onError?.(error),
       {
         enableHighAccuracy: true,
