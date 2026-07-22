@@ -115,9 +115,10 @@ export function findPatientByName(query, patients) {
 
 /**
  * Get the "current" patient — the one for the driver's next/active delivery.
- * For admins, returns the first active delivery of the day (any driver).
+ * For admins/dispatchers, scopes to selectedDriverId if provided.
+ * Returns { patient, delivery } or null if no active delivery, or { routeComplete: true } if route is done.
  */
-export function findCurrentDeliveryPatient(currentUser, deliveries, patients, selectedDate) {
+export function findCurrentDeliveryPatient(currentUser, deliveries, patients, selectedDate, selectedDriverId) {
   if (!deliveries || deliveries.length === 0) return null;
   const today = selectedDate || new Date().toISOString().slice(0, 10);
 
@@ -125,28 +126,47 @@ export function findCurrentDeliveryPatient(currentUser, deliveries, patients, se
   const isAdmin = roles.includes('admin');
   const isDispatcher = roles.includes('dispatcher') && !isAdmin;
 
-  // Build store filter for dispatchers
+  // Build store filter for dispatchers (only used when no selectedDriverId)
   let storeIds = null;
-  if (isDispatcher) {
+  if (isDispatcher && !selectedDriverId) {
     storeIds = new Set(currentUser?.store_ids || []);
     if (storeIds.size === 0) return null;
   }
 
-  const myDeliveries = deliveries.filter(d =>
-    d && d.delivery_date === today &&
-    (isAdmin || d.driver_id === currentUser?.id || (isDispatcher && storeIds.has(d.store_id))) &&
-    !['completed', 'returned', 'cancelled'].includes(d.status)
+  // Determine the effective driver ID to scope to
+  // Priority: selectedDriverId (from Dashboard context) > currentUser.id for drivers
+  const effectiveDriverId = selectedDriverId && selectedDriverId !== 'all'
+    ? selectedDriverId
+    : (!isAdmin && !isDispatcher ? currentUser?.id : null);
+
+  const allTodayDeliveries = deliveries.filter(d =>
+    d && d.delivery_date === today && d.patient_id && // only patient deliveries
+    (effectiveDriverId
+      ? d.driver_id === effectiveDriverId
+      : (isAdmin || (isDispatcher && storeIds?.has(d.store_id)))
+    )
   );
-  if (myDeliveries.length === 0) return null;
 
-  // For drivers, prefer isNextDelivery; for admins/dispatchers, just take the first active
-  const nextDelivery =
-    myDeliveries.find(d => d.isNextDelivery === true) ||
-    myDeliveries.sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999))[0];
-  if (!nextDelivery) return null;
+  // Check if route is fully finished (all deliveries done, none active)
+  if (allTodayDeliveries.length > 0) {
+    const activeDeliveries = allTodayDeliveries.filter(d =>
+      !['completed', 'returned', 'cancelled', 'failed'].includes(d.status)
+    );
+    if (activeDeliveries.length === 0) {
+      return { routeComplete: true };
+    }
 
-  const patient = patients?.find(p => p?.id === nextDelivery.patient_id || p?.patient_id === nextDelivery.patient_id);
-  return patient ? { patient, delivery: nextDelivery } : null;
+    // Find the next active delivery
+    const nextDelivery =
+      activeDeliveries.find(d => d.isNextDelivery === true) ||
+      activeDeliveries.sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999))[0];
+    if (!nextDelivery) return null;
+
+    const patient = patients?.find(p => p?.id === nextDelivery.patient_id || p?.patient_id === nextDelivery.patient_id);
+    return patient ? { patient, delivery: nextDelivery } : null;
+  }
+
+  return null;
 }
 
 // ── Delivery stats ────────────────────────────────────────────────────

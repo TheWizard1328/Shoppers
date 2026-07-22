@@ -435,11 +435,23 @@ export default function GuideAssistant() {
     let includeAdvice = false;
 
     if (queryResult.type === 'current') {
+      // Read the active driver context from Dashboard (selectedDriverId + date)
+      const dashCtx = typeof window !== 'undefined' ? window.__currentDashboardContext : null;
+      const contextDriverId = dashCtx?.driverId || null;
+
       // Current delivery patient
-      const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr);
+      const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr, contextDriverId);
       if (!result) {
         addBotMessage(
           "You don't have an active delivery right now. Once you start a route, type **'info'** to get patient details for your next stop.",
+          []
+        );
+        setShowQuickActions(true);
+        return;
+      }
+      if (result.routeComplete) {
+        addBotMessage(
+          "✅ **Route complete!** All deliveries for today have been finished. Great work! If you need to look up a specific patient, type their name.",
           []
         );
         setShowQuickActions(true);
@@ -656,9 +668,10 @@ export default function GuideAssistant() {
             setShowQuickActions(true);
             return;
           }
-          const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr);
-          if (!result) {
-            addBotMessage("You don't have an active delivery right now to troubleshoot.", []);
+          const dashCtx2 = typeof window !== 'undefined' ? window.__currentDashboardContext : null;
+          const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr, dashCtx2?.driverId || null);
+          if (!result || result.routeComplete) {
+            addBotMessage(result?.routeComplete ? "✅ Route complete — no active delivery to troubleshoot." : "You don't have an active delivery right now to troubleshoot.", []);
             setShowQuickActions(true);
             return;
           }
