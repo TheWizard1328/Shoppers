@@ -86,6 +86,12 @@ export const collectBreadcrumbForTracker = async ({
     return null;
   }
 
+  // Drop Null Island / invalid GPS fixes — [0,0] is never a real coordinate in Edmonton
+  if (Math.abs(latitude) < 0.0001 && Math.abs(longitude) < 0.0001) {
+    console.warn('🍞 [Breadcrumbs] Dropping invalid [0,0] coordinate — GPS not yet locked');
+    return null;
+  }
+
   const { offlineDB } = await import('./offlineDatabase');
 
   const deliveryDate = currentDeliveryDate || getLocalDateString();
@@ -105,7 +111,9 @@ export const collectBreadcrumbForTracker = async ({
   if (existingOfflineRecord?.encoded_polyline && existingOfflineRecord?.timestamps) {
     const coords = decodePolyline(existingOfflineRecord.encoded_polyline);
     const tsArr = existingOfflineRecord.timestamps.split(',').map(Number);
-    existingPoints = coords.map((coord, i) => [coord[0], coord[1], tsArr[i] || 0]);
+    existingPoints = coords
+      .map((coord, i) => [coord[0], coord[1], tsArr[i] || 0])
+      .filter(p => !(Math.abs(p[0]) < 0.0001 && Math.abs(p[1]) < 0.0001)); // Strip any previously-saved [0,0] points
   }
 
   // Distance filter: LOG large GPS jumps but still ACCEPT the point.
