@@ -666,7 +666,7 @@ export default function PolylineViewer({ users = [] }) {
 
   // ── Brush removal: find the consecutive run near the clicked/tapped point ──
   const handleBrushRemove = useCallback((lat, lng) => {
-    const RADIUS_M = 25;
+    const RADIUS_M = 5;
     const pts = cleanedPointsRef.current;
 
     // Find the closest point to the tapped location
@@ -678,7 +678,7 @@ export default function PolylineViewer({ users = [] }) {
     });
 
     if (closestIdx === -1 || closestDist > RADIUS_M) {
-      toast.info('No points found within 25 m.');
+      toast.info('No points found within 5 m.');
       return;
     }
 
