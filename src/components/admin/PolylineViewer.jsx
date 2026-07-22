@@ -260,11 +260,9 @@ export default function PolylineViewer({ users = [] }) {
   const [controlsOpen, setControlsOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(40);
 
-  // ── Crumb cluster-cleanup state ───────────────────────────────────────────
-  const [isCleaningClusters, setIsCleaningClusters] = useState(false);
-
   // ── Crumb cleaning state ──────────────────────────────────────────────────
   const [isCleaningMode, setIsCleaningMode]       = useState(false);
+  const [isBrushPickMode, setIsBrushPickMode]     = useState(false); // waiting for map click to pick a cleanup center
   const [cleanedPoints, setCleanedPoints]         = useState([]); // current editable point list
   const [undoStack, setUndoStack]                 = useState([]); // up to 5 previous states
   const [isSavingCrumb, setIsSavingCrumb]         = useState(false);
@@ -637,6 +635,7 @@ export default function PolylineViewer({ users = [] }) {
       // Turn off — discard pending tracking (user explicitly toggled off)
       pendingCleanRef.current = null;
       setIsCleaningMode(false);
+      setIsBrushPickMode(false);
       setCleanedPoints([]);
       setUndoStack([]);
     } else {
@@ -661,12 +660,27 @@ export default function PolylineViewer({ users = [] }) {
   }, []);
 
   const handleAddPoint = (lat, lng) => {
+    // ── Brush pick mode: remove all points within 25m of the clicked location ──
+    if (isBrushPickMode) {
+      const RADIUS_M = 25;
+      const pts = cleanedPointsRef.current;
+      const surviving = pts.filter(pt => haversineKm(pt[0], pt[1], lat, lng) * 1000 > RADIUS_M);
+      const removed = pts.length - surviving.length;
+      if (removed === 0) {
+        toast.info('No points found within 25 m of that location.');
+        return;
+      }
+      setUndoStack(prev => [...prev.slice(-4), pts]);
+      setCleanedPoints(surviving);
+      toast.success(`Removed ${removed} point${removed !== 1 ? 's' : ''} within 25 m.`);
+      // Stay in brush mode so user can keep clicking to clean more areas
+      return;
+    }
+    // ── Normal mode: insert a new point along the closest segment ──
     setUndoStack(prev => [...prev.slice(-4), cleanedPoints]);
     if (cleanedPoints.length === 0) {
-      // No points yet — this becomes the origin
       setCleanedPoints([[lat, lng]]);
     } else if (cleanedPoints.length === 1) {
-      // One point exists — add second point as destination (append)
       setCleanedPoints(prev => [...prev, [lat, lng]]);
     } else {
       const insertAfter = findClosestSegmentIndex(cleanedPoints, lat, lng);
@@ -711,6 +725,7 @@ export default function PolylineViewer({ users = [] }) {
         setFocusedItem(updatedItem);
         pendingCleanRef.current = null;
         setIsCleaningMode(false);
+        setIsBrushPickMode(false);
         setCleanedPoints([]);
         setUndoStack([]);
         toast.success(`Route overview breadcrumb saved (${points.length} pts).`);
@@ -749,6 +764,7 @@ export default function PolylineViewer({ users = [] }) {
         setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
         setFocusedItem(updatedItem);
         setIsCleaningMode(false);
+        setIsBrushPickMode(false);
         setCleanedPoints([]);
         setUndoStack([]);
 
@@ -940,59 +956,13 @@ export default function PolylineViewer({ users = [] }) {
   // ── STEP 3b: Cancel preview ───────────────────────────────────────────────
   const handleSnapCancel = () => setSnapPreview(null);
 
-  // ── Stationary cluster cleanup ────────────────────────────────────────────
-  const handleCleanupClusters = async (item) => {
-    setIsCleaningClusters(true);
-    try {
-      // Dry-run first to preview the change
-      const res = await base44.functions.invoke('cleanupBreadcrumbClusters', {
-        breadcrumbId: item.id,
-        radiusM: 30,
-        minClusterSize: 5,
-        dryRun: true,
-      });
-      const data = res?.data ?? res;
-      if (!data?.success) {
-        toast.error(`Cleanup failed: ${data?.error || 'Unknown error'}`);
-        return;
-      }
-
-      const { originalPointCount, cleanedPointCount, removedCount, cleanedPolyline } = data;
-
-      if (removedCount === 0) {
-        toast.info('No stationary clusters found — route is already clean.');
-        return;
-      }
-
-      const confirmed = window.confirm(
-        `Found ${removedCount} clustered points to remove (${originalPointCount} → ${cleanedPointCount} pts).\n\nApply cleanup?`
-      );
-      if (!confirmed) return;
-
-      // Apply the cleanup
-      const saveRes = await base44.functions.invoke('cleanupBreadcrumbClusters', {
-        breadcrumbId: item.id,
-        radiusM: 30,
-        minClusterSize: 5,
-        dryRun: false,
-      });
-      const saveData = saveRes?.data ?? saveRes;
-      if (saveData?.success) {
-        const updatedItem = { ...item, encoded_polyline: cleanedPolyline, point_count: cleanedPointCount };
-        setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
-        setFocusedItem(updatedItem);
-        if (isCleaningMode && focusedItem?.id === item.id) {
-          setCleanedPoints(decodePolyline(cleanedPolyline));
-        }
-        toast.success(`Cleaned! Removed ${removedCount} clustered pts (${originalPointCount} → ${cleanedPointCount}).`);
-      } else {
-        toast.error(`Save failed: ${saveData?.error || 'Unknown error'}`);
-      }
-    } catch (e) {
-      toast.error(`Cleanup failed: ${e.message}`);
-    } finally {
-      setIsCleaningClusters(false);
-    }
+  // ── Brush cleanup: toggle "pick a spot on the map" mode ─────────────────
+  // When active, the next map click removes all points within 25 m of that location.
+  const handleToggleBrushMode = () => {
+    setIsBrushPickMode(prev => {
+      if (!prev) toast.info('Click anywhere on the route to remove points within 25 m of that spot.');
+      return !prev;
+    });
   };
 
   // ── List item renderer ────────────────────────────────────────────────────
@@ -1087,37 +1057,48 @@ export default function PolylineViewer({ users = [] }) {
                               <Undo2 className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          <button
-                            title={isCleaningMode && focusedItem?.id === item.id ? 'Exit cleaning mode' : 'Edit crumb points manually'}
-                            onClick={e => { e.stopPropagation(); handleToggleCleaningMode(item); }}
-                            className={`p-1 rounded transition-colors ${isCleaningMode && focusedItem?.id === item.id ? 'bg-orange-200 text-orange-800' : 'hover:bg-orange-100 text-orange-600'}`}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            title="Auto-remove stationary delivery clusters"
-                            onClick={e => { e.stopPropagation(); handleCleanupClusters(item); }}
-                            disabled={isCleaningClusters}
-                            className="p-1 rounded hover:bg-amber-100 text-amber-700 disabled:opacity-50 transition-colors"
-                          >
-                            {isCleaningClusters ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brush className="w-3.5 h-3.5" />}
-                          </button>
-                          <button
-                            title="Save crumb polyline to delivery"
-                            onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(item); }}
-                            disabled={isSavingCrumb}
-                            className="p-1 rounded hover:bg-green-100 text-green-700 disabled:opacity-50 transition-colors"
-                          >
-                            {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                          </button>
-                          <button
-                            title="Import Delivery polyline → Breadcrumb"
-                            onClick={e => { e.stopPropagation(); handleImportDeliveryToCrumb(item); }}
-                            disabled={isImportingCrumb}
-                            className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors"
-                          >
-                            {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                          </button>
+                          {/* Pencil — only when NOT in cleaning mode (hidden once edit is active) */}
+                          {!(isCleaningMode && focusedItem?.id === item.id) && (
+                            <button
+                              title="Edit crumb points manually"
+                              onClick={e => { e.stopPropagation(); handleToggleCleaningMode(item); }}
+                              className="p-1 rounded hover:bg-orange-100 text-orange-600 transition-colors"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {/* Brush — only when IN cleaning mode */}
+                          {isCleaningMode && focusedItem?.id === item.id && (
+                            <button
+                              title={isBrushPickMode ? 'Cancel brush — back to point edit' : 'Brush: click map to remove points within 25 m'}
+                              onClick={e => { e.stopPropagation(); handleToggleBrushMode(); }}
+                              className={`p-1 rounded transition-colors ${isBrushPickMode ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-500' : 'hover:bg-amber-100 text-amber-700'}`}
+                            >
+                              <Brush className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {/* Save — only when NOT in brush pick mode */}
+                          {!(isCleaningMode && focusedItem?.id === item.id) || !isBrushPickMode ? (
+                            <button
+                              title="Save crumb polyline to delivery"
+                              onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(item); }}
+                              disabled={isSavingCrumb}
+                              className="p-1 rounded hover:bg-green-100 text-green-700 disabled:opacity-50 transition-colors"
+                            >
+                              {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            </button>
+                          ) : null}
+                          {/* Import — only when NOT in cleaning mode */}
+                          {!(isCleaningMode && focusedItem?.id === item.id) && (
+                            <button
+                              title="Import Delivery polyline → Breadcrumb"
+                              onClick={e => { e.stopPropagation(); handleImportDeliveryToCrumb(item); }}
+                              disabled={isImportingCrumb}
+                              className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors"
+                            >
+                              {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
                           {item.stop_order === -1 && (
                             snapPreview?.itemId === item.id ? (
                               // Preview mode — show Accept (✓) and Cancel (✗)
@@ -1330,6 +1311,14 @@ export default function PolylineViewer({ users = [] }) {
               )}
             </div>
 
+            {/* Brush pick mode banner */}
+            {isBrushPickMode && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+                <Brush className="w-4 h-4 flex-shrink-0" />
+                <span><strong>Brush active</strong> — click anywhere on the map to remove all breadcrumb points within 25 m of that spot. Click the Brush button again to exit.</span>
+              </div>
+            )}
+
             {/* Main content: list + map */}
             <div className="flex flex-col md:flex-row gap-3 flex-1 min-h-0">
               {/* List — desktop only */}
@@ -1370,7 +1359,8 @@ export default function PolylineViewer({ users = [] }) {
               </div>
 
               {/* Map */}
-              <div className="flex-1 border rounded-lg overflow-hidden min-h-[380px] md:min-h-0">
+              <div className={`flex-1 border rounded-lg overflow-hidden min-h-[380px] md:min-h-0 ${isBrushPickMode ? 'ring-2 ring-amber-400' : ''}`}
+                style={isBrushPickMode ? { cursor: 'crosshair' } : {}}>
                 {mapSegments.length > 0 ? (
                   <MapContainer
                     center={mapSegments[0]?.coords?.[0] || [53.5, -113.5]}
@@ -1490,7 +1480,7 @@ export default function PolylineViewer({ users = [] }) {
                     ))}
 
                     <MapClickHandler
-                      isActive={isCleaningMode}
+                      isActive={isCleaningMode || isBrushPickMode}
                       onAddPoint={handleAddPoint}
                     />
                     <MapUpdater
