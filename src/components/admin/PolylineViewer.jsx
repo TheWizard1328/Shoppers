@@ -876,17 +876,27 @@ export default function PolylineViewer({ users = [] }) {
   const handleResegment = async (item) => {
     setIsResegmenting(true);
     try {
-      const payload = { driver_id: item.driver_id, delivery_date: item.delivery_date };
-      console.log('[Resegment] calling resegmentAllStops with payload:', payload);
-      const res = await base44.functions.invoke('resegmentAllStops', payload);
-      console.log('[Resegment] raw response:', res);
+      const res = await base44.functions.invoke('resegmentAllStops', {
+        driver_id: item.driver_id,
+        delivery_date: item.delivery_date,
+      });
       const data = res?.data ?? res;
-      console.log('[Resegment] parsed data:', data);
       if (data?.success) {
-        toast.success(`Resegmented — ${data.stops_sliced} stop(s) updated from master timeline. Skipped saved: ${data.stops_skipped_saved}. Reason: ${data.reason || 'none'}`);
-        await loadData();
+        toast.success(`Resegmented — ${data.stops_sliced} stop(s) updated. Skipped (saved): ${data.stops_skipped_saved}.`);
+        // Reload breadcrumbs quietly in the background without wiping page state
+        const fresh = await base44.entities.DeliveryBreadcrumbs.filter({
+          driver_id: item.driver_id,
+          delivery_date: item.delivery_date,
+        });
+        if (fresh?.length) {
+          setBreadcrumbs(prev => {
+            const map = new Map(prev.map(b => [b.id, b]));
+            fresh.forEach(b => map.set(b.id, b));
+            return Array.from(map.values());
+          });
+        }
       } else {
-        toast.error(`Resegment failed: ${data?.error || JSON.stringify(data)}`);
+        toast.error(`Resegment failed: ${data?.error || 'Unknown error'}`);
       }
     } catch (e) {
       toast.error(`Resegment failed: ${e.message}`);
