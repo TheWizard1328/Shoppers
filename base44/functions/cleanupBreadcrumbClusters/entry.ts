@@ -1,5 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
+// Breadcrumb polylines use 1e7 precision (client encoder in locationBreadcrumbService.jsx)
+const POLY_PRECISION = 1e7;
+
 // Haversine distance in meters between two [lat, lon] points
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000;
@@ -23,7 +26,7 @@ function decodePolyline(encoded) {
     shift = 0; result = 0;
     do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
     lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
-    poly.push([lat / 1e5, lng / 1e5]);
+    poly.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
   }
   return poly;
 }
@@ -31,7 +34,7 @@ function decodePolyline(encoded) {
 // Encode [[lat, lng], ...] into Google-encoded polyline string
 function encodePolyline(points) {
   const encodeValue = (val) => {
-    let v = Math.round(val * 1e5);
+    let v = Math.round(val * POLY_PRECISION);
     v = v < 0 ? ~(v << 1) : v << 1;
     let result = '';
     while (v >= 0x20) { result += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }

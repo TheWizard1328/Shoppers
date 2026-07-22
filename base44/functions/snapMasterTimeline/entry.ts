@@ -60,8 +60,11 @@ function decodePolyline(encoded: string): [number, number][] {
   return rawLats.map((rawLat, i) => [rawLat / divisor, rawLngs[i] / divisor]);
 }
 
+// Breadcrumb polylines use 1e7 precision (client encoder in locationBreadcrumbService.jsx)
+const BREADCRUMB_PRECISION = 1e7;
+
 function encodePolylineValue(value: number): string {
-  let v = Math.round(value * 1e5);
+  let v = Math.round(value * BREADCRUMB_PRECISION);
   v = v < 0 ? ~(v << 1) : v << 1;
   let result = '';
   while (v >= 0x20) {

@@ -671,8 +671,9 @@ export default function PolylineViewer({ users = [] }) {
               .then(existing => {
                 if (!existing) return;
                 // Delivery entity expects 1e5 precision (HERE API standard).
-                // newPoly is at breadcrumb precision (1e7) — re-encode at 1e5 for IDB delivery record.
-                const deliveryPoly = pendingIsBreadcrumb ? encodePolyline(points) : newPoly;
+                // The server re-encodes at 1e5 and returns it as deliveryEncodedPolyline.
+                // Fallback: re-encode locally if server didn't return it.
+                const deliveryPoly = res?.data?.deliveryEncodedPolyline || (pendingIsBreadcrumb ? encodePolyline(points) : newPoly);
                 const updatedDelivery = { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: deliveryPoly };
                 return offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).then(() => updatedDelivery);
               })
@@ -853,16 +854,19 @@ export default function PolylineViewer({ users = [] }) {
           if (!deliveryId) return;
           try {
             const nowIso = new Date().toISOString();
+            // Use server's re-encoded 1e5 polyline for the Delivery entity.
+            // polyToSave is at breadcrumb precision (1e7) — Delivery entity expects 1e5.
+            const deliveryPoly = res?.data?.deliveryEncodedPolyline || (saveIsBreadcrumb ? encodePolyline(points) : polyToSave);
             await base44.entities.Delivery.update(deliveryId, {
-              encoded_polyline: polyToSave,
+              encoded_polyline: deliveryPoly,
               travel_dist: travelDistKm ?? undefined,
               polyline_saved_at: nowIso,
             }).catch(() => {});
             let existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId).catch(() => null);
             if (!existing) existing = await base44.entities.Delivery.get(deliveryId).catch(() => null);
             const updatedDelivery = existing
-              ? { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: polyToSave, polyline_saved_at: nowIso }
-              : { id: deliveryId, encoded_polyline: polyToSave, travel_dist: travelDistKm, polyline_saved_at: nowIso };
+              ? { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: deliveryPoly, polyline_saved_at: nowIso }
+              : { id: deliveryId, encoded_polyline: deliveryPoly, travel_dist: travelDistKm, polyline_saved_at: nowIso };
             await offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).catch(() => {});
             broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
             window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
