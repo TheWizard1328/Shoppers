@@ -204,7 +204,24 @@ const flushCompletionJob = async (entry) => {
       try {
         const { broadcastMutation } = await import('./realtimeSync');
         for (const rec of affectedFullRecords) {
-          if (rec?.id) broadcastMutation('Delivery', 'update', rec.id, rec).catch(() => null);
+          if (!rec?.id) continue;
+          // Broadcast ONLY changed fields — full records can null out
+          // encoded_polyline and other large fields on receiving devices' IDB
+          const update = {};
+          if (typeof rec.status === 'string') update.status = rec.status;
+          if (rec.actual_delivery_time != null) update.actual_delivery_time = rec.actual_delivery_time;
+          if (rec.arrival_time != null) update.arrival_time = rec.arrival_time;
+          if (rec.isNextDelivery !== undefined) update.isNextDelivery = rec.isNextDelivery;
+          if (rec.stop_order != null) update.stop_order = rec.stop_order;
+          if ('finished_leg_encoded_polyline' in rec) update.finished_leg_encoded_polyline = rec.finished_leg_encoded_polyline;
+          if ('finished_leg_transport_mode' in rec) update.finished_leg_transport_mode = rec.finished_leg_transport_mode;
+          if ('PolylineUpdated' in rec) update.PolylineUpdated = rec.PolylineUpdated;
+          if (rec.cod_payments != null) update.cod_payments = rec.cod_payments;
+          if (rec.signature_image_url != null) update.signature_image_url = rec.signature_image_url;
+          if (rec.delivery_route_breadcrumbs != null) update.delivery_route_breadcrumbs = rec.delivery_route_breadcrumbs;
+          if (typeof rec.travel_dist === 'number') update.travel_dist = rec.travel_dist;
+          if (rec.delivery_time_eta != null) update.delivery_time_eta = rec.delivery_time_eta;
+          if (Object.keys(update).length > 0) broadcastMutation('Delivery', 'update', rec.id, update).catch(() => null);
         }
       } catch (_) {}
     }
