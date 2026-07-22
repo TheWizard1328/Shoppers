@@ -388,7 +388,7 @@ export default function PolylineViewer({ users = [] }) {
       const coords = decodePolyline(item.encoded_polyline);
       return {
         id: item.id,
-        color: isBreadcrumb ? '#f59e0b' : COLORS[idx % COLORS.length],
+        color: isBreadcrumb ? '#16a34a' : COLORS[idx % COLORS.length],
         coords,
         item,
         isBreadcrumb,
@@ -1299,7 +1299,7 @@ export default function PolylineViewer({ users = [] }) {
                           {last && last !== first && (
                             <Marker
                               position={last}
-                              icon={getMarkerIcon(seg.isBreadcrumb ? '#f59e0b' : '#dc2626', endLabel)}
+                              icon={getMarkerIcon(seg.isBreadcrumb ? '#16a34a' : '#dc2626', endLabel)}
                               zIndexOffset={1100}
                               draggable={isActiveCleaning}
                               eventHandlers={isActiveCleaning ? {
@@ -1371,7 +1371,7 @@ export default function PolylineViewer({ users = [] }) {
                   <span>Delivery Polyline (HERE API)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-8 h-0.5 border-t-2 border-dashed border-amber-500" />
+                  <div className="w-8 h-0.5 border-t-2 border-dashed border-green-600" />
                   <span>GPS Breadcrumb (actual path)</span>
                 </div>
               </div>
