@@ -83,31 +83,45 @@ function dedupeSequential(points: number[][]): number[][] {
 }
 
 /**
- * Starting from searchFromIndex, find the index in masterPoints that is
- * spatially closest to (stopLat, stopLon). The search is strictly forward-only.
+ * Starting from searchFromIndex, find the FIRST point in masterPoints that
+ * falls within BUFFER_METERS of (stopLat, stopLon).
  *
- * To avoid snapping to a brief coincidental close-pass before the driver
- * actually arrives at the stop, we scan the entire remaining segment and
- * return the index of the globally-closest point from searchFromIndex onward.
+ * "First" means the lowest index — i.e. the earliest moment the driver
+ * entered the stop's vicinity. This preserves breadcrumbs for clustered
+ * stops at the same location: each consecutive stop gets the NEXT entry
+ * into the 50 m bubble, not the globally-closest point.
+ *
+ * If no point falls within the buffer, fall back to the single closest
+ * point in the remaining array (so we never get stuck).
  */
-function findClosestPointFromIndex(
+const BUFFER_METERS = 50;
+
+function findCutIndexForStop(
   masterPoints: number[][],
   searchFromIndex: number,
   stopLat: number,
   stopLon: number
 ): number {
-  let bestIdx = searchFromIndex;
-  let bestDist = Infinity;
+  let fallbackBestIdx = searchFromIndex;
+  let fallbackBestDist = Infinity;
 
   for (let i = searchFromIndex; i < masterPoints.length; i++) {
     const dist = haversineMeters(stopLat, stopLon, masterPoints[i][0], masterPoints[i][1]);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestIdx = i;
+
+    // Track the global closest as a fallback
+    if (dist < fallbackBestDist) {
+      fallbackBestDist = dist;
+      fallbackBestIdx = i;
+    }
+
+    // Return the FIRST point within the buffer — earliest arrival
+    if (dist <= BUFFER_METERS) {
+      return i;
     }
   }
 
-  return bestIdx;
+  // No point was within 50 m — use the closest point found
+  return fallbackBestIdx;
 }
 
 // ── Unified waypoint type ─────────────────────────────────────────────────────
@@ -308,7 +322,7 @@ Deno.serve(async (req) => {
         // Even though we're skipping, we need to advance prevCutIdx to this
         // stop's closest point so the next stop's search starts correctly.
         if (Number.isFinite(stop.lat) && Number.isFinite(stop.lon)) {
-          const advanceIdx = findClosestPointFromIndex(masterPoints, prevCutIdx, stop.lat, stop.lon);
+          const advanceIdx = findCutIndexForStop(masterPoints, prevCutIdx, stop.lat, stop.lon);
           prevCutIdx = advanceIdx; // advance so next stop doesn't backtrack
         }
         stops_skipped_saved++;
@@ -326,8 +340,8 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Find the closest master point to this stop, searching only forward from prevCutIdx
-      const cutIdx = findClosestPointFromIndex(masterPoints, prevCutIdx, stop.lat, stop.lon);
+      // Find the FIRST master point within 50 m of this stop, searching forward from prevCutIdx
+      const cutIdx = findCutIndexForStop(masterPoints, prevCutIdx, stop.lat, stop.lon);
 
       // Slice from prevCutIdx to cutIdx (inclusive)
       const slicedPoints = masterPoints.slice(prevCutIdx, cutIdx + 1);
