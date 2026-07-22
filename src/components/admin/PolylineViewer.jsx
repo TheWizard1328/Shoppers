@@ -325,14 +325,16 @@ export default function PolylineViewer({ users = [] }) {
     : sortItems([...filteredPolylines, ...filteredBreadcrumbs]);
 
   const availableDrivers = useMemo(() => {
-    const ids = [...new Set(activeItems.map(i => i.driver_id).filter(Boolean))];
+    // Use the full unfiltered dataset so the list never shrinks when a driver is selected
+    const allItems = [...deliveries.filter(d => d?.encoded_polyline), ...breadcrumbs.filter(b => b?.encoded_polyline)];
+    const ids = [...new Set(allItems.map(i => i.driver_id).filter(Boolean))];
     return ids
       .map(id => {
         const u = users.find(u => u?.id === id);
         return { id, name: getDriverName(id), sort_order: u?.sort_order ?? Infinity };
       })
       .sort((a, b) => a.sort_order - b.sort_order);
-  }, [activeItems, users]);
+  }, [deliveries, breadcrumbs, users]);
 
   // Reset lazy load on filter change
   useEffect(() => { setVisibleCount(40); }, [viewMode, filteredPolylines.length, filteredBreadcrumbs.length, dateFrom, dateTo]);
