@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -108,6 +108,48 @@ const MapUpdater = ({ allPoints, fitKey }) => {
   }, [fitKey]); // intentionally only re-fit when selection changes, not on point edits
   return null;
 };
+
+// ── Viewport bounds tracker — fires only on moveend/zoomend, not on every frame ─
+const useMapBounds = () => {
+  const map = useMap();
+  const [bounds, setBounds] = useState(() => map.getBounds());
+  useEffect(() => {
+    const update = () => setBounds(map.getBounds());
+    map.on('moveend', update);
+    map.on('zoomend', update);
+    return () => { map.off('moveend', update); map.off('zoomend', update); };
+  }, [map]);
+  return bounds;
+};
+
+// ── Viewport-culled cleaning dot markers ────────────────────────────────────
+// Renders CleanDotMarker only for points currently visible in the map viewport.
+// A 20% padding buffer prevents markers from popping in/out at the exact edge.
+const CulledCleanDotMarkers = React.memo(({ points, onMove, onRemove }) => {
+  const bounds = useMapBounds();
+  // Expand bounds by ~20% to keep markers visible slightly past the edge
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  const latPad = (ne.lat - sw.lat) * 0.2;
+  const lngPad = (ne.lng - sw.lng) * 0.2;
+  const minLat = sw.lat - latPad, maxLat = ne.lat + latPad;
+  const minLng = sw.lng - lngPad, maxLng = ne.lng + lngPad;
+
+  // Only intermediate points (slice 1,-1); indices are relative to full points array
+  return points.slice(1, -1).map((pt, i) => {
+    const realIdx = i + 1;
+    if (pt[0] < minLat || pt[0] > maxLat || pt[1] < minLng || pt[1] > maxLng) return null;
+    return (
+      <CleanDotMarker
+        key={realIdx}
+        pt={pt}
+        idx={realIdx}
+        onMove={(lat, lng) => onMove(realIdx, lat, lng)}
+        onRemove={() => onRemove(realIdx)}
+      />
+    );
+  });
+});
 
 // ── Point-to-segment geometry helper ────────────────────────────────────────
 // Returns the index AFTER which the new point should be inserted (0-based)
@@ -590,15 +632,15 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
-  const handleRemovePoint = (idx) => {
-    setUndoStack(prev => [...prev.slice(-4), cleanedPoints]); // keep max 5
+  const handleRemovePoint = useCallback((idx) => {
+    setUndoStack(prev => [...prev.slice(-4), cleanedPointsRef.current]);
     setCleanedPoints(prev => prev.filter((_, i) => i !== idx));
-  };
+  }, []);
 
-  const handleMovePoint = (idx, newLat, newLng) => {
-    setUndoStack(prev => [...prev.slice(-4), cleanedPoints]); // keep max 5
+  const handleMovePoint = useCallback((idx, newLat, newLng) => {
+    setUndoStack(prev => [...prev.slice(-4), cleanedPointsRef.current]);
     setCleanedPoints(prev => prev.map((pt, i) => i === idx ? [newLat, newLng] : pt));
-  };
+  }, []);
 
   const handleAddPoint = (lat, lng) => {
     setUndoStack(prev => [...prev.slice(-4), cleanedPoints]);
@@ -1266,16 +1308,14 @@ export default function PolylineViewer({ users = [] }) {
                             dashArray={seg.isBreadcrumb ? '6 4' : undefined}
                           />
 
-                          {/* Memoized dot markers — stable integer keys prevent re-mounting on pan/zoom */}
-                          {isActiveCleaning && cleanedPoints.slice(1, -1).map((pt, i) => (
-                            <CleanDotMarker
-                              key={i + 1}
-                              pt={pt}
-                              idx={i + 1}
-                              onMove={(lat, lng) => handleMovePoint(i + 1, lat, lng)}
-                              onRemove={() => handleRemovePoint(i + 1)}
+                          {/* Viewport-culled dot markers — only renders points visible on screen */}
+                          {isActiveCleaning && (
+                            <CulledCleanDotMarkers
+                              points={cleanedPoints}
+                              onMove={handleMovePoint}
+                              onRemove={handleRemovePoint}
                             />
-                          ))}
+                          )}
 
                           {first && (
                             <Marker
