@@ -398,7 +398,7 @@ export function useLayoutEventHandlers({
         // CRITICAL: Always remove deleted IDs even when preserving local state (cross-device realtime deletes)
         const idsToRemove = new Set([...(deletedIds || []), ...(deletedId ? [deletedId] : [])]);
         if (idsToRemove.size > 0) setDeliveries((prev) => prev.filter((d) => !idsToRemove.has(d?.id)));
-        if (freshDeliveries?.length > 0) setDeliveries((prev) => {const map = new Map(prev.filter((d) => !idsToRemove.has(d?.id)).map((d) => [d?.id, d]).filter(([id]) => !!id));freshDeliveries.forEach((d) => {if (d?.id && !idsToRemove.has(d.id)) map.set(d.id, d);});return Array.from(map.values());});
+        if (freshDeliveries?.length > 0) setDeliveries((prev) => {const map = new Map(prev.filter((d) => !idsToRemove.has(d?.id)).map((d) => [d?.id, d]).filter(([id]) => !!id));freshDeliveries.forEach((d) => {if (d?.id && !idsToRemove.has(d.id)) {const existing = map.get(d.id);map.set(d.id, existing ? { ...existing, ...d } : d);}});return Array.from(map.values());});
         return;
       }
       console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy}) - fullReplacement: ${fullReplacement}`);
