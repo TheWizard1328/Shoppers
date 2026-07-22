@@ -32,7 +32,6 @@ export async function handleCODUpdate(deliveryId, codPayments, {
     alert(`Failed to update COD payments: ${error.message}`);
     throw error;
   } finally {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
     setIsEntityUpdating(false);
   }
 }
