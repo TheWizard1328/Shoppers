@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { base44 } from '@/api/base44Client';
 import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Pencil, Undo2, Download, Magnet, Check, X, Brush } from 'lucide-react';
+import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Pencil, Undo2, Download, Magnet, Check, X, Brush, Scissors } from 'lucide-react';
 import SnapAnalysisDialog from './SnapAnalysisDialog';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
@@ -266,6 +266,7 @@ export default function PolylineViewer({ users = [] }) {
   const [isSavingCrumb, setIsSavingCrumb]         = useState(false);
   const [isImportingCrumb, setIsImportingCrumb]   = useState(false);
   const [isSnappingMaster, setIsSnappingMaster]   = useState(false);
+  const [isResegmenting, setIsResegmenting]       = useState(false);
   // snapAnalysis: analysis result from analyze_only call
   const [snapAnalysis, setSnapAnalysis]           = useState(null); // { item, ...analysisData }
   const [isAnalyzing, setIsAnalyzing]             = useState(false);
@@ -867,6 +868,28 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
+  // ── Resegment all stops from master breadcrumb ───────────────────────────
+  const handleResegment = async (item) => {
+    setIsResegmenting(true);
+    try {
+      const res = await base44.functions.invoke('resegmentAllStops', {
+        driver_id: item.driver_id,
+        delivery_date: item.delivery_date,
+      });
+      const data = res?.data ?? res;
+      if (data?.success) {
+        toast.success(`Resegmented — ${data.stops_sliced} stop(s) updated from master timeline.`);
+        await loadData();
+      } else {
+        toast.error(`Resegment failed: ${data?.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      toast.error(`Resegment failed: ${e.message}`);
+    } finally {
+      setIsResegmenting(false);
+    }
+  };
+
   // ── Auto-snap STEP 1: Analyze gaps (no API calls, no save) ──────────────
   const handleSnapAnalyze = async (item) => {
     setIsAnalyzing(true);
@@ -1110,6 +1133,16 @@ export default function PolylineViewer({ users = [] }) {
                               className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors"
                             >
                               {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                          {item.stop_order === -1 && (
+                            <button
+                              title="Resegment all stops from master breadcrumb timeline"
+                              onClick={e => { e.stopPropagation(); handleResegment(item); }}
+                              disabled={isResegmenting || !!snapPreview || !!snapAnalysis}
+                              className="p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors"
+                            >
+                              {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
                             </button>
                           )}
                           {item.stop_order === -1 && (
