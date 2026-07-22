@@ -192,6 +192,7 @@ Deno.serve(async (req) => {
     const deliveryData = body.data || null;
     const driver_id = body.driver_id || deliveryData?.driver_id;
     const delivery_date = body.delivery_date || deliveryData?.delivery_date;
+    const force = !!(body.force || deliveryData?.force);
 
     if (!driver_id || !delivery_date) {
       return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
@@ -394,8 +395,8 @@ Deno.serve(async (req) => {
       const stop = unifiedStops[i];
       const existingRec = existingByStopOrder.get(stop.stop_order);
 
-      // Skip manually edited stops
-      if (existingRec?.saved_to_route === true) {
+      // Skip manually edited stops (unless force=true)
+      if (!force && existingRec?.saved_to_route === true) {
         stops_skipped_saved++;
         results.push({ stop_order: stop.stop_order, skipped: true, reason: 'saved_to_route', type: stop.type });
         continue;
