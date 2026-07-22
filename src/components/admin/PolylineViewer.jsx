@@ -141,6 +141,42 @@ const MapClickHandler = ({ isActive, onAddPoint }) => {
   return null;
 };
 
+// ── Stable dot icon factory (memoized per index, avoids re-creating on every render) ─
+const makeDotIcon = (idx) => L.divIcon({
+  className: '',
+  html: `<div style="width:16px;height:16px;border-radius:9999px;background:#ef4444;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);cursor:grab;display:flex;align-items:center;justify-content:center;color:white;font-size:8px;font-weight:700">${idx}</div>`,
+  iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -8]
+});
+
+// ── Memoized dot marker to avoid re-mounting on pan/zoom ────────────────────
+const CleanDotMarker = React.memo(({ pt, idx, onMove, onRemove }) => {
+  const icon = React.useMemo(() => makeDotIcon(idx), [idx]);
+  return (
+    <Marker
+      position={pt}
+      icon={icon}
+      zIndexOffset={2000}
+      draggable={true}
+      eventHandlers={{
+        dragstart: (e) => { e.target._dragging = true; },
+        dragend: (e) => {
+          const { lat, lng } = e.target.getLatLng();
+          e.target._dragging = false;
+          onMove(lat, lng);
+        },
+        click: (e) => { if (!e.target._dragging) onRemove(); },
+      }}
+    >
+      <Popup>
+        <strong>Point #{idx}</strong><br />
+        {pt[0].toFixed(6)}, {pt[1].toFixed(6)}<br />
+        <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em><br />
+        <em style={{color:'#2563eb'}}>Click map to add a new point</em>
+      </Popup>
+    </Marker>
+  );
+});
+
 // ── View mode tab labels ────────────────────────────────────────────────────
 const VIEW_MODES = [
   { id: 'breadcrumbs', label: 'GPS Breadcrumbs' },
@@ -1215,22 +1251,13 @@ export default function PolylineViewer({ users = [] }) {
                       const displayCoords = isActiveCleaning ? cleanedPoints : seg.coords;
                       const first = displayCoords[0];
                       const last  = displayCoords[displayCoords.length - 1];
-                      // eslint-disable-next-line no-unused-vars
-                      const MapSegment = ({ children, ...rest }) => children;
                       const destStop   = seg.item.stop_order ?? null;
                       const originStop = seg.isBreadcrumb && destStop != null ? destStop - 1 : destStop;
                       const startLabel = seg.isBreadcrumb ? (originStop != null ? originStop : '▶') : (destStop ?? '▶');
                       const endLabel   = seg.isBreadcrumb ? (destStop != null ? destStop : '■') : (destStop ?? '■');
 
-                      // Draggable/clickable dot icon for cleaning mode
-                      const makeDotIcon = (idx) => L.divIcon({
-                        className: '',
-                        html: `<div style="width:16px;height:16px;border-radius:9999px;background:#ef4444;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);cursor:grab;display:flex;align-items:center;justify-content:center;color:white;font-size:8px;font-weight:700">${idx}</div>`,
-                        iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -8]
-                      });
-
                       return (
-                        <MapSegment key={seg.id}>
+                        <React.Fragment key={seg.id}>
                           <Polyline
                             positions={displayCoords}
                             color={isActiveCleaning ? '#ef4444' : seg.color}
@@ -1239,31 +1266,15 @@ export default function PolylineViewer({ users = [] }) {
                             dashArray={seg.isBreadcrumb ? '6 4' : undefined}
                           />
 
-                          {/* In cleaning mode: render all intermediate points as draggable/clickable red dots */}
+                          {/* Memoized dot markers — stable integer keys prevent re-mounting on pan/zoom */}
                           {isActiveCleaning && cleanedPoints.slice(1, -1).map((pt, i) => (
-                            <Marker
-                              key={`clean-pt-${i}-${pt[0]}-${pt[1]}`}
-                              position={pt}
-                              icon={makeDotIcon(i + 1)}
-                              zIndexOffset={2000}
-                              draggable={true}
-                              eventHandlers={{
-                                dragstart: () => { draggingRef.current = true; },
-                                dragend: (e) => {
-                                  const { lat, lng } = e.target.getLatLng();
-                                  handleMovePoint(i + 1, lat, lng);
-                                  setTimeout(() => { draggingRef.current = false; }, 50);
-                                },
-                                click: () => { if (!draggingRef.current) handleRemovePoint(i + 1); },
-                              }}
-                            >
-                              <Popup>
-                                <strong>Point #{i + 1}</strong><br />
-                                {pt[0].toFixed(6)}, {pt[1].toFixed(6)}<br />
-                                <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em><br />
-                                <em style={{color:'#2563eb'}}>Click map to add a new point</em>
-                              </Popup>
-                            </Marker>
+                            <CleanDotMarker
+                              key={i + 1}
+                              pt={pt}
+                              idx={i + 1}
+                              onMove={(lat, lng) => handleMovePoint(i + 1, lat, lng)}
+                              onRemove={() => handleRemovePoint(i + 1)}
+                            />
                           ))}
 
                           {first && (
@@ -1316,12 +1327,12 @@ export default function PolylineViewer({ users = [] }) {
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb End' : 'Route End'}</strong><br />
                                 {seg.isBreadcrumb && <>Stop: #{destStop}<br /></>}
                                 {last[0].toFixed(6)}, {last[1].toFixed(6)}<br />
-                                {isActiveCleaning && <em style={{color:'#f59e0b'}}>Drag to move destination</em>}
+                                {isActiveCleaning && <em style={{color:'#16a34a'}}>Drag to move destination</em>}
                                 {isActiveCleaning && displayCoords.length > 2 && <><br /><em style={{color:'#ef4444'}}>Click to remove</em></>}
                               </Popup>
                             </Marker>
                           )}
-                        </MapSegment>
+                        </React.Fragment>
                       );
                     })}
 
