@@ -215,13 +215,13 @@ function decodeHereFlexiblePolyline(encoded: string): [number, number][] {
   for (const ch of encoded) {
     const v = HERE_DECODE_MAP[ch];
     if (v == null) return [];
-    cur |= (v & 0x1f) << shift;
-    if (v & 0x20) { shift += 5; continue; }
+    cur += (v % 32) * (2 ** shift);
+    if (v >= 32) { shift += 5; continue; }
     values.push(cur); cur = 0; shift = 0;
   }
   if (values.length < 2 || values[0] !== 1) return [];
-  const precision = values[1] & 15;
-  const thirdDim = (values[1] >> 4) & 7;
+  const precision = values[1] % 16;
+  const thirdDim = Math.floor(values[1] / 16) % 8;
   const factor = 10 ** precision;
   const dim = thirdDim ? 3 : 2;
   const toSigned = (v: number) => (v % 2 !== 0) ? -((v + 1) / 2) : (v / 2);
