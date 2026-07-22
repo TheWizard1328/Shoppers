@@ -550,43 +550,46 @@ export default function StatsPanel({
                       <Button variant="outline" size="icon"
                         disabled={false}
                         title={!showRoutes && !showBreadcrumbs ? 'Click to show polylines' : showRoutes && !showBreadcrumbs ? 'Polylines only' : 'Polylines + Breadcrumbs'}
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          // Guard against double-fire (onTouchEnd + onClick on mobile PWA).
+                          // We handle this with a simple module-level flag rather than a ref
+                          // since this button is not always mounted.
+                          if (window.__breadcrumbToggleBusy) return;
+                          window.__breadcrumbToggleBusy = true;
+                          const release = () => { window.__breadcrumbToggleBusy = false; };
                           if (showBreadcrumbs) {
                             // Currently showing breadcrumbs → back to polylines only
                             setShowBreadcrumbs(false);
                             setBreadcrumbsData({ historical: [], current: [] });
                             setShowRoutes(true);
+                            release();
                           } else {
-                            // Load breadcrumbs
-                            try {
-                              const selDateStr = format(selectedDate, 'yyyy-MM-dd');
-                              const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                              const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selDateStr, appUsers);
-                              if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
-                                toast.info('No breadcrumb trails available', { description: 'GPS trails appear after a stop is finished with tracking on' });
-                                return;
-                              }
-                              setBreadcrumbsData(loadedBreadcrumbs);
-                              setShowBreadcrumbs(true);
-                              // Completed route: show breadcrumbs only (no polyline overlap)
-                              // In-progress route: show both breadcrumbs + incomplete-stop polylines
-                              if (isDateFinished) {
-                                setShowRoutes(false);
-                              } else {
-                                setShowRoutes(true);
-                              }
-                            } catch (err) {
-                              toast.error('Failed to load breadcrumbs');
-                              return;
-                            }
+                            // Load breadcrumbs — keep async work inside .then() so onClick stays sync
+                            const selDateStr = format(selectedDate, 'yyyy-MM-dd');
+                            const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                            loadBreadcrumbsForDriver(driverIdToFetch, selDateStr, appUsers)
+                              .then((loadedBreadcrumbs) => {
+                                if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
+                                  toast.info('No breadcrumb trails available', { description: 'GPS trails appear after a stop is finished with tracking on' });
+                                  return;
+                                }
+                                setBreadcrumbsData(loadedBreadcrumbs);
+                                setShowBreadcrumbs(true);
+                                // Completed route: show breadcrumbs only (no polyline overlap)
+                                // In-progress route: show both breadcrumbs + incomplete-stop polylines
+                                if (isDateFinished) {
+                                  setShowRoutes(false);
+                                } else {
+                                  setShowRoutes(true);
+                                }
+                              })
+                              .catch(() => {
+                                toast.error('Failed to load breadcrumbs');
+                              })
+                              .finally(release);
                           }
-                        }}
-                        onTouchEnd={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          e.currentTarget.click();
                         }}
                         className={`h-9 w-9 p-0 text-white ${
                         showBreadcrumbs ?
