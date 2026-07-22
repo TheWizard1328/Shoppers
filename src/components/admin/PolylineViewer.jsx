@@ -213,14 +213,7 @@ const CleanDotMarker = React.memo(({ pt, idx, onMove, onRemove, onBrushRemove, i
           if (!e.target._dragging) onRemove();
         },
       }}
-    >
-      <Popup>
-        <strong>Point #{idx}</strong><br />
-        {pt[0].toFixed(6)}, {pt[1].toFixed(6)}<br />
-        <em style={{color:'#ef4444'}}>Click to remove · Drag to move</em><br />
-        <em style={{color:'#2563eb'}}>Click map to add a new point</em>
-      </Popup>
-    </Marker>
+    />
   );
 });
 
