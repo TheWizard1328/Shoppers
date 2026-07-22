@@ -660,20 +660,36 @@ export default function PolylineViewer({ users = [] }) {
   }, []);
 
   const handleAddPoint = (lat, lng) => {
-    // ── Brush pick mode: remove all points within 25m of the clicked location ──
+    // ── Brush pick mode: remove consecutive points within 25m of the clicked location ──
     if (isBrushPickMode) {
       const RADIUS_M = 25;
       const pts = cleanedPointsRef.current;
-      const surviving = pts.filter(pt => haversineKm(pt[0], pt[1], lat, lng) * 1000 > RADIUS_M);
-      const removed = pts.length - surviving.length;
-      if (removed === 0) {
+
+      // Find the closest point to the click
+      let closestIdx = -1;
+      let closestDist = Infinity;
+      pts.forEach((pt, i) => {
+        const d = haversineKm(pt[0], pt[1], lat, lng) * 1000;
+        if (d < closestDist) { closestDist = d; closestIdx = i; }
+      });
+
+      if (closestIdx === -1 || closestDist > RADIUS_M) {
         toast.info('No points found within 25 m of that location.');
         return;
       }
+
+      // Expand outward from closestIdx to find the consecutive run within radius
+      let start = closestIdx;
+      let end = closestIdx;
+      while (start > 0 && haversineKm(pts[start - 1][0], pts[start - 1][1], lat, lng) * 1000 <= RADIUS_M) start--;
+      while (end < pts.length - 1 && haversineKm(pts[end + 1][0], pts[end + 1][1], lat, lng) * 1000 <= RADIUS_M) end++;
+
+      const removed = end - start + 1;
+      const surviving = [...pts.slice(0, start), ...pts.slice(end + 1)];
+
       setUndoStack(prev => [...prev.slice(-4), pts]);
       setCleanedPoints(surviving);
-      toast.success(`Removed ${removed} point${removed !== 1 ? 's' : ''} within 25 m.`);
-      // Stay in brush mode so user can keep clicking to clean more areas
+      toast.success(`Removed ${removed} consecutive point${removed !== 1 ? 's' : ''} within 25 m.`);
       return;
     }
     // ── Normal mode: insert a new point along the closest segment ──
