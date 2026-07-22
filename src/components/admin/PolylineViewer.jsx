@@ -560,8 +560,27 @@ export default function PolylineViewer({ users = [] }) {
     pendingCleanRef.current = null;
     const newPoly = encodePolyline(points);
     if (newPoly === pending.item.encoded_polyline) return; // no change
+
+    // ── Route overview (stop_order === -1): only save the breadcrumb record ──
+    if (pending.item.stop_order === -1) {
+      try {
+        await base44.entities.DeliveryBreadcrumbs.update(pending.item.id, {
+          encoded_polyline: newPoly,
+          point_count: points.length,
+          saved_to_route: true,
+        });
+        setBreadcrumbs(prev => prev.map(b =>
+          b.id === pending.item.id ? { ...b, encoded_polyline: newPoly, point_count: points.length, saved_to_route: true } : b
+        ));
+        toast.success('Route overview auto-saved.');
+      } catch (e) {
+        toast.error(`Auto-save failed: ${e.message}`);
+      }
+      return;
+    }
+
+    // ── Regular stop: update breadcrumb + delivery polyline ──
     try {
-      // Update both offline DB and online
       const { offlineDB } = await import('../utils/offlineDatabase').catch(() => ({ offlineDB: null }));
       const [res] = await Promise.all([
         saveCrumbPolylineToDelivery({
@@ -582,11 +601,9 @@ export default function PolylineViewer({ users = [] }) {
         const travelDistKm = res.data.travelDistKm;
         const deliveryId = res.data.deliveryId;
         toast.success(`Stop #${pending.item.stop_order} auto-saved.`);
-        // Update local breadcrumbs state so the list reflects new point count
         setBreadcrumbs(prev => prev.map(b =>
           b.id === pending.item.id ? { ...b, encoded_polyline: newPoly, point_count: points.length } : b
         ));
-        // Broadcast to Routes tab and Dashboard
         window.dispatchEvent(new CustomEvent('breadcrumbSavedToDelivery', {
           detail: { breadcrumbId: pending.item.id, deliveryId, stopOrder: pending.item.stop_order, driverId: pending.item.driver_id, deliveryDate: pending.item.delivery_date, travelDistKm }
         }));
@@ -599,9 +616,7 @@ export default function PolylineViewer({ users = [] }) {
                 return offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).then(() => updatedDelivery);
               })
               .then(updatedDelivery => {
-                if (updatedDelivery) {
-                  broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
-                }
+                if (updatedDelivery) broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
                 window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
               })
               .catch(() => {});
@@ -671,6 +686,40 @@ export default function PolylineViewer({ users = [] }) {
     setIsSavingCrumb(true);
     const points = isCleaningMode && focusedItem?.id === item.id ? cleanedPoints : decodePolyline(item.encoded_polyline);
     const polyToSave = isCleaningMode && focusedItem?.id === item.id ? encodePolyline(cleanedPoints) : item.encoded_polyline;
+
+    // ── Route overview breadcrumb (stop_order === -1): save only the breadcrumb record ──
+    if (item.stop_order === -1) {
+      try {
+        await base44.entities.DeliveryBreadcrumbs.update(item.id, {
+          encoded_polyline: polyToSave,
+          point_count: points.length,
+          saved_to_route: true,
+        });
+        // Update offline DB
+        const { offlineDB } = await import('../utils/offlineDatabase').catch(() => ({ offlineDB: null }));
+        if (offlineDB) {
+          const existing = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, item.id).catch(() => null);
+          if (existing) {
+            await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true }).catch(() => {});
+          }
+        }
+        const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true };
+        setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
+        setFocusedItem(updatedItem);
+        pendingCleanRef.current = null;
+        setIsCleaningMode(false);
+        setCleanedPoints([]);
+        setUndoStack([]);
+        toast.success(`Route overview breadcrumb saved (${points.length} pts).`);
+      } catch (e) {
+        toast.error(`Save failed: ${e.message}`);
+      } finally {
+        setIsSavingCrumb(false);
+      }
+      return;
+    }
+
+    // ── Regular stop breadcrumb: save breadcrumb + update matching Delivery polyline ──
     try {
       const { offlineDB } = await import('../utils/offlineDatabase').catch(() => ({ offlineDB: null }));
       const [res] = await Promise.all([
@@ -694,45 +743,32 @@ export default function PolylineViewer({ users = [] }) {
         toast.success(`Stop #${item.stop_order} saved — ${travelDistKm != null ? travelDistKm.toFixed(2) + ' km' : ''}`);
         pendingCleanRef.current = null;
         const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true, imported_from_delivery: false };
-        setBreadcrumbs(prev => prev.map(b =>
-          b.id === item.id ? updatedItem : b
-        ));
-        // Update focusedItem so the map immediately re-renders with the saved polyline
+        setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
         setFocusedItem(updatedItem);
         setIsCleaningMode(false);
         setCleanedPoints([]);
         setUndoStack([]);
 
-        // Broadcast breadcrumb update so the Routes tab list refreshes
         window.dispatchEvent(new CustomEvent('breadcrumbSavedToDelivery', {
           detail: { breadcrumbId: item.id, deliveryId, stopOrder: item.stop_order, driverId: item.driver_id, deliveryDate: item.delivery_date, travelDistKm }
         }));
 
-        // Update offline DB delivery record and broadcast to Dashboard + all remote devices
         import('../utils/offlineDatabase').then(async ({ offlineDB }) => {
           if (!deliveryId) return;
           try {
-            // Touch the Delivery record on the server — this triggers the WebSocket entity
-            // subscription on ALL connected devices so they re-render the updated polyline
-            // without needing a manual refresh.
             const nowIso = new Date().toISOString();
             await base44.entities.Delivery.update(deliveryId, {
               encoded_polyline: polyToSave,
               travel_dist: travelDistKm ?? undefined,
               polyline_saved_at: nowIso,
             }).catch(() => {});
-
             let existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId).catch(() => null);
-            if (!existing) {
-              existing = await base44.entities.Delivery.get(deliveryId).catch(() => null);
-            }
+            if (!existing) existing = await base44.entities.Delivery.get(deliveryId).catch(() => null);
             const updatedDelivery = existing
               ? { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: polyToSave, polyline_saved_at: nowIso }
               : { id: deliveryId, encoded_polyline: polyToSave, travel_dist: travelDistKm, polyline_saved_at: nowIso };
             await offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).catch(() => {});
-            // Broadcast through realtimeSync so all active map views on this device re-render
             broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
-            // Force a pullToSyncDataReady so Dashboard re-fetches breadcrumbs immediately
             window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
               detail: { source: 'breadcrumbSave', deliveryId, driverId: item.driver_id, deliveryDate: item.delivery_date }
             }));
