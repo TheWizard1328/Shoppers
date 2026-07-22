@@ -45,8 +45,6 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
   smartRefreshManager.pause();
   backgroundSyncManager.pause();
 
-  await new Promise((resolve) => setTimeout(resolve, 100));
-
   // CRITICAL: Read live refs for phase/lock state — closure values (mapViewPhase,
   // isMapViewLocked) may be stale if the user cycled the FAB after this handler was queued.
   const wasPhase2Locked = mapViewPhaseRef.current === 2 && isMapViewLockedRef.current;
@@ -380,13 +378,16 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     // map to phase 2 on the very next GPS tick.
     const livePhaseNow = mapViewPhaseRef.current;
     if (livePhaseNow > 1) {
-      syncFabRefsForPhase(livePhaseNow, { isMapViewLockedRef, mapViewPhaseRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, setIsMapViewLocked, setMapViewPhase });
-      // Visually reactivate the FAB AND reposition the map to the new next stop
-      fabControlEvents.reactivateFAB(true, { forceWhileUserInteracting: true });
-      // Re-trigger map positioning so it pans to the new next stop in phase 2/3
-      lastProgrammaticMapMoveRef.current = Date.now();
-      window._lastProgrammaticMapMove = Date.now();
-      setMapViewTrigger((prev) => prev + 1);
+      // Defer all map/FAB re-positioning to the next frame so the optimistic UI
+      // state update (updateDeliveriesLocally) can paint first — this prevents the
+      // card list and map from thrashing in the same synchronous flush.
+      requestAnimationFrame(() => {
+        syncFabRefsForPhase(livePhaseNow, { isMapViewLockedRef, mapViewPhaseRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, setIsMapViewLocked, setMapViewPhase });
+        fabControlEvents.reactivateFAB(true, { forceWhileUserInteracting: true });
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+      });
     }
 
     window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'statusUpdate' } }));
