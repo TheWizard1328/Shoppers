@@ -1,5 +1,42 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
+// Breadcrumb polylines use 1e7 precision (client encoder in locationBreadcrumbService.jsx)
+// Delivery route polylines use 1e5 precision (HERE API standard Google format)
+const BREADCRUMB_PRECISION = 1e7;
+const DELIVERY_PRECISION = 1e5;
+
+function decodePolylineAt(encoded, precision) {
+  const poly = [];
+  let index = 0, len = encoded.length, lat = 0, lng = 0;
+  while (index < len) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
+    poly.push([lat / precision, lng / precision]);
+  }
+  return poly;
+}
+
+function encodePolylineAt(points, precision) {
+  const encodeValue = (val) => {
+    let v = Math.round(val * precision);
+    v = v < 0 ? ~(v << 1) : v << 1;
+    let result = '';
+    while (v >= 0x20) { result += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+    result += String.fromCharCode(v + 63);
+    return result;
+  };
+  let prevLat = 0, prevLng = 0, encoded = '';
+  for (const [lat, lng] of points) {
+    encoded += encodeValue(lat - prevLat) + encodeValue(lng - prevLng);
+    prevLat = lat; prevLng = lng;
+  }
+  return encoded;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -25,21 +62,7 @@ Deno.serve(async (req) => {
 
     const delivery = deliveries[0];
 
-    // 2. Decode polyline and calculate Haversine distance in km
-    const decodePolyline = (encoded) => {
-      const poly = [];
-      let index = 0, len = encoded.length, lat = 0, lng = 0;
-      while (index < len) {
-        let b, shift = 0, result = 0;
-        do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-        lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
-        shift = 0; result = 0;
-        do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-        lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
-        poly.push([lat / 1e5, lng / 1e5]);
-      }
-      return poly;
-    };
+    // 2. Decode polyline at breadcrumb precision (1e7) and calculate Haversine distance
     const haversineKm = (lat1, lon1, lat2, lon2) => {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -47,23 +70,25 @@ Deno.serve(async (req) => {
       const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     };
-    const points = decodePolyline(cleanedEncodedPolyline);
+    const points = decodePolylineAt(cleanedEncodedPolyline, BREADCRUMB_PRECISION);
     let travelDistKm = 0;
     for (let i = 1; i < points.length; i++) {
       travelDistKm += haversineKm(points[i-1][0], points[i-1][1], points[i][0], points[i][1]);
     }
     const travelDist = Math.round(travelDistKm * 100) / 100;
 
-    // 3. Update Delivery with new polyline + travel distance + timestamp in ONE write.
-    //    All three fields must be in the same update so the WebSocket diff includes
-    //    encoded_polyline — a second update would see it as unchanged and omit it.
+    // 3. Re-encode at delivery precision (1e5) for the Delivery entity.
+    //    Delivery polylines are consumed by route rendering code that expects 1e5 (HERE API standard).
+    const deliveryEncodedPolyline = encodePolylineAt(points, DELIVERY_PRECISION);
+
+    // Update Delivery with re-encoded polyline + travel distance + timestamp in ONE write.
     await base44.asServiceRole.entities.Delivery.update(delivery.id, {
-      encoded_polyline: cleanedEncodedPolyline,
+      encoded_polyline: deliveryEncodedPolyline,
       travel_dist: travelDist,
       polyline_saved_at: new Date().toISOString(),
     });
 
-    // 4. Update DeliveryBreadcrumbs record — save cleaned polyline and tag as saved_to_route
+    // 4. Update DeliveryBreadcrumbs record — save cleaned polyline at breadcrumb precision (1e7)
     const crumbs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,
@@ -84,6 +109,7 @@ Deno.serve(async (req) => {
       deliveryId: delivery.id,
       breadcrumbId,
       travelDistKm: travelDist,
+      deliveryEncodedPolyline,
       message: `Delivery stop #${stopOrder} polyline updated, travel_dist ${travelDist} km saved.`,
     });
   } catch (error) {

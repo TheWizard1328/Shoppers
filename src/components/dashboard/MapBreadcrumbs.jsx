@@ -4,6 +4,9 @@ import { Polyline } from 'react-leaflet';
 const HISTORICAL_COLOR = '#f97316';
 const LIVE_COLOR = '#2563eb';
 
+// 1e7 precision — MUST match the client encoder in locationBreadcrumbService.jsx
+const POLY_PRECISION = 1e7;
+
 const decodePolyline = (encoded) => {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
@@ -15,7 +18,7 @@ const decodePolyline = (encoded) => {
     shift = 0; result = 0;
     do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
     lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    coords.push([lat / 1e5, lng / 1e5]);
+    coords.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
   }
   return coords;
 };

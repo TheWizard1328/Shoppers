@@ -84,59 +84,6 @@ const decodePolyline = (encoded) => {
   return poly;
 };
 
-// ── Breadcrumb polyline codec (1e7 precision) ─────────────────────────────
-// Breadcrumb polylines are encoded at 1e7 by locationBreadcrumbService.jsx.
-// Delivery route polylines use 1e5 (HERE API standard Google format).
-const BREADCRUMB_PRECISION = 1e7;
-
-const decodeBreadcrumbPolyline = (encoded) => {
-  if (!encoded) return [];
-  const poly = [];
-  let index = 0, len = encoded.length, lat = 0, lng = 0;
-  while (index < len) {
-    let b, shift = 0, result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
-    shift = 0; result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
-    poly.push([lat / BREADCRUMB_PRECISION, lng / BREADCRUMB_PRECISION]);
-  }
-  return poly;
-};
-
-const encodeBreadcrumbPolyline = (points) => {
-  const encodeValue = (val) => {
-    let v = Math.round(val * BREADCRUMB_PRECISION);
-    v = v < 0 ? ~(v << 1) : v << 1;
-    let result = '';
-    while (v >= 0x20) { result += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
-    result += String.fromCharCode(v + 63);
-    return result;
-  };
-  let prevLat = 0, prevLng = 0, encoded = '';
-  for (const [lat, lng] of points) {
-    encoded += encodeValue(lat - prevLat) + encodeValue(lng - prevLng);
-    prevLat = lat; prevLng = lng;
-  }
-  return encoded;
-};
-
-// Helper: decode polyline using the right precision based on item type
-const decodePolylineForItem = (item, isBreadcrumb) => {
-  if (!item?.encoded_polyline) return [];
-  return isBreadcrumb
-    ? decodeBreadcrumbPolyline(item.encoded_polyline)
-    : decodePolyline(item.encoded_polyline);
-};
-
-// Helper: encode polyline using the right precision based on item type
-const encodePolylineForItem = (points, isBreadcrumb) => {
-  return isBreadcrumb
-    ? encodeBreadcrumbPolyline(points)
-    : encodePolyline(points);
-};
-
 // ── HERE tile layer helpers ─────────────────────────────────────────────────
 // Tile caching handled by <CachedTileLayer> from hereTileCache.js
 const buildHereLightTileUrl = (k) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${k}`;
@@ -520,7 +467,7 @@ export default function PolylineViewer({ users = [] }) {
     return chosen.map((item, idx) => {
       const isBreadcrumb = breadcrumbs.some(b => b.id === item.id);
       const isDeliveryPoly = deliveries.some(d => d.id === item.id);
-      const coords = decodePolylineForItem(item, isBreadcrumb);
+      const coords = decodePolyline(item.encoded_polyline);
       return {
         id: item.id,
         color: isBreadcrumb ? '#16a34a' : COLORS[idx % COLORS.length],
@@ -615,8 +562,7 @@ export default function PolylineViewer({ users = [] }) {
     if (!pending) return;
     const points = cleanedPointsRef.current;
     pendingCleanRef.current = null;
-    const pendingIsBreadcrumb = breadcrumbs.some(b => b.id === pending.item.id);
-    const newPoly = encodePolylineForItem(points, pendingIsBreadcrumb);
+    const newPoly = encodePolyline(points);
     if (newPoly === pending.item.encoded_polyline) return; // no change
 
     // ── Route overview (stop_order === -1): only save the breadcrumb record ──
@@ -670,10 +616,7 @@ export default function PolylineViewer({ users = [] }) {
             offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId)
               .then(existing => {
                 if (!existing) return;
-                // Delivery entity expects 1e5 precision (HERE API standard).
-                // newPoly is at breadcrumb precision (1e7) — re-encode at 1e5 for IDB delivery record.
-                const deliveryPoly = pendingIsBreadcrumb ? encodePolyline(points) : newPoly;
-                const updatedDelivery = { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: deliveryPoly };
+                const updatedDelivery = { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: newPoly };
                 return offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).then(() => updatedDelivery);
               })
               .then(updatedDelivery => {
@@ -699,8 +642,7 @@ export default function PolylineViewer({ users = [] }) {
       setCleanedPoints([]);
       setUndoStack([]);
     } else {
-      const isBreadcrumb = breadcrumbs.some(b => b.id === item.id);
-      const pts = decodePolylineForItem(item, isBreadcrumb);
+      const pts = decodePolyline(item.encoded_polyline);
       setCleanedPoints(pts);
       cleanedPointsRef.current = pts;
       setUndoStack([]);
@@ -777,9 +719,8 @@ export default function PolylineViewer({ users = [] }) {
 
   const handleSaveCrumbToDelivery = async (item) => {
     setIsSavingCrumb(true);
-    const saveIsBreadcrumb = breadcrumbs.some(b => b.id === item.id);
-    const points = isCleaningMode && focusedItem?.id === item.id ? cleanedPoints : decodePolylineForItem(item, saveIsBreadcrumb);
-    const polyToSave = isCleaningMode && focusedItem?.id === item.id ? encodePolylineForItem(cleanedPoints, saveIsBreadcrumb) : item.encoded_polyline;
+    const points = isCleaningMode && focusedItem?.id === item.id ? cleanedPoints : decodePolyline(item.encoded_polyline);
+    const polyToSave = isCleaningMode && focusedItem?.id === item.id ? encodePolyline(cleanedPoints) : item.encoded_polyline;
 
     // ── Route overview breadcrumb (stop_order === -1): save only the breadcrumb record ──
     if (item.stop_order === -1) {

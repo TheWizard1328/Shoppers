@@ -7,6 +7,10 @@ const _apiFetchedKeys = new Set();
 // Sentinel stop_order for the master 'TODAY' timeline record
 const MASTER_STOP_ORDER = -1;
 
+// Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
+// MUST match the client encoder in locationBreadcrumbService.jsx and all backend functions.
+const POLY_PRECISION = 1e7;
+
 function getEdmontonDateString(value = Date.now()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Edmonton',
@@ -39,7 +43,7 @@ function decodePolyline(encoded) {
       shift += 5;
     } while (byte >= 0x20);
     lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    coordinates.push([lat / 1e5, lng / 1e5]);
+    coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
   }
   return coordinates;
 }
