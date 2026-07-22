@@ -132,11 +132,35 @@ const flushCompletionJob = async (entry) => {
 
   const tasks = [];
 
-  // 3a. Persist full records for all affected stops to online DB
+  // 3a. Persist ONLY changed fields to server — NOT full records.
+  // Writing full in-memory records can null out server-side encoded_polyline
+  // and other large fields that may be absent from the in-memory representation.
+  // Extract a minimal update payload per record: only the fields that are
+  // meaningful for a completion event.
   if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
     tasks.push(
       Promise.allSettled(
-        affectedFullRecords.map((rec) => rec?.id ? base44.entities.Delivery.update(rec.id, rec).catch(() => null) : Promise.resolve(null))
+        affectedFullRecords.map((rec) => {
+          if (!rec?.id) return Promise.resolve(null);
+          // Build minimal update — only fields relevant to a status change
+          const update = {};
+          if (typeof rec.status === 'string') update.status = rec.status;
+          if (rec.actual_delivery_time != null) update.actual_delivery_time = rec.actual_delivery_time;
+          if (rec.arrival_time != null) update.arrival_time = rec.arrival_time;
+          if (rec.isNextDelivery !== undefined) update.isNextDelivery = rec.isNextDelivery;
+          if (rec.stop_order != null) update.stop_order = rec.stop_order;
+          if ('finished_leg_encoded_polyline' in rec) update.finished_leg_encoded_polyline = rec.finished_leg_encoded_polyline;
+          if ('finished_leg_transport_mode' in rec) update.finished_leg_transport_mode = rec.finished_leg_transport_mode;
+          if ('PolylineUpdated' in rec) update.PolylineUpdated = rec.PolylineUpdated;
+          if (rec.cod_payments != null) update.cod_payments = rec.cod_payments;
+          if (rec.signature_image_url != null) update.signature_image_url = rec.signature_image_url;
+          if (rec.delivery_route_breadcrumbs != null) update.delivery_route_breadcrumbs = rec.delivery_route_breadcrumbs;
+          if (typeof rec.travel_dist === 'number') update.travel_dist = rec.travel_dist;
+          if (rec.delivery_time_eta != null) update.delivery_time_eta = rec.delivery_time_eta;
+          // If no meaningful fields to update, skip the server write entirely
+          if (Object.keys(update).length === 0) return Promise.resolve(null);
+          return base44.entities.Delivery.update(rec.id, update).catch(() => null);
+        })
       )
     );
   }
