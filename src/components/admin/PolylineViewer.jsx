@@ -217,6 +217,10 @@ const CleanDotMarker = React.memo(({ pt, idx, onMove, onRemove, onBrushRemove, i
   );
 });
 
+// ── MapSegment: thin wrapper that absorbs injected props (e.g. data-source-location)
+// so they never land on React.Fragment, which only accepts key + children.
+const MapSegment = ({ children }) => <>{children}</>;
+
 // ── View mode tab labels ────────────────────────────────────────────────────
 const VIEW_MODES = [
   { id: 'breadcrumbs', label: 'GPS Breadcrumbs' },
@@ -1135,31 +1139,31 @@ export default function PolylineViewer({ users = [] }) {
                               {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                             </button>
                           )}
-                          {item.stop_order === -1 && (
-                            snapPreview?.itemId === item.id ? (
-                              // Preview mode — show Accept (✓) and Cancel (✗)
-                              <>
-                                <span className="text-xs text-cyan-700 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
-                                <button
-                                  title="Accept snapped route & save"
-                                  onClick={e => { e.stopPropagation(); handleSnapAccept(); }}
-                                  disabled={snapPreview.isSaving}
-                                  className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50 transition-colors ml-auto"
-                                >
-                                  {snapPreview.isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                                </button>
-                                <button
-                                  title="Cancel — discard preview"
-                                  onClick={e => { e.stopPropagation(); handleSnapCancel(); }}
-                                  disabled={snapPreview.isSaving}
-                                  className="p-1 rounded bg-red-100 hover:bg-red-200 text-red-700 disabled:opacity-50 transition-colors"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            ) : (
-                              // Normal — show magnet + scissors buttons
-                              <>
+                          {snapPreview?.itemId === item.id ? (
+                            // Preview mode — show Accept (✓) and Cancel (✗)
+                            <>
+                              <span className="text-xs text-cyan-700 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
+                              <button
+                                title="Accept snapped route & save"
+                                onClick={e => { e.stopPropagation(); handleSnapAccept(); }}
+                                disabled={snapPreview.isSaving}
+                                className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50 transition-colors ml-auto"
+                              >
+                                {snapPreview.isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                              </button>
+                              <button
+                                title="Cancel — discard preview"
+                                onClick={e => { e.stopPropagation(); handleSnapCancel(); }}
+                                disabled={snapPreview.isSaving}
+                                className="p-1 rounded bg-red-100 hover:bg-red-200 text-red-700 disabled:opacity-50 transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          ) : (
+                            // Normal — magnet (master only) + scissors (all breadcrumbs)
+                            <>
+                              {item.stop_order === -1 && (
                                 <button
                                   title="Analyze gaps & snap master timeline to roads (HERE API)"
                                   onClick={e => { e.stopPropagation(); handleSnapAnalyze(item); }}
@@ -1168,16 +1172,16 @@ export default function PolylineViewer({ users = [] }) {
                                 >
                                   {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
                                 </button>
-                                <button
-                                  title="Resegment all stops from master breadcrumb timeline"
-                                  onClick={e => { e.stopPropagation(); handleResegment(item); }}
-                                  disabled={isResegmenting || !!snapPreview || !!snapAnalysis}
-                                  className="p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors"
-                                >
-                                  {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
-                                </button>
-                              </>
-                            )
+                              )}
+                              <button
+                                title="Resegment all stops from master breadcrumb timeline"
+                                onClick={e => { e.stopPropagation(); handleResegment(item); }}
+                                disabled={isResegmenting || !!snapPreview || !!snapAnalysis}
+                                className={`p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors ${item.stop_order !== -1 ? 'ml-auto' : ''}`}
+                              >
+                                {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
+                              </button>
+                            </>
                           )}
                         </div>
                       )}
@@ -1438,7 +1442,7 @@ export default function PolylineViewer({ users = [] }) {
                       const endLabel   = seg.isBreadcrumb ? (destStop != null ? destStop : '■') : (destStop ?? '■');
 
                       return (
-                        <React.Fragment key={seg.id}>
+                        <MapSegment key={seg.id}>
                           <Polyline
                             positions={displayCoords}
                             color={isActiveCleaning ? '#ef4444' : seg.color}
@@ -1447,7 +1451,6 @@ export default function PolylineViewer({ users = [] }) {
                             dashArray={seg.isBreadcrumb ? '6 4' : undefined}
                           />
 
-                          {/* Viewport-culled dot markers — only renders points visible on screen */}
                           {isActiveCleaning && (
                             <CulledCleanDotMarkers
                               points={cleanedPoints}
@@ -1478,13 +1481,13 @@ export default function PolylineViewer({ users = [] }) {
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb Start' : 'Route Start'}</strong><br />
                                 Driver: {getDriverName(seg.item.driver_id)}<br />
                                 {seg.isBreadcrumb
-                                  ? <>Origin Stop: #{originStop}<br />Dest Stop: #{destStop}<br /></>
-                                  : <>Stop: #{destStop}<br /></>
+                                  ? <span>Origin Stop: #{originStop}<br />Dest Stop: #{destStop}<br /></span>
+                                  : <span>Stop: #{destStop}<br /></span>
                                 }
-                                {seg.isBreadcrumb && <>Points: {isActiveCleaning ? cleanedPoints.length : seg.item.point_count}<br /></>}
+                                {seg.isBreadcrumb && <span>Points: {isActiveCleaning ? cleanedPoints.length : seg.item.point_count}<br /></span>}
                                 {first[0].toFixed(6)}, {first[1].toFixed(6)}<br />
                                 {isActiveCleaning && <em style={{color:'#16a34a'}}>Drag to move origin</em>}
-                                {isActiveCleaning && displayCoords.length > 2 && <><br /><em style={{color:'#ef4444'}}>Click to remove</em></>}
+                                {isActiveCleaning && displayCoords.length > 2 && <span><br /><em style={{color:'#ef4444'}}>Click to remove</em></span>}
                               </Popup>
                             </Marker>
                           )}
@@ -1506,14 +1509,14 @@ export default function PolylineViewer({ users = [] }) {
                             >
                               <Popup>
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb End' : 'Route End'}</strong><br />
-                                {seg.isBreadcrumb && <>Stop: #{destStop}<br /></>}
+                                {seg.isBreadcrumb && <span>Stop: #{destStop}<br /></span>}
                                 {last[0].toFixed(6)}, {last[1].toFixed(6)}<br />
                                 {isActiveCleaning && <em style={{color:'#16a34a'}}>Drag to move destination</em>}
-                                {isActiveCleaning && displayCoords.length > 2 && <><br /><em style={{color:'#ef4444'}}>Click to remove</em></>}
+                                {isActiveCleaning && displayCoords.length > 2 && <span><br /><em style={{color:'#ef4444'}}>Click to remove</em></span>}
                               </Popup>
                             </Marker>
                           )}
-                        </React.Fragment>
+                        </MapSegment>
                       );
                     })}
 
