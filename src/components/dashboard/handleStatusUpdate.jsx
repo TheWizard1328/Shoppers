@@ -243,7 +243,30 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       updateDeliveriesLocally(uiPatches, false);
     }
 
-    await Promise.all(allAffectedRecords.map((rec) => base44.entities.Delivery.update(rec.id, rec)));
+    // CRITICAL: Only write changed fields to server — NOT full records.
+    // Writing full in-memory records can null out server-side encoded_polyline
+    // and other large fields that may be absent from the in-memory representation.
+    await Promise.all(allAffectedRecords.map((rec) => {
+      if (!rec?.id) return Promise.resolve(null);
+      const update = {};
+      if (typeof rec.status === 'string') update.status = rec.status;
+      if (rec.actual_delivery_time !== undefined) update.actual_delivery_time = rec.actual_delivery_time;
+      if (rec.arrival_time !== undefined) update.arrival_time = rec.arrival_time;
+      if (rec.isNextDelivery !== undefined) update.isNextDelivery = rec.isNextDelivery;
+      if (rec.stop_order != null) update.stop_order = rec.stop_order;
+      if ('finished_leg_encoded_polyline' in rec) update.finished_leg_encoded_polyline = rec.finished_leg_encoded_polyline;
+      if ('finished_leg_transport_mode' in rec) update.finished_leg_transport_mode = rec.finished_leg_transport_mode;
+      if ('PolylineUpdated' in rec) update.PolylineUpdated = rec.PolylineUpdated;
+      if (rec.cod_payments != null) update.cod_payments = rec.cod_payments;
+      if (rec.signature_image_url != null) update.signature_image_url = rec.signature_image_url;
+      if (rec.delivery_route_breadcrumbs != null) update.delivery_route_breadcrumbs = rec.delivery_route_breadcrumbs;
+      if (typeof rec.travel_dist === 'number') update.travel_dist = rec.travel_dist;
+      if (rec.delivery_time_start != null) update.delivery_time_start = rec.delivery_time_start;
+      if (rec.delivery_time_eta != null) update.delivery_time_eta = rec.delivery_time_eta;
+      if (rec.delivery_time_end != null) update.delivery_time_end = rec.delivery_time_end;
+      if (Object.keys(update).length === 0) return Promise.resolve(null);
+      return base44.entities.Delivery.update(rec.id, update).catch(() => null);
+    }));
     window.dispatchEvent(new CustomEvent('deliveryUpdated', { detail: { deliveryId, affectedIds: allAffectedRecords.map((r) => r.id), updates: updateData, driverId, deliveryDate, source: 'statusUpdate' } }));
     if (pendingBreadcrumbDriverAppUserId) {
       await offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, pendingBreadcrumbDriverAppUserId);
