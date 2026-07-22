@@ -22,18 +22,20 @@ export function getRouteScopedStoreOptions(selectedDateDeliveries = [], stores =
 export function getDriverFilterOptions({ effectiveDrivers = [], effectiveDeliveries = [], selectedDate, currentUser, driverFilter }) {
   return sortUsers(
     (effectiveDrivers || []).filter((d) => userHasRole(d, 'driver') && (() => {
+      // Always include the currently selected driver so it doesn't vanish from the dropdown
+      if (driverFilter !== 'all' && d.id === driverFilter) return true;
       const selectedDateString = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
       if (!selectedDateString) return true;
       const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
       const dispatcherStoreIds = isDispatcher ? new Set(currentUser.store_ids || []) : null;
-      const hasRouteForDate = (effectiveDeliveries || []).some((delivery) =>
+      // When viewing all drivers, include any driver who has deliveries in the full loaded dataset
+      // (not just selected date) so switching drivers doesn't clear the list
+      return (effectiveDeliveries || []).some((delivery) =>
         delivery &&
-        delivery.delivery_date === selectedDateString &&
         (!dispatcherStoreIds || !delivery.store_id || dispatcherStoreIds.has(delivery.store_id)) &&
         ((delivery.driver_id && (delivery.driver_id === d.id || delivery.driver_id === d.appUserId)) ||
           (delivery.driver_name && (delivery.driver_name === d.full_name || delivery.driver_name === d.user_name)))
       );
-      return hasRouteForDate || (driverFilter !== 'all' && d.id === driverFilter);
     })())
   ).map((driver) => {
     const duplicateNames = (effectiveDrivers || []).filter((d) => getDriverDisplayName(d) === getDriverDisplayName(driver));

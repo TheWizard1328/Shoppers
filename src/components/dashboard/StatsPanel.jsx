@@ -621,6 +621,7 @@ export default function StatsPanel({
                 <Button variant="default" size="sm" onClick={() => {
                       const nextShowRoutes = !showRoutes;
                       setShowRoutes(nextShowRoutes);
+                      localStorage.setItem('rxdeliver_show_routes', String(nextShowRoutes));
                       if (nextShowRoutes) {
                         setShowBreadcrumbs(false);
                         setBreadcrumbsData({ historical: [], current: [] });
