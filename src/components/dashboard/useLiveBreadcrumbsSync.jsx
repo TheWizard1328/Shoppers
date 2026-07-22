@@ -61,12 +61,19 @@ export default function useLiveBreadcrumbsSync({
       });
     };
 
-    const unsubscribeLive = activeDriverId
-      ? base44.entities.PendingBreadcrumbLive.subscribe((event) => {
+    // PendingBreadcrumbLive entity was removed/renamed — guard against undefined.
+    // The editor SDK may still have it from cache, but production builds don't.
+    let unsubscribeLive = null;
+    try {
+      if (activeDriverId && base44?.entities?.PendingBreadcrumbLive?.subscribe) {
+        unsubscribeLive = base44.entities.PendingBreadcrumbLive.subscribe((event) => {
           if (event?.data?.driver_id !== activeDriverId) return;
           refresh({ detail: { driverId: activeDriverId, deliveryDate: activeDate } });
-        })
-      : null;
+        });
+      }
+    } catch (e) {
+      console.warn('⚠️ PendingBreadcrumbLive subscribe failed (entity may not exist):', e?.message);
+    }
 
     // Reload breadcrumbs when the driver returns from a long app-switch.
     const handleResumeAfterAbsence = (event) => {
@@ -81,7 +88,7 @@ export default function useLiveBreadcrumbsSync({
     window.addEventListener('breadcrumbCollected', append);
     window.addEventListener('driverResumedAfterAbsence', handleResumeAfterAbsence);
     return () => {
-      unsubscribeLive?.();
+      try { unsubscribeLive?.(); } catch {}
       window.removeEventListener('deliveriesUpdated', refresh);
       window.removeEventListener('routeOptimizationComplete', refresh);
       window.removeEventListener('routeReordered', refresh);
