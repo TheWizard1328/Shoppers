@@ -54,9 +54,9 @@ const calcPolylineDistanceKm = (points) => {
 const encodePolyline = (points) => {
   const encodeValue = (val) => {
     let v = Math.round(val * 1e5);
-    v = v < 0 ? ~(v << 1) : v << 1;
+    v = v < 0 ? (-v * 2 - 1) : (v * 2);
     let result = '';
-    while (v >= 0x20) { result += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+    while (v >= 0x20) { result += String.fromCharCode((0x20 + (v % 0x20)) + 63); v = Math.floor(v / 0x20); }
     result += String.fromCharCode(v + 63);
     return result;
   };
@@ -74,12 +74,12 @@ const decodePolyline = (encoded) => {
   const poly = [];
   let index = 0, len = encoded.length, lat = 0, lng = 0;
   while (index < len) {
-    let b, shift = 0, result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
-    shift = 0; result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
+    let b, result = 0, multiplier = 1;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
+    lat += ((result % 2 !== 0) ? -((result + 1) / 2) : (result / 2));
+    result = 0; multiplier = 1;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
+    lng += ((result % 2 !== 0) ? -((result + 1) / 2) : (result / 2));
     poly.push([lat / 1e5, lng / 1e5]);
   }
   return poly;
@@ -95,12 +95,12 @@ const decodeBreadcrumbPolyline = (encoded) => {
   const poly = [];
   let index = 0, len = encoded.length, lat = 0, lng = 0;
   while (index < len) {
-    let b, shift = 0, result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
-    shift = 0; result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
+    let b, result = 0, multiplier = 1;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
+    lat += ((result % 2 !== 0) ? -((result + 1) / 2) : (result / 2));
+    result = 0; multiplier = 1;
+    do { b = encoded.charCodeAt(index++) - 63; result += (b % 32) * multiplier; multiplier *= 32; } while (b >= 0x20);
+    lng += ((result % 2 !== 0) ? -((result + 1) / 2) : (result / 2));
     poly.push([lat / BREADCRUMB_PRECISION, lng / BREADCRUMB_PRECISION]);
   }
   return poly;
@@ -109,9 +109,9 @@ const decodeBreadcrumbPolyline = (encoded) => {
 const encodeBreadcrumbPolyline = (points) => {
   const encodeValue = (val) => {
     let v = Math.round(val * BREADCRUMB_PRECISION);
-    v = v < 0 ? ~(v << 1) : v << 1;
+    v = v < 0 ? (-v * 2 - 1) : (v * 2);
     let result = '';
-    while (v >= 0x20) { result += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+    while (v >= 0x20) { result += String.fromCharCode((0x20 + (v % 0x20)) + 63); v = Math.floor(v / 0x20); }
     result += String.fromCharCode(v + 63);
     return result;
   };

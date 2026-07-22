@@ -9,15 +9,16 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 // Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
 // MUST match the client encoder in locationBreadcrumbService.jsx and breadcrumbsManager.jsx.
+// Uses pure arithmetic (no bitwise ops) to avoid 32-bit overflow for |longitude| > ~107°.
 const POLY_PRECISION = 1e7;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
-  v = v < 0 ? ~(v << 1) : v << 1;
+  v = v < 0 ? (-v * 2 - 1) : (v * 2);
   let result = '';
   while (v >= 0x20) {
-    result += String.fromCharCode((0x20 | (v & 0x1f)) + 63);
-    v >>= 5;
+    result += String.fromCharCode((0x20 + (v % 0x20)) + 63);
+    v = Math.floor(v / 0x20);
   }
   result += String.fromCharCode(v + 63);
   return result;
@@ -39,23 +40,29 @@ function decodePolyline(encoded) {
   let index = 0, lat = 0, lng = 0;
   const coordinates = [];
   while (index < encoded.length) {
-    let shift = 0, result = 0, byte;
+    let result = 0, multiplier = 1, byte;
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
     } while (byte >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
+    lat += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
+    result = 0; multiplier = 1;
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
     } while (byte >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
     coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
   }
   return coordinates;
+}
+
+// Detect corrupted points from the old bitwise-overflow encoder.
+// The old encoder zeroed out longitude for |lng| > ~107° at 1e7 precision.
+function isCorruptedPoint(lat, lng) {
+  return Math.abs(lat) > 1 && Math.abs(lng) < 0.01;
 }
 
 function parseTimestampMs(value) {
@@ -102,7 +109,9 @@ Deno.serve(async (req) => {
     // Decode incoming points from the client
     const incomingCoords = decodePolyline(incomingPolyline);
     const incomingTs = (incomingTimestamps || '').split(',').map(Number);
-    const incomingPoints = incomingCoords.map((coord, i) => [coord[0], coord[1], incomingTs[i] || 0]);
+    const incomingPoints = incomingCoords
+      .map((coord, i) => [coord[0], coord[1], incomingTs[i] || 0])
+      .filter(pt => !isCorruptedPoint(pt[0], pt[1])); // Drop any corrupted points
 
     // Fetch existing master record (stop_order = -1)
     const existingRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
@@ -114,13 +123,24 @@ Deno.serve(async (req) => {
 
     // Merge: existing points + incoming points, de-duplicated by timestamp, sorted
     const existingPoints = [];
+    let corruptedSkipped = 0;
     if (existingRecord?.encoded_polyline && existingRecord?.timestamps) {
       const coords = decodePolyline(existingRecord.encoded_polyline);
       const tsArr = existingRecord.timestamps.split(',').map(Number);
       coords.forEach((coord, i) => {
         const ts = parseTimestampMs(tsArr[i]);
-        if (ts) existingPoints.push([coord[0], coord[1], ts]);
+        if (!ts) return;
+        // Skip corrupted points from the old bitwise-overflow encoder
+        if (isCorruptedPoint(coord[0], coord[1])) {
+          corruptedSkipped++;
+          return;
+        }
+        existingPoints.push([coord[0], coord[1], ts]);
       });
+    }
+
+    if (corruptedSkipped > 0) {
+      console.log(`🍞 [syncPendingBreadcrumbs] Skipped ${corruptedSkipped} corrupted points from existing record (bitwise overflow)`);
     }
 
     // Merge by timestamp — prefer incoming points (they are the latest from client)
@@ -160,6 +180,7 @@ Deno.serve(async (req) => {
       point_count: mergedPoints.length,
       new_points: incomingPoints.length,
       merged: existingPoints.length > 0,
+      corrupted_skipped: corruptedSkipped,
     });
   } catch (error) {
     console.error('❌ [syncPendingBreadcrumbs] Error:', error?.message || error);

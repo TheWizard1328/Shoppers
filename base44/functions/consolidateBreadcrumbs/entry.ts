@@ -88,11 +88,11 @@ const POLY_PRECISION = 1e7;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
-  v = v < 0 ? ~(v << 1) : v << 1;
+  v = v < 0 ? (-v * 2 - 1) : (v * 2);
   let result = '';
   while (v >= 0x20) {
-    result += String.fromCharCode((0x20 | (v & 0x1f)) + 63);
-    v >>= 5;
+    result += String.fromCharCode((0x20 + (v % 0x20)) + 63);
+    v = Math.floor(v / 0x20);
   }
   result += String.fromCharCode(v + 63);
   return result;
@@ -114,20 +114,20 @@ function decodePolyline(encoded) {
   let index = 0, lat = 0, lng = 0;
   const coordinates = [];
   while (index < encoded.length) {
-    let shift = 0, result = 0, byte;
+    let result = 0, multiplier = 1, byte;
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
     } while (byte >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
+    lat += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
+    result = 0; multiplier = 1;
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
     } while (byte >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
     coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
   }
   return coordinates;

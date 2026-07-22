@@ -9,6 +9,7 @@ const MASTER_STOP_ORDER = -1;
 
 // Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
 // MUST match the client encoder in locationBreadcrumbService.jsx and all backend functions.
+// Uses pure arithmetic (no bitwise ops) to avoid 32-bit overflow for |longitude| > ~107°.
 const POLY_PRECISION = 1e7;
 
 function getEdmontonDateString(value = Date.now()) {
@@ -29,29 +30,39 @@ function decodePolyline(encoded) {
   let index = 0, lat = 0, lng = 0;
   const coordinates = [];
   while (index < encoded.length) {
-    let shift = 0, result = 0, byte;
+    let result = 0, multiplier = 1, byte;
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
     } while (byte >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
+    lat += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
+    result = 0; multiplier = 1;
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
     } while (byte >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
     coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
   }
   return coordinates;
+}
+
+// Detect corrupted points from the old bitwise-overflow encoder.
+// The old encoder zeroed out longitude for |lng| > ~107° at 1e7 precision.
+// Points with valid latitude (>1°) but near-zero longitude (<0.01°) are corrupted.
+function isCorruptedPoint(lat, lng) {
+  return Math.abs(lat) > 1 && Math.abs(lng) < 0.01;
 }
 
 // Parse a breadcrumb record into { stop_order, lat/lng points array }
 function parseBreadcrumbRecord(record) {
   if (!record?.encoded_polyline) return null;
   const coords = decodePolyline(record.encoded_polyline);
+  // Filter out corrupted points from the old bitwise-overflow encoder
+  const cleanCoords = coords.filter(c => !isCorruptedPoint(c[0], c[1]));
+  if (cleanCoords.length === 0) return null;
   const tsArr = record.timestamps ? record.timestamps.split(',').map(Number) : [];
   return {
     id: record.id,
@@ -61,7 +72,7 @@ function parseBreadcrumbRecord(record) {
     timestamps: record.timestamps,
     transport_mode: record.transport_mode,
     point_count: record.point_count,
-    _coords: coords,
+    _coords: cleanCoords,
     _tsArr: tsArr,
   };
 }
@@ -77,6 +88,8 @@ function extractLivePoints(record, filterDate) {
     timestamp: tsArr[i] || 0
   })).filter((point) => {
     if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return false;
+    // Skip corrupted points from the old bitwise-overflow encoder
+    if (isCorruptedPoint(point.lat, point.lng)) return false;
     if (!point.timestamp) return true;
     return !filterDate || getEdmontonDateString(point.timestamp) === filterDate;
   });
@@ -104,7 +117,11 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
 
         if (Number(record.stop_order) === MASTER_STOP_ORDER) {
           // Master 'TODAY' record — extract as live points for the current trail
-          masterLivePoints = extractLivePoints(record, selectedDateStr);
+          const points = extractLivePoints(record, selectedDateStr);
+          // Only use this record if it has non-corrupted points
+          if (points.length > 0) {
+            masterLivePoints = points;
+          }
         } else {
           // Per-stop sliced record
           const parsed = parseBreadcrumbRecord(record);
@@ -137,7 +154,10 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
           for (const record of apiBreadcrumbs) {
             if (!record?.encoded_polyline) continue;
             if (Number(record.stop_order) === MASTER_STOP_ORDER) {
-              masterLivePoints = extractLivePoints(record, selectedDateStr);
+              const points = extractLivePoints(record, selectedDateStr);
+              if (points.length > 0) {
+                masterLivePoints = points;
+              }
             } else {
               const parsed = parseBreadcrumbRecord(record);
               if (parsed) historical.push(parsed);

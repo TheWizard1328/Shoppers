@@ -21,13 +21,24 @@ const MAX_BREADCRUMB_STALENESS_MS = 5 * 60 * 1000; // 5 minutes
 // Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
 const POLY_PRECISION = 1e7;
 
+// CRITICAL: These encode/decode functions use pure arithmetic instead of JavaScript
+// bitwise operators (<<, >>, &, |, ~). At 1e7 precision, Edmonton's longitude
+// (-113.5) produces an integer of -1,135,000,000. The zigzag encoding step requires
+// multiplying by 2 (<< 1), which gives -2,270,000,000 — this OVERFLOWS JavaScript's
+// 32-bit signed integer range (-2,147,483,648 to 2,147,483,647). The overflow silently
+// corrupts the longitude to ~0, while the latitude (53.5 * 1e7 = 535,000,000, * 2 =
+// 1,070,000,000 — within range) is unaffected. Using arithmetic (* 2, / 2, %) avoids
+// the 32-bit overflow entirely, working correctly for any coordinate on Earth.
+
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
-  v = v < 0 ? ~(v << 1) : v << 1;
+  // Zigzag encode using arithmetic: 0→0, -1→1, 1→2, -2→3, etc.
+  // NOT: v = v < 0 ? ~(v << 1) : v << 1  (overflows 32-bit for |lng| > ~107° at 1e7)
+  v = v < 0 ? (-v * 2 - 1) : (v * 2);
   let result = '';
   while (v >= 0x20) {
-    result += String.fromCharCode((0x20 | (v & 0x1f)) + 63);
-    v >>= 5;
+    result += String.fromCharCode((0x20 + (v % 0x20)) + 63);
+    v = Math.floor(v / 0x20);
   }
   result += String.fromCharCode(v + 63);
   return result;
@@ -49,20 +60,20 @@ function decodePolyline(encoded) {
   let index = 0, lat = 0, lng = 0;
   const coordinates = [];
   while (index < encoded.length) {
-    let shift = 0, result = 0, byte;
+    let result = 0, multiplier = 1, byte;
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
     } while (byte >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
+    lat += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
+    result = 0; multiplier = 1;
     do {
       byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
+      result += (byte % 32) * multiplier;
+      multiplier *= 32;
     } while (byte >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += (result % 2 !== 0) ? -((result + 1) / 2) : (result / 2);
     coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
   }
   return coordinates;
@@ -71,6 +82,22 @@ function decodePolyline(encoded) {
 // The stable offline key for the master 'TODAY' timeline record
 function getTodayOfflineKey(userId, deliveryDate) {
   return `${userId}__TODAY__${deliveryDate}`;
+}
+
+// Detect corrupted breadcrumb records from the old bitwise encoder (pre-fix).
+// The old encoder overflowed 32-bit for |longitude| > ~107° at 1e7 precision,
+// zeroing out the longitude while keeping latitude correct. If we see valid
+// latitudes but near-zero longitudes, the record is corrupted and should be discarded.
+function isCorruptedByBitwiseOverflow(points) {
+  if (points.length === 0) return false;
+  // At least 2 points with valid lat but ~0 lng = corruption signature
+  let corruptCount = 0;
+  for (const p of points) {
+    if (Math.abs(p[0]) > 1 && Math.abs(p[1]) < 0.01) {
+      corruptCount++;
+    }
+  }
+  return corruptCount >= 2;
 }
 
 export const collectBreadcrumbForTracker = async ({
@@ -114,6 +141,14 @@ export const collectBreadcrumbForTracker = async ({
     existingPoints = coords
       .map((coord, i) => [coord[0], coord[1], tsArr[i] || 0])
       .filter(p => !(Math.abs(p[0]) < 0.0001 && Math.abs(p[1]) < 0.0001)); // Strip any previously-saved [0,0] points
+
+    // Detect and clear corrupted records from the old bitwise-overflow encoder.
+    // The old encoder zeroed out longitude for Edmonton coordinates (|lng| > 107° at 1e7).
+    // If detected, discard all existing points and start fresh with the current GPS fix.
+    if (isCorruptedByBitwiseOverflow(existingPoints)) {
+      console.warn(`🍞 [Breadcrumbs] Detected corrupted breadcrumb record (valid lat, ~0 lng — bitwise overflow from old encoder). Clearing ${existingPoints.length} corrupted points and starting fresh.`);
+      existingPoints = [];
+    }
   }
 
   // Distance filter: LOG large GPS jumps but still ACCEPT the point.
