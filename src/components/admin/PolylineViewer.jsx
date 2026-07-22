@@ -1380,6 +1380,7 @@ export default function PolylineViewer({ users = [] }) {
                     zoom={13}
                     style={{ height: '100%', width: '100%' }}
                     key={`map-${viewMode}-${mapSegments.map(s => s.id).join('-')}-${tileKey}`}
+                    doubleClickZoom={false}
                   >
                     {tileLayerUrl && (
                       <CachedTileLayer
