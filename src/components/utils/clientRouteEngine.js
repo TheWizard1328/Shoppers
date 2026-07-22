@@ -1174,7 +1174,14 @@ export async function optimizeRouteClientSide({
     const newOrder = computedStopOrders[i];
     const pendingStartTime = resolvePendingStartTime(stop);
     const seg = segmentPolylineByDeliveryId.get(stop.id) || null;
-    const rawTransportMode = String(stop?.transport_mode || effectiveTravelMode).toLowerCase();
+    // CRITICAL: For pending stops, preserve their existing transport_mode (e.g. 'cycling').
+    // effectiveTravelMode maps 'cycling' → 'driving' for the optimizer's HERE sequencing,
+    // but that must NOT overwrite a stop that was explicitly set to 'cycling'.
+    // Only fall back to effectiveTravelMode if the stop has no transport_mode set at all.
+    const existingMode = stop?.transport_mode ? String(stop.transport_mode).toLowerCase() : null;
+    const rawTransportMode = existingMode && ['driving', 'cycling', 'pedestrian'].includes(existingMode)
+      ? existingMode
+      : String(effectiveTravelMode).toLowerCase();
     const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(rawTransportMode) ? rawTransportMode : 'driving';
     const isNextStop = stop.id === nextStopId;
     const logicalDurationMinutes = isNextStop && nextStopLogicalSegment
