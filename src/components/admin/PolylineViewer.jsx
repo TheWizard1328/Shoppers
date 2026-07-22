@@ -1136,16 +1136,6 @@ export default function PolylineViewer({ users = [] }) {
                             </button>
                           )}
                           {item.stop_order === -1 && (
-                            <button
-                              title="Resegment all stops from master breadcrumb timeline"
-                              onClick={e => { e.stopPropagation(); handleResegment(item); }}
-                              disabled={isResegmenting || !!snapPreview || !!snapAnalysis}
-                              className="p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors"
-                            >
-                              {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
-                            </button>
-                          )}
-                          {item.stop_order === -1 && (
                             snapPreview?.itemId === item.id ? (
                               // Preview mode — show Accept (✓) and Cancel (✗)
                               <>
@@ -1168,15 +1158,25 @@ export default function PolylineViewer({ users = [] }) {
                                 </button>
                               </>
                             ) : (
-                              // Normal — show magnet button (disabled while analyzing/snapping or if another preview is active)
-                              <button
-                                title="Analyze gaps & snap master timeline to roads (HERE API)"
-                                onClick={e => { e.stopPropagation(); handleSnapAnalyze(item); }}
-                                disabled={isAnalyzing || isSnappingMaster || !!snapPreview || !!snapAnalysis}
-                                className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto"
-                              >
-                                {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
-                              </button>
+                              // Normal — show magnet + scissors buttons
+                              <>
+                                <button
+                                  title="Analyze gaps & snap master timeline to roads (HERE API)"
+                                  onClick={e => { e.stopPropagation(); handleSnapAnalyze(item); }}
+                                  disabled={isAnalyzing || isSnappingMaster || !!snapPreview || !!snapAnalysis}
+                                  className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto"
+                                >
+                                  {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  title="Resegment all stops from master breadcrumb timeline"
+                                  onClick={e => { e.stopPropagation(); handleResegment(item); }}
+                                  disabled={isResegmenting || !!snapPreview || !!snapAnalysis}
+                                  className="p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors"
+                                >
+                                  {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
+                                </button>
+                              </>
                             )
                           )}
                         </div>
