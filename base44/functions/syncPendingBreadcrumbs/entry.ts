@@ -7,10 +7,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 // The consolidateBreadcrumbs function is responsible for slicing this into stops.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
+// Polyline encoding — 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
 // MUST match the client encoder in locationBreadcrumbService.jsx and breadcrumbsManager.jsx.
 // Uses pure arithmetic (no bitwise ops) to avoid 32-bit overflow for |longitude| > ~107°.
-const POLY_PRECISION = 1e7;
+const POLY_PRECISION = 1e5;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
@@ -60,7 +60,7 @@ function decodePolyline(encoded) {
 }
 
 // Detect corrupted points from the old bitwise-overflow encoder.
-// The old encoder zeroed out longitude for |lng| > ~107° at 1e7 precision.
+// The old encoder zeroed out longitude for |lng| > ~107° at 1e5 precision.
 function isCorruptedPoint(lat, lng) {
   return Math.abs(lat) > 1 && Math.abs(lng) < 0.01;
 }

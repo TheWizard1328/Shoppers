@@ -85,10 +85,10 @@ const decodePolyline = (encoded) => {
   return poly;
 };
 
-// ── Breadcrumb polyline codec (1e7 precision) ─────────────────────────────
-// Breadcrumb polylines are encoded at 1e7 by locationBreadcrumbService.jsx.
+// ── Breadcrumb polyline codec (1e5 precision) ─────────────────────────────
+// Breadcrumb polylines are encoded at 1e5 by locationBreadcrumbService.jsx.
 // Delivery route polylines use 1e5 (HERE API standard Google format).
-const BREADCRUMB_PRECISION = 1e7;
+const BREADCRUMB_PRECISION = 1e5;
 
 const decodeBreadcrumbPolyline = (encoded) => {
   if (!encoded) return [];
@@ -935,7 +935,7 @@ export default function PolylineViewer({ users = [] }) {
           try {
             const nowIso = new Date().toISOString();
             // Use server's re-encoded 1e5 polyline for the Delivery entity.
-            // polyToSave is at breadcrumb precision (1e7) — Delivery entity expects 1e5.
+            // polyToSave is at breadcrumb precision (1e5) — Delivery entity expects 1e5.
             const deliveryPoly = res?.data?.deliveryEncodedPolyline || (saveIsBreadcrumb ? encodePolyline(points) : polyToSave);
             await base44.entities.Delivery.update(deliveryId, {
               encoded_polyline: deliveryPoly,

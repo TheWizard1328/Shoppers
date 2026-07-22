@@ -4,8 +4,8 @@ import { Polyline } from 'react-leaflet';
 const HISTORICAL_COLOR = '#f97316';
 const LIVE_COLOR = '#2563eb';
 
-// 1e7 precision — MUST match the client encoder in locationBreadcrumbService.jsx
-const POLY_PRECISION = 1e7;
+// 1e5 precision — MUST match the client encoder in locationBreadcrumbService.jsx
+const POLY_PRECISION = 1e5;
 
 const decodePolyline = (encoded) => {
   if (!encoded || typeof encoded !== 'string') return [];

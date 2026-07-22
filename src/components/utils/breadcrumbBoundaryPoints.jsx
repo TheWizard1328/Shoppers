@@ -3,9 +3,9 @@ import { base44 } from '@/api/base44Client';
 
 const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
 
-// Polyline encoding (Google format) — 1e7 precision
+// Polyline encoding (Google format) — 1e5 precision
 // MUST match the client encoder in locationBreadcrumbService.jsx
-const POLY_PRECISION = 1e7;
+const POLY_PRECISION = 1e5;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);

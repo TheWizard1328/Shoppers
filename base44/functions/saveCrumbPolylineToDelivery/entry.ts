@@ -1,8 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-// Breadcrumb polylines use 1e7 precision (client encoder in locationBreadcrumbService.jsx)
+// Breadcrumb polylines use 1e5 precision (client encoder in locationBreadcrumbService.jsx)
 // Delivery route polylines use 1e5 precision (HERE API standard Google format)
-const BREADCRUMB_PRECISION = 1e7;
+const BREADCRUMB_PRECISION = 1e5;
 const DELIVERY_PRECISION = 1e5;
 
 function decodePolylineAt(encoded, precision) {
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
 
     const delivery = deliveries[0];
 
-    // 2. Decode polyline at breadcrumb precision (1e7) and calculate Haversine distance
+    // 2. Decode polyline at breadcrumb precision (1e5) and calculate Haversine distance
     const haversineKm = (lat1, lon1, lat2, lon2) => {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       polyline_saved_at: new Date().toISOString(),
     });
 
-    // 4. Update DeliveryBreadcrumbs record — save cleaned polyline at breadcrumb precision (1e7)
+    // 4. Update DeliveryBreadcrumbs record — save cleaned polyline at breadcrumb precision (1e5)
     const crumbs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,

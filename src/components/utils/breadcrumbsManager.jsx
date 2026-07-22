@@ -7,10 +7,10 @@ const _apiFetchedKeys = new Set();
 // Sentinel stop_order for the master 'TODAY' timeline record
 const MASTER_STOP_ORDER = -1;
 
-// Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
+// Polyline encoding — 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
 // MUST match the client encoder in locationBreadcrumbService.jsx and all backend functions.
 // Uses pure arithmetic (no bitwise ops) to avoid 32-bit overflow for |longitude| > ~107°.
-const POLY_PRECISION = 1e7;
+const POLY_PRECISION = 1e5;
 
 function getEdmontonDateString(value = Date.now()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -50,7 +50,7 @@ function decodePolyline(encoded) {
 }
 
 // Detect corrupted points from the old bitwise-overflow encoder.
-// The old encoder zeroed out longitude for |lng| > ~107° at 1e7 precision.
+// The old encoder zeroed out longitude for |lng| > ~107° at 1e5 precision.
 // Points with valid latitude (>1°) but near-zero longitude (<0.01°) are corrupted.
 function isCorruptedPoint(lat, lng) {
   return Math.abs(lat) > 1 && Math.abs(lng) < 0.01;

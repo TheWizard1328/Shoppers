@@ -18,11 +18,11 @@ const ONLINE_SYNC_EVERY_N_SAVES = 3; // Sync on every 3rd offline save (3 × 5s 
 const MAX_BREADCRUMB_DISTANCE_M = 250;
 const MAX_BREADCRUMB_STALENESS_MS = 5 * 60 * 1000; // 5 minutes
 
-// Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
-const POLY_PRECISION = 1e7;
+// Polyline encoding — 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
+const POLY_PRECISION = 1e5;
 
 // CRITICAL: These encode/decode functions use pure arithmetic instead of JavaScript
-// bitwise operators (<<, >>, &, |, ~). At 1e7 precision, Edmonton's longitude
+// bitwise operators (<<, >>, &, |, ~). At 1e5 precision, Edmonton's longitude
 // (-113.5) produces an integer of -1,135,000,000. The zigzag encoding step requires
 // multiplying by 2 (<< 1), which gives -2,270,000,000 — this OVERFLOWS JavaScript's
 // 32-bit signed integer range (-2,147,483,648 to 2,147,483,647). The overflow silently
@@ -85,7 +85,7 @@ function getTodayOfflineKey(userId, deliveryDate) {
 }
 
 // Detect corrupted breadcrumb records from the old bitwise encoder (pre-fix).
-// The old encoder overflowed 32-bit for |longitude| > ~107° at 1e7 precision,
+// The old encoder overflowed 32-bit for |longitude| > ~107° at 1e5 precision,
 // zeroing out the longitude while keeping latitude correct. If we see valid
 // latitudes but near-zero longitudes, the record is corrupted and should be discarded.
 function isCorruptedByBitwiseOverflow(points) {
@@ -128,8 +128,8 @@ export const collectBreadcrumbForTracker = async ({
   const existingOfflineRecord = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey);
   // Store coordinates at 7 decimal place precision (~1cm accuracy)
   const breadcrumbPoint = [
-    Math.round(latitude * 1e7) / 1e7,
-    Math.round(longitude * 1e7) / 1e7,
+    Math.round(latitude * 1e5) / 1e5,
+    Math.round(longitude * 1e5) / 1e5,
     timestamp,
   ];
 

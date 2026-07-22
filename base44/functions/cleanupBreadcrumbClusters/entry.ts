@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
-// Breadcrumb polylines use 1e7 precision (client encoder in locationBreadcrumbService.jsx)
-const POLY_PRECISION = 1e7;
+// Breadcrumb polylines use 1e5 precision (client encoder in locationBreadcrumbService.jsx)
+const POLY_PRECISION = 1e5;
 
 // Haversine distance in meters between two [lat, lon] points
 function haversineM(lat1, lon1, lat2, lon2) {

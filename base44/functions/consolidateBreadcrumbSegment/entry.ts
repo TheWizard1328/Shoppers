@@ -2,9 +2,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 // ── Polyline encode/decode (Google polyline format) ──────────────────────────
-// 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
+// 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
 // MUST match the client encoder in locationBreadcrumbService.jsx and breadcrumbsManager.jsx.
-const POLY_PRECISION = 1e7;
+const POLY_PRECISION = 1e5;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);

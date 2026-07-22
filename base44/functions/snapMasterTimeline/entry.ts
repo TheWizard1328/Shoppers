@@ -33,7 +33,7 @@ function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): num
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Decode a Google-format polyline. Supports both 1e5 (standard) and 1e7 (high-precision)
+// Decode a Google-format polyline. Supports both 1e5 (standard) and 1e7 (legacy high-precision)
 // encoded data. We auto-detect precision by checking whether the raw accumulated integer
 // values are in a plausible coordinate range for 1e5 first; if not, we fall back to 1e7.
 // In practice breadcrumbs stored by this app may have been written at either precision,
@@ -60,8 +60,8 @@ function decodePolyline(encoded: string): [number, number][] {
   return rawLats.map((rawLat, i) => [rawLat / divisor, rawLngs[i] / divisor]);
 }
 
-// Breadcrumb polylines use 1e7 precision (client encoder in locationBreadcrumbService.jsx)
-const BREADCRUMB_PRECISION = 1e7;
+// Breadcrumb polylines use 1e5 precision (client encoder in locationBreadcrumbService.jsx)
+const BREADCRUMB_PRECISION = 1e5;
 
 function encodePolylineValue(value: number): string {
   let v = Math.round(value * BREADCRUMB_PRECISION);

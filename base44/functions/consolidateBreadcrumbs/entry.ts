@@ -83,8 +83,8 @@ function parseDeliveryTimeMs(timeValue, deliveryDate) {
   return parseTimestampMs(trimmed);
 }
 
-// Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
-const POLY_PRECISION = 1e7;
+// Polyline encoding — 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
+const POLY_PRECISION = 1e5;
 
 function encodePolylineValue(value) {
   let v = Math.round(value * POLY_PRECISION);
