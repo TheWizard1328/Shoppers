@@ -562,10 +562,10 @@ class LocationTracker {
         localTime: now.toISOString()
       });
 
-      // Primary device always writes full coordinates + timestamp
+      // Primary device always writes full coordinates + timestamp at 10dp precision
       const updateData = {
-        current_latitude: latitude,
-        current_longitude: longitude,
+        current_latitude: Math.round(latitude * 1e10) / 1e10,
+        current_longitude: Math.round(longitude * 1e10) / 1e10,
         location_updated_at: nowISO
       };
 

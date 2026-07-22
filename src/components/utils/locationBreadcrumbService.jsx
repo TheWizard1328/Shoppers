@@ -18,9 +18,11 @@ const ONLINE_SYNC_EVERY_N_SAVES = 3; // Sync on every 3rd offline save (3 × 5s 
 const MAX_BREADCRUMB_DISTANCE_M = 250;
 const MAX_BREADCRUMB_STALENESS_MS = 5 * 60 * 1000; // 5 minutes
 
-// Polyline encoding (Google format) for compact storage
+// Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
+const POLY_PRECISION = 1e7;
+
 function encodePolylineValue(value) {
-  let v = Math.round(value * 1e5);
+  let v = Math.round(value * POLY_PRECISION);
   v = v < 0 ? ~(v << 1) : v << 1;
   let result = '';
   while (v >= 0x20) {
@@ -61,7 +63,7 @@ function decodePolyline(encoded) {
       shift += 5;
     } while (byte >= 0x20);
     lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    coordinates.push([lat / 1e5, lng / 1e5]);
+    coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
   }
   return coordinates;
 }
@@ -91,7 +93,12 @@ export const collectBreadcrumbForTracker = async ({
 
   // Load existing offline 'TODAY' master record
   const existingOfflineRecord = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey);
-  const breadcrumbPoint = [latitude, longitude, timestamp];
+  // Store coordinates at full 10 decimal place precision
+  const breadcrumbPoint = [
+    Math.round(latitude * 1e10) / 1e10,
+    Math.round(longitude * 1e10) / 1e10,
+    timestamp,
+  ];
 
   // Reconstruct existing points from encoded polyline + timestamps
   let existingPoints = [];

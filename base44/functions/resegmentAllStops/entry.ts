@@ -75,8 +75,11 @@ function parseDeliveryTimeMs(timeValue: any, deliveryDate: string): number | nul
   return parseTimestampMs(trimmed);
 }
 
+// Polyline encoding — 1e7 precision (~1cm accuracy, maximum meaningful GPS resolution)
+const POLY_PRECISION = 1e7;
+
 function encodePolylineValue(value: number): string {
-  let v = Math.round(value * 1e5);
+  let v = Math.round(value * POLY_PRECISION);
   v = v < 0 ? ~(v << 1) : v << 1;
   let result = '';
   while (v >= 0x20) {
@@ -117,7 +120,7 @@ function decodePolyline(encoded: string): number[][] {
       shift += 5;
     } while (byte >= 0x20);
     lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    coordinates.push([lat / 1e5, lng / 1e5]);
+    coordinates.push([lat / POLY_PRECISION, lng / POLY_PRECISION]);
   }
   return coordinates;
 }
