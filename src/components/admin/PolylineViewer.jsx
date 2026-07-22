@@ -9,6 +9,7 @@ import { getDriverDisplayName } from '../utils/driverUtils';
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
 import { saveCrumbPolylineToDelivery } from '@/functions/saveCrumbPolylineToDelivery';
 import { isAppOwner } from '../utils/userRoles';
+import { extractFromPhoneFromDeliveryId, getAllLocations, getInterStoreLocationByPhone } from '../utils/interStoreDisplayName';
 import { useUser } from '../utils/UserContext';
 import { CachedTileLayer } from '../utils/hereTileCache';
 import { Button } from '@/components/ui/button';
@@ -336,20 +337,20 @@ export default function PolylineViewer({ users = [] }) {
         );
         const terminal = (dels || []).filter(d => d?.stop_order != null && ['completed','failed','cancelled'].includes(d.status || ''));
 
-        // Collect unique patient/store/interstore IDs
-        const patientIds     = [...new Set(terminal.map(d => d.patient_id).filter(Boolean))];
-        const storeIds       = [...new Set(terminal.map(d => d.store_id).filter(Boolean))];
-        const interstoreIds  = [...new Set(terminal.flatMap(d => [d._interstore_source_id, d._interstore_dest_id]).filter(Boolean))];
+        // Collect unique patient/store IDs
+        const patientIds = [...new Set(terminal.map(d => d.patient_id).filter(Boolean))];
+        const storeIds   = [...new Set(terminal.map(d => d.store_id).filter(Boolean))];
 
-        const [pats, strs, interlocs] = await Promise.all([
-          patientIds.length    ? base44.entities.Patient.filter({ id: { $in: patientIds } }, 'id', 500)               : Promise.resolve([]),
-          storeIds.length      ? base44.entities.Store.filter({ id: { $in: storeIds } }, 'id', 500)                   : Promise.resolve([]),
-          interstoreIds.length ? base44.entities.InterStoreLocation.filter({ id: { $in: interstoreIds } }, 'id', 500) : Promise.resolve([]),
+        const [pats, strs] = await Promise.all([
+          patientIds.length ? base44.entities.Patient.filter({ id: { $in: patientIds } }, 'id', 500) : Promise.resolve([]),
+          storeIds.length   ? base44.entities.Store.filter({ id: { $in: storeIds } }, 'id', 500)    : Promise.resolve([]),
         ]);
 
-        const patMap   = new Map((pats      || []).map(p => [p.id, p]));
-        const strMap   = new Map((strs      || []).map(s => [s.id, s]));
-        const islMap   = new Map((interlocs || []).map(l => [l.id, l]));
+        // Load interstore location cache (uses offline DB first, then API)
+        await getAllLocations();
+
+        const patMap = new Map((pats || []).map(p => [p.id, p]));
+        const strMap = new Map((strs || []).map(s => [s.id, s]));
 
         const markers = terminal
           .map(d => {
@@ -360,13 +361,12 @@ export default function PolylineViewer({ users = [] }) {
 
             if (d.is_cycling_marker) {
               lat = d.cycling_latitude; lon = d.cycling_longitude;
-            } else if (isISP && d._interstore_source_id) {
-              // ISP: pickup from source store — use source location
-              const loc = islMap.get(d._interstore_source_id);
-              lat = loc?.store_latitude; lon = loc?.store_longitude;
-            } else if (isISD && d._interstore_dest_id) {
-              // ISD: drop-off at destination store — use dest location
-              const loc = islMap.get(d._interstore_dest_id);
+            } else if (isISP || isISD) {
+              // Resolve via phone number embedded in delivery_id:
+              //   ISP: parts[2] (pickup/source store phone)
+              //   ISD: parts[3] (dropoff/dest store phone)
+              const phone = extractFromPhoneFromDeliveryId(d.delivery_id);
+              const loc = getInterStoreLocationByPhone(phone);
               lat = loc?.store_latitude; lon = loc?.store_longitude;
             } else if (d.patient_id) {
               const p = patMap.get(d.patient_id); lat = p?.latitude; lon = p?.longitude;
