@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Polyline, CircleMarker } from 'react-leaflet';
+import { Polyline } from 'react-leaflet';
 
 const HISTORICAL_COLOR = '#f97316';
 const LIVE_COLOR = '#2563eb';
@@ -20,9 +20,7 @@ const decodePolyline = (encoded) => {
   return coords;
 };
 
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
-
-export default function MapBreadcrumbs({ breadcrumbsData, completedStopMarkers = [] }) {
+export default function MapBreadcrumbs({ breadcrumbsData }) {
   const lines = [];
 
   // Historical breadcrumbs: each record has encoded_polyline
@@ -66,23 +64,5 @@ export default function MapBreadcrumbs({ breadcrumbsData, completedStopMarkers =
     }
   }
 
-  // Small green dot at each completed stop's resolved GPS position
-  const stopDots = completedStopMarkers
-    .filter((m) => m && FINISHED_STATUSES.includes(m.status) && Number.isFinite(m.latitude) && Number.isFinite(m.longitude))
-    .map((m) => (
-      <CircleMarker
-        key={`stop-dot-${m.id}`}
-        center={[m.latitude, m.longitude]}
-        radius={5}
-        pathOptions={{
-          color: '#ffffff',
-          weight: 1.5,
-          fillColor: '#16a34a',
-          fillOpacity: 1,
-        }}
-      />
-    ));
-
-  const all = [...lines, ...stopDots];
-  return all.length > 0 ? <>{all}</> : null;
+  return lines.length > 0 ? <>{lines}</> : null;
 }
