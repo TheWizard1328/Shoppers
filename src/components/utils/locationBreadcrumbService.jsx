@@ -93,10 +93,10 @@ export const collectBreadcrumbForTracker = async ({
 
   // Load existing offline 'TODAY' master record
   const existingOfflineRecord = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey);
-  // Store coordinates at full 10 decimal place precision
+  // Store coordinates at 7 decimal place precision (~1cm accuracy)
   const breadcrumbPoint = [
-    Math.round(latitude * 1e10) / 1e10,
-    Math.round(longitude * 1e10) / 1e10,
+    Math.round(latitude * 1e7) / 1e7,
+    Math.round(longitude * 1e7) / 1e7,
     timestamp,
   ];
 
