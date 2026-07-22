@@ -874,15 +874,20 @@ export default function PolylineViewer({ users = [] }) {
 
   // ── Resegment all stops from master breadcrumb ───────────────────────────
   const handleResegment = async (item) => {
+    const confirmed = window.confirm(
+      `Resegment all stops for ${getDriverName(item.driver_id)} on ${item.delivery_date}?\n\nThis will overwrite ALL per-stop breadcrumbs (including manually saved ones) from the master timeline.`
+    );
+    if (!confirmed) return;
     setIsResegmenting(true);
     try {
       const res = await base44.functions.invoke('resegmentAllStops', {
         driver_id: item.driver_id,
         delivery_date: item.delivery_date,
+        force: true,
       });
       const data = res?.data ?? res;
       if (data?.success) {
-        toast.success(`Resegmented — ${data.stops_sliced} stop(s) updated from master timeline.`);
+        toast.success(`Resegmented — ${data.stops_sliced} stop(s) updated, ${data.stops_skipped_saved} skipped (saved).`);
         await loadData();
       } else {
         toast.error(`Resegment failed: ${data?.error || 'Unknown error'}`);
@@ -1139,31 +1144,31 @@ export default function PolylineViewer({ users = [] }) {
                               {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                             </button>
                           )}
-                          {snapPreview?.itemId === item.id ? (
-                            // Preview mode — show Accept (✓) and Cancel (✗)
-                            <>
-                              <span className="text-xs text-cyan-700 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
-                              <button
-                                title="Accept snapped route & save"
-                                onClick={e => { e.stopPropagation(); handleSnapAccept(); }}
-                                disabled={snapPreview.isSaving}
-                                className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50 transition-colors ml-auto"
-                              >
-                                {snapPreview.isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                              </button>
-                              <button
-                                title="Cancel — discard preview"
-                                onClick={e => { e.stopPropagation(); handleSnapCancel(); }}
-                                disabled={snapPreview.isSaving}
-                                className="p-1 rounded bg-red-100 hover:bg-red-200 text-red-700 disabled:opacity-50 transition-colors"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          ) : (
-                            // Normal — magnet (master only) + scissors (all breadcrumbs)
-                            <>
-                              {item.stop_order === -1 && (
+                          {item.stop_order === -1 && (
+                            snapPreview?.itemId === item.id ? (
+                              // Preview mode — show Accept (✓) and Cancel (✗)
+                              <>
+                                <span className="text-xs text-cyan-700 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
+                                <button
+                                  title="Accept snapped route & save"
+                                  onClick={e => { e.stopPropagation(); handleSnapAccept(); }}
+                                  disabled={snapPreview.isSaving}
+                                  className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50 transition-colors ml-auto"
+                                >
+                                  {snapPreview.isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  title="Cancel — discard preview"
+                                  onClick={e => { e.stopPropagation(); handleSnapCancel(); }}
+                                  disabled={snapPreview.isSaving}
+                                  className="p-1 rounded bg-red-100 hover:bg-red-200 text-red-700 disabled:opacity-50 transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              // Normal — magnet + scissors, master timeline only
+                              <>
                                 <button
                                   title="Analyze gaps & snap master timeline to roads (HERE API)"
                                   onClick={e => { e.stopPropagation(); handleSnapAnalyze(item); }}
@@ -1172,16 +1177,16 @@ export default function PolylineViewer({ users = [] }) {
                                 >
                                   {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
                                 </button>
-                              )}
-                              <button
-                                title="Resegment all stops from master breadcrumb timeline"
-                                onClick={e => { e.stopPropagation(); handleResegment(item); }}
-                                disabled={isResegmenting || !!snapPreview || !!snapAnalysis}
-                                className={`p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors ${item.stop_order !== -1 ? 'ml-auto' : ''}`}
-                              >
-                                {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
-                              </button>
-                            </>
+                                <button
+                                  title="Resegment all stops from master breadcrumb timeline"
+                                  onClick={e => { e.stopPropagation(); handleResegment(item); }}
+                                  disabled={isResegmenting || !!snapPreview || !!snapAnalysis}
+                                  className="p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors"
+                                >
+                                  {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
+                                </button>
+                              </>
+                            )
                           )}
                         </div>
                       )}
