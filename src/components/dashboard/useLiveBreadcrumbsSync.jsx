@@ -16,27 +16,61 @@ export default function useLiveBreadcrumbsSync({
   const appUsersRef = useRef(appUsers);
   useEffect(() => { appUsersRef.current = appUsers; }, [appUsers]);
 
+  // Guard against concurrent refreshes and post-unmount state updates
+  const isMountedRef = useRef(true);
+  const refreshBusyRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
   useEffect(() => {
     if (!showBreadcrumbs) return;
     const activeDriverId = showAllDriverMarkers || selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
     const activeDate = format(selectedDate, 'yyyy-MM-dd');
-    const matches = ({ driverId, deliveryDate } = {}) => (!driverId || !activeDriverId || driverId === activeDriverId) && (!deliveryDate || deliveryDate === activeDate);
-    const refresh = async (event) => matches(event.detail || {}) && setBreadcrumbsData(await loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsersRef.current));
-    const append = (event) => {
-      const { point, ...detail } = event.detail || {};
-      if (!point || !matches(detail)) return;
-      setBreadcrumbsData((prev) => prev?.current?.some((p) => Number(p?.timestamp) === Number(point.timestamp)) ? prev : { historical: prev?.historical || [], current: [...(prev?.current || []), point] });
+    const matches = ({ driverId, deliveryDate } = {}) =>
+      (!driverId || !activeDriverId || driverId === activeDriverId) &&
+      (!deliveryDate || deliveryDate === activeDate);
+
+    // Debounced, guarded refresh — skips if already running, no-ops if unmounted
+    const refresh = (event) => {
+      if (!matches(event?.detail || {})) return;
+      if (refreshBusyRef.current) return; // already loading, skip
+      refreshBusyRef.current = true;
+      loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsersRef.current)
+        .then((data) => {
+          if (isMountedRef.current) setBreadcrumbsData(data);
+        })
+        .catch((err) => {
+          console.warn('⚠️ useLiveBreadcrumbsSync refresh error:', err?.message);
+        })
+        .finally(() => {
+          refreshBusyRef.current = false;
+        });
     };
-    const unsubscribeLive = activeDriverId ? base44.entities.PendingBreadcrumbLive.subscribe((event) => {
-      if (event?.data?.driver_id !== activeDriverId) return;
-      refresh({ detail: { driverId: activeDriverId, deliveryDate: activeDate } });
-    }) : null;
-    // Also reload breadcrumbs when the driver returns from a long app-switch.
-    // Without this, the UI keeps stale pre-suspension crumbs and the first new crumb
-    // saved by the restarted tracker appears as a straight line from the old position.
+
+    const append = (event) => {
+      const { point, ...detail } = event?.detail || {};
+      if (!point || !matches(detail)) return;
+      if (!isMountedRef.current) return;
+      setBreadcrumbsData((prev) => {
+        if (!prev) return prev;
+        if (prev?.current?.some((p) => Number(p?.timestamp) === Number(point.timestamp))) return prev;
+        return { historical: prev?.historical || [], current: [...(prev?.current || []), point] };
+      });
+    };
+
+    const unsubscribeLive = activeDriverId
+      ? base44.entities.PendingBreadcrumbLive.subscribe((event) => {
+          if (event?.data?.driver_id !== activeDriverId) return;
+          refresh({ detail: { driverId: activeDriverId, deliveryDate: activeDate } });
+        })
+      : null;
+
+    // Reload breadcrumbs when the driver returns from a long app-switch.
     const handleResumeAfterAbsence = (event) => {
-      const { userId } = event.detail || {};
-      // Only reload for the currently displayed driver
+      const { userId } = event?.detail || {};
       if (userId && activeDriverId && userId !== activeDriverId) return;
       refresh({ detail: { driverId: activeDriverId, deliveryDate: activeDate } });
     };
