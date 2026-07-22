@@ -7,6 +7,11 @@ import {
 
 const getBackgroundGeolocationPlugin = () => BackgroundGeolocation;
 
+const isValidCoord = (lat, lon) =>
+  typeof lat === 'number' && typeof lon === 'number' &&
+  isFinite(lat) && isFinite(lon) &&
+  !(Math.abs(lat) < 0.0001 && Math.abs(lon) < 0.0001);
+
 const normalizeNativePosition = (location) => ({
   coords: {
     latitude: Number(location.latitude),
@@ -86,6 +91,12 @@ class NativeLocationProvider {
             return;
           }
           if (!location) return;
+          const lat = Number(location.latitude);
+          const lon = Number(location.longitude);
+          if (!isValidCoord(lat, lon)) {
+            console.warn(`📱 [NativeProvider] Dropping invalid GPS fix [${lat}, ${lon}] — not yet locked`);
+            return; // Keep watcher alive — wait for a valid fix
+          }
           clearTimeout(timeoutId);
           await finish(() => resolve(normalizeNativePosition(location)));
         }
@@ -127,6 +138,12 @@ class NativeLocationProvider {
           return;
         }
         if (location) {
+          const lat = Number(location.latitude);
+          const lon = Number(location.longitude);
+          if (!isValidCoord(lat, lon)) {
+            console.warn(`📱 [NativeProvider] Dropping invalid GPS fix [${lat}, ${lon}] — not yet locked`);
+            return; // Keep watcher alive — wait for a valid fix
+          }
           onSuccess?.(normalizeNativePosition(location));
         }
       }
