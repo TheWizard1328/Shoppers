@@ -64,6 +64,12 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
                     <div className="font-medium text-slate-800">
                       Zone {z.zone_index} — {z.gaps_in_zone} gap{z.gaps_in_zone !== 1 ? 's' : ''}
                     </div>
+                    {(z.stop_before != null || z.stop_after != null) && (
+                      <div className="text-cyan-700 font-medium mt-0.5 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        Stop #{z.stop_before ?? '?'} → Stop #{z.stop_after ?? '?'}
+                      </div>
+                    )}
                     <div className="text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                       <span>Pts #{z.start_idx}–#{z.end_idx} ({z.points_in_zone} total)</span>
                       <span>Largest gap: {z.max_gap_m.toLocaleString()}m</span>
