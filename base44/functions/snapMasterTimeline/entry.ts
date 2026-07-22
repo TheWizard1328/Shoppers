@@ -407,7 +407,61 @@ Deno.serve(async (req) => {
     };
 
     if (analyze_only) {
-      return Response.json({ success: true, analyze_only: true, ...analysisResult });
+      // ── Enrich zone_details with the stop numbers the gap falls between ──────
+      // Fetch all delivery stops for this driver/date, sorted by stop_order.
+      // For each zone, find the stop whose breadcrumb timestamps bracket the gap.
+      try {
+        const stops = await base44.asServiceRole.entities.Delivery.filter(
+          { driver_id, delivery_date },
+          'stop_order',
+          200
+        ) as any[];
+
+        // Build a sorted list of [stop_order, arrival_time_ms] for stops that have an arrival_time
+        const MDT_OFFSET = '-06:00';
+        const toUtcMs = (localStr: string): number | null => {
+          if (!localStr) return null;
+          const trimmed = localStr.trim();
+          if (/[Z+-]\d{2}:?\d{2}$/.test(trimmed) || trimmed.endsWith('Z')) {
+            const ms = new Date(trimmed).getTime();
+            return Number.isNaN(ms) ? null : ms;
+          }
+          const ms = new Date(trimmed + MDT_OFFSET).getTime();
+          return Number.isNaN(ms) ? null : ms;
+        };
+
+        const stopTimeline = stops
+          .filter((s: any) => !s.is_cycling_marker && s.stop_order != null && s.arrival_time)
+          .map((s: any) => ({ stop_order: s.stop_order as number, ts: toUtcMs(s.arrival_time) }))
+          .filter((s: any) => s.ts !== null)
+          .sort((a: any, b: any) => a.ts - b.ts);
+
+        // For each zone, find the stop BEFORE and AFTER based on the GPS timestamps at zone boundaries
+        const enrichedZones = analysisResult.zone_details.map((z: any) => {
+          const zoneStartTs = masterPoints[z.start_idx]?.[2] ?? null;
+          const zoneEndTs   = masterPoints[z.end_idx]?.[2] ?? null;
+
+          let stop_before: number | null = null;
+          let stop_after: number | null = null;
+
+          if (zoneStartTs && stopTimeline.length > 0) {
+            // Last stop that arrived before or at the zone start
+            const before = stopTimeline.filter((s: any) => s.ts <= zoneStartTs);
+            if (before.length > 0) stop_before = before[before.length - 1].stop_order;
+
+            // First stop that arrived after or at the zone end
+            const after = stopTimeline.filter((s: any) => s.ts >= (zoneEndTs ?? zoneStartTs));
+            if (after.length > 0) stop_after = after[0].stop_order;
+          }
+
+          return { ...z, stop_before, stop_after };
+        });
+
+        return Response.json({ success: true, analyze_only: true, ...analysisResult, zone_details: enrichedZones });
+      } catch (_) {
+        // Fall back to plain analysis without stop enrichment
+        return Response.json({ success: true, analyze_only: true, ...analysisResult });
+      }
     }
 
     if (zones.length === 0) {
