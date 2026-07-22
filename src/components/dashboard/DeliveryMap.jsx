@@ -1384,7 +1384,13 @@ export default function DeliveryMap({
           <DeliveryMarkers deliveryMarkers={deliveryMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} groupedPickupMarkers={groupedPickupMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} setFannedLocationKey={setFannedLocationKey} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClick} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} stores={stores} />
         )}
 
-        {mapReady && showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} />}
+        {mapReady && showBreadcrumbs && (
+          <MapBreadcrumbs
+            breadcrumbsData={breadcrumbsData}
+            currentZoom={currentZoom}
+            completedStopMarkers={[...deliveryMarkers, ...pickupMarkers]}
+          />
+        )}
       </MapContainer>
 
       <MapCrosshair stopCardsHeight={stableCrosshairHeightRef.current} statsCardHeight={isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} immersiveHidden={immersiveHidden} />
