@@ -336,24 +336,43 @@ export default function PolylineViewer({ users = [] }) {
         );
         const terminal = (dels || []).filter(d => d?.stop_order != null && ['completed','failed','cancelled'].includes(d.status || ''));
 
-        // Collect unique patient/store IDs
-        const patientIds = [...new Set(terminal.map(d => d.patient_id).filter(Boolean))];
-        const storeIds   = [...new Set(terminal.map(d => d.store_id).filter(Boolean))];
+        // Collect unique patient/store/interstore IDs
+        const patientIds     = [...new Set(terminal.map(d => d.patient_id).filter(Boolean))];
+        const storeIds       = [...new Set(terminal.map(d => d.store_id).filter(Boolean))];
+        const interstoreIds  = [...new Set(terminal.flatMap(d => [d._interstore_source_id, d._interstore_dest_id]).filter(Boolean))];
 
-        const [pats, strs] = await Promise.all([
-          patientIds.length ? base44.entities.Patient.filter({ id: { $in: patientIds } }, 'id', 500) : Promise.resolve([]),
-          storeIds.length   ? base44.entities.Store.filter({ id: { $in: storeIds } }, 'id', 500)     : Promise.resolve([]),
+        const [pats, strs, interlocs] = await Promise.all([
+          patientIds.length    ? base44.entities.Patient.filter({ id: { $in: patientIds } }, 'id', 500)               : Promise.resolve([]),
+          storeIds.length      ? base44.entities.Store.filter({ id: { $in: storeIds } }, 'id', 500)                   : Promise.resolve([]),
+          interstoreIds.length ? base44.entities.InterStoreLocation.filter({ id: { $in: interstoreIds } }, 'id', 500) : Promise.resolve([]),
         ]);
 
-        const patMap = new Map((pats || []).map(p => [p.id, p]));
-        const strMap = new Map((strs || []).map(s => [s.id, s]));
+        const patMap   = new Map((pats      || []).map(p => [p.id, p]));
+        const strMap   = new Map((strs      || []).map(s => [s.id, s]));
+        const islMap   = new Map((interlocs || []).map(l => [l.id, l]));
 
         const markers = terminal
           .map(d => {
             let lat, lon;
-            if (d.is_cycling_marker) { lat = d.cycling_latitude; lon = d.cycling_longitude; }
-            else if (d.patient_id)  { const p = patMap.get(d.patient_id); lat = p?.latitude; lon = p?.longitude; }
-            else if (d.store_id)    { const s = strMap.get(d.store_id);   lat = s?.latitude; lon = s?.longitude; }
+            const did = String(d.delivery_id || '').toUpperCase();
+            const isISP = did.startsWith('ISP');
+            const isISD = did.startsWith('ISD');
+
+            if (d.is_cycling_marker) {
+              lat = d.cycling_latitude; lon = d.cycling_longitude;
+            } else if (isISP && d._interstore_source_id) {
+              // ISP: pickup from source store — use source location
+              const loc = islMap.get(d._interstore_source_id);
+              lat = loc?.store_latitude; lon = loc?.store_longitude;
+            } else if (isISD && d._interstore_dest_id) {
+              // ISD: drop-off at destination store — use dest location
+              const loc = islMap.get(d._interstore_dest_id);
+              lat = loc?.store_latitude; lon = loc?.store_longitude;
+            } else if (d.patient_id) {
+              const p = patMap.get(d.patient_id); lat = p?.latitude; lon = p?.longitude;
+            } else if (d.store_id) {
+              const s = strMap.get(d.store_id); lat = s?.latitude; lon = s?.longitude;
+            }
             if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return null;
             return { stop_order: d.stop_order, lat: Number(lat), lon: Number(lon), status: d.status };
           })
