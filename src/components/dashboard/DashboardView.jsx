@@ -135,7 +135,6 @@ function DashboardView({
     const filteredCount = Array.isArray(deliveriesWithStopOrder) ? deliveriesWithStopOrder.length : 0;
     if (renderSequence.fabPhaseReady && filteredCount > 0 && cardsReadyForFAB && !initialFabRetriggeredRef.current) {
       initialFabRetriggeredRef.current = true;
-      console.log(`🔄 [DashboardView Failsafe] FAB fired with 0 deliveries initially — re-triggering current phase (${mapViewPhase}) with ${filteredCount} deliveries now available`);
       setTimeout(() => {
         // CRITICAL: Do NOT call setMapViewPhase here — respect the saved/current phase
         // Only re-trigger the map view to recalculate bounds with the new data

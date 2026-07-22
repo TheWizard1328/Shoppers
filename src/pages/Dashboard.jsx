@@ -6,16 +6,13 @@ import { format, startOfDay } from 'date-fns';
 import { invalidate, loadPriorityDeliveriesForSelection } from "@/components/utils/dataManager";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import DashboardScreen from '@/features/dashboard/components/DashboardScreen';
-import { useDashboardViewModel } from '@/features/dashboard/services/dashboardViewModel';
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
-import PatientForm from "@/components/patients/PatientForm";
 import {
   updateDeliveryLocal,
   pauseOfflineMutations,
   resumeOfflineMutations } from "@/components/utils/offlineMutations";
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
-import RouteOptimizationSettings from "@/components/dashboard/RouteOptimizationSettings";
 import { locationTracker } from "@/components/utils/locationTracker";
 import { getCurrentDevice } from '@/components/utils/deviceManager';
 import { liveDistanceTracker } from "@/components/utils/liveDistanceTracker";
@@ -33,10 +30,8 @@ import { loadUserSettings, saveSetting } from "@/components/utils/userSettingsMa
 import useLiveBreadcrumbsSync from '@/components/dashboard/useLiveBreadcrumbsSync';
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import { notifyDriverRetry } from "@/components/utils/deliveryMessaging";
-import RouteNotification from "@/components/dashboard/RouteNotification";
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 import { toast } from 'sonner';
-import PullToSync from '../components/dashboard/PullToSync';
 import SkippedStopsDialog from '../components/dashboard/SkippedStopsDialog';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
 import { calculateDistance, populateTemporaryStartTimes, buildMapPadding } from "@/components/dashboard/DashboardHelpers";
@@ -209,7 +204,8 @@ function Dashboard() {
   const [isLoadingPayrollStats, setIsLoadingPayrollStats] = useState(false);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
   const { isMobile } = useDevice();
-  const bottomNavHeight = useMemo(() => { const val = getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height').trim(); if (!val || val === '0px') return 0; const match = val.match(/(\d+)px/); return match ? parseInt(match[1], 10) : 0; }, []);
+  // Read once — this CSS variable is set at layout boot and never changes at runtime
+  const bottomNavHeight = useMemo(() => { try { const val = window.getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height').trim(); if (!val || val === '0px') return 0; const match = val.match(/(\d+)px/); return match ? parseInt(match[1], 10) : 0; } catch (_) { return 0; } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUserRoles]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUserRoles]);
   const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0);
@@ -845,18 +841,10 @@ function Dashboard() {
 
   useEffect(() => {
     const activePhase = pendingPhaseRef.current;
-    console.log(`🟡 [map FAB start] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
 
     // CRITICAL: Only run when mapViewTrigger changes - prevent re-runs from data updates
-    if (mapViewTrigger === 0 || mapViewTrigger === lastAppliedTriggerRef.current) {
-      console.log(`🟡 [map return 1] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
-      return;
-    }
-
-    if (mapViewPhaseRef.current === 0) {
-      console.log(`🟡 [map return 2] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
-      return;
-    }
+    if (mapViewTrigger === 0 || mapViewTrigger === lastAppliedTriggerRef.current) return;
+    if (mapViewPhaseRef.current === 0) return;
 
     // Update last applied trigger FIRST
     lastAppliedTriggerRef.current = mapViewTrigger;
@@ -867,7 +855,6 @@ function Dashboard() {
     // and setDriverLocation/setAppUsers React state updates may not have committed yet
     // when the effect fires, causing stale driverLocation=null to falsely bail early.
     if (mapViewPhaseRef.current === 2 && !(isDispatcher && !isAdmin || isAdmin && selectedDriverIdRef.current === 'all') && !getFabTargetDriverMapLocation({ selectedDriverId: selectedDriverIdRef.current, currentUser, isDriver, appUsers: appUsersRef.current, driverLocation: driverLocationRef.current, allDriverLocations: allDriverLocationsRef.current, isPrimaryDevice: isPrimaryDeviceRef.current })) {
-      console.log(`🟡 [map return 3] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
       return;
     }
 
@@ -879,8 +866,6 @@ function Dashboard() {
 
     switch (activePhase) {
       case 1: { // "Show All Stops"
-        console.clear;
-        console.log(`🟡 [map phase 1] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
         const allCoordinates = [];
         let hasStopMarkers = false;
         let hasDriverMarkers = false;
@@ -919,13 +904,6 @@ function Dashboard() {
               allCoordinates.push([assignedDriverAppUser.current_latitude, assignedDriverAppUser.current_longitude]);
               hasDriverMarkers = true;
               addedCount++;
-            } else {
-              console.warn(`⚠️ [Phase 1 - Dispatcher] Assigned driver has no location data:`, {
-                selectedDriverId: selectedDriverIdRef.current,
-                appUser: assignedDriverAppUser ? 'found' : 'not found',
-                has_lat: !!assignedDriverAppUser?.current_latitude,
-                has_lng: !!assignedDriverAppUser?.current_longitude
-              });
             }
           }
 
@@ -941,37 +919,18 @@ function Dashboard() {
           });
 
           Array.from(uniqueLocations.values()).forEach((location) => {
-            if (!location?.latitude || !location?.longitude || !location?.driver_id) {
-              console.log(`🟡 [map phase 1 exit 1] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
-              return;
-            }
-
+            if (!location?.latitude || !location?.longitude || !location?.driver_id) return;
             // CRITICAL: Skip current user's shared marker if live location is available (prioritize GPS)
             const hasLiveLocation = driverLocationRef.current?.latitude && driverLocationRef.current?.longitude && location.driver_id === currentUser?.id;
-            if (hasLiveLocation) {
-              console.log(`🟡 [map phase 1 exit 2] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
-              return;
-            }
-
+            if (hasLiveLocation) return;
             // CRITICAL: Skip current user on mobile (blue dot shows instead) - but NOT for dispatchers
             const isCurrentUserLocation = isMobile && !isDispatcher && isPrimaryDeviceRef.current && location.driver_id === currentUser?.id;
-            if (isCurrentUserLocation) {
-              console.log(`🟡 [map phase 1 exit 3] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
-              return;
-            }
-
+            if (isCurrentUserLocation) return;
             // CRITICAL: Skip if this is the assigned driver (already added above for dispatchers)
-            if (isDispatcher && selectedDriverIdRef.current && selectedDriverIdRef.current !== 'all' && location.driver_id === selectedDriverIdRef.current) {
-              console.log(`🟡 [map phase 1 exit 4] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
-              return;
-            }
-
+            if (isDispatcher && selectedDriverIdRef.current && selectedDriverIdRef.current !== 'all' && location.driver_id === selectedDriverIdRef.current) return;
             // CRITICAL: Only include driver location if they are specifically ON DUTY — ignore off_duty/on_break
             const driverAU = appUsersRef.current?.find((au) => au?.user_id === location.driver_id);
-            if (driverAU?.driver_status !== 'on_duty') {
-              console.log(`🟡 [map phase 1 exit 5] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
-              return;
-            }
+            if (driverAU?.driver_status !== 'on_duty') return;
             // CRITICAL: Phase 1 "Show All" mode - include rendered markers in bounds
 
             // Dispatcher filtering - only active deliveries in dispatcher's stores
@@ -1197,8 +1156,6 @@ function Dashboard() {
         break; } // end case 1
 
       case 2: { // "Center on Driver & Next Stop" (drivers) OR "All active driver locations + next stops" (dispatchers)
-        console.clear;
-        console.log(`🟡 [map phase 2 start] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
         // CRITICAL: Do NOT stamp lastProgrammaticMapMoveRef here.
         // Stamping inside the switch effect resets the GPS interval clock on every pan
         // (including REACTIVATE_FAB-triggered ones), causing the very next GPS tick to
@@ -1251,8 +1208,6 @@ function Dashboard() {
         break; } // end case 2
 
       case 3: { // "Center on Incomplete Stops Only + Their Drivers + Pending"
-        console.clear;
-        console.log(`🟡 [map phase 3 start] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
         const allCoordinatesPhase3 = [];
 
         // Check if viewing today's date
@@ -1283,14 +1238,8 @@ function Dashboard() {
 
           // CRITICAL: Include BOTH incomplete AND pending stops
           const incompleteAndPendingAllDrivers = allDateDeliveries.filter((d) => {
-            if (!d) {
-              console.log(`🟡 [map phase 3 exit 1] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
-              return false;
-            }
-            if (finishedStatuses.includes(d.status)) {
-              console.log(`🟡 [map phase 3 exit 2] t=${mapViewTrigger} pending=${activePhase} phaseRef=${mapViewPhaseRef.current} state=${mapViewPhase} locked=${isMapViewLockedRef.current}`);
-              return false;
-            }
+            if (!d) return false;
+            if (finishedStatuses.includes(d.status)) return false;
             return true; // Include both in_transit/en_route AND pending
           });
 
@@ -1813,7 +1762,6 @@ useEffect(() => {
       mapLockTimeoutRef.current = null;
     }
     mapLockExpiresAtRef.current = null;
-    console.log(`🟠 [map phase unlocked] reason=marker-click phase=${mapViewPhaseRef.current}`);
     setIsMapViewLocked(false);
     lastUserInteractionRef.current = Date.now();
 
@@ -2038,30 +1986,15 @@ useEffect(() => {
       const driverDeliveries = await base44.entities.Delivery.filter({ delivery_date: deliveryDate, driver_id: driverId });
       const completed = (driverDeliveries || []).filter((d) => d && fin.includes(d.status));
       const incomplete = (driverDeliveries || []).filter((d) => d && !fin.includes(d.status));
-      // Sort completed ascending by actual_delivery_time (earliest = stop 1)
-      const sortedCompleted = [...completed].sort((a, b) => {
-        const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
-        const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
-        return ta - tb;
-      });
-      if (incomplete.length === 0) {
-        for (let i = 0; i < sortedCompleted.length; i++) if (sortedCompleted[i]) await updateDeliveryLocal(sortedCompleted[i].id, { stop_order: i + 1 });
-        continue;
-      }
-      // Enrich incomplete stops — cycling markers use cycling_latitude/longitude
+      const sortedCompleted = [...completed].sort((a, b) => { const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; return ta - tb; });
+      if (incomplete.length === 0) { for (let i = 0; i < sortedCompleted.length; i++) if (sortedCompleted[i]) await updateDeliveryLocal(sortedCompleted[i].id, { stop_order: i + 1 }); continue; }
       const cyclingMarkersIncomplete = incomplete.filter((d) => d && d.is_cycling_marker);
       const regularIncomplete = incomplete.filter((d) => d && !d.is_cycling_marker);
       const enriched = regularIncomplete.map((d) => { if (!d) return null; const e = { ...d }; if (d.patient_id) { const p = patients.find((x) => x && x.id === d.patient_id); if (p?.latitude) { e.latitude = p.latitude; e.longitude = p.longitude; } } else { const s = stores.find((x) => x && x.id === d.store_id); if (s?.latitude) { e.latitude = s.latitude; e.longitude = s.longitude; } } return e; }).filter((d) => d && d.latitude && d.longitude);
       const optimized = optimizeRoute(populateTemporaryStartTimes(enriched, stores), stores, patients, { useAdvancedOptimization: true, respectManualOrder: false, driverHome: driver.home_latitude ? { lat: driver.home_latitude, lon: driver.home_longitude } : null });
-      // Merge: completed (asc) → optimized regular stops → cycling markers slotted by their existing stop_order
       const incompleteWithCycling = [...optimized, ...cyclingMarkersIncomplete].sort((a, b) => (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999));
       const final = [...sortedCompleted, ...incompleteWithCycling];
-      for (let i = 0; i < final.length; i++) {
-        const s = final[i]; if (!s) continue;
-        const upd = { stop_order: i + 1 };
-        if (!fin.includes(s.status)) { upd.delivery_time_eta = s.estimated_arrival || s.delivery_time_start; upd.delivery_time_start = s.delivery_time_start; upd.delivery_time_end = s.delivery_time_end; upd.ampm_deliveries = s.ampm_deliveries; if (!s.tracking_number || s.tracking_number === '99') upd.tracking_number = s.tracking_number; }
-        await updateDeliveryLocal(s.id, upd);
-      }
+      for (let i = 0; i < final.length; i++) { const s = final[i]; if (!s) continue; const upd = { stop_order: i + 1 }; if (!fin.includes(s.status)) { upd.delivery_time_eta = s.estimated_arrival || s.delivery_time_start; upd.delivery_time_start = s.delivery_time_start; upd.delivery_time_end = s.delivery_time_end; upd.ampm_deliveries = s.ampm_deliveries; if (!s.tracking_number || s.tracking_number === '99') upd.tracking_number = s.tracking_number; } await updateDeliveryLocal(s.id, upd); }
     }
   };
 
