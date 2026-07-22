@@ -3,21 +3,39 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
 const EDMONTON_TZ = 'America/Edmonton';
 
-function getEdmontonDateString(value: any) {
-  if (value == null) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: EDMONTON_TZ,
-    year: 'numeric', month: '2-digit', day: '2-digit'
-  }).formatToParts(date);
-  const year = parts.find((p) => p.type === 'year')?.value;
-  const month = parts.find((p) => p.type === 'month')?.value;
-  const day = parts.find((p) => p.type === 'day')?.value;
-  return year && month && day ? `${year}-${month}-${day}` : null;
+// ── Delivery ID prefix classification ────────────────────────────────────────
+function classifyDelivery(d: any): 'delivery' | 'cycling' | 'interstore' | 'store_pickup' {
+  const did = String(d.delivery_id || '').toUpperCase();
+  if (did.startsWith('BIK')) return 'cycling';
+  if (did.startsWith('ISP') || did.startsWith('ISD')) return 'interstore';
+  if (did.startsWith('DID')) return 'delivery';
+  // No delivery_id or unrecognized prefix → store pickup
+  return 'store_pickup';
 }
 
-function parseTimestampMs(value: any) {
+function getEdmontonOffsetString(date: Date): string {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: EDMONTON_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  });
+  const parts = dtf.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) map[p.type] = p.value;
+  const edmontonAsUTC = Date.UTC(
+    Number(map.year), Number(map.month) - 1, Number(map.day),
+    Number(map.hour === '24' ? '00' : map.hour), Number(map.minute), Number(map.second)
+  );
+  const offsetMs = date.getTime() - edmontonAsUTC;
+  const offsetHours = Math.trunc(offsetMs / 3600000);
+  const sign = offsetHours >= 0 ? '-' : '+';
+  const absHours = Math.abs(offsetHours);
+  const absMinutes = Math.abs((offsetMs % 3600000) / 60000);
+  return `${sign}${String(absHours).padStart(2, '0')}:${String(absMinutes).padStart(2, '0')}`;
+}
+
+function parseTimestampMs(value: any): number | null {
   if (value == null) return null;
   if (typeof value === 'number' && Number.isFinite(value)) {
     if (value > 1e12) return value;
@@ -37,32 +55,7 @@ function parseTimestampMs(value: any) {
   return null;
 }
 
-function getEdmontonOffsetString(date: Date): string {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: EDMONTON_TZ,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false
-  });
-  const parts = dtf.formatToParts(date);
-  const map: Record<string, string> = {};
-  for (const p of parts) map[p.type] = p.value;
-  const edmontonAsUTC = Date.UTC(
-    Number(map.year), Number(map.month) - 1, Number(map.day),
-    Number(map.hour === '24' ? '00' : map.hour), Number(map.minute), Number(map.second)
-  );
-  // Edmonton is BEHIND UTC, so offset is negative.
-  // offsetMs = UTC - Edmonton wall-clock = positive (e.g. +6h in summer MDT)
-  // The timezone string needs the NEGATIVE: "-06:00" means local is 6h behind UTC
-  const offsetMs = date.getTime() - edmontonAsUTC;
-  const offsetHours = Math.trunc(offsetMs / 3600000);
-  const sign = offsetHours >= 0 ? '-' : '+';  // Inverted: positive offset means behind UTC
-  const absHours = Math.abs(offsetHours);
-  const absMinutes = Math.abs((offsetMs % 3600000) / 60000);
-  return `${sign}${String(absHours).padStart(2, '0')}:${String(absMinutes).padStart(2, '0')}`;
-}
-
-function parseDeliveryTimeMs(timeValue: any, deliveryDate: string) {
+function parseDeliveryTimeMs(timeValue: any, deliveryDate: string): number | null {
   if (!timeValue || !deliveryDate) return null;
   const trimmed = String(timeValue).trim();
   if (trimmed.includes('T') || trimmed.includes(' ')) {
@@ -82,7 +75,7 @@ function parseDeliveryTimeMs(timeValue: any, deliveryDate: string) {
   return parseTimestampMs(trimmed);
 }
 
-function encodePolylineValue(value: number) {
+function encodePolylineValue(value: number): string {
   let v = Math.round(value * 1e5);
   v = v < 0 ? ~(v << 1) : v << 1;
   let result = '';
@@ -94,7 +87,7 @@ function encodePolylineValue(value: number) {
   return result;
 }
 
-function encodePolyline(points: number[][]) {
+function encodePolyline(points: number[][]): string {
   let prevLat = 0, prevLon = 0, result = '';
   for (const point of points) {
     result += encodePolylineValue(point[0] - prevLat);
@@ -105,7 +98,7 @@ function encodePolyline(points: number[][]) {
   return result;
 }
 
-function decodePolyline(encoded: string) {
+function decodePolyline(encoded: string): number[][] {
   if (!encoded || typeof encoded !== 'string') return [];
   let index = 0, lat = 0, lng = 0;
   const coordinates: number[][] = [];
@@ -129,7 +122,7 @@ function decodePolyline(encoded: string) {
   return coordinates;
 }
 
-function dedupeSequential(points: any[]) {
+function dedupeSequential(points: any[]): any[] {
   const result: any[] = [];
   for (const point of points) {
     const prev = result[result.length - 1];
@@ -140,7 +133,7 @@ function dedupeSequential(points: any[]) {
   return result;
 }
 
-function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -152,7 +145,7 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
 
 const ANCHOR_BUFFER_MS = 10 * 60 * 1000;
 
-function findBestAnchorIndex(masterPoints: any[], timestampMs: number, stopLat: number, stopLon: number) {
+function findBestAnchorIndex(masterPoints: any[], timestampMs: number, stopLat: number, stopLon: number): number {
   let closestTimeIdx = 0;
   let minTimeDiff = Infinity;
   for (let i = 0; i < masterPoints.length; i++) {
@@ -175,6 +168,17 @@ function findBestAnchorIndex(masterPoints: any[], timestampMs: number, stopLat: 
   return bestIdx;
 }
 
+// ── Unified waypoint type ─────────────────────────────────────────────────────
+interface UnifiedStop {
+  stop_order: number;
+  lat: number;
+  lon: number;
+  endMs: number;           // anchor timestamp for this stop's completion
+  type: 'delivery' | 'cycling' | 'interstore' | 'store_pickup';
+  deliveryId: string;      // original DB record ID
+  transport_mode: string;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -182,8 +186,6 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-
-    // Support both direct call and entity automation payload
     const deliveryData = body.data || null;
     const driver_id = body.driver_id || deliveryData?.driver_id;
     const delivery_date = body.delivery_date || deliveryData?.delivery_date;
@@ -192,7 +194,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
     }
 
-    // ── 1. Fetch the master 'TODAY' breadcrumb record (stop_order = -1) ──────
+    // ── 1. Fetch master breadcrumb (stop_order = -1) ──────────────────────────
     const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id,
       delivery_date,
@@ -202,21 +204,14 @@ Deno.serve(async (req) => {
 
     if (!masterRecord?.encoded_polyline || !masterRecord?.timestamps) {
       return Response.json({
-        success: true,
-        driver_id,
-        delivery_date,
-        master_point_count: 0,
-        stops_sliced: 0,
-        stops_skipped_saved: 0,
-        stops_skipped_other: 0,
-        stops_missing: 0,
-        stops_thin: 0,
-        results: [],
-        reason: 'no_master_timeline_record',
+        success: true, driver_id, delivery_date,
+        master_point_count: 0, stops_sliced: 0, stops_skipped_saved: 0,
+        stops_skipped_other: 0, stops_missing: 0, stops_thin: 0,
+        results: [], reason: 'no_master_timeline_record',
       });
     }
 
-    // Parse master timeline into [[lat, lon, ts_ms], ...] sorted by time
+    // Parse master timeline → [[lat, lon, ts_ms], ...] sorted by time
     const masterCoords = decodePolyline(masterRecord.encoded_polyline);
     const masterTs = masterRecord.timestamps.split(',').map(Number);
     const masterPoints = masterCoords
@@ -229,173 +224,209 @@ Deno.serve(async (req) => {
 
     if (masterPoints.length === 0) {
       return Response.json({
-        success: true,
-        driver_id,
-        delivery_date,
-        master_point_count: 0,
-        stops_sliced: 0,
-        stops_skipped_saved: 0,
-        stops_skipped_other: 0,
-        stops_missing: 0,
-        stops_thin: 0,
-        results: [],
-        reason: 'empty_master_timeline',
+        success: true, driver_id, delivery_date,
+        master_point_count: 0, stops_sliced: 0, stops_skipped_saved: 0,
+        stops_skipped_other: 0, stops_missing: 0, stops_thin: 0,
+        results: [], reason: 'empty_master_timeline',
       });
     }
 
-    // ── 2. Fetch all deliveries for this driver/date, sorted by stop_order ───
+    // ── 2. Fetch all deliveries for this driver/date ──────────────────────────
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter(
       { driver_id, delivery_date },
       'stop_order',
       50000
     );
 
-    // Only process terminal (completed/failed/etc) stops
-    const terminalStops = (allDeliveries || [])
-      .filter((d) => d && d.stop_order != null && TERMINAL_STATUSES.has(String(d.status || '')))
-      .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
+    // Only process terminal stops that have a stop_order
+    const terminalDeliveries = (allDeliveries || [])
+      .filter((d: any) => d && d.stop_order != null && TERMINAL_STATUSES.has(String(d.status || '')));
 
-    // ── 2b. Fetch patient GPS coords in one bulk call ─────────────────────────
-    const patientIds = [...new Set(
-      (allDeliveries || []).map((d) => d.patient_id).filter((id): id is string => id !== null && id !== undefined)
+    // ── 3. Collect all unique store_ids and patient_ids to resolve coordinates ─
+    const storeIds = [...new Set(
+      terminalDeliveries.map((d: any) => d.store_id).filter(Boolean)
     )];
-    const patientGpsMap = new Map(); // patient_id → { lat, lon }
-    if (patientIds.length > 0) {
-      const patients = await base44.asServiceRole.entities.Patient.filter(
-        { id: { $in: patientIds } },
-        'id',
-        50000
-      ).catch(() => []);
-      for (const p of (patients || [])) {
-        if (p?.id && Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude))) {
-          patientGpsMap.set(p.id, { lat: Number(p.latitude), lon: Number(p.longitude) });
-        }
+    const patientIds = [...new Set(
+      terminalDeliveries.map((d: any) => d.patient_id).filter(Boolean)
+    )];
+
+    // Collect interstore location IDs (source + dest)
+    const interstoreIds = [...new Set([
+      ...terminalDeliveries.map((d: any) => d._interstore_source_id).filter(Boolean),
+      ...terminalDeliveries.map((d: any) => d._interstore_dest_id).filter(Boolean),
+    ])];
+
+    // ── 4. Bulk fetch coordinates in parallel ────────────────────────────────
+    const [stores, patients, interstoreLocations, appUsers] = await Promise.all([
+      storeIds.length > 0
+        ? base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, 'id', 50000).catch(() => [])
+        : Promise.resolve([]),
+      patientIds.length > 0
+        ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }, 'id', 50000).catch(() => [])
+        : Promise.resolve([]),
+      interstoreIds.length > 0
+        ? base44.asServiceRole.entities.InterStoreLocation.filter({ id: { $in: interstoreIds } }, 'id', 50000).catch(() => [])
+        : Promise.resolve([]),
+      base44.asServiceRole.entities.AppUser.filter({ user_id: driver_id }, 'id', 1).catch(() => []),
+    ]);
+
+    // Build coordinate lookup maps
+    const storeGpsMap = new Map<string, { lat: number; lon: number }>();
+    for (const s of (stores || [])) {
+      if (s?.id && Number.isFinite(Number(s.latitude)) && Number.isFinite(Number(s.longitude))) {
+        storeGpsMap.set(s.id, { lat: Number(s.latitude), lon: Number(s.longitude) });
       }
     }
 
-    if (terminalStops.length === 0) {
-      return Response.json({
-        success: true,
-        driver_id,
-        delivery_date,
-        master_point_count: masterPoints.length,
-        stops_sliced: 0,
-        stops_skipped_saved: 0,
-        stops_skipped_other: 0,
-        stops_missing: 0,
-        stops_thin: 0,
-        results: [],
-        reason: 'no_terminal_stops',
+    const patientGpsMap = new Map<string, { lat: number; lon: number }>();
+    for (const p of (patients || [])) {
+      if (p?.id && Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude))) {
+        patientGpsMap.set(p.id, { lat: Number(p.latitude), lon: Number(p.longitude) });
+      }
+    }
+
+    const interstoreGpsMap = new Map<string, { lat: number; lon: number }>();
+    for (const loc of (interstoreLocations || [])) {
+      if (loc?.id && Number.isFinite(Number(loc.store_latitude)) && Number.isFinite(Number(loc.store_longitude))) {
+        interstoreGpsMap.set(loc.id, { lat: Number(loc.store_latitude), lon: Number(loc.store_longitude) });
+      }
+    }
+
+    // Driver home coords
+    const driverAppUser = appUsers?.[0] || null;
+    const driverHomeLat = driverAppUser?.home_latitude ? Number(driverAppUser.home_latitude) : NaN;
+    const driverHomeLon = driverAppUser?.home_longitude ? Number(driverAppUser.home_longitude) : NaN;
+
+    // ── 5. Resolve coordinates for each terminal stop ─────────────────────────
+    // Coordinate resolution priority per type:
+    //   delivery     → patient GPS
+    //   cycling      → cycling_latitude/longitude on the Delivery record
+    //   interstore   → _interstore_dest_id → InterStoreLocation GPS
+    //   store_pickup → store_id → Store GPS
+    function resolveStopCoords(d: any): { lat: number; lon: number } {
+      const type = classifyDelivery(d);
+      if (type === 'delivery') {
+        const gps = patientGpsMap.get(d.patient_id);
+        return gps ?? { lat: NaN, lon: NaN };
+      }
+      if (type === 'cycling') {
+        return {
+          lat: Number.isFinite(Number(d.cycling_latitude)) ? Number(d.cycling_latitude) : NaN,
+          lon: Number.isFinite(Number(d.cycling_longitude)) ? Number(d.cycling_longitude) : NaN,
+        };
+      }
+      if (type === 'interstore') {
+        // Use destination for dropoffs (ISD), source for pickups (ISP)
+        const did = String(d.delivery_id || '').toUpperCase();
+        const locationId = did.startsWith('ISD') ? d._interstore_dest_id : d._interstore_source_id;
+        const gps = interstoreGpsMap.get(locationId);
+        return gps ?? { lat: NaN, lon: NaN };
+      }
+      if (type === 'store_pickup') {
+        const gps = storeGpsMap.get(d.store_id);
+        return gps ?? { lat: NaN, lon: NaN };
+      }
+      return { lat: NaN, lon: NaN };
+    }
+
+    // ── 6. Build unified sorted stop list ─────────────────────────────────────
+    const unifiedStops: UnifiedStop[] = [];
+
+    for (const d of terminalDeliveries) {
+      const endMs = parseDeliveryTimeMs(
+        d.actual_delivery_time || d.delivery_time_end || d.arrival_time,
+        delivery_date
+      );
+      if (!endMs) continue; // can't anchor without a time
+
+      const coords = resolveStopCoords(d);
+
+      unifiedStops.push({
+        stop_order: Number(d.stop_order),
+        lat: coords.lat,
+        lon: coords.lon,
+        endMs,
+        type: classifyDelivery(d),
+        deliveryId: d.id,
+        transport_mode: d.transport_mode || 'driving',
       });
     }
 
-    // ── 3. Fetch existing per-stop breadcrumb records ─────────────────────────
+    // Sort chronologically by their completion time (spatial anchoring is stable to this)
+    unifiedStops.sort((a, b) => a.endMs - b.endMs);
+
+    if (unifiedStops.length === 0) {
+      return Response.json({
+        success: true, driver_id, delivery_date,
+        master_point_count: masterPoints.length,
+        stops_sliced: 0, stops_skipped_saved: 0, stops_skipped_other: 0,
+        stops_missing: 0, stops_thin: 0, results: [],
+        reason: 'no_terminal_stops_with_timestamps',
+      });
+    }
+
+    // ── 7. Fetch existing per-stop breadcrumb records ─────────────────────────
     const existingStopRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter(
       { driver_id, delivery_date },
       'stop_order',
       50000
     ).catch(() => []);
 
-    // Build a lookup: stop_order -> existing record (exclude master sentinel)
-    const existingByStopOrder = new Map();
+    const existingByStopOrder = new Map<number, any>();
     for (const rec of (existingStopRecords || [])) {
       if (rec?.stop_order != null && Number(rec.stop_order) !== -1) {
         existingByStopOrder.set(Number(rec.stop_order), rec);
       }
     }
 
-    // ── 4. Process each terminal stop ───────────────────────
+    // ── 8. Slice master breadcrumb per unified stop ───────────────────────────
     let stops_sliced = 0;
     let stops_skipped_saved = 0;
     let stops_skipped_other = 0;
-    let stops_missing = 0;     // No existing record at all
-    let stops_thin = 0;         // Existing record had ≤2 points (origin/destination only)
+    let stops_missing = 0;
+    let stops_thin = 0;
     const results: any[] = [];
 
-    for (let i = 0; i < terminalStops.length; i++) {
-      const stop = terminalStops[i];
-      const numericStopOrder = Number(stop.stop_order);
+    for (let i = 0; i < unifiedStops.length; i++) {
+      const stop = unifiedStops[i];
+      const existingRec = existingByStopOrder.get(stop.stop_order);
 
-      // Check if existing record has saved_to_route === true (manually edited — skip)
-      const existingRec = existingByStopOrder.get(numericStopOrder);
+      // Skip manually edited stops
       if (existingRec?.saved_to_route === true) {
         stops_skipped_saved++;
-        results.push({
-          stop_order: numericStopOrder,
-          skipped: true,
-          reason: 'saved_to_route',
-        });
+        results.push({ stop_order: stop.stop_order, skipped: true, reason: 'saved_to_route', type: stop.type });
         continue;
       }
 
-      // Track whether this stop was missing or thin
-      if (!existingRec) {
-        stops_missing++;
-      } else if (Number(existingRec.point_count) <= 2) {
-        stops_thin++;
+      if (!existingRec) stops_missing++;
+      else if (Number(existingRec.point_count) <= 2) stops_thin++;
+
+      // Spatial anchor: project this stop's endMs onto the nearest master point
+      const endAnchorIdx = findBestAnchorIndex(masterPoints, stop.endMs, stop.lat, stop.lon);
+      const endAnchorTs  = masterPoints[endAnchorIdx]?.[2] ?? stop.endMs;
+
+      // Lower boundary: previous stop's spatially-anchored end time
+      let startAnchorTs: number | null = null;
+      if (i > 0) {
+        const prevStop = unifiedStops[i - 1];
+        const prevAnchorIdx = findBestAnchorIndex(masterPoints, prevStop.endMs, prevStop.lat, prevStop.lon);
+        startAnchorTs = masterPoints[prevAnchorIdx]?.[2] ?? prevStop.endMs;
       }
 
-      // Upper boundary: this stop's completion time (timestamp anchor)
-      const stopEndMs = parseDeliveryTimeMs(
-        stop.actual_delivery_time || stop.delivery_time_end || stop.arrival_time,
-        delivery_date
-      );
-
-      if (!stopEndMs) {
-        stops_skipped_other++;
-        results.push({
-          stop_order: numericStopOrder,
-          skipped: true,
-          reason: 'no_end_time',
-        });
-        continue;
-      }
-
-      // Lower boundary: the previous terminal stop's completion time (if any)
-      const prevTerminalStop = terminalStops
-        .filter((d) => Number(d.stop_order) < numericStopOrder)
-        .at(-1) || null;
-
-      const prevStopEndMs = prevTerminalStop
-        ? parseDeliveryTimeMs(
-            prevTerminalStop.actual_delivery_time || prevTerminalStop.delivery_time_end || prevTerminalStop.arrival_time,
-            delivery_date
-          )
-        : null;
-
-      // ── Two-stage spatial anchor refinement ───────────────────────────────
-      const stopGps = patientGpsMap.get(stop.patient_id) || null;
-      const stopLat = stopGps?.lat ?? NaN;
-      const stopLon = stopGps?.lon ?? NaN;
-
-      const endAnchorIdx = findBestAnchorIndex(masterPoints, stopEndMs, stopLat, stopLon);
-      const endAnchorTs  = masterPoints[endAnchorIdx]?.[2] ?? stopEndMs;
-
-      let startAnchorTs = null;
-      if (prevTerminalStop && prevStopEndMs) {
-        const prevGps = patientGpsMap.get(prevTerminalStop.patient_id) || null;
-        const prevLat = prevGps?.lat ?? NaN;
-        const prevLon = prevGps?.lon ?? NaN;
-        const startAnchorIdx = findBestAnchorIndex(masterPoints, prevStopEndMs, prevLat, prevLon);
-        startAnchorTs = masterPoints[startAnchorIdx]?.[2] ?? prevStopEndMs;
-      }
-
-      // Slice: include all master points between the two spatially-anchored timestamps
+      // Slice master points between the two anchors
       const slicedPoints = masterPoints.filter((pt) => {
         const ts = pt[2];
         if (ts > endAnchorTs) return false;
-        if (startAnchorTs && ts < startAnchorTs) return false;
+        if (startAnchorTs !== null && ts < startAnchorTs) return false;
         return true;
       });
 
       if (slicedPoints.length === 0) {
         stops_skipped_other++;
         results.push({
-          stop_order: numericStopOrder,
-          skipped: true,
-          reason: 'no_points_in_window',
-          startAnchorTs,
-          endAnchorTs,
+          stop_order: stop.stop_order, type: stop.type,
+          skipped: true, reason: 'no_points_in_window',
+          startAnchorTs, endAnchorTs,
         });
         continue;
       }
@@ -407,10 +438,10 @@ Deno.serve(async (req) => {
       const breadcrumbData = {
         driver_id,
         delivery_date,
-        stop_order: numericStopOrder,
+        stop_order: stop.stop_order,
         encoded_polyline: encodedPolyline,
         timestamps,
-        transport_mode: stop.transport_mode || 'driving',
+        transport_mode: stop.transport_mode,
         point_count: dedupedPoints.length,
       };
 
@@ -422,7 +453,8 @@ Deno.serve(async (req) => {
 
       stops_sliced++;
       results.push({
-        stop_order: numericStopOrder,
+        stop_order: stop.stop_order,
+        type: stop.type,
         point_count: dedupedPoints.length,
         sliced: true,
       });
