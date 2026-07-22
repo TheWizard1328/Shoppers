@@ -221,6 +221,13 @@ const CleanDotMarker = React.memo(({ pt, idx, onMove, onRemove, onBrushRemove, i
 // so they never land on React.Fragment, which only accepts key + children.
 const MapSegment = ({ children }) => <>{children}</>;
 
+// ── Small green stop dot icon ────────────────────────────────────────────────
+const makeStopDotIcon = (label) => L.divIcon({
+  className: '',
+  html: `<div style="width:18px;height:18px;border-radius:9999px;background:#16a34a;border:2px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;color:white;font-size:8px;font-weight:700">${label ?? ''}</div>`,
+  iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -9]
+});
+
 // ── View mode tab labels ────────────────────────────────────────────────────
 const VIEW_MODES = [
   { id: 'breadcrumbs', label: 'GPS Breadcrumbs' },
@@ -278,6 +285,9 @@ export default function PolylineViewer({ users = [] }) {
   const [snapPreview, setSnapPreview]             = useState(null);
   const draggingRef = useRef(false); // true while a marker drag is in progress
 
+  // ── Stop GPS markers for master timeline (stop_order === -1) ─────────────
+  const [stopMarkers, setStopMarkers] = useState([]); // [{ stop_order, lat, lon, label }]
+
   // Track the item currently being cleaned so we can auto-save on focus change
   const pendingCleanRef = useRef(null); // { item, cleanedPoints }
   const cleanedPointsRef = useRef([]);
@@ -308,6 +318,56 @@ export default function PolylineViewer({ users = [] }) {
   }, []);
 
   useEffect(() => { if (hereApiKey) setTileKey(k => k + 1); }, [hereApiKey]);
+
+  // ── Resolve actual stop locations for master timeline breadcrumbs ─────────
+  // When the focused item is a master-path record (stop_order === -1), fetch all
+  // terminal deliveries for that driver+date and resolve their GPS coordinates so
+  // we can overlay small green dots on the map at each actual stop location.
+  useEffect(() => {
+    const item = focusedItem;
+    if (!item || item.stop_order !== -1) { setStopMarkers([]); return; }
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const dels = await base44.entities.Delivery.filter(
+          { driver_id: item.driver_id, delivery_date: item.delivery_date },
+          'stop_order', 200
+        );
+        const terminal = (dels || []).filter(d => d?.stop_order != null && ['completed','failed','cancelled'].includes(d.status || ''));
+
+        // Collect unique patient/store IDs
+        const patientIds = [...new Set(terminal.map(d => d.patient_id).filter(Boolean))];
+        const storeIds   = [...new Set(terminal.map(d => d.store_id).filter(Boolean))];
+
+        const [pats, strs] = await Promise.all([
+          patientIds.length ? base44.entities.Patient.filter({ id: { $in: patientIds } }, 'id', 500) : Promise.resolve([]),
+          storeIds.length   ? base44.entities.Store.filter({ id: { $in: storeIds } }, 'id', 500)     : Promise.resolve([]),
+        ]);
+
+        const patMap = new Map((pats || []).map(p => [p.id, p]));
+        const strMap = new Map((strs || []).map(s => [s.id, s]));
+
+        const markers = terminal
+          .map(d => {
+            let lat, lon;
+            if (d.is_cycling_marker) { lat = d.cycling_latitude; lon = d.cycling_longitude; }
+            else if (d.patient_id)  { const p = patMap.get(d.patient_id); lat = p?.latitude; lon = p?.longitude; }
+            else if (d.store_id)    { const s = strMap.get(d.store_id);   lat = s?.latitude; lon = s?.longitude; }
+            if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return null;
+            return { stop_order: d.stop_order, lat: Number(lat), lon: Number(lon), status: d.status };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.stop_order - b.stop_order);
+
+        if (!cancelled) setStopMarkers(markers);
+      } catch (_) {
+        if (!cancelled) setStopMarkers([]);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [focusedItem?.id]);
 
   const tileLayerUrl = useMemo(() => {
     if (!hereApiKey) return null;
@@ -1530,6 +1590,22 @@ export default function PolylineViewer({ users = [] }) {
                         </MapSegment>
                       );
                     })}
+
+                    {/* Stop dot markers on master timeline (stop_order === -1) */}
+                    {stopMarkers.map(m => (
+                      <Marker
+                        key={`stop-dot-${m.stop_order}`}
+                        position={[m.lat, m.lon]}
+                        icon={makeStopDotIcon(m.stop_order)}
+                        zIndexOffset={800}
+                      >
+                        <Popup>
+                          <strong>Stop #{m.stop_order}</strong><br />
+                          Status: {m.status}<br />
+                          {m.lat.toFixed(6)}, {m.lon.toFixed(6)}
+                        </Popup>
+                      </Marker>
+                    ))}
 
                     {/* Snap preview — blue overlays on top of original breadcrumb, one per gap zone */}
                     {snapPreview && (snapPreview.zoneSegments || []).map(z => (
