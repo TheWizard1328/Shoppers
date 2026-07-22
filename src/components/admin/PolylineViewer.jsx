@@ -874,23 +874,19 @@ export default function PolylineViewer({ users = [] }) {
 
   // ── Resegment all stops from master breadcrumb ───────────────────────────
   const handleResegment = async (item) => {
-    const confirmed = window.confirm(
-      `Resegment all stops for ${getDriverName(item.driver_id)} on ${item.delivery_date}?\n\nThis will overwrite ALL per-stop breadcrumbs (including manually saved ones) from the master timeline.`
-    );
-    if (!confirmed) return;
     setIsResegmenting(true);
     try {
-      const res = await base44.functions.invoke('resegmentAllStops', {
-        driver_id: item.driver_id,
-        delivery_date: item.delivery_date,
-        force: true,
-      });
+      const payload = { driver_id: item.driver_id, delivery_date: item.delivery_date };
+      console.log('[Resegment] calling resegmentAllStops with payload:', payload);
+      const res = await base44.functions.invoke('resegmentAllStops', payload);
+      console.log('[Resegment] raw response:', res);
       const data = res?.data ?? res;
+      console.log('[Resegment] parsed data:', data);
       if (data?.success) {
-        toast.success(`Resegmented — ${data.stops_sliced} stop(s) updated, ${data.stops_skipped_saved} skipped (saved).`);
+        toast.success(`Resegmented — ${data.stops_sliced} stop(s) updated from master timeline. Skipped saved: ${data.stops_skipped_saved}. Reason: ${data.reason || 'none'}`);
         await loadData();
       } else {
-        toast.error(`Resegment failed: ${data?.error || 'Unknown error'}`);
+        toast.error(`Resegment failed: ${data?.error || JSON.stringify(data)}`);
       }
     } catch (e) {
       toast.error(`Resegment failed: ${e.message}`);
