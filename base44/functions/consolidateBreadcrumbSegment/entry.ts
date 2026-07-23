@@ -351,37 +351,71 @@ Deno.serve(async (req) => {
     let cursor = 0; // search starts here for the next stop
     const sliceBoundaries = []; // [{ stopIndex, trailIndex, distance }]
     const PROXIMITY_THRESHOLD_M = 500; // log warning if closest point is farther than this
-    const FIRST_MATCH_THRESHOLD_M = 80; // stop scanning once within this distance
+    const FIRST_MATCH_THRESHOLD_M = 80; // trigger threshold for first close-enough point
+    // Local minimum parameters — after triggering, scan forward to find the ACTUAL
+    // closest approach (handles road-passing → parking-lot-entry pattern)
+    const LOOKAHEAD_POINTS = 200;    // max points to scan after trigger
+    const LOOKAHEAD_TIME_MS = 180000; // max 3 minutes of trail time after trigger
+    const EXIT_INCREASING_POINTS = 20; // exit if distance increases for this many consecutive points
+    const EXIT_BUFFER_M = 50;         // exit immediately if distance exceeds local min + this buffer
 
     for (let s = 0; s < stopsWithCoords.length; s++) {
       const { coords } = stopsWithCoords[s];
-      let closestIdx = cursor;
-      let closestDist = Infinity;
-      let firstMatchIdx = -1;
-      let firstMatchDist = Infinity;
+      let globalMinIdx = cursor;
+      let globalMinDist = Infinity;
+      let triggerIdx = -1;
+      let triggerDist = Infinity;
 
-      // Two-pass approach:
-      // Pass 1: scan forward for the FIRST point within FIRST_MATCH_THRESHOLD_M.
-      //          If found, use it immediately — this handles cycling markers and
-      //          other locations the trail passes through multiple times, matching
-      //          the FIRST visit (start of loop) instead of the last (end of loop).
-      // Pass 2: if no point is within threshold, fall back to the global minimum.
+      // Phase 1: scan forward for the first point within FIRST_MATCH_THRESHOLD_M
+      // (also track global minimum as fallback)
       for (let i = cursor; i < masterPoints.length; i++) {
         const dist = haversineMeters(coords.lat, coords.lng, masterPoints[i][0], masterPoints[i][1]);
-        if (dist < closestDist) {
-          closestDist = dist;
-          closestIdx = i;
+        if (dist < globalMinDist) {
+          globalMinDist = dist;
+          globalMinIdx = i;
         }
-        if (dist < FIRST_MATCH_THRESHOLD_M && firstMatchIdx === -1) {
-          firstMatchIdx = i;
-          firstMatchDist = dist;
-          break; // found first close-enough point, stop scanning
+        if (dist < FIRST_MATCH_THRESHOLD_M && triggerIdx === -1) {
+          triggerIdx = i;
+          triggerDist = dist;
+          break; // found first close-enough point
         }
       }
 
-      // Use first-match if found, otherwise use global minimum
-      const useIdx = firstMatchIdx !== -1 ? firstMatchIdx : closestIdx;
-      const useDist = firstMatchIdx !== -1 ? firstMatchDist : closestDist;
+      let useIdx, useDist;
+
+      if (triggerIdx !== -1) {
+        // Phase 2: from trigger, scan forward to find local minimum
+        // (the actual closest approach — handles driver passing on road then
+        //  entering parking lot where even closer points appear further ahead)
+        useIdx = triggerIdx;
+        useDist = triggerDist;
+        let pointsPastMin = 0;
+        const triggerTime = masterPoints[triggerIdx][2];
+
+        for (let i = triggerIdx + 1; i < Math.min(triggerIdx + LOOKAHEAD_POINTS, masterPoints.length); i++) {
+          const dist = haversineMeters(coords.lat, coords.lng, masterPoints[i][0], masterPoints[i][1]);
+          const timeDiff = masterPoints[i][2] - triggerTime;
+
+          if (timeDiff > LOOKAHEAD_TIME_MS) break; // too far in time
+
+          if (dist < useDist) {
+            // Found a closer point — update local minimum
+            useDist = dist;
+            useIdx = i;
+            pointsPastMin = 0;
+          } else {
+            pointsPastMin++;
+          }
+
+          // Exit conditions: driver has passed the closest approach
+          if (pointsPastMin > EXIT_INCREASING_POINTS) break;
+          if (dist > useDist + EXIT_BUFFER_M) break;
+        }
+      } else {
+        // No trigger found — fall back to global minimum
+        useIdx = globalMinIdx;
+        useDist = globalMinDist;
+      }
 
       if (useDist > PROXIMITY_THRESHOLD_M) {
         console.log(`⚠️ [consolidateBreadcrumbSegment] Stop #${stopsWithCoords[s].delivery.stop_order}: closest point is ${Math.round(useDist)}m away (threshold: ${PROXIMITY_THRESHOLD_M}m)`);
