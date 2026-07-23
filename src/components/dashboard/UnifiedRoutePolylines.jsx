@@ -156,6 +156,18 @@ function UnifiedRoutePolylines({
     return out;
   }, [appUsers]);
 
+  // Map driver user_id → sort_order for consistent palette color assignment
+  const driverSortOrders = useMemo(() => {
+    const m = new Map();
+    (appUsers || []).forEach((u) => {
+      if (u?.user_id && u.sort_order != null) m.set(u.user_id, u.sort_order);
+    });
+    return m;
+  }, [appUsers]);
+
+  const getDriverColor = (driverId) =>
+    getPolylineColorForDriver(driverId, driverSortOrders.get(driverId));
+
   // Resolve travel mode from the stop's own transport_mode field.
   // Falls back to driver-level preferred mode if the stop has none.
   const getStopMode = (stop, driverId) => {
@@ -235,7 +247,7 @@ function UnifiedRoutePolylines({
 
         const mode = getStopMode(stop, driverId);
         const isCycling = mode === "cycling";
-        const color = isCycling ? CYCLING_COLOR : getPolylineColorForDriver(driverId);
+        const color = isCycling ? CYCLING_COLOR : getDriverColor(driverId);
         const isPM = stop.ampm_deliveries === "PM";
         const style = getTravelModeLineStyle(mode, color, isPM);
 
@@ -359,7 +371,7 @@ function UnifiedRoutePolylines({
 
       const mode = getStopMode(stop, driverId);
       const isCycling = mode === "cycling";
-      const color = isCycling ? CYCLING_COLOR : getPolylineColorForDriver(driverId);
+      const color = isCycling ? CYCLING_COLOR : getDriverColor(driverId);
       const isPM = stop.ampm_deliveries === "PM";
       const style = getTravelModeLineStyle(mode, color, isPM);
 
