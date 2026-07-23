@@ -983,7 +983,12 @@ export default function DeliveryMap({
         // so both markers are visible.  Without this, completing a stop while at
         // zoom 18 leaves the map stuck at 18 even though the bounds need 17.5 or less.
         const userOverZoomed = currentZoom > requestedMaxZoom + 0.01;
-        const zoomAlreadyCorrect = !userOverZoomed && zoomDiff >= -0.05 && zoomDiff <= 0.5;
+        // zoomAlreadyCorrect: only take the fast-pan path when zoom is within a tight
+        // ±0.3 range of what the bounds need.  A looser upper bound (e.g. 0.5) caused
+        // the map to silently "fast-pan without zooming" when the driver moves away from
+        // the next stop, because gradual zoom-out deltas (e.g. 0.4) were absorbed by the
+        // shortcut instead of triggering a proper fitBounds zoom-out.
+        const zoomAlreadyCorrect = !userOverZoomed && zoomDiff >= -0.05 && zoomDiff <= 0.3;
 
         fitBoundsInFlightRef.current = true;
         let settled = false;

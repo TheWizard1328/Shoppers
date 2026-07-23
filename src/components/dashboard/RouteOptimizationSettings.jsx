@@ -126,7 +126,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
       handleSettingChange('driverHomeLongitude', pos.longitude);
       handleSettingChange('autoDetectHomeLocation', false);
 
-      alert(`Location detected: ${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`);
+      alert(`Location detected: ${pos.latitude.toFixed(6)}, ${pos.longitude.toFixed(6)}`);
     } catch (error) {
       console.error('Error detecting location:', error);
       alert('Failed to detect location. Please enter coordinates manually or enable location access.');

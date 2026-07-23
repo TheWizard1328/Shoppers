@@ -350,7 +350,16 @@ export function runMapPositioningEffect({
             [fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude],
             ...(_nc?.lat && _nc?.lon ? [[_nc.lat, _nc.lon]] : []),
           ];
-          setShouldFitBounds({ bounds, options: { ...p2Padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
+          // Use a dynamic maxZoom based on the span between driver and next stop.
+          // When the driver moves AWAY from the next stop, the span grows and the
+          // needed zoom drops below 17.5 — without a span-aware cap, Leaflet would
+          // still respect maxZoom=17.5 but the zoomAlreadyCorrect shortcut in
+          // DeliveryMap.runFit could absorb small deltas without actually zooming out.
+          // getPhaseBoundsMaxZoom returns 18 for short spans (≤15km) and scales down
+          // for wider spans, ensuring a zoom-out always triggers when needed.
+          const p2SpanKm = getBoundsSpanKm(bounds);
+          const p2MaxZoom = getBoundsSpanKm(bounds) > 0 ? getPhaseBoundsMaxZoom(p2SpanKm, 12.0) : 17.5;
+          setShouldFitBounds({ bounds, options: { ...p2Padding, maxZoom: p2MaxZoom, animate: true, duration: 0.9, easeLinearity: 0.15 } });
           setMapCenter(null); setMapZoom(null);
         }
       }
