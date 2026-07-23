@@ -1602,7 +1602,7 @@ export default function PolylineViewer({ users = [] }) {
                             color={isActiveCleaning ? '#ef4444' : seg.color}
                             weight={seg.isBreadcrumb ? 3 : 4}
                             opacity={seg.isBreadcrumb ? 0.75 : 0.85}
-                            dashArray={seg.isBreadcrumb ? '6 4' : undefined}
+                            dashArray={seg.isBreadcrumb ? '8,6,2,6' : undefined}
                           />
 
                           {isActiveCleaning && (
