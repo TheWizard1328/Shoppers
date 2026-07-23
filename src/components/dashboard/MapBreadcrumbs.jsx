@@ -99,7 +99,7 @@ function MapBreadcrumbsInner({ breadcrumbsData }) {
               color: HISTORICAL_COLOR,
               weight: 3,
               opacity: 0.8,
-              dashArray: '6 4',
+              dashArray: '6 6',
             }}
           />
         );
