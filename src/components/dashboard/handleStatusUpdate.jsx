@@ -231,11 +231,15 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     const allAffectedRecords = [targetRecord, ...siblingUpdates.map((s) => s.record)];
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allAffectedRecords);
 
-    // CRITICAL: Lock isNextDelivery (and status for the completed stop) against WebSocket
-    // reversion BEFORE dispatching the optimistic UI update. The backend fires 2-3 rapid
-    // WebSocket events during this transition; without lockout the intermediate events would
-    // briefly flip the badge back to the old stop, causing the visible bounce.
-    lockDeliveryFields(deliveryId, ['status', 'isNextDelivery']);
+    // CRITICAL: Lock status, isNextDelivery, and actual_delivery_time against WebSocket
+    // reversion AND background IDB resyncs BEFORE dispatching the optimistic UI update.
+    // The backend fires 2-3 rapid WS events during this transition; background full-record
+    // fetches can also race and pull back stale data. The 45s TTL covers all of these.
+    const lockedFields = ['status', 'isNextDelivery'];
+    if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
+      lockedFields.push('actual_delivery_time');
+    }
+    lockDeliveryFields(deliveryId, lockedFields);
     siblingUpdates.forEach((s) => lockDeliveryFields(s.id, ['isNextDelivery']));
 
     if (updateDeliveriesLocally) {

@@ -952,6 +952,8 @@ const subscribeToEntity = (entityName) => {
 
       // BACKGROUND: For Delivery updates, fetch the full authoritative record from the server
       // and silently update IDB — the UI has already been updated above from the WS payload.
+      // CRITICAL: Apply completionLockout before saving so a race between the completion
+      // write and this background fetch never reverts a just-completed stop back to in_transit.
       if (entityName === 'Delivery' && type === 'update' && data?.id) {
         (async () => {
           try {
@@ -959,10 +961,12 @@ const subscribeToEntity = (entityName) => {
             if (!full?.id) return;
             const { offlineDB: idb } = await import('./offlineDatabase');
             const existing = await idb.getById(idb.STORES.DELIVERIES, data.id);
-            const merged = existing
-              ? { ...existing, ...full }
-              : full;
-            await idb.save(idb.STORES.DELIVERIES, merged);
+            const merged = existing ? { ...existing, ...full } : full;
+            // Protect locked fields (e.g. status=completed, actual_delivery_time) from being
+            // overwritten by a background fetch that raced against the completion write.
+            const { applyRealtimeMergeWithLockout: applyLockout } = await import('./completionLockout');
+            const protected_ = applyLockout(data.id, merged, existing || merged);
+            await idb.save(idb.STORES.DELIVERIES, protected_);
             console.log(`📥 [RealtimeSync] [${rsTime()}] Background full-record IDB sync: ${data.id}`);
           } catch (_) { /* non-critical — IDB already has the partial WS data */ }
         })();

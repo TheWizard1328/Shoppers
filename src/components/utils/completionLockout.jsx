@@ -17,7 +17,7 @@
  */
 
 const locks = new Map();  // deliveryId → { fields: Set<string>, expiresAt: number }
-const DEFAULT_TTL_MS = 15000; // 15 seconds — plenty of time for the full chain
+const DEFAULT_TTL_MS = 45000; // 45 seconds — covers background IDB resyncs and smart refresh cycles
 
 /**
  * Lock specific fields for a delivery against realtime reversion.
@@ -101,6 +101,11 @@ export const applyRealtimeMergeWithLockout = (deliveryId, incomingData, localDat
       // Suppress a false incoming when local is already true
       if (localVal === true && incomingVal === false) {
         merged[field] = true;
+      }
+    } else if (field === 'actual_delivery_time') {
+      // Never let a null/empty incoming value wipe a completion timestamp
+      if (localVal && (!incomingVal || incomingVal === null)) {
+        merged[field] = localVal;
       }
     } else {
       // Generic: keep local if incoming would clear/regress it
