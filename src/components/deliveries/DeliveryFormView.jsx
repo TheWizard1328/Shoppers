@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format } from "date-fns";
 import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle, Car, Bike } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { locationTracker } from "@/components/utils/locationTracker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { getPickupStopIdForDelivery, determineDeliveryAMPM, getStoreAssignedTimeSlot } from '../utils/ampmUtils';
@@ -710,18 +711,15 @@ export default function DeliveryFormView({
                     created_by_app_user_id: prev.created_by_app_user_id || createdByAppUserId
                   };
                 });
-                // Auto-populate GPS coords
-                if (navigator.geolocation) {
-                  navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        cycling_latitude: parseFloat(pos.coords.latitude.toFixed(7)),
-                        cycling_longitude: parseFloat(pos.coords.longitude.toFixed(7))
-                      }));
-                    },
-                    () => {} // silently ignore if denied
-                  );
+                // Auto-populate GPS coords from the tracker's cached position
+                // — no async, no timeout, survives backgrounding.
+                const cachedPos = locationTracker.getCachedPosition();
+                if (cachedPos) {
+                  setFormData((prev) => ({
+                    ...prev,
+                    cycling_latitude: parseFloat(cachedPos.latitude.toFixed(7)),
+                    cycling_longitude: parseFloat(cachedPos.longitude.toFixed(7))
+                  }));
                 }
               }} style={!isCyclingMarkerMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
                   Cycling Marker

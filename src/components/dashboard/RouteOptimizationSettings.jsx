@@ -115,21 +115,15 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
   const handleAutoDetectLocation = async () => {
     setIsDetectingLocation(true);
     try {
-      if (!navigator.geolocation) {
-        alert('Geolocation is not supported by your browser');
+      // Use the tracker's getFreshPosition — cached fallback survives backgrounding
+      const pos = await locationTracker.getFreshPosition({ timeout: 10000, maximumAge: 0, enableHighAccuracy: true });
+      if (!pos) {
+        alert('Failed to detect location. Please enter coordinates manually or enable location access.');
         return;
       }
 
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        });
-      });
-
-      handleSettingChange('driverHomeLatitude', position.coords.latitude);
-      handleSettingChange('driverHomeLongitude', position.coords.longitude);
+      handleSettingChange('driverHomeLatitude', pos.latitude);
+      handleSettingChange('driverHomeLongitude', pos.longitude);
       handleSettingChange('autoDetectHomeLocation', false);
 
       alert(`Location detected: ${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`);

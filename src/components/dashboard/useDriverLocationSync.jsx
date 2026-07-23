@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { locationTracker } from "@/components/utils/locationTracker";
 
 /**
  * useDriverLocationSync
@@ -361,7 +362,7 @@ export default function useDriverLocationSync({
   useEffect(() => {
     if (!isDriver || !isMobile) return;
 
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === 'hidden') {
         lastVisibilityHideRef.current = Date.now();
         // Cancel any pending resume fix
@@ -376,34 +377,33 @@ export default function useDriverLocationSync({
       const wasHiddenFor = Date.now() - (lastVisibilityHideRef.current || 0);
       if (wasHiddenFor < 5000) return;
 
-      // Fire a fresh GPS fix immediately
-      if (navigator.geolocation && syncLocationRef.current) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const newLocation = {
-              latitude:  position.coords.latitude,
-              longitude: position.coords.longitude,
-              timestamp: new Date(position.timestamp).toISOString(),
-              accuracy:  position.coords.accuracy,
-              source:    'visibility_resume',
-            };
-            syncLocationRef.current(newLocation);
+      // Fire a fresh GPS fix immediately — use the tracker's getFreshPosition
+      // so we get a cached fallback (lastPosition) if the fresh fix times out
+      // while GPS is still re-acquiring after returning from background.
+      if (syncLocationRef.current) {
+        const pos = await locationTracker.getFreshPosition({ timeout: 10000, maximumAge: 0, enableHighAccuracy: true });
+        if (pos) {
+          const newLocation = {
+            latitude:  pos.latitude,
+            longitude: pos.longitude,
+            timestamp: new Date().toISOString(),
+            accuracy:  pos.accuracy,
+            source:    'visibility_resume',
+          };
+          syncLocationRef.current(newLocation);
 
-            // Also dispatch a driverPositionUpdated so the map trigger fires
-            window.dispatchEvent(new CustomEvent('driverPositionUpdated', {
-              detail: {
-                userId:    currentUser.id,
-                latitude:  position.coords.latitude,
-                longitude: position.coords.longitude,
-                timestamp: newLocation.timestamp,
-                accuracy:  position.coords.accuracy,
-                source:    'visibility_resume',
-              },
-            }));
-          },
-          (err) => console.warn('⚠️ [useDriverLocationSync] Resume GPS fix failed:', err.message),
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
+          // Also dispatch a driverPositionUpdated so the map trigger fires
+          window.dispatchEvent(new CustomEvent('driverPositionUpdated', {
+            detail: {
+              userId:    currentUser.id,
+              latitude:  pos.latitude,
+              longitude:  pos.longitude,
+              timestamp: newLocation.timestamp,
+              accuracy:  pos.accuracy,
+              source:    'visibility_resume',
+            },
+          }));
+        }
       }
     };
 

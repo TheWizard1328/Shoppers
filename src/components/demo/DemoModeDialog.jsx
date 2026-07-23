@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { getData } from '@/components/utils/dataManager';
 import { GoogleAddressAutocomplete } from '@/components/ui/google-address-autocomplete';
+import { locationTracker } from '@/components/utils/locationTracker';
 
 export default function DemoModeDialog({ open, onOpenChange }) {
   const [settings, setSettings] = useState(null);
@@ -41,18 +42,29 @@ export default function DemoModeDialog({ open, onOpenChange }) {
   };
 
   const autofillNearestAddress = async () => {
-    if (!navigator.geolocation || didAutofillRef.current) return;
+    if (didAutofillRef.current) return;
 
-    const position = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000
-      });
-    });
-
-    const latitude = position.coords.latitude;
-    const longitude = position.coords.longitude;
+    // Use the tracker's cached position (already ≤15s old, no timeout)
+    // Falls back to a one-shot getCurrentPosition if the tracker isn't running.
+    const cached = locationTracker.getCachedPosition();
+    let latitude, longitude;
+    if (cached) {
+      latitude = cached.latitude;
+      longitude = cached.longitude;
+    } else {
+      if (!navigator.geolocation) return;
+      try {
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000
+          });
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
+      } catch { return; }
+    }
     const searchText = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
     const response = await base44.functions.invoke('googlePlacesAutocomplete', {
       input: searchText,

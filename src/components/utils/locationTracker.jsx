@@ -164,6 +164,79 @@ class LocationTracker {
     return status === 'on_duty' || status === 'on_break';
   }
 
+
+  // ── CENTRALIZED GPS ACCESS ──────────────────────────────────────────────
+  // All non-breadcrumb GPS callers should use these methods instead of raw
+  // navigator.geolocation.getCurrentPosition(). The tracker maintains a
+  // continuously-updated lastPosition that survives backgrounding — it's the
+  // most reliable source of "where am I" in the entire app.
+
+  /**
+   * Return the last known position from the tracker — INSTANT, no async, no
+   * timeout. Perfect for "roughly where am I" lookups (nearest city, cycling
+   * marker, demo autofill). Returns null if the tracker hasn't acquired a
+   * fix yet (e.g. dispatcher/admin with no active tracking).
+   * @returns {{latitude:number, longitude:number, accuracy:number}|null}
+   */
+  getCachedPosition() {
+    if (this.lastPosition && Number.isFinite(this.lastPosition.latitude) && Number.isFinite(this.lastPosition.longitude)) {
+      return { ...this.lastPosition };
+    }
+    return null;
+  }
+
+  /**
+   * Acquire a fresh GPS fix from the hardware antenna, with a generous timeout
+   * and a cached fallback. This is for callers that need a reasonably fresh
+   * position (on-duty toggle, patient GPS pin) but should still return
+   * *something* if GPS is still re-acquiring after the app returns from
+   * background — instead of returning null like a bare getCurrentPosition.
+   *
+   * @param {Object} [options]
+   * @param {number} [options.timeout=8000] — ms to wait for a fresh fix
+   * @param {number} [options.maximumAge=0] — max age of cached fix from the OS
+   * @param {boolean} [options.enableHighAccuracy=true]
+   * @returns {Promise<{latitude:number, longitude:number, accuracy:number}|null>}
+   */
+  async getFreshPosition(options = {}) {
+    const { timeout = 8000, maximumAge = 0, enableHighAccuracy = true } = options;
+
+    // If the tracker isn't running at all (dispatcher/admin or off-duty), fall
+    // through to a bare getCurrentPosition so the caller still gets a fix.
+    if (!this.isTracking || !this.locationProvider) {
+      if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
+      try {
+        const pos = await new Promise((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy, timeout, maximumAge })
+        );
+        return { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy };
+      } catch {
+        return null;
+      }
+    }
+
+    // Try a fresh fix from the provider (same provider the tracker uses).
+    try {
+      const pos = await this.locationProvider.getCurrentPosition({
+        enableHighAccuracy,
+        timeout,
+        maximumAge,
+        requestPermissions: false,
+      });
+      const result = { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy };
+      // Keep lastPosition in sync — a side benefit of routing through the tracker.
+      this.lastPosition = result;
+      return result;
+    } catch (err) {
+      console.warn(`📍 [LocationTracker] getFreshPosition failed (${err?.message}), falling back to cached position`);
+      // CRITICAL: Fall back to the last known position instead of returning null.
+      // This is the whole point — after backgrounding, the fresh fix might time
+      // out, but lastPosition is still valid (it was updated by the visibilitychange
+      // resume handler or the last watchPosition tick before backgrounding).
+      return this.getCachedPosition();
+    }
+  }
+
   /**
    * Slow down breadcrumb collection to 60s when driver is at a delivery stop.
    * Called by arrivalTimeDetector after confirming arrival at isNextDelivery stop.

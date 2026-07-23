@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MapPin, Search, X } from 'lucide-react';
+import { locationTracker } from '@/components/utils/locationTracker';
 
 // Haversine distance in km
 function haversine(lat1, lon1, lat2, lon2) {
@@ -44,21 +45,22 @@ export default function CyclingLocationSearch({
 
     const resolve = async () => {
       // 1. Try GPS → find nearest city
-      if (cities.length > 0 && navigator.geolocation) {
-        try {
-          const pos = await new Promise((res, rej) =>
-            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 3000 })
-          );
-          const { latitude, longitude } = pos.coords;
+      // Use the locationTracker's cached position — it's always fresh (≤15s old)
+      // and survives backgrounding, unlike a one-shot getCurrentPosition that
+      // times out when GPS is still re-acquiring after the app returns from
+      // background.
+      if (cities.length > 0) {
+        const cached = locationTracker.getCachedPosition();
+        if (cached) {
           let nearest = null;
           let minDist = Infinity;
           for (const city of cities) {
             if (!city.latitude || !city.longitude) continue;
-            const d = haversine(latitude, longitude, city.latitude, city.longitude);
+            const d = haversine(cached.latitude, cached.longitude, city.latitude, city.longitude);
             if (d < minDist) { minDist = d; nearest = city; }
           }
           if (nearest && !cancelled) { setCityId(nearest.id); return; }
-        } catch (_) { /* GPS denied — fall through */ }
+        }
       }
 
       // 2. Fall back to appUser city_id

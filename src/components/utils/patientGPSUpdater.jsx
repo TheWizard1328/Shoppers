@@ -5,6 +5,7 @@
 
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
+import { locationTracker } from "@/components/utils/locationTracker";
 
 // Simple in-module throttle to prevent rapid repeated GPS updates
 let _gpsUpdateInFlight = false;
@@ -42,29 +43,20 @@ const getHereRoutingDistanceKm = async (storeLat, storeLon, patientLat, patientL
   return haversineKm(storeLat, storeLon, patientLat, patientLon);
 };
 
-// Get a fresh device location using the Geolocation API (high accuracy, no cache)
-const getFreshDeviceLocation = () => {
-  return new Promise((resolve, reject) => {
-    if (!navigator?.geolocation) {
-      reject(new Error("Geolocation is not supported on this device/browser"));
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          timestamp: pos.timestamp,
-        });
-      },
-      (err) => {
-        reject(new Error(err?.message || "Failed to get device location"));
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  });
+// Get a fresh device location via the locationTracker — it has a cached
+// fallback (lastPosition) so it still returns coordinates after backgrounding
+// when a bare getCurrentPosition would time out while GPS re-acquires.
+const getFreshDeviceLocation = async () => {
+  const pos = await locationTracker.getFreshPosition({ timeout: 10000, maximumAge: 0, enableHighAccuracy: true });
+  if (pos) {
+    return {
+      latitude: pos.latitude,
+      longitude: pos.longitude,
+      accuracy: pos.accuracy,
+      timestamp: Date.now(),
+    };
+  }
+  throw new Error("Failed to get device location — GPS not available");
 };
 
 /**

@@ -42,16 +42,13 @@ const buildUpdatePayload = (newStatus, currentLat, currentLng) => {
   return { driver_status: newStatus, location_tracking_enabled: false, location_updated_at: null, current_latitude: null, current_longitude: null };
 };
 
-const getFreshGPS = async (timeout = 3000) => {
-  if (!navigator.geolocation) return null;
-  try {
-    const pos = await new Promise((resolve, reject) =>
-      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout, maximumAge: 0 })
-    );
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
-  } catch {
-    return null;
-  }
+// Use the locationTracker's getFreshPosition — it has a cached fallback
+// (lastPosition) so it never returns null after backgrounding, unlike a
+// bare getCurrentPosition that times out while GPS is re-acquiring.
+const getFreshGPS = async (timeout = 8000) => {
+  const pos = await locationTracker.getFreshPosition({ timeout, maximumAge: 0, enableHighAccuracy: true });
+  if (pos) return { lat: pos.latitude, lng: pos.longitude };
+  return null;
 };
 
 /**
@@ -254,7 +251,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       // Get fresh GPS for on_duty / on_break
       let gps = { lat: effectiveUser?.current_latitude, lng: effectiveUser?.current_longitude };
       if (newStatus === 'on_duty' || newStatus === 'on_break') {
-        const freshGps = await getFreshGPS(3000);
+        const freshGps = await getFreshGPS(8000);
         if (freshGps) gps = freshGps;
       }
 
