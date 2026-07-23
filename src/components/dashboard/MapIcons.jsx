@@ -438,10 +438,17 @@ const createCyclingSplitIconInternal = (isMobile = false, count = 1) => {
   const badgeSize = Math.round(circleSize * 0.55);
   const badgeFontSize = Math.round(badgeSize * 0.55);
 
+  // Expand the wrapper by badgeSize/2 on top and right so the badge stays within iconSize bounds
+  // (Leaflet clips anything outside the declared iconSize)
+  const pad = count > 1 ? Math.ceil(badgeSize / 2) : 0;
+  const wrapW = circleSize + pad;
+  const wrapH = totalH + pad;
+
   return L.divIcon({
     html: `
-      <div style="width:${circleSize}px; height:${totalH}px; position:relative; cursor:pointer; overflow:visible;">
-        <svg width="${circleSize}" height="${totalH}" viewBox="0 0 ${circleSize} ${totalH}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
+      <div style="width:${wrapW}px; height:${wrapH}px; position:relative; cursor:pointer;">
+        <svg width="${circleSize}" height="${totalH}" viewBox="0 0 ${circleSize} ${totalH}" xmlns="http://www.w3.org/2000/svg"
+             style="position:absolute; top:${pad}px; left:0;">
           <!-- Pin stick -->
           <line x1="${cx}" y1="${circleSize - 1}" x2="${cx}" y2="${totalH}"
                 stroke="#4b5563" stroke-width="1.5" stroke-linecap="round"
@@ -458,10 +465,10 @@ const createCyclingSplitIconInternal = (isMobile = false, count = 1) => {
                   style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35));" />
         </svg>
         ${count > 1 ? `
-          <div class="cluster-badge" style="
+          <div style="
             position: absolute;
-            top: -5px;
-            right: -5px;
+            top: 0;
+            right: 0;
             background: #7c3aed;
             border: 2px solid white;
             border-radius: 50%;
@@ -474,23 +481,20 @@ const createCyclingSplitIconInternal = (isMobile = false, count = 1) => {
             font-weight: bold;
             color: white;
             box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-            z-index: 9999;
             pointer-events: none;
           ">${count}</div>
         ` : ''}
       </div>
     `,
     className: 'custom-cycling-pin-icon',
-    iconSize: [circleSize, totalH],
-    iconAnchor: [cx, totalH]
+    iconSize: [wrapW, wrapH],
+    iconAnchor: [cx, wrapH]
   });
 };
 
 // Green start: tilted 30° counter-clockwise; Red end: tilted 30° clockwise
 export const createCyclingStartIcon = (isMobile = false, count = 1) => {
-  const icon = createCyclingPinIcon('#16a34a', isMobile, -30);
-  if (count <= 1) return icon;
-  // Re-build with a count badge for fanned mode when multiple pairs share a location
+  if (count <= 1) return createCyclingPinIcon('#16a34a', isMobile, -30);
   const isMob = isMobile || isMobileDevice();
   let circleSize = 24 * 0.80 * 0.80;
   if (isMob) circleSize *= 1.25;
@@ -501,24 +505,26 @@ export const createCyclingStartIcon = (isMobile = false, count = 1) => {
   const borderWidth = 1.5;
   const badgeSize = Math.round(circleSize * 0.55);
   const badgeFontSize = Math.round(badgeSize * 0.55);
+  const pad = Math.ceil(badgeSize / 2);
+  const wrapW = circleSize + pad;
+  const wrapH = totalH + pad;
   return L.divIcon({
     html: `
-      <div style="width:${circleSize}px; height:${totalH}px; position:relative; cursor:pointer; overflow:visible; transform: rotate(-30deg); transform-origin: ${cx}px ${totalH}px;">
-        <svg width="${circleSize}" height="${totalH}" viewBox="0 0 ${circleSize} ${totalH}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
+      <div style="width:${wrapW}px; height:${wrapH}px; position:relative; cursor:pointer; transform: rotate(-30deg); transform-origin: ${cx}px ${wrapH}px;">
+        <svg width="${circleSize}" height="${totalH}" viewBox="0 0 ${circleSize} ${totalH}" xmlns="http://www.w3.org/2000/svg" style="position:absolute; top:${pad}px; left:0;">
           <line x1="${cx}" y1="${circleSize - 1}" x2="${cx}" y2="${totalH}" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3));"/>
           <circle cx="${cx}" cy="${cy}" r="${cy - borderWidth}" fill="#16a34a" stroke="#FFFFFF" stroke-width="${borderWidth}" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35));"/>
         </svg>
-        <div class="cluster-badge" style="position:absolute;top:-5px;right:-5px;background:#7c3aed;border:2px solid white;border-radius:50%;width:${badgeSize}px;height:${badgeSize}px;display:flex;align-items:center;justify-content:center;font-size:${badgeFontSize}px;font-weight:bold;color:white;box-shadow:0 1px 3px rgba(0,0,0,0.5);z-index:9999;pointer-events:none;">${count}</div>
+        <div style="position:absolute;top:0;right:0;background:#7c3aed;border:2px solid white;border-radius:50%;width:${badgeSize}px;height:${badgeSize}px;display:flex;align-items:center;justify-content:center;font-size:${badgeFontSize}px;font-weight:bold;color:white;box-shadow:0 1px 3px rgba(0,0,0,0.5);pointer-events:none;">${count}</div>
       </div>
     `,
     className: 'custom-cycling-pin-icon',
-    iconSize: [circleSize, totalH],
-    iconAnchor: [cx, totalH]
+    iconSize: [wrapW, wrapH],
+    iconAnchor: [cx, wrapH]
   });
 };
 export const createCyclingEndIcon = (isMobile = false, count = 1) => {
-  const icon = createCyclingPinIcon('#dc2626', isMobile, 30);
-  if (count <= 1) return icon;
+  if (count <= 1) return createCyclingPinIcon('#dc2626', isMobile, 30);
   const isMob = isMobile || isMobileDevice();
   let circleSize = 24 * 0.80 * 0.80;
   if (isMob) circleSize *= 1.25;
@@ -529,19 +535,22 @@ export const createCyclingEndIcon = (isMobile = false, count = 1) => {
   const borderWidth = 1.5;
   const badgeSize = Math.round(circleSize * 0.55);
   const badgeFontSize = Math.round(badgeSize * 0.55);
+  const pad = Math.ceil(badgeSize / 2);
+  const wrapW = circleSize + pad;
+  const wrapH = totalH + pad;
   return L.divIcon({
     html: `
-      <div style="width:${circleSize}px; height:${totalH}px; position:relative; cursor:pointer; overflow:visible; transform: rotate(30deg); transform-origin: ${cx}px ${totalH}px;">
-        <svg width="${circleSize}" height="${totalH}" viewBox="0 0 ${circleSize} ${totalH}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
+      <div style="width:${wrapW}px; height:${wrapH}px; position:relative; cursor:pointer; transform: rotate(30deg); transform-origin: ${cx}px ${wrapH}px;">
+        <svg width="${circleSize}" height="${totalH}" viewBox="0 0 ${circleSize} ${totalH}" xmlns="http://www.w3.org/2000/svg" style="position:absolute; top:${pad}px; left:0;">
           <line x1="${cx}" y1="${circleSize - 1}" x2="${cx}" y2="${totalH}" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3));"/>
           <circle cx="${cx}" cy="${cy}" r="${cy - borderWidth}" fill="#dc2626" stroke="#FFFFFF" stroke-width="${borderWidth}" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35));"/>
         </svg>
-        <div class="cluster-badge" style="position:absolute;top:-5px;right:-5px;background:#7c3aed;border:2px solid white;border-radius:50%;width:${badgeSize}px;height:${badgeSize}px;display:flex;align-items:center;justify-content:center;font-size:${badgeFontSize}px;font-weight:bold;color:white;box-shadow:0 1px 3px rgba(0,0,0,0.5);z-index:9999;pointer-events:none;">${count}</div>
+        <div style="position:absolute;top:0;right:0;background:#7c3aed;border:2px solid white;border-radius:50%;width:${badgeSize}px;height:${badgeSize}px;display:flex;align-items:center;justify-content:center;font-size:${badgeFontSize}px;font-weight:bold;color:white;box-shadow:0 1px 3px rgba(0,0,0,0.5);pointer-events:none;">${count}</div>
       </div>
     `,
     className: 'custom-cycling-pin-icon',
-    iconSize: [circleSize, totalH],
-    iconAnchor: [cx, totalH]
+    iconSize: [wrapW, wrapH],
+    iconAnchor: [cx, wrapH]
   });
 };
 export const createCyclingSplitIcon = (isMobile = false, count = 1) => createCyclingSplitIconInternal(isMobile, count);
