@@ -252,13 +252,15 @@ Deno.serve(async (req) => {
     console.log(`🍞 [consolidateBreadcrumbSegment] Master trail: ${masterPoints.length} points`);
 
     // ── 2. Fetch all deliveries for this driver/date, sorted by stop_order ────
+    // Only slice COMPLETED stops — incomplete stops have no trail legs yet.
+    const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id,
       delivery_date
     });
 
     const stops = (allDeliveries || [])
-      .filter(d => d && d.stop_order != null && Number.isFinite(Number(d.stop_order)))
+      .filter(d => d && d.stop_order != null && Number.isFinite(Number(d.stop_order)) && TERMINAL_STATUSES.has(String(d.status || '').toLowerCase()))
       .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
 
     if (stops.length === 0) {
