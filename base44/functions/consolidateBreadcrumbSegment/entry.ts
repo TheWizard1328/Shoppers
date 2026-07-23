@@ -351,33 +351,51 @@ Deno.serve(async (req) => {
     let cursor = 0; // search starts here for the next stop
     const sliceBoundaries = []; // [{ stopIndex, trailIndex, distance }]
     const PROXIMITY_THRESHOLD_M = 500; // log warning if closest point is farther than this
+    const FIRST_MATCH_THRESHOLD_M = 80; // stop scanning once within this distance
 
     for (let s = 0; s < stopsWithCoords.length; s++) {
       const { coords } = stopsWithCoords[s];
       let closestIdx = cursor;
       let closestDist = Infinity;
+      let firstMatchIdx = -1;
+      let firstMatchDist = Infinity;
 
+      // Two-pass approach:
+      // Pass 1: scan forward for the FIRST point within FIRST_MATCH_THRESHOLD_M.
+      //          If found, use it immediately — this handles cycling markers and
+      //          other locations the trail passes through multiple times, matching
+      //          the FIRST visit (start of loop) instead of the last (end of loop).
+      // Pass 2: if no point is within threshold, fall back to the global minimum.
       for (let i = cursor; i < masterPoints.length; i++) {
         const dist = haversineMeters(coords.lat, coords.lng, masterPoints[i][0], masterPoints[i][1]);
         if (dist < closestDist) {
           closestDist = dist;
           closestIdx = i;
         }
+        if (dist < FIRST_MATCH_THRESHOLD_M && firstMatchIdx === -1) {
+          firstMatchIdx = i;
+          firstMatchDist = dist;
+          break; // found first close-enough point, stop scanning
+        }
       }
 
-      if (closestDist > PROXIMITY_THRESHOLD_M) {
-        console.log(`⚠️ [consolidateBreadcrumbSegment] Stop #${stopsWithCoords[s].delivery.stop_order}: closest point is ${Math.round(closestDist)}m away (threshold: ${PROXIMITY_THRESHOLD_M}m)`);
+      // Use first-match if found, otherwise use global minimum
+      const useIdx = firstMatchIdx !== -1 ? firstMatchIdx : closestIdx;
+      const useDist = firstMatchIdx !== -1 ? firstMatchDist : closestDist;
+
+      if (useDist > PROXIMITY_THRESHOLD_M) {
+        console.log(`⚠️ [consolidateBreadcrumbSegment] Stop #${stopsWithCoords[s].delivery.stop_order}: closest point is ${Math.round(useDist)}m away (threshold: ${PROXIMITY_THRESHOLD_M}m)`);
       }
 
       sliceBoundaries.push({
         stopIndex: s,
-        trailIndex: closestIdx,
-        distance: closestDist,
+        trailIndex: useIdx,
+        distance: useDist,
         stopOrder: stopsWithCoords[s].delivery.stop_order,
       });
 
       // Advance cursor past this match for the next stop search
-      cursor = closestIdx + 1;
+      cursor = useIdx + 1;
 
       // If cursor is past the end of the trail, remaining stops get empty segments
       if (cursor >= masterPoints.length) {
