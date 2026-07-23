@@ -169,13 +169,15 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
   } catch (_) {}
 
   // ── STEP 6: Dispatch ONE deliveriesUpdated event with all fresh data (single UI re-render) ──
+  // Send ALL ordered records (not just changedRecords) so consumers can immediately re-sort
+  // without waiting for React state propagation through Layout → AppDataContext → Dashboard.
   try {
     window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
       detail: {
         triggeredBy: 'stopOrderRecalc',
         driverId,
         deliveryDate,
-        freshDeliveries: changedRecords,
+        freshDeliveries: ordered,   // full sorted list — Layout merges by id, preserving all fields
         preserveLocalState: true
       }
     }));
