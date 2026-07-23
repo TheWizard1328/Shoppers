@@ -14,19 +14,23 @@ export function normalizeTravelMode(mode) {
 export function getTravelModeLineStyle(mode, color, isPM = false) {
   const normalized = normalizeTravelMode(mode);
   const safeColor = color || '#71717A';
-  // PM stops always use a dashed line regardless of travel mode
-  if (isPM) {
-    const weight = normalized === 'cycling' ? 4 : 3;
-    const lineColor = normalized === 'cycling' ? '#16A34A' : safeColor;
-    // Dot-dash: short dash + clear gap — '6,5' gives a clearly dashed look vs the solid AM line
-    return { color: lineColor, weight, opacity: 0.9, dashArray: '8,6,2,6' };
+
+  // Driving:
+  //   AM → solid line (dashArray: '')
+  //   PM → dash-dot (dashArray: '8,6,2,6')
+  if (normalized === 'driving' || normalized === 'pedestrian') {
+    const dashArray = isPM ? '8,6,2,6' : '';
+    return { color: safeColor, weight: 3, opacity: 0.9, dashArray };
   }
+
+  // Cycling (color is always green — passed in as CYCLING_COLOR by caller):
+  //   AM → dotted (dashArray: '2,8')
+  //   PM → dash-dot (dashArray: '8,6,2,6')
   if (normalized === 'cycling') {
-    return { color: '#16A34A', weight: 4, opacity: 0.9, dashArray: '2 8' };
+    const dashArray = isPM ? '8,6,2,6' : '2,8';
+    return { color: safeColor, weight: 4, opacity: 0.9, dashArray };
   }
-  if (normalized === 'pedestrian') {
-    return { color: safeColor, weight: 3, opacity: 0.9, dashArray: '3 8' };
-  }
+
   return { color: safeColor, weight: 3, opacity: 0.9, dashArray: '' };
 }
 

@@ -156,8 +156,8 @@ function UnifiedRoutePolylines({
     return out;
   }, [appUsers]);
 
-  // Resolve effective travel mode per stop.
-  // Use per-stop transport_mode when set; fall back to driver-level preferred mode.
+  // Resolve travel mode from the stop's own transport_mode field.
+  // Falls back to driver-level preferred mode if the stop has none.
   const getStopMode = (stop, driverId) => {
     if (stop?.transport_mode) return normalizeTravelMode(stop.transport_mode);
     return normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
@@ -176,8 +176,6 @@ function UnifiedRoutePolylines({
       : scoped;
 
     dated.forEach((s) => {
-      // Cycling markers are visual pins only — exclude them from polyline routing
-      if (s?.is_cycling_marker) return;
       if (!s?.driver_id || !isFinite(Number(s.latitude)) || !isFinite(Number(s.longitude))) return;
       if (!m.has(s.driver_id)) m.set(s.driver_id, { complete: [], incomplete: [], pending: [] });
       const bucket = m.get(s.driver_id);
