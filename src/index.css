@@ -264,14 +264,12 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
 }
 
 /* Cluster badge z-order fix — lift the entire marker icon above map tiles */
-.leaflet-marker-icon:has(.cluster-badge),
-.leaflet-marker-icon.custom-cycling-pin-icon {
+.leaflet-marker-icon:has(.cluster-badge) {
   overflow: visible !important;
   z-index: 9999 !important;
 }
 .cluster-badge {
   z-index: 9999 !important;
-  overflow: visible !important;
 }
 
 /* iOS safe area support for bottom nav */
