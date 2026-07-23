@@ -53,17 +53,32 @@ function DeliveryMarkers({
     return () => window.removeEventListener('patientGpsUpdated', handlePatientGpsUpdated);
   }, []);
 
-  // Pre-index cycling markers by driver+date so each day's pair is independent
+  // Pre-index cycling marker pairs by stop_order proximity.
+  // Multiple cycling loops on the same driver+date would collide if keyed only by driver|date.
+  // Strategy: sort all cycling markers for a driver+date by stop_order; pair them up sequentially
+  // (start[0]+end[0], start[1]+end[1], etc.) using the BIK numeric suffix as a tiebreaker.
+  // Returns a Map keyed by start.id → { start, end }.
   const cyclingByDriver = React.useMemo(() => {
-    const map = new Map();
+    const pairsByStartId = new Map();
+    // Group by driver+date
+    const grouped = new Map();
     deliveryMarkers.forEach((d) => {
       if (!d?.is_cycling_marker) return;
       const key = `${d.driver_id}|${d.delivery_date}`;
-      if (!map.has(key)) map.set(key, { start: null, end: null });
-      if (d.delivery_notes === 'Cycling Route Start') map.get(key).start = d;
-      else map.get(key).end = d;
+      if (!grouped.has(key)) grouped.set(key, { starts: [], ends: [] });
+      const isStart = d.delivery_notes === 'Cycling Route Start' || (d.delivery_notes || '').toLowerCase().includes('start');
+      if (isStart) grouped.get(key).starts.push(d);
+      else grouped.get(key).ends.push(d);
     });
-    return map;
+    grouped.forEach(({ starts, ends }) => {
+      // Sort both arrays by stop_order so they pair sequentially
+      starts.sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+      ends.sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+      starts.forEach((start, i) => {
+        pairsByStartId.set(start.id, { start, end: ends[i] || null });
+      });
+    });
+    return pairsByStartId;
   }, [deliveryMarkers]);
 
   // Count how many cycling pairs share the same lat/lng (rounded to ~10m precision)
@@ -105,7 +120,7 @@ function DeliveryMarkers({
         const locKey = `${cycLat.toFixed(4)},${cycLng.toFixed(4)}`;
         const pairsAtLoc = cyclingPairsAtLocation.get(locKey) || 1;
         const cycIcon = isStart ? createCyclingStartIcon(isMobile, pairsAtLoc) : createCyclingEndIcon(isMobile, pairsAtLoc);
-        const pair = cyclingByDriver.get(`${delivery.driver_id}|${delivery.delivery_date}`) || {};
+        // Use this marker's own times — never share the pair lookup (multiple pairs on same driver+date would collide)
         const thisTime = delivery.arrival_time
           ? new Date(delivery.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
           : delivery.actual_delivery_time
@@ -125,7 +140,7 @@ function DeliveryMarkers({
           >
             <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
               <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>🚲 {isStart ? 'Cycling Start' : 'Cycling End'}</div>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Stop #{delivery.stop_order}</div>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>ID: {delivery.delivery_id || '—'} · Stop #{delivery.stop_order}</div>
               {thisTime && <div style={{ fontSize: '0.75rem', color: isStart ? '#16a34a' : '#dc2626', fontWeight: 600, marginTop: 2 }}>{isStart ? '▶' : '■'} {thisTime}</div>}
             </Popup>
           </Marker>
@@ -136,7 +151,7 @@ function DeliveryMarkers({
       if (!isStart) return null;
       const locKeySplit = `${cycLat.toFixed(4)},${cycLng.toFixed(4)}`;
       const pairsAtLocSplit = cyclingPairsAtLocation.get(locKeySplit) || 1;
-      const pair = cyclingByDriver.get(`${delivery.driver_id}|${delivery.delivery_date}`) || {};
+      const pair = cyclingByDriver.get(delivery.id) || {};
       const startTime = pair.start?.arrival_time
         ? new Date(pair.start.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
         : pair.start?.actual_delivery_time

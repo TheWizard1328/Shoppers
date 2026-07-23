@@ -7,53 +7,107 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-    // Fetch all cycling markers missing a delivery_id
     const allMarkers = await base44.asServiceRole.entities.Delivery.filter({ is_cycling_marker: true });
-    const missing = (allMarkers || []).filter((d) => !d.delivery_id || !d.delivery_id.startsWith('BIK-'));
 
-    if (missing.length === 0) {
-      return Response.json({ updated: 0, message: 'All cycling markers already have BIK delivery_ids.' });
-    }
-
-    // Collect existing BIK IDs to avoid collisions
-    const existingBikIds = new Set(
-      (allMarkers || []).map((d) => d.delivery_id).filter((id) => id && id.startsWith('BIK-'))
-    );
-
-    const generateBikId = () => {
+    const generateBikId = (existingIds: Set<string>): string => {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-      const ts = Date.now().toString();
-      const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-      return `BIK-${ts}-${rand}`;
+      let id = '';
+      do {
+        const ts = Date.now().toString();
+        const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        id = `BIK-${ts}-${rand}`;
+      } while (existingIds.has(id));
+      return id;
     };
 
-    const updates = [];
-    for (const marker of missing) {
-      let bikId = generateBikId();
-      // Ensure uniqueness
-      while (existingBikIds.has(bikId)) {
-        bikId = generateBikId();
+    const existingBikIds = new Set<string>(
+      (allMarkers || []).map((d: any) => d.delivery_id).filter((id: any) => id && id.startsWith('BIK-'))
+    );
+
+    // Helper: derive ampm from a timestamp string (local hour < 14 = AM, >= 14 = PM)
+    const ampmFromTimestamp = (ts: string | null | undefined): 'AM' | 'PM' | null => {
+      if (!ts) return null;
+      try {
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return null;
+        // Use Edmonton local time (UTC-6 or UTC-7 depending on DST)
+        const localHour = new Date(ts).toLocaleString('en-CA', {
+          timeZone: 'America/Edmonton',
+          hour: 'numeric',
+          hour12: false,
+        });
+        return parseInt(localHour, 10) < 14 ? 'AM' : 'PM';
+      } catch {
+        return null;
       }
-      existingBikIds.add(bikId);
-      updates.push(
-        base44.asServiceRole.entities.Delivery.update(marker.id, { delivery_id: bikId })
-          .then(() => ({ id: marker.id, delivery_id: bikId, success: true }))
-          .catch((e) => ({ id: marker.id, success: false, error: e?.message }))
-      );
+    };
+
+    // Group markers into pairs by driver+date, sorted by stop_order
+    const grouped = new Map<string, { starts: any[]; ends: any[] }>();
+    for (const m of allMarkers || []) {
+      const key = `${m.driver_id}|${m.delivery_date}`;
+      if (!grouped.has(key)) grouped.set(key, { starts: [], ends: [] });
+      const isStart = (m.delivery_notes || '').toLowerCase().includes('start');
+      if (isStart) grouped.get(key)!.starts.push(m);
+      else grouped.get(key)!.ends.push(m);
+    }
+    grouped.forEach(({ starts, ends }) => {
+      starts.sort((a: any, b: any) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+      ends.sort((a: any, b: any) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+    });
+
+    const updates: Promise<any>[] = [];
+    let updatedCount = 0;
+    let failedCount = 0;
+
+    for (const [, { starts, ends }] of grouped) {
+      starts.forEach((start: any, i: number) => {
+        const end = ends[i] || null;
+
+        // Determine ampm from the Start marker's actual_delivery_time (or created_date as fallback)
+        const ampm = ampmFromTimestamp(start.actual_delivery_time) ||
+                     ampmFromTimestamp(start.created_date) ||
+                     'AM';
+
+        // Build update for Start marker
+        const startPatch: Record<string, any> = { ampm_deliveries: ampm };
+        if (!start.delivery_id || !start.delivery_id.startsWith('BIK-')) {
+          startPatch.delivery_id = generateBikId(existingBikIds);
+          existingBikIds.add(startPatch.delivery_id);
+        }
+
+        updates.push(
+          base44.asServiceRole.entities.Delivery.update(start.id, startPatch)
+            .then(() => { updatedCount++; return { id: start.id, success: true, patch: startPatch }; })
+            .catch((e: any) => { failedCount++; return { id: start.id, success: false, error: e?.message }; })
+        );
+
+        // Build update for End marker (same ampm as its paired Start)
+        if (end) {
+          const endPatch: Record<string, any> = { ampm_deliveries: ampm };
+          if (!end.delivery_id || !end.delivery_id.startsWith('BIK-')) {
+            endPatch.delivery_id = generateBikId(existingBikIds);
+            existingBikIds.add(endPatch.delivery_id);
+          }
+          updates.push(
+            base44.asServiceRole.entities.Delivery.update(end.id, endPatch)
+              .then(() => { updatedCount++; return { id: end.id, success: true, patch: endPatch }; })
+              .catch((e: any) => { failedCount++; return { id: end.id, success: false, error: e?.message }; })
+          );
+        }
+      });
     }
 
     const results = await Promise.all(updates);
-    const succeeded = results.filter((r) => r.success).length;
-    const failed = results.filter((r) => !r.success).length;
 
     return Response.json({
-      updated: succeeded,
-      failed,
-      total_missing: missing.length,
+      total_markers: (allMarkers || []).length,
+      updated: updatedCount,
+      failed: failedCount,
+      message: `Backfilled ${updatedCount} cycling markers (BIK IDs + ampm_deliveries).`,
       results,
-      message: `Backfilled ${succeeded} cycling markers with BIK delivery_ids.`
     });
-  } catch (error) {
+  } catch (error: any) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
