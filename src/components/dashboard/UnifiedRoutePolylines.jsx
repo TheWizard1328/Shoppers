@@ -21,6 +21,7 @@ import L from "leaflet";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
+import { getInterStoreLocationSync, isInterStoreDelivery } from "../utils/interStoreDisplayName";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 const CURRENT_LEG_COLOR = "#2563EB";
@@ -188,12 +189,24 @@ function UnifiedRoutePolylines({
       : scoped;
 
     dated.forEach((s) => {
-      if (!s?.driver_id || !isFinite(Number(s.latitude)) || !isFinite(Number(s.longitude))) return;
-      if (!m.has(s.driver_id)) m.set(s.driver_id, { complete: [], incomplete: [], pending: [] });
-      const bucket = m.get(s.driver_id);
-      if (FINISHED.includes(s.status)) bucket.complete.push(s);
-      else if (s.status === "in_transit" || s.status === "en_route") bucket.incomplete.push(s);
-      else bucket.pending.push(s);
+      if (!s?.driver_id) return;
+
+      // Resolve interstore coordinates if missing from the stop object
+      let stopWithCoords = s;
+      if (isInterStoreDelivery(s.delivery_id)) {
+        const loc = getInterStoreLocationSync(s.delivery_id);
+        if (loc?.store_latitude && loc?.store_longitude) {
+          stopWithCoords = { ...s, latitude: Number(loc.store_latitude), longitude: Number(loc.store_longitude) };
+        }
+      }
+
+      if (!isFinite(Number(stopWithCoords.latitude)) || !isFinite(Number(stopWithCoords.longitude))) return;
+      const s2 = stopWithCoords;
+      if (!m.has(s2.driver_id)) m.set(s2.driver_id, { complete: [], incomplete: [], pending: [] });
+      const bucket = m.get(s2.driver_id);
+      if (FINISHED.includes(s2.status)) bucket.complete.push(s2);
+      else if (s2.status === "in_transit" || s2.status === "en_route") bucket.incomplete.push(s2);
+      else bucket.pending.push(s2);
     });
     m.forEach((stops) => {
       stops.incomplete.sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
