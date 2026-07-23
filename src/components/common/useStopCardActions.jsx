@@ -196,6 +196,12 @@ export default function useStopCardActions(params) {
   const ensureDriverOnline = useCallback(async () => {
     if (!currentUser?.id || currentUser.id !== delivery?.driver_id) return;
     if (delivery?.delivery_date !== localDeviceTodayStr) return;
+
+    // Only act if the driver is currently off_duty or on_break
+    const currentDriverAppUserForCheck = appUsers?.find((u) => u?.user_id === currentUser.id);
+    const currentDriverStatus = currentDriverAppUserForCheck?.driver_status ?? currentUser?.driver_status;
+    if (currentDriverStatus === 'on_duty') return; // already on duty — nothing to do
+
     try {
       const { data } = await setDriverStatus({ newStatus: 'on_duty' });
       const appUserId = data?.appUserId;
@@ -207,14 +213,21 @@ export default function useStopCardActions(params) {
         try {
           const { offlineDB } = await import('../utils/offlineDatabase');
           const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
-          await offlineDB.save(offlineDB.STORES.APP_USERS, {
+          const updatedRecord = {
             ...existingRecord,
             ...currentUser,
             driver_status: 'on_duty',
             location_tracking_enabled: true,
             location_updated_at: new Date().toISOString(),
             id: appUserId,
-          });
+          };
+          await offlineDB.save(offlineDB.STORES.APP_USERS, updatedRecord);
+
+          // Broadcast to the DriverStatusToggle and all other UI listeners so the
+          // toggle visually snaps to "On" without requiring a WebSocket round-trip.
+          window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: updatedRecord } }));
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [updatedRecord], mergeMode: 'merge' } }));
+          window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: currentUser.id, newStatus: 'on_duty' } }));
         } catch (idbErr) {
           console.warn('[ensureDriverOnline] IDB update failed (non-critical):', idbErr?.message);
         }
@@ -224,7 +237,7 @@ export default function useStopCardActions(params) {
     } catch (error) {
       console.error('Failed to auto-toggle driver online:', error);
     }
-  }, [currentUser, delivery?.driver_id, delivery?.delivery_date, localDeviceTodayStr, onDriverStatusChange]);
+  }, [currentUser, appUsers, delivery?.driver_id, delivery?.delivery_date, localDeviceTodayStr, onDriverStatusChange]);
 
   const currentPreferredTravelMode = String(currentDriverAppUser?.preferred_travel_mode || safeDriver?.preferred_travel_mode || 'driving').toLowerCase();
 
@@ -905,6 +918,9 @@ export default function useStopCardActions(params) {
         const finishedSet = new Set(FINISHED_STATUSES);
         const isAlreadyNaturalNext = false; // Always run full optimization path
 
+        // ── Ensure driver is on_duty before starting (auto-toggle if off_duty/on_break) ──
+        await ensureDriverOnline().catch(() => {});
+
         // ── Kick off handleStartDelivery (marks stop as in_transit on backend) ──
         try {
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
@@ -921,8 +937,6 @@ export default function useStopCardActions(params) {
         backgroundSyncManager.resume();
         resumeRealtimeSync();
         resetActionLocks(true);
-
-        await ensureDriverOnline().catch(() => {});
         if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
           notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }).catch(() => {});
         }
@@ -1040,7 +1054,7 @@ export default function useStopCardActions(params) {
     });
 
     if (lockResult?.skipped) return;
-  }, [allDeliveries, appUsers, collapseDriverStopCards, currentUser, delivery, ensureDriverOnline, isCompleting, isCurrentCardStartLocked, isFailing, isGlobalStartLocked, isPickup, isProcessingBackground, isRestarting, isRetrying, isStarting, patient?.full_name, resetActionLocks, setIsEntityUpdating, setIsProcessingBackground, setIsStarting, shouldPreserveWindowTimesOnStart, store, updateDeliveriesLocally, userHasRole]);
+  }, [allDeliveries, appUsers, collapseDriverStopCards, currentUser, delivery, ensureDriverOnline, isCompleting, isCurrentCardStartLocked, isFailing, isGlobalStartLocked, isPickup, isProcessingBackground, isRestarting, isRetrying, isStarting, patient?.full_name, patients, resetActionLocks, setIsEntityUpdating, setIsProcessingBackground, setIsStarting, shouldPreserveWindowTimesOnStart, store, stores, updateDeliveriesLocally, userHasRole]);
 
   // ─── Shared terminal-action engine (complete / fail / cancel) ───────────────
   // Owns everything after the action-specific update object is built:
