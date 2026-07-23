@@ -330,65 +330,10 @@ function HereType1Polylines({
     const isComplete = driversWithCompleteRoute.has(driverId); // Path 3 — authoritative source
 
     if (isComplete) {
-      // ── Path 3: show all stops ordered by stop_order, skip the very first ──
-      const allSorted = [...stops.complete, ...stops.incomplete, ...(stops.pending || [])]
-        .filter(s => s && Number.isFinite(Number(s.latitude)) && Number.isFinite(Number(s.longitude)))
-        .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
-
-      // Start at i=2: allSorted[1] holds the polyline FROM stop #1 → stop #2,
-      // which originates at stop #1 — we hide that leg on completed routes.
-      // allSorted[2] onwards are fully inter-stop legs safe to render.
-      for (let i = 2; i < allSorted.length; i++) {
-        const prevStop = allSorted[i - 1];
-        const stop     = allSorted[i];
-        if (!stop) continue;
-
-        const driverColor = getPolylineColorForDriver(driverId, stop.driver?.sort_order);
-        const key = `complete-${driverId}-${stop.id}-${i}`;
-        if (seenKeys.has(key)) continue;
-
-        let coords = null;
-        let shouldUseFallback = false;
-        if (typeof stop?.encoded_polyline === 'string' && stop.encoded_polyline.trim()) {
-          try { coords = decodePolyline(stop.encoded_polyline); } catch (_) {}
-        }
-        if ((!coords || coords.length < 2)) {
-          const origin = { latitude: Number(prevStop.latitude), longitude: Number(prevStop.longitude) };
-          const dest   = { latitude: Number(stop.latitude),     longitude: Number(stop.longitude)     };
-          if (Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) &&
-              Number.isFinite(dest.latitude)   && Number.isFinite(dest.longitude)) {
-            coords = makeFallback(origin, dest);
-            shouldUseFallback = true;
-          }
-        }
-        if (!coords || coords.length < 2) continue;
-        seenKeys.add(key);
-
-        const mode = getDeliveryMode(stop, driverId);
-        const isCycling = mode === 'cycling';
-        const driverStyle = getTravelModeLineStyle(mode, driverColor, isPM(stop));
-        lines.push(
-          <Polyline
-            key={`type1-complete-line-${driverId}-${stop.id}-${i}`}
-            positions={coords}
-            renderer={rendererReady ? canvasRenderer.current : undefined}
-            pathOptions={{
-              ...driverStyle,
-              color: isCycling ? '#16A34A' : driverColor,
-              opacity: shouldUseFallback ? 0.6 : 0.75,
-              lineJoin: 'round',
-              lineCap: 'round'
-            }}
-            pane="routeBasePane"
-          />,
-          <RouteDirectionDecorator
-            key={`type1-complete-arrow-${driverId}-${stop.id}-${i}`}
-            positions={coords}
-            color={isCycling ? '#16A34A' : driverColor}
-          />
-        );
-      }
-      return; // Done for Path 3
+      // Path 3: CompletedBreadcrumbPolylines is the sole renderer for completed routes.
+      // Rendering here too causes double-layering (fuzzy/hazy lines) since both components
+      // render onto overlapping panes with different color palettes.
+      return;
     }
 
     // ── Path 1 & 2: render pending legs after the current active stop ────────
