@@ -16,6 +16,24 @@ const getEdmDate = () => {
 };
 
 /**
+ * Round an ISO timestamp to the nearest 5-minute mark.
+ * on_duty / on_break → round DOWN (floor) to previous 5-min mark
+ * off_duty           → round UP (ceil) to next 5-min mark
+ */
+const roundTo5Min = (isoTimestamp, direction) => {
+  const d = new Date(isoTimestamp);
+  const ms = d.getTime();
+  const fiveMin = 5 * 60 * 1000;
+  let rounded;
+  if (direction === 'floor') {
+    rounded = Math.floor(ms / fiveMin) * fiveMin;
+  } else {
+    rounded = Math.ceil(ms / fiveMin) * fiveMin;
+  }
+  return new Date(rounded).toISOString();
+};
+
+/**
  * Record a DriverDailyActivity segment for a status transition.
  * on_duty → open a new segment (close any dangling open segment first)
  * on_break / off_duty → close the open segment with a tot
@@ -27,7 +45,13 @@ const getEdmDate = () => {
 const recordActivitySegment = async (base44, driverId, driverName, newStatus, previousStatus, anchorTime = null) => {
   try {
     const todayStr = getEdmDate();
-    const now = anchorTime || new Date().toISOString();
+    const rawNow = anchorTime || new Date().toISOString();
+
+    // Round segment boundary to nearest 5-minute mark per direction rule:
+    //   on_duty / on_break → floor (previous 5-min mark)
+    //   off_duty           → ceil  (next 5-min mark)
+    const roundDirection = newStatus === 'off_duty' ? 'ceil' : 'floor';
+    const now = roundTo5Min(rawNow, roundDirection);
     const nowMs = new Date(now).getTime();
 
     const existing = await base44.asServiceRole.entities.DriverDailyActivity.filter({
