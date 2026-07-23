@@ -1616,6 +1616,8 @@ export default function DeliveryFormView({
                       return d.toISOString().slice(0, 19);
                     })();
 
+                    // AM before 14:00 local time, PM from 14:00 onwards
+                    const ampmNow = new Date().getHours() < 14 ? 'AM' : 'PM';
                     const basePayload = {
                       delivery_date: formData.delivery_date,
                       driver_id: formData.driver_id,
@@ -1623,6 +1625,7 @@ export default function DeliveryFormView({
                       is_cycling_marker: true,
                       status: formData.status || 'in_transit',
                       delivery_id: formData.delivery_id || null,
+                      ampm_deliveries: formData.ampm_deliveries || ampmNow,
                       ...(formData.arrival_time && { arrival_time: `${formData.delivery_date}T${formData.arrival_time}:00` }),
                       ...(formData.cycling_latitude != null && { cycling_latitude: formData.cycling_latitude }),
                       ...(formData.cycling_longitude != null && { cycling_longitude: formData.cycling_longitude }),

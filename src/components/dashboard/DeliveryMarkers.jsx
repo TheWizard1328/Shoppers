@@ -69,10 +69,14 @@ function DeliveryMarkers({
   // Count how many cycling pairs share the same lat/lng (rounded to ~10m precision)
   // Used to show a count badge on both the combined and fanned markers
   const cyclingPairsAtLocation = React.useMemo(() => {
-    // Build a set of start-marker locations per location key
+    // Count distinct driver+date pairs whose START marker shares the same rounded location.
+    // Using start-only avoids double-counting (start and end often share the same coords).
     const locationCounts = new Map();
     deliveryMarkers.forEach((d) => {
       if (!d?.is_cycling_marker) return;
+      // Only tally start markers so each pair is counted exactly once
+      const isStart = d.delivery_notes === 'Cycling Route Start' || (d.delivery_notes || '').toLowerCase().includes('start');
+      if (!isStart) return;
       const lat = Number(d.latitude ?? d.cycling_latitude);
       const lng = Number(d.longitude ?? d.cycling_longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
@@ -81,7 +85,6 @@ function DeliveryMarkers({
       if (!locationCounts.has(locKey)) locationCounts.set(locKey, new Set());
       locationCounts.get(locKey).add(pairKey);
     });
-    // Return a map of locKey → count of distinct pairs
     const result = new Map();
     locationCounts.forEach((pairSet, locKey) => result.set(locKey, pairSet.size));
     return result;
