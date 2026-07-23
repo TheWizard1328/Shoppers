@@ -1109,6 +1109,20 @@ export default function useStopCardActions(params) {
     lockDeliveryFields(delivery.id, ['status', 'isNextDelivery']);
     if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery']);
 
+    // CRITICAL: Register ALL affected delivery IDs in smartRefreshManager BEFORE
+    // any server writes. setAndCenterNextDelivery with persistToBackend:true fires
+    // user-scoped server writes that trigger WS broadcasts. If smartRefreshManager
+    // hasn't registered these IDs yet, the WS echoes arrive as "remote" updates and
+    // can overwrite the optimistic UI state, causing the completion bounce.
+    try {
+      const _affectedIds = [delivery.id];
+      if (nextStop?.id) _affectedIds.push(nextStop.id);
+      incompleteDeliveries.forEach((d) => { if (d?.id && d.id !== nextStop?.id) _affectedIds.push(d.id); });
+      for (const _id of _affectedIds) {
+        smartRefreshManager.registerPendingUpdate(_id, delivery.driver_id, delivery.delivery_date);
+      }
+    } catch (_) {}
+
     // 5. Single authoritative isNextDelivery write — this is the ONLY place it fires
     await setAndCenterNextDelivery({
       driverDeliveries: allDriverDeliveries,
@@ -1263,8 +1277,10 @@ export default function useStopCardActions(params) {
       pauseRealtimeSync();
       smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
       try {
-        const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-        if (!deliveryExists || deliveryExists.length === 0) {
+        // Use IDB instead of API call — the record is already in local storage
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const localDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id).catch(() => null);
+        if (!localDelivery) {
           toast.error('This delivery has been deleted. Please refresh the page.');
           return;
         }
@@ -1274,12 +1290,14 @@ export default function useStopCardActions(params) {
           ? [{ type: 'Cash', amount: codTotalRequired }] : null;
         if (autoCODPayment) setCodPayments(autoCODPayment);
 
-        // Breadcrumbs
+        // Breadcrumbs — get pending string for the completion payload (IDB read is fast)
         let pendingBreadcrumbsString = null;
         try {
           pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });
-          await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() });
-          pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });
+          // Fire-and-forget: boundary points are seed data for the next stop, not blocking
+          if (pendingBreadcrumbsString) {
+            appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() }).catch(() => {});
+          }
         } catch {}
 
         // Pickup transition
@@ -1319,7 +1337,10 @@ export default function useStopCardActions(params) {
         const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
         const shouldRecalculateCompletionEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
 
-        await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: completionUpdate.actual_delivery_time });
+        // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
+        if (completionUpdate.actual_delivery_time && completionUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
+          appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: completionUpdate.actual_delivery_time }).catch(() => {});
+        }
         if (shouldDeleteSquareCodBeforeComplete) await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
 
         // Patient side-effect (independent of terminal engine)
@@ -1360,39 +1381,44 @@ export default function useStopCardActions(params) {
         })();
         if ((delivery?.fridge_item || pickupHasFridgeItems) && !delivery?.arrival_time) triggerCoolerLogIfNeeded('Completed');
 
+        // Fire-and-forget: patient last-delivery-date sync and driver notification are background
         if (!isPickup && patient?.id && Number(delivery?.cod_total_amount_required || 0) > 0) {
-          await base44.functions.invoke('syncPatientLastDeliveryDate', {
+          base44.functions.invoke('syncPatientLastDeliveryDate', {
             data: { ...delivery, ...completionUpdate, patient_id: patient.id },
             old_data: { status: delivery.status },
             event: { type: 'update', entity_name: 'Delivery' },
           }).catch(() => null);
         }
         if (userHasRole(currentUser, 'driver')) {
-          await notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers }).catch(() => {});
+          notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers }).catch(() => {});
         }
 
-        try {
-          const interStoreResponse = await base44.functions.invoke('findInterStoreDropoff', { deliveryId: delivery.id });
-          const interStoreData = interStoreResponse?.data || interStoreResponse;
-          if (interStoreData?.isInterStorePickup) {
-            const originatingStoreId = interStoreData?.match?.store_id || null;
-            const driverRouteDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
-            const hasEnRoutePickupForOriginStore = driverRouteDeliveries.some((item) => item && !item.patient_id && item.store_id === originatingStoreId && item.status === 'en_route');
-            const hasMatchingInTransitDropoff = driverRouteDeliveries.some((item) => {
-              if (!item || item.id === delivery.id || item.status !== 'in_transit') return false;
-              const notes = String(item.delivery_notes || '').toLowerCase();
-              return item.patient_id === interStoreData?.match?.id && (notes.includes('interstore drop-off') || notes.includes('interstore dropoff') || notes.includes('isd'));
-            });
-            if (!hasEnRoutePickupForOriginStore && !hasMatchingInTransitDropoff) {
-              setInterStoreMatch?.(interStoreData.match || null);
-              setShowInterStoreDialog?.(true);
+        // InterStore dropoff lookup — only for store pickups (patient deliveries can't be InterStore sources)
+        if (isPickup) {
+          try {
+            const interStoreResponse = await base44.functions.invoke('findInterStoreDropoff', { deliveryId: delivery.id });
+            const interStoreData = interStoreResponse?.data || interStoreResponse;
+            if (interStoreData?.isInterStorePickup) {
+              const originatingStoreId = interStoreData?.match?.store_id || null;
+              const driverRouteDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
+              const hasEnRoutePickupForOriginStore = driverRouteDeliveries.some((item) => item && !item.patient_id && item.store_id === originatingStoreId && item.status === 'en_route');
+              const hasMatchingInTransitDropoff = driverRouteDeliveries.some((item) => {
+                if (!item || item.id === delivery.id || item.status !== 'in_transit') return false;
+                const notes = String(item.delivery_notes || '').toLowerCase();
+                return item.patient_id === interStoreData?.match?.id && (notes.includes('interstore drop-off') || notes.includes('interstore dropoff') || notes.includes('isd'));
+              });
+              if (!hasEnRoutePickupForOriginStore && !hasMatchingInTransitDropoff) {
+                setInterStoreMatch?.(interStoreData.match || null);
+                setShowInterStoreDialog?.(true);
+              }
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
 
         dispatchStopCardActionCollapse();
         onClick?.(null);
-        await queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, deliveryId: delivery.id });
+        // Fire-and-forget: breadcrumb consolidation is background work, not blocking
+        queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, deliveryId: delivery.id }).catch(() => {});
 
         // ── Cycling end marker completed: reset driver travel mode back to driving ──
         // When the driver taps Complete on the Cycling Route End marker we know the
@@ -1453,17 +1479,21 @@ export default function useStopCardActions(params) {
         fabControlEvents.notifyPhaseTwoTempUnlock();
         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
 
-        const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-        if (!deliveryExists || deliveryExists.length === 0) {
+        // Use IDB instead of API call — the record is already in local storage
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const localDeliveryExists = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id).catch(() => null);
+        if (!localDeliveryExists) {
           toast.error('This delivery has been deleted. Please refresh the page.');
           return;
         }
-        // Breadcrumbs
+        // Breadcrumbs — get pending string for the completion payload (IDB read is fast)
         let pendingBreadcrumbsString = null;
         try {
           pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });
-          await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() });
-          pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });
+          // Fire-and-forget: boundary points are seed data for the next stop, not blocking
+          if (pendingBreadcrumbsString) {
+            appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() }).catch(() => {});
+          }
         } catch {}
 
         // Timing
@@ -1496,7 +1526,10 @@ export default function useStopCardActions(params) {
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
         const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, criticalUpdate.actual_delivery_time);
 
-        await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: criticalUpdate.actual_delivery_time });
+        // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
+        if (criticalUpdate.actual_delivery_time && criticalUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
+          appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: criticalUpdate.actual_delivery_time }).catch(() => {});
+        }
         if (shouldDeleteSquareCodBeforeFailure) await deleteCODWithTimeout(delivery.id, `Deleted before marking as ${status}`);
 
         // ── Terminal engine ──────────────────────────────────────────────────
@@ -1516,9 +1549,10 @@ export default function useStopCardActions(params) {
         if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded(status === 'failed' ? 'Failed' : 'Cancelled');
         dispatchStopCardActionCollapse();
         onClick?.(null);
-        await queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, deliveryId: delivery.id });
+        // Fire-and-forget: breadcrumb consolidation and notifications are background work
+        queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, deliveryId: delivery.id }).catch(() => {});
         if (userHasRole(currentUser, 'driver')) {
-          await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });
+          notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason }).catch(() => {});
         }
         toast.success(`${isPickup ? 'Pickup' : 'Delivery'} marked as ${status}`, { description: `Dispatch has been notified. Reason: ${reason}` });
       } catch (error) {

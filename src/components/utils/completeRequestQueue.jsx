@@ -130,15 +130,14 @@ const flushCompletionJob = async (entry) => {
   // by the smartRefreshManager registration above.
   enterBatchSilentMode();
 
-  const tasks = [];
-
   // 3a. Persist ONLY changed fields to server — NOT full records.
   // Writing full in-memory records can null out server-side encoded_polyline
   // and other large fields that may be absent from the in-memory representation.
   // Extract a minimal update payload per record: only the fields that are
   // meaningful for a completion event.
+  const statusWritePromises = [];
   if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
-    tasks.push(
+    statusWritePromises.push(
       Promise.allSettled(
         affectedFullRecords.map((rec) => {
           if (!rec?.id) return Promise.resolve(null);
@@ -165,21 +164,9 @@ const flushCompletionJob = async (entry) => {
     );
   }
 
-  // 3b. Set isNextDelivery flag on backend (authoritative server-side confirmation)
-  //     This also repairs stop_order server-side via buildStopOrderRepairs.
-  if (driverId && deliveryDate) {
-    tasks.push(
-      base44.functions.invoke('setNextDeliveryFlag', {
-        driverId,
-        deliveryDate,
-        targetDeliveryId: nextDeliveryId || null
-      }).catch(() => null)
-    );
-  }
-
-  // 3c. Set driver off-duty if last stop completed
+  // 3c. Set driver off-duty if last stop completed — can run in parallel with status writes
   if (setOffDuty && entry.payload.appUserId && /^[a-f0-9]{24}$/i.test(String(entry.payload.appUserId))) {
-    tasks.push(
+    statusWritePromises.push(
       scheduleAppUserUpdate(entry.payload.appUserId, {
         driver_status: 'off_duty',
         location_tracking_enabled: false
@@ -187,9 +174,26 @@ const flushCompletionJob = async (entry) => {
     );
   }
 
-  entry.inFlight = Promise.allSettled(tasks);
+  // CRITICAL: Wait for ALL status writes to commit BEFORE calling setNextDeliveryFlag.
+  // If they run in parallel, setNextDeliveryFlag fetches deliveries from the server
+  // and may see the completed stop as still 'in_transit' (status write not committed
+  // yet), causing it to include the completed stop in the active set and potentially
+  // set isNextDelivery=true on it — resulting in two stops flagged as next.
+  entry.inFlight = Promise.allSettled(statusWritePromises);
   try {
     await entry.inFlight;
+
+    // 3b. Set isNextDelivery flag on backend — runs AFTER status writes are committed.
+    //     This ensures setNextDeliveryFlag sees the correct status when it fetches
+    //     deliveries from the server. It also repairs stop_order server-side.
+    if (driverId && deliveryDate) {
+      await base44.functions.invoke('setNextDeliveryFlag', {
+        driverId,
+        deliveryDate,
+        targetDeliveryId: nextDeliveryId || null
+      }).catch(() => null);
+    }
+
     exitBatchSilentMode();
 
     // ── STEP 4: Broadcast to OTHER devices (not this one) ───────────────────
@@ -228,7 +232,7 @@ const flushCompletionJob = async (entry) => {
 
     // ── STEP 5: Single deliveriesUpdated event for UI refresh ───────────────
     // One event with all fresh data → one UI re-render, not N.
-    if (driverId && deliveryDate) {
+    if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
       try {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
