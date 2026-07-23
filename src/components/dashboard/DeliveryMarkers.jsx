@@ -162,7 +162,7 @@ function DeliveryMarkers({
                 const dur = totalMin > 0 ? `${Math.floor(totalMin / 60) > 0 ? Math.floor(totalMin / 60) + 'h ' : ''}${totalMin % 60}min` : null;
                 return (
                   <div key={pair.start?.id || idx} style={{ marginBottom: allPairsHere.length > 1 ? 6 : 0, paddingBottom: allPairsHere.length > 1 && idx < allPairsHere.length - 1 ? 6 : 0, borderBottom: allPairsHere.length > 1 && idx < allPairsHere.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                    {allPairsHere.length > 1 && <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600, marginBottom: 2 }}>Loop {idx + 1} · Stops #{pair.start?.stop_order}–#{pair.end?.stop_order}</div>}
+                    <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600, marginBottom: 2 }}>{allPairsHere.length > 1 ? `Loop ${idx + 1} · ` : ''}Stops #{pair.start?.stop_order}–#{pair.end?.stop_order}</div>
                     {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
                     {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
                     {dur && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏱ {dur}</div>}
@@ -209,7 +209,7 @@ function DeliveryMarkers({
               const dur = totalMin > 0 ? `${Math.floor(totalMin / 60) > 0 ? Math.floor(totalMin / 60) + 'h ' : ''}${totalMin % 60}min` : null;
               return (
                 <div key={pair.start?.id || idx} style={{ marginBottom: 6, paddingBottom: idx < allPairsAtSplit.length - 1 ? 6 : 0, borderBottom: idx < allPairsAtSplit.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                  {allPairsAtSplit.length > 1 && <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600, marginBottom: 2 }}>Loop {idx + 1} · Stops #{pair.start?.stop_order}–#{pair.end?.stop_order}</div>}
+                  <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600, marginBottom: 2 }}>{allPairsAtSplit.length > 1 ? `Loop ${idx + 1} · ` : ''}Stops #{pair.start?.stop_order}–#{pair.end?.stop_order}</div>
                   {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
                   {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
                   {dur && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏱ {dur}</div>}
