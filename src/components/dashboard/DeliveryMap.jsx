@@ -23,6 +23,7 @@ import { getHereApiKey } from "../utils/hereApiKeyStore";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole } from "../utils/userRoles";
 import { sortUsers } from "../utils/sorting";
+import { getPolylineColorForDriver } from "../utils/polylineColors";
 import MapCrosshair from "./MapCrosshair";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
@@ -473,7 +474,7 @@ export default function DeliveryMap({
           driver,
           store,
           pinColor: isAllDriversMode
-              ? getDriverColor(driver || { id: delivery.driver_id || delivery.id })
+              ? getPolylineColorForDriver(delivery.driver_id, (driver || driverLookupMap.get(delivery.driver_id))?.sort_order)
               : (store ? getStoreColor(store) : "#6B7280"),
           number: delivery.display_stop_order || delivery.stop_order || 0,
           isFirstTime: !!delivery.first_delivery,
@@ -598,7 +599,7 @@ export default function DeliveryMap({
         user_name: resolvedDriverName,
         full_name: resolvedDriverName,
         driver: user,
-        driverColor: getDriverColor(user),
+        driverColor: getPolylineColorForDriver(user.id || user.user_id, user?.sort_order),
         driverName: resolvedDriverName,
         driverInitial: resolvedDriverName.charAt(0).toUpperCase(),
         isSelf,
@@ -778,7 +779,7 @@ export default function DeliveryMap({
         driver: user,
         latitude: Number(user.home_latitude),
         longitude: Number(user.home_longitude),
-        driverColor: getDriverColor(user),
+        driverColor: getPolylineColorForDriver(driverKey, user?.sort_order),
         driverName: user.user_name || user.full_name || "Unknown Driver",
         excludeFromBounds: false,
         isRouteComplete: driversWithCompleteRoute.has(driverKey)
@@ -817,7 +818,7 @@ export default function DeliveryMap({
           driverId: stop.driver_id,
           driverName: driver.user_name || driver.full_name || stop.driver_name || "Unknown",
           driver,
-          color: getDriverColor(driver),
+          color: getPolylineColorForDriver(stop.driver_id, driver?.sort_order),
           sortOrder: driver.sort_order ?? 9999,
           stops: []
         });
