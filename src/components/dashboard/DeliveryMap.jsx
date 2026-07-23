@@ -27,9 +27,7 @@ import MapCrosshair from "./MapCrosshair";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
 import HereTileUsageTracker from "./HereTileUsageTracker";
-import HereType1Polylines from "./HereType1Polylines";
-import HereType2Polylines from "./HereType2Polylines";
-import CompletedBreadcrumbPolylines from "./CompletedBreadcrumbPolylines";
+import UnifiedRoutePolylines from "./UnifiedRoutePolylines";
 import PickupMarkers from "./PickupMarkers";
 import DeliveryMarkers from "./DeliveryMarkers";
 import HomeMarkers from "./HomeMarkers";
@@ -1313,22 +1311,6 @@ export default function DeliveryMap({
         <Pane name="completedBreadcrumbPane" style={{ zIndex: 460 }} />
         <Pane name="currentLegPane" style={{ zIndex: 620 }} />
 
-        {mapReady && !showBreadcrumbs && (showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
-          <CompletedBreadcrumbPolylines
-            driverRoutes={completedRouteDriverRoutes}
-            deliveryMarkers={completedRouteDeliveryMarkers}
-            pickupMarkers={completedRoutePickupMarkers}
-            driverHomeMarkers={driverHomeMarkers}
-            selectedDriverId={selectedDriverId}
-            isAllDriversMode={isAllDriversMode}
-            highlightedDeliveryId={highlightedDeliveryId}
-            polylineRenderKey={polylineRenderKey}
-            showStoredPolylines={showRoutes}
-            showBreadcrumbPolylines={false}
-            driverTravelModes={driverTravelModes}
-          />
-        )}
-
         {currentDriverMarker && (
           <Marker key="current-driver-location" position={[currentDriverMarker.latitude, currentDriverMarker.longitude]} icon={createLiveLocationDot()} zIndexOffset={6000} eventHandlers={{ click: () => onMarkerClick?.(currentDriverMarker, "driver") }}>
             <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
@@ -1345,10 +1327,18 @@ export default function DeliveryMap({
         )}
 
         {mapReady && !showBreadcrumbs && (showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
-          <>
-            <HereType2Polylines key={`type2-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={selectedDriverId === "all" || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} driverTravelModes={driverTravelModes} />
-            <HereType1Polylines key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} allDriverDeliveries={safeAllDeliveriesForDate} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={routeAwareCurrentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} driverLocations={routeAwareDriverLocationMarkers} appUsers={safeUsers} driverTravelModes={driverTravelModes} selectedDate={selectedDate} isDispatcher={!!(currentUser && userHasRole(currentUser, "dispatcher") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "driver"))} />
-          </>
+          <UnifiedRoutePolylines
+            key={`unified-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`}
+            deliveryMarkers={deliveryMarkers}
+            pickupMarkers={pickupMarkers}
+            allDriverDeliveries={safeAllDeliveriesForDate}
+            driverHomeMarkers={driverHomeMarkers}
+            selectedDriverId={selectedDriverId}
+            showAll={isAllDriversMode || showOtherDriverDeliveries}
+            appUsers={safeUsers}
+            driverTravelModes={driverTravelModes}
+            selectedDate={selectedDate}
+          />
         )}
 
         {mapReady && (
