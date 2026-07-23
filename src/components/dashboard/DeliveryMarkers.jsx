@@ -66,6 +66,27 @@ function DeliveryMarkers({
     return map;
   }, [deliveryMarkers]);
 
+  // Count how many cycling pairs share the same lat/lng (rounded to ~10m precision)
+  // Used to show a count badge on both the combined and fanned markers
+  const cyclingPairsAtLocation = React.useMemo(() => {
+    // Build a set of start-marker locations per location key
+    const locationCounts = new Map();
+    deliveryMarkers.forEach((d) => {
+      if (!d?.is_cycling_marker) return;
+      const lat = Number(d.latitude ?? d.cycling_latitude);
+      const lng = Number(d.longitude ?? d.cycling_longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const locKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+      const pairKey = `${d.driver_id}|${d.delivery_date}`;
+      if (!locationCounts.has(locKey)) locationCounts.set(locKey, new Set());
+      locationCounts.get(locKey).add(pairKey);
+    });
+    // Return a map of locKey → count of distinct pairs
+    const result = new Map();
+    locationCounts.forEach((pairSet, locKey) => result.set(locKey, pairSet.size));
+    return result;
+  }, [deliveryMarkers]);
+
   return deliveryMarkers.map((delivery) => {
     // Cycling markers: fan out at high zoom, collapse to split icon at low zoom
     if (delivery?.is_cycling_marker) {
@@ -78,7 +99,9 @@ function DeliveryMarkers({
 
       // At or above zoom 16: show separate start/end pins (fanned out)
       if (currentZoom >= 16) {
-        const cycIcon = isStart ? createCyclingStartIcon(isMobile) : createCyclingEndIcon(isMobile);
+        const locKey = `${cycLat.toFixed(4)},${cycLng.toFixed(4)}`;
+        const pairsAtLoc = cyclingPairsAtLocation.get(locKey) || 1;
+        const cycIcon = isStart ? createCyclingStartIcon(isMobile, pairsAtLoc) : createCyclingEndIcon(isMobile, pairsAtLoc);
         const pair = cyclingByDriver.get(`${delivery.driver_id}|${delivery.delivery_date}`) || {};
         const thisTime = delivery.arrival_time
           ? new Date(delivery.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -108,6 +131,8 @@ function DeliveryMarkers({
 
       // Below FULL_DETAIL zoom: collapse to single split icon (start marker only)
       if (!isStart) return null;
+      const locKeySplit = `${cycLat.toFixed(4)},${cycLng.toFixed(4)}`;
+      const pairsAtLocSplit = cyclingPairsAtLocation.get(locKeySplit) || 1;
       const pair = cyclingByDriver.get(`${delivery.driver_id}|${delivery.delivery_date}`) || {};
       const startTime = pair.start?.arrival_time
         ? new Date(pair.start.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -133,7 +158,7 @@ function DeliveryMarkers({
         <Marker
           key={`cycling-split-${delivery.id}`}
           position={[cycLat, cycLng]}
-          icon={createCyclingSplitIcon(isMobile)}
+          icon={createCyclingSplitIcon(isMobile, pairsAtLocSplit)}
           zIndexOffset={1000}
           eventHandlers={{
             click: () => onMarkerClick?.(delivery),
@@ -142,7 +167,8 @@ function DeliveryMarkers({
           }}
         >
           <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-            <div style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: 4 }}>🚲 Cycling Route</div>
+            <div style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: 4 }}>🚲 Cycling Route{pairsAtLocSplit > 1 ? ` ×${pairsAtLocSplit}` : ''}</div>
+            {pairsAtLocSplit > 1 && <div style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: 600, marginBottom: 4 }}>{pairsAtLocSplit} cycling loops at this location — zoom in to see each one</div>}
             {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
             {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
             {loopDuration && <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 2 }}>⏱ Loop: {loopDuration}</div>}
