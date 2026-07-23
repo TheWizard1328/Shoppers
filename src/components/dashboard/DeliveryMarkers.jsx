@@ -81,29 +81,42 @@ function DeliveryMarkers({
     return pairsByStartId;
   }, [deliveryMarkers]);
 
-  // Count how many cycling pairs share the same lat/lng (rounded to ~10m precision)
-  // Used to show a count badge on both the combined and fanned markers
-  const cyclingPairsAtLocation = React.useMemo(() => {
-    // Count distinct driver+date pairs whose START marker shares the same rounded location.
-    // Using start-only avoids double-counting (start and end often share the same coords).
-    const locationCounts = new Map();
+  // Index all cycling pairs by their start location key → array of { start, end } pairs
+  // Used both for count badges and for showing all loops in the popup
+  const cyclingPairsByLocation = React.useMemo(() => {
+    // First build the full pair map (reuse cyclingByDriver logic inline)
+    const grouped = new Map();
     deliveryMarkers.forEach((d) => {
       if (!d?.is_cycling_marker) return;
-      // Only tally start markers so each pair is counted exactly once
+      const key = `${d.driver_id}|${d.delivery_date}`;
+      if (!grouped.has(key)) grouped.set(key, { starts: [], ends: [] });
       const isStart = d.delivery_notes === 'Cycling Route Start' || (d.delivery_notes || '').toLowerCase().includes('start');
-      if (!isStart) return;
-      const lat = Number(d.latitude ?? d.cycling_latitude);
-      const lng = Number(d.longitude ?? d.cycling_longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      const locKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-      const pairKey = `${d.driver_id}|${d.delivery_date}`;
-      if (!locationCounts.has(locKey)) locationCounts.set(locKey, new Set());
-      locationCounts.get(locKey).add(pairKey);
+      if (isStart) grouped.get(key).starts.push(d);
+      else grouped.get(key).ends.push(d);
     });
-    const result = new Map();
-    locationCounts.forEach((pairSet, locKey) => result.set(locKey, pairSet.size));
-    return result;
+
+    const byLocation = new Map(); // locKey → [{ start, end }, ...]
+    grouped.forEach(({ starts, ends }) => {
+      starts.sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+      ends.sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+      starts.forEach((start, i) => {
+        const lat = Number(start.latitude ?? start.cycling_latitude);
+        const lng = Number(start.longitude ?? start.cycling_longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const locKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+        if (!byLocation.has(locKey)) byLocation.set(locKey, []);
+        byLocation.get(locKey).push({ start, end: ends[i] || null });
+      });
+    });
+    return byLocation;
   }, [deliveryMarkers]);
+
+  // Count map (count badge needs just the number)
+  const cyclingPairsAtLocation = React.useMemo(() => {
+    const result = new Map();
+    cyclingPairsByLocation.forEach((pairs, locKey) => result.set(locKey, pairs.length));
+    return result;
+  }, [cyclingPairsByLocation]);
 
   return deliveryMarkers.map((delivery) => {
     // Cycling markers: fan out at high zoom, collapse to split icon at low zoom
@@ -119,13 +132,13 @@ function DeliveryMarkers({
       if (currentZoom >= 16) {
         const locKey = `${cycLat.toFixed(4)},${cycLng.toFixed(4)}`;
         const pairsAtLoc = cyclingPairsAtLocation.get(locKey) || 1;
+        const allPairsHere = cyclingPairsByLocation.get(locKey) || [];
         const cycIcon = isStart ? createCyclingStartIcon(isMobile, pairsAtLoc) : createCyclingEndIcon(isMobile, pairsAtLoc);
-        // Use this marker's own times — never share the pair lookup (multiple pairs on same driver+date would collide)
-        const thisTime = delivery.arrival_time
-          ? new Date(delivery.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-          : delivery.actual_delivery_time
-            ? new Date(delivery.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-            : delivery.delivery_time_start || null;
+        const fmtTime = (d) => d?.arrival_time
+          ? new Date(d.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+          : d?.actual_delivery_time
+            ? new Date(d.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+            : d?.delivery_time_start || null;
         return (
           <Marker
             key={delivery.id}
@@ -139,9 +152,23 @@ function DeliveryMarkers({
             }}
           >
             <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-              <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>🚲 {isStart ? 'Cycling Start' : 'Cycling End'}</div>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>ID: {delivery.delivery_id || '—'} · Stop #{delivery.stop_order}</div>
-              {thisTime && <div style={{ fontSize: '0.75rem', color: isStart ? '#16a34a' : '#dc2626', fontWeight: 600, marginTop: 2 }}>{isStart ? '▶' : '■'} {thisTime}</div>}
+              <div style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: 4 }}>🚲 Cycling {isStart ? 'Start' : 'End'}{pairsAtLoc > 1 ? ` ×${pairsAtLoc}` : ''}</div>
+              {allPairsHere.map((pair, idx) => {
+                const startTime = fmtTime(pair.start);
+                const endTime = fmtTime(pair.end);
+                const [sh, sm] = startTime ? startTime.split(':').map(Number) : [];
+                const [eh, em] = endTime ? endTime.split(':').map(Number) : [];
+                const totalMin = (startTime && endTime) ? (eh * 60 + em) - (sh * 60 + sm) : null;
+                const dur = totalMin > 0 ? `${Math.floor(totalMin / 60) > 0 ? Math.floor(totalMin / 60) + 'h ' : ''}${totalMin % 60}min` : null;
+                return (
+                  <div key={pair.start?.id || idx} style={{ marginBottom: allPairsHere.length > 1 ? 6 : 0, paddingBottom: allPairsHere.length > 1 && idx < allPairsHere.length - 1 ? 6 : 0, borderBottom: allPairsHere.length > 1 && idx < allPairsHere.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                    {allPairsHere.length > 1 && <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600, marginBottom: 2 }}>Loop {idx + 1} · Stops #{pair.start?.stop_order}–#{pair.end?.stop_order}</div>}
+                    {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
+                    {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
+                    {dur && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏱ {dur}</div>}
+                  </div>
+                );
+              })}
             </Popup>
           </Marker>
         );
@@ -151,26 +178,13 @@ function DeliveryMarkers({
       if (!isStart) return null;
       const locKeySplit = `${cycLat.toFixed(4)},${cycLng.toFixed(4)}`;
       const pairsAtLocSplit = cyclingPairsAtLocation.get(locKeySplit) || 1;
-      const pair = cyclingByDriver.get(delivery.id) || {};
-      const startTime = pair.start?.arrival_time
-        ? new Date(pair.start.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-        : pair.start?.actual_delivery_time
-          ? new Date(pair.start.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-          : pair.start?.delivery_time_start || null;
-      const endTime = pair.end?.arrival_time
-        ? new Date(pair.end.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-        : pair.end?.actual_delivery_time
-          ? new Date(pair.end.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-          : pair.end?.delivery_time_start || null;
+      const allPairsAtSplit = cyclingPairsByLocation.get(locKeySplit) || [];
 
-      // Calculate loop duration if both times known
-      let loopDuration = null;
-      if (startTime && endTime) {
-        const [sh, sm] = startTime.split(':').map(Number);
-        const [eh, em] = endTime.split(':').map(Number);
-        const totalMin = (eh * 60 + em) - (sh * 60 + sm);
-        if (totalMin > 0) loopDuration = `${Math.floor(totalMin / 60) > 0 ? Math.floor(totalMin / 60) + 'h ' : ''}${totalMin % 60}min`;
-      }
+      const fmtT = (d) => d?.arrival_time
+        ? new Date(d.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+        : d?.actual_delivery_time
+          ? new Date(d.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+          : d?.delivery_time_start || null;
 
       return (
         <Marker
@@ -186,11 +200,23 @@ function DeliveryMarkers({
         >
           <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
             <div style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: 4 }}>🚲 Cycling Route{pairsAtLocSplit > 1 ? ` ×${pairsAtLocSplit}` : ''}</div>
-            {pairsAtLocSplit > 1 && <div style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: 600, marginBottom: 4 }}>{pairsAtLocSplit} cycling loops at this location — zoom in to see each one</div>}
-            {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
-            {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
-            {loopDuration && <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 2 }}>⏱ Loop: {loopDuration}</div>}
-            {!startTime && !endTime && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Zoom in to see start &amp; end separately</div>}
+            {allPairsAtSplit.map((pair, idx) => {
+              const startTime = fmtT(pair.start);
+              const endTime = fmtT(pair.end);
+              const [sh, sm] = startTime ? startTime.split(':').map(Number) : [];
+              const [eh, em] = endTime ? endTime.split(':').map(Number) : [];
+              const totalMin = (startTime && endTime) ? (eh * 60 + em) - (sh * 60 + sm) : null;
+              const dur = totalMin > 0 ? `${Math.floor(totalMin / 60) > 0 ? Math.floor(totalMin / 60) + 'h ' : ''}${totalMin % 60}min` : null;
+              return (
+                <div key={pair.start?.id || idx} style={{ marginBottom: 6, paddingBottom: idx < allPairsAtSplit.length - 1 ? 6 : 0, borderBottom: idx < allPairsAtSplit.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                  {allPairsAtSplit.length > 1 && <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600, marginBottom: 2 }}>Loop {idx + 1} · Stops #{pair.start?.stop_order}–#{pair.end?.stop_order}</div>}
+                  {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
+                  {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
+                  {dur && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏱ {dur}</div>}
+                  {!startTime && !endTime && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Zoom in to see start &amp; end separately</div>}
+                </div>
+              );
+            })}
           </Popup>
         </Marker>
       );
