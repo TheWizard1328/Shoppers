@@ -318,14 +318,12 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     if (!a || !b) return 0;
 
     if (isAllDriversMode) {
-      // Completed stops: sort by actual_delivery_time descending (most recent first)
-      const timeA = a.actual_delivery_time || a.arrival_time || '';
-      const timeB = b.actual_delivery_time || b.arrival_time || '';
-      if (timeA && timeB) return timeB.localeCompare(timeA);
-      if (timeA && !timeB) return -1; // completed before incomplete
+      const timeA = a.actual_delivery_time || a.delivery_time_eta || '';
+      const timeB = b.actual_delivery_time || b.delivery_time_eta || '';
+      if (timeA && timeB) return timeA.localeCompare(timeB);
+      if (timeA && !timeB) return -1;
       if (!timeA && timeB) return 1;
-      // Both incomplete: fall through to stop_order
-      return (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0);
+      return 0;
     }
 
     // Cycling markers are positional anchors — never treat as "pending push to end"
