@@ -19,7 +19,7 @@ export function getTravelModeLineStyle(mode, color, isPM = false) {
     const weight = normalized === 'cycling' ? 4 : 3;
     const lineColor = normalized === 'cycling' ? '#16A34A' : safeColor;
     // Dot-dash: short dash + clear gap — '6,5' gives a clearly dashed look vs the solid AM line
-    return { color: lineColor, weight, opacity: 0.9, dashArray: '8,4,2,4' };
+    return { color: lineColor, weight, opacity: 0.9, dashArray: '8,6,2,6' };
   }
   if (normalized === 'cycling') {
     return { color: '#16A34A', weight: 4, opacity: 0.9, dashArray: '2 8' };
