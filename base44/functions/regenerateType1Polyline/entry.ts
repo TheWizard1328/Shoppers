@@ -506,9 +506,11 @@ Deno.serve(async (req) => {
     // Build phone → InterStoreLocation map for ISP coord resolution
     const stripPhone = (s) => String(s || '').replace(/\D/g, '');
     const ispPhoneToLocation = new Map();
+    const interstoreById = new Map();
     (allInterStoreLocations || []).forEach((loc) => {
       const digits = stripPhone(loc.store_phone);
       if (digits) ispPhoneToLocation.set(digits, loc);
+      if (loc.id) interstoreById.set(loc.id, loc);
     });
 
     // Resolve ISP "from" coords by parsing the delivery_id phone segment
@@ -546,10 +548,27 @@ Deno.serve(async (req) => {
         return null;
       }
 
-      // 2. ISP inter-store stops
-      if (!delivery.patient_id && ispSourceMap.has(delivery.id)) {
-        const coords = ispSourceMap.get(delivery.id);
-        if (isValidCoord(coords.lat, coords.lon)) return coords;
+      // 2. InterStore stops (ISP/ISD) — resolve via _interstore_source_id / _interstore_dest_id
+      //    This is more reliable than phone-based lookup (phones can be missing or mismatched)
+      if (!delivery.patient_id) {
+        const upperDid = String(delivery.delivery_id || '').toUpperCase();
+        if (upperDid.startsWith('ISP-') && delivery._interstore_source_id) {
+          const loc = interstoreById.get(delivery._interstore_source_id);
+          const lat = Number(loc?.store_latitude);
+          const lon = Number(loc?.store_longitude);
+          if (isValidCoord(lat, lon)) return { lat, lon };
+        }
+        if (upperDid.startsWith('ISD-') && delivery._interstore_dest_id) {
+          const loc = interstoreById.get(delivery._interstore_dest_id);
+          const lat = Number(loc?.store_latitude);
+          const lon = Number(loc?.store_longitude);
+          if (isValidCoord(lat, lon)) return { lat, lon };
+        }
+        // Fallback: phone-based lookup from ispSourceMap
+        if (ispSourceMap.has(delivery.id)) {
+          const coords = ispSourceMap.get(delivery.id);
+          if (isValidCoord(coords.lat, coords.lon)) return coords;
+        }
       }
 
       // 3. Patient address

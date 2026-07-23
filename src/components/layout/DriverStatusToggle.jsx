@@ -336,6 +336,12 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
                 detail: { deliveryId: d.id, updates: { isNextDelivery: true }, source: 'onDutyFlagSync' }
               }));
             });
+            // CRITICAL: Dispatch deliveriesUpdated so the dashboard re-reads from IDB
+            // and re-renders stop cards with the new isNextDelivery flag. Without this,
+            // the toggling device's UI doesn't reflect the flag until a manual refresh.
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { triggeredBy: 'onDutyFlagSync', deliveryDate: optimizerDate, fullReplacement: false, preserveLocalState: true }
+            }));
             console.log(`[DriverStatusToggle] Synced isNextDelivery flag to offline DB + UI for ${flaggedDeliveries.length} stop(s)`);
           }
         } catch (e) {
