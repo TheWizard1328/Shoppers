@@ -1019,13 +1019,13 @@ export default function PolylineViewer({ users = [] }) {
   const handleResegment = async (item) => {
     setIsResegmenting(true);
     try {
-      const res = await base44.functions.invoke('resegmentAllStops', {
+      const res = await base44.functions.invoke('consolidateBreadcrumbSegment', {
         driver_id: item.driver_id,
         delivery_date: item.delivery_date,
       });
       const data = res?.data ?? res;
       if (data?.success) {
-        toast.success(`Resegmented — ${data.stops_sliced} stop(s) updated. Skipped (saved): ${data.stops_skipped_saved}.`);
+        toast.success(`Resegmented — ${data.segments?.length || 0} stop(s) sliced from master trail.`);
         // Reload breadcrumbs quietly in the background without wiping page state
         const fresh = await base44.entities.DeliveryBreadcrumbs.filter({
           driver_id: item.driver_id,
