@@ -148,6 +148,7 @@ function StopCardsSection({
           stopOrder={{}}
           bulkSelectionEnabled={showStopCardCheckboxes}
           showDriverName={isAllDriversMode}
+          isAllDriversMode={isAllDriversMode}
           getDriverColor={getDriverColor}
           onEdit={handleEditDelivery}
           onEditPatient={handleEditPatient}

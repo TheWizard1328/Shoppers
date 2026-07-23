@@ -22,6 +22,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     stopOrder = {},
     bulkSelectionEnabled = false,
     showDriverName = false, // Accept new prop
+    isAllDriversMode = false,
     getDriverColor, // Accept new prop
     // NEW: Action handlers
     onEdit,
@@ -310,9 +311,22 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
   }, [selectedCardId, scrollToCenterCard]);
 
-  // Dashboard ordering: always follow stop_order, with pending stops last
+  // Dashboard ordering:
+  // - All Drivers mode: sort by actual_delivery_time (most recent first), then arrival_time, then stop_order
+  // - Single driver mode: follow stop_order, with pending stops last
   const sortedPickupCards = [...validCards].sort((a, b) => {
     if (!a || !b) return 0;
+
+    if (isAllDriversMode) {
+      // Completed stops: sort by actual_delivery_time descending (most recent first)
+      const timeA = a.actual_delivery_time || a.arrival_time || '';
+      const timeB = b.actual_delivery_time || b.arrival_time || '';
+      if (timeA && timeB) return timeB.localeCompare(timeA);
+      if (timeA && !timeB) return -1; // completed before incomplete
+      if (!timeA && timeB) return 1;
+      // Both incomplete: fall through to stop_order
+      return (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0);
+    }
 
     // Cycling markers are positional anchors — never treat as "pending push to end"
     const isACycling = !!a.is_cycling_marker;
