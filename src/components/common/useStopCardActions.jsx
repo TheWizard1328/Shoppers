@@ -33,8 +33,8 @@ import { consolidateBreadcrumbSegment } from "@/functions/consolidateBreadcrumbS
 
 const START_ACTION_NAME = 'start_delivery';
 
-const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, stopOrder, status, deliveryId, actualDeliveryTime, transportMode }) => {
-  if (!driverId || !deliveryDate || !Number.isFinite(Number(stopOrder))) return;
+const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deliveryId }) => {
+  if (!driverId || !deliveryDate) return;
 
   // ── C: FLUSH the offline master trail to the server BEFORE slicing ────────
   // The master trail on the server is only updated every 3rd offline save (15s).
@@ -66,12 +66,9 @@ const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, stopOrder, 
       driver_id: driverId,
       delivery_date: deliveryDate,
       delivery_id: deliveryId,
-      stop_order: Number(stopOrder),
-      actual_delivery_time: actualDeliveryTime || new Date().toISOString(),
-      transport_mode: transportMode || 'driving'
     });
     if (result?.success) {
-      console.log(`✅ [Breadcrumbs] Segment consolidated: ${result.point_count} points for stop ${stopOrder}`);
+      console.log(`✅ [Breadcrumbs] Proximity slicing complete: ${result.total_segments} segments, ${result.master_point_count} master points`);
     } else {
       console.warn(`⚠️ [Breadcrumbs] Consolidation returned non-success:`, result?.error || result);
     }
@@ -1381,7 +1378,7 @@ export default function useStopCardActions(params) {
 
         dispatchStopCardActionCollapse();
         onClick?.(null);
-        await queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status: 'completed', deliveryId: delivery.id, actualDeliveryTime: completionUpdate.actual_delivery_time, transportMode: currentPreferredTravelMode });
+        await queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, deliveryId: delivery.id });
 
         // ── Cycling end marker completed: reset driver travel mode back to driving ──
         // When the driver taps Complete on the Cycling Route End marker we know the
@@ -1505,7 +1502,7 @@ export default function useStopCardActions(params) {
         if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded(status === 'failed' ? 'Failed' : 'Cancelled');
         dispatchStopCardActionCollapse();
         onClick?.(null);
-        await queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status, deliveryId: delivery.id, actualDeliveryTime: criticalUpdate.actual_delivery_time, transportMode: currentPreferredTravelMode });
+        await queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, deliveryId: delivery.id });
         if (userHasRole(currentUser, 'driver')) {
           await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });
         }

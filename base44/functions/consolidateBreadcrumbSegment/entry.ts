@@ -1,9 +1,35 @@
 /* global Deno */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-// ── Polyline encode/decode (Google polyline format) ──────────────────────────
-// 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
-// MUST match the client encoder in locationBreadcrumbService.jsx and breadcrumbsManager.jsx.
+// ═══════════════════════════════════════════════════════════════════════════════
+// consolidateBreadcrumbSegment — Proximity-Based Breadcrumb Slicing
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Replaces the timestamp-based slicing with a proximity-matching algorithm.
+// The master trail (stop_order = -1) is decoded into GPS points, then walked
+// sequentially. For each stop (sorted by stop_order), the closest point in the
+// trail is found — that's the slice boundary. Segments are the trail points
+// between consecutive boundaries.
+//
+// This approach is immune to:
+//   - Timestamp rounding (5-min first/last stop rounding no longer matters)
+//   - Stop re-sequencing (we match by physical location, not time)
+//   - Master trail edits (removing bad points doesn't shift time windows)
+//   - Missing actual_delivery_time (we don't use it at all)
+//
+// All stop types are handled identically:
+//   - Patient deliveries → patient.lat/lng
+//   - Store pickups → store.lat/lng
+//   - ISD (inter-store dropoff) → InterStoreLocation by assignedStorePhone in delivery_id
+//   - ISP (inter-store pickup) → InterStoreLocation by pickupLocationPhone in delivery_id
+//   - Cycling markers → cycling_latitude/cycling_longitude on the delivery
+//
+// Coordinate resolution mirrors the client-side resolveStopLocation() in
+// deliveryTypeUtils.jsx.
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Polyline encode/decode (Google polyline format, 1e5 precision) ──────────
 const POLY_PRECISION = 1e5;
 
 function encodePolylineValue(value) {
@@ -53,61 +79,117 @@ function decodePolyline(encoded) {
   return coordinates;
 }
 
-// ── Time parsing ──────────────────────────────────────────────────────────────
-// actual_delivery_time is stored as a NAIVE local ISO string (e.g. "2026-07-21T14:30:00")
-// with NO timezone suffix. It represents Edmonton local time (America/Edmonton).
-// The Deno runtime would interpret a naive ISO string as UTC, which is 6-7 hours ahead
-// of Edmonton. This caused every breadcrumb segment to start at the driver's home because
-// the slicing window ended 6-7 hours before any master trail GPS points existed.
-//
-// This function detects naive strings and applies the correct Edmonton UTC offset
-// (dynamically, to handle DST: -07:00 in summer MDT, -06:00 in winter MST).
-
-function getEdmontonOffsetMs(date) {
-  // Use Intl.DateTimeFormat to get the timezone offset for a given date.
-  // We compare the wall-clock time in Edmonton vs UTC to derive the offset.
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Edmonton',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false
-  });
-  const parts = dtf.formatToParts(date);
-  const map = {};
-  for (const p of parts) map[p.type] = p.value;
-  // Build a UTC date from the Edmonton wall-clock parts
-  const edmontonAsUTC = Date.UTC(
-    Number(map.year), Number(map.month) - 1, Number(map.day),
-    Number(map.hour === '24' ? '00' : map.hour), Number(map.minute), Number(map.second)
-  );
-  // Offset = actual UTC - Edmonton wall-clock-as-UTC
-  return date.getTime() - edmontonAsUTC;
+// Detect corrupted points from the old bitwise-overflow encoder.
+function isCorruptedPoint(lat, lng) {
+  return Math.abs(lat) > 1 && Math.abs(lng) < 0.01;
 }
 
-function toEpochMs(value) {
-  if (!value) return null;
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value !== 'string') {
-    const ts = new Date(value).getTime();
-    return Number.isFinite(ts) ? ts : null;
-  }
-  // Check if the string has a timezone suffix (Z, +HH:MM, -HH:MM)
-  const hasTZ = /([Zz]|[+-]\d{2}:?\d{2})$/.test(value.trim());
-  if (hasTZ) {
-    // Already has timezone info — parse normally
-    const ts = new Date(value).getTime();
-    return Number.isFinite(ts) ? ts : null;
-  }
-  // Naive ISO string — treat as Edmonton local time.
-  // Parse the naive string as if it were UTC, then subtract the Edmonton offset
-  // to get the true UTC epoch.
-  const asUTC = new Date(value + 'Z').getTime(); // Temporarily treat as UTC
-  if (!Number.isFinite(asUTC)) return null;
-  // The Edmonton offset for this date (positive = Edmonton is behind UTC)
-  const offsetMs = getEdmontonOffsetMs(new Date(asUTC));
-  // asUTC is "14:30 treated as UTC". Real UTC is 14:30 + offset (e.g. +7h in summer)
-  return asUTC + offsetMs;
+// ── Haversine distance (meters) ─────────────────────────────────────────────
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+// ── ISD/ISP delivery_id parsing (mirrors interStoreDisplayName.jsx) ──────────
+function parseInterStoreDeliveryId(deliveryId) {
+  if (!deliveryId) return null;
+  const upper = String(deliveryId).toUpperCase();
+  const isISP = upper.startsWith('ISP-');
+  const isISD = upper.startsWith('ISD-');
+  if (!isISP && !isISD) return null;
+  const parts = String(deliveryId).split('-');
+  if (parts.length < 3) return null;
+  return {
+    type: isISP ? 'ISP' : 'ISD',
+    pickupLocationPhone: parts[2] ? parts[2].replace(/\D/g, '') : null,
+    assignedStorePhone: parts[3] ? parts[3].replace(/\D/g, '') : null,
+  };
+}
+
+function stripPhone(s) {
+  return (s || '').replace(/\D/g, '');
+}
+
+// ── Resolve coordinates for a single delivery ───────────────────────────────
+// Returns { lat, lng } or null if unresolvable.
+function resolveDeliveryCoords(delivery, phoneToInterStore, patientMap, storeMap) {
+  if (!delivery) return null;
+
+  // Cycling markers — coords embedded directly on the delivery
+  if (delivery.is_cycling_marker) {
+    const cLat = Number(delivery.cycling_latitude);
+    const cLng = Number(delivery.cycling_longitude);
+    if (Number.isFinite(cLat) && Number.isFinite(cLng) && cLat !== 0 && cLng !== 0) {
+      return { lat: cLat, lng: cLng };
+    }
+  }
+
+  // ISD/ISP — resolve via InterStoreLocation by phone number from delivery_id
+  const parsed = parseInterStoreDeliveryId(delivery.delivery_id || delivery.id);
+  if (parsed) {
+    // ISP → pickup FROM source store → use pickupLocationPhone (parts[2])
+    // ISD → dropoff TO dest store → use assignedStorePhone (parts[3])
+    const phone = parsed.type === 'ISD'
+      ? parsed.assignedStorePhone
+      : parsed.pickupLocationPhone;
+    if (phone) {
+      const loc = phoneToInterStore.get(phone);
+      if (loc) {
+        const lat = Number(loc.store_latitude);
+        const lng = Number(loc.store_longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          return { lat, lng };
+        }
+      }
+    }
+    // Fallback: if the ISD has an assigned store_id, try store coords
+    if (delivery.store_id && storeMap.has(delivery.store_id)) {
+      const store = storeMap.get(delivery.store_id);
+      const lat = Number(store.latitude);
+      const lng = Number(store.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { lat, lng };
+      }
+    }
+    return null;
+  }
+
+  // Patient delivery → patient.lat/lng
+  if (delivery.patient_id) {
+    const patient = patientMap.get(delivery.patient_id);
+    if (patient) {
+      const lat = Number(patient.latitude);
+      const lng = Number(patient.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { lat, lng };
+      }
+    }
+    return null;
+  }
+
+  // Store pickup → store.lat/lng
+  if (delivery.store_id) {
+    const store = storeMap.get(delivery.store_id);
+    if (store) {
+      const lat = Number(store.latitude);
+      const lng = Number(store.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { lat, lng };
+      }
+    }
+  }
+
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Main handler
+// ═══════════════════════════════════════════════════════════════════════════════
 
 Deno.serve(async (req) => {
   try {
@@ -118,30 +200,19 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const {
       driver_id,
       delivery_date,
-      delivery_id,
-      stop_order,
-      actual_delivery_time,
+      delivery_id: _triggeredDeliveryId,  // optional, for logging only
       transport_mode = 'driving'
     } = body || {};
 
-    // ── Validate inputs ───────────────────────────────────────────────────────
     if (!driver_id || !delivery_date) {
       return Response.json({ success: false, error: 'driver_id and delivery_date are required' }, { status: 400 });
     }
-    if (!Number.isFinite(Number(stop_order))) {
-      return Response.json({ success: false, error: 'stop_order must be a finite number' }, { status: 400 });
-    }
 
-    const currentStopOrder = Number(stop_order);
-    const currentStopTime = toEpochMs(actual_delivery_time);
-
-    if (!currentStopTime) {
-      return Response.json({ success: false, error: 'Could not parse actual_delivery_time' }, { status: 400 });
-    }
+    console.log(`🍞 [consolidateBreadcrumbSegment] Proximity slicing for driver=${driver_id}, date=${delivery_date}${_triggeredDeliveryId ? `, triggered by ${_triggeredDeliveryId}` : ''}`);
 
     // ── 1. Read the master trail (stop_order = -1) ─────────────────────────────
     const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
@@ -169,149 +240,274 @@ Deno.serve(async (req) => {
     const masterTsArr = masterRecord.timestamps.split(',').map(Number);
     const masterPoints = masterCoords
       .map((coord, i) => [coord[0], coord[1], masterTsArr[i] || 0])
-      .filter((pt) => Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && Number.isFinite(pt[2]));
+      .filter((pt) =>
+        Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && Number.isFinite(pt[2]) &&
+        !isCorruptedPoint(pt[0], pt[1])
+      );
 
     if (masterPoints.length === 0) {
       return Response.json({ success: false, error: 'Master trail has no valid points', point_count: 0 }, { status: 500 });
     }
 
-    // ── 2. Find the previous completed stop's actual_delivery_time ─────────────
+    console.log(`🍞 [consolidateBreadcrumbSegment] Master trail: ${masterPoints.length} points`);
+
+    // ── 2. Fetch all deliveries for this driver/date, sorted by stop_order ────
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id,
       delivery_date
     });
 
-    const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
-    const previousStops = (allDeliveries || [])
-      .filter((d) => {
-        if (!d || d.id === delivery_id) return false;
-        if (!FINISHED_STATUSES.has(d.status)) return false;
-        const dStopOrder = Number(d.stop_order || 0);
-        return dStopOrder < currentStopOrder;
-      })
-      .sort((a, b) => Number(b.stop_order || 0) - Number(a.stop_order || 0));
+    const stops = (allDeliveries || [])
+      .filter(d => d && d.stop_order != null && Number.isFinite(Number(d.stop_order)))
+      .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
 
-    // Determine the time window start:
-    // - If there's a previous completed stop, use its actual_delivery_time
-    // - If this is the first stop, use the earliest master trail point
-    let windowStart = null;
-    if (previousStops.length > 0) {
-      const prevTime = toEpochMs(
-        previousStops[0].actual_delivery_time ||
-        previousStops[0].arrival_time ||
-        previousStops[0].updated_date
-      );
-      if (prevTime) windowStart = prevTime;
+    if (stops.length === 0) {
+      return Response.json({ success: false, error: 'No deliveries with stop_order found', point_count: 0 }, { status: 404 });
     }
 
-    if (!windowStart) {
-      // First stop — use the earliest master trail timestamp
-      windowStart = masterPoints[0][2];
+    console.log(`🍞 [consolidateBreadcrumbSegment] ${stops.length} stops to slice`);
+
+    // ── 3. Build lookup maps for coordinate resolution ────────────────────────
+    // Collect all patient_ids and store_ids we need to resolve
+    const patientIds = new Set();
+    const storeIds = new Set();
+    const interStorePhones = new Set();
+
+    for (const d of stops) {
+      if (d.is_cycling_marker) continue; // cycling markers have embedded coords
+      const parsed = parseInterStoreDeliveryId(d.delivery_id || d.id);
+      if (parsed) {
+        const phone = parsed.type === 'ISD' ? parsed.assignedStorePhone : parsed.pickupLocationPhone;
+        if (phone) interStorePhones.add(phone);
+        if (d.store_id) storeIds.add(d.store_id);
+        continue;
+      }
+      if (d.patient_id) patientIds.add(d.patient_id);
+      if (d.store_id) storeIds.add(d.store_id);
     }
 
-    // ── 3. Slice the master trail between windowStart and currentStopTime ──────
-    const startBuffer = 5000; // 5 seconds
-    const adjustedStart = windowStart - startBuffer;
+    // Fetch InterStoreLocations and build phone→record map
+    const phoneToInterStore = new Map();
+    if (interStorePhones.size > 0) {
+      const allInterStoreLocs = await base44.asServiceRole.entities.InterStoreLocation.list().catch(() => []);
+      for (const loc of (allInterStoreLocs || [])) {
+        const phone = stripPhone(loc.store_phone);
+        if (phone) phoneToInterStore.set(phone, loc);
+      }
+    }
 
-    const segmentPoints = masterPoints.filter(
-      (pt) => pt[2] >= adjustedStart && pt[2] <= currentStopTime
-    );
+    // Fetch Patients and build id→record map
+    const patientMap = new Map();
+    if (patientIds.size > 0) {
+      // Fetch all patients (filter API may not support bulk id lookup)
+      const allPatients = await base44.asServiceRole.entities.Patient.list().catch(() => []);
+      for (const p of (allPatients || [])) {
+        if (patientIds.has(p.id)) patientMap.set(p.id, p);
+      }
+    }
 
-    // If no points in the window, find the closest master point to currentStopTime
-    if (segmentPoints.length === 0) {
-      let closest = masterPoints[0];
-      let minDiff = Math.abs(masterPoints[0][2] - currentStopTime);
-      for (const pt of masterPoints) {
-        const diff = Math.abs(pt[2] - currentStopTime);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closest = pt;
+    // Fetch Stores and build id→record map
+    const storeMap = new Map();
+    if (storeIds.size > 0) {
+      const allStores = await base44.asServiceRole.entities.Store.list().catch(() => []);
+      for (const s of (allStores || [])) {
+        if (storeIds.has(s.id)) storeMap.set(s.id, s);
+      }
+    }
+
+    // ── 4. Resolve coordinates for each stop ──────────────────────────────────
+    const stopsWithCoords = [];
+    const stopsWithoutCoords = [];
+
+    for (const d of stops) {
+      const coords = resolveDeliveryCoords(d, phoneToInterStore, patientMap, storeMap);
+      if (coords) {
+        stopsWithCoords.push({ delivery: d, coords });
+      } else {
+        stopsWithoutCoords.push(d);
+      }
+    }
+
+    if (stopsWithCoords.length === 0) {
+      return Response.json({
+        success: false,
+        error: 'Could not resolve coordinates for any stops',
+        point_count: 0,
+        unresolved_count: stops.length
+      }, { status: 500 });
+    }
+
+    if (stopsWithoutCoords.length > 0) {
+      console.log(`⚠️ [consolidateBreadcrumbSegment] ${stopsWithoutCoords.length} stops with unresolvable coords (will be skipped)`);
+    }
+
+    console.log(`🍞 [consolidateBreadcrumbSegment] ${stopsWithCoords.length}/${stops.length} stops resolved with coords`);
+
+    // ── 5. Proximity matching — walk master trail sequentially ────────────────
+    // For each stop (in stop_order), find the closest point in the trail.
+    // The search starts from the cursor (index after the previous stop's match).
+    // This prevents matching a future stop while the trail is still near a previous one.
+
+    let cursor = 0; // search starts here for the next stop
+    const sliceBoundaries = []; // [{ stopIndex, trailIndex, distance }]
+    const PROXIMITY_THRESHOLD_M = 500; // log warning if closest point is farther than this
+
+    for (let s = 0; s < stopsWithCoords.length; s++) {
+      const { coords } = stopsWithCoords[s];
+      let closestIdx = cursor;
+      let closestDist = Infinity;
+
+      for (let i = cursor; i < masterPoints.length; i++) {
+        const dist = haversineMeters(coords.lat, coords.lng, masterPoints[i][0], masterPoints[i][1]);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestIdx = i;
         }
       }
-      segmentPoints.push(closest);
+
+      if (closestDist > PROXIMITY_THRESHOLD_M) {
+        console.log(`⚠️ [consolidateBreadcrumbSegment] Stop #${stopsWithCoords[s].delivery.stop_order}: closest point is ${Math.round(closestDist)}m away (threshold: ${PROXIMITY_THRESHOLD_M}m)`);
+      }
+
+      sliceBoundaries.push({
+        stopIndex: s,
+        trailIndex: closestIdx,
+        distance: closestDist,
+        stopOrder: stopsWithCoords[s].delivery.stop_order,
+      });
+
+      // Advance cursor past this match for the next stop search
+      cursor = closestIdx + 1;
+
+      // If cursor is past the end of the trail, remaining stops get empty segments
+      if (cursor >= masterPoints.length) {
+        console.log(`🍞 [consolidateBreadcrumbSegment] Trail exhausted at stop #${stopsWithCoords[s].delivery.stop_order}. Remaining ${stopsWithCoords.length - s - 1} stops will get 0-point segments.`);
+        // Fill remaining stops with empty boundaries
+        for (let r = s + 1; r < stopsWithCoords.length; r++) {
+          sliceBoundaries.push({
+            stopIndex: r,
+            trailIndex: masterPoints.length - 1,
+            distance: Infinity,
+            stopOrder: stopsWithCoords[r].delivery.stop_order,
+          });
+        }
+        break;
+      }
     }
 
-    // ── 4. Encode the sliced segment ──────────────────────────────────────────
-    const segmentCoords = segmentPoints.map((pt) => [pt[0], pt[1]]);
-    const segmentEncoded = encodePolyline(segmentCoords);
-    const segmentTimestamps = segmentPoints.map((pt) => pt[2]).join(',');
+    // ── 6. Slice segments between consecutive boundaries ──────────────────────
+    const segments = [];
+    for (let s = 0; s < sliceBoundaries.length; s++) {
+      const startIdx = s === 0 ? 0 : sliceBoundaries[s - 1].trailIndex;
+      const endIdx = sliceBoundaries[s].trailIndex;
 
-    // ── 5. Create or update the per-stop DeliveryBreadcrumbs record ────────────
+      // Segment points: from just after the previous boundary to this boundary (inclusive)
+      const segStart = s === 0 ? startIdx : startIdx + 1;
+      const segEnd = endIdx;
+      const segPoints = segStart <= segEnd
+        ? masterPoints.slice(segStart, segEnd + 1)
+        : [];
+
+      segments.push({
+        delivery: stopsWithCoords[s].delivery,
+        stopOrder: stopsWithCoords[s].delivery.stop_order,
+        points: segPoints,
+        pointCount: segPoints.length,
+        matchDistance: sliceBoundaries[s].distance,
+      });
+    }
+
+    console.log(`🍞 [consolidateBreadcrumbSegment] Sliced ${segments.length} segments: ${segments.map(s => `#${s.stopOrder}:${s.pointCount}pts`).join(', ')}`);
+
+    // ── 7. Save each segment to DeliveryBreadcrumbs ────────────────────────────
+    // Fetch existing segments for this driver/date (all stop_orders except -1)
     const existingSegments = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id,
-      delivery_date,
-      stop_order: currentStopOrder
-    });
+      delivery_date
+    }).catch(() => []);
 
-    const existingRecord = Array.isArray(existingSegments) && existingSegments.length > 0
-      ? existingSegments[0]
-      : null;
-
-    const segmentPayload = {
-      driver_id,
-      delivery_date,
-      stop_order: currentStopOrder,
-      delivery_id: delivery_id || null,
-      encoded_polyline: segmentEncoded,
-      timestamps: segmentTimestamps,
-      transport_mode,
-      point_count: segmentPoints.length,
-      saved_to_route: false
-    };
-
-    let savedRecord;
-    if (existingRecord?.id) {
-      // Update existing segment — merge points by timestamp to avoid losing data
-      const existingCoords = decodePolyline(existingRecord.encoded_polyline || '');
-      const existingTsArr = (existingRecord.timestamps || '').split(',').map(Number);
-      const existingPoints = existingCoords
-        .map((coord, i) => [coord[0], coord[1], existingTsArr[i] || 0])
-        .filter((pt) => Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && Number.isFinite(pt[2]));
-
-      const mergedMap = new Map();
-      [...existingPoints, ...segmentPoints]
-        .sort((a, b) => a[2] - b[2])
-        .forEach((pt) => {
-          mergedMap.set(String(pt[2]), pt);
-        });
-      const mergedPoints = Array.from(mergedMap.values()).sort((a, b) => a[2] - b[2]);
-
-      const mergedEncoded = encodePolyline(mergedPoints.map((pt) => [pt[0], pt[1]]));
-      const mergedTimestamps = mergedPoints.map((pt) => pt[2]).join(',');
-
-      segmentPayload.encoded_polyline = mergedEncoded;
-      segmentPayload.timestamps = mergedTimestamps;
-      segmentPayload.point_count = mergedPoints.length;
-
-      savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(
-        existingRecord.id,
-        segmentPayload
-      );
-    } else {
-      savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(segmentPayload);
+    // Build map: stop_order → existing record
+    const existingByStopOrder = new Map();
+    for (const rec of (existingSegments || [])) {
+      if (rec.stop_order !== -1) {
+        existingByStopOrder.set(Number(rec.stop_order), rec);
+      }
     }
 
-    console.log(`✅ [consolidateBreadcrumbSegment] Created/updated segment for stop ${currentStopOrder}: ${segmentPayload.point_count} points, driver=${driver_id}, date=${delivery_date}`);
+    const results = [];
+
+    for (const seg of segments) {
+      const stopOrder = Number(seg.delivery.stop_order);
+      const segCoords = seg.points.map(p => [p[0], p[1]]);
+      const segEncoded = encodePolyline(segCoords);
+      const segTimestamps = seg.points.map(p => p[2]).join(',');
+
+      // Determine transport mode from the delivery
+      let segTransportMode = 'driving';
+      if (seg.delivery.is_cycling_marker) {
+        // Cycling start marker → the leg TO this marker is driving
+        // Cycling end marker → the leg TO this marker is cycling
+        const notes = String(seg.delivery.delivery_notes || '').toLowerCase();
+        if (notes.includes('end')) {
+          segTransportMode = 'cycling';
+        }
+      } else if (seg.delivery.preferred_travel_mode === 'cycling') {
+        segTransportMode = 'cycling';
+      }
+
+      const payload = {
+        driver_id,
+        delivery_date,
+        stop_order: stopOrder,
+        encoded_polyline: segEncoded,
+        timestamps: segTimestamps,
+        transport_mode: segTransportMode,
+        point_count: seg.pointCount,
+        saved_to_route: false,
+      };
+
+      const existing = existingByStopOrder.get(stopOrder);
+      let savedRecord;
+      if (existing?.id) {
+        savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existing.id, payload);
+        existingByStopOrder.delete(stopOrder); // mark as handled
+      } else {
+        savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(payload);
+      }
+
+      results.push({
+        stop_order: stopOrder,
+        delivery_id: seg.delivery.delivery_id || seg.delivery.id,
+        point_count: seg.pointCount,
+        match_distance_m: Math.round(seg.matchDistance),
+        has_polyline: !!segEncoded,
+      });
+    }
+
+    // ── 8. Clean up orphaned segments for stops that no longer exist ──────────
+    // (e.g., deliveries were deleted or re-assigned to a different date)
+    const validStopOrders = new Set(stops.map(d => Number(d.stop_order)));
+    for (const [stopOrder, rec] of existingByStopOrder) {
+      if (!validStopOrders.has(stopOrder)) {
+        console.log(`🗑️ [consolidateBreadcrumbSegment] Deleting orphaned segment for stop_order=${stopOrder}`);
+        await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(rec.id).catch(() => null);
+      }
+    }
+
+    console.log(`✅ [consolidateBreadcrumbSegment] Proximity slicing complete: ${segments.length} segments saved, driver=${driver_id}, date=${delivery_date}`);
 
     return Response.json({
       success: true,
-      segment: {
-        id: savedRecord?.id || existingRecord?.id,
-        stop_order: currentStopOrder,
-        point_count: segmentPayload.point_count,
-        has_polyline: !!segmentPayload.encoded_polyline
-      },
-      point_count: segmentPayload.point_count,
-      window_start: windowStart,
-      window_end: currentStopTime,
-      master_point_count: masterPoints.length
+      segments: results,
+      total_segments: results.length,
+      master_point_count: masterPoints.length,
+      unresolved_stops: stopsWithoutCoords.length,
+      driver_id,
+      delivery_date,
     });
 
   } catch (error) {
     console.error('❌ [consolidateBreadcrumbSegment] Error:', error?.message || error);
-    return Response.json({
-      success: false,
-      error: error?.message || 'Unknown error during breadcrumb consolidation'
-    }, { status: 500 });
+    return Response.json({ error: error?.message || 'Unknown error' }, { status: 500 });
   }
 });
