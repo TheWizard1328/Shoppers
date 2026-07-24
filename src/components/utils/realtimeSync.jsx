@@ -612,15 +612,17 @@ const subscribeToEntity = (entityName) => {
     const { type, id } = event;
     const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
 
-    // SELF-ECHO SUPPRESSION for Delivery: If this Delivery update was written by this
-    // exact device (tracked via window.__localDeliveryWrites set by broadcastMutation),
-    // drop the incoming WS echo — the offline DB and UI state are already up to date.
-    if (entityName === 'Delivery' && type === 'update') {
+    // SELF-ECHO SUPPRESSION for Delivery: If this Delivery update/create/delete was
+    // written by this exact device (tracked via window.__localDeliveryWrites set by
+    // broadcastMutation), drop the incoming WS echo — the offline DB and UI state are
+    // already up to date. This covers all event types (not just update) so that a create
+    // or delete echo doesn't add a duplicate or re-insert a just-deleted record.
+    if (entityName === 'Delivery') {
       const localWrites = window.__localDeliveryWrites;
       if (localWrites && localWrites.has(id)) {
         const writtenAt = localWrites.get(id);
         if (Date.now() - writtenAt < 15000) {
-          console.log(`🔇 [RealtimeSync] Self-echo suppressed for Delivery ${id} — originated from this device (${Math.round((Date.now() - writtenAt) / 1000)}s ago)`);
+          console.log(`🔇 [RealtimeSync] Self-echo suppressed for Delivery ${type}:${id} — originated from this device (${Math.round((Date.now() - writtenAt) / 1000)}s ago)`);
           localWrites.delete(id);
           return;
         }
@@ -1159,8 +1161,10 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
 
     if (storeName) {
       if ((action === 'create' || action === 'update') && data) {
-        // Track local Delivery writes so the WS self-echo can be suppressed
-        if (entity === 'Delivery' && action === 'update' && id) {
+        // Track local Delivery writes/deletes so the WS self-echo can be suppressed.
+        // Covers create, update AND delete — each action generates a WS echo that would
+        // otherwise cause duplicates (create) or resurrect deleted records (delete).
+        if (entity === 'Delivery' && id) {
           if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
           window.__localDeliveryWrites.set(id, Date.now());
         }
@@ -1238,6 +1242,23 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
             skipDriverLocationRefresh: true,
           }
         }));
+      }
+
+      // CRITICAL: For delete/batch_delete — remove from window.__appDeliveries immediately
+      // so any subsequent IDB read (e.g. for fullReplacementData in flushBuffered) that
+      // references in-memory state doesn't resurrect the just-deleted record.
+      if (action === 'delete' && id) {
+        const localDeliveries = window.__appDeliveries;
+        if (Array.isArray(localDeliveries)) {
+          window.__appDeliveries = localDeliveries.filter(d => d?.id !== id);
+        }
+      }
+      if (action === 'batch_delete' && Array.isArray(ids) && ids.length > 0) {
+        const deletedSet = new Set(ids);
+        const localDeliveries = window.__appDeliveries;
+        if (Array.isArray(localDeliveries)) {
+          window.__appDeliveries = localDeliveries.filter(d => !deletedSet.has(d?.id));
+        }
       }
 
       const shouldDispatchLocalDeliveryEvent = action === 'delete' || action === 'batch_delete';
