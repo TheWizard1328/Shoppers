@@ -539,6 +539,31 @@ export default function PolylineViewer({ users = [] }) {
     : viewMode === 'breadcrumbs' ? filteredBreadcrumbs
     : sortItems([...filteredPolylines, ...filteredBreadcrumbs]);
 
+  // ── Combined view: group delivery + breadcrumb into single "stop" cards ────
+  // Each group has { key, delivery, breadcrumb, stop_order, driver_id, delivery_date }
+  const combinedStopGroups = useMemo(() => {
+    if (viewMode !== 'combined') return [];
+    const groups = new Map();
+    filteredPolylines.forEach(d => {
+      const k = `${d.driver_id}__${d.delivery_date}__${d.stop_order ?? 'x'}`;
+      if (!groups.has(k)) groups.set(k, { key: k, delivery: null, breadcrumb: null, driver_id: d.driver_id, delivery_date: d.delivery_date, stop_order: d.stop_order });
+      groups.get(k).delivery = d;
+    });
+    filteredBreadcrumbs.forEach(b => {
+      const k = `${b.driver_id}__${b.delivery_date}__${b.stop_order ?? 'x'}`;
+      if (!groups.has(k)) groups.set(k, { key: k, delivery: null, breadcrumb: null, driver_id: b.driver_id, delivery_date: b.delivery_date, stop_order: b.stop_order });
+      groups.get(k).breadcrumb = b;
+    });
+    return [...groups.values()].sort((a, b) => {
+      const na = getDriverName(a.driver_id), nb = getDriverName(b.driver_id);
+      if (na !== nb) return na.localeCompare(nb);
+      const dc = (b.delivery_date || '').localeCompare(a.delivery_date || '');
+      if (dc !== 0) return dc;
+      return (a.stop_order ?? 0) - (b.stop_order ?? 0);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, filteredPolylines, filteredBreadcrumbs]);
+
   const availableDrivers = useMemo(() => {
     // Use the full unfiltered dataset so the list never shrinks when a driver is selected
     const allItems = [...deliveries.filter(d => d?.encoded_polyline), ...breadcrumbs.filter(b => b?.encoded_polyline)];
@@ -551,8 +576,11 @@ export default function PolylineViewer({ users = [] }) {
       .sort((a, b) => a.sort_order - b.sort_order);
   }, [deliveries, breadcrumbs, users]);
 
-  // Reset lazy load on filter change
-  useEffect(() => { setVisibleCount(40); }, [viewMode, filteredPolylines.length, filteredBreadcrumbs.length, dateFrom, dateTo]);
+  // Reset lazy load on filter change; clear focusedGroup when leaving combined mode
+  useEffect(() => {
+    setVisibleCount(40);
+    if (viewMode !== 'combined') setFocusedGroup(null);
+  }, [viewMode, filteredPolylines.length, filteredBreadcrumbs.length, dateFrom, dateTo]);
 
   // ── Selection helpers ─────────────────────────────────────────────────────
   const unsavedItems = activeItems.filter(i => !i.saved_to_route);
@@ -592,7 +620,24 @@ export default function PolylineViewer({ users = [] }) {
   // If items are selected → show selected; else if focused → show focused; else nothing
   const COLORS = ['#2563eb', '#7c3aed', '#ea580c', '#0f766e', '#b91c1c', '#0369a1', '#15803d'];
 
+  // focusedGroup: { key, delivery, breadcrumb } — set when user clicks a combined stop card
+  const [focusedGroup, setFocusedGroup] = useState(null);
+
   const mapSegments = useMemo(() => {
+    // Combined mode: if a group is focused, show both its delivery polyline and breadcrumb
+    if (viewMode === 'combined' && focusedGroup) {
+      const segs = [];
+      if (focusedGroup.delivery?.encoded_polyline) {
+        const coords = decodePolyline(focusedGroup.delivery.encoded_polyline);
+        if (coords.length > 0) segs.push({ id: focusedGroup.delivery.id, color: '#2563eb', coords, item: focusedGroup.delivery, isBreadcrumb: false, isDeliveryPoly: true });
+      }
+      if (focusedGroup.breadcrumb?.encoded_polyline) {
+        const coords = decodeBreadcrumbPolyline(focusedGroup.breadcrumb.encoded_polyline);
+        if (coords.length > 0) segs.push({ id: focusedGroup.breadcrumb.id, color: '#16a34a', coords, item: focusedGroup.breadcrumb, isBreadcrumb: true, isDeliveryPoly: false });
+      }
+      return segs;
+    }
+
     const chosen = selectedIds.size > 0
       ? activeItems.filter(i => selectedIds.has(i.id))
       : focusedItem ? [focusedItem] : [];
@@ -610,13 +655,13 @@ export default function PolylineViewer({ users = [] }) {
         isDeliveryPoly,
       };
     }).filter(s => s.coords.length > 0);
-  }, [selectedIds, focusedItem, activeItems, breadcrumbs, deliveries]);
+  }, [selectedIds, focusedItem, focusedGroup, viewMode, activeItems, breadcrumbs, deliveries]);
 
   // Only refit map when the focused item changes, not when points are erased during cleaning
   const allMapPoints = useMemo(() => mapSegments.flatMap(s =>
     isCleaningMode && focusedItem?.id === s.item.id && s.isBreadcrumb ? cleanedPoints : s.coords
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [mapSegments, isCleaningMode, focusedItem]); // intentionally omit cleanedPoints
+  ), [mapSegments, isCleaningMode, focusedItem, focusedGroup]); // intentionally omit cleanedPoints
 
   // ── Delete selected ───────────────────────────────────────────────────────
   const handleDeleteSelected = async () => {
@@ -1350,6 +1395,144 @@ export default function PolylineViewer({ users = [] }) {
     );
   };
 
+  // ── Combined stop card renderer ───────────────────────────────────────────
+  const renderCombinedStopCard = (group, inSheet = false) => {
+    const { key, delivery, breadcrumb, driver_id, delivery_date, stop_order } = group;
+    const isFocused = focusedGroup?.key === key;
+    const crumb = breadcrumb;
+    const isCrumbFocused = isFocused && crumb; // breadcrumb editing context
+    const isEditingCrumb = isCleaningMode && crumb && focusedItem?.id === crumb.id;
+
+    const handleClick = async () => {
+      if (isFocused) {
+        // Deselect — auto-save pending clean first
+        if (isEditingCrumb && pendingCleanRef.current) {
+          await autoSavePendingClean();
+          setIsCleaningMode(false);
+          setCleanedPoints([]);
+          setUndoStack([]);
+        }
+        setFocusedGroup(null);
+        setFocusedItem(null);
+        return;
+      }
+      if (isCleaningMode && pendingCleanRef.current) {
+        await autoSavePendingClean();
+        setIsCleaningMode(false);
+        setCleanedPoints([]);
+        setUndoStack([]);
+      }
+      setFocusedGroup(group);
+      setFocusedItem(crumb || delivery || null);
+      if (inSheet) setSheetOpen(false);
+    };
+
+    const hasPoly = !!delivery?.encoded_polyline;
+    const hasCrumb = !!crumb?.encoded_polyline;
+    const crumbPts = crumb ? (isEditingCrumb ? cleanedPoints : decodeBreadcrumbPolyline(crumb.encoded_polyline)) : [];
+    const crumbDistKm = calcPolylineDistanceKm(crumbPts);
+    const crumbDistStr = crumbDistKm >= 1 ? `${crumbDistKm.toFixed(2)} km` : `${(crumbDistKm * 1000).toFixed(0)} m`;
+
+    return (
+      <div
+        key={key}
+        className={`p-3 border-b transition-colors cursor-pointer ${
+          isFocused ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-slate-50'
+        }`}
+      >
+        <div onClick={handleClick}>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span className="font-medium text-sm truncate">{getDriverName(driver_id)}</span>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {hasPoly && <Badge variant="outline" className="text-xs py-0 px-1.5">🗺 Poly</Badge>}
+              {hasCrumb && (
+                <Badge variant="secondary" className={`text-xs py-0 px-1.5 ${crumb.saved_to_route ? 'bg-green-100 text-green-700' : crumb.imported_from_delivery ? 'bg-purple-100 text-purple-700' : ''}`}>
+                  {crumb.saved_to_route ? '✓ BC' : crumb.imported_from_delivery ? '↓ BC' : '🛤 BC'}
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div className="text-xs text-slate-600 space-y-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <span>📅 {delivery_date ? format(new Date(delivery_date + 'T00:00:00'), 'MMM d, yyyy') : '—'}</span>
+              {stop_order != null && <span className="text-slate-500">Stop #{stop_order}</span>}
+            </div>
+            {hasPoly && delivery && (delivery.estimated_distance_km || delivery.estimated_duration_minutes) && (
+              <div className="flex items-center justify-between gap-2 text-blue-700">
+                <span>🕒 {delivery.estimated_duration_minutes?.toFixed(0) || '?'} min</span>
+                <span>📏 {delivery.estimated_distance_km?.toFixed(2) || '?'} km (planned)</span>
+              </div>
+            )}
+            {hasCrumb && (
+              <div className="flex items-center justify-between gap-2 text-green-700">
+                <span>{crumb.transport_mode ? `🚗 ${crumb.transport_mode}` : '🛤 Crumb'}</span>
+                <span>📏 {crumbDistStr} · {isEditingCrumb ? cleanedPoints.length : (crumb.point_count || 0)} pts</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Breadcrumb editing buttons — only when this group is focused and has a crumb */}
+        {isFocused && crumb && (
+          <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+            {isEditingCrumb && (
+              <span className="text-xs text-orange-700 font-medium mr-1">{cleanedPoints.length} pts</span>
+            )}
+            {isEditingCrumb && undoStack.length > 0 && (
+              <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 text-slate-600 transition-colors">
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {!isEditingCrumb && (
+              <button title="Edit crumb points manually" onClick={e => { e.stopPropagation(); handleToggleCleaningMode(crumb); setFocusedGroup(group); }} className="p-1 rounded hover:bg-orange-100 text-orange-600 transition-colors">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {isEditingCrumb && (
+              <button
+                title={isBrushPickMode ? 'Cancel brush' : 'Brush: click map to remove nearby points'}
+                onClick={e => { e.stopPropagation(); handleToggleBrushMode(); }}
+                className={`p-1 rounded transition-colors ${isBrushPickMode ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-500' : 'hover:bg-amber-100 text-amber-700'}`}
+              >
+                <Brush className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button title="Save crumb polyline to delivery" onClick={e => { e.stopPropagation(); handleSaveCrumbToDelivery(crumb); }} disabled={isSavingCrumb} className="p-1 rounded hover:bg-green-100 text-green-700 disabled:opacity-50 transition-colors">
+              {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            </button>
+            {!isEditingCrumb && (
+              <button title="Import Delivery polyline → Breadcrumb" onClick={e => { e.stopPropagation(); handleImportDeliveryToCrumb(crumb); }} disabled={isImportingCrumb} className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors">
+                {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              </button>
+            )}
+            {crumb.stop_order === -1 && (
+              snapPreview?.itemId === crumb.id ? (
+                <>
+                  <span className="text-xs text-cyan-700 font-medium mr-0.5">{snapPreview.pointCount}pts</span>
+                  <button title="Accept snapped route & save" onClick={e => { e.stopPropagation(); handleSnapAccept(); }} disabled={snapPreview.isSaving} className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50 transition-colors ml-auto">
+                    {snapPreview.isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  </button>
+                  <button title="Cancel preview" onClick={e => { e.stopPropagation(); handleSnapCancel(); }} disabled={snapPreview.isSaving} className="p-1 rounded bg-red-100 hover:bg-red-200 text-red-700 disabled:opacity-50 transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button title="Analyze gaps & snap master timeline" onClick={e => { e.stopPropagation(); handleSnapAnalyze(crumb); }} disabled={isAnalyzing || isSnappingMaster || !!snapPreview || !!snapAnalysis} className="p-1 rounded hover:bg-cyan-100 text-cyan-700 disabled:opacity-50 transition-colors ml-auto">
+                    {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Magnet className="w-3.5 h-3.5" />}
+                  </button>
+                  <button title="Resegment all stops from master breadcrumb" onClick={e => { e.stopPropagation(); handleResegment(crumb); }} disabled={isResegmenting || !!snapPreview || !!snapAnalysis} className="p-1 rounded hover:bg-orange-100 text-orange-600 disabled:opacity-50 transition-colors">
+                    {isResegmenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scissors className="w-3.5 h-3.5" />}
+                  </button>
+                </>
+              )
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ── Controls bar (shared desktop + sheet) ─────────────────────────────────
   const renderControls = () => (
     <div className="space-y-3">
@@ -1402,7 +1585,7 @@ export default function PolylineViewer({ users = [] }) {
           <div className="flex items-center gap-2 flex-wrap">
             <MapPin className="w-5 h-5" />
             <span>Route Viewer</span>
-            <Badge variant="outline">{viewMode === 'combined' ? `${filteredPolylines.length}P + ${filteredBreadcrumbs.length}BC` : activeItems.length + ' records'}</Badge>
+            <Badge variant="outline">{viewMode === 'combined' ? `${combinedStopGroups.length} stops` : activeItems.length + ' records'}</Badge>
             {viewMode === 'combined' && <Badge className="bg-amber-100 text-amber-800 border-0">Combined Mode</Badge>}
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -1462,7 +1645,7 @@ export default function PolylineViewer({ users = [] }) {
               <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
-                    <ChevronDown className="w-4 h-4" /> Records ({activeItems.length})
+                    <ChevronDown className="w-4 h-4" /> {viewMode === 'combined' ? `Stops (${combinedStopGroups.length})` : `Records (${activeItems.length})`}
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="bottom" className="h-[80vh] p-0">
@@ -1473,7 +1656,10 @@ export default function PolylineViewer({ users = [] }) {
                     </div>
                   </SheetHeader>
                   <div className="h-[calc(80vh-73px)] overflow-y-auto">
-                    {activeItems.slice(0, visibleCount).map(item => renderListItem(item, true))}
+                    {viewMode === 'combined'
+                      ? combinedStopGroups.slice(0, visibleCount).map(g => renderCombinedStopCard(g, true))
+                      : activeItems.slice(0, visibleCount).map(item => renderListItem(item, true))
+                    }
                   </div>
                 </SheetContent>
               </Sheet>
@@ -1534,8 +1720,9 @@ export default function PolylineViewer({ users = [] }) {
                     className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
                   />
                   <span className="font-semibold text-sm text-slate-700 truncate">
-                    {unsavedItems.length} record{unsavedItems.length !== 1 ? 's' : ''}
-                    {viewMode === 'combined' && ` (${filteredPolylines.filter(i => !i.saved_to_route).length}P + ${filteredBreadcrumbs.filter(i => !i.saved_to_route).length}BC)`}
+                    {viewMode === 'combined'
+                      ? `${combinedStopGroups.length} stop${combinedStopGroups.length !== 1 ? 's' : ''}`
+                      : `${unsavedItems.length} record${unsavedItems.length !== 1 ? 's' : ''}`}
                   </span>
                   {isAppOwner(currentUser) && fewCrumbItems.length > 0 && (
                     <label className="ml-auto flex items-center gap-1.5 cursor-pointer flex-shrink-0">
@@ -1549,16 +1736,23 @@ export default function PolylineViewer({ users = [] }) {
                   )}
                 </div>
                 <div className="flex-1 overflow-y-auto" onScroll={handleListScroll} ref={listRef}>
-                  {activeItems.length === 0 ? (
-                    <div className="p-6 text-center text-slate-400 text-sm">No records found</div>
+                  {viewMode === 'combined' ? (
+                    combinedStopGroups.length === 0
+                      ? <div className="p-6 text-center text-slate-400 text-sm">No records found</div>
+                      : combinedStopGroups.slice(0, visibleCount).map(g => renderCombinedStopCard(g))
                   ) : (
-                    activeItems.slice(0, visibleCount).map(item => renderListItem(item))
+                    activeItems.length === 0
+                      ? <div className="p-6 text-center text-slate-400 text-sm">No records found</div>
+                      : activeItems.slice(0, visibleCount).map(item => renderListItem(item))
                   )}
-                  {visibleCount < activeItems.length && (
-                    <div className="p-3 text-center text-xs text-slate-400">
-                      Scroll for more ({activeItems.length - visibleCount} remaining)
-                    </div>
-                  )}
+                  {viewMode === 'combined'
+                    ? visibleCount < combinedStopGroups.length && (
+                        <div className="p-3 text-center text-xs text-slate-400">Scroll for more ({combinedStopGroups.length - visibleCount} remaining)</div>
+                      )
+                    : visibleCount < activeItems.length && (
+                        <div className="p-3 text-center text-xs text-slate-400">Scroll for more ({activeItems.length - visibleCount} remaining)</div>
+                      )
+                  }
                 </div>
               </div>
 
