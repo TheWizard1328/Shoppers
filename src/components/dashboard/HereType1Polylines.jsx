@@ -4,6 +4,7 @@ import L from "leaflet";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
+import { resolveInterStoreStopCoords, isInterStoreStop } from "./interStorePolylineCoords";
 
 const FINISHED = ["completed", "failed", "cancelled"]; // "returned" is a UI label only — not a real DB status
 
@@ -38,6 +39,7 @@ function HereType1Polylines({
   driverTravelModes = {},
   selectedDate = null,
   isDispatcher = false,
+  interStoreLocations = [],
 }) {
   const map = useMap();
   // Canvas renderer — lazily initialized after map is ready to avoid pane errors.
@@ -287,7 +289,9 @@ function HereType1Polylines({
 
     let shouldUseFallback = false;
     if ((!coords || coords.length < 2) && originFallback) {
-      const dest = { latitude: Number(currentStop.latitude), longitude: Number(currentStop.longitude) };
+      // For ISP/ISD stops, use the true interstore destination coords, not stop.latitude/longitude
+      const ispCoords = isInterStoreStop(currentStop) ? resolveInterStoreStopCoords(currentStop, interStoreLocations) : null;
+      const dest = ispCoords || { latitude: Number(currentStop.latitude), longitude: Number(currentStop.longitude) };
       if (Number.isFinite(originFallback.latitude) && Number.isFinite(originFallback.longitude) &&
           Number.isFinite(dest.latitude) && Number.isFinite(dest.longitude)) {
         coords = makeFallback(originFallback, dest);
@@ -359,8 +363,11 @@ function HereType1Polylines({
           try { coords = decodePolyline(stop.encoded_polyline); } catch (_) {}
         }
         if ((!coords || coords.length < 2)) {
-          const origin = { latitude: Number(prevStop.latitude), longitude: Number(prevStop.longitude) };
-          const dest   = { latitude: Number(stop.latitude),     longitude: Number(stop.longitude)     };
+          // For ISP/ISD stops, use the true interstore coords for origin and/or destination
+          const prevIsp = isInterStoreStop(prevStop) ? resolveInterStoreStopCoords(prevStop, interStoreLocations) : null;
+          const stopIsp = isInterStoreStop(stop) ? resolveInterStoreStopCoords(stop, interStoreLocations) : null;
+          const origin = prevIsp || { latitude: Number(prevStop.latitude), longitude: Number(prevStop.longitude) };
+          const dest   = stopIsp  || { latitude: Number(stop.latitude),    longitude: Number(stop.longitude)     };
           if (Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) &&
               Number.isFinite(dest.latitude)   && Number.isFinite(dest.longitude)) {
             coords = makeFallback(origin, dest);
