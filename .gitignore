@@ -32,3 +32,8 @@ dist-ssr
 incoming_files/
 package-lock.json
 base44/.app.jsonc
+.agents/.env
+node_modules/
+.npm/
+__pycache__/
+.cache/
