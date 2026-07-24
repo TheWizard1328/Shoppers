@@ -160,7 +160,7 @@ export default function MapController({
     const handleRestoreMapView = (e) => {
       const { center, zoom } = e?.detail || {};
       if (!center || !zoom || !mapInstance) return;
-      window._lastProgrammaticMapMove = Date.now() + 1500;
+      window._lastProgrammaticMapMove = Date.now();
       mapInstance.setView(center, zoom, { animate: true, duration: 0.6 });
     };
     window.addEventListener('restoreMapView', handleRestoreMapView);
