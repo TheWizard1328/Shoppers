@@ -1785,9 +1785,9 @@ export default function PolylineViewer({ users = [] }) {
                       const first = displayCoords[0];
                       const last  = displayCoords[displayCoords.length - 1];
                       const destStop   = seg.item.stop_order ?? null;
-                      const originStop = seg.isBreadcrumb && destStop != null ? destStop - 1 : destStop;
-                      const startLabel = seg.isBreadcrumb ? (originStop != null ? originStop : '▶') : (destStop ?? '▶');
-                      const endLabel   = seg.isBreadcrumb ? (destStop != null ? destStop : '■') : (destStop ?? '■');
+                      const originStop = destStop != null ? destStop - 1 : null;
+                      const startLabel = originStop != null ? originStop : '▶';
+                      const endLabel   = destStop != null ? destStop : '■';
 
                       return (
                         <MapSegment key={seg.id}>
@@ -1828,10 +1828,7 @@ export default function PolylineViewer({ users = [] }) {
                               <Popup>
                                 <strong>{seg.isBreadcrumb ? 'Breadcrumb Start' : 'Route Start'}</strong><br />
                                 Driver: {getDriverName(seg.item.driver_id)}<br />
-                                {seg.isBreadcrumb
-                                  ? <span>Origin Stop: #{originStop}<br />Dest Stop: #{destStop}<br /></span>
-                                  : <span>Stop: #{destStop}<br /></span>
-                                }
+                                <span>Origin Stop: #{originStop}<br />Dest Stop: #{destStop}<br /></span>
                                 {seg.isBreadcrumb && <span>Points: {isActiveCleaning ? cleanedPoints.length : seg.item.point_count}<br /></span>}
                                 {first[0].toFixed(6)}, {first[1].toFixed(6)}<br />
                                 {isActiveCleaning && <em style={{color:'#16a34a'}}>Drag to move origin</em>}
