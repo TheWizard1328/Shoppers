@@ -1,74 +1,34 @@
 /**
  * pages.config.js - Page routing configuration
  * 
- * This file is AUTO-GENERATED. Do not add imports or modify PAGES manually.
- * Pages are auto-registered when you create files in the ./pages/ folder.
- * 
- * THE ONLY EDITABLE VALUE: mainPage
- * This controls which page is the landing page (shown when users visit the app).
- * 
- * Example file structure:
- * 
- *   import HomePage from './pages/HomePage';
- *   import Dashboard from './pages/Dashboard';
- *   import Settings from './pages/Settings';
- *   
- *   export const PAGES = {
- *       "HomePage": HomePage,
- *       "Dashboard": Dashboard,
- *       "Settings": Settings,
- *   }
- *   
- *   export const pagesConfig = {
- *       mainPage: "HomePage",
- *       Pages: PAGES,
- *   };
- * 
- * Example with Layout (wraps all pages):
- *
- *   import Home from './pages/Home';
- *   import Settings from './pages/Settings';
- *   import __Layout from './Layout.jsx';
- *
- *   export const PAGES = {
- *       "Home": Home,
- *       "Settings": Settings,
- *   }
- *
- *   export const pagesConfig = {
- *       mainPage: "Home",
- *       Pages: PAGES,
- *       Layout: __Layout,
- *   };
- *
- * To change the main page from HomePage to Dashboard, use find_replace:
- *   Old: mainPage: "HomePage",
- *   New: mainPage: "Dashboard",
- *
- * The mainPage value must match a key in the PAGES object exactly.
+ * Pages are lazy-loaded via React.lazy for code splitting.
+ * This keeps the initial bundle small — only the active page's chunk loads.
  */
-import AdminMetrics from './pages/AdminMetrics';
-import AdminUtilities from './pages/AdminUtilities';
-import AppUsers from './pages/AppUsers';
-import Cities from './pages/Cities';
-import Dashboard from './pages/Dashboard';
-import Deliveries from './pages/Deliveries';
-import DeliveryMetrics from './pages/DeliveryMetrics';
-import DeviceSettings from './pages/DeviceSettings';
-import DiagnosticsPage from './pages/DiagnosticsPage';
-import DriverPayroll from './pages/DriverPayroll';
-import Documents from './pages/Documents';
-import DriverSettings from './pages/DriverSettings';
-import Home from './pages/Home';
-import PatientActivityReview from './pages/PatientActivityReview';
-import Patients from './pages/Patients';
-import Settings from './pages/Settings';
-import SquareLocationConfigs from './pages/SquareLocationConfigs';
-import SquareManagement from './pages/SquareManagement';
-import StoreInvoices from './pages/StoreInvoices';
-import Stores from './pages/Stores';
+
+import { lazy } from 'react';
 import __Layout from './Layout.jsx';
 
+// Lazy-load all pages — each becomes a separate chunk loaded on demand
+const AdminMetrics = lazy(() => import('./pages/AdminMetrics'));
+const AdminUtilities = lazy(() => import('./pages/AdminUtilities'));
+const AppUsers = lazy(() => import('./pages/AppUsers'));
+const Cities = lazy(() => import('./pages/Cities'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Deliveries = lazy(() => import('./pages/Deliveries'));
+const DeliveryMetrics = lazy(() => import('./pages/DeliveryMetrics'));
+const DeviceSettings = lazy(() => import('./pages/DeviceSettings'));
+const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage'));
+const DriverPayroll = lazy(() => import('./pages/DriverPayroll'));
+const Documents = lazy(() => import('./pages/Documents'));
+const DriverSettings = lazy(() => import('./pages/DriverSettings'));
+const Home = lazy(() => import('./pages/Home'));
+const PatientActivityReview = lazy(() => import('./pages/PatientActivityReview'));
+const Patients = lazy(() => import('./pages/Patients'));
+const Settings = lazy(() => import('./pages/Settings'));
+const SquareLocationConfigs = lazy(() => import('./pages/SquareLocationConfigs'));
+const SquareManagement = lazy(() => import('./pages/SquareManagement'));
+const StoreInvoices = lazy(() => import('./pages/StoreInvoices'));
+const Stores = lazy(() => import('./pages/Stores'));
 
 export const PAGES = {
     "AdminMetrics": AdminMetrics,

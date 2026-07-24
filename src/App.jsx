@@ -12,19 +12,22 @@ import { MobileNavigationProvider } from '@/components/navigation/MobileNavigati
 import MobileTabScrollManager from '@/components/navigation/MobileTabScrollManager';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { DeviceProvider } from '@/components/utils/DeviceContext';
-import SquareSyncAudit from '@/pages/SquareSyncAudit';
-import StatHolidays from '@/pages/StatHolidays';
-import SecureDocViewer from '@/pages/SecureDocViewer';
-import Companies from '@/pages/Companies';
-import DriverScheduleCalendar from '@/pages/DriverScheduleCalendar';
-import PatientLogin from '@/pages/PatientLogin';
-import PatientPortal from '@/pages/PatientPortal';
-import Login from '@/pages/Login';
-import Register from '@/pages/Register';
-import ForgotPassword from '@/pages/ForgotPassword';
-import ResetPassword from '@/pages/ResetPassword';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Navigate } from 'react-router-dom';
+import { Navigate, lazy, Suspense } from 'react-router-dom';
+import { lazy as lazyReact, Suspense as SuspenseReact } from 'react';
+
+// Lazy-load pages that are imported directly (not in pages.config.js)
+const SquareSyncAudit = lazyReact(() => import('@/pages/SquareSyncAudit'));
+const StatHolidays = lazyReact(() => import('@/pages/StatHolidays'));
+const SecureDocViewer = lazyReact(() => import('@/pages/SecureDocViewer'));
+const Companies = lazyReact(() => import('@/pages/Companies'));
+const DriverScheduleCalendar = lazyReact(() => import('@/pages/DriverScheduleCalendar'));
+const PatientLogin = lazyReact(() => import('@/pages/PatientLogin'));
+const PatientPortal = lazyReact(() => import('@/pages/PatientPortal'));
+const Login = lazyReact(() => import('@/pages/Login'));
+const Register = lazyReact(() => import('@/pages/Register'));
+const ForgotPassword = lazyReact(() => import('@/pages/ForgotPassword'));
+const ResetPassword = lazyReact(() => import('@/pages/ResetPassword'));
 
 const cleanupLocalStorageQuota = () => {
   try {
@@ -63,16 +66,25 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
+// Loading fallback for lazy-loaded pages
+const PageLoader = () => (
+  <div className="fixed inset-0 flex items-center justify-center">
+    <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+  </div>
+);
+
+const LazyPageWrapper = ({ children }) => (
+  <SuspenseReact fallback={<PageLoader />}>
+    {children}
+  </SuspenseReact>
+);
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (authError?.type === 'user_not_registered') {
@@ -82,20 +94,20 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       {/* Patient Portal — public routes (no platform auth required) */}
-      <Route path="/patient-login" element={<PatientLogin />} />
-      <Route path="/patient-portal" element={<PatientPortal />} />
+      <Route path="/patient-login" element={<LazyPageWrapper><PatientLogin /></LazyPageWrapper>} />
+      <Route path="/patient-portal" element={<LazyPageWrapper><PatientPortal /></LazyPageWrapper>} />
 
       {/* Public auth routes */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/login" element={<LazyPageWrapper><Login /></LazyPageWrapper>} />
+      <Route path="/register" element={<LazyPageWrapper><Register /></LazyPageWrapper>} />
+      <Route path="/forgot-password" element={<LazyPageWrapper><ForgotPassword /></LazyPageWrapper>} />
+      <Route path="/reset-password" element={<LazyPageWrapper><ResetPassword /></LazyPageWrapper>} />
 
       {/* All app routes protected — redirect unauthenticated users to /login */}
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route path="/" element={
           <LayoutWrapper currentPageName={mainPageKey}>
-            <MainPage />
+            <LazyPageWrapper><MainPage /></LazyPageWrapper>
           </LayoutWrapper>
         } />
         {Object.entries(Pages).map(([path, Page]) => (
@@ -104,7 +116,7 @@ const AuthenticatedApp = () => {
             path={`/${path}`}
             element={
               <LayoutWrapper currentPageName={path}>
-                <Page />
+                <LazyPageWrapper><Page /></LazyPageWrapper>
               </LayoutWrapper>
             }
           />
@@ -113,7 +125,7 @@ const AuthenticatedApp = () => {
           path="/Companies"
           element={
             <LayoutWrapper currentPageName="Companies">
-              <Companies />
+              <LazyPageWrapper><Companies /></LazyPageWrapper>
             </LayoutWrapper>
           }
         />
@@ -121,7 +133,7 @@ const AuthenticatedApp = () => {
           path="/SquareSyncAudit"
           element={
             <LayoutWrapper currentPageName="SquareSyncAudit">
-              <SquareSyncAudit />
+              <LazyPageWrapper><SquareSyncAudit /></LazyPageWrapper>
             </LayoutWrapper>
           }
         />
@@ -129,7 +141,7 @@ const AuthenticatedApp = () => {
           path="/DriverScheduleCalendar"
           element={
             <LayoutWrapper currentPageName="DriverScheduleCalendar">
-              <DriverScheduleCalendar />
+              <LazyPageWrapper><DriverScheduleCalendar /></LazyPageWrapper>
             </LayoutWrapper>
           }
         />
@@ -137,13 +149,13 @@ const AuthenticatedApp = () => {
           path="/StatHolidays"
           element={
             <LayoutWrapper currentPageName="StatHolidays">
-              <StatHolidays />
+              <LazyPageWrapper><StatHolidays /></LazyPageWrapper>
             </LayoutWrapper>
           }
         />
         <Route
           path="/secure-docs/:driverId"
-          element={<SecureDocViewer />}
+          element={<LazyPageWrapper><SecureDocViewer /></LazyPageWrapper>}
         />
       </Route>
 
