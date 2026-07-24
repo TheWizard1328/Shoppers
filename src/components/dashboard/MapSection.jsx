@@ -53,7 +53,7 @@ export default function MapSection({
     const timeSinceProgrammaticMove = Date.now() - (window._lastProgrammaticMapMove || 0);
     const timeSinceGesture = Date.now() - (window._lastUserGestureStart || 0);
     const isRealGesture = timeSinceGesture < 2000;
-    if (!isRealGesture && timeSinceProgrammaticMove < 1500) return;
+    if (!isRealGesture && timeSinceProgrammaticMove < 1200) return;
     fabControlEvents.notifyUserMapInteraction();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onImmersiveMapTap]);

@@ -184,6 +184,12 @@ export default function useDriverLocationSync({
       const selectedId = selectedDriverIdRef.current;
       if (selectedId && selectedId !== 'all' && selectedId !== currentUser.id) return;
 
+      // CRITICAL: Don't reposition the map while the user is actively touching the screen
+      // or has recently interacted with it. GPS ticks fire every 1-5s and would otherwise
+      // fight with the user's pan/zoom gestures, causing jitter and false pinch detection.
+      if ((window._isUserTouchingMap || false) === true) return;
+      if ((window._userMapControlUntil || 0) > now) return;
+
       // Phase 2: also keep the next-stop card scrolled into view.
       if (phase === 2) {
         const nextCard = deliveriesWithStopOrderRef.current.find((d) => d?.isNextDelivery === true);
@@ -326,6 +332,11 @@ export default function useDriverLocationSync({
 
       // Don't fire if map reposition is explicitly suppressed
       if ((window._suppressMapRepositionUntil || 0) > now) return;
+
+      // CRITICAL: Don't reposition while the user is actively touching the screen
+      // or has recently interacted with the map.
+      if ((window._isUserTouchingMap || false) === true) return;
+      if ((window._userMapControlUntil || 0) > now) return;
 
       // Don't override bounds when viewing a DIFFERENT driver's route
       const selectedId = selectedDriverIdRef.current;

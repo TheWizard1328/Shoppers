@@ -35,12 +35,18 @@ export default function MapController({
         return;
       }
       
+      // Cancel any in-flight programmatic animation so the user's pinch-zoom
+      // doesn't fight with a GPS-triggered setView/fitBounds still playing.
+      mapInstance.stop();
       markUserMapControlActive();
       if (onMapInteraction) {
         onMapInteraction(true);
       }
     },
     dragstart: () => {
+      // Cancel any in-flight programmatic pan/zoom animation so the user's drag
+      // doesn't fight with a GPS-triggered setView/fitBounds that's still playing.
+      mapInstance.stop();
       isDraggingRef.current = true;
       hasMovedRef.current = false;
       markUserMapControlActive();
@@ -122,7 +128,7 @@ export default function MapController({
       // fitBounds/setView fire moveend — echoing back updates mapCenter prop, which
       // re-triggers the setView effect causing a double-bounce.
       const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-      if (timeSinceProgrammatic < 3500) return;
+      if (timeSinceProgrammatic < 1200) return;
       
       window.__currentMapCenter = newCenter;
       setMapCenter(prev => {
@@ -187,12 +193,22 @@ export default function MapController({
     if (!mapContainer) return;
     const onGestureStart = () => {
       window._lastUserGestureStart = Date.now();
+      window._isUserTouchingMap = true;
+    };
+    const onGestureEnd = () => {
+      window._isUserTouchingMap = false;
     };
     mapContainer.addEventListener('touchstart', onGestureStart, { passive: true });
+    mapContainer.addEventListener('touchend', onGestureEnd, { passive: true });
+    mapContainer.addEventListener('touchcancel', onGestureEnd, { passive: true });
     mapContainer.addEventListener('pointerdown', onGestureStart, { passive: true });
+    mapContainer.addEventListener('pointerup', onGestureEnd, { passive: true });
     return () => {
       mapContainer.removeEventListener('touchstart', onGestureStart);
+      mapContainer.removeEventListener('touchend', onGestureEnd);
+      mapContainer.removeEventListener('touchcancel', onGestureEnd);
       mapContainer.removeEventListener('pointerdown', onGestureStart);
+      mapContainer.removeEventListener('pointerup', onGestureEnd);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

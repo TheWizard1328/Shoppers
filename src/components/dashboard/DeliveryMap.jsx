@@ -137,7 +137,7 @@ const mergeAppUsersByFreshness = (currentUsers = [], incomingUsers = []) => {
   return Array.from(merged.values());
 };
 
-export default function DeliveryMap({
+function DeliveryMap({
   deliveries = [],
   allDeliveriesForDate = [],
   selectedDriverId = null,
@@ -319,7 +319,7 @@ export default function DeliveryMap({
       // Convert radius in km to a zoom level: zoom = log2(earth_circumference_px / (radiusKm * 2 * tile_size_ratio))
       // Practical approximation: 3km radius ≈ zoom 13.5 for most screen sizes
       const radiusZoom = Math.round((14.5 - Math.log2(radiusKm)) * 10) / 10;
-      window._lastProgrammaticMapMove = Date.now() + 1500;
+      window._lastProgrammaticMapMove = Date.now();
       map.setView([lat, lng], radiusZoom, { animate: true, duration: 0.6 });
     };
 
@@ -903,6 +903,13 @@ export default function DeliveryMap({
 
   useEffect(() => {
     if (!map || !shouldFitBounds) return;
+    // CRITICAL: Don't reposition the map while the user is actively panning/zooming.
+    // GPS ticks fire every 1-5s and would otherwise fight with the user's touch gestures,
+    // causing visible jitter and false pinch-to-zoom detection.
+    if ((window._userMapControlUntil || 0) > Date.now()) {
+      onBoundsFitted?.();
+      return;
+    }
     latestFitBoundsRef.current = shouldFitBounds;
 
     if (fitBoundsInFlightRef.current) {
@@ -1027,7 +1034,7 @@ export default function DeliveryMap({
           // during Phase 2 follow — it completes quickly enough that the next
           // tick (1–5s) never gets queued behind the animation.
           map.setView(adjusted, currentZoom, { animate: opts.animate !== false, duration: 0.5 });
-          window._lastProgrammaticMapMove = Date.now() + 1500;
+          window._lastProgrammaticMapMove = Date.now();
         } else {
           // ── ZOOM-IN PATH (initial Phase 2 entry or bounds expanded) ────────
           // Map is zoomed out further than the bounds need.  Use fitBounds to
@@ -1035,7 +1042,7 @@ export default function DeliveryMap({
           // call — the old setZoom(fittedZoom) cancelled this animation and fired
           // moveend prematurely, breaking the in-flight guard.
           map.fitBounds(bounds, { ...opts, paddingTopLeft, paddingBottomRight, animate: true });
-          window._lastProgrammaticMapMove = Date.now() + 1500;
+          window._lastProgrammaticMapMove = Date.now();
         }
       } catch {
         fitBoundsInFlightRef.current = false;
@@ -1068,7 +1075,7 @@ export default function DeliveryMap({
     const sameCenter = Math.abs(currentCenter.lat - center[0]) < 0.000001 && Math.abs(currentCenter.lng - center[1]) < 0.000001;
     const sameZoom = Math.abs(map.getZoom() - zoom) < 0.01;
     if (sameCenter && sameZoom) return;
-    window._lastProgrammaticMapMove = Date.now() + 1500;
+    window._lastProgrammaticMapMove = Date.now();
     map.setView(center, zoom, { animate: true, duration: 0.5 });
   }, [map, center, zoom, mapViewPhase, isMapViewLocked]);
 
@@ -1387,3 +1394,5 @@ export default function DeliveryMap({
     </div>
   );
 }
+
+export default React.memo(DeliveryMap);
