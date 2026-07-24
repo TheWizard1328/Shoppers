@@ -97,7 +97,24 @@ export async function handleSaveDelivery(deliveryData, ctx) {
           (field) => (deliveryData?.[field] ?? '') === (editingDelivery?.[field] ?? '')
         );
 
-      const hasStructuralChange = !isPureStagedToPendingStatusChange && STRUCTURAL_FIELDS.some(
+      // Check if only time window fields changed on a pending delivery — if so, skip optimization.
+      // Updating delivery_time_start/end on a pending stop (e.g. from the patient record) should
+      // never trigger route re-optimization; it's just a schedule note, not a route change.
+      const isPendingTimeWindowOnlyChange = (() => {
+        const isPendingDelivery = editingDelivery?.status === 'pending';
+        if (!isPendingDelivery) return false;
+        const TIME_WINDOW_FIELDS = ['delivery_time_start', 'delivery_time_end'];
+        const nonTimeWindowStructuralFields = STRUCTURAL_FIELDS.filter(f => !TIME_WINDOW_FIELDS.includes(f));
+        const hasNonTimeWindowChange = nonTimeWindowStructuralFields.some(
+          (field) => (deliveryData?.[field] ?? '') !== (editingDelivery?.[field] ?? '')
+        );
+        const hasTimeWindowChange = TIME_WINDOW_FIELDS.some(
+          (field) => (deliveryData?.[field] ?? '') !== (editingDelivery?.[field] ?? '')
+        );
+        return hasTimeWindowChange && !hasNonTimeWindowChange;
+      })();
+
+      const hasStructuralChange = !isPureStagedToPendingStatusChange && !isPendingTimeWindowOnlyChange && STRUCTURAL_FIELDS.some(
         (field) => (deliveryData?.[field] ?? '') !== (editingDelivery?.[field] ?? '')
       );
 
