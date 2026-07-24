@@ -32,6 +32,18 @@ export default defineConfig({
     include: ['dompurify'],
   },
   build: {
+    // Strip all console.* calls from production builds for performance.
+    // 1,240+ console.log statements were shipping to prod and executing on
+    // every GPS tick, WebSocket message, and state update on mobile devices.
+    // console.error and console.warn are preserved for debugging.
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: false, // Keep console.log in case of debugging needs
+        // Instead, use pure_funcs to remove only console.log and console.debug
+        pure_funcs: ['console.log', 'console.debug'],
+      },
+    },
     rollupOptions: {
       onwarn(warning, warn) {
         // Suppress "use client" directive warnings from UI libs

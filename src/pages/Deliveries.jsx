@@ -70,7 +70,8 @@ import { useAutoRefresh } from '../components/utils/useAutoRefresh';
 import { sortUsers } from '../components/utils/sorting';
 import DeleteConfirmDialog from "../components/deliveries/DeleteConfirmDialog";
 import RouteMapView from "../components/deliveries/RouteMapView";
-import { debounce } from 'lodash';
+// Inline debounce — replaces lodash (removed as unused dep)
+const debounce = (fn, delay) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); }; };
 import { globalFilters } from "../components/utils/globalFilters";
 import { userHasRole, isAppOwner } from '../components/utils/userRoles';
 import { formatPhoneNumber } from "../components/utils/phoneFormatter";
