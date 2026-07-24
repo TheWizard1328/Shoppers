@@ -436,7 +436,7 @@ export default function DriverScheduleCalendar() {
         const [user, storeList, userList, holidays] = await Promise.all([
         base44.auth.me(),
         base44.entities.Store.list('sort_order', 200),
-        base44.entities.AppUser.list('sort_order', 200),
+        base44.entities.AppUser.list('sort_order', 200, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,sort_order,role,full_name,created_date,updated_date'),
         loadStatHolidays()]
         );
         setCurrentUser(user);

@@ -121,7 +121,7 @@ export default function AdminMetrics() {
 
         const [citiesData, appUsersData] = await Promise.all([
           base44.entities.City.list(),
-          base44.entities.AppUser.list('sort_order', 200),
+          base44.entities.AppUser.list('sort_order', 200, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,sort_order,role,full_name,created_date,updated_date'),
         ]);
         const sortedCities = citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(sortedCities);

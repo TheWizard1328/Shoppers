@@ -1983,7 +1983,7 @@ useEffect(() => {
     for (const driverId of [originalDriverId, newDriverId].filter(Boolean)) {
       const driver = drivers.find((d) => d && d.id === driverId);
       if (!driver) continue;
-      const driverDeliveries = await base44.entities.Delivery.filter({ delivery_date: deliveryDate, driver_id: driverId });
+      const driverDeliveries = await base44.entities.Delivery.filter({ delivery_date: deliveryDate, driver_id: driverId }, null, null, null, 'id,driver_id,delivery_date,status,stop_order,isNextDelivery,patient_id,patient_name,store_id,store_name,actual_delivery_time,delivery_time_eta,delivery_time_start,encoded_polyline,travel_dist,puid,delivery_notes,cycling_latitude,cycling_longitude');
       const completed = (driverDeliveries || []).filter((d) => d && fin.includes(d.status));
       const incomplete = (driverDeliveries || []).filter((d) => d && !fin.includes(d.status));
       const sortedCompleted = [...completed].sort((a, b) => { const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; return ta - tb; });
@@ -2123,7 +2123,7 @@ useEffect(() => {
       notifyDriverRetry({ driver: currentUser, patientName: d?.patient_name || 'Unknown', delivery: d, store: stores.find((s) => s?.id === d?.store_id), appUsers }).catch((e) => console.warn('⚠️ notify failed:', e));
       await recalculateStopOrders(d.driver_id, d.delivery_date);
       invalidate('Delivery');
-      const fresh = await base44.entities.Delivery.filter({ driver_id: d.driver_id, delivery_date: d.delivery_date });
+      const fresh = await base44.entities.Delivery.filter({ driver_id: d.driver_id, delivery_date: d.delivery_date }, null, null, null, 'id,driver_id,delivery_date,status,stop_order,isNextDelivery,patient_id,patient_name,store_id,store_name,actual_delivery_time,delivery_time_eta,delivery_time_start,encoded_polyline,travel_dist,puid,delivery_notes,cycling_latitude,cycling_longitude');
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fresh);
       fresh.forEach((x) => { if (x?.id) smartRefreshManager.registerPendingUpdate(x.id, d.driver_id, d.delivery_date); });
       await refreshData();
@@ -2379,7 +2379,7 @@ useEffect(() => {
         }
         const cache = await offlineDB.getCacheValidation('AppUser', { scopeKey: 'global', maxAgeMs: 10 * 60 * 1000, minRecordCount: 1 });
         if (cache.isValid) return;
-        const freshAppUsers = await base44.entities.AppUser.list();
+        const freshAppUsers = await base44.entities.AppUser.list(null, null, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,home_latitude,home_longitude,current_latitude,current_longitude,location_tracking_enabled,location_updated_at,preferred_travel_mode,sort_order,role,full_name,created_date,updated_date');
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
         await offlineDB.updateCacheSnapshot('AppUser', freshAppUsers || [], { scopeKey: 'global', syncType: 'startup_full' });
       } catch (error) {console.error('❌ [STEP 0] Pre-render sync failed:', error);}
