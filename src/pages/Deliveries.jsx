@@ -707,7 +707,7 @@ export default function DeliveriesPage() {
 
     const fetchFreshAppUsers = async () => {
       try {
-        const freshData = await base44.entities.AppUser.list();
+        const freshData = await base44.entities.AppUser.list(null, null, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,home_latitude,home_longitude,current_latitude,current_longitude,location_tracking_enabled,location_updated_at,preferred_travel_mode,sort_order,role,full_name,created_date,updated_date');
         setFreshAppUsers(freshData || []);
       } catch (error) {
         console.warn('Failed to fetch fresh AppUser data:', error);

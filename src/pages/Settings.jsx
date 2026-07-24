@@ -35,7 +35,7 @@ export function ProfilePanel({ currentUser, onClose }) {
 
   useEffect(() => {
     if (!currentUser?.id || isDispatcherOnly) return;
-    base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
+    base44.entities.AppUser.filter({ user_id: currentUser.id }, null, null, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,home_latitude,home_longitude,current_latitude,current_longitude,location_tracking_enabled,location_updated_at,preferred_travel_mode,sort_order,role,full_name,created_date,updated_date').then((appUsers) => {
       if (appUsers?.length > 0) setETransEmail(appUsers[0].ETrans_Email || '');
     }).catch(() => {});
   }, [currentUser?.id]);
@@ -43,7 +43,7 @@ export function ProfilePanel({ currentUser, onClose }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+      const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id }, null, null, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,home_latitude,home_longitude,current_latitude,current_longitude,location_tracking_enabled,location_updated_at,preferred_travel_mode,sort_order,role,full_name,created_date,updated_date');
       if (appUsers?.length > 0) {
         const update = { user_name: displayName, phone };
         if (!isDispatcherOnly) update.ETrans_Email = eTransEmail;
@@ -305,7 +305,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (!currentUser?.id) return;
-    base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
+    base44.entities.AppUser.filter({ user_id: currentUser.id }, null, null, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,home_latitude,home_longitude,current_latitude,current_longitude,location_tracking_enabled,location_updated_at,preferred_travel_mode,sort_order,role,full_name,created_date,updated_date').then((appUsers) => {
       if (appUsers?.length > 0) {
         const email = appUsers[0].ETrans_Email || '';
         setETransEmail(email);

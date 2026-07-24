@@ -280,7 +280,7 @@ export default function DriverPayroll() {
   // Use AppUser directly — currentUser from auth context may not carry app_roles reliably
   useEffect(() => {
     if (!currentUser?.id) return;
-    base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
+    base44.entities.AppUser.filter({ user_id: currentUser.id }, null, null, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,home_latitude,home_longitude,current_latitude,current_longitude,location_tracking_enabled,location_updated_at,preferred_travel_mode,sort_order,role,full_name,created_date,updated_date').then((appUsers) => {
       const appUser = appUsers?.[0];
       if (!appUser) return;
       const isDriverRole = Array.isArray(appUser.app_roles) &&
