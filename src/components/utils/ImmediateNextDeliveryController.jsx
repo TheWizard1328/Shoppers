@@ -88,6 +88,11 @@ export default function ImmediateNextDeliveryController() {
     const handleDeliveriesUpdated = async (event) => {
       const { triggeredBy, driverId, deliveryDate, preserveLocalState } = event.detail || {};
       const shouldRefreshEta = ['complete', 'nextDeliveryImmediate', 'deliveryFormUpdate', 'completeEtaRefresh'].includes(triggeredBy);
+      // CRITICAL: 'statusUpdate' is handled directly in handleStatusUpdate (its own 500ms scroll).
+      // Don't re-center here for statusUpdate events — that causes the bounce-back bug where
+      // the stale deliveriesRef (not yet reflecting the isNextDelivery flag swap) centers the
+      // just-completed stop instead of the new next stop.
+      if (triggeredBy === 'statusUpdate') return;
       if (!shouldRefreshEta || triggeredBy === 'completeEtaRefresh' || preserveLocalState || !driverId || !deliveryDate) return;
 
       const routeKey = `${driverId}:${deliveryDate}`;

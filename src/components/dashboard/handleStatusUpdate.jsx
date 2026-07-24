@@ -396,10 +396,18 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     }
 
     if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
+      // CRITICAL: Suppress proximity snap for 30s after any completion so the driver
+      // being physically close to the just-finished stop doesn't re-snap back to it
+      // before the isNextDelivery flag propagates to deliveriesWithStopOrder.
+      window.__suppressProximitySnapUntil = Date.now() + 30000;
+
       setTimeout(() => {
-        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-        if (nextCard) {
-          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+        // Use sibling updates to find the newly promoted next stop — more reliable than
+        // reading deliveriesWithStopOrder which may still be the pre-update snapshot.
+        const promotedNextId = siblingUpdates.find((s) => s.record.isNextDelivery === true)?.id;
+        const nextCardId = promotedNextId || deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true && d.id !== deliveryId)?.id;
+        if (nextCardId) {
+          const cardElement = document.getElementById(`stop-card-${nextCardId}`);
           if (cardElement) cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         }
         // CRITICAL: Re-lock the FAB in phase 2/3 now that the next card is centered.
