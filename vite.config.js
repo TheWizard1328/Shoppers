@@ -36,11 +36,10 @@ export default defineConfig({
     // 1,240+ console.log statements were shipping to prod and executing on
     // every GPS tick, WebSocket message, and state update on mobile devices.
     // console.error and console.warn are preserved for debugging.
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        pure_funcs: ['console.log', 'console.debug'],
-      },
+    minify: 'esbuild',
+    esbuildOptions: {
+      drop: ['debugger'],
+      pure: ['console.log', 'console.debug'],
     },
     rollupOptions: {
       onwarn(warning, warn) {

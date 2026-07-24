@@ -13,7 +13,8 @@ import MobileTabScrollManager from '@/components/navigation/MobileTabScrollManag
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { DeviceProvider } from '@/components/utils/DeviceContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Navigate, lazy, Suspense } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { lazy as lazyReact, Suspense as SuspenseReact } from 'react';
 
 // Lazy-load pages that are imported directly (not in pages.config.js)
