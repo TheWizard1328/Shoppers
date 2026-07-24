@@ -201,11 +201,11 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
         const patientName = patient?.full_name || '';
         const deliveryNotes = stop.delivery_notes || '';
         
-        const isInterStoreDelivery = 
+        const isInterStoreByNotes = 
           deliveryNotes.toLowerCase().includes('interstore') ||
           patientName.toLowerCase().includes('interstore');
         
-        if (!isInterStoreDelivery && stop.puid) {
+        if (!isInterStoreByNotes && stop.puid) {
           // Regular delivery with PUID - check if its pickup has been completed
           if (!completedPickups.has(stop.puid)) {
             // Pickup not done yet - find the pickup in remaining stops
@@ -831,11 +831,11 @@ export const validateRouteAdjustment = (stops, stores, patients) => {
       const patientName = patient?.full_name || '';
       const deliveryNotes = stop.delivery_notes || '';
       
-      const isInterStoreDelivery = 
+      const isInterStoreByNotes = 
         deliveryNotes.toLowerCase().includes('interstore') ||
         patientName.toLowerCase().includes('interstore');
       
-      if (!isInterStoreDelivery && stop.puid) {
+      if (!isInterStoreByNotes && stop.puid) {
         if (!completedPickupsForValidation.has(stop.puid)) {
           issues.push({
             stopIndex: i,
