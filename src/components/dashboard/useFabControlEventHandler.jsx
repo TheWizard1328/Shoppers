@@ -108,6 +108,25 @@ export function useFabControlEventHandler({
     };
     window.addEventListener('isNextDeliveryFlagUpdated', onIsNextDeliveryFlagUpdated);
 
+    // Re-lock FAB at phase 2/3 after a stop is completed/failed/cancelled and the next card is centered.
+    // Unlike isNextDeliveryFlagUpdated, this bypasses the mapUserUnlockedRef guard — the driver
+    // completing a stop is an explicit intent signal that should always re-engage follow mode.
+    const onCompletionFabRelock = (event) => {
+      const phase = event?.detail?.phase ?? mapViewPhaseRef.current;
+      if (phase !== 2 && phase !== 3) return;
+      // Clear free-pan flag so the FAB re-engages auto-follow
+      if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
+      clearTimer();
+      isMapViewLockedRef.current = true;
+      setIsMapViewLocked(true);
+      pendingPhaseRef.current = phase;
+      mapViewPhaseRef.current = phase;
+      lastProgrammaticMapMoveRef.current = Date.now();
+      window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger((p) => p + 1);
+    };
+    window.addEventListener('completionFabRelock', onCompletionFabRelock);
+
     // Proximity-activated phase 2: driver is within 100m of next stop.
     // Lock FAB into phase 2 and trigger a map reposition to show driver + next stop.
     const onProximityActivatedPhase2 = () => {
@@ -281,6 +300,7 @@ export function useFabControlEventHandler({
       unsubscribe();
       window.removeEventListener('isNextDeliveryFlagUpdated', onIsNextDeliveryFlagUpdated);
       window.removeEventListener('proximityActivatedPhase2', onProximityActivatedPhase2);
+      window.removeEventListener('completionFabRelock', onCompletionFabRelock);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setMapViewPhase, setIsMapViewLocked, setMapViewTrigger,

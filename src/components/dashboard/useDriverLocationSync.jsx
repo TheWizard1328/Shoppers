@@ -421,6 +421,8 @@ export default function useDriverLocationSync({
     if (now - (lastUserInteractionRef?.current || 0) < 300000) return;
     // Only snap once every 30 seconds
     if (now - (lastProximitySnapTimeRef?.current || 0) < 30000) return;
+    // Suppress for 30s after a stop completion — prevents re-snapping to just-completed stop
+    if ((window.__suppressProximitySnapUntil || 0) > now) return;
 
     const phase = mapViewPhaseRef.current;
     // Only auto-enter Phase 2 from Phase 1 when map is unlocked

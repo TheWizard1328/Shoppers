@@ -4,6 +4,7 @@ import L from "leaflet";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
+import { resolveInterStoreStopCoords, isInterStoreStop } from "./interStorePolylineCoords";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
@@ -32,6 +33,7 @@ function HereType2Polylines({
   multiDriverMode = false,
   selectedDriverId = null,
   driverTravelModes = {},
+  interStoreLocations = [],
 }) {
 const map = useMap();
   const canvasRenderer = useRef(null);
@@ -198,7 +200,12 @@ const map = useMap();
       const coords = typeof b?.encoded_polyline === 'string' && b.encoded_polyline.trim()
         ? decodePolyline(b.encoded_polyline)
         : null;
-      const segmentPositions = Array.isArray(coords) && coords.length > 1 ? coords : makeFallback(a, b);
+      // For ISP/ISD stops, resolve true interstore coords for the fallback endpoints
+      const aIsp = isInterStoreStop(a) ? resolveInterStoreStopCoords(a, interStoreLocations) : null;
+      const bIsp = isInterStoreStop(b) ? resolveInterStoreStopCoords(b, interStoreLocations) : null;
+      const aResolved = aIsp ? { ...a, latitude: aIsp.latitude, longitude: aIsp.longitude } : a;
+      const bResolved = bIsp ? { ...b, latitude: bIsp.latitude, longitude: bIsp.longitude } : b;
+      const segmentPositions = Array.isArray(coords) && coords.length > 1 ? coords : makeFallback(aResolved, bResolved);
       if (!segmentPositions || segmentPositions.length < 2) continue;
       lines.push(
         <Polyline

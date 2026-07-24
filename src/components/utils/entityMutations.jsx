@@ -507,6 +507,14 @@ export const createDelivery = async (deliveryData, options = {}) => {
       // STEP 2: Create on backend (with creator attached)
       const backendDelivery = await base44.entities.Delivery.create(payloadWithCreator);
       console.log('☁️ [EntityMutations] Backend created:', backendDelivery.id);
+
+      // CRITICAL: Track real ID immediately so the WS echo for this create is suppressed.
+      // Without this, the echo arrives as a 'create' event and adds a duplicate to React
+      // state alongside the temp record that notifyMutation already rendered.
+      if (backendDelivery?.id) {
+        if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+        window.__localDeliveryWrites.set(backendDelivery.id, Date.now());
+      }
       
       // STEP 3: Replace temp with real in IndexedDB
       const db = await offlineDB.openDatabase();
@@ -532,6 +540,13 @@ export const createDelivery = async (deliveryData, options = {}) => {
       console.log('⚡ [EntityMutations] Created Delivery, cache will update via listener');
       
       // STEP 5: Notify UI to replace temp with real
+      // Also swap temp→real in window.__appDeliveries so subsequent IDB snapshot reads
+      // (e.g. for WS echo fullReplacementData) never see a stale temp record.
+      if (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries)) {
+        window.__appDeliveries = window.__appDeliveries.map(d =>
+          d?.id === tempId ? { ...backendDelivery } : d
+        );
+      }
       notifyMutation({ type: 'replace', entity: 'Delivery', oldId: tempId, newId: backendDelivery.id, data: backendDelivery });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('offlineMutationRecordReplaced', {
@@ -543,7 +558,7 @@ export const createDelivery = async (deliveryData, options = {}) => {
         }));
       }
       
-      // Broadcast to other devices
+      // Broadcast to other devices (WS echo self-suppression already registered above)
       await broadcastMutation('Delivery', 'create', backendDelivery.id, backendDelivery);
       await emitImmediateRealtimeCreate('Delivery', backendDelivery);
       

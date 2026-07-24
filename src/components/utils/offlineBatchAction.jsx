@@ -83,6 +83,14 @@ const flushToOnlineDB = async (records) => {
       const created = await base44.entities.Delivery.create(payload);
       createdRecords.push(created);
 
+      // CRITICAL: Mark this newly created delivery ID as a local write so the WS echo
+      // is suppressed. Without this, the echo arrives as a 'create' event and adds a
+      // duplicate to React state (since applyLocalUI already rendered the temp record).
+      if (created?.id) {
+        if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+        window.__localDeliveryWrites.set(created.id, Date.now());
+      }
+
       // Replace temp with real in offline DB
       const db = await offlineDB.openDatabase();
       const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
@@ -92,6 +100,14 @@ const flushToOnlineDB = async (records) => {
         req.onerror = () => reject(req.error);
       });
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [created]);
+
+      // Swap the temp ID for the real ID in window.__appDeliveries so the duplicate
+      // guard in the WS handler matches correctly if the echo slips through.
+      if (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries)) {
+        window.__appDeliveries = window.__appDeliveries.map(d =>
+          d?.id === _tempId ? { ...created } : d
+        );
+      }
     } catch (err) {
       console.warn('[OfflineBatch] Create failed, will retry via pending mutations:', err.message);
       await offlineDB.addPendingMutation({

@@ -268,6 +268,7 @@ function UnifiedRoutePolylines({
         let isFallback = false;
         if (!coords && i > 0) {
           const prev = allOrdered[i - 1];
+          // Coords are already corrected for ISP/ISD in the driverStops useMemo
           coords = makeFallback(prev, stop);
           isFallback = true;
         }
@@ -323,16 +324,24 @@ function UnifiedRoutePolylines({
               : b.updated_date ? new Date(b.updated_date).getTime() : 0;
             return tb - ta;
           })[0];
-          if (lastFinished)
+          if (lastFinished) {
+            // For ISP/ISD finished stops, their stored latitude/longitude may point to
+            // the pickup store rather than the true interstore location — resolve from cache.
+            const finishedLoc = isInterStoreDelivery(lastFinished.delivery_id)
+              ? getInterStoreLocationSync(lastFinished.delivery_id)
+              : null;
             originFallback = {
-              latitude: Number(lastFinished.latitude),
-              longitude: Number(lastFinished.longitude),
+              latitude: finishedLoc?.store_latitude ? Number(finishedLoc.store_latitude) : Number(lastFinished.latitude),
+              longitude: finishedLoc?.store_longitude ? Number(finishedLoc.store_longitude) : Number(lastFinished.longitude),
             };
+          }
         }
 
         let coords = decodePolyline(currentStop.encoded_polyline);
         let isFallback = false;
         if (!coords && originFallback) {
+          // currentStop coords are already corrected via the driverStops useMemo above,
+          // so currentStop.latitude/longitude are the true interstore coords when applicable.
           coords = makeFallback(originFallback, currentStop);
           isFallback = true;
         }

@@ -9,6 +9,7 @@ import { offlineDB } from './offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { pauseRealtimeSync, resumeRealtimeSync } from './realtimeSync';
 import { smartRefreshManager } from './smartRefreshManager';
+import { backgroundSyncManager } from './backgroundSyncManager';
 
 export async function runAcceptAllBatchPipeline({
   triggerDelivery,
@@ -77,6 +78,7 @@ export async function runAcceptAllBatchPipeline({
   // echoes don't thrash the UI while we're writing.
   pauseRealtimeSync();
   smartRefreshManager.pause();
+  backgroundSyncManager.pause();
 
   // Update UI IMMEDIATELY (optimistic) — don't wait for any backend writes.
   if (updateDeliveriesLocally && updatedDeliveries.length > 0) {
@@ -101,9 +103,11 @@ export async function runAcceptAllBatchPipeline({
     );
     finalOfflineUpdates.push(...results.filter(Boolean));
   } finally {
-    // Resume is handled by the caller (executeAcceptAllStops) after optimization completes.
-    // We only release smartRefresh here; realtimeSync stays paused until caller resumes it.
-    smartRefreshManager.resume();
+    // Resume/restart sync managers. realtimeSync stays paused until the caller resumes it
+    // after optimization completes. smartRefresh and backgroundSync restart now so polling
+    // resumes immediately once the batch writes are confirmed.
+    backgroundSyncManager.resume();
+    smartRefreshManager.restart(); // restart (not just resume) so the next cycle fetches fresh data
   }
 
   // Build COD batch for Square sync

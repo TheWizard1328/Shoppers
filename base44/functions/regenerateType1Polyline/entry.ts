@@ -513,20 +513,31 @@ Deno.serve(async (req) => {
       if (loc.id) interstoreById.set(loc.id, loc);
     });
 
-    // Resolve ISP "from" coords by parsing the delivery_id phone segment
+    // Resolve ISP/ISD destination coords by parsing the delivery_id phone segment.
+    //
+    // delivery_id format: ISP-<timestamp>-<pickupPhone>-<dropoffPhone>
+    //                     ISD-<timestamp>-<pickupPhone>-<dropoffPhone>
+    //
+    // The DESTINATION (where the driver is headed for this stop) is:
+    //   ISP → the pickup/source interstore location   → parts[2] (pickupPhone)
+    //   ISD → the dropoff/dest interstore location    → parts[3] (dropoffPhone)
+    //
+    // This is the same logic used by extractFromPhoneFromDeliveryId() on the frontend.
     const ispSourceMap = new Map();
     for (const d of ispDeliveries) {
       const upper = String(d.delivery_id || '').toUpperCase();
       const parts = String(d.delivery_id || '').split('-');
-      const fromPhone = upper.startsWith('ISP-') ? stripPhone(parts[2]) : upper.startsWith('ISD-') ? stripPhone(parts[3]) : null;
-      if (!fromPhone) continue;
-      const loc = ispPhoneToLocation.get(fromPhone);
+      // ISP: destination is the interstore pickup location (parts[2])
+      // ISD: destination is the interstore dropoff location (parts[3])
+      const destPhone = upper.startsWith('ISP-') ? stripPhone(parts[2]) : upper.startsWith('ISD-') ? stripPhone(parts[3]) : null;
+      if (!destPhone) continue;
+      const loc = ispPhoneToLocation.get(destPhone);
       if (loc?.store_latitude && loc?.store_longitude) {
         ispSourceMap.set(d.id, { lat: Number(loc.store_latitude), lon: Number(loc.store_longitude) });
         continue;
       }
-      // Fallback: match phone against loaded stores
-      const matchedStore = Array.from(storeMap.values()).find((s) => stripPhone(s.phone) === fromPhone && s.latitude && s.longitude);
+      // Fallback: match phone against loaded stores (ISP stops sometimes share store phone)
+      const matchedStore = Array.from(storeMap.values()).find((s) => stripPhone(s.phone) === destPhone && s.latitude && s.longitude);
       if (matchedStore) {
         ispSourceMap.set(d.id, { lat: Number(matchedStore.latitude), lon: Number(matchedStore.longitude) });
       }
@@ -548,8 +559,10 @@ Deno.serve(async (req) => {
         return null;
       }
 
-      // 2. InterStore stops (ISP/ISD) — resolve via _interstore_source_id / _interstore_dest_id
-      //    This is more reliable than phone-based lookup (phones can be missing or mismatched)
+      // 2. InterStore stops (ISP/ISD) — resolve DESTINATION coords for this stop.
+      //    ISP (interstore pickup): driver travels TO the source/pickup interstore location → _interstore_source_id
+      //    ISD (interstore dropoff): driver travels TO the dest/dropoff interstore location → _interstore_dest_id
+      //    ID-based lookup is more reliable; phone-based ispSourceMap is the fallback.
       if (!delivery.patient_id) {
         const upperDid = String(delivery.delivery_id || '').toUpperCase();
         if (upperDid.startsWith('ISP-') && delivery._interstore_source_id) {
@@ -564,7 +577,7 @@ Deno.serve(async (req) => {
           const lon = Number(loc?.store_longitude);
           if (isValidCoord(lat, lon)) return { lat, lon };
         }
-        // Fallback: phone-based lookup from ispSourceMap
+        // Fallback: phone-based lookup (destination phone parsed from delivery_id)
         if (ispSourceMap.has(delivery.id)) {
           const coords = ispSourceMap.get(delivery.id);
           if (isValidCoord(coords.lat, coords.lon)) return coords;
