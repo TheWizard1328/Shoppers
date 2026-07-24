@@ -470,16 +470,19 @@ export async function setAndCenterNextDelivery({
 }) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
 
-  if (collapseCards) {
-    await collapseExpandedStopCardsForDriver(driverId);
-  }
-
+  // CRITICAL: IDB write + React state update FIRST — the double-RAF collapse
+  // is cosmetic and doesn't need to block the isNextDelivery flag write.
   const changedDeliveries = await syncNextDeliveryFlagsLocally({
     driverDeliveries: scopedDeliveries,
     nextDeliveryId: targetDeliveryId,
     updateDeliveriesLocally,
     persistToBackend
   });
+
+  // Collapse AFTER the IDB write — cosmetic, fire-and-forget
+  if (collapseCards) {
+    collapseExpandedStopCardsForDriver(driverId).catch(() => {});
+  }
 
   if (targetDeliveryId) {
     centerDeliveryCard(targetDeliveryId);

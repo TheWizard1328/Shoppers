@@ -1072,21 +1072,20 @@ export default function useStopCardActions(params) {
     shouldRecalculateEtas,
     skipCollapseCard = false,
   }) => {
-    // 1. Collapse any expanded card (skip if caller already did it)
-    if (!skipCollapseCard) await collapseDriverStopCards();
-
-    // 2. Atomic IDB write — offline-first, no smart-refresh trigger
+    // 1. Atomic IDB write — offline-first, no smart-refresh trigger.
+    //    This is ESSENTIAL WRITE #1: status + actual_delivery_time.
     await Promise.allSettled([updateDeliveryLocal(delivery.id, criticalUpdate, { skipSmartRefresh: true })]);
 
-    // 3. Clear breadcrumbs now that IDB write is committed
+    // 2. Clear breadcrumbs (no-op stub — kept for future use, non-blocking)
     if (pendingBreadcrumbsString) {
-      try {
-        await clearPendingBreadcrumbsForDelivery({
-          driverUserId: delivery.driver_id, deliveryId: delivery.id,
-          stopOrder: delivery.stop_order, appUsers, force: true,
-        });
-      } catch {}
+      clearPendingBreadcrumbsForDelivery({
+        driverUserId: delivery.driver_id, deliveryId: delivery.id,
+        stopOrder: delivery.stop_order, appUsers, force: true,
+      }).catch(() => {});
     }
+
+    // 3. Collapse card (cosmetic — DOM + double-RAF, doesn't block critical path)
+    if (!skipCollapseCard) collapseDriverStopCards().catch(() => {});
 
     // 4. Build optimistic route snapshot from in-memory allDeliveries
     //    (do NOT call forceRefreshDriverDeliveries here — IDB hasn't caught up yet)
