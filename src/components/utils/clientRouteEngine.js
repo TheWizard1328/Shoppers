@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 /**
  * clientRouteEngine.js
  *
@@ -244,11 +245,24 @@ const getDeliveryCoords = (delivery, patientMap, storeMap, ispSourceMap = new Ma
     if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) return { lat, lng };
     return null;
   }
-  if (delivery._interstore_source_id && !delivery.patient_id) {
-    const ispLoc = ispSourceMap.get(delivery._interstore_source_id);
-    const ispLat = Number(ispLoc?.store_latitude);
-    const ispLng = Number(ispLoc?.store_longitude);
-    if (Number.isFinite(ispLat) && Number.isFinite(ispLng) && ispLat !== 0 && ispLng !== 0) return { lat: ispLat, lng: ispLng };
+  // InterStore stops (ISP/ISD) — resolve true destination coords from ispSourceMap,
+  // which is populated from the InterStoreLocation in-memory cache.
+  // ISP: driver travels to _interstore_source_id; ISD: driver travels to _interstore_dest_id.
+  if (!delivery.patient_id) {
+    const interstoreId = delivery._interstore_source_id || delivery._interstore_dest_id;
+    if (interstoreId) {
+      const ispLoc = ispSourceMap.get(interstoreId);
+      const ispLat = Number(ispLoc?.store_latitude);
+      const ispLng = Number(ispLoc?.store_longitude);
+      if (Number.isFinite(ispLat) && Number.isFinite(ispLng) && ispLat !== 0 && ispLng !== 0) return { lat: ispLat, lng: ispLng };
+      // Fallback: try direct cache lookup by delivery_id
+      if (isInterStoreDelivery(delivery.delivery_id)) {
+        const loc = getInterStoreLocationSync(delivery.delivery_id);
+        const lat = Number(loc?.store_latitude);
+        const lng = Number(loc?.store_longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) return { lat, lng };
+      }
+    }
   }
   if (delivery.patient_id) {
     const patient = patientMap.get(delivery.patient_id);
@@ -525,11 +539,28 @@ export async function optimizeRouteClientSide({
 
   console.log(`[clientRouteEngine] ${source} — INPUT: ${allDeliveries.length} total deliveries → completed=${completedDeliveries.length}, active=${activeRouteDeliveries.length}, pending=${pendingRouteDeliveries.length}, optimizable=${optimizableDeliveries.length}`);
 
-  // ISP source locations (client-side: try to resolve from stores by phone match)
-  const ispSourceIds = [...new Set(allDeliveries.filter(d => d._interstore_source_id && !d.patient_id).map(d => d._interstore_source_id))];
-  const ispSourceMap = new Map(); // Client-side: we don't have InterStoreLocation entity locally; rely on store coords fallback
-  // If we have ISP source IDs, the backend function resolved them. On client side, getDeliveryCoords
-  // will fall through to store coords if ispSourceMap doesn't have the ID — which is the correct fallback.
+  // Resolve InterStore (ISP/ISD) coordinates from the in-memory InterStoreLocation cache.
+  // The cache is populated during bootstrap sync and indexed by phone digits.
+  // Map: _interstore_source_id (ISP) or _interstore_dest_id (ISD) → { lat, lon }
+  const ispSourceMap = new Map();
+  for (const d of allDeliveries) {
+    if (d.patient_id) continue;
+    // ISP stops use _interstore_source_id; ISD stops use _interstore_dest_id
+    const isdId = d._interstore_dest_id;
+    const ispId = d._interstore_source_id;
+    // Try ID-based lookup first via the shared cache
+    if (isInterStoreDelivery(d.delivery_id)) {
+      const loc = getInterStoreLocationSync(d.delivery_id);
+      if (loc) {
+        const lat = Number(loc.store_latitude);
+        const lon = Number(loc.store_longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
+          const keyId = ispId || isdId || d.id;
+          ispSourceMap.set(keyId, { store_latitude: lat, store_longitude: lon });
+        }
+      }
+    }
+  }
 
   // Build pickup window lookup
   const pickupWindowByStopId = new Map(

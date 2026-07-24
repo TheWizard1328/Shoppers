@@ -11,6 +11,8 @@
  * - EXCEPTION: "InterStore PickUp" deliveries are exempt from this constraint
  */
 
+import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
+
 // Calculate distance between two points (Haversine formula)
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371; // Earth's radius in kilometers
@@ -499,7 +501,18 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
 
     const enriched = { ...stop };
 
-    if (!stop.patient_id) {
+    // InterStore stops (ISP/ISD) — resolve true destination coords from InterStoreLocation cache.
+    // Must check BEFORE patient/store fallback since ISP/ISD stops have no patient_id.
+    if (isInterStoreDelivery(stop.delivery_id)) {
+      const loc = getInterStoreLocationSync(stop.delivery_id);
+      if (loc?.store_latitude && loc?.store_longitude) {
+        enriched.latitude = Number(loc.store_latitude);
+        enriched.longitude = Number(loc.store_longitude);
+        console.log(`   🏪 InterStore (${stop.delivery_id}): ${loc.store_name} -> [${enriched.latitude.toFixed(7)}, ${enriched.longitude.toFixed(7)}]`);
+      } else {
+        console.error(`   ❌ InterStore missing coordinates: ${stop.delivery_id} (not in cache yet)`);
+      }
+    } else if (!stop.patient_id) {
       const store = stores.find(storeItem => storeItem && storeItem.id === stop.store_id);
       if (store?.latitude && store?.longitude) {
         enriched.latitude = store.latitude;

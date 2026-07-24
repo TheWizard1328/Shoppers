@@ -1,5 +1,6 @@
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
+import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 
 const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
 
@@ -61,6 +62,17 @@ const parseTimestamp = (value) => {
 };
 
 const getStopCoords = async ({ delivery, patients, stores }) => {
+  if (!delivery) return null;
+  // InterStore stops (ISP/ISD) — resolve true destination coords from InterStoreLocation cache.
+  // The stop's stored latitude/longitude may point to the wrong store, so check InterStore first.
+  if (isInterStoreDelivery(delivery.delivery_id)) {
+    const loc = getInterStoreLocationSync(delivery.delivery_id);
+    const lat = Number(loc?.store_latitude);
+    const lon = Number(loc?.store_longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
+      return [lat, lon];
+    }
+  }
   if (delivery?.patient_id) {
     const patient = (patients || []).find((p) => p?.id === delivery.patient_id);
     if (Number.isFinite(Number(patient?.latitude)) && Number.isFinite(Number(patient?.longitude))) {

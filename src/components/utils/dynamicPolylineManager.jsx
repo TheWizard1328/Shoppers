@@ -3,8 +3,20 @@
  * Fetches and manages polylines between route segments based on current route state
  */
 
+import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
+
 const getStopCoords = (stop, patients = [], stores = []) => {
   if (!stop) return null;
+  // InterStore stops (ISP/ISD) — resolve true destination coords from InterStoreLocation cache.
+  // The stop's stored latitude/longitude may point to the wrong store, so check InterStore first.
+  if (isInterStoreDelivery(stop.delivery_id)) {
+    const loc = getInterStoreLocationSync(stop.delivery_id);
+    const lat = Number(loc?.store_latitude);
+    const lon = Number(loc?.store_longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
+      return { lat, lon };
+    }
+  }
   if (stop.patient_id) {
     const patient = patients.find((p) => p && p.id === stop.patient_id);
     if (patient?.latitude && patient?.longitude) {

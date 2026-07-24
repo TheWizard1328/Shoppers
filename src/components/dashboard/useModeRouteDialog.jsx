@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import { toast } from 'sonner';
 import { getCurrentDriverLocation, getNearbyModeStops } from '@/components/dashboard/modeButtonHelpers';
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
@@ -196,6 +197,15 @@ export default function useModeRouteDialog({
       // ── 4. Crow-flies sort selected stops from the Start marker ───────────
       const crowSorted = [...selectedDeliveries].sort((a, b) => {
         const getCoords = (d) => {
+          // InterStore stops (ISP/ISD) — resolve true destination coords from InterStoreLocation cache
+          if (isInterStoreDelivery(d.delivery_id)) {
+            const loc = getInterStoreLocationSync(d.delivery_id);
+            const lat = Number(loc?.store_latitude);
+            const lon = Number(loc?.store_longitude);
+            if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
+              return { lat, lon };
+            }
+          }
           if (d.patient_id) {
             const p = patients.find((x) => x?.id === d.patient_id);
             return p ? { lat: Number(p.latitude), lon: Number(p.longitude) } : null;
