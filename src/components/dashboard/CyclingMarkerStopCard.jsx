@@ -12,7 +12,10 @@ const getCyclingType = (delivery) => {
 const START_COLOR = '#16a34a';
 const END_COLOR = '#dc2626';
 
-export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery }) {
+export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery, currentUser }) {
+  const isDispatcher = Array.isArray(currentUser?.app_roles)
+    ? currentUser.app_roles.includes('dispatcher') && !currentUser.app_roles.includes('admin')
+    : false;
   const [menuOpen, setMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -208,7 +211,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           overflow: 'visible'
         }}
         onClick={() => {
-          setMenuOpen((v) => !v);
+          if (!isDispatcher) setMenuOpen((v) => !v);
           window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery?.id } }));
         }}>
         
@@ -281,8 +284,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
         {/* Bottom row: Navigate button (left) + action buttons (right) */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-          {/* Navigate button — opens maps app with cycling marker GPS coordinates */}
+          {/* Navigate button — hidden once completed (all users) and hidden for dispatchers */}
           {(() => {
+            if (isCompleted || isDispatcher) return null;
             const lat = delivery?.cycling_latitude;
             const lng = delivery?.cycling_longitude;
             if (lat == null || lng == null) return null;
@@ -299,7 +303,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             );
           })()}
           <div style={{ display: 'flex', gap: '6px' }}>
-          {!isCompleted && delivery?.status !== 'cancelled' && (
+          {!isDispatcher && !isCompleted && delivery?.status !== 'cancelled' && (
             isActionable ? (
               <button
                 ref={btnRef}
@@ -332,7 +336,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
               </button>
             )
           )}
-          {['completed', 'cancelled'].includes(delivery?.status) && onRestart && !routeCompleted && (
+          {!isDispatcher && ['completed', 'cancelled'].includes(delivery?.status) && onRestart && !routeCompleted && (
             <button
               ref={btnRef}
               onClick={handleRestart}
@@ -346,9 +350,9 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         </div>
       </div>
 
-      {/* Dropdown menu — anchored above the action button */}
+      {/* Dropdown menu — hidden for dispatchers */}
       <AnimatePresence>
-        {menuOpen &&
+        {menuOpen && !isDispatcher &&
         <motion.div
           initial={{ opacity: 0, y: 4, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
