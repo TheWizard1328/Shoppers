@@ -523,12 +523,15 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
   }
 
   if (persistToBackend) {
-    await Promise.all(changedDeliveries.map((item) =>
+    // CRITICAL: Server sync is fire-and-forget — IDB write + UI update
+    // already happened above. smartRefreshManager has registered all
+    // affected delivery IDs, so WebSocket echoes arrive as no-ops.
+    Promise.all(changedDeliveries.map((item) =>
       base44.entities.Delivery.update(item.id, {
         isNextDelivery: !!item.isNextDelivery,
         travel_dist: item.travel_dist
       }).catch(() => null)
-    ));
+    )).catch(() => {});
   }
 
   return changedDeliveries;

@@ -1199,15 +1199,17 @@ export default function useStopCardActions(params) {
       } catch {}
 
       // If the current logged-in user IS the completing driver, also update local status + stop tracker
+      // Fire-and-forget: don't block the EOD dialog on the server round-trip
       if (currentUser?.id === delivery.driver_id) {
         const driverStatus = driverAppUser?.driver_status ?? currentUser?.driver_status;
         if (driverStatus === 'on_duty') {
-          try { await setDriverStatus({ newStatus: 'off_duty' }); locationTracker.stopTracking(); } catch {}
+          setDriverStatus({ newStatus: 'off_duty' }).catch(() => {});
+          try { locationTracker.stopTracking(); } catch {}
           if (onDriverStatusChange) onDriverStatusChange('off_duty');
         }
       }
 
-      // Fire the EOD dialog event AFTER off-duty is handled
+      // Fire the EOD dialog event immediately — don't wait for off-duty server sync
       window.dispatchEvent(new CustomEvent('showRouteSummary', {
         detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date },
       }));
@@ -1284,7 +1286,7 @@ export default function useStopCardActions(params) {
           toast.error('This delivery has been deleted. Please refresh the page.');
           return;
         }
-        if (currentUser?.driver_status !== 'on_duty') await ensureDriverOnline();
+        if (currentUser?.driver_status !== 'on_duty') ensureDriverOnline().catch(() => {});
 
         const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate
           ? [{ type: 'Cash', amount: codTotalRequired }] : null;
@@ -1310,19 +1312,18 @@ export default function useStopCardActions(params) {
         // Timing
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
         const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
-        const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true }) : null;
         const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const completionCodPayments = autoCODPayment || codPayments;
-        const forcedCompletionTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
-        const forcedArrivalTimestamp = useRetroactiveTiming ? (retroactiveTiming?.arrival_time || delivery.arrival_time || localTimeString) : (delivery.arrival_time || localTimeString);
-        const shouldOverwriteArrivalTime = useRetroactiveTiming ? !!forcedArrivalTimestamp : !delivery.arrival_time;
         const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
         const fallbackSignatureUrl = patientSavedSignatureUrl || null;
-        const fallbackTravelDist = resolveTravelDistFallback(delivery, retroactiveTiming?.travel_dist, sameRouteDeliveries);
 
+        // CRITICAL: For the initial write, use localTimeString (synchronous).
+        // If retroactive timing is needed (past-date deliveries), it fires as
+        // fire-and-forget AFTER the IDB write — the UI shows the completion
+        // immediately, and the retroactive timestamp updates in the background.
         const completionUpdate = {
           status: 'completed',
-          actual_delivery_time: forcedCompletionTimestamp || localTimeString,
+          actual_delivery_time: localTimeString,
           finished_leg_transport_mode: currentPreferredTravelMode,
           isNextDelivery: false,
           finished_leg_encoded_polyline: null,
@@ -1330,9 +1331,21 @@ export default function useStopCardActions(params) {
           ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
           ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}),
           ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}),
-          ...(shouldOverwriteArrivalTime && forcedArrivalTimestamp ? { arrival_time: forcedArrivalTimestamp } : {}),
-          ...(typeof fallbackTravelDist === 'number' ? { travel_dist: fallbackTravelDist } : {}),
+          ...(!delivery.arrival_time ? { arrival_time: localTimeString } : {}),
         };
+
+        // Fire-and-forget: retroactive timing correction for past-date deliveries
+        if (useRetroactiveTiming) {
+          calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true })
+            .then(retroactiveTiming => {
+              if (!retroactiveTiming) return;
+              const retroUpdate = { actual_delivery_time: retroactiveTiming.actual_delivery_time };
+              if (retroactiveTiming.arrival_time) retroUpdate.arrival_time = retroactiveTiming.arrival_time;
+              if (typeof retroactiveTiming.travel_dist === 'number') retroUpdate.travel_dist = retroactiveTiming.travel_dist;
+              updateDeliveryLocal(delivery.id, retroUpdate, { skipSmartRefresh: true }).catch(() => {});
+            }).catch(() => {});
+        }
+        const fallbackTravelDist = resolveTravelDistFallback(delivery, null, sameRouteDeliveries);
 
         const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
         const shouldRecalculateCompletionEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
@@ -1341,19 +1354,18 @@ export default function useStopCardActions(params) {
         if (completionUpdate.actual_delivery_time && completionUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
           appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: completionUpdate.actual_delivery_time }).catch(() => {});
         }
-        if (shouldDeleteSquareCodBeforeComplete) await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
+        if (shouldDeleteSquareCodBeforeComplete) deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion').catch(() => {});
 
-        // Patient side-effect (independent of terminal engine)
+        // Fire-and-forget: patient side-effects are background work
         if (patient?.id) {
-          try {
-            const { updatePatientLocal } = await import('../utils/offlineMutations');
-            await updatePatientLocal(patient.id, {
+          import('../utils/offlineMutations').then(({ updatePatientLocal }) => {
+            updatePatientLocal(patient.id, {
               ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}),
               ...(patient?.status === 'inactive' ? { status: 'active' } : {}),
-            });
-          } catch {}
+            }).catch(() => {});
+          }).catch(() => {});
           if (patient?.status === 'inactive') {
-            await base44.entities.Patient.update(patient.id, { status: 'active' });
+            base44.entities.Patient.update(patient.id, { status: 'active' }).catch(() => {});
           }
         }
 
@@ -1393,26 +1405,26 @@ export default function useStopCardActions(params) {
           notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers }).catch(() => {});
         }
 
-        // InterStore dropoff lookup — only for store pickups (patient deliveries can't be InterStore sources)
+        // Fire-and-forget: InterStore dropoff lookup is background work
         if (isPickup) {
-          try {
-            const interStoreResponse = await base44.functions.invoke('findInterStoreDropoff', { deliveryId: delivery.id });
-            const interStoreData = interStoreResponse?.data || interStoreResponse;
-            if (interStoreData?.isInterStorePickup) {
-              const originatingStoreId = interStoreData?.match?.store_id || null;
-              const driverRouteDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
-              const hasEnRoutePickupForOriginStore = driverRouteDeliveries.some((item) => item && !item.patient_id && item.store_id === originatingStoreId && item.status === 'en_route');
-              const hasMatchingInTransitDropoff = driverRouteDeliveries.some((item) => {
-                if (!item || item.id === delivery.id || item.status !== 'in_transit') return false;
-                const notes = String(item.delivery_notes || '').toLowerCase();
-                return item.patient_id === interStoreData?.match?.id && (notes.includes('interstore drop-off') || notes.includes('interstore dropoff') || notes.includes('isd'));
-              });
-              if (!hasEnRoutePickupForOriginStore && !hasMatchingInTransitDropoff) {
-                setInterStoreMatch?.(interStoreData.match || null);
-                setShowInterStoreDialog?.(true);
+          base44.functions.invoke('findInterStoreDropoff', { deliveryId: delivery.id })
+            .then(interStoreResponse => {
+              const interStoreData = interStoreResponse?.data || interStoreResponse;
+              if (interStoreData?.isInterStorePickup) {
+                const originatingStoreId = interStoreData?.match?.store_id || null;
+                const driverRouteDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
+                const hasEnRoutePickupForOriginStore = driverRouteDeliveries.some((item) => item && !item.patient_id && item.store_id === originatingStoreId && item.status === 'en_route');
+                const hasMatchingInTransitDropoff = driverRouteDeliveries.some((item) => {
+                  if (!item || item.id === delivery.id || item.status !== 'in_transit') return false;
+                  const notes = String(item.delivery_notes || '').toLowerCase();
+                  return item.patient_id === interStoreData?.match?.id && (notes.includes('interstore drop-off') || notes.includes('interstore dropoff') || notes.includes('isd'));
+                });
+                if (!hasEnRoutePickupForOriginStore && !hasMatchingInTransitDropoff) {
+                  setInterStoreMatch?.(interStoreData.match || null);
+                  setShowInterStoreDialog?.(true);
+                }
               }
-            }
-          } catch (_) {}
+            }).catch(() => {});
         }
 
         dispatchStopCardActionCollapse();
@@ -1425,11 +1437,9 @@ export default function useStopCardActions(params) {
         // cycling segment is fully finished. Reset preferred_travel_mode to 'driving'
         // so all subsequent stops default to driving mode.
         if (delivery?.is_cycling_marker && String(delivery?.delivery_notes || '').toLowerCase().includes('end')) {
-          try {
-            await updatePreferredTravelMode(appUsers, delivery.driver_id, 'driving');
-          } catch (modeErr) {
+          updatePreferredTravelMode(appUsers, delivery.driver_id, 'driving').catch((modeErr) => {
             console.warn('[CyclingEnd] Failed to reset travel mode to driving:', modeErr?.message || modeErr);
-          }
+          });
         }
 
         toast.success(`${isPickup ? 'Pickup' : 'Delivery'} completed!`);
@@ -1501,36 +1511,41 @@ export default function useStopCardActions(params) {
         const updatedNotes = existingNotes ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}` : `[${status.toUpperCase()}] ${reason}`;
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
         const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
-        const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true }) : null;
-        const forcedFailureTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
-        const forcedFailureArrivalTimestamp = useRetroactiveTiming ? (retroactiveTiming?.arrival_time || forcedFailureTimestamp) : (delivery.arrival_time || localTimeString);
-        const existingArrivalDate = parseLocalTimestamp(delivery.arrival_time);
-        const retroactiveArrivalDate = parseLocalTimestamp(forcedFailureArrivalTimestamp);
-        const arrivalVsRetroArrivalDiffMinutes = existingArrivalDate && retroactiveArrivalDate ? Math.abs(retroactiveArrivalDate.getTime() - existingArrivalDate.getTime()) / 60000 : 0;
-        const shouldAutoSetArrivalTime = (useRetroactiveTiming && !!retroactiveArrivalDate && (!existingArrivalDate || arrivalVsRetroArrivalDiffMinutes > 5)) || (!useRetroactiveTiming && !delivery.arrival_time);
         const allRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-        const fallbackTravelDist = resolveTravelDistFallback(delivery, retroactiveTiming?.travel_dist, allRouteDeliveries);
+        const fallbackTravelDist = resolveTravelDistFallback(delivery, null, allRouteDeliveries);
 
         const criticalUpdate = {
           status,
           delivery_notes: updatedNotes,
-          actual_delivery_time: forcedFailureTimestamp,
+          actual_delivery_time: localTimeString,
           finished_leg_transport_mode: currentPreferredTravelMode,
           isNextDelivery: false,
           PolylineUpdated: true,
           ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
-          ...(shouldAutoSetArrivalTime ? { arrival_time: forcedFailureArrivalTimestamp } : {}),
+          ...(!delivery.arrival_time ? { arrival_time: localTimeString } : {}),
           ...(typeof fallbackTravelDist === 'number' ? { travel_dist: fallbackTravelDist } : {}),
         };
 
+        // Fire-and-forget: retroactive timing correction for past-date deliveries
+        if (useRetroactiveTiming) {
+          calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true })
+            .then(retroactiveTiming => {
+              if (!retroactiveTiming) return;
+              const retroUpdate = { actual_delivery_time: retroactiveTiming.actual_delivery_time };
+              if (retroactiveTiming.arrival_time) retroUpdate.arrival_time = retroactiveTiming.arrival_time;
+              if (typeof retroactiveTiming.travel_dist === 'number') retroUpdate.travel_dist = retroactiveTiming.travel_dist;
+              updateDeliveryLocal(delivery.id, retroUpdate, { skipSmartRefresh: true }).catch(() => {});
+            }).catch(() => {});
+        }
+
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
-        const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, criticalUpdate.actual_delivery_time);
+        const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, localTimeString);
 
         // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
         if (criticalUpdate.actual_delivery_time && criticalUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
           appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: criticalUpdate.actual_delivery_time }).catch(() => {});
         }
-        if (shouldDeleteSquareCodBeforeFailure) await deleteCODWithTimeout(delivery.id, `Deleted before marking as ${status}`);
+        if (shouldDeleteSquareCodBeforeFailure) deleteCODWithTimeout(delivery.id, `Deleted before marking as ${status}`).catch(() => {});
 
         // ── Terminal engine ──────────────────────────────────────────────────
         const actedOnNextDelivery = delivery?.isNextDelivery === true;

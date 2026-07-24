@@ -680,25 +680,28 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         payload: meaningfulUpdates
       });
     } else {
-      try {
-        const { base44 } = await import('@/api/base44Client');
-        await base44.entities.Delivery.update(deliveryId, meaningfulUpdates);
-        console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
-
-        // Broadcast to other tabs/clients via WebSocket
-        window.dispatchEvent(new CustomEvent('deliveryUpdated', {
-          detail: { deliveryId, updates: meaningfulUpdates, source: 'updateDeliveryLocal' }
-        }));
-      } catch (error) {
-        console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
-        // Queue for backend sync if immediate sync fails
-        await offlineDB.addPendingMutation({
-          operation: 'update',
-          entity: 'Delivery',
-          recordId: deliveryId,
-          payload: meaningfulUpdates
-        });
-      }
+      // CRITICAL: Server sync is fire-and-forget — IDB write + UI notification
+      // already happened above. The server write triggers a WebSocket echo,
+      // but smartRefreshManager has already registered the delivery ID, so
+      // the echo arrives as a no-op (data is identical). This eliminates the
+      // blocking server round-trip that was causing 3-30s completion delays.
+      import('@/api/base44Client').then(({ base44 }) => {
+        base44.entities.Delivery.update(deliveryId, meaningfulUpdates)
+          .then(() => {
+            window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+              detail: { deliveryId, updates: meaningfulUpdates, source: 'updateDeliveryLocal' }
+            }));
+          })
+          .catch(error => {
+            console.warn('[Sync] Background sync failed, queuing:', error.message);
+            offlineDB.addPendingMutation({
+              operation: 'update',
+              entity: 'Delivery',
+              recordId: deliveryId,
+              payload: meaningfulUpdates
+            }).catch(() => {});
+          });
+      }).catch(() => {});
     }
 
     // CRITICAL: NO restart during batch operations - caller handles it once at the end
