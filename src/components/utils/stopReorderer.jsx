@@ -47,7 +47,7 @@ export const reorderStops = async (driverId, deliveryDate, allDeliveries, curren
     return { reorderedDeliveries: [], updates: [], stopOrderChanged: false, etaRefreshTriggered: false, fullOptimizationTriggered: false };
   }
   
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
   
   // Separate finished and incomplete deliveries
   const finishedDeliveries = driverDeliveries.filter(d => finishedStatuses.includes(d.status));

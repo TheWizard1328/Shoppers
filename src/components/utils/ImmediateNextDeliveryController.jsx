@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAppData } from './AppDataContext';
 import { centerDeliveryCard } from './deliveryCardUtils';
 
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 const getCurrentLocalTimeString = () => {
   const now = new Date();

@@ -2,7 +2,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const ACTIVE_STATUSES = new Set(['in_transit', 'en_route']);
-const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 
 function isNotFoundError(error) {
   return error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
@@ -272,7 +272,7 @@ function buildSegmentDeliveryUpdate(spec, directions, transportMode = 'driving')
 }
 
 function buildStopOrderRepairUpdates(deliveries) {
-  const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+  const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
   const getCompletionTime = (delivery) => {
     if (!delivery) return Number.MAX_SAFE_INTEGER;
     if (delivery.actual_delivery_time) {

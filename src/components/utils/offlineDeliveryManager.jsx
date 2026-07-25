@@ -22,7 +22,7 @@ class OfflineDeliveryManager {
     };
     
     // Add actual_delivery_time for finished statuses
-    const finishedStatuses = ['completed', 'failed', 'delivered', 'cancelled'];
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
     if (finishedStatuses.includes(status)) {
       updateData.actual_delivery_time = currentTime;
     }

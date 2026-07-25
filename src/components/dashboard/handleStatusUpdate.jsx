@@ -174,7 +174,7 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     }
 
     if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const allDriverStops = deliveriesWithStopOrder.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate);
       const completedStopsCount = allDriverStops.filter((d) => finishedStatuses.includes(d.status)).length;
       const isFirstStop = completedStopsCount === 0;
