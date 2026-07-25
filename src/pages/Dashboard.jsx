@@ -2038,6 +2038,37 @@ useEffect(() => {
   const triggerPostDeleteOperations = async (driverId, deliveryDate, wasNextDelivery) => {
     try {
       setIsEntityUpdating(true); pauseOfflineSync(); await new Promise((r) => setTimeout(r, 100));
+
+      // Check if any active stops remain for this driver/date after deletion.
+      // Terminal statuses don't count as "active" for routing purposes.
+      const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+      const driverDeliveries = (deliveriesRef.current || []).filter(
+        (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
+      );
+      const remainingActiveStops = driverDeliveries.filter(
+        (d) => !TERMINAL_STATUSES.includes(String(d.status || ''))
+      );
+
+      if (remainingActiveStops.length === 0) {
+        console.log('[DELETE] No active stops remaining — skipping optimization, stop reorder & polylines');
+        // Still dispatch the event so UI updates (clears next-delivery badge etc.)
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery', alreadyOptimized: true } }));
+        // Still run the duty check — driver should be toggled off duty with no stops
+        try {
+          const { checkAndToggleOffDutyAfterDelete } = await import('../components/utils/postDeleteDutyCheck');
+          await checkAndToggleOffDutyAfterDelete({
+            driverId,
+            deliveryDate,
+            remainingDeliveries: driverDeliveries,
+            appUsers,
+            base44,
+          });
+        } catch (dutyErr) {
+          console.warn('⚠️ [DELETE] Post-delete duty check failed:', dutyErr?.message || dutyErr);
+        }
+        return;
+      }
+
       await recalculateStopOrders(driverId, deliveryDate);
 
       const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
@@ -2045,10 +2076,6 @@ useEffect(() => {
       const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude
         ? { lat: driverAppUser.current_latitude, lon: driverAppUser.current_longitude }
         : null;
-      // Snapshot current deliveries for the engine (excluding the deleted one — already removed locally)
-      const driverDeliveries = (deliveriesRef.current || []).filter(
-        (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
-      );
 
       const result = await performRouteOptimization({
         driverId,

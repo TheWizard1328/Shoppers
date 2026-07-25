@@ -74,6 +74,20 @@ export async function performRouteOptimization({
     return { success: false, error: 'Missing driverId or deliveryDate' };
   }
 
+  // ── Early exit: if deliveries were provided and contain zero active stops, bail.
+  // This prevents wasted HERE API calls when a delete leaves the route empty.
+  // "Active" = not in a terminal status (completed/failed/cancelled/returned/pending).
+  const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+  if (Array.isArray(deliveries) && deliveries.length > 0) {
+    const activeStops = deliveries.filter(
+      (d) => d && !TERMINAL_STATUSES.includes(String(d.status || ''))
+    );
+    if (activeStops.length === 0) {
+      console.log(`[RouteOptimization] ${source} — no active stops for driver ${driverId} on ${deliveryDate}, skipping`);
+      return { success: true, skipped: true, reason: 'no_active_stops', freshDeliveries: [], optimizeData: { skipped: true, reason: 'no_active_stops' } };
+    }
+  }
+
   // ── Fire KITT bar immediately so UI responds before any async work ────────
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source, driverId, deliveryDate } }));
@@ -136,6 +150,23 @@ export async function performRouteOptimization({
   }
   if (!resolvedAppUsers) {
     resolvedAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
+  }
+
+  // ── Second active-stops check: after backend fetch (for callers that passed deliveries=null).
+  // If the fetched data shows no active stops, bail before wasting HERE API calls.
+  {
+    const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+    const activeStops = (resolvedDeliveries || []).filter(
+      (d) => d && !TERMINAL_STATUSES.includes(String(d.status || ''))
+    );
+    if (activeStops.length === 0) {
+      console.log(`[RouteOptimization] ${source} — no active stops found after backend fetch for driver ${driverId} on ${deliveryDate}, skipping`);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+        window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source, driverId, deliveryDate, skipped: true } }));
+      }
+      return { success: true, skipped: true, reason: 'no_active_stops_after_fetch', freshDeliveries: [], optimizeData: { skipped: true, reason: 'no_active_stops' } };
+    }
   }
 
   try {

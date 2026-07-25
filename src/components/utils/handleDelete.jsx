@@ -36,8 +36,19 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
     invalidateDeliveriesForDate(deliveryDate);
     invalidate('Delivery');
 
-    console.log('🗑️ [DELETE Handler] Step 4: Triggering ETA recalculation...');
-    if (driverId && deliveryDate) {
+    // Check if any active stops remain for this driver/date after deletion.
+    // If none remain, skip ETA recalculation and polyline regeneration — there's no route.
+    const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+    const remainingActiveAfterDelete = (deliveries || []).filter(
+      (d) => d && d.id !== deliveryId
+        && d.driver_id === driverId
+        && d.delivery_date === deliveryDate
+        && !TERMINAL_STATUSES.includes(String(d.status || ''))
+    );
+    const hasActiveStops = remainingActiveAfterDelete.length > 0;
+
+    console.log(`🗑️ [DELETE Handler] Step 4: ${hasActiveStops ? 'Triggering ETA recalculation...' : 'No active stops remaining — skipping ETA & polylines'}`);
+    if (driverId && deliveryDate && hasActiveStops) {
       try {
         await base44.functions.invoke('etaOptimizer', {
           driverId: driverId,
@@ -51,7 +62,7 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
       }
     }
 
-    if (driverId && deliveryDate) {
+    if (driverId && deliveryDate && hasActiveStops) {
       try {
         await base44.functions.invoke('purgeAndRegeneratePolylines', {
           driverId,
