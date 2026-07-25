@@ -160,7 +160,7 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
                   <span className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>{loc.store_name}</span>
                   {loc.store_number && <span className="text-slate-400 text-xs">#{loc.store_number}</span>}
                   {userLat != null && userLng != null && loc.store_latitude != null && loc.store_longitude != null &&
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-slate-400 font-mono text-xs">
                       {crowFliesKm(userLat, userLng, loc.store_latitude, loc.store_longitude).toFixed(1)} km
                     </span>
                   }
@@ -173,7 +173,7 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
                 {loc.store_phone &&
                 <div className="flex items-center gap-1">
                     <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                    <span className="text-[10px] text-slate-500">{formatPhoneNumber(loc.store_phone)}</span>
+                    <span className="text-slate-500 text-xs">{formatPhoneNumber(loc.store_phone)}</span>
                   </div>
                 }
               </button>);
@@ -331,9 +331,9 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
       } catch {
 
 
+
         // silent fail — distance is informational only
-      } finally {if (!cancelled) setDistanceLoading(false);}
-    };
+      } finally {if (!cancelled) setDistanceLoading(false);}};
     fetchDist();
     return () => {cancelled = true;};
   }, [sourceId, destId]); // eslint-disable-line react-hooks/exhaustive-deps
