@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     }
 
     // Find active/pending deliveries (not completed/failed/cancelled/returned)
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
     const remainingDeliveries = allDeliveries.filter(
       (d) => d && !finishedStatuses.includes(d.status)
     );

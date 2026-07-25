@@ -22,7 +22,7 @@ export default function DeliveryDataTable({ deliveries, patients, stores, driver
     'Ready For Pickup': { label: 'Ready For Pickup', color: 'bg-blue-100 text-blue-800' },
     'in_transit': { label: 'In Transit', color: 'bg-purple-100 text-purple-800' },
     'completed': { label: 'Completed', color: 'bg-emerald-100 text-emerald-800' },
-    'picked_up': { label: 'Picked Up', color: 'bg-emerald-100 text-emerald-800' },
+
     'failed': { label: 'Failed', color: 'bg-red-100 text-red-800' },
     'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
   };
@@ -173,7 +173,7 @@ export default function DeliveryDataTable({ deliveries, patients, stores, driver
             <SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem>
             <SelectItem value="in_transit">In Transit</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="picked_up">Picked Up</SelectItem>
+
             <SelectItem value="failed">Failed</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>

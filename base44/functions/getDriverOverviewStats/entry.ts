@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
 
       // Count pickups (completed store pickups)
       const isPickup = !delivery.patient_id || delivery.patient_id === '';
-      if (isPickup && (delivery.status === 'completed' || delivery.status === 'picked_up')) {
+      if (isPickup && delivery.status === 'completed') {
         stats.pickups++;
       }
 
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
       if (delivery.delivery_date === todayStr) {
         stats.todayStats.total++;
         
-        if (['picked_up', 'in_transit', 'pending'].includes(delivery.status)) {
+        if (['in_transit', 'en_route', 'pending'].includes(delivery.status)) {
           stats.todayStats.active++;
         }
         if (delivery.status === 'completed' || delivery.status === 'delivered') {
@@ -187,9 +187,9 @@ Deno.serve(async (req) => {
         if (delivery.status === 'failed' && !isReturn(delivery)) {
           stats.todayStats.failed++;
         }
-        if (delivery.status === 'returned' || isReturn(delivery)) {
-          stats.todayStats.returned++;
-        }
+//        if (delivery.status === 'returned' || isReturn(delivery)) {
+//          stats.todayStats.returned++;
+//        }
       }
     });
 

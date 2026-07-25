@@ -93,7 +93,7 @@ export const applyRealtimeMergeWithLockout = (deliveryId, incomingData, localDat
 
     if (field === 'status') {
       // Never let a non-terminal status overwrite a terminal one
-      const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'returned']);
+      const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
       if (TERMINAL.has(localVal) && !TERMINAL.has(incomingVal) && incomingVal !== undefined) {
         merged[field] = localVal;
       }

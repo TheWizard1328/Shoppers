@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 
 // ── Delivery ID prefix classification ────────────────────────────────────────
 function classifyDelivery(d: any): 'delivery' | 'cycling' | 'interstore' | 'store_pickup' {

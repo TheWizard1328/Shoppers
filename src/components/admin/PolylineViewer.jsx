@@ -1277,7 +1277,7 @@ export default function PolylineViewer({ users = [] }) {
                   return (
                     <>
                       <div className="flex items-center justify-between gap-1">
-                        <span>{item.transport_mode ? `🚗 ${item.transport_mode}` : ''}</span>
+                        <span>{item.transport_mode ? `${item.transport_mode === 'cycling' ? '🚲' : item.transport_mode === 'pedestrian' ? '🚶' : '🚗'} ${item.transport_mode}` : ''}</span>
                         <span className="text-slate-500">📏 {distStr}</span>
                       </div>
                       {isFocused && (
@@ -1465,7 +1465,7 @@ export default function PolylineViewer({ users = [] }) {
             )}
             {hasCrumb && (
               <div className="flex items-center justify-between gap-2 text-green-700">
-                <span>{crumb.transport_mode ? `🚗 ${crumb.transport_mode}` : '🛤 Crumb'}</span>
+                <span>{crumb.transport_mode ? `${crumb.transport_mode === 'cycling' ? '🚲' : crumb.transport_mode === 'pedestrian' ? '🚶' : '🚗'} ${crumb.transport_mode}` : '🛤 Crumb'}</span>
                 <span>📏 {crumbDistStr} · {isEditingCrumb ? cleanedPoints.length : (crumb.point_count || 0)} pts</span>
               </div>
             )}

@@ -16,7 +16,7 @@ import { invalidate } from "@/components/utils/dataManager";
 import { cancelAllDeferredOptimizations } from '@/components/utils/optimizationDebouncer';
 import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
 
-const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
+const FINISHED = new Set(['completed', 'failed', 'cancelled']);
 
 
 /**

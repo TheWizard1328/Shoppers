@@ -21,7 +21,7 @@ export const centerDeliveryCard = (deliveryId) => {
 
 export const getNextDeliveryCard = (deliveries = []) => {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return null;
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
   return (
     deliveries.find((d) => d && d.isNextDelivery === true && !finishedStatuses.includes(d.status)) ||
     deliveries

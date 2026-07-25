@@ -63,7 +63,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const manualSwipeUnlockUntilRef = React.useRef(0);
 
   // Define finished statuses
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
 
   // CRITICAL FIX: Filter out invalid cards and dedupe by id BEFORE sorting/mapping
   const validCards = Array.from(
@@ -792,7 +792,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               }}
               onStatusUpdate={(id, status, additionalData, skipAutoCenter) => {
                 // Re-enable auto-scroll when status changes to completed/cancelled
-                if (['completed', 'cancelled', 'returned', 'failed'].includes(status)) {
+                if (['completed', 'cancelled', 'failed'].includes(status)) { //, 'returned'
                   autoScrollEnabledRef.current = true;
                 }
                 onStatusUpdate(id, status, additionalData, skipAutoCenter);

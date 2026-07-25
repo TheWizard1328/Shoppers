@@ -46,7 +46,7 @@ export function getNearbyModeStops({ deliveries = [], patients = [], stores = []
   const distanceOrigin = cyclingStartLocation || currentLocation;
 
   return deliveries
-    .filter((delivery) => delivery && !delivery.is_cycling_marker && !['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status))
+    .filter((delivery) => delivery && !delivery.is_cycling_marker && !['completed', 'failed', 'cancelled'].includes(delivery.status))
     .map((delivery) => {
       const store = stores.find((item) => item?.id === delivery.store_id);
       const storeAbbreviation = store?.abbreviation || null;

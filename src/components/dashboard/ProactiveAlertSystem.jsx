@@ -30,7 +30,7 @@ export default function ProactiveAlertSystem({
     const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
     
     // Get today's incomplete deliveries for this driver
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
     const activeDeliveries = deliveries.filter(d => 
       d && 
       d.driver_id === currentUser.id &&

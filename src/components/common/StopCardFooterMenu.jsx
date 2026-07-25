@@ -102,7 +102,7 @@ export default function StopCardFooterMenu(props) {
   const dispatcherStoreStops = isDispatcherOnly
     ? (allDeliveries || []).filter((item) => item && dispatcherStoreIds.includes(item.store_id) && item.delivery_date === selectedDate)
     : [];
-  const finishedStatuses = ['completed', 'cancelled', 'failed', 'returned'];
+  const finishedStatuses = ['completed', 'cancelled', 'failed']; //, 'returned'
   const isCurrentDispatcherStopFinished = isDispatcherOnly && finishedStatuses.includes(delivery?.status);
   const areAllDispatcherStoreStopsFinished = isDispatcherOnly && (dispatcherStoreStops.length === 0 || dispatcherStoreStops.every((item) => finishedStatuses.includes(item?.status)));
 

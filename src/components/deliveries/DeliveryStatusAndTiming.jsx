@@ -62,7 +62,7 @@ export default function DeliveryStatusAndTiming({
   const effectiveStatus = (isCyclingMarker && formData.status === 'en_route') ? 'in_transit' : formData.status;
 
   const activeStatuses = ['Staged', 'pending', 'in_transit', 'en_route'];
-  const completionStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const completionStatuses = ['completed', 'failed', 'cancelled'];
 
   const isActive = activeStatuses.includes(effectiveStatus);
   const isCompletion = completionStatuses.includes(effectiveStatus);

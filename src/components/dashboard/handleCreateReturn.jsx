@@ -15,7 +15,7 @@ const getEdmDate = () => {
 };
 
 export async function handleCreateReturn({ originalDelivery, returnPatient, store }, {
-  currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries
+  currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries, preferredTravelMode
 }) {
   setIsEntityUpdating(true);
   pauseOfflineSync();
@@ -41,9 +41,14 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
     const routeDateDeliveries = deliveries.filter((d) => d && d.driver_id === originalDelivery.driver_id && d.delivery_date === routeDate);
     const nextTrackingNumber = getNextTrackingNumberInGroup(originalDelivery.tracking_number, deliveries, originalDelivery.driver_id, routeDate);
 
+    // Resolve the driver's preferred travel mode from appUsers if not passed directly
+    const driverAppUser = appUsers?.find((u) => u?.user_id === originalDelivery.driver_id || u?.id === originalDelivery.driver_id);
+    const resolvedTravelMode = preferredTravelMode || driverAppUser?.preferred_travel_mode;
+
     const returnDeliveryData = buildReturnDeliveryData({
       originalDelivery, returnPatient, store, routeDate, routeDateDeliveries,
-      finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber, patients
+      finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber, patients,
+      preferredTravelMode: resolvedTravelMode
     });
 
     await createDeliveryLocal(returnDeliveryData);

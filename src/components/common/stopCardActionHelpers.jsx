@@ -398,7 +398,7 @@ export function getNextActiveDelivery(driverDeliveries = [], currentDeliveryId =
 
 export function reorderActiveRouteLocally(driverDeliveries = [], nextDeliveryId = null) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
   const finished = scopedDeliveries
     .filter((item) => finishedStatuses.includes(item.status))
     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
@@ -653,7 +653,7 @@ export async function optimizeRouteAndApplyNextDelivery({
     const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
     const firstEligibleActiveStop = (refreshedDriverDeliveries || [])
       .filter((item) => item && (
-        !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status) ||
+        !['completed', 'failed', 'cancelled', 'pending'].includes(item.status) ||
         item.is_cycling_marker === true
       ))
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))[0] || null;
@@ -668,7 +668,7 @@ export async function optimizeRouteAndApplyNextDelivery({
     });
 
     if (shouldRegeneratePolylines) {
-      const activeCount = (refreshedDriverDeliveries || []).filter((item) => item && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status)).length;
+      const activeCount = (refreshedDriverDeliveries || []).filter((item) => item && !['completed', 'failed', 'cancelled', 'pending'].includes(item.status)).length;
       const orderedIds = (refreshedDriverDeliveries || [])
         .filter(Boolean)
         .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))

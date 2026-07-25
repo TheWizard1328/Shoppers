@@ -122,7 +122,7 @@ export default function ETATracker({
         if (data?.success && data?.durationUpdates?.length > 0) {
           // CRITICAL: Backend now returns actual clock time ETAs - use them directly
           // Filter out finished AND pending deliveries from updates
-          const ETA_EXCLUDED_STATUSES = ['pending', 'completed', 'failed', 'cancelled', 'returned'];
+          const ETA_EXCLUDED_STATUSES = ['pending', 'completed', 'failed', 'cancelled'];
           const activeUpdates = data.durationUpdates.filter(update => 
             !ETA_EXCLUDED_STATUSES.includes(update.status)
           );

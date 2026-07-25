@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 const isRateLimitError = (error) => error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 const TIME_ZONE = 'America/Edmonton';
 const AUTOMATION_DEDUPE_WINDOW_MS = 10000;
@@ -1319,7 +1319,7 @@ Deno.serve(async (req) => {
       // they use in_transit → completed transitions only. Never force them to en_route.
       const isInterStoreStop = !!(stop._interstore_source_id || stop._interstore_dest_id);
       const isPickupStop = !stop.patient_id && !stop.is_cycling_marker && !isInterStoreStop;
-      const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
+      const FINISHED = new Set(['completed', 'failed', 'cancelled']);
       const correctedStatus = isPickupStop && stop.status === 'in_transit' ? 'en_route' : undefined;
       if (correctedStatus) {
         console.log(`[optimizeRemainingStops] Correcting pickup status in_transit → en_route | delivery=${stop.id}`);

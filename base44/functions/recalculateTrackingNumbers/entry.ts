@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 function parseTrackingNumber(value) {
   if (value === null || value === undefined) return null;

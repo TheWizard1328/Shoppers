@@ -27,7 +27,7 @@ export async function resetNextDeliveryFlag({ driverId, deliveryDate, allDeliver
     );
 
     // Find the first incomplete delivery (not completed, failed, cancelled, or returned)
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
     const nextDelivery = sortedDeliveries.find(
       (d) => !finishedStatuses.includes(d.status) && d.status !== 'pending'
     );

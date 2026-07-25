@@ -2,7 +2,7 @@ import React from 'react';
 import { Clock, Home, MapPin, Truck } from 'lucide-react';
 import { isInterStoreDelivery, getInterStoreLocationSync } from '../utils/interStoreDisplayName';
 
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 const getStatusColor = (status) => {
   const statusColors = {
@@ -20,7 +20,7 @@ const getStatusColor = (status) => {
 const getTimeColor = (status) => {
   if (status === 'completed') return 'text-emerald-600';
   if (status === 'failed' || status === 'cancelled') return 'text-red-600';
-  if (status === 'returned') return 'text-orange-600';
+  // if (status === 'returned') return 'text-orange-600';
   return '';
 };
 

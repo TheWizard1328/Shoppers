@@ -81,12 +81,12 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         // Calculate today's stats
         const todayPatientDeliveries = todayDeliveries.filter((d) => d && d.patient_id);
         const allAppUsersFromDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);const offDutyIds = new Set((allAppUsersFromDB || []).filter((au) => au?.driver_status === 'off_duty').map((au) => au.user_id));const todayActiveDrivers = [...new Set(todayDeliveries.filter((d) => d?.driver_id).map((d) => d.driver_id))].filter((id) => !offDutyIds.has(id)).length;
-        const todayActiveStops = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled', 'returned'].includes(d?.status)).length;
+        const todayActiveStops = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled'].includes(d?.status)).length;
         const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
         // Inter-store counts for superscript
         const isInterStore = (d) => !!d._interstore_source_id || !!d._interstore_dest_id;
-        const todayInTransitInterStore = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled', 'returned'].includes(d?.status) && isInterStore(d)).length;
+        const todayInTransitInterStore = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled'].includes(d?.status) && isInterStore(d)).length;
         const todayCompletedInterStore = todayPatientDeliveries.filter((d) => d?.status === 'completed' && isInterStore(d)).length;
         const todayReturns = todayPatientDeliveries.reduce((sum, d) => {
           const isFinishedReturn = d?.status === 'completed' && getReturnCountFromPatientId(d, allPatients) > 0;

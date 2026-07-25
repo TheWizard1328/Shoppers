@@ -74,7 +74,7 @@ export default function ExportRouteEmailDialog({
       const isAdmin = userHasRole(currentUser, 'admin');
       const isDispatcher = userHasRole(currentUser, 'dispatcher') && !isAdmin && !isOwner;
 
-      const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+      const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
 
       // Build a set of all dates (including today) with at least one delivery
       const allDates = new Set();

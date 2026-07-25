@@ -29,7 +29,7 @@ export function getPhase2Unavailable({
     !deliveriesWithStopOrder.some((d) =>
       d &&
       d.driver_id === (selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id) &&
-      !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)
+      !['completed', 'failed', 'cancelled', 'pending'].includes(d.status)
     ) ||
     !(selectedDriverId !== 'all'
       ? getFabTargetDriverMapLocation({

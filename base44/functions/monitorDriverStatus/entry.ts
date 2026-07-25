@@ -2,7 +2,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
-const FINISHED = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED = ['completed', 'failed', 'cancelled'];
 
 const getEdmDate = () => {
   const parts = new Intl.DateTimeFormat('en-CA', {

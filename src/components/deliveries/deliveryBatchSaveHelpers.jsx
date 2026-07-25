@@ -1,4 +1,4 @@
-export const COMPLETION_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+export const COMPLETION_STATUSES = ['completed', 'failed', 'returned']; //, 'cancelled'
 
 export const filterValidStagedDeliveries = (stagedDeliveries, allDeliveries) => {
   const items = (stagedDeliveries || []).filter(Boolean);
@@ -123,7 +123,7 @@ export const buildExistingDeliveryBatchUpdate = (delivery) => {
     cod_total_amount_required: delivery.cod_total_amount_required || 0,
     delivery_instructions: delivery.delivery_instructions || '',
     tracking_number: delivery.tracking_number || '99',
-    isNextDelivery: delivery.isNextDelivery && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(finalStatus),
+    isNextDelivery: delivery.isNextDelivery && !['completed', 'failed', 'cancelled', 'pending'].includes(finalStatus),
     signature_needed: delivery.signature_needed || false,
     fridge_item: delivery.fridge_item || false,
     oversized: delivery.oversized || false,

@@ -1,4 +1,4 @@
-const FINISHED_PICKUP_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'picked_up'];
+const FINISHED_PICKUP_STATUSES = ['completed', 'failed', 'cancelled'];
 
 const isSameStore = (pickup, storeId) => pickup && pickup.store_id === storeId;
 const isSameDriver = (pickup, driverId) => pickup && pickup.driver_id === driverId;

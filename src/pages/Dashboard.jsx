@@ -376,7 +376,7 @@ function Dashboard() {
     }
     _dwsoSortKeyRef.current = sortKey;
 
-    const FINISHED = ['completed', 'failed', 'cancelled', 'returned'];
+    const FINISHED = ['completed', 'failed', 'cancelled'];
 
     // Group by driver
     const groupedByDriver = {};
@@ -805,12 +805,12 @@ function Dashboard() {
     const tgtAppUser = tgtId ? appUsers.find((au) => au?.user_id === tgtId) : null;
     const tgtOffDuty = tgtAppUser ? tgtAppUser.driver_status === 'off_duty' : false;
     const p2HasStop = !tgtOffDuty && (tgtId
-      ? deliveriesWithStopOrder.some((d) => d && d.driver_id === tgtId && d.isNextDelivery && !['completed', 'failed', 'cancelled'].includes(d.status))
+    ? deliveriesWithStopOrder.some((d) => d && d.driver_id === tgtId && d.isNextDelivery && !['completed', 'failed', 'cancelled', 'pending'].includes(d.status))
       : false);
     const p2Available = p2HasStop && getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice });
     const _rd = tgtId ? deliveriesWithStopOrder.filter((d) => d && d.driver_id === tgtId) : deliveriesWithStopOrder;
     // Phase 3: any non-finished stop means the route is still active
-    const p3Available = _rd.length === 0 || _rd.some((d) => d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status));
+    const p3Available = _rd.length === 0 || _rd.some((d) => d && !['completed', 'failed', 'cancelled'].includes(d.status));
     // Determine if the selected driver has any stops at all
     const _tgtDeliveries = tgtId
       ? deliveriesWithStopOrder.filter((d) => d && d.driver_id === tgtId)
@@ -1040,7 +1040,7 @@ function Dashboard() {
           // Only include a driver's home marker in Phase 1 bounds if that driver has NO finished
           // stops for the selected date. Once any stop is finished (started or completed route),
           // the home location is irrelevant to the delivery area and skews the zoom level.
-          const FINISHED_STATUSES_HOME = ['completed', 'failed', 'cancelled', 'returned'];
+          const FINISHED_STATUSES_HOME = ['completed', 'failed', 'cancelled'];
           mapHomeMarkers.forEach((home) => {
             if (!home.latitude || !home.longitude) return;
             const homeDriverId = home.driverId || home.driver_id || home.id;

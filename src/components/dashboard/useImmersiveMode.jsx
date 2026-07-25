@@ -178,7 +178,7 @@ export default function useImmersiveMode({
     // immersive mode to immediately re-activate while the driver was still parked at the stop.
     const onDeliveryStatusChanged = (e) => {
       const trigger = e?.detail?.triggeredBy;
-      if (['completed', 'complete', 'failed', 'cancelled', 'canceled', 'returned', 'return', 'retry', 'restart'].includes(trigger)) {
+      if (['completed', 'complete', 'failed', 'retry', 'restart'].includes(trigger)) { //'cancelled', 'canceled', 'returned', 'return', 
         engage();
       }
     };

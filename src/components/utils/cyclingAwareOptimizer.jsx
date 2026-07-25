@@ -7,7 +7,7 @@
  * Returns null if no active cycling segment exists, or a descriptor object if one does.
  */
 
-const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
+const FINISHED = new Set(['completed', 'failed', 'cancelled']);
 
 /**
  * Detect an active cycling segment in the given delivery list.

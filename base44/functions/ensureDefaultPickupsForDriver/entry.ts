@@ -223,7 +223,7 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     delivery_date: deliveryDate,
   }, '-created_date', 200);
   const allExistingFinished = existingRouteDeliveries.length > 0 && existingRouteDeliveries.every(d =>
-    ['completed', 'failed', 'cancelled', 'returned'].includes(d?.status)
+    ['completed', 'failed', 'cancelled'].includes(d?.status)
   );
   const driverForHome = (await base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1))[0]
     || (await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-created_date', 1))[0]

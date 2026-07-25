@@ -1,4 +1,4 @@
-export function buildReturnDeliveryData({ originalDelivery, originalPatient, returnPatient, store, routeDate, routeDateDeliveries, finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber, patients }) {
+export function buildReturnDeliveryData({ originalDelivery, originalPatient, returnPatient, store, routeDate, routeDateDeliveries, finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber, patients, preferredTravelMode }) {
   const puid = originalDelivery?.puid || originalDelivery?.stop_id || null;
   // Resolve patient name: prefer passed originalPatient, then look up from patients array by patient_id,
   // then try extracting from existing notes, then fallback
@@ -30,6 +30,18 @@ export function buildReturnDeliveryData({ originalDelivery, originalPatient, ret
     stop_id: generateUniqueSID(routeDateDeliveries || []),
     puid,
     tracking_number: String(nextTrackingNumber),
-    ampm_deliveries: finalAmpm
+    ampm_deliveries: finalAmpm,
+    transport_mode: (() => {
+      // Prefer original delivery's transport_mode, then infer from route's other stops, then driver preference
+      if (originalDelivery?.transport_mode) return originalDelivery.transport_mode;
+      if (routeDateDeliveries && routeDateDeliveries.length > 0) {
+        const modes = routeDateDeliveries.filter((d) => d?.transport_mode).map((d) => d.transport_mode);
+        if (modes.length > 0) {
+          const counts = modes.reduce((acc, m) => { acc[m] = (acc[m] || 0) + 1; return acc; }, {});
+          return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+        }
+      }
+      return preferredTravelMode || 'driving';
+    })()
   };
 }

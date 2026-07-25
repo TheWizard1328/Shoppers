@@ -24,7 +24,7 @@ import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { enterBatchSilentMode, exitBatchSilentMode } from './entityMutations';
 
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 /**
  * Parse an ETA string "HH:mm" into minutes from midnight for numeric comparison.

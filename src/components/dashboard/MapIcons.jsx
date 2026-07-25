@@ -11,7 +11,7 @@ const ZOOM_LEVELS = {
   FULL_DETAIL: 13
 };
 
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 const simpleCircleIconCache = new Map();
 // Clear cache on hot reload
@@ -25,15 +25,15 @@ const getDriverTextColor = (driverColor) => {
 const getInnerSymbolColor = (status, isPickup = false) => {
   if (isPickup) {
     if (status === 'completed') return '#10B981';
-    if (status === 'Ready For Pickup') return '#3B82F6';
-    if (status === 'pending') return '#94A3B8';
+    //if (status === 'Ready For Pickup') return '#3B82F6';
+    //if (status === 'pending') return '#94A3B8';
     if (status === 'cancelled') return '#EF4444';
     return '#FFFFFF';
   } else {
     if (status === 'completed' || status === 'delivered') return '#10B981';
     if (status === 'failed' || status === 'cancelled') return '#EF4444';
-    if (status === 'returned') return '#F97316';
-    if (status === 'Ready For Pickup') return '#3B82F6';
+    //if (status === 'returned') return '#F97316';
+    //if (status === 'Ready For Pickup') return '#3B82F6';
     if (status === 'pending') return '#94A3B8';
     return '#FFFFFF';
   }
@@ -49,14 +49,14 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
   
   const statusColors = {
     'pending': '#3B82F6',
-    'Ready For Pickup': '#3B82F6',
     'in_transit': '#0EA5E9',
     'en_route': '#0EA5E9',
     'completed': '#10B981',
-    'delivered': '#10B981',
     'failed': '#EF4444',
-    'cancelled': '#EF4444',
-    'returned': '#F97316'
+    'cancelled': '#EF4444'
+    //'Ready For Pickup': '#3B82F6',
+    //'delivered': '#10B981',
+    //'returned': '#F97316'
   };
 
   const statusColor = statusColors[status] || '#94A3B8';

@@ -10,7 +10,7 @@ export async function saveDriverChangedDelivery({
 }) {
   await base44.entities.Delivery.update(editingDelivery.id, deliveryData);
 
-  const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+  const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
   const pickupLinkId = editingDelivery.puid || editingDelivery.stop_id || deliveryData.puid || deliveryData.stop_id;
   const isIncompletePickup = !editingDelivery.patient_id && !finishedStatuses.has(editingDelivery.status);
 

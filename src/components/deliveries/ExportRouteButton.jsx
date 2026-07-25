@@ -8,7 +8,7 @@ import { userHasRole } from "../utils/userRoles";
 import { globalFilters } from "@/components/utils/globalFilters";
 
 export default function ExportRouteButton({ currentUser, driverFilter, selectedDate, driverFilteredDeliveries, stores = [] }) {
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'picked_up'];
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
   const allDeliveries = driverFilteredDeliveries || [];
 
   const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;

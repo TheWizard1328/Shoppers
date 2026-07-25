@@ -86,7 +86,7 @@ export default function PickupMarkers({
             <div className="min-w-[240px] max-w-[320px]">
               <div className="font-semibold text-sm pb-1 mb-2 border-b" style={{color:'var(--text-slate-900)',borderColor:'var(--border-slate-200)'}}>{pickup.duplicateCount} stops at this location</div>
               {(() => {
-                const DONE = ['completed', 'failed', 'cancelled', 'returned'];
+                const DONE = ['completed', 'failed', 'cancelled'];
                 const all = [...(groupedPickupMarkers.get(lk)||[]),...(groupedDeliveryMarkers.get(lk)||[])].sort((a,b)=>(a.stop_order||0)-(b.stop_order||0));
 
                 // Build ordered driver groups → store groups
@@ -134,8 +134,8 @@ export default function PickupMarkers({
                                 ? (m.actual_delivery_time ? new Date(m.actual_delivery_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false}) : null)
                                 : (m.delivery_time_eta || null);
                               const timeColor = m.status === 'completed' ? 'text-emerald-600'
-                                : (m.status === 'failed' || m.status === 'cancelled') ? 'text-red-600'
-                                : m.status === 'returned' ? 'text-orange-600' : '';
+                                : (m.status === 'failed' || m.status === 'cancelled') ? 'text-red-600' : '';
+                                // : m.status === 'returned' ? 'text-orange-600' : '';
                               return (
                                 <div
                                   key={`stop-${driverId}-${storeId}-${m.id}-${m.stop_order || 'na'}`}
@@ -177,7 +177,7 @@ export default function PickupMarkers({
           <Popup autoPan={false} closeButton={false} offset={[0,-20]} className="custom-popup">
             <div className="min-w-[240px] max-w-[320px]">
               {isClustered && !isFanned ? (() => {
-                const DONE = ['completed', 'failed', 'cancelled', 'returned'];
+                const DONE = ['completed', 'failed', 'cancelled'];
                 const all = [...(groupedPickupMarkers.get(lk) || []), ...(groupedDeliveryMarkers.get(lk) || [])]
                   .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                 const driverOrder = [];
@@ -218,7 +218,7 @@ export default function PickupMarkers({
                                   const timeLabel = isDone
                                     ? (m.actual_delivery_time ? new Date(m.actual_delivery_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false}) : null)
                                     : (m.delivery_time_eta || null);
-                                  const timeColor = m.status === 'completed' ? 'text-emerald-600' : (m.status === 'failed' || m.status === 'cancelled') ? 'text-red-600' : m.status === 'returned' ? 'text-orange-600' : '';
+                                  const timeColor = m.status === 'completed' ? 'text-emerald-600' : (m.status === 'failed' || m.status === 'cancelled') ? 'text-red-600' : ''; //m.status === 'returned' ? 'text-orange-600' : 
                                   return (
                                     <div key={`stop-${driverId}-${storeId}-${m.id}-${m.stop_order || 'na'}`} className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1">
                                       <div className="flex min-w-0 items-center gap-1" style={{color:'var(--text-slate-900)'}}>

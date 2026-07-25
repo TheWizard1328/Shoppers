@@ -141,7 +141,7 @@ function decodeGooglePolyline(encoded) {
 // Re-use the decodeHereFlexiblePolyline function already defined above
 
 function buildStopOrderRepairUpdates(deliveries) {
-  const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+  const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
   const getCompletionTime = (delivery) => {
     const value = delivery?.actual_delivery_time || delivery?.arrival_time || delivery?.updated_date || delivery?.created_date || 0;
     const timestamp = new Date(value).getTime();
@@ -447,7 +447,7 @@ Deno.serve(async (req) => {
       .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
     // IMPORTANT: "most recent finished stop" must be determined by actual completion TIME
     // (matching optimizeRemainingStops' getLatestFinishedDelivery), NOT by stop_order. stop_order
     // reflects the originally-planned sequence and can legitimately diverge from the real order
@@ -710,24 +710,56 @@ Deno.serve(async (req) => {
     const driverDeviationMeters = existingType1
       ? distanceMeters(currentLat, currentLon, Number(effectiveOriginCoords.lat), Number(effectiveOriginCoords.lon))
       : 0;
-    const remainingRoutePoints = [
-      effectiveOriginCoords,
-      ...incompleteStops.map((stop) => {
-        const coords = getLatLon(stop);
-        return coords ? { lat: coords.lat, lon: coords.lon } : null;
-      }).filter(Boolean)
-    ];
-    const segmentSpecs = buildSegmentSpecsFromPoints(remainingRoutePoints);
-    const multiStopRoute = await getMultiStopRoute(base44, remainingRoutePoints, preferredTravelMode);
-    const routeSections = Array.isArray(multiStopRoute?.sections) ? multiStopRoute.sections : [];
-    const directions = routeSections[0] || await getSegmentDirections(base44, effectiveOriginCoords, nextStopCoords, preferredTravelMode, [], driverId, deliveryDate);
-    // Degraded-optimization signal: true if any leg of this polyline refresh had to
-    // fall back to a straight-line ("crow-flies") segment instead of a real HERE route.
-    const usedFallbackPolyline = routeSections.length > 0
-      ? multiStopRoute.usedFallbackPolyline === true
-      : directions?.usedFallbackPolyline === true;
+    // Resolve per-stop travel mode: use stop's own transport_mode if set, else driver preferred mode.
+    const normalizeMode = (m) => ['driving', 'cycling', 'pedestrian'].includes(m) ? m : preferredTravelMode;
+    const stopsWithCoords = incompleteStops.map((stop) => {
+      const coords = getLatLon(stop);
+      return coords ? { stop, coords, mode: normalizeMode(stop.transport_mode) } : null;
+    }).filter(Boolean);
 
+    const segmentSpecs = buildSegmentSpecsFromPoints([
+      effectiveOriginCoords,
+      ...stopsWithCoords.map((s) => s.coords)
+    ]);
+
+    // Group consecutive stops by travel mode so each group gets its own HERE API call.
+    // This ensures stops with a different transport_mode (e.g. a cycling return delivery
+    // among driving stops) get the correct polyline geometry.
+    const modeGroups: Array<{ mode: string; fromPoint: { lat: number; lon: number }; stops: typeof stopsWithCoords }> = [];
+    let prevPoint = effectiveOriginCoords;
+    for (let i = 0; i < stopsWithCoords.length; ) {
+      const groupMode = stopsWithCoords[i].mode;
+      const groupStops: typeof stopsWithCoords = [];
+      while (i < stopsWithCoords.length && stopsWithCoords[i].mode === groupMode) {
+        groupStops.push(stopsWithCoords[i]);
+        i++;
+      }
+      modeGroups.push({ mode: groupMode, fromPoint: prevPoint, stops: groupStops });
+      prevPoint = groupStops[groupStops.length - 1].coords;
+    }
+
+    // Route each mode group independently, then merge all sections.
+    let allSections: Array<{ encoded_polyline: string; estimated_distance_km: number | null; estimated_duration_minutes: number | null; transport_mode: string }> = [];
+    let usedFallbackPolyline = false;
+    for (const group of modeGroups) {
+      const groupPoints = [group.fromPoint, ...group.stops.map((s) => s.coords)];
+      const groupRoute = await getMultiStopRoute(base44, groupPoints, group.mode);
+      if (groupRoute.usedFallbackPolyline) usedFallbackPolyline = true;
+      // Tag each section with the group's mode (getMultiStopRoute may return the HERE-reported mode)
+      const taggedSections = (groupRoute.sections || []).map((sec) => ({
+        ...sec,
+        transport_mode: group.mode
+      }));
+      allSections = allSections.concat(taggedSections);
+    }
+
+    const routeSections = allSections;
+
+    // Build a flat ordered list matching routeSections to incompleteStops
     if (routeSections.length > 0) {
+      // persistRouteSections pairs sections[i] with incompleteStops[i] using remainingRoutePoints.
+      // We reconstruct remainingRoutePoints in the same order (origin + stops in order).
+      const remainingRoutePoints = [effectiveOriginCoords, ...stopsWithCoords.map((s) => s.coords)];
       await persistRouteSections(
         base44,
         incompleteStops,
@@ -744,17 +776,20 @@ Deno.serve(async (req) => {
         }).catch(() => null);
       }
     } else {
-      const exactNextStopCoords = getLatLon(nextRouteStop) || nextStopCoords;
+      // Fallback: single-stop direct segment
+      const firstStopMode = stopsWithCoords[0]?.mode || preferredTravelMode;
+      const directions = await getSegmentDirections(base44, effectiveOriginCoords, nextStopCoords, firstStopMode, [], driverId, deliveryDate);
       const singleDeliveryUpdate = {
         id: nextRouteStop.id,
         encoded_polyline: directions.encoded_polyline,
-        transport_mode: directions.transport_mode || preferredTravelMode,
+        transport_mode: firstStopMode,
         estimated_distance_km: directions.estimated_distance_km ?? null,
         estimated_duration_minutes: directions.estimated_duration_minutes ?? null,
         PolylineUpdated: true,
         first_leg_origin_lat: effectiveOriginCoords.lat,
         first_leg_origin_lng: effectiveOriginCoords.lon,
       };
+      if (directions.usedFallbackPolyline) usedFallbackPolyline = true;
       const { changedUpdates } = await syncDeliveriesPolylinesToOffline(base44, [singleDeliveryUpdate]);
       if (changedUpdates.length > 0) {
         await base44.asServiceRole.entities.Delivery.update(nextRouteStop.id, changedUpdates[0]);
