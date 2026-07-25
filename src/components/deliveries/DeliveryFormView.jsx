@@ -189,11 +189,15 @@ export default function DeliveryFormView({
   const [forceOpenInterStoreDriverSelect, setForceOpenInterStoreDriverSelect] = React.useState(false);
   const prevInterStoreReadyRef = React.useRef(false);
   React.useEffect(() => {
-    if (!isInterStoreMode || !interStoreReady || formData.driver_id) {
-      prevInterStoreReadyRef.current = interStoreReady;
-      return;
-    }
-    // Both stores selected and no driver yet — try to auto-select from schedule
+    // Only open the driver dropdown when interStoreReady TRANSITIONS from false → true
+    // (i.e. the user just completed both store selections). Never open it on re-renders
+    // where interStoreReady was already true before (e.g. after a form reset).
+    const justBecameReady = interStoreReady && !prevInterStoreReadyRef.current;
+    prevInterStoreReadyRef.current = interStoreReady;
+
+    if (!isInterStoreMode || !justBecameReady || formData.driver_id) return;
+
+    // Both stores just selected and no driver yet — try to auto-select from schedule
     const deliveryDate = formData.delivery_date;
     if (deliveryDate) {
       // Try destination store first (match InterStoreLocation name → Store), fall back to origin store
@@ -208,7 +212,6 @@ export default function DeliveryFormView({
           const driver = allDrivers.find((d) => d.id === driverId);
           if (driver) {
             setFormData((prev) => ({ ...prev, driver_id: driverId, driver_name: getDriverNameForStorage(driver) }));
-            prevInterStoreReadyRef.current = interStoreReady;
             return;
           }
         }
@@ -216,7 +219,6 @@ export default function DeliveryFormView({
     }
     // No scheduled driver found — prompt manual selection
     setForceOpenInterStoreDriverSelect(true);
-    prevInterStoreReadyRef.current = interStoreReady;
   }, [isInterStoreMode, interStoreReady, formData.driver_id]);
   // In interstore mode, keep the 'add' button visible — never auto-switch to 'done'
   // In pickup mode with stores checked, keep 'add' active so user can add more pickups
@@ -1777,6 +1779,12 @@ export default function DeliveryFormView({
                         arrival_time: '', actual_delivery_time: '',
                         fridge_item: false, oversized: false, signature_needed: false, no_charge: false
                       }));
+                      // CRITICAL: Reset interStoreReady so the driver dropdown doesn't
+                      // auto-open again after the form clears (the transition guard in the
+                      // effect only fires on false→true, but prevRef must also be reset).
+                      setInterStoreReady(false);
+                      prevInterStoreReadyRef.current = false;
+                      setForceOpenInterStoreDriverSelect(false);
                     });
                   } else {
                     runLockedAction('add_staged_delivery', async () => {
