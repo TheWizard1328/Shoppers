@@ -172,8 +172,20 @@ function UnifiedRoutePolylines({
 
   // Resolve travel mode from the stop's own transport_mode field.
   // Falls back to driver-level preferred mode if the stop has none.
-  const getStopMode = (stop, driverId) => {
+  const getStopMode = (stop, driverId, allStops = null) => {
     if (stop?.transport_mode) return normalizeTravelMode(stop.transport_mode);
+    // If no transport_mode on this stop, check adjacent stops in the same driver's route
+    // to infer the correct mode (e.g. a return delivery inheriting from nearby cycling stops).
+    if (allStops && allStops.length > 0) {
+      const modes = allStops
+        .filter((s) => s?.driver_id === driverId && s?.transport_mode)
+        .map((s) => normalizeTravelMode(s.transport_mode));
+      if (modes.length > 0) {
+        // Use the most common mode among other stops on this route
+        const counts = modes.reduce((acc, m) => { acc[m] = (acc[m] || 0) + 1; return acc; }, {});
+        return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+      }
+    }
     return normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
   };
 
@@ -259,7 +271,7 @@ function UnifiedRoutePolylines({
         if (i === 0) return; // skip first stop's polyline (home leg)
         if ((Number(stop.stop_order) || 0) === minOrder) return;
 
-        const mode = getStopMode(stop, driverId);
+        const mode = getStopMode(stop, driverId, allOrdered);
         const isCycling = mode === "cycling";
         const color = isCycling ? CYCLING_COLOR : getDriverColor(driverId);
         const isPM = stop.ampm_deliveries === "PM";
@@ -348,7 +360,7 @@ function UnifiedRoutePolylines({
         }
 
         if (coords) {
-          const mode = getStopMode(currentStop, driverId);
+          const mode = getStopMode(currentStop, driverId, orderedIncomplete);
           const isPM = currentStop.ampm_deliveries === "PM";
           const style = getTravelModeLineStyle(mode, CURRENT_LEG_COLOR, isPM);
           const key = `current-${driverId}-${currentStop.id}`;
@@ -392,7 +404,7 @@ function UnifiedRoutePolylines({
       const prev = orderedIncomplete[i - 1] || orderedIncomplete[0];
       if (!stop || !prev) continue;
 
-      const mode = getStopMode(stop, driverId);
+      const mode = getStopMode(stop, driverId, orderedIncomplete);
       const isCycling = mode === "cycling";
       const color = isCycling ? CYCLING_COLOR : getDriverColor(driverId);
       const isPM = stop.ampm_deliveries === "PM";
