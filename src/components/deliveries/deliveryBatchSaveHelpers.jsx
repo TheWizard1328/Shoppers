@@ -1,4 +1,4 @@
-export const COMPLETION_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+export const COMPLETION_STATUSES = ['completed', 'failed', 'returned']; //, 'cancelled'
 
 export const filterValidStagedDeliveries = (stagedDeliveries, allDeliveries) => {
   const items = (stagedDeliveries || []).filter(Boolean);
