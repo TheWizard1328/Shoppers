@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2, Navigation } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const getCyclingType = (delivery) => {
   const notes = (delivery?.delivery_notes || '').trim().toLowerCase();
@@ -12,7 +13,7 @@ const getCyclingType = (delivery) => {
 const START_COLOR = '#16a34a';
 const END_COLOR = '#dc2626';
 
-export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery, currentUser }) {
+export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onDelete, onComplete, onRestart, allDeliveries = [], isSelected = false, onStartDelivery, currentUser, bulkSelectionEnabled = false, isBulkSelected = false, onBulkSelectionChange }) {
   const isDispatcher = Array.isArray(currentUser?.app_roles)
     ? currentUser.app_roles.includes('dispatcher') && !currentUser.app_roles.includes('admin')
     : false;
@@ -195,6 +196,16 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         transition: 'opacity 0.2s ease-in-out'
       }}>
       
+      {/* Bulk selection checkbox */}
+      {bulkSelectionEnabled && (
+        <div
+          style={{ position: 'absolute', top: '6px', left: '6px', zIndex: 10 }}
+          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBulkSelectionChange?.(delivery.id, !isBulkSelected); }}>
+          <Checkbox checked={isBulkSelected} aria-label="Select cycling marker" />
+        </div>
+      )}
+
       {/* Card */}
       <div
         ref={cardRef}

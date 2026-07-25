@@ -67,7 +67,8 @@ export default function DashboardBulkEditControls({
 
   const selectedCount = selectedDeliveries.length;
 
-  const pickupCount = useMemo(() => selectedDeliveries.filter((d) => !d?.patient_id).length, [selectedDeliveries]);
+  const hasCyclingMarkerSelected = useMemo(() => selectedDeliveries.some((d) => d?.is_cycling_marker), [selectedDeliveries]);
+  const pickupCount = useMemo(() => selectedDeliveries.filter((d) => !d?.patient_id && !d?.is_cycling_marker).length, [selectedDeliveries]);
   const deliveryCount = useMemo(() => selectedDeliveries.filter((d) => !!d?.patient_id).length, [selectedDeliveries]);
 
   // Pending deliveries directly selected
@@ -345,7 +346,7 @@ export default function DashboardBulkEditControls({
         style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}>
         
           <span className="text-sm font-medium text-foreground px-1">{totalDeleteCount} Stops</span>
-          <Button size="sm" onClick={openBulkEditPanel} className="gap-2" disabled={isSaving || isDeleting}>
+          <Button size="sm" onClick={openBulkEditPanel} className="gap-2" disabled={isSaving || isDeleting || hasCyclingMarkerSelected}>
             <PencilLine className="h-4 w-4" />
             Edit
           </Button>

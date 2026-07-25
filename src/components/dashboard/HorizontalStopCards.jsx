@@ -735,6 +735,9 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
                 isSelected={isSelected}
                 onStartDelivery={onStartDelivery}
                 currentUser={currentUser}
+                bulkSelectionEnabled={bulkSelectionEnabled}
+                isBulkSelected={!!selectedDeliveryIds?.[card.id]}
+                onBulkSelectionChange={onSelectionChange}
               />
             </div>
           );
