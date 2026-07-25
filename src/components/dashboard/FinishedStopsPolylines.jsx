@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from "react";
 import { Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 
-const FINISHED = ["completed", "failed", "cancelled", "returned"];
+const FINISHED = ["completed", "failed", "cancelled"];
 
 const decodePolyline = (str) => {
   let index = 0, lat = 0, lng = 0, coordinates = [];

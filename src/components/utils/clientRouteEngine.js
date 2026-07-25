@@ -25,7 +25,7 @@ import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/ut
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 const TIME_ZONE = 'America/Edmonton';
 const LAST_FINISHED_STOP_PROXIMITY_KM = 0.25;

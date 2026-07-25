@@ -141,7 +141,7 @@ function decodeGooglePolyline(encoded) {
 // Re-use the decodeHereFlexiblePolyline function already defined above
 
 function buildStopOrderRepairUpdates(deliveries) {
-  const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+  const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
   const getCompletionTime = (delivery) => {
     const value = delivery?.actual_delivery_time || delivery?.arrival_time || delivery?.updated_date || delivery?.created_date || 0;
     const timestamp = new Date(value).getTime();
@@ -447,7 +447,7 @@ Deno.serve(async (req) => {
       .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
     // IMPORTANT: "most recent finished stop" must be determined by actual completion TIME
     // (matching optimizeRemainingStops' getLatestFinishedDelivery), NOT by stop_order. stop_order
     // reflects the originally-planned sequence and can legitimately diverge from the real order
