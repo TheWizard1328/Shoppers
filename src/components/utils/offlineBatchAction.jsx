@@ -12,7 +12,7 @@
  *   2. Run the caller's `work` function — processes data locally, saves to offlineDB only
  *   3. (Options 2/3/4) Run client-side route optimizer against fresh local data
  *   4. Apply resulting records to local UI state immediately
- *   5. Batch-write finalized NEW records to the online DB (updates already written by optimizer)
+ *   5. Create NEW (temp) records on the backend with ALL optimizer data (polylines, stop_order, etc.)
  *   6. Broadcast affected delivery IDs to all subscribers
  *   7. Resume ALL background syncs
  */
@@ -64,20 +64,24 @@ const resumeAllSyncs = async () => {
   console.log('▶️ [OfflineBatch] All syncs resumed');
 };
 
-// ── Batch write finalized records to the online DB ────────────────────────────
-// IMPORTANT: Only call this for records that are still temp (not yet persisted by the optimizer).
-// The optimizer's writeBatch already updated existing real-id records via bulkUpdateDeliveries.
+// ── Create temp records on the backend with optimizer data ───────────────────
+// Only called for records with temp IDs (not yet on the backend).
+// The optimizer's writeBatch already wrote all REAL-id updates via bulkUpdateDeliveries.
 
 const flushToOnlineDB = async (records) => {
   if (!records || records.length === 0) return [];
 
-  // Separate creates (no real id yet / temp id) from updates (have a live id)
   const toCreate = records.filter((r) => !r.id || r.id.startsWith('temp_'));
   const toUpdate = records.filter((r) => r.id && !r.id.startsWith('temp_'));
 
   const { base44 } = await import('@/api/base44Client');
 
-  // Creates — one at a time to preserve order and PUID linkage
+  // Creates — one at a time to preserve order and PUID linkage.
+  // CRITICAL: `records` here are the OPTIMIZED versions (from freshDeliveries) which
+  // include stop_order, isNextDelivery, encoded_polyline, transport_mode, delivery_time_eta,
+  // estimated_distance_km, estimated_duration_minutes — all assigned by the optimizer.
+  // By passing the full payload to Delivery.create(), the real backend record is born
+  // complete with polylines and ordering. No separate patch needed.
   const createdRecords = [];
   for (const record of toCreate) {
     try {
@@ -85,9 +89,6 @@ const flushToOnlineDB = async (records) => {
       const created = await base44.entities.Delivery.create(payload);
       createdRecords.push(created);
 
-      // CRITICAL: Mark this newly created delivery ID as a local write so the WS echo
-      // is suppressed. Without this, the echo arrives as a 'create' event and adds a
-      // duplicate to React state (since applyLocalUI already rendered the temp record).
       if (created?.id) {
         if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
         window.__localDeliveryWrites.set(created.id, Date.now());
@@ -103,8 +104,6 @@ const flushToOnlineDB = async (records) => {
       });
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [created]);
 
-      // Swap the temp ID for the real ID in window.__appDeliveries so the duplicate
-      // guard in the WS handler matches correctly if the echo slips through.
       if (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries)) {
         window.__appDeliveries = window.__appDeliveries.map(d =>
           d?.id === _tempId ? { ...created } : d
@@ -121,7 +120,7 @@ const flushToOnlineDB = async (records) => {
     }
   }
 
-  // Updates — chunked to avoid rate-limiting
+  // Updates — chunked (for edge cases where non-temp records need updating)
   const CHUNK = 10;
   for (let i = 0; i < toUpdate.length; i += CHUNK) {
     const chunk = toUpdate.slice(i, i + CHUNK);
@@ -180,11 +179,10 @@ const broadcastAffectedDeliveries = (affectedIds, driverId, deliveryDate, action
  * @param {Object}   params
  * @param {string}   params.actionName          - Label for logging (e.g. 'AddPickup')
  * @param {Function} params.work                - async fn() → { records: Delivery[], driverId, deliveryDate }
- *                                                  `records` are the fully-built delivery objects to persist.
- * @param {boolean}  [params.runOptimizer=false] - true for Options 2/3/4 (ISP/ISD, Pickup, Cycling)
- * @param {Object}   [params.optimizerContext]   - { deliveries, patients, stores, appUsers } — current local state.
+ * @param {boolean}  [params.runOptimizer=false] - true for ISP/ISD, Pickup, Cycling
+ * @param {Object}   [params.optimizerContext]   - { deliveries, patients, stores, appUsers }
  *                                                  Pass null for deliveries to let coordinator fetch from backend.
- *                                                  NEVER pass [] — an empty array is treated as "no stops exist".
+ *                                                  NEVER pass [] — empty array = "no stops exist".
  * @param {Function} [params.applyLocalUI]       - fn(records) — update React state immediately
  * @returns {Promise<{success: boolean, records?: Delivery[], error?: string}>}
  */
@@ -213,24 +211,19 @@ export async function executeOfflineBatchAction({
     const validRecords = records.filter(Boolean);
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, validRecords).catch(() => {});
 
-    // ── Step 3: (Options 2/3/4) Client-side route optimization ────────────────
+    // Track which temp IDs we started with (for matching after backend creation)
+    const tempOriginalIds = new Set(validRecords.filter(r => !r.id || r.id.startsWith('temp_')).map(r => r.id));
+
+    // ── Step 3: Client-side route optimization ────────────────────────────────
     let optimizedRecords = validRecords;
-    // Track whether the optimizer committed the new temp records (by including them in writeBatch)
-    // so we don't create them again in Step 5.
-    let optimizerHandledNewRecords = false;
 
     if (runOptimizer && driverId && deliveryDate && optimizerContext) {
       try {
         const { performRouteOptimization } = await import('./routeOptimizationCoordinator');
 
-        // CRITICAL: Read the full current route from offlineDB so the optimizer sees all
-        // existing stops. The caller must never pass deliveries:[] — that signals "empty route"
-        // and causes the optimizer to generate a route from scratch, ignoring existing stops.
-        // If the caller doesn't provide deliveries (null), the coordinator fetches from the
-        // backend. Either way, merge the new temp record(s) in so they participate in ordering.
         const existingDeliveries = optimizerContext.deliveries != null
           ? optimizerContext.deliveries
-          : null; // null → coordinator will fetch from backend
+          : null;
 
         let mergedDeliveries = existingDeliveries;
         if (Array.isArray(existingDeliveries)) {
@@ -240,15 +233,11 @@ export async function executeOfflineBatchAction({
             ...validRecords,
           ];
         }
-        // If existingDeliveries is null, pass null so coordinator fetches backend data,
-        // then we inject new records via the merging that happens inside the coordinator.
-        // But since the backend won't have the temp record yet, we pass the merged list
-        // from the IDB snapshot instead if available.
 
         const optimizeResult = await performRouteOptimization({
           driverId,
           deliveryDate,
-          deliveries: mergedDeliveries, // null → backend fetch; array → local data
+          deliveries: mergedDeliveries,
           patients: optimizerContext.patients || null,
           stores: optimizerContext.stores || null,
           appUsers: optimizerContext.appUsers || null,
@@ -258,17 +247,8 @@ export async function executeOfflineBatchAction({
 
         if (optimizeResult?.success && optimizeResult.freshDeliveries?.length > 0) {
           optimizedRecords = optimizeResult.freshDeliveries;
-          // Persist optimized order back to offline DB
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, optimizedRecords).catch(() => {});
           console.log(`[OfflineBatch] "${actionName}" — optimizer succeeded: ${optimizedRecords.length} stops`);
-
-          // If the optimizer's writeBatch included the new temp record(s) by temp ID,
-          // the coordinator already wrote them to the backend. Mark that so Step 5
-          // doesn't create duplicates.
-          // NOTE: The optimizer can only write records with real IDs — temp records are
-          // never in the writeBatch (they have no real ID yet). So optimizerHandledNewRecords
-          // remains false and Step 5 will correctly create the new records.
-          optimizerHandledNewRecords = false;
         } else {
           console.warn(`[OfflineBatch] "${actionName}" — optimizer did not succeed, using pre-optimize records`);
         }
@@ -286,54 +266,68 @@ export async function executeOfflineBatchAction({
       }
     }
 
-    // ── Step 5: Batch write NEW records to online DB ───────────────────────────
-    // CRITICAL: Only flush records that are still temp (id starts with 'temp_').
-    // The optimizer's writeBatch already persisted all real-id updates to the backend
-    // via bulkUpdateDeliveries. Flushing real-id records here would double-write them.
-    const recordsToFlush = optimizerHandledNewRecords
-      ? [] // optimizer already wrote everything
-      : validRecords.filter((r) => !r.id || r.id.startsWith('temp_'));
+    // ── Step 5: Create NEW records on the backend ─────────────────────────────
+    // CRITICAL: Flush the OPTIMIZED version of temp records, not the originals.
+    //
+    // The optimizer assigns stop_order, isNextDelivery, encoded_polyline, transport_mode,
+    // delivery_time_eta, estimated_distance_km, estimated_duration_minutes to each stop.
+    // These are applied to `optimizedRecords` (from freshDeliveries). If we flush the
+    // original `validRecords` (pre-optimizer), the real backend record is created WITHOUT
+    // any of this data — and when the temp record is replaced on refresh, the polylines
+    // and stop_order vanish because they only existed on the temp ID in IDB.
+    //
+    // By flushing the optimized version, Delivery.create() receives the full payload
+    // including polylines and ordering — so the real record is born complete. No
+    // separate patch/update needed afterwards.
+    //
+    // The optimizer's writeBatch already wrote all REAL-id updates to the backend via
+    // bulkUpdateDeliveries. We only need to CREATE the temp records that don't exist yet.
+    const optimizedTempRecords = optimizedRecords.filter(r => tempOriginalIds.has(r.id));
+    const recordsToFlush = optimizedTempRecords.length > 0
+      ? optimizedTempRecords
+      : validRecords.filter(r => !r.id || r.id.startsWith('temp_'));
 
     const finalRecords = recordsToFlush.length > 0
       ? await flushToOnlineDB(recordsToFlush)
       : [];
 
-    // If we created new records, apply their real IDs to the optimized UI records
-    // so callers get back the canonical backend record (not the temp).
+    // ── Step 5b: Merge real IDs back into the result set ──────────────────────
+    // After flushToOnlineDB creates the real records, replace temp IDs in our result
+    // with the real backend records. Match by stop_id (unique per delivery).
     let allFinal = optimizedRecords;
     if (finalRecords.length > 0) {
-      // For each newly created record, find its temp counterpart in optimizedRecords
-      // (by matching payload fields like delivery_id or stop_id) and swap it in.
       const tempIdSet = new Set(recordsToFlush.map(r => r.id));
       const realByStopId = new Map(finalRecords.map(r => [r.stop_id, r]));
+      const realByDeliveryId = new Map(finalRecords.map(r => [r.delivery_id, r]));
       allFinal = optimizedRecords.map(r => {
-        if (tempIdSet.has(r.id) && r.stop_id && realByStopId.has(r.stop_id)) {
-          return realByStopId.get(r.stop_id);
+        if (tempIdSet.has(r.id)) {
+          const real = (r.stop_id && realByStopId.get(r.stop_id))
+            || (r.delivery_id && realByDeliveryId.get(r.delivery_id))
+            || null;
+          if (real) {
+            // Merge optimizer data onto the real record so UI sees complete state with real ID.
+            // This preserves polylines, stop_order, isNextDelivery, etc. from the optimizer
+            // while using the real backend ID.
+            return {
+              ...real,
+              stop_order: r.stop_order ?? real.stop_order,
+              isNextDelivery: r.isNextDelivery ?? real.isNextDelivery,
+              encoded_polyline: r.encoded_polyline ?? real.encoded_polyline,
+              transport_mode: r.transport_mode ?? real.transport_mode,
+              delivery_time_eta: r.delivery_time_eta ?? real.delivery_time_eta,
+              estimated_distance_km: r.estimated_distance_km ?? real.estimated_distance_km,
+              estimated_duration_minutes: r.estimated_duration_minutes ?? real.estimated_duration_minutes,
+              travel_dist: r.travel_dist ?? real.travel_dist,
+            };
+          }
         }
         return r;
       });
-      // Also apply the real record's stop_order/isNextDelivery back into the new record
-      // so the UI shows the optimized state from the moment of creation.
-      for (const realRecord of finalRecords) {
-        const tempMatch = recordsToFlush.find(t => t.stop_id === realRecord.stop_id);
-        if (tempMatch) {
-          // The optimizer assigned stop_order/isNextDelivery to the temp ID in optimizedRecords.
-          // Find that assignment and apply it to the real backend record.
-          const optimizerVersion = (optimizedRecords || []).find(r => r.id === tempMatch.id || r.stop_id === realRecord.stop_id);
-          if (optimizerVersion && (optimizerVersion.stop_order || optimizerVersion.isNextDelivery != null)) {
-            // Patch the real record on the backend with the optimizer's assignments
-            const { base44 } = await import('@/api/base44Client');
-            const patch = {};
-            if (optimizerVersion.stop_order != null) patch.stop_order = optimizerVersion.stop_order;
-            if (optimizerVersion.isNextDelivery != null) patch.isNextDelivery = optimizerVersion.isNextDelivery;
-            if (optimizerVersion.delivery_time_eta) patch.delivery_time_eta = optimizerVersion.delivery_time_eta;
-            if (Object.keys(patch).length > 0) {
-              base44.entities.Delivery.update(realRecord.id, patch).then(updated => {
-                if (updated?.id) offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updated]).catch(() => {});
-              }).catch(() => {});
-            }
-          }
-        }
+
+      // Persist the merged real+optimized records to IDB so next read returns complete data
+      const mergedForDB = allFinal.filter(r => r.id && !r.id.startsWith('temp_'));
+      if (mergedForDB.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mergedForDB).catch(() => {});
       }
     }
 
@@ -343,7 +337,7 @@ export async function executeOfflineBatchAction({
       .filter((id) => id && !id.startsWith('temp_'));
     broadcastAffectedDeliveries(affectedIds, driverId, deliveryDate, actionName);
 
-    console.log(`✅ [OfflineBatch] "${actionName}" complete — ${affectedIds.length} deliveries affected`);
+    console.log(`✅ [OfflineBatch] "${actionName}" complete — ${affectedIds.length} deliveries, ${finalRecords.length} new records created`);
     return { success: true, records: allFinal };
   } catch (err) {
     console.error(`❌ [OfflineBatch] "${actionName}" failed:`, err);
