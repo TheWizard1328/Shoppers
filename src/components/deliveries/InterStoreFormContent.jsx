@@ -158,7 +158,7 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
                 
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>{loc.store_name}</span>
-                  {loc.store_number && <span className="text-[10px] text-slate-400">#{loc.store_number}</span>}
+                  {loc.store_number && <span className="text-slate-400 text-xs">#{loc.store_number}</span>}
                   {userLat != null && userLng != null && loc.store_latitude != null && loc.store_longitude != null &&
                   <span className="text-[10px] text-slate-400 font-mono">
                       {crowFliesKm(userLat, userLng, loc.store_latitude, loc.store_longitude).toFixed(1)} km
@@ -168,7 +168,7 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
                 </div>
                 <div className="flex items-center gap-1 mt-0.5">
                   <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                  <span className="text-[10px] text-slate-500 truncate">{loc.store_address}{loc.city ? `, ${loc.city}` : ''}</span>
+                  <span className="text-slate-500 truncate text-xs">{loc.store_address}{loc.city ? `, ${loc.city}` : ''}</span>
                 </div>
                 {loc.store_phone &&
                 <div className="flex items-center gap-1">
@@ -330,9 +330,9 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
         }
       } catch {
 
+
         // silent fail — distance is informational only
-      } finally {if (!cancelled) setDistanceLoading(false);
-      }
+      } finally {if (!cancelled) setDistanceLoading(false);}
     };
     fetchDist();
     return () => {cancelled = true;};
