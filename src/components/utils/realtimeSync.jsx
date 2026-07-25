@@ -346,51 +346,61 @@ async function flushBuffered(entityName) {
       fullReplacementData = Array.from(snapshotMap.values());
     }
 
-    // CRITICAL: Dispatch ALL deliveries for the selected date — never filter by driver here.
-    // The UI layer (Dashboard) handles per-driver filtering. Filtering here would drop other
-    // drivers' deliveries from Layout state, causing them to disappear from the dashboard.
-    let allDateDeliveries = (fullReplacementData || []).filter((delivery) => {
-      if (!delivery) return false;
-      if (selectedDate && delivery.delivery_date && delivery.delivery_date !== selectedDate) return false;
-      return true;
-    });
+    // CRITICAL: When a specific driver is selected (not 'all'), only dispatch UI updates
+    // for that driver's deliveries. ALL incoming WS data has already been saved to IDB
+    // above, so other drivers' data is cached locally — we just skip the React state
+    // update (setDeliveries) for drivers the user isn't currently viewing. This prevents
+    // UI thrash when 2+ drivers are on duty and their WS events flood the selected
+    // driver's view with unnecessary setDeliveries calls + re-renders.
+    const relevantDeletes = deletedItems.filter((item) => item?.data && isDeliveryRelevantToCurrentSelection(item.data));
 
-    // CRITICAL: For polyline updates — if the snapshot doesn't contain the updated
-    // delivery, inject the WS payload directly so it always reaches the map.
-    if (hasPolylineUpdates && relevantItems.length > 0) {
-      const snapshotIds = new Set(allDateDeliveries.map(d => d.id));
-      const missing = relevantItems.filter(item =>
-        item?.data?.encoded_polyline && !snapshotIds.has(item.id)
+    if (relevantItems.length === 0 && relevantDeletes.length === 0) {
+      // No buffered items are for the selected driver — skip the deliveriesUpdated event
+      // entirely. Data is already in IDB; no React re-render needed.
+      console.log(`⏭️ [RealtimeSync] [${rsTime()}] Skipping deliveriesUpdated — no items for selected driver (${items.length} items for other drivers)`);
+    } else {
+      let allDateDeliveries = (fullReplacementData || []).filter((delivery) => {
+        if (!delivery) return false;
+        if (selectedDate && delivery.delivery_date && delivery.delivery_date !== selectedDate) return false;
+        return true;
+      });
+
+      // CRITICAL: For polyline updates — if the snapshot doesn't contain the updated
+      // delivery, inject the WS payload directly so it always reaches the map.
+      if (hasPolylineUpdates && relevantItems.length > 0) {
+        const snapshotIds = new Set(allDateDeliveries.map(d => d.id));
+        const missing = relevantItems.filter(item =>
+          item?.data?.encoded_polyline && !snapshotIds.has(item.id)
+        );
+        if (missing.length > 0) {
+          allDateDeliveries = [...allDateDeliveries, ...missing.map(i => i.data)];
+        }
+      }
+
+      const hasETAChanges = relevantItems.some((item) =>
+        Array.isArray(item.changedFields) &&
+        (item.changedFields.includes('delivery_time_eta') || item.changedFields.includes('estimated_duration_minutes'))
       );
-      if (missing.length > 0) {
-        allDateDeliveries = [...allDateDeliveries, ...missing.map(i => i.data)];
-      }
-    }
 
-    // CRITICAL: Ensure ETA changes trigger immediate UI update
-    const hasETAChanges = relevantItems.some((item) => 
-      Array.isArray(item.changedFields) && 
-      (item.changedFields.includes('delivery_time_eta') || item.changedFields.includes('estimated_duration_minutes'))
-    );
-    
-    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-      detail: {
-        deliveries: allDateDeliveries,
-        freshDeliveries: allDateDeliveries,
-        deletedIds: deletedItems.map((item) => item.id).filter(Boolean),
-        immediate: true,
-        deliveryDate: selectedDate,
-        triggeredBy: 'realtimeBufferedFullRefresh',
-        source: 'realtime_sync',
-        fromRealtime: true,
-        fullReplacement: false,
-        skipMapPhaseOneRefresh: true,
-        preserveLocalState: true,
-        skipDriverLocationRefresh: true,
-        forceETAUpdate: hasETAChanges,
-        forcePolylineUpdate: hasPolylineUpdates,
-      }
-    }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          deliveries: allDateDeliveries,
+          freshDeliveries: allDateDeliveries,
+          deletedIds: relevantDeletes.map((item) => item.id).filter(Boolean),
+          immediate: true,
+          deliveryDate: selectedDate,
+          triggeredBy: 'realtimeBufferedFullRefresh',
+          source: 'realtime_sync',
+          fromRealtime: true,
+          fullReplacement: false,
+          skipMapPhaseOneRefresh: true,
+          preserveLocalState: true,
+          skipDriverLocationRefresh: true,
+          forceETAUpdate: hasETAChanges,
+          forcePolylineUpdate: hasPolylineUpdates,
+        }
+      }));
+    }
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser') {

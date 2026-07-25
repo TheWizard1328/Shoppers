@@ -7,7 +7,7 @@
 import { updateDelivery as updateDeliveryLocal } from './entityMutations';
 import { offlineDB } from './offlineDatabase';
 import { base44 } from '@/api/base44Client';
-import { pauseRealtimeSync, resumeRealtimeSync } from './realtimeSync';
+import { pauseRealtimeSync } from './realtimeSync';
 import { smartRefreshManager } from './smartRefreshManager';
 import { backgroundSyncManager } from './backgroundSyncManager';
 
@@ -76,6 +76,12 @@ export async function runAcceptAllBatchPipeline({
 
   // CRITICAL: Pause realtime + smart refresh for the entire batch so WebSocket
   // echoes don't thrash the UI while we're writing.
+  // NOTE: We do NOT resume these in our finally — the caller (executeAcceptAllStops)
+  // owns the full pause/resume lifecycle and resumes everything in ITS finally block
+  // after the optimizer + polyline regeneration completes. Resuming here prematurely
+  // unpauses the managers while optimization is still running, which allows other
+  // code paths to re-pause them (the pause mechanism is a simple boolean, not
+  // reference-counted), leaving them permanently stuck paused.
   pauseRealtimeSync();
   smartRefreshManager.pause();
   backgroundSyncManager.pause();
@@ -102,12 +108,11 @@ export async function runAcceptAllBatchPipeline({
       )
     );
     finalOfflineUpdates.push(...results.filter(Boolean));
-  } finally {
-    // Resume/restart sync managers. realtimeSync stays paused until the caller resumes it
-    // after optimization completes. smartRefresh and backgroundSync restart now so polling
-    // resumes immediately once the batch writes are confirmed.
-    backgroundSyncManager.resume();
-    smartRefreshManager.restart(); // restart (not just resume) so the next cycle fetches fresh data
+  } catch (batchErr) {
+    // Even on error, do NOT resume managers — the caller's finally handles that.
+    // Just log and propagate so the caller can clean up.
+    console.warn('[AcceptAll] Batch write error (managers stay paused for caller to resume):', batchErr?.message || batchErr);
+    throw batchErr;
   }
 
   // Build COD batch for Square sync
