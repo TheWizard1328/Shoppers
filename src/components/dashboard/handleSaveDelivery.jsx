@@ -171,24 +171,51 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       // paused at the top of handleSaveDelivery and will resume at the end.
       await updateDeliveryLocal(editingDelivery.id, deliveryData, { skipSmartRefresh: true });
 
+      // Step 3b: Immediately read the full merged record from IDB and push it to the UI.
+      // This ensures all users see the change instantly — no waiting for WS echo or refresh cycle.
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const savedRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, editingDelivery.id);
+        if (savedRecord) {
+          const localDeliveries = window.__appDeliveries || [];
+          const snapshotMap = new Map(localDeliveries.filter(Boolean).map((d) => [d.id, d]));
+          snapshotMap.set(savedRecord.id, savedRecord);
+          const mergedDeliveries = Array.from(snapshotMap.values());
+          window.__appDeliveries = mergedDeliveries;
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              freshDeliveries: mergedDeliveries,
+              deliveries: mergedDeliveries,
+              immediate: true,
+              driverId,
+              deliveryDate,
+              triggeredBy: 'formSaveImmediate',
+              preserveLocalState: true,
+              skipMapPhaseOneRefresh: true,
+              skipDriverLocationRefresh: true,
+            }
+          }));
+        }
+      } catch (_) {
+        // Non-critical fallback — broadcast without full snapshot
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { driverId, deliveryDate, triggeredBy: 'formSave', preserveLocalState: true }
+        }));
+      }
+
       if (hasStructuralChange) {
-        // Step 3: Re-sort stop orders and check if any actually changed
+        // Re-sort stop orders and check if any actually changed
         const { orderChanged } = await recalculateAndUpdateStopOrders(
           driverId, deliveryDate,
-          /*skipPolylineRegeneration=*/ true,   // we control polylines below
+          /*skipPolylineRegeneration=*/ true,
           /*skipPolylineIfNoOrderChange=*/ false
         );
-
-        // Step 4: Only run expensive optimization/polylines if order actually shifted
         requestDeferredOptimization(driverId, deliveryDate, orderChanged);
       }
-      // Non-structural change → just broadcast so UI refreshes, no optimization
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { driverId, deliveryDate, triggeredBy: 'formSave', preserveLocalState: true }
-      }));
 
       invalidate('Delivery');
       setShowDeliveryForm(false);
+
       setEditingDelivery(null);
       fabControlEvents.resetToPhaseOneAfterDone(500);
       return;
