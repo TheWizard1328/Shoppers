@@ -57,7 +57,7 @@ import { getGoogleDrivingDistance } from '@/functions/getGoogleDrivingDistance';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 import { backfillInterStoreCoords } from '@/components/utils/interStoreGeocode';
 
-function LocationPanel({ title, color, locations, loading, selectedId, onSelect, isSaving, dispatcherLocation, onDispatcherShortcut }) {
+function LocationPanel({ title, color, locations, loading, selectedId, onSelect, isSaving, dispatcherLocation, onDispatcherShortcut, userLat, userLng }) {
   const [searchQuery, setSearchQuery] = useState('');
   const listRef = useRef(null);
 
@@ -159,6 +159,11 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-semibold text-xs" style={{ color: 'var(--text-slate-900)' }}>{loc.store_name}</span>
                   {loc.store_number && <span className="text-[10px] text-slate-400">#{loc.store_number}</span>}
+                  {userLat != null && userLng != null && loc.store_latitude != null && loc.store_longitude != null && (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {crowFliesKm(userLat, userLng, loc.store_latitude, loc.store_longitude).toFixed(1)} km
+                    </span>
+                  )}
                   {isSelected && <Badge className={`text-[10px] px-1.5 py-0 ${selectedStyle.badge} ml-auto`}>{isFrom ? 'From' : 'To'}</Badge>}
                 </div>
                 <div className="flex items-center gap-1 mt-0.5">
@@ -463,6 +468,8 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
           isSaving={isSaving}
           dispatcherLocation={dispatcherLocation}
           onDispatcherShortcut={handleFromShortcut}
+          userLat={currentUser?.current_latitude}
+          userLng={currentUser?.current_longitude}
         />
         <div className="w-px bg-slate-200 dark:bg-slate-700 self-stretch" />
         <LocationPanel
@@ -475,6 +482,8 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
           isSaving={isSaving}
           dispatcherLocation={dispatcherLocation}
           onDispatcherShortcut={handleToShortcut}
+          userLat={currentUser?.current_latitude}
+          userLng={currentUser?.current_longitude}
         />
       </div>
 
