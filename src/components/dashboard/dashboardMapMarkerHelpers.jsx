@@ -2,7 +2,7 @@ if (typeof window !== 'undefined') {
   window.__dashboardMapMarkerHelpers = window.__dashboardMapMarkerHelpers || {};
 }
 
-export const FINISHED_MAP_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+export const FINISHED_MAP_STATUSES = ['completed', 'failed', 'cancelled'];
 
 import { getDeliveryTypeFlags } from '../utils/deliveryTypeUtils';
 import { getInterStoreLocationSync } from '../utils/interStoreDisplayName';
