@@ -223,7 +223,7 @@ const getDayOrderFromToday = () => {
 const sortPatients = (patients) => {
   const today = new Date();
   const dayMapForGetDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-  const hasSelectedDateDeliveries = patients.some((p) => p.todayDelivery),getSelectedDateDeliveryPriority = (d) => d?.status === 'in_transit' || d?.status === 'picked_up' ? 0 : d?.status === 'pending' ? 1 : ['completed', 'failed'].includes(d?.status) ? 2 : 3;
+  const hasSelectedDateDeliveries = patients.some((p) => p.todayDelivery),getSelectedDateDeliveryPriority = (d) => d?.status === 'in_transit' ? 0 : d?.status === 'pending' ? 1 : ['completed', 'failed'].includes(d?.status) ? 2 : 3;
   const dayOrderFromToday = getDayOrderFromToday();
 
   return [...patients].sort((a, b) => {
@@ -894,7 +894,7 @@ export default function Patients() {
   // Augment filteredPatients with selected-date delivery info and display priority
   const patientsWithDeliveryInfoAndPriority = useMemo(() => {
     const selectedDateStr = typeof selectedDate === 'string' ? selectedDate : format(new Date(selectedDate), 'yyyy-MM-dd');
-    const todayActiveDeliveries = deliveries.filter((d) => d.delivery_date === selectedDateStr && ['pending', 'picked_up', 'in_transit', 'completed', 'failed'].includes(d.status));
+    const todayActiveDeliveries = deliveries.filter((d) => d.delivery_date === selectedDateStr && ['pending', 'in_transit', 'completed', 'failed'].includes(d.status));
 
     const getPatientScoreForDisplayPriority = (patient, recurringInfo, daysSince) => {
       // High scores here indicate lower display priority
@@ -954,13 +954,13 @@ export default function Patients() {
     };
 
     return filteredPatients.map((patient) => {
-      const patientTodayDelivery = todayActiveDeliveries.filter((d) => d.patient_id === patient.id).sort((a, b) => (a.status === 'in_transit' || a.status === 'picked_up' ? 0 : a.status === 'pending' ? 1 : 2) - (b.status === 'in_transit' || b.status === 'picked_up' ? 0 : b.status === 'pending' ? 1 : 2) || (a.stop_order || Infinity) - (b.stop_order || Infinity))[0];
+      const patientTodayDelivery = todayActiveDeliveries.filter((d) => d.patient_id === patient.id).sort((a, b) => (a.status === 'in_transit' ? 0 : a.status === 'pending' ? 1 : 2) - (b.status === 'in_transit' || b.status === 'picked_up' ? 0 : b.status === 'pending' ? 1 : 2) || (a.stop_order || Infinity) - (b.stop_order || Infinity))[0];
       const daysSince = getDaysSinceLastDelivery(patient.last_delivery_date, new Date());
       const recurring = getRecurringInfo(patient);
 
       let displayPriority = 'normal';
 
-      if (patientTodayDelivery && ['pending', 'picked_up', 'in_transit'].includes(patientTodayDelivery.status)) {
+      if (patientTodayDelivery && ['pending', 'in_transit'].includes(patientTodayDelivery.status)) {
         displayPriority = 'on_route';
       } else if (patient.status === 'inactive') {
         displayPriority = 'inactive';
