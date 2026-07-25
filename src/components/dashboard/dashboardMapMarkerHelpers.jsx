@@ -26,11 +26,20 @@ export function getVisibleHomeMarkersForBounds({
 
   return (mapHomeMarkers || []).filter((home) => {
     const stops = [...(mapDeliveryMarkers || []), ...(mapPickupMarkers || [])].filter((stop) => stop?.driver_id === home.driverId);
-    const firstFinishedStop = stops.find((stop) => FINISHED_MAP_STATUSES.includes(stop.status));
-    const visiblePickups = stops.filter((stop) => stop?.markerType === 'pickup');
-    const lastPickupIsFinished = visiblePickups.length > 0 && visiblePickups.every((stop) => FINISHED_MAP_STATUSES.includes(stop.status));
-    const shouldShowHome = !firstFinishedStop || lastPickupIsFinished;
-    const shouldShowForCurrentView = (userHasRole(currentUser, 'driver') && home.driverId === currentUser.id) || (isAdmin && isShowAllMode) || showAllDriverMarkers || selectedDriverId === 'all' || home.driverId === selectedDriverId;
+    const finishedStops = stops.filter((stop) => FINISHED_MAP_STATUSES.includes(stop.status));
+    const allStopsFinished = stops.length > 0 && finishedStops.length === stops.length;
+    const noFinishedStops = finishedStops.length === 0;
+
+    // Is this the selected driver (or driver viewing their own route)?
+    const isSelectedDriver = (userHasRole(currentUser, 'driver') && home.driverId === currentUser.id) ||
+      home.driverId === selectedDriverId;
+
+    // Always show home for the selected driver when route is complete OR has no finished stops yet
+    const shouldShowHome = isSelectedDriver
+      ? (allStopsFinished || noFinishedStops)
+      : noFinishedStops;
+
+    const shouldShowForCurrentView = isSelectedDriver || (isAdmin && isShowAllMode) || showAllDriverMarkers || selectedDriverId === 'all';
     return !home.excludeFromBounds && shouldShowHome && shouldShowForCurrentView;
   });
 }
