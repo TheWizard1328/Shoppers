@@ -18,7 +18,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 // If stop_order is omitted, ALL stops for the driver/date are sliced.
 // ──────────────────────────────────────────────────────────────────────────────
 
-const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 const EDMONTON_TZ = 'America/Edmonton';
 
 function getEdmontonDateString(value) {
