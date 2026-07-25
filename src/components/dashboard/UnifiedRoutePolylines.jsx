@@ -264,12 +264,15 @@ function UnifiedRoutePolylines({
       const allOrdered = [...stops.complete, ...stops.incomplete]
         .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
 
-      // Skip the very first stop's polyline (encodes home→first-stop, not wanted)
+      // For the selected driver (driver viewing their own route or admin has selected them),
+      // show stop #1's polyline on a completed route so the home→first-stop leg is visible.
+      const isSelectedDriver = !selectedDriverId || selectedDriverId === "all" || selectedDriverId === driverId;
       const minOrder = allOrdered.length > 0 ? (Number(allOrdered[0].stop_order) || 0) : -1;
 
       allOrdered.forEach((stop, i) => {
-        if (i === 0) return; // skip first stop's polyline (home leg)
-        if ((Number(stop.stop_order) || 0) === minOrder) return;
+        // Only skip stop #1's polyline when NOT viewing the selected driver's completed route
+        if (i === 0 && !isSelectedDriver) return;
+        if (!isSelectedDriver && (Number(stop.stop_order) || 0) === minOrder) return;
 
         const mode = getStopMode(stop, driverId, allOrdered);
         const isCycling = mode === "cycling";
