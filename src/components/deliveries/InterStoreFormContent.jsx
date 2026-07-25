@@ -506,20 +506,20 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
 
           {/* Time Window (In Transit) */}
           {formData.status === 'in_transit' && (
-            <>
+            <div className="flex gap-2">
               <TimePickerField
-                label="Delivery Start"
+                label="Start"
                 value={formData.delivery_time_start || ''}
                 onChange={(v) => setFormData((prev) => ({ ...prev, delivery_time_start: v }))}
                 disabled={isSaving}
               />
               <TimePickerField
-                label="Delivery End"
+                label="End"
                 value={formData.delivery_time_end || ''}
                 onChange={(v) => setFormData((prev) => ({ ...prev, delivery_time_end: v }))}
                 disabled={isSaving}
               />
-            </>
+            </div>
           )}
 
           {/* Arrival & Completed times (Completed) */}
