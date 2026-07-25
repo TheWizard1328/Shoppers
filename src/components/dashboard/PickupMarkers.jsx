@@ -134,7 +134,7 @@ export default function PickupMarkers({
                                 ? (m.actual_delivery_time ? new Date(m.actual_delivery_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false}) : null)
                                 : (m.delivery_time_eta || null);
                               const timeColor = m.status === 'completed' ? 'text-emerald-600'
-                                : (m.status === 'failed' || m.status === 'cancelled') ? 'text-red-600';
+                                : (m.status === 'failed' || m.status === 'cancelled') ? 'text-red-600' : '';
                                 // : m.status === 'returned' ? 'text-orange-600' : '';
                               return (
                                 <div
