@@ -1254,7 +1254,7 @@ export default function DeliveriesPage() {
     return sortedAndFilteredDates.map((date) => {
       const deliveriesOnDate = groupedDeliveries[date] || [];
       const total = deliveriesOnDate.length;
-      const done = deliveriesOnDate.filter((d) => ['completed', 'picked_up', 'in_transit'].includes(d.status)).length;
+      const done = deliveriesOnDate.filter((d) => ['completed', 'in_transit', 'en_route'].includes(d.status)).length;
       const returnedByStatus = deliveriesOnDate.filter((d) => d.status === 'returned').length;
       const failedByStatus = deliveriesOnDate.filter((d) => d.status === 'failed').length;
 
@@ -2090,13 +2090,13 @@ export default function DeliveriesPage() {
       invalidate('Delivery');
 
       const isPickup = delivery.patient_id === null;
-      if (isPickup && newStatus === 'picked_up') {
+      if (isPickup && newStatus === 'en_route') {
         const relatedDeliveries = (effectiveDeliveries || []).filter((d) =>
         d && d.store_id === delivery.store_id &&
         d.delivery_date === delivery.delivery_date &&
         d.driver_name === delivery.driver_name &&
         d.patient_id &&
-        ['pending', 'Ready For Pickup'].includes(d.status)
+        d.status === 'pending'
         );
 
         const updatePromises = relatedDeliveries.map((d) =>
@@ -2628,7 +2628,7 @@ export default function DeliveriesPage() {
 
       const pickups = driverDeliveries.filter((d) => {
         const isPickup = !d.patient_id || d.patient_id === '';
-        return isPickup && (d.status === 'completed' || d.status === 'picked_up');
+        return isPickup && d.status === 'completed';
       }).length;
 
       const completed = driverDeliveries.filter((d) => {
@@ -2656,7 +2656,7 @@ export default function DeliveriesPage() {
       };
 
       const todayStats = {
-        active: todayDeliveries.filter((d) => ['picked_up', 'in_transit', 'pending'].includes(d.status)).length,
+        active: todayDeliveries.filter((d) => ['in_transit', 'en_route', 'pending'].includes(d.status)).length,
         completed: todayDeliveries.filter((d) => d.status === 'completed' || d.status === 'delivered').length,
         failed: todayDeliveries.filter((d) => d.status === 'failed' && !isReturn(d)).length,
         returned: todayDeliveries.filter((d) => d.status === 'returned' || isReturn(d)).length,

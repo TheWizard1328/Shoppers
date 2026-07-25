@@ -20,7 +20,7 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
     const returnedDeliveries = storeDeliveries.filter((d) => d.status === 'returned' || isReturn(d));
     const failedDeliveries = storeDeliveries.filter((d) => d.status === 'failed' && !isReturn(d));
     return {
-      activeRoutes: storeDeliveries.filter((d) => ['picked_up', 'in_transit', 'pending'].includes(d.status)).length,
+      activeRoutes: storeDeliveries.filter((d) => ['in_transit', 'en_route', 'pending'].includes(d.status)).length,
       completedRoutes: storeDeliveries.filter((d) => d.status === 'delivered' || d.status === 'completed').length,
       failedRoutes: failedDeliveries.length,
       returnedRoutes: returnedDeliveries.length,
