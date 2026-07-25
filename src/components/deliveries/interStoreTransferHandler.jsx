@@ -112,9 +112,12 @@ export async function createInterStoreTransfer({
   const matchedDestStore = findStoreByPhone(dstPhone) || findStoreByName(formData._interstore_dest_name || '');
   const matchedSrcStore = findStoreByPhone(srcPhone) || findStoreByName(formData._interstore_source_name || '');
 
-  // ISD: assign to To Store; if To Store not in DB, fall back to From Store.
-  // ISP: always assign to To Store (existing behaviour).
-  const assignedStore = matchedDestStore || (isDropOff ? matchedSrcStore : null);
+  // ISD: assign to To Store (destination); if not in DB, fall back to From Store.
+  // ISP: assign to From Store (source/originating) — driver picks up FROM this store.
+  //       The ISP's routing coordinates must be the source store, not the destination.
+  const assignedStore = isDropOff
+    ? (matchedDestStore || matchedSrcStore)
+    : (matchedSrcStore || matchedDestStore);
   const store_id = assignedStore?.id || matchedSrcStore?.id || '';
 
   // ── puid ──────────────────────────────────────────────────────────────

@@ -268,6 +268,20 @@ const getDeliveryCoords = (delivery, patientMap, storeMap, ispSourceMap = new Ma
     const patient = patientMap.get(delivery.patient_id);
     if (patient?.latitude != null && patient?.longitude != null) return { lat: Number(patient.latitude), lng: Number(patient.longitude) };
   }
+  // InterStore fallback: ISP should use the SOURCE (From) store, not the destination (To) store.
+  // The delivery.store_id for ISP points to the destination store — wrong for routing.
+  // ISD correctly uses destination store. Resolve source store by name match as fallback.
+  if (delivery._interstore_source_id && !delivery._interstore_dest_id) {
+    // ISP — try to find the source store by name from storeMap values.
+    const srcName = delivery._interstore_source_name;
+    if (srcName) {
+      for (const s of storeMap.values()) {
+        if (s?.name && s.name.toLowerCase().includes(srcName.toLowerCase()) && s?.latitude != null && s?.longitude != null) {
+          return { lat: Number(s.latitude), lng: Number(s.longitude) };
+        }
+      }
+    }
+  }
   const store = storeMap.get(delivery.store_id);
   if (store?.latitude != null && store?.longitude != null) return { lat: Number(store.latitude), lng: Number(store.longitude) };
   return null;
