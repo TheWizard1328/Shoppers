@@ -713,6 +713,9 @@ export default function DeliveryForm({
         handleClearForm: () => handleClearForm(),
         onCancel,
       });
+      // CRITICAL: Reset the force-open flag after a successful InterStore save so the
+      // driver dropdown doesn't auto-open on the blank form that follows.
+      setForceOpenDriverSelectOnLoad(false);
     } catch (err) {
       setError(err.message || 'Failed to create inter-store transfer.');
     } finally {
@@ -723,6 +726,8 @@ export default function DeliveryForm({
   const handleClearForm = useCallback(() => {
     void cleanupDetachedAutoCreatedPickups({ stagedDeliveries, deleteDeliveryLocal, autoCreatedPickupsRef, setStagedDeliveries });
     resetDraftEditorState({ setSelectedPatient, setSelectedPatientIds, setPatientSearch, setError, setEditingStagedId, setHighlightedPatientIndex, setFormData, setSelectedPickupOption, shouldAutoFocusFields, focusRef: patientSearchInputRef, setNewPatientMode });
+    // Always reset the force-open flag on clear so it doesn't bleed into the next form state
+    setForceOpenDriverSelectOnLoad(false);
     // Admins always reset to "All Drivers" on Clear
     if (userHasRole(currentUser, 'admin')) {
       setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
