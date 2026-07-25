@@ -7,6 +7,17 @@ import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
 
 const FINISHED = ["completed", "failed", "cancelled"];
+
+// CRITICAL: If transport_mode is explicitly 'cycling', it's a deliberate per-delivery
+// choice that must take precedence over finished_leg_transport_mode. The latter was
+// historically set to the driver's preferred_travel_mode during completion, not the
+// delivery's own transport_mode — so cycling deliveries completed by driving-preferred
+// drivers got finished_leg_transport_mode='driving', overriding their cycling style.
+const resolveLegTransportMode = (stop) => {
+  if (!stop) return 'driving';
+  if (stop.transport_mode === 'cycling') return 'cycling';
+  return normalizeTravelMode(stop.finished_leg_transport_mode || stop.transport_mode || 'driving');
+};
 const NON_BLUE_DRIVER_COLORS = ['#7C3AED', '#9333EA', '#DC2626', '#EA580C', '#16A34A', '#65A30D', '#CA8A04', '#C2410C', '#BE123C', '#7E22CE'];
 
 const getType3PolylineColor = (driverId) => {
@@ -223,7 +234,7 @@ export default function CompletedBreadcrumbPolylines({
     return allFinishedStops
       .filter((stop) => (Number(stop.stop_order) || 0) !== minStopOrderByDriver.get(stop.driver_id))
       .map((stop) => ({
-      finishedLegTransportMode: normalizeTravelMode(stop.finished_leg_transport_mode || stop.transport_mode),
+      finishedLegTransportMode: resolveLegTransportMode(stop),
       id: `stored-${stop.id}`,
       stopId: stop.id,
       driverId: stop.driver_id,
@@ -289,7 +300,7 @@ export default function CompletedBreadcrumbPolylines({
           end,
           destinationStopId: toStop.id,
           destinationPointKey: getPointKey(end),
-          finishedLegTransportMode: normalizeTravelMode(toStop.finished_leg_transport_mode || toStop.transport_mode || 'driving'),
+          finishedLegTransportMode: resolveLegTransportMode(toStop),
           storedEncodedPolyline: typeof toStop.finished_leg_encoded_polyline === "string" && toStop.finished_leg_encoded_polyline.trim().length > 0
             ? toStop.finished_leg_encoded_polyline.trim()
             : (typeof toStop.encoded_polyline === "string" ? toStop.encoded_polyline.trim() : ""),
@@ -315,7 +326,7 @@ export default function CompletedBreadcrumbPolylines({
             end: { latitude: Number(homeMarker.latitude), longitude: Number(homeMarker.longitude) },
             destinationStopId: `home-${route.driverId}`,
             destinationPointKey: getPointKey({ latitude: Number(homeMarker.latitude), longitude: Number(homeMarker.longitude) }),
-            finishedLegTransportMode: normalizeTravelMode(lastStop.finished_leg_transport_mode || lastStop.transport_mode || 'driving'),
+            finishedLegTransportMode: resolveLegTransportMode(lastStop),
             storedEncodedPolyline: "",
             breadcrumbPoints: [],
             routePoints: [

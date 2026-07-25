@@ -118,8 +118,10 @@ export default function MapController({
       if ((window._suppressAutoCenterUntil || 0) > Date.now()) { return; }
       const center = mapInstance.getCenter();
       const newCenter = [center.lat, center.lng];
+      const rawZoom = mapInstance.getZoom();
+      const roundedZoom = Math.round(rawZoom * 10) / 10;
       window.__mapCurrentCenter = newCenter;
-      window.__mapCurrentZoom = mapInstance.getZoom();
+      window.__mapCurrentZoom = rawZoom;
       
       const bounds = mapInstance.getBounds();
       setVisibleBounds(bounds);
@@ -136,6 +138,18 @@ export default function MapController({
           return newCenter;
         }
         return prev;
+      });
+
+      // CRITICAL: Also sync mapZoom state with the actual map zoom.
+      // Without this, the mapZoom state can become stale (e.g., user zoomed in
+      // but zoomend's 3500ms guard suppressed the setMapZoom call). When the user
+      // pans and releases, moveend calls setMapCenter, which triggers the
+      // setView effect in DeliveryMap with the stale zoom — snapping the map
+      // back to the old zoom level. Syncing here ensures the zoom state always
+      // matches the actual map zoom, so the setView effect is a no-op.
+      setMapZoom?.(prev => {
+        if (Math.abs((prev || 0) - roundedZoom) < 0.01) return prev;
+        return roundedZoom;
       });
     },
     click: () => {

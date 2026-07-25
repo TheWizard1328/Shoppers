@@ -26,7 +26,7 @@ import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
-import { updatePreferredTravelMode } from '../dashboard/travelModeHelpers';
+import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/travelModeHelpers';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
 import { consolidateBreadcrumbSegment } from "@/functions/consolidateBreadcrumbSegment";
@@ -1323,7 +1323,7 @@ export default function useStopCardActions(params) {
         const completionUpdate = {
           status: 'completed',
           actual_delivery_time: localTimeString,
-          finished_leg_transport_mode: currentPreferredTravelMode,
+          finished_leg_transport_mode: normalizeTravelMode(delivery.transport_mode || currentPreferredTravelMode),
           isNextDelivery: false,
           finished_leg_encoded_polyline: null,
           PolylineUpdated: true,
@@ -1517,7 +1517,7 @@ export default function useStopCardActions(params) {
           status,
           delivery_notes: updatedNotes,
           actual_delivery_time: localTimeString,
-          finished_leg_transport_mode: currentPreferredTravelMode,
+          finished_leg_transport_mode: normalizeTravelMode(delivery.transport_mode || currentPreferredTravelMode),
           isNextDelivery: false,
           PolylineUpdated: true,
           ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
