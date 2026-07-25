@@ -288,7 +288,7 @@ export const batchUpdateAMPM = async (deliveries, allDeliveries) => {
   return 0;
 };
 
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'picked_up'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'picked_up'];
 
 /**
  * Find or create a pickup ID (PUID) for a delivery

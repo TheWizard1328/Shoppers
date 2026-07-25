@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     const api = user ? base44 : base44.asServiceRole;
 
     // Load deliveries to sync
-    const finished = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const finished = new Set(['completed', 'failed', 'cancelled']);
     let deliveries = [];
 
     if (driverId && deliveryDate) {

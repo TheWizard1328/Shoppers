@@ -589,7 +589,7 @@ export default function DeliveryFormView({
                 }
               }
 
-              const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+              const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
               const routeDriverId = _formDataSnapshot.driver_id || _deliverySnapshot?.driver_id;
               const routeDate = _formDataSnapshot.delivery_date || _deliverySnapshot?.delivery_date;
               const routeDeliveries = _allDeliveriesSnapshot.filter(
@@ -1217,7 +1217,7 @@ export default function DeliveryFormView({
                                   <div className="relative" style={{ height: '1.5rem' }}>
                                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
                                     {delivery && selectedPatient && handleNewAddressPatient && (() => {
-                                    const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
+                                    const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                     return isLocked ?
                                     <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
                                          Change Address
@@ -1398,7 +1398,7 @@ export default function DeliveryFormView({
 
                           <div className="space-y-2">
                           {/* Store / Status / Time */}
-                          <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
+                          <div className={                          `space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
                         style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <DeliveryStatusAndTiming
                             formData={formData} setFormData={setFormData}
@@ -1438,7 +1438,7 @@ export default function DeliveryFormView({
                                 <div className="relative" style={{ height: '1.5rem' }}>
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
                                   {delivery && selectedPatient && handleNewAddressPatient && (() => {
-                                  const isLocked = ['completed', 'failed', 'cancelled', 'returned'].includes(formData.status);
+                                  const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                   return isLocked ?
                                   <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
                                         Change Address
@@ -1870,7 +1870,7 @@ export default function DeliveryFormView({
 
                       // Full route resort: finished by actual_delivery_time, incomplete by ETA, resequence stop_order
                       // For InterStore updates, always fetch fresh data from DB to include the just-saved timestamps
-                      const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+                      const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
                       const routeDriverId = _formDataSnapshot.driver_id || _deliverySnapshot?.driver_id;
                       const routeDate = _formDataSnapshot.delivery_date || _deliverySnapshot?.delivery_date;
 

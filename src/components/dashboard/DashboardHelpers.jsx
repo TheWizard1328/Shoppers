@@ -173,7 +173,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
 
 // Populate temporary start times for deliveries with blank time windows
 export const populateTemporaryStartTimes = (deliveries, stores) => {
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
   const deliveriesCopy = deliveries.map((d) => ({ ...d }));
   deliveriesCopy.forEach((delivery) => {
     if (!delivery.patient_id || delivery.delivery_time_start) return;

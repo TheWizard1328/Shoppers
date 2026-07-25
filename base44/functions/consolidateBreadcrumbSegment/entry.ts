@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
 
     // ── 2. Fetch all deliveries for this driver/date, sorted by stop_order ────
     // Only slice COMPLETED stops — incomplete stops have no trail legs yet.
-    const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id,
       delivery_date

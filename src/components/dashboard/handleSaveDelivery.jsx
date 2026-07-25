@@ -261,7 +261,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       stopsToProcess.push({ isNew: true, ...deliveryData, patient_id: null, status: 'en_route', delivery_notes: deliveryData.delivery_notes || `Store Pickup for ${pickupStore.name}`, latitude: pickupStore.latitude, longitude: pickupStore.longitude, extra_time: deliveryData.extra_time || 15 });
     }
 
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
     const applyTimes = (list) => {
       for (const stop of list) {
         if (!stop || stop.patient_id === null) continue;

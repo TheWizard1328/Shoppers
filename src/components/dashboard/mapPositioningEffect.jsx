@@ -154,7 +154,7 @@ export function runMapPositioningEffect({
           if (appUsersRef.current?.find((au) => au?.user_id === location.driver_id)?.driver_status !== 'on_duty') return;
           if (isDispatcher && !isAdmin) {
             const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map((id) => String(id)));
-            const _fin = ['completed', 'failed', 'cancelled', 'returned'];
+            const _fin = ['completed', 'failed', 'cancelled'];
             const hasActive = deliveriesRef.current.some((d) => d && d.delivery_date === selectedDateStr && d.driver_id === location.driver_id && dispatcherStoreIds.has(String(d.store_id)) && !_fin.includes(d.status));
             if (!hasActive) return;
           }
@@ -298,7 +298,7 @@ export function runMapPositioningEffect({
         const dispatcherStoreIds2 = new Set((currentUser?.store_ids || []).map((id) => String(id)));
         const selectedDateStr2 = format(selectedDateRef.current, 'yyyy-MM-dd');
         const allDateDeliveries2 = deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStr2);
-        const finishedStatuses2 = ['completed', 'failed', 'cancelled', 'returned'];
+        const finishedStatuses2 = ['completed', 'failed', 'cancelled'];
         const activeDriverIds2 = new Set(
           allDateDeliveries2
             .filter((d) => d && dispatcherStoreIds2.has(String(d.store_id)) && !finishedStatuses2.includes(d.status) && d.status !== 'pending')
@@ -372,8 +372,7 @@ export function runMapPositioningEffect({
       const selectedDateStrPhase3 = format(selectedDateRef.current, 'yyyy-MM-dd');
       const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
       const isShowAllOrAllDriversMode = showAllDriverMarkersRef.current || selectedDriverIdRef.current === 'all';
-      // CRITICAL: 'returned' must be treated as finished — do NOT include returned stops in phase 3
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
 
       if (isShowAllOrAllDriversMode) {
         let allDateDeliveries = deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStrPhase3);

@@ -20,7 +20,7 @@ export default function ETANotification({
   const [previousETAs, setPreviousETAs] = useState(new Map());
 
   // Define finished statuses to exclude from ETA notifications
-  const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+  const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
   useEffect(() => {
     if (!deliveries || deliveries.length === 0) return;

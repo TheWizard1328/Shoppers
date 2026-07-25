@@ -149,7 +149,7 @@ export default function ResetPolylinesButton({
               5000
             );
 
-            const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+            const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled']);
             const getCompletionTime = (d) => {
               const t = d?.actual_delivery_time || d?.arrival_time || d?.updated_date;
               if (t) { const ms = new Date(t).getTime(); if (Number.isFinite(ms)) return ms; }

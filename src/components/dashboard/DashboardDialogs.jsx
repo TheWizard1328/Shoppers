@@ -126,7 +126,7 @@ export default function DashboardDialogs({
       </AnimatePresence>
 
       <RouteNotification notification={routeNotification} onDismiss={() => setRouteNotification(null)} onNavigate={() => {
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const finishedStatuses = ['completed', 'failed', 'cancelled'];
         const next = deliveriesWithStopOrder.find(d => d && d.isNextDelivery && !finishedStatuses.includes(d.status));
         if (next) { const el = document.getElementById(`stop-card-${next.id}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }
       }} />
@@ -191,7 +191,7 @@ export default function DashboardDialogs({
                   .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
                 const activeIds = new Set(orderedDeliveryIds);
-                const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+                const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
                 const nonActiveDeliveries = allRouteDeliveries.filter(d => !activeIds.has(d.id));
 
                 const finishedDeliveries = nonActiveDeliveries

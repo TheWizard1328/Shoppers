@@ -79,7 +79,7 @@ export async function handleStartDelivery({
       (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
     );
 
-    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
     const completedCount = driverLocalDeliveries.filter((d) => finishedStatuses.has(d.status)).length;
     const nextStopOrder = completedCount + 1;
 

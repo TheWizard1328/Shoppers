@@ -72,7 +72,7 @@ export default function MapSection({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onImmersiveMapTap, isDispatcher, isAdmin, isDriver, handleMapViewCycle, immersiveHidden]);
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
   const routeCompleteForSelectedDriver = selectedDriverId && selectedDriverId !== 'all'
     ? deliveriesWithStopOrder.filter((d) => d && d.patient_id && d.driver_id === selectedDriverId).length > 0 &&
       deliveriesWithStopOrder.filter((d) => d && d.patient_id && d.driver_id === selectedDriverId).every((d) => finishedStatuses.includes(d.status))

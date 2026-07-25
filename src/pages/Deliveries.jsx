@@ -1398,7 +1398,7 @@ export default function DeliveriesPage() {
   const sortDeliveriesByTime = useCallback((deliveries) => {
     if (!Array.isArray(deliveries)) return [];
 
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
 
     const incomplete = deliveries.filter((d) => d && !finishedStatuses.includes(d.status));
     const completed = deliveries.filter((d) => d && finishedStatuses.includes(d.status));
@@ -2053,7 +2053,7 @@ export default function DeliveriesPage() {
 
       const updateData = { status: newStatus };
 
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const isFinishing = finishedStatuses.includes(newStatus);
       const wasFinished = finishedStatuses.includes(delivery.status);
 

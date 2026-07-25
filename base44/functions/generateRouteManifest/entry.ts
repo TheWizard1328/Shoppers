@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: `Date range too large (${datesToProcess.length} days). Please select 31 days or fewer.` }, { status: 400 });
     }
 
-    const finished = ['completed', 'failed', 'cancelled', 'returned'];
+    const finished = ['completed', 'failed', 'cancelled'];
     const isObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
 
     function extractTime(timeStr) {

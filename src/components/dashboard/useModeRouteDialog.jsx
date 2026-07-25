@@ -49,7 +49,7 @@ export default function useModeRouteDialog({
     // IMPORTANT: When multiple cycling routes exist on the same day (e.g. one completed earlier,
     // one active now), prefer the non-completed/non-failed marker so we measure distances
     // from the *active* cycling start point, not the already-finished one.
-    const DONE = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const DONE = new Set(['completed', 'failed', 'cancelled']);
     const isStartMarker = (d) =>
       d?.is_cycling_marker && (
         d.delivery_notes === 'Cycling Route Start' ||
@@ -137,7 +137,7 @@ export default function useModeRouteDialog({
         ? (typeof selectedDate === 'string' ? selectedDate : format(selectedDate, 'yyyy-MM-dd'))
         : format(now, 'yyyy-MM-dd');
 
-      const FINISHED = new Set(['completed', 'failed', 'cancelled', 'returned']);
+      const FINISHED = new Set(['completed', 'failed', 'cancelled']);
 
       // ── 0. Wait briefly for real marker IDs to land in local state ────────
       // DeliveryFormView creates markers in parallel and swaps temp→real IDs.
@@ -158,7 +158,7 @@ export default function useModeRouteDialog({
       // ── 1. Resolve Start and End markers ──────────────────────────────────
       // Prefer non-completed markers — when multiple cycling routes exist on the same day
       // (one completed, one active) we must use the active pair, not the finished one.
-      const _DONE = new Set(['completed', 'failed', 'cancelled', 'returned']);
+      const _DONE = new Set(['completed', 'failed', 'cancelled']);
       const isStartM = (d) => d?.is_cycling_marker && (d.delivery_notes === 'Cycling Route Start' || (d.delivery_notes || '').toLowerCase().includes('start'));
       const isEndM   = (d) => d?.is_cycling_marker && (d.delivery_notes === 'Cycling Route End'   || (d.delivery_notes || '').toLowerCase().includes('end'));
       const startMarker = (freshDeliveries.find((d) => isStartM(d) && !_DONE.has(d.status)) || freshDeliveries.find(isStartM)) ?? null;

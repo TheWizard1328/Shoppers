@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
     // Determine the next stop_order: the lowest active (non-finished, non-pending) stop_order
     // that is >= the first active stop — or just put it right after completed stops.
-    const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled']);
     const completedStops = (routeDeliveries || []).filter((d) => FINISHED_STATUSES.has(d?.status));
     const nextStopOrder = completedStops.length + 1;
 

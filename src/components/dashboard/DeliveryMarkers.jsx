@@ -323,7 +323,7 @@ function DeliveryMarkers({
                   {delivery.duplicateCount} stops at this location
                 </div>
                 {(() => {
-                  const DONE = ['completed', 'failed', 'cancelled', 'returned'];
+                  const DONE = ['completed', 'failed', 'cancelled'];
                   const lk = locationKey;
                   const all = [...(groupedPickupMarkers.get(lk) || []), ...(groupedDeliveryMarkers.get(lk) || [])]
                     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
@@ -438,7 +438,7 @@ function DeliveryMarkers({
           <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
             <div className="min-w-[240px] max-w-[320px]">
               {isClustered && !isFanned ? (() => {
-                const DONE = ['completed', 'failed', 'cancelled', 'returned'];
+                const DONE = ['completed', 'failed', 'cancelled'];
                 const all = [...(groupedPickupMarkers.get(locationKey) || []), ...(groupedDeliveryMarkers.get(locationKey) || [])]
                   .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                 const driverOrder = [];

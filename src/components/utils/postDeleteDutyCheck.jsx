@@ -24,7 +24,7 @@ export async function checkAndToggleOffDutyAfterDelete({
 }) {
   if (!driverId || !deliveryDate) return { toggledOffDuty: false, lastStopTime: null };
 
-  const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+  const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
   // Active/pending = anything NOT in a finished state
   const activePending = (remainingDeliveries || []).filter(

@@ -11,7 +11,7 @@ const ZOOM_LEVELS = {
   FULL_DETAIL: 13
 };
 
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 const simpleCircleIconCache = new Map();
 // Clear cache on hot reload

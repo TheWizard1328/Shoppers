@@ -192,7 +192,7 @@ export default function StatsPanel({
 
     const routeMap = new Map((driverRoutes || []).map((route) => [route.driverId, route]));
     const driverIdsWithStops = new Set(legendDeliveries.map((delivery) => delivery.driver_id));
-    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
 
     return sortUsers(Array.from(driverIdsWithStops).map((driverId) => {
       const route = routeMap.get(driverId);

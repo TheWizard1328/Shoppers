@@ -86,7 +86,7 @@ export default function PickupMarkers({
             <div className="min-w-[240px] max-w-[320px]">
               <div className="font-semibold text-sm pb-1 mb-2 border-b" style={{color:'var(--text-slate-900)',borderColor:'var(--border-slate-200)'}}>{pickup.duplicateCount} stops at this location</div>
               {(() => {
-                const DONE = ['completed', 'failed', 'cancelled', 'returned'];
+                const DONE = ['completed', 'failed', 'cancelled'];
                 const all = [...(groupedPickupMarkers.get(lk)||[]),...(groupedDeliveryMarkers.get(lk)||[])].sort((a,b)=>(a.stop_order||0)-(b.stop_order||0));
 
                 // Build ordered driver groups → store groups
@@ -177,7 +177,7 @@ export default function PickupMarkers({
           <Popup autoPan={false} closeButton={false} offset={[0,-20]} className="custom-popup">
             <div className="min-w-[240px] max-w-[320px]">
               {isClustered && !isFanned ? (() => {
-                const DONE = ['completed', 'failed', 'cancelled', 'returned'];
+                const DONE = ['completed', 'failed', 'cancelled'];
                 const all = [...(groupedPickupMarkers.get(lk) || []), ...(groupedDeliveryMarkers.get(lk) || [])]
                   .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                 const driverOrder = [];

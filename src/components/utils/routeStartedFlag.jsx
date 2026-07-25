@@ -10,7 +10,7 @@
 
 import { offlineDB } from './offlineDatabase';
 
-const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 
 /** Compute the flag from an in-memory deliveries array */
 export function computeRouteStarted(deliveries = [], driverId, deliveryDate) {

@@ -71,7 +71,7 @@ export default function AutoRouteOptimizer({
       }
 
       // Check if there are incomplete deliveries
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const hasIncompleteStops = deliveries.some(d => 
         d && !finishedStatuses.includes(d.status) && d.status !== 'pending'
       );

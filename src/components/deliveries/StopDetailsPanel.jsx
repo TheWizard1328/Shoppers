@@ -202,7 +202,7 @@ export default function StopDetailsPanel({
 
   const hasSignature = !!delivery.signature_image_url;
   const hasPhotos = delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0;
-  const isCompleted = ['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status);
+  const isCompleted = ['completed', 'failed', 'cancelled'].includes(delivery.status);
 
   const isPickup = !delivery.patient_id;
   const status = statusConfig[delivery.status] || statusConfig.pending;

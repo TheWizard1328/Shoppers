@@ -2,7 +2,7 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { getInterStoreLocationSync, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 
-const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 
 // Polyline encoding (Google format) — 1e5 precision
 // MUST match the client encoder in locationBreadcrumbService.jsx

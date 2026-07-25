@@ -69,7 +69,7 @@ export const shouldRefreshEtasForNextStopCheck = ({ driverId, deliveryDate, deli
   if (nowMs - lastRun < ETA_REFRESH_INTERVAL_MS) return false;
 
   const nextStop = (deliveries || [])
-    .filter((delivery) => delivery && delivery.driver_id === driverId && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(delivery.status))
+    .filter((delivery) => delivery && delivery.driver_id === driverId && !['completed', 'failed', 'cancelled', 'pending'].includes(delivery.status))
     .sort((a, b) => Number(a.stop_order || 9999) - Number(b.stop_order || 9999))[0];
 
   if (!nextStop?.delivery_time_eta) return false;

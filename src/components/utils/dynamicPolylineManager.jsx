@@ -59,7 +59,7 @@ export const determinePolylineSegment = (filteredDeliveries, driver, patients, s
     return null;
   }
 
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
   const completedDeliveries = filteredDeliveries
     .filter(d => finishedStatuses.includes(d.status) && d.actual_delivery_time)
     .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
