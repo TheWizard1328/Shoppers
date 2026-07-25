@@ -11,8 +11,9 @@
  *   1. Pause ALL background syncs (SmartRefresh, BackgroundSync, Realtime, Mutations)
  *   2. Run the caller's `work` function — processes data locally, saves to offlineDB only
  *   3. (Options 2/3/4) Run client-side route optimizer against fresh local data
- *   4. Apply resulting records to local UI state immediately
+ *   4. Apply resulting records to local UI state immediately (temp IDs shown instantly)
  *   5. Create NEW (temp) records on the backend with ALL optimizer data (polylines, stop_order, etc.)
+ *   5b. SWAP temp IDs out of React state with real backend IDs — prevents duplicate cards
  *   6. Broadcast affected delivery IDs to all subscribers
  *   7. Resume ALL background syncs
  */
@@ -87,8 +88,10 @@ const flushToOnlineDB = async (records) => {
     try {
       const { id: _tempId, _isLocal, created_date, updated_date, ...payload } = record;
       const created = await base44.entities.Delivery.create(payload);
-      createdRecords.push(created);
+      createdRecords.push({ created, tempId: _tempId });
 
+      // Mark the real ID as a local write so the WS echo is suppressed.
+      // Without this, the echo arrives and adds a SECOND card on top of the temp one.
       if (created?.id) {
         if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
         window.__localDeliveryWrites.set(created.id, Date.now());
@@ -104,6 +107,7 @@ const flushToOnlineDB = async (records) => {
       });
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [created]);
 
+      // Swap temp → real in window.__appDeliveries so duplicate guard works correctly.
       if (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries)) {
         window.__appDeliveries = window.__appDeliveries.map(d =>
           d?.id === _tempId ? { ...created } : d
@@ -143,7 +147,8 @@ const flushToOnlineDB = async (records) => {
     );
   }
 
-  return [...createdRecords, ...toUpdate];
+  // Return flat list of created records + their temp IDs for the caller to swap in React state
+  return { created: createdRecords, updated: toUpdate };
 };
 
 // ── Broadcast affected IDs ────────────────────────────────────────────────────
@@ -183,7 +188,8 @@ const broadcastAffectedDeliveries = (affectedIds, driverId, deliveryDate, action
  * @param {Object}   [params.optimizerContext]   - { deliveries, patients, stores, appUsers }
  *                                                  Pass null for deliveries to let coordinator fetch from backend.
  *                                                  NEVER pass [] — empty array = "no stops exist".
- * @param {Function} [params.applyLocalUI]       - fn(records) — update React state immediately
+ * @param {Function} [params.applyLocalUI]       - fn({ upserts, deleteIds }) — update React state.
+ *                                                  Must support deleteIds to swap temp → real IDs.
  * @returns {Promise<{success: boolean, records?: Delivery[], error?: string}>}
  */
 export async function executeOfflineBatchAction({
@@ -212,7 +218,9 @@ export async function executeOfflineBatchAction({
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, validRecords).catch(() => {});
 
     // Track which temp IDs we started with (for matching after backend creation)
-    const tempOriginalIds = new Set(validRecords.filter(r => !r.id || r.id.startsWith('temp_')).map(r => r.id));
+    const tempOriginalIds = new Set(
+      validRecords.filter(r => !r.id || r.id.startsWith('temp_')).map(r => r.id)
+    );
 
     // ── Step 3: Client-side route optimization ────────────────────────────────
     let optimizedRecords = validRecords;
@@ -257,12 +265,14 @@ export async function executeOfflineBatchAction({
       }
     }
 
-    // ── Step 4: Update local UI immediately (before online write) ─────────────
+    // ── Step 4: Apply temp records to UI immediately ───────────────────────────
+    // At this point, records still have temp IDs — we show them immediately so the
+    // UI is responsive. Step 5b will swap them out for real IDs once created.
     if (applyLocalUI) {
       try {
-        applyLocalUI(optimizedRecords);
+        applyLocalUI({ upserts: optimizedRecords, deleteIds: [] });
       } catch (uiErr) {
-        console.warn(`[OfflineBatch] "${actionName}" — applyLocalUI error:`, uiErr.message);
+        console.warn(`[OfflineBatch] "${actionName}" — applyLocalUI (Step 4) error:`, uiErr.message);
       }
     }
 
@@ -271,63 +281,92 @@ export async function executeOfflineBatchAction({
     //
     // The optimizer assigns stop_order, isNextDelivery, encoded_polyline, transport_mode,
     // delivery_time_eta, estimated_distance_km, estimated_duration_minutes to each stop.
-    // These are applied to `optimizedRecords` (from freshDeliveries). If we flush the
-    // original `validRecords` (pre-optimizer), the real backend record is created WITHOUT
-    // any of this data — and when the temp record is replaced on refresh, the polylines
-    // and stop_order vanish because they only existed on the temp ID in IDB.
+    // These are in `optimizedRecords` (from freshDeliveries). Flushing the original
+    // `validRecords` would create bare backend records without any optimizer data.
+    // When the temp gets replaced on refresh, all polylines and ordering vanish.
     //
-    // By flushing the optimized version, Delivery.create() receives the full payload
-    // including polylines and ordering — so the real record is born complete. No
-    // separate patch/update needed afterwards.
-    //
-    // The optimizer's writeBatch already wrote all REAL-id updates to the backend via
-    // bulkUpdateDeliveries. We only need to CREATE the temp records that don't exist yet.
+    // The optimizer's writeBatch already wrote all REAL-id updates via bulkUpdateDeliveries.
+    // We only need to CREATE the temp records that don't exist yet.
     const optimizedTempRecords = optimizedRecords.filter(r => tempOriginalIds.has(r.id));
     const recordsToFlush = optimizedTempRecords.length > 0
       ? optimizedTempRecords
       : validRecords.filter(r => !r.id || r.id.startsWith('temp_'));
 
-    const finalRecords = recordsToFlush.length > 0
+    const flushResult = recordsToFlush.length > 0
       ? await flushToOnlineDB(recordsToFlush)
-      : [];
+      : { created: [], updated: [] };
 
-    // ── Step 5b: Merge real IDs back into the result set ──────────────────────
-    // After flushToOnlineDB creates the real records, replace temp IDs in our result
-    // with the real backend records. Match by stop_id (unique per delivery).
-    let allFinal = optimizedRecords;
-    if (finalRecords.length > 0) {
-      const tempIdSet = new Set(recordsToFlush.map(r => r.id));
-      const realByStopId = new Map(finalRecords.map(r => [r.stop_id, r]));
-      const realByDeliveryId = new Map(finalRecords.map(r => [r.delivery_id, r]));
-      allFinal = optimizedRecords.map(r => {
-        if (tempIdSet.has(r.id)) {
-          const real = (r.stop_id && realByStopId.get(r.stop_id))
-            || (r.delivery_id && realByDeliveryId.get(r.delivery_id))
-            || null;
-          if (real) {
-            // Merge optimizer data onto the real record so UI sees complete state with real ID.
-            // This preserves polylines, stop_order, isNextDelivery, etc. from the optimizer
-            // while using the real backend ID.
-            return {
-              ...real,
-              stop_order: r.stop_order ?? real.stop_order,
-              isNextDelivery: r.isNextDelivery ?? real.isNextDelivery,
-              encoded_polyline: r.encoded_polyline ?? real.encoded_polyline,
-              transport_mode: r.transport_mode ?? real.transport_mode,
-              delivery_time_eta: r.delivery_time_eta ?? real.delivery_time_eta,
-              estimated_distance_km: r.estimated_distance_km ?? real.estimated_distance_km,
-              estimated_duration_minutes: r.estimated_duration_minutes ?? real.estimated_duration_minutes,
-              travel_dist: r.travel_dist ?? real.travel_dist,
-            };
-          }
+    const { created: createdPairs, updated: updatedRecords } = flushResult;
+
+    // ── Step 5b: Swap temp IDs → real IDs in React state ─────────────────────
+    // This is the CRITICAL step that prevents duplicate cards.
+    //
+    // After Step 4, React state contains temp records (id: 'temp_delivery_...'). 
+    // After Step 5, the backend has real records with real IDs.
+    //
+    // Without this step:
+    //   - React state: { id: 'temp_delivery_xyz', ... }  ← shown as card #1
+    //   - WS echo arrives with real ID → applyDeliveryChangesLocally adds it as NEW → card #2
+    //   - User sees TWO identical ISP/ISD cards
+    //
+    // With this step:
+    //   - We atomically call applyLocalUI({ upserts: [realRecord], deleteIds: ['temp_delivery_xyz'] })
+    //   - React state map deletes temp key, inserts real key → ONE card
+    //   - WS echo arrives → real ID already in state → map.set merges (no duplicate)
+    //
+    // Match by stop_id first (unique per delivery), then delivery_id as fallback.
+    const tempIdSet = new Set(recordsToFlush.map(r => r.id));
+    const realByStopId = new Map(createdPairs.map(({ created: c }) => [c?.stop_id, c]).filter(([k]) => k));
+    const realByDeliveryId = new Map(createdPairs.map(({ created: c }) => [c?.delivery_id, c]).filter(([k]) => k));
+    const tempIdToReal = new Map(createdPairs.map(({ created: c, tempId }) => [tempId, c]).filter(([, c]) => c?.id));
+
+    // Build the merged allFinal array: temp records → real+optimized records
+    let allFinal = optimizedRecords.map(r => {
+      if (tempIdSet.has(r.id)) {
+        const real = tempIdToReal.get(r.id)
+          || (r.stop_id && realByStopId.get(r.stop_id))
+          || (r.delivery_id && realByDeliveryId.get(r.delivery_id))
+          || null;
+        if (real) {
+          // Merge optimizer fields onto real record (polylines, stop_order, isNextDelivery, etc.)
+          return {
+            ...real,
+            stop_order: r.stop_order ?? real.stop_order,
+            isNextDelivery: r.isNextDelivery ?? real.isNextDelivery,
+            encoded_polyline: r.encoded_polyline ?? real.encoded_polyline,
+            transport_mode: r.transport_mode ?? real.transport_mode,
+            delivery_time_eta: r.delivery_time_eta ?? real.delivery_time_eta,
+            estimated_distance_km: r.estimated_distance_km ?? real.estimated_distance_km,
+            estimated_duration_minutes: r.estimated_duration_minutes ?? real.estimated_duration_minutes,
+            travel_dist: r.travel_dist ?? real.travel_dist,
+          };
         }
-        return r;
-      });
+      }
+      return r;
+    });
 
-      // Persist the merged real+optimized records to IDB so next read returns complete data
-      const mergedForDB = allFinal.filter(r => r.id && !r.id.startsWith('temp_'));
-      if (mergedForDB.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mergedForDB).catch(() => {});
+    // Persist the merged real+optimized records to IDB
+    const mergedForDB = allFinal.filter(r => r.id && !r.id.startsWith('temp_'));
+    if (mergedForDB.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mergedForDB).catch(() => {});
+    }
+
+    // NOW swap temp → real in React state:
+    // Delete temp IDs, upsert real (merged) records — one atomic state update.
+    if (applyLocalUI && createdPairs.length > 0) {
+      // Find real records that were swapped from temp
+      const realUpserts = Array.from(tempIdToReal.values()).map(real => {
+        return allFinal.find(r => r.id === real?.id) || real;
+      }).filter(Boolean);
+      const tempDeleteIds = Array.from(tempIdToReal.keys());
+
+      if (realUpserts.length > 0 || tempDeleteIds.length > 0) {
+        try {
+          applyLocalUI({ upserts: realUpserts, deleteIds: tempDeleteIds });
+          console.log(`[OfflineBatch] "${actionName}" — swapped ${tempDeleteIds.length} temp IDs → real IDs in React state`);
+        } catch (swapErr) {
+          console.warn(`[OfflineBatch] "${actionName}" — applyLocalUI (Step 5b swap) error:`, swapErr.message);
+        }
       }
     }
 
@@ -337,7 +376,7 @@ export async function executeOfflineBatchAction({
       .filter((id) => id && !id.startsWith('temp_'));
     broadcastAffectedDeliveries(affectedIds, driverId, deliveryDate, actionName);
 
-    console.log(`✅ [OfflineBatch] "${actionName}" complete — ${affectedIds.length} deliveries, ${finalRecords.length} new records created`);
+    console.log(`✅ [OfflineBatch] "${actionName}" complete — ${affectedIds.length} deliveries, ${createdPairs.length} new records created`);
     return { success: true, records: allFinal };
   } catch (err) {
     console.error(`❌ [OfflineBatch] "${actionName}" failed:`, err);

@@ -308,8 +308,8 @@ export async function createInterStoreTransfer({
       stores,
       appUsers: appUsers || [],
     },
-    applyLocalUI: (records) => {
-      applyDeliveryChangesLocally?.({ upserts: records.filter(Boolean), deleteIds: [] });
+    applyLocalUI: ({ upserts = [], deleteIds = [] } = {}) => {
+      applyDeliveryChangesLocally?.({ upserts: upserts.filter(Boolean), deleteIds });
     },
   });
 
