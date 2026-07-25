@@ -703,8 +703,12 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         const cardIndex = sortedPickupCards.findIndex((item) => item?.id === card.id);
         const fanStyle = desktopFanLayout?.[cardIndex];
         const isRailCentered = !isDesktopFanLayout || card.id === sortedPickupCards[centeredCardIndex]?.id;
-        // Fan in only if the card immediately before this one is bulk-selected
+        // Fan: if THIS card is bulk-selected, pull the next card (right neighbor) over it.
+        // Apply negative marginLeft to THIS card when the card to its left is selected,
+        // so the right neighbor slides on top of the selected card.
         const prevCard = sortedPickupCards[cardIndex - 1];
+        const prevCardWidth = prevCard?.is_cycling_marker ? 250 : (useFlexibleCardWidth ? phoneCardWidth : 338);
+        const fanOffset = prevCardWidth - 60; // leave 60px peeking out
         const isInRightDeck = bulkSelectionEnabled && !!prevCard && !!selectedDeliveryIds?.[prevCard.id];
         const sequentialCardZIndex = 200 + cardIndex;
 
@@ -714,13 +718,14 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
             <div
               key={card.id}
               id={`stop-card-${card.id}`}
-              className="flex-shrink-0 pointer-events-auto flex items-stretch"
+              className="flex-shrink-0 pointer-events-auto flex items-stretch transition-all duration-300 ease-out"
               style={{
                 scrollSnapAlign: isMobile ? 'center' : 'none',
                 scrollSnapStop: isMobile ? 'always' : 'normal',
                 zIndex: sequentialCardZIndex,
                 position: 'relative',
                 overflow: 'visible',
+                marginLeft: isInRightDeck ? `${-fanOffset}px` : undefined,
               }}
               data-is-next-delivery={card.isNextDelivery ? "true" : undefined}
             >
@@ -754,11 +759,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               overflow: 'visible',
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal',
-              marginLeft: isInRightDeck
-                ? isMobile
-                  ? `${-(phoneCardWidth - 60)}px`
-                  : '-290px'
-                : undefined,
+              marginLeft: isInRightDeck ? `${-fanOffset}px` : undefined,
               zIndex: sequentialCardZIndex
             }}
             data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
