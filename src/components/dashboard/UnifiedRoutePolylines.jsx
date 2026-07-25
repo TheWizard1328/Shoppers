@@ -23,7 +23,7 @@ import RouteDirectionDecorator from "./RouteDirectionDecorator";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
 import { getInterStoreLocationSync, isInterStoreDelivery } from "../utils/interStoreDisplayName";
 
-const FINISHED = ["completed", "failed", "cancelled", "returned"];
+const FINISHED = ["completed", "failed", "cancelled"];
 const CURRENT_LEG_COLOR = "#2563EB";
 const CYCLING_COLOR = "#16A34A";
 
