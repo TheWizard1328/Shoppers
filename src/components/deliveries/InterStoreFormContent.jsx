@@ -160,8 +160,8 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
                   <span className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>{loc.store_name}</span>
                   {loc.store_number && <span className="text-slate-400 text-xs">#{loc.store_number}</span>}
                   {userLat != null && userLng != null && loc.store_latitude != null && loc.store_longitude != null &&
-                  <span className="text-[10px] text-slate-400 font-mono">
-                      {crowFliesKm(userLat, userLng, loc.store_latitude, loc.store_longitude).toFixed(1)}km
+                  <span className="text-[12px] text-slate-400 font-mono">
+                      {crowFliesKm(userLat, userLng, loc.store_latitude, loc.store_longitude).toFixed(1)} km
                     </span>
                   }
                   {isSelected && <Badge className={`text-[10px] px-1.5 py-0 ${selectedStyle.badge} ml-auto`}>{isFrom ? 'From' : 'To'}</Badge>}
