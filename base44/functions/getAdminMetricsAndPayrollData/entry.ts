@@ -251,7 +251,7 @@ const mergeMetrics = (baseMetrics, incomingMetrics) => {
         return;
       }
       const mergedItem = { ...existing, ...item };
-      ['completed', 'failed', 'afterHours', 'cancelled', 'fees', 'billable', 'nonBillable', 'extra_km', 'total', 'totalCompleted', 'totalFailed'].forEach((field) => { //, 'returned'
+      ['completed', 'failed', 'afterHours', 'returned', 'cancelled', 'fees', 'billable', 'nonBillable', 'extra_km', 'total', 'totalCompleted', 'totalFailed'].forEach((field) => {
         if (existing[field] != null || item[field] != null) {
           mergedItem[field] = (existing[field] || 0) + (item[field] || 0);
         }
