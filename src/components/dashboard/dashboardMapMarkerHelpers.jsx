@@ -30,16 +30,21 @@ export function getVisibleHomeMarkersForBounds({
     const allStopsFinished = stops.length > 0 && finishedStops.length === stops.length;
     const noFinishedStops = finishedStops.length === 0;
 
-    // Is this the selected driver (or driver viewing their own route)?
-    const isSelectedDriver = (userHasRole(currentUser, 'driver') && home.driverId === currentUser.id) ||
-      home.driverId === selectedDriverId;
+    // Is this the selected driver?
+    const isSelectedDriver = home.driverId === selectedDriverId ||
+      (userHasRole(currentUser, 'driver') && home.driverId === currentUser.id);
+
+    // Admins always count as "viewing the selected driver" when one is selected
+    const isAdminViewingSelectedDriver = isAdmin && home.driverId === selectedDriverId;
+
+    const isViewingThisDriver = isSelectedDriver || isAdminViewingSelectedDriver;
 
     // Always show home for the selected driver when route is complete OR has no finished stops yet
-    const shouldShowHome = isSelectedDriver
+    const shouldShowHome = isViewingThisDriver
       ? (allStopsFinished || noFinishedStops)
       : noFinishedStops;
 
-    const shouldShowForCurrentView = isSelectedDriver || (isAdmin && isShowAllMode) || showAllDriverMarkers || selectedDriverId === 'all';
+    const shouldShowForCurrentView = isViewingThisDriver || (isAdmin && isShowAllMode) || showAllDriverMarkers || selectedDriverId === 'all';
     return !home.excludeFromBounds && shouldShowHome && shouldShowForCurrentView;
   });
 }
