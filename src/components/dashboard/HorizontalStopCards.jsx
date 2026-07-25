@@ -792,7 +792,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               }}
               onStatusUpdate={(id, status, additionalData, skipAutoCenter) => {
                 // Re-enable auto-scroll when status changes to completed/cancelled
-                if (['completed', 'cancelled', 'returned', 'failed'].includes(status)) {
+                if (['completed', 'cancelled', 'failed'].includes(status)) { //, 'returned'
                   autoScrollEnabledRef.current = true;
                 }
                 onStatusUpdate(id, status, additionalData, skipAutoCenter);
