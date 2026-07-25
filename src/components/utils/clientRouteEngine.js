@@ -548,18 +548,36 @@ export async function optimizeRouteClientSide({
     // ISP stops use _interstore_source_id; ISD stops use _interstore_dest_id
     const isdId = d._interstore_dest_id;
     const ispId = d._interstore_source_id;
-    // Try ID-based lookup first via the shared cache
+    const keyId = ispId || isdId;
+    if (!keyId) continue;
+    // 1. Try phone-based cache lookup via delivery_id (populated during bootstrap sync)
     if (isInterStoreDelivery(d.delivery_id)) {
       const loc = getInterStoreLocationSync(d.delivery_id);
       if (loc) {
         const lat = Number(loc.store_latitude);
         const lon = Number(loc.store_longitude);
         if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
-          const keyId = ispId || isdId || d.id;
           ispSourceMap.set(keyId, { store_latitude: lat, store_longitude: lon });
+          continue; // found via cache — no need for fallback
         }
       }
     }
+    // 2. Fallback: look up InterStoreLocation directly by entity ID stored on the delivery.
+    // This handles fresh ISP/ISD records created before the location cache was populated
+    // (e.g. first use of a location, or cold start with empty locationCache).
+    try {
+      const { getInterStoreLocationByEntityId } = await import('./interStoreDisplayName');
+      if (getInterStoreLocationByEntityId) {
+        const loc = await getInterStoreLocationByEntityId(keyId);
+        if (loc) {
+          const lat = Number(loc.store_latitude);
+          const lon = Number(loc.store_longitude);
+          if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
+            ispSourceMap.set(keyId, { store_latitude: lat, store_longitude: lon });
+          }
+        }
+      }
+    } catch { /* non-fatal */ }
   }
 
   // Build pickup window lookup
@@ -1154,10 +1172,43 @@ export async function optimizeRouteClientSide({
 
   // NOTE: Do NOT sort pending stops to end — the HERE optimizer already sequenced them
   // correctly, and reordering here would scramble the stop_order vs polyline mapping.
-  const activeStops = routeStops.map(stop => ({
+  let activeStops = routeStops.map(stop => ({
     ...stop.delivery,
     delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
   }));
+
+  // ── Enforce ISP-before-ISD ordering ──────────────────────────────────────
+  // The HERE optimizer treats ISP and ISD as independent stops and may sequence ISD before
+  // ISP. Since ISD.puid === ISP.stop_id (driver must pick up FROM source before dropping off
+  // AT destination), enforce this ordering constraint in the post-optimization pass.
+  // Strategy: for each ISD, find its linked ISP. If ISD appears before ISP, swap them.
+  {
+    const ispByStopId = new Map(
+      activeStops.filter(s => s._interstore_source_id && !s._interstore_dest_id).map(s => [s.stop_id, s])
+    );
+    let swapped = false;
+    do {
+      swapped = false;
+      for (let i = 0; i < activeStops.length; i++) {
+        const stop = activeStops[i];
+        // ISD: has _interstore_dest_id and puid pointing to an ISP stop_id
+        if (stop._interstore_dest_id && stop.puid) {
+          const linkedISP = ispByStopId.get(stop.puid);
+          if (!linkedISP) continue;
+          const ispIdx = activeStops.findIndex(s => s.id === linkedISP.id);
+          if (ispIdx > i) {
+            // ISD is before its linked ISP — swap them
+            activeStops = [...activeStops];
+            const tmp = activeStops[i];
+            activeStops[i] = activeStops[ispIdx];
+            activeStops[ispIdx] = tmp;
+            swapped = true;
+            break; // restart scan after a swap
+          }
+        }
+      }
+    } while (swapped);
+  }
 
   const startOrder = startingStopOrder != null ? startingStopOrder : completedDeliveries.length;
   const originalActiveOrder = activeRouteDeliveries
@@ -1172,10 +1223,26 @@ export async function optimizeRouteClientSide({
   // Determine which stop should have isNextDelivery=true after optimization.
   // Cycling markers ARE full stops and CAN be isNextDelivery — a driver must be able to
   // start/complete them like any other stop.
-  // Priority: explicit isNextDelivery (any stop) → first active stop (if route not started).
+  //
+  // Priority:
+  //   1. Explicit isNextDelivery stop (already set by the driver or a previous optimizer run)
+  //   2. First non-ISP/ISD active stop if the route hasn't started yet
+  //   3. null (no isNextDelivery set) — the driver hasn't started and has only interstore stops
+  //
+  // CRITICAL: InterStore stops (ISP/ISD) must NOT steal isNextDelivery from a regular
+  // delivery stop. When an ISP/ISD is injected mid-route, preserve whatever the driver
+  // was already heading to. Only fall back to activeStops[0] when the route hasn't started
+  // at all AND there are no regular (non-ISP/ISD) active stops ahead.
   const routeInProgress = completedDeliveries.length > 0;
+  // If no explicit next stop, pick the first non-ISP/ISD active stop as the default next.
+  // This prevents a newly-created ISP/ISD from being auto-assigned isNextDelivery=true
+  // when it gets sorted to position 0 by the HERE optimizer.
+  const firstNonInterStoreActive = activeStops.find(s => {
+    const isISP_ISD = !!(s._interstore_source_id || s._interstore_dest_id);
+    return !isISP_ISD;
+  }) || null;
   const nextStopId = (explicitNextDelivery ? explicitNextDelivery.id : null)
-    || (!routeInProgress ? (activeStops[0]?.id || null) : null);
+    || (!routeInProgress ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null) : null);
   const finalizedById = new Map(activeStops.map(s => [s.id, s]));
   const writeBatch = [];
 
@@ -1373,9 +1440,13 @@ function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliv
     cumulativeTime += delivery.extra_time || (isPickup ? 15 : 5);
   }
 
+  // For future routes: first non-ISP/ISD stop gets isNextDelivery=true.
+  // ISP/ISD stops must never steal isNextDelivery from regular delivery stops.
+  const _futureFirstNonISPId = orderedStops.find(({ delivery: d }) => !(d._interstore_source_id || d._interstore_dest_id))?.delivery.id || orderedStops[0]?.delivery.id || null;
+
   const writeBatch = orderedStops.map(({ delivery, isPickup }, i) => {
     const newEta = etaMap.get(delivery.id);
-    const updateData = { stop_order: startOrder + i + 1, delivery_time_eta: newEta, isNextDelivery: i === 0 };
+    const updateData = { stop_order: startOrder + i + 1, delivery_time_eta: newEta, isNextDelivery: delivery.id === _futureFirstNonISPId };
     const np = isPickup ? normalizedPickups.find(p => p.id === delivery.id) : null;
     if (np) {
       if (np.delivery_time_start !== delivery.delivery_time_start) updateData.delivery_time_start = np.delivery_time_start;

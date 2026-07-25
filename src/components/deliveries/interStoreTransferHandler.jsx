@@ -277,6 +277,19 @@ export async function createInterStoreTransfer({
   // Build the record locally, save to offlineDB, run optimizer, then flush online.
   let created = null;
 
+  // ── Read full offline DB route snapshot before creating the temp record ─────
+  // This gives the optimizer the complete picture of existing stops so it can
+  // assign correct stop_order and isNextDelivery for the new ISP/ISD.
+  // CRITICAL: We must read this BEFORE saving the temp record so the snapshot
+  // doesn't include our own temp record twice.
+  let existingOfflineDeliveries = null;
+  try {
+    const allOffline = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    existingOfflineDeliveries = (allOffline || []).filter(
+      (d) => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date
+    );
+  } catch { /* non-fatal — coordinator will fetch from backend */ }
+
   const batchResult = await executeOfflineBatchAction({
     actionName: isDropOff ? 'AddInterStoreDropoff' : 'AddInterStorePickup',
     work: async () => {
@@ -288,8 +301,10 @@ export async function createInterStoreTransfer({
     },
     runOptimizer: true,
     optimizerContext: {
-      deliveries: [], // optimizer will use offlineDB snapshot merged with the new record
-      patients: [],
+      // Pass the real offline DB snapshot (or null to let coordinator fetch from backend).
+      // NEVER pass [] — an empty array tells the optimizer the route is empty.
+      deliveries: existingOfflineDeliveries,
+      patients: null,
       stores,
       appUsers: appUsers || [],
     },

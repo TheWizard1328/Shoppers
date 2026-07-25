@@ -151,6 +151,41 @@ export function getInterStoreLocationByPhone(phoneDigits) {
 }
 
 /**
+ * Looks up an InterStoreLocation by its entity ID (the _interstore_source_id or _interstore_dest_id
+ * stored on the delivery). Falls back to offlineDB then API. Caches the result.
+ * Used by clientRouteEngine to resolve coords for freshly-created ISP/ISD records
+ * before the phone-based locationCache is warm.
+ */
+export async function getInterStoreLocationByEntityId(entityId) {
+  if (!entityId) return null;
+  // Check if we already have it in locationCache (keyed by phone)
+  for (const loc of locationCache.values()) {
+    if (loc.id === entityId) return loc;
+  }
+  // Try offlineDB
+  try {
+    const { offlineDB: _odb } = await import('./offlineDatabase');
+    const allLocs = await _odb.getAll(_odb.STORES.INTER_STORE_LOCATIONS).catch(() => []);
+    const found = (allLocs || []).find(l => l?.id === entityId);
+    if (found) {
+      indexInterStoreLocation(found); // warm the cache
+      return found;
+    }
+  } catch { /* non-fatal */ }
+  // Fall back to API
+  try {
+    const { base44: _b44 } = await import('@/api/base44Client');
+    const results = await _b44.entities.InterStoreLocation.filter({ id: entityId }).catch(() => []);
+    const found = results?.[0] || null;
+    if (found) {
+      indexInterStoreLocation(found); // warm the cache
+      return found;
+    }
+  } catch { /* non-fatal */ }
+  return null;
+}
+
+/**
  * Resolves the store name for the "from" store of an ISP delivery.
  * Returns null if not found.
  */
