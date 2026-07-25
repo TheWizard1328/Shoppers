@@ -180,6 +180,17 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
   );
 }
 
+// Haversine crow-flies distance in km
+function crowFliesKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export default function InterStoreFormContent({ formData, setFormData, isSaving, currentUser, stores, onReady, delivery, isAddToRouteMode }) {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -211,14 +222,28 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
           storeList.forEach((s) => {
             if (s.name) storeSortMap[s.name.toLowerCase()] = s.sort_order ?? 9999;
           });
+
+          // User coords for crow-flies distance sort (tertiary)
+          const userLat = currentUser?.current_latitude;
+          const userLng = currentUser?.current_longitude;
+          const hasUserCoords = userLat != null && userLng != null;
+
           const sorted = (data || []).slice().sort((a, b) => {
-            const aCompany = storeSortMap[( a.store_name || '').toLowerCase()] ?? 9999;
+            // Primary: company/store sort_order
+            const aCompany = storeSortMap[(a.store_name || '').toLowerCase()] ?? 9999;
             const bCompany = storeSortMap[(b.store_name || '').toLowerCase()] ?? 9999;
             if (aCompany !== bCompany) return aCompany - bCompany;
             // Secondary: store_number numerically
             const aNum = parseInt(a.store_number || '9999999', 10);
             const bNum = parseInt(b.store_number || '9999999', 10);
-            return aNum - bNum;
+            if (aNum !== bNum) return aNum - bNum;
+            // Tertiary: crow-flies distance from user's current location
+            if (hasUserCoords && a.store_latitude != null && b.store_latitude != null) {
+              const aDist = crowFliesKm(userLat, userLng, a.store_latitude, a.store_longitude);
+              const bDist = crowFliesKm(userLat, userLng, b.store_latitude, b.store_longitude);
+              return aDist - bDist;
+            }
+            return 0;
           });
           setLocations(sorted);
         }
