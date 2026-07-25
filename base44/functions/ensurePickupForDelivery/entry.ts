@@ -308,7 +308,7 @@ Deno.serve(async (req) => {
         return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
       }
 
-      const isIncomplete = (pickup) => !['en_route', 'completed', 'cancelled', 'returned'].includes(pickup.status);
+      const isIncomplete = (pickup) => !['en_route', 'completed', 'cancelled'].includes(pickup.status);
       let targetPickup = storePickups.find((pickup) => isIncomplete(pickup) && (pickup.ampm_deliveries || 'AM') === primarySlot);
       if (!targetPickup) {
         targetPickup = storePickups.find((pickup) => isIncomplete(pickup));
@@ -397,7 +397,7 @@ Deno.serve(async (req) => {
     // set first_leg_origin to driver home so the polyline starts from home correctly.
     // Also fix any existing en_route pickups on this route that still have stale (past) time windows.
     const allExistingFinished = allPickups.length > 0 && allPickups.every(d =>
-      ['completed', 'failed', 'cancelled', 'returned'].includes(d?.status)
+      ['completed', 'failed', 'cancelled'].includes(d?.status)
     );
     if (allExistingFinished && isTodayReuse) {
       // Update any en_route pickups on this route with stale time windows
