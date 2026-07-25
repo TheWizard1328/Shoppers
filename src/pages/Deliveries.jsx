@@ -84,6 +84,8 @@ import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { ProjectedPickupCard } from '../components/deliveries/RouteManagementHelpers';
 import { applyRouteToolbarFilters, getDriverFilterOptions, getRouteScopedStoreOptions } from '../components/deliveries/routeToolbarFilters';
 import DriverRouteHeader from "../components/deliveries/DriverRouteHeader";
+import { useProjectedRoutes } from "../components/deliveries/useProjectedRoutes";
+import { useDeliveryRealtimeSync } from "../components/deliveries/useDeliveryRealtimeSync";
 const addMinutesToTime = (timeString, minutesToAdd) => {
   if (!timeString) return null;
   const [hours, minutes] = timeString.split(':').map(Number);
@@ -92,20 +94,6 @@ const addMinutesToTime = (timeString, minutesToAdd) => {
   const newH = Math.floor(total / 60) % 24;
   const newM = total % 60;
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
-};
-
-const estimateDriveTimeMinutes = (lat1, lng1, lat2, lng2) => {
-  if (!lat1 || !lng1 || !lat2 || !lng2) return 10;
-  const toRad = (v) => v * Math.PI / 180;
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-  Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distanceKm = R * c;
-  return Math.max(5, Math.min(Math.round(distanceKm / 30 * 60), 60));
 };
 
 const statusConfig = {
@@ -684,22 +672,7 @@ export default function DeliveriesPage() {
     };
   }, [isDriverOverviewMode]);
 
-  // Subscribe to delivery + patient websockets for real-time updates
-  useEffect(() => {
-    const unsubD = base44.entities.Delivery.subscribe((event) => {
-      if (!isMounted.current) return;
-      if (event.type === 'create') setAllDeliveries((prev) => prev.some((d) => d?.id === event.id) ? prev : [...prev, event.data]);else
-      if (event.type === 'update') setAllDeliveries((prev) => prev.map((d) => d?.id === event.id ? { ...d, ...event.data } : d));else
-      if (event.type === 'delete') setAllDeliveries((prev) => prev.filter((d) => d?.id !== event.id));
-    });
-    const unsubP = base44.entities.Patient.subscribe((event) => {
-      if (!isMounted.current) return;
-      if (event.type === 'create') setAllPatients((prev) => prev.some((p) => p?.id === event.id) ? prev : [...prev, event.data]);else
-      if (event.type === 'update') setAllPatients((prev) => prev.map((p) => p?.id === event.id ? { ...p, ...event.data } : p));else
-      if (event.type === 'delete') setAllPatients((prev) => prev.filter((p) => p?.id !== event.id));
-    });
-    return () => {unsubD();unsubP();};
-  }, []);
+  // WebSocket subscriptions are handled by useDeliveryRealtimeSync (called below near projectedRoutes)
 
   // Fetch fresh AppUser data periodically for accurate driver_status
   useEffect(() => {
@@ -2268,232 +2241,12 @@ export default function DeliveriesPage() {
     );
   }, [selectedDateDeliveries, activeDriver]);
 
-  const projectedRoutes = React.useMemo(() => {
-    if (!activeDriver || activeDriverDeliveries.length > 0) {
-      return { pickups: [], deliveries: [], stopOrderMap: {} };
-    }
+  const projectedRoutes = useProjectedRoutes({ activeDriver, activeDriverDeliveries, stores, effectivePatients, allPatients, selectedDate });
 
-    const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
-    const dateString = !isNaN(dateObj.getTime()) ? format(dateObj, 'yyyy-MM-dd') : String(selectedDate || '');
-    if (!dateString) return { pickups: [], deliveries: [], stopOrderMap: {} };
+  // Real-time WebSocket subscription — updates UI state AND offline DB on every event
+  useDeliveryRealtimeSync({ isMountedRef: isMounted, setAllDeliveries, setAllPatients });
 
-    const day = dateObj.getDay();
-    const isSaturday = day === 6;
-    const isSunday = day === 0;
-
-    const driverName = activeDriver.user_name || activeDriver.full_name || '';
-    if (!driverName) return { pickups: [], deliveries: [], stopOrderMap: {} };
-
-    const patientsSource = typeof effectivePatients !== 'undefined' && Array.isArray(effectivePatients) && effectivePatients?.length ?
-    effectivePatients :
-    typeof allPatients !== 'undefined' && Array.isArray(allPatients) ? allPatients || [] : [];
-
-    const isPatientDue = (patient) => {
-      if (!patient || !patient.last_delivery_date) return false;
-      const notes = (patient.notes || '').toLowerCase();
-      const [ly, lm, ld] = patient.last_delivery_date.split('-').map(Number);
-      const lastDelivery = new Date(ly, lm - 1, ld);
-      lastDelivery.setHours(0, 0, 0, 0);
-      const current = new Date(dateObj);
-      current.setHours(0, 0, 0, 0);
-      if (current <= lastDelivery) return false;
-      const daysSince = Math.round((current - lastDelivery) / (1000 * 60 * 60 * 24));
-      if (daysSince > 90) return false;
-
-      const dayOfWeekShort = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][current.getDay()];
-
-      if (notes.includes('daily')) return daysSince >= 1;
-
-      const weeklyMatch = notes.match(/weekly\s*\((mon|tue|wed|thu|fri|sat|sun)\)/i);
-      if (weeklyMatch) {
-        const scheduledDay = weeklyMatch[1].toLowerCase();
-        if (dayOfWeekShort === scheduledDay) {
-          return daysSince >= 7;
-        }
-      }
-
-      const biWeeklyMatch = notes.match(/bi-weekly\s*\((mon|tue|wed|thu|fri|sat|sun)\)/i);
-      if (biWeeklyMatch) {
-        const scheduledDay = biWeeklyMatch[1].toLowerCase();
-        if (dayOfWeekShort === scheduledDay) {
-          return daysSince >= 13;
-        }
-      }
-
-      if (notes.includes('bi-weekly')) return daysSince >= 13 && daysSince <= 15;
-      if (notes.includes('weekly x4')) return daysSince >= 26 && daysSince <= 31 && daysSince % 28 === 0;
-      if (notes.includes('monthly')) return daysSince >= 28 && daysSince <= 31;
-      if (notes.includes('weekly')) return daysSince >= 7;
-      return daysSince > 0 && daysSince % 7 === 0;
-    };
-
-    const getFrequencyPriority = (patient) => {
-      const n = (patient.notes || '').toLowerCase();
-      if (n.includes('daily')) return 1;
-      if (n.includes('weekly') && !n.includes('bi-weekly') && !n.includes('weekly x4')) return 2;
-      if (n.includes('bi-weekly')) return 3;
-      if (n.includes('weekly x4')) return 4;
-      if (n.includes('monthly')) return 5;
-      return 6;
-    };
-
-    const relevantStores = (stores || []).filter((store) => {
-      if (isSaturday) {
-        return store.saturday_am_enabled && (store.driver_saturday_am_id === activeDriver.id || store.driver_saturday_am_id === activeDriver.appUserId || store.driver_saturday_am === driverName) ||
-        store.saturday_pm_enabled && (store.driver_saturday_pm_id === activeDriver.id || store.driver_saturday_pm_id === activeDriver.appUserId || store.driver_saturday_pm === driverName);
-      }
-      if (isSunday) {
-        return store.sunday_am_enabled && (store.sunday_am_driver_id === activeDriver.id || store.sunday_am_driver_id === activeDriver.appUserId || store.sunday_am_driver === driverName) ||
-        store.sunday_pm_enabled && (store.sunday_pm_driver_id === activeDriver.id || store.sunday_pm_driver_id === activeDriver.appUserId || store.sunday_pm_driver === driverName);
-      }
-      return store.weekday_am_enabled && (store.weekday_am_driver_id === activeDriver.id || store.weekday_am_driver_id === activeDriver.appUserId || store.weekday_am_driver === driverName) ||
-      store.weekday_pm_enabled && (store.weekday_pm_driver_id === activeDriver.id || store.weekday_pm_driver_id === activeDriver.appUserId || store.weekday_pm_driver === driverName);
-    }).sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
-
-    const pickups = [];
-    const flatDeliveries = [];
-    const stopOrderMap = {};
-    let segmentIndex = 0;
-
-    const exclusionKeywords = ['\\(Old', '\\(Wrong', '\\(Deceased', 'DMR', 'RFD', 'RTN', 'Return', '\\(ISP\\)', '\\(ISD\\)', 'InterStore'];
-    const exclusionRegex = new RegExp(exclusionKeywords.join('|'), 'i');
-
-    relevantStores.forEach((store) => {
-      const timeSlots = [];
-      if (isSaturday) {
-        if (store.saturday_am_enabled && (store.driver_saturday_am_id === activeDriver.id || store.driver_saturday_am_id === activeDriver.appUserId || store.driver_saturday_am === driverName)) {
-          timeSlots.push({ period: 'am', start: store.saturday_am_start, end: store.saturday_am_end });
-        }
-        if (store.saturday_pm_enabled && (store.driver_saturday_pm_id === activeDriver.id || store.driver_saturday_pm_id === activeDriver.appUserId || store.driver_saturday_pm === driverName)) {
-          timeSlots.push({ period: 'pm', start: store.saturday_pm_start, end: store.saturday_pm_end });
-        }
-      } else if (isSunday) {
-        if (store.sunday_am_enabled && (store.sunday_am_driver_id === activeDriver.id || store.sunday_am_driver_id === activeDriver.appUserId || store.sunday_am_driver === driverName)) {
-          timeSlots.push({ period: 'am', start: store.sunday_am_start, end: store.sunday_am_end });
-        }
-        if (store.sunday_pm_enabled && (store.sunday_pm_driver_id === activeDriver.id || store.sunday_pm_driver_id === activeDriver.appUserId || store.sunday_pm_driver === driverName)) {
-          timeSlots.push({ period: 'pm', start: store.sunday_pm_start, end: store.sunday_pm_end });
-        }
-      } else {
-        if (store.weekday_am_enabled && (store.weekday_am_driver_id === activeDriver.id || store.weekday_am_driver_id === activeDriver.appUserId || store.weekday_am_driver === driverName)) {
-          timeSlots.push({ period: 'am', start: store.weekday_am_start, end: store.weekday_am_end });
-        }
-        if (store.weekday_pm_enabled && (store.weekday_pm_driver_id === activeDriver.id || store.weekday_pm_driver_id === activeDriver.appUserId || store.weekday_pm_driver === driverName)) {
-          timeSlots.push({ period: 'pm', start: store.weekday_pm_start, end: store.weekday_pm_end });
-        }
-      }
-
-      timeSlots.forEach(({ period, start, end }) => {
-        if (!start) return;
-        segmentIndex += 1;
-        const isAM = period === 'am';
-
-        const storePatients = (patientsSource || []).
-        filter((p) => p?.status === 'active' && p.store_id === store.id).
-        filter((p) => {
-          const combinedText = `${p.full_name || ''} ${p.address || ''} ${p.notes || ''}`;
-          if (exclusionRegex.test(combinedText)) return false;
-
-          if (isAM) {
-            return !(p.notes || '').toLowerCase().includes('pm delivery');
-          } else {
-            return !(p.notes || '').toLowerCase().includes('am delivery');
-          }
-        }).
-        map((p) => ({
-          id: `projected-delivery-${p.id}-${dateString}-${period}-${store.id}`,
-          patient_id: p.id,
-          patient_name: p.full_name,
-          store_id: p.store_id,
-          driver_name: driverName,
-          delivery_date: dateString,
-          delivery_address: p.address,
-          delivery_instructions: p.notes,
-          latitude: p.latitude,
-          longitude: p.longitude,
-          delivery_time_start: p.time_window_start || null,
-          delivery_time_end: p.time_window_end || null,
-          status: 'projected',
-          isProjected: true,
-          isPickup: false,
-          phone: p.phone,
-          tracking_number: 'temp',
-          frequencyPriority: getFrequencyPriority(p),
-          distance_from_store: p.distance_from_store || 0
-        }));
-
-        storePatients.sort((a, b) => {
-          if (a.frequencyPriority !== b.frequencyPriority) return a.frequencyPriority - b.frequencyPriority;
-          const tA = a.delivery_time_start || '00:00';
-          const tB = b.delivery_time_start || '00:00';
-          if (tA !== tB) return tA.localeCompare(tB);
-          if (a.distance_from_store !== b.distance_from_store) return a.distance_from_store - b.distance_from_store;
-          return a.patient_name.localeCompare(b.patient_name);
-        });
-
-        const storeAbbr = store.abbreviation || 'ST';
-        const pickupId = `projected-pickup-${store.id}-${dateString}-${period}-${segmentIndex}`;
-        const pickupCard = {
-          id: pickupId,
-          patient_id: null,
-          store_id: store.id,
-          delivery_date: dateString,
-          delivery_time_start: start,
-          delivery_time_end: end || addMinutesToTime(start, 60),
-          status: 'projected',
-          driver_name: driverName,
-          tracking_number: `${storeAbbr}PU${String(segmentIndex).padStart(2, '0')}`,
-          delivery_notes: `Projected Pickup`,
-          delivery_address: store.address,
-          isProjected: true,
-          isPickup: true,
-          sortTime: start,
-          latitude: store.latitude,
-          longitude: store.longitude,
-          full_name: `${store.name} ${period.toUpperCase()} Pickup`,
-          alias_name: store.abbreviation,
-          color: store.color,
-          projected_deliveries: [],
-          phone: store.phone
-        };
-
-        let currentTime = pickupCard.delivery_time_end;
-        let lastLat = store.latitude;
-        let lastLng = store.longitude;
-        const baseSegment = segmentIndex * 100;
-
-        storePatients.forEach((d, idx) => {
-          const drive = estimateDriveTimeMinutes(lastLat, lastLng, d.latitude, d.longitude);
-          currentTime = addMinutesToTime(currentTime, drive);
-          if (d.delivery_time_start && currentTime && d.delivery_time_start > currentTime) {
-            currentTime = d.delivery_time_start;
-          }
-          d.delivery_time_start = currentTime;
-          d.delivery_time_end = addMinutesToTime(currentTime, 15);
-          d.sortTime = currentTime;
-          d.tracking_number = `${storeAbbr}${String(baseSegment + idx + 1).padStart(3, '0')}`;
-          lastLat = d.latitude;
-          lastLng = d.longitude;
-          pickupCard.projected_deliveries.push(d);
-          flatDeliveries.push(d);
-        });
-
-        pickups.push(pickupCard);
-        flatDeliveries.push(pickupCard);
-      });
-    });
-
-    flatDeliveries.sort((a, b) => {
-      const tA = a.sortTime || a.delivery_time_start || '00:00';
-      const tB = b.sortTime || b.delivery_time_start || '00:00';
-      if (tA !== tB) return tA.localeCompare(tB);
-      return (a.tracking_number || '').localeCompare(b.tracking_number || '');
-    });
-    flatDeliveries.forEach((s, i) => {stopOrderMap[s.id] = i + 1;});
-    pickups.sort((a, b) => (a.sortTime || '00:00').localeCompare(b.sortTime || '00:00'));
-
-    return { pickups, deliveries: flatDeliveries, stopOrderMap };
-  }, [activeDriver, activeDriverDeliveries.length, stores, effectivePatients, allPatients, selectedDate]);
+  // Projected routes logic moved to useProjectedRoutes hook above
 
   const handleYearChange = useCallback((year) => {
     manualDateSelectionRef.current = false;
