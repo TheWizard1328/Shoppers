@@ -30,6 +30,7 @@ export function buildReturnDeliveryData({ originalDelivery, originalPatient, ret
     stop_id: generateUniqueSID(routeDateDeliveries || []),
     puid,
     tracking_number: String(nextTrackingNumber),
-    ampm_deliveries: finalAmpm
+    ampm_deliveries: finalAmpm,
+    transport_mode: originalDelivery?.transport_mode || null
   };
 }
