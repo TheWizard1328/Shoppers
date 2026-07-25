@@ -20,7 +20,7 @@ const getStatusColor = (status) => {
 const getTimeColor = (status) => {
   if (status === 'completed') return 'text-emerald-600';
   if (status === 'failed' || status === 'cancelled') return 'text-red-600';
-  if (status === 'returned') return 'text-orange-600';
+  // if (status === 'returned') return 'text-orange-600';
   return '';
 };
 
