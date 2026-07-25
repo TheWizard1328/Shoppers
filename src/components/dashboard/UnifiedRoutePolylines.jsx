@@ -124,7 +124,7 @@ function UnifiedRoutePolylines({
       const detail = e?.detail || {};
       const deliveries = detail.freshDeliveries || detail.deliveries;
       if (
-        (Array.isArray(deliveries) && deliveries.some((d) => d?.encoded_polyline || d?.polyline_saved_at)) ||
+        (Array.isArray(deliveries) && deliveries.some((d) => d?.encoded_polyline || d?.polyline_saved_at || d?.transport_mode)) ||
         detail.triggeredBy === "resetPolylines_chunk" ||
         detail.triggeredBy === "realtimeBufferedFullRefresh"
       ) invalidate();
@@ -137,6 +137,7 @@ function UnifiedRoutePolylines({
       ["polylineCacheCleared", invalidate],
       ["deliveryCompleted", invalidate],
       ["deliveryFailed", invalidate],
+      ["deliveryUpdated", invalidate],
       ["driverTravelModeChanged", onTravelModeChanged],
       ["deliveriesUpdated", onDeliveriesUpdated],
     ];
