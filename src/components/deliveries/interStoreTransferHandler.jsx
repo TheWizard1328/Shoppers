@@ -274,21 +274,10 @@ export async function createInterStoreTransfer({
   };
 
   // ── Offline-first batch action ────────────────────────────────────────────
-  // Build the record locally, save to offlineDB, run optimizer, then flush online.
+  // Build the record locally, save to offlineDB, flush to backend — NO optimizer.
+  // Optimization is deferred to when the form closes (Done/Cancel), so the user
+  // can add multiple ISP/ISD stops in one session and they all get optimized together.
   let created = null;
-
-  // ── Read full offline DB route snapshot before creating the temp record ─────
-  // This gives the optimizer the complete picture of existing stops so it can
-  // assign correct stop_order and isNextDelivery for the new ISP/ISD.
-  // CRITICAL: We must read this BEFORE saving the temp record so the snapshot
-  // doesn't include our own temp record twice.
-  let existingOfflineDeliveries = null;
-  try {
-    const allOffline = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-    existingOfflineDeliveries = (allOffline || []).filter(
-      (d) => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date
-    );
-  } catch { /* non-fatal — coordinator will fetch from backend */ }
 
   const batchResult = await executeOfflineBatchAction({
     actionName: isDropOff ? 'AddInterStoreDropoff' : 'AddInterStorePickup',
@@ -299,15 +288,8 @@ export async function createInterStoreTransfer({
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [localRecord]).catch(() => null);
       return { records: [localRecord], driverId: formData.driver_id, deliveryDate: formData.delivery_date };
     },
-    runOptimizer: true,
-    optimizerContext: {
-      // Pass the real offline DB snapshot (or null to let coordinator fetch from backend).
-      // NEVER pass [] — an empty array tells the optimizer the route is empty.
-      deliveries: existingOfflineDeliveries,
-      patients: null,
-      stores,
-      appUsers: appUsers || [],
-    },
+    runOptimizer: false, // Deferred — optimization runs when the form closes
+    optimizerContext: null,
     applyLocalUI: ({ upserts = [], deleteIds = [] } = {}) => {
       applyDeliveryChangesLocally?.({ upserts: upserts.filter(Boolean), deleteIds });
     },
@@ -315,5 +297,27 @@ export async function createInterStoreTransfer({
 
   // The real backend record is the finalized one from the batch flush
   created = batchResult?.records?.[0] || null;
+
+  // Store the pending optimization context so the caller can run it when the form closes.
+  // Multiple ISP/ISD additions accumulate — the optimizer runs once with all of them.
+  if (created?.id && formData.driver_id && formData.delivery_date) {
+    if (!window.__pendingInterStoreOptimizations) {
+      window.__pendingInterStoreOptimizations = [];
+    }
+    // Dedupe by driver_id + delivery_date — we only need one optimization run per route
+    const existing = window.__pendingInterStoreOptimizations.find(
+      (p) => p.driverId === formData.driver_id && p.deliveryDate === formData.delivery_date
+    );
+    if (!existing) {
+      window.__pendingInterStoreOptimizations.push({
+        driverId: formData.driver_id,
+        deliveryDate: formData.delivery_date,
+        stores,
+        appUsers: appUsers || [],
+      });
+      console.log(`[InterStoreTransfer] Deferred optimization queued for driver ${formData.driver_id} on ${formData.delivery_date}`);
+    }
+  }
+
   return created;
 }

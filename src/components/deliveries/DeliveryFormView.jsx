@@ -329,7 +329,7 @@ export default function DeliveryFormView({
   // Require driver selection when no regular pickup exists for the patient's store/date/slot,
   // OR when the delivery date is a stat holiday (must always pick manually).
   const requiresDriverSelection = (() => {
-    if (delivery || isPickupMode) return false; // only for new patient deliveries
+    if (delivery || isPickupMode || isInterStoreMode) return false; // only for new patient deliveries
     if (statHolidayWarning && !formData?.driver_id) return true; // stat holiday — force selection
     if (formData?.driver_id) return false; // driver already chosen
     const patientToCheck = selectedPatient || (formData?.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
@@ -350,7 +350,7 @@ export default function DeliveryFormView({
   const [forceOpenDriverSelect, setForceOpenDriverSelect] = React.useState(false);
   const prevRequiresDriverSelectionRef = React.useRef(false);
   React.useEffect(() => {
-    const shouldOpen = requiresDriverSelection || forceOpenDriverOnLoad;
+    const shouldOpen = (requiresDriverSelection || forceOpenDriverOnLoad) && !isInterStoreMode;
     // Only open programmatically when transitioning from not-required → required.
     // Never force-close via this effect — the Select's onValueChange handles that,
     // preventing the double-open caused by the effect firing after a driver is chosen.

@@ -89,6 +89,41 @@ export const closeDeliveryFormAfterSave = ({ handleClearForm, onCancel }) => {
   onCancel();
 };
 
+/**
+ * Runs any pending InterStore (ISP/ISD) optimizations that were deferred during
+ * the form session. Called when the delivery form closes (Done/Cancel/Save).
+ *
+ * Optimization is deferred so the user can add multiple ISP/ISD stops in one
+ * session and they all get optimized together in a single pass — instead of
+ * running the optimizer on every individual "+ Interstore" click.
+ */
+export const flushPendingInterStoreOptimizations = async () => {
+  if (typeof window === 'undefined' || !window.__pendingInterStoreOptimizations) return;
+  const pending = window.__pendingInterStoreOptimizations;
+  window.__pendingInterStoreOptimizations = null;
+  if (!pending || pending.length === 0) return;
+
+  for (const { driverId, deliveryDate, stores, appUsers } of pending) {
+    try {
+      console.log(`[InterStoreDeferred] Running deferred optimization for driver ${driverId} on ${deliveryDate}`);
+      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+      await performRouteOptimization({
+        driverId,
+        deliveryDate,
+        deliveries: null, // Let coordinator fetch fresh from backend
+        patients: null,
+        stores,
+        appUsers,
+        source: 'interstore_deferred',
+        skipPolyline: false,
+      });
+      console.log(`[InterStoreDeferred] Optimization complete for driver ${driverId}`);
+    } catch (err) {
+      console.warn(`[InterStoreDeferred] Optimization failed for driver ${driverId}:`, err?.message || err);
+    }
+  }
+};
+
 export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, travelModeOnly = false, currentUser }) => {
   if (!driverId || !deliveryDate || travelModeOnly) return;
 
