@@ -196,16 +196,6 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         transition: 'opacity 0.2s ease-in-out'
       }}>
       
-      {/* Bulk selection checkbox */}
-      {bulkSelectionEnabled && (
-        <div
-          style={{ position: 'absolute', top: '6px', left: '6px', zIndex: 10 }}
-          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBulkSelectionChange?.(delivery.id, !isBulkSelected); }}>
-          <Checkbox checked={isBulkSelected} aria-label="Select cycling marker" />
-        </div>
-      )}
-
       {/* Card */}
       <div
         ref={cardRef}
@@ -222,6 +212,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           overflow: 'visible'
         }}
         onClick={() => {
+          if (bulkSelectionEnabled) { onBulkSelectionChange?.(delivery.id, !isBulkSelected); return; }
           if (!isDispatcher) setMenuOpen((v) => !v);
           window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery?.id } }));
         }}>
@@ -231,9 +222,30 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
           {/* Stop number badge - matches regular stop card style */}
           <Badge
             variant="secondary"
-            className="px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors justify-center shrink-0"
-            style={{ backgroundColor: accentColor, color: 'white', width: '40px' }}>
-            #{stopNum}
+            className={`px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors justify-center shrink-0 ${bulkSelectionEnabled ? 'gap-1 min-w-[58px]' : 'w-[40px]'}`}
+            style={{ backgroundColor: accentColor, color: 'white' }}>
+            {bulkSelectionEnabled && (
+              <div
+                data-stopcard-checkbox="true"
+                className="-m-1 flex h-7 w-7 items-center justify-center rounded-full"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
+                <Checkbox
+                  checked={isBulkSelected}
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onCheckedChange={(checked) => onBulkSelectionChange?.(delivery.id, !!checked)}
+                  aria-label="Select cycling marker"
+                  className="h-5 w-5 border-white bg-white/90 data-[state=checked]:bg-white data-[state=checked]:text-slate-900"
+                />
+              </div>
+            )}
+            <span className="pointer-events-none">#{stopNum}</span>
           </Badge>
 
           {/* Cycling label - center — matches patient name: text-xl font-semibold */}
