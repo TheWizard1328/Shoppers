@@ -187,9 +187,9 @@ Deno.serve(async (req) => {
         if (delivery.status === 'failed' && !isReturn(delivery)) {
           stats.todayStats.failed++;
         }
-        if (delivery.status === 'returned' || isReturn(delivery)) {
-          stats.todayStats.returned++;
-        }
+//        if (delivery.status === 'returned' || isReturn(delivery)) {
+//          stats.todayStats.returned++;
+//        }
       }
     });
 
