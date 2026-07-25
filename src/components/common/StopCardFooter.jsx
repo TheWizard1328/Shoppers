@@ -25,7 +25,7 @@ export default function StopCardFooter(props) {
   const [isCancelling, setIsCancelling] = useState(false);
 
   const dispatcherStoreIds = Array.isArray(currentUser?.store_ids) ? currentUser.store_ids : [];
-  const finishedStatuses = ['completed', 'cancelled', 'failed', 'returned'];
+  const finishedStatuses = ['completed', 'cancelled', 'failed']; //, 'returned'
   const selectedDriverId = delivery?.driver_id;
   const selectedDate = delivery?.delivery_date;
   const allDeliveries = Array.isArray(props?.allDeliveries) ? props.allDeliveries : [];
