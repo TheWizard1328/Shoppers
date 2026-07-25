@@ -2035,15 +2035,17 @@ useEffect(() => {
     setPatientFormMode(null);
   }, [patientFormCallback]);
 
-  const triggerPostDeleteOperations = async (driverId, deliveryDate, wasNextDelivery) => {
+  const triggerPostDeleteOperations = async (driverId, deliveryDate, wasNextDelivery, deletedDeliveryId = null) => {
     try {
       setIsEntityUpdating(true); pauseOfflineSync(); await new Promise((r) => setTimeout(r, 100));
 
       // Check if any active stops remain for this driver/date after deletion.
       // Terminal statuses don't count as "active" for routing purposes.
+      // CRITICAL: Filter out the just-deleted delivery ID so the optimizer never sees it.
       const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
       const driverDeliveries = (deliveriesRef.current || []).filter(
         (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
+          && d.id !== deletedDeliveryId
       );
       const remainingActiveStops = driverDeliveries.filter(
         (d) => !TERMINAL_STATUSES.includes(String(d.status || ''))
@@ -2106,6 +2108,7 @@ useEffect(() => {
         const { checkAndToggleOffDutyAfterDelete } = await import('../components/utils/postDeleteDutyCheck');
         const remainingDriverDeliveries = (deliveriesRef.current || []).filter(
           (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
+            && d.id !== deletedDeliveryId
         );
         await checkAndToggleOffDutyAfterDelete({
           driverId,
@@ -2133,9 +2136,13 @@ useEffect(() => {
     }
     // Square COD cleanup is now handled inside deleteDeliveryLocal — no need for conditional delete here.
     const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
-    const p = deleteDeliveryLocal(deliveryId);
+    // CRITICAL: Await the delete so IDB + backend are both committed before
+    // triggerPostDeleteOperations runs. Otherwise the optimizer reads stale
+    // deliveriesRef.current that still contains the deleted delivery, generates
+    // polylines for it, and re-inserts it into the UI via freshDeliveries.
+    await deleteDeliveryLocal(deliveryId);
     if (selectedCardId === deliveryId) setSelectedCardId(null);
-    if (_isActive) triggerPostDeleteOperations(_did, _dd, _wasNext);
+    if (_isActive) triggerPostDeleteOperations(_did, _dd, _wasNext, deliveryId);
      }, [deliveriesWithStopOrder, selectedCardId, triggerPostDeleteOperations]);
 
   const recalculateStopOrders = async (driverId, deliveryDate) => recalculateAndUpdateStopOrders(driverId, deliveryDate);

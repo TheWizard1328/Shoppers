@@ -1193,6 +1193,11 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
         const broadcastSavedLabel = entity === 'Patient' ? (data?.full_name || id) : id;
         console.log(`💾 [RealtimeSync] [${rsTime()}] Broadcast saved ${entity} to offline DB: ${broadcastSavedLabel}`);
       } else if (action === 'delete' && id) {
+        // Track local Delivery deletes so the WS self-echo can be suppressed.
+        if (entity === 'Delivery') {
+          if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+          window.__localDeliveryWrites.set(id, Date.now());
+        }
         await offlineDB.deleteRecord(storeName, id);
         const broadcastDeletedLabel = entity === 'Patient' ? (data?.full_name || id) : id;
         console.log(`💾 [RealtimeSync] [${rsTime()}] Broadcast deleted ${entity} from offline DB: ${broadcastDeletedLabel}`);

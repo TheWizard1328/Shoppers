@@ -739,6 +739,16 @@ export const deleteDeliveryLocal = async (deliveryId) => {
   try {
     console.log('📝 [OfflineMutations] Deleting delivery locally:', deliveryId);
 
+    // CRITICAL: Register this delete in window.__localDeliveryWrites so the incoming
+    // WebSocket delete echo is suppressed. Without this, the WS echo goes through the
+    // full realtimeSync pipeline — re-reading from IDB (where the delete may have
+    // already committed, making it a no-op) but potentially racing with a refresh
+    // cycle that re-inserts the delivery into the UI.
+    if (typeof window !== 'undefined') {
+      if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+      window.__localDeliveryWrites.set(deliveryId, Date.now());
+    }
+
     // Step 1: CRITICAL - Delete from BOTH offline DB AND backend simultaneously
     const offlineDeletePromise = (async () => {
       try {
