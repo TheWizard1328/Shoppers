@@ -205,6 +205,8 @@ export default function useStopCardActions(params) {
     try {
       const { data } = await setDriverStatus({ newStatus: 'on_duty' });
       const appUserId = data?.appUserId;
+      const deliveryDate = delivery?.delivery_date;
+
       // CRITICAL: Update the local IDB AppUser record so a page refresh doesn't
       // show a stale 'off_duty' status.  The backend setDriverStatus already
       // broadcast the change via WebSocket (which updates the toggle UI), but
@@ -228,6 +230,40 @@ export default function useStopCardActions(params) {
           window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: updatedRecord } }));
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [updatedRecord], mergeMode: 'merge' } }));
           window.dispatchEvent(new CustomEvent('driverStatusChanged', { detail: { userId: currentUser.id, newStatus: 'on_duty' } }));
+
+          // Fetch the current route deliveries (backend has set isNextDelivery) and
+          // push them to IDB + UI immediately so the stop cards reflect the new flag
+          // without waiting for the next smart refresh cycle.
+          if (deliveryDate) {
+            try {
+              const { base44 } = await import('@/api/base44Client');
+              const freshDeliveries = await base44.entities.Delivery.filter({
+                driver_id: currentUser.id,
+                delivery_date: deliveryDate,
+              });
+              if (freshDeliveries?.length > 0) {
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+                updateDeliveriesLocally?.(freshDeliveries, false);
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                  detail: {
+                    triggeredBy: 'ensureDriverOnline',
+                    driverId: currentUser.id,
+                    deliveryDate,
+                    freshDeliveries,
+                    fullReplacement: false,
+                    preserveLocalState: true,
+                  }
+                }));
+                // Scroll to the next delivery card
+                const nextStop = freshDeliveries.find(d => d?.isNextDelivery === true);
+                if (nextStop) {
+                  setTimeout(() => window.dispatchEvent(new CustomEvent('centerNextDeliveryCard')), 300);
+                }
+              }
+            } catch (fetchErr) {
+              console.warn('[ensureDriverOnline] Could not sync deliveries after status toggle:', fetchErr?.message);
+            }
+          }
         } catch (idbErr) {
           console.warn('[ensureDriverOnline] IDB update failed (non-critical):', idbErr?.message);
         }
@@ -237,7 +273,7 @@ export default function useStopCardActions(params) {
     } catch (error) {
       console.error('Failed to auto-toggle driver online:', error);
     }
-  }, [currentUser, appUsers, delivery?.driver_id, delivery?.delivery_date, localDeviceTodayStr, onDriverStatusChange]);
+  }, [currentUser, appUsers, delivery?.driver_id, delivery?.delivery_date, localDeviceTodayStr, onDriverStatusChange, updateDeliveriesLocally]);
 
   const currentPreferredTravelMode = String(currentDriverAppUser?.preferred_travel_mode || safeDriver?.preferred_travel_mode || 'driving').toLowerCase();
 
