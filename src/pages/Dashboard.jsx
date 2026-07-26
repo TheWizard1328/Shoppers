@@ -1456,26 +1456,20 @@ function Dashboard() {
     }, 150);
   };
 
-useEffect(() => {
-    // Read ref directly — no re-render cascade needed; this effect fires when
-    // cardsReadyForFAB (state) or rsFabPhaseReady (state) changes.
-    if (!rsFullDeliveriesRef.current || rsFabPhaseReady) return;
+// Fire FAB as soon as markers are rendered — no need to wait for route lines/locations
+  useEffect(() => {
+    if (!rsMapMarkersReady || rsFabPhaseReady) return;
     if (!cardsReadyForFAB) return;
     if (initialMapViewApplied) { setRsFabPhaseReady(true); return; }
     const currentDateDriverCombo = `${format(selectedDate, 'yyyy-MM-dd')}-${selectedDriverId}`;
-    if (initialFabPhaseAppliedRef.current === currentDateDriverCombo) {
-        setRsFabPhaseReady(true);
-        return;
-    }
+    if (initialFabPhaseAppliedRef.current === currentDateDriverCombo) { setRsFabPhaseReady(true); return; }
     fabControlEvents.notifyDataReady();
     setTimeout(() => {
         _applyFabPhase();
         initialFabPhaseAppliedRef.current = currentDateDriverCombo;
-        setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));
-        }, 600);
-    }, 400);
-  }, [rsFullDeliveriesRef.current, rsFabPhaseReady, initialMapViewApplied, cardsReadyForFAB]); // eslint-disable-line react-hooks/exhaustive-deps
+        setTimeout(() => { window.dispatchEvent(new CustomEvent('centerNextDeliveryCard')); }, 600);
+    }, 50);
+  }, [rsMapMarkersReady, rsFabPhaseReady, initialMapViewApplied, cardsReadyForFAB]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { window._mapViewPhaseRef = mapViewPhaseRef; window._pendingPhaseRef = pendingPhaseRef; window._selectedDriverIdRef = selectedDriverIdRef; }, []);
 
