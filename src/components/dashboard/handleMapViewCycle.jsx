@@ -38,6 +38,8 @@ export function createHandleMapViewCycle({
     const goPhase = (nextPhase, shouldLock, unlockMs = null, skipMapTrigger = false) => {
       if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
       mapLockExpiresAtRef.current = null;
+      // FAB click = explicit consent to reposition — clear the pan lock so fitBounds fires.
+      window._userMapControlUntil = 0;
       mapViewPhaseRef.current = nextPhase;
       isMapViewLockedRef.current = shouldLock;
       pendingPhaseRef.current = nextPhase;
