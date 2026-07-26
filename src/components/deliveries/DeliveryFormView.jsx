@@ -1757,7 +1757,7 @@ export default function DeliveryFormView({
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button> :
                 effectiveButtonState === 'updateStaged' ?
-                <Button type="button" size="sm" onClick={() => runLockedAction('update_staged_delivery', handleUpdateStaged)} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid}>
+                <Button type="button" size="sm" onClick={() => runLockedAction('update_staged_delivery', handleUpdateStaged)} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || requiresDriverSelection}>
                     <Edit2 className="w-4 h-4" />Update
                   </Button> :
                 effectiveButtonState === 'add' ?
@@ -1936,7 +1936,7 @@ export default function DeliveryFormView({
                       runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser });
                     } catch (_) {}
                   })();
-                }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll}>
+                }}                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll || requiresDriverSelection}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{delivery?.is_cycling_marker ? 'Update Cycle' : isInterStoreMode ? 'Update InterStore' : isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
                 }
