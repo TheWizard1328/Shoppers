@@ -252,6 +252,7 @@ export default function useStopCardActions(params) {
                     freshDeliveries,
                     fullReplacement: false,
                     preserveLocalState: true,
+                    trustIsNextDelivery: true,
                   }
                 }));
                 // Scroll to the next delivery card

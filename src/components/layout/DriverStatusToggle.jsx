@@ -333,6 +333,8 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             }
             // Dispatch with freshDeliveries so the dashboard renders immediately
             // without waiting for a secondary IDB read.
+            // trustIsNextDelivery=true: backend already set the authoritative flag —
+            // bypass the "preserve local true" guard so stale flags don't survive.
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
               detail: {
                 triggeredBy: 'onDutyFlagSync',
@@ -341,6 +343,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
                 freshDeliveries: allRouteDeliveries,
                 fullReplacement: false,
                 preserveLocalState: true,
+                trustIsNextDelivery: true,
               }
             }));
             // Also center the stop card for the isNextDelivery stop
