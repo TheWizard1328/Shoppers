@@ -1232,7 +1232,29 @@ const MobileDriverGroup = React.memo(function MobileDriverGroup({ driverId, driv
         </Popover> :
       header}
       <div className="p-1 space-y-1">
-        {[...entries].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')).map(({ store, slotKey, isDeliveryDriven }) =>
+        {[...entries].sort((a, b) => {
+          const dateKey = format(date, 'yyyy-MM-dd');
+          const getFirstActualTime = (entry) => {
+            const dayDelivs = deliveriesByDay?.[dateKey] || [];
+            const ampm = entry.slotKey.endsWith('_am') ? 'AM' : 'PM';
+            const slotDelivs = dayDelivs.filter((d) =>
+              d.driver_id === driverId && d.store_id === entry.store.id &&
+              (!d.ampm_deliveries || d.ampm_deliveries === ampm) &&
+              d.actual_delivery_time
+            );
+            if (slotDelivs.length === 0) return null;
+            return slotDelivs.reduce((min, d) =>
+              d.actual_delivery_time < min ? d.actual_delivery_time : min,
+              slotDelivs[0].actual_delivery_time
+            );
+          };
+          const ta = getFirstActualTime(a);
+          const tb = getFirstActualTime(b);
+          if (ta && tb) return ta.localeCompare(tb);
+          if (ta) return -1;
+          if (tb) return 1;
+          return (a.startTime || '').localeCompare(b.startTime || '');
+        }).map(({ store, slotKey, isDeliveryDriven }) =>
         <DriverSlotCell
           key={`${store.id}-${slotKey}`}
           date={date} slotKey={slotKey} store={store}
@@ -1391,7 +1413,33 @@ const DriverGroupDraggable = React.memo(function DriverGroupDraggable({ driverId
           </div>;
       })()}
       <div className="p-1 space-y-1">
-        {[...entries].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')).map(({ store, slotKey, isDeliveryDriven }) => {
+        {[...entries].sort((a, b) => {
+          // For past dates: sort by actual first delivery time of that slot
+          const dateKey = format(date, 'yyyy-MM-dd');
+          const getFirstActualTime = (entry) => {
+            const dayDelivs = deliveriesByDay?.[dateKey] || [];
+            const ampm = entry.slotKey.endsWith('_am') ? 'AM' : 'PM';
+            const slotDelivs = dayDelivs.filter((d) =>
+              d.driver_id === driverId && d.store_id === entry.store.id &&
+              (!d.ampm_deliveries || d.ampm_deliveries === ampm) &&
+              d.actual_delivery_time
+            );
+            if (slotDelivs.length === 0) return null;
+            return slotDelivs.reduce((min, d) =>
+              d.actual_delivery_time < min ? d.actual_delivery_time : min,
+              slotDelivs[0].actual_delivery_time
+            );
+          };
+          const ta = getFirstActualTime(a);
+          const tb = getFirstActualTime(b);
+          // If both have actual times, sort by those
+          if (ta && tb) return ta.localeCompare(tb);
+          // If only one has actual time, it goes first
+          if (ta) return -1;
+          if (tb) return 1;
+          // Fall back to scheduled start time
+          return (a.startTime || '').localeCompare(b.startTime || '');
+        }).map(({ store, slotKey, isDeliveryDriven }) => {
           const lockKey = slotLockKey(dateStr, store.id, slotKey);
           const adminUnlocked = isAdmin && unlockedSlots.has(lockKey);
           const isAMSlot = slotKey.endsWith('_am');
