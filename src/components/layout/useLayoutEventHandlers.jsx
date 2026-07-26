@@ -647,13 +647,10 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('forceDataRefresh', handleForceDataRefresh);
 
-    realtimeSync.connect();
-
     return () => {
       clearTimeout(bgSyncTimer);
       clearInterval(mutationSyncInterval);
       unsubscribeMutations();
-      realtimeSync.disconnect();
       window.removeEventListener('offlineSyncComplete', handleSyncComplete);
       window.removeEventListener('patientsUpdated', handlePatientsUpdated);
       window.removeEventListener('userRolesChanged', handleUserRolesChanged);
@@ -674,4 +671,15 @@ export function useLayoutEventHandlers({
       window.removeEventListener('forceInvalidateDelivery', handleForceInvalidateDelivery);
     };
   }, [currentUser, currentPageName]);
+
+  // CRITICAL: RealtimeSync connect/disconnect in its OWN stable effect keyed only on
+  // currentUser?.id. This prevents the WebSocket from being torn down and rebuilt every
+  // time currentUser state updates (e.g. after a location ping or a manual refresh cycle).
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    realtimeSync.connect();
+    return () => {
+      realtimeSync.disconnect();
+    };
+  }, [currentUser?.id]);
 }
