@@ -382,6 +382,17 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('deliveriesImported', handleDeliveriesImported);
 
+    // Helper: get the full set of locally-deleted delivery IDs (smartRefreshManager + sessionStorage)
+    const getDeletedDeliveryIds = () => {
+      try {
+        const stored = JSON.parse(sessionStorage.getItem('__deletedDeliveryIds') || '[]');
+        const live = [...(smartRefreshManager.deletedDeliveryIds || [])];
+        return new Set([...stored, ...live]);
+      } catch {
+        return new Set(smartRefreshManager.deletedDeliveryIds || []);
+      }
+    };
+
     // Listen for delivery updates from DeliveryForm and trigger refresh
     const handleDeliveriesUpdated = async (event) => {
       // CRITICAL: Ignore intermediate events while filter-change sync is running
@@ -391,12 +402,22 @@ export function useLayoutEventHandlers({
       }
       const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId, fullReplacement, trustIsNextDelivery } = event.detail || {};
       const { forcePolylineUpdate } = event.detail || {};
+
+      // CRITICAL: Build the full set of IDs that must never be re-inserted into state.
+      // Combines explicit deletedIds in the event + all locally-deleted IDs tracked
+      // by smartRefreshManager + sessionStorage so a sync cycle can't resurrect them.
+      const knownDeletedIds = getDeletedDeliveryIds();
+      const idsToRemove = new Set([
+        ...knownDeletedIds,
+        ...(deletedIds || []),
+        ...(deletedId ? [deletedId] : []),
+      ]);
+
       const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate', 'pullToSyncDataReady', 'pullToSyncComplete', 'initialDataReady', 'eta_recalculation'];
       // CRITICAL: If this is a polyline update from a remote device, do NOT short-circuit —
       // fall through to the full merge below so the new encoded_polyline reaches the map.
       if ((preserveLocalState || skipReloadTriggers.includes(triggeredBy)) && !forcePolylineUpdate) {
         // CRITICAL: Always remove deleted IDs even when preserving local state (cross-device realtime deletes)
-        const idsToRemove = new Set([...(deletedIds || []), ...(deletedId ? [deletedId] : [])]);
         if (idsToRemove.size > 0) setDeliveries((prev) => prev.filter((d) => !idsToRemove.has(d?.id)));
         if (freshDeliveries?.length > 0) setDeliveries((prev) => {
           const map = new Map(prev.filter((d) => !idsToRemove.has(d?.id)).map((d) => [d?.id, d]).filter(([id]) => !!id));
@@ -427,8 +448,10 @@ export function useLayoutEventHandlers({
         // causes the momentary "incomplete stops vanish" flicker on the map.
         setDeliveries((prev) => {
           const map = new Map((prev || []).filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
+          // Remove any locally-deleted IDs that might be present in prev
+          idsToRemove.forEach(id => map.delete(id));
           freshDeliveries.forEach((d) => {
-            if (!d?.id) return;
+            if (!d?.id || idsToRemove.has(d.id)) return; // NEVER re-insert deleted stops
             const existing = map.get(d.id);
             let merged;
             if (fullReplacement) {
@@ -472,7 +495,15 @@ export function useLayoutEventHandlers({
         console.log('🔒 [Layout] pullToSyncDataReady ignored — UI locked during filter-change sync');
         return;
       }
-      const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers } = event.detail || {};
+      const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers, deliveries: freshDeliveries } = event.detail || {};
+      // CRITICAL: Filter deleted IDs out of any incoming deliveries so a sync cycle
+      // cannot resurrect a stop that was just deleted on this device.
+      if (freshDeliveries?.length > 0) {
+        const deletedIds = getDeletedDeliveryIds();
+        if (deletedIds.size > 0) {
+          setDeliveries((prev) => prev.filter((d) => !deletedIds.has(d?.id)));
+        }
+      }
       if (freshPatients && freshPatients.length > 0) {
         setPatients((prev) => mergePatients(prev, freshPatients));
       }

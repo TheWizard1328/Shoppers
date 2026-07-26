@@ -737,9 +737,18 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
     removeDeletedFromCache('Delivery', [deliveryId]);
     console.log('🗑️ [EntityMutations] Removed deleted delivery from all caches');
     
-    // STEP 4: Mark as deleted in smart refresh to prevent resurrection
+    // STEP 4: Mark as deleted in smart refresh + sessionStorage to prevent resurrection
+    // SessionStorage survives component re-renders so sync cycles can't re-insert the stop.
     const { smartRefreshManager } = await import('./smartRefreshManager');
     smartRefreshManager.deletedDeliveryIds.add(deliveryId);
+    try {
+      const stored = JSON.parse(sessionStorage.getItem('__deletedDeliveryIds') || '[]');
+      if (!stored.includes(deliveryId)) {
+        stored.push(deliveryId);
+        // Keep only the last 200 deleted IDs to avoid unbounded growth
+        sessionStorage.setItem('__deletedDeliveryIds', JSON.stringify(stored.slice(-200)));
+      }
+    } catch { /* sessionStorage unavailable — in-memory set is sufficient */ }
 
     // STEP 5: Broadcast immediate delete so other devices update UI right away too
     await broadcastMutation('Delivery', 'delete', deliveryId, deletedDeliverySnapshot);
@@ -952,9 +961,14 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     removeDeletedFromCache('Delivery', deliveryIds);
     console.log('🗑️ [EntityMutations] Removed deleted deliveries from all caches');
     
-    // STEP 4: Mark as deleted in smart refresh
+    // STEP 4: Mark as deleted in smart refresh + sessionStorage to prevent resurrection
     const { smartRefreshManager } = await import('./smartRefreshManager');
     deliveryIds.forEach(id => smartRefreshManager.deletedDeliveryIds.add(id));
+    try {
+      const stored = JSON.parse(sessionStorage.getItem('__deletedDeliveryIds') || '[]');
+      const merged = [...new Set([...stored, ...deliveryIds])];
+      sessionStorage.setItem('__deletedDeliveryIds', JSON.stringify(merged.slice(-200)));
+    } catch { /* sessionStorage unavailable */ }
     console.log(`🗑️ [EntityMutations] Marked ${deliveryIds.length} deliveries as deleted`);
 
     // STEP 5: Notify UI immediately on this device
