@@ -14,6 +14,20 @@ import { userHasRole } from '@/components/utils/userRoles';
 import { generateDriverColor, getContrastColor } from '@/components/utils/colorGenerator';
 import { loadStatHolidays, getStatHoliday } from '@/components/utils/statHolidayResolver';
 
+// ── color cache (avoid re-hashing driver names on every render) ────────────
+const _driverColorCache = new Map();
+function getCachedDriverColor(nameOrId) {
+  if (!nameOrId) return getCachedDriverColor(nameOrId);
+  if (!_driverColorCache.has(nameOrId)) {
+    _driverColorCache.set(nameOrId, getCachedDriverColor(nameOrId));
+  }
+  return _driverColorCache.get(nameOrId);
+}
+
+const _schedFadeInStyle = typeof document !== 'undefined' && !document.getElementById('sched-fade-in')
+  ? (() => { const s = document.createElement('style'); s.id = 'sched-fade-in'; s.textContent = '@keyframes schedFadeIn{from{opacity:0}to{opacity:1}}'; document.head.appendChild(s); })()
+  : null;
+
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 function getSlotKey(date) {
@@ -108,8 +122,8 @@ function slotLockKey(dateStr, storeId, slotKey) {
 
 // ── DriverSlotCell ────────────────────────────────────────────────────────────
 
-function DriverSlotCell({
-  date, slotKey, store, overrides, drivers, appUsers, currentUser,
+const DriverSlotCell = React.memo(function DriverSlotCell({
+  date, slotKey, store, overrideMap, drivers, appUserMap, currentUser,
   onDriverChange, deliveriesByDay, isAdmin, unlockedSlots, onToggleSlotLock, isMobile,
   isDeliveryDriven = false, deliveryDrivenDriverId = null
 }) {
@@ -119,7 +133,7 @@ function DriverSlotCell({
   const adminUnlocked = isAdmin && unlockedSlots.has(lockKey);
   const [open, setOpen] = useState(false);
 
-  const override = overrides.find((o) => o.date === dateStr && o.slot_key === slotKey && o.store_id === store.id);
+  const override = overrideMap?.get(`${dateStr}|${store.id}|${slotKey}`) || null;
   const defaultDriverId = getDefaultDriverId(store, slotKey);
   const rawEffectiveDriverId = override ? override.driver_id : defaultDriverId;
   const isBookedOff = rawEffectiveDriverId === '__booked_off__';
@@ -166,61 +180,28 @@ function DriverSlotCell({
     return myId && slotDriverId === myId;
   }, [isAdmin, currentUser, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven]);
 
-  const slotDeliveries = useMemo(() => {
-    if (!deliveriesByDay || !isMySlot) return [];
+  // Consolidated delivery filtering — one pass instead of three
+  const { slotDeliveries, assignedCount, allSlotDeliveries } = useMemo(() => {
+    if (!deliveriesByDay) return { slotDeliveries: [], assignedCount: 0, allSlotDeliveries: [] };
     const ampm = isAM ? 'AM' : 'PM';
     const filterDriverId = isDeliveryDriven ? deliveryDrivenDriverId : effectiveDriverId;
-    return (deliveriesByDay[dateStr] || []).filter((d) => {
+    const dayDelivs = deliveriesByDay[dateStr] || [];
+    const matched = dayDelivs.filter((d) => {
       const isPatientOrAHPickup = (d.patient_id && d.patient_id !== '') || d.after_hours_pickup;
+      if (!isPatientOrAHPickup) return false;
       if (isBookedOff && !filterDriverId) {
-        return !d.driver_id && d.store_id === store.id &&
-          isPatientOrAHPickup && d.status === 'pending' &&
+        return !d.driver_id && d.store_id === store.id && d.status === 'pending' &&
           (!d.ampm_deliveries || d.ampm_deliveries === ampm);
       }
       return d.driver_id === filterDriverId && d.store_id === store.id &&
-        isPatientOrAHPickup &&
         (!d.ampm_deliveries || d.ampm_deliveries === ampm);
     });
+    return {
+      slotDeliveries: isMySlot ? matched : [],
+      assignedCount: matched.length,
+      allSlotDeliveries: matched,
+    };
   }, [deliveriesByDay, dateStr, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven, isBookedOff, store.id, isAM, isMySlot]);
-
-  // Raw count for visibility check — always computed regardless of isMySlot
-  const assignedDeliveryCount = useMemo(() => {
-    if (!deliveriesByDay) return 0;
-    const ampm = isAM ? 'AM' : 'PM';
-    const filterDriverId = isDeliveryDriven ? deliveryDrivenDriverId : effectiveDriverId;
-    if (isBookedOff && !filterDriverId) {
-      return (deliveriesByDay[dateStr] || []).filter((d) =>
-        !d.driver_id && d.store_id === store.id &&
-        ((d.patient_id && d.patient_id !== '') || d.after_hours_pickup) && d.status === 'pending' &&
-        (!d.ampm_deliveries || d.ampm_deliveries === ampm)
-      ).length;
-    }
-    if (!filterDriverId) return 0;
-    return (deliveriesByDay[dateStr] || []).filter((d) =>
-      d.driver_id === filterDriverId && d.store_id === store.id &&
-      ((d.patient_id && d.patient_id !== '') || d.after_hours_pickup) &&
-      (!d.ampm_deliveries || d.ampm_deliveries === ampm)
-    ).length;
-  }, [deliveriesByDay, dateStr, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven, isBookedOff, store.id, isAM]);
-
-  // Always compute timing from the assigned driver's deliveries (not gated by isMySlot)
-  const allSlotDeliveries = useMemo(() => {
-    if (!deliveriesByDay) return [];
-    const ampm = isAM ? 'AM' : 'PM';
-    const filterDriverId = isDeliveryDriven ? deliveryDrivenDriverId : effectiveDriverId;
-    if (!filterDriverId && !isBookedOff) return [];
-    return (deliveriesByDay[dateStr] || []).filter((d) => {
-      const isPatientOrAHPickup = (d.patient_id && d.patient_id !== '') || d.after_hours_pickup;
-      if (isBookedOff && !filterDriverId) {
-        return !d.driver_id && d.store_id === store.id &&
-          isPatientOrAHPickup && d.status === 'pending' &&
-          (!d.ampm_deliveries || d.ampm_deliveries === ampm);
-      }
-      return d.driver_id === filterDriverId && d.store_id === store.id &&
-        isPatientOrAHPickup &&
-        (!d.ampm_deliveries || d.ampm_deliveries === ampm);
-    });
-  }, [deliveriesByDay, dateStr, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven, isBookedOff, store.id, isAM]);
 
   const completedDeliveries = allSlotDeliveries.filter((d) => d.status === 'completed' && d.actual_delivery_time);
   const sortedCompleted = [...completedDeliveries].sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
@@ -237,7 +218,7 @@ function DriverSlotCell({
   const isLocked = past ? !adminUnlocked : isToday(date) ? todayLocked && !adminUnlocked : false;
 
   // Hide locked slots with no assigned deliveries for everyone
-  if (isLocked && assignedDeliveryCount === 0) return null;
+  if (isLocked && assignedCount === 0) return null;
 
   // For delivery-driven slots on stores with the slot disabled, show a simplified "transferred" style
   const borderColor = isDeliveryDriven ?
@@ -248,33 +229,33 @@ function DriverSlotCell({
   isOverride ? '#fff7ed' : '#dcfce7';
 
   const cardContent = isLocked ?
-  <div className="grid items-center gap-0.5 w-full" style={{ gridTemplateColumns: '26px 26px 1fr 28px 14px' }}>
+  <div className="grid items-center gap-0.5 w-full" style={{ gridTemplateColumns: '28px 28px 1fr 30px 16px' }}>
       <span
-      className="text-[9px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden"
+      className="text-[10px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden"
       style={{ background: '#ffffff', color: storeColor, border: `1px solid ${storeColor}` }}>
         <span className="truncate px-0.5">{storeLabel}</span>
       </span>
       <span
-      className="text-[9px] font-bold uppercase rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4"
+      className="text-[10px] font-bold uppercase rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4"
       style={{ background: isAM ? '#e0f2fe' : '#ede9fe', color: isAM ? '#0ea5e9' : '#7c3aed' }}>
         {isAM ? 'AM' : 'PM'}
       </span>
       <div className="flex items-center gap-0.5 justify-center">
         {firstStop && lastStop ?
       <>
-            <Clock className="w-2.5 h-2.5 flex-shrink-0" style={{ color: '#94a3b8' }} />
-            <span className="text-[9px]" style={{ color: '#64748b' }}>
+            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: '#94a3b8' }} />
+            <span className="text-[10px]" style={{ color: '#64748b' }}>
               {fmtTime(firstStop.arrival_time || firstStop.actual_delivery_time)}–{fmtTime(lastStop.actual_delivery_time)}
             </span>
           </> :
       timeWindow ?
       <>
-            <Clock className="w-2.5 h-2.5 flex-shrink-0" style={{ color: '#94a3b8' }} />
-            <span className="text-[9px]" style={{ color: '#64748b' }}>{timeWindow}</span>
+            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: '#94a3b8' }} />
+            <span className="text-[10px]" style={{ color: '#64748b' }}>{timeWindow}</span>
           </> :
       null}
       </div>
-      <span className={`text-[9px] font-semibold rounded-full leading-4 h-4 w-[28px] inline-flex items-center justify-center flex-shrink-0 ${totalDeliveries > 0 ? '' : 'invisible'}`}
+      <span className={`text-[10px] font-semibold rounded-full leading-4 h-[18px] w-[30px] inline-flex items-center justify-center flex-shrink-0 ${totalDeliveries > 0 ? '' : 'invisible'}`}
     style={{ background: '#e2e8f0', color: '#475569' }}>
         {totalDeliveries}
       </span>
@@ -283,49 +264,49 @@ function DriverSlotCell({
       adminUnlocked ?
       <span title="Click to lock" style={{ cursor: 'pointer', lineHeight: 0 }}
       onClick={(e) => {e.stopPropagation();onToggleSlotLock(lockKey);}}>
-              <LockOpen className="w-2.5 h-2.5 text-orange-500" />
+              <LockOpen className="w-3 h-3 text-orange-500" />
             </span> :
       <span title="Click to unlock and edit this slot" style={{ cursor: 'pointer', lineHeight: 0 }}
       onClick={(e) => {e.stopPropagation();onToggleSlotLock(lockKey);}}>
-              <Lock className="w-2.5 h-2.5 text-slate-400 hover:text-orange-500" />
+              <Lock className="w-3 h-3 text-slate-400 hover:text-orange-500" />
             </span> :
-      <Lock className="w-2.5 h-2.5 text-slate-400" />
+      <Lock className="w-3 h-3 text-slate-400" />
       }
       </span>
     </div> :
 
-  <div className="grid w-full items-center gap-0.5" style={{ gridTemplateColumns: '26px 26px 1fr 28px 14px' }}>
+  <div className="grid w-full items-center gap-0.5" style={{ gridTemplateColumns: '28px 28px 1fr 30px 16px' }}>
       <span
-      className="text-[9px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden"
+      className="text-[10px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden"
       style={{ background: '#ffffff', color: storeColor, border: `1px solid ${storeColor}` }}>
         <span className="truncate px-0.5">{storeLabel}</span>
       </span>
       <span
-      className="text-[9px] font-bold uppercase rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4"
+      className="text-[10px] font-bold uppercase rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4"
       style={{ background: isAM ? '#e0f2fe' : '#ede9fe', color: isAM ? '#0ea5e9' : '#7c3aed' }}>
         {isAM ? 'AM' : 'PM'}
       </span>
       <div className="flex items-center justify-center gap-0.5 px-0.5">
         {firstStop ?
       <>
-            <Clock className="w-2.5 h-2.5 flex-shrink-0" style={{ color: '#94a3b8' }} />
-            <span className="text-[9px] truncate" style={{ color: '#64748b' }}>
+            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: '#94a3b8' }} />
+            <span className="text-[10px] truncate" style={{ color: '#64748b' }}>
               {fmtTime(firstStop.arrival_time || firstStop.actual_delivery_time)}–{fmtTime(lastStop.actual_delivery_time)}
             </span>
           </> :
       timeWindow ?
       <>
-            <Clock className="w-2.5 h-2.5 flex-shrink-0" style={{ color: '#94a3b8' }} />
-            <span className="text-[9px] truncate" style={{ color: '#64748b' }}>{timeWindow}</span>
+            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: '#94a3b8' }} />
+            <span className="text-[10px] truncate" style={{ color: '#64748b' }}>{timeWindow}</span>
           </> :
       null}
       </div>
-      <span className={`text-[9px] font-semibold rounded-full leading-4 h-4 w-[28px] inline-flex items-center justify-center ${totalDeliveries > 0 ? '' : 'invisible'}`}
+      <span className={`text-[10px] font-semibold rounded-full leading-4 h-[18px] w-[30px] inline-flex items-center justify-center ${totalDeliveries > 0 ? '' : 'invisible'}`}
     style={{ background: '#e2e8f0', color: '#475569' }}>
         {slotDeliveries.filter((d) => d.status === 'completed').length}/{totalDeliveries}
       </span>
       <span className="inline-flex items-center justify-center w-[14px]">
-        <ChevronDown className={`w-2.5 h-2.5 ${canDriverEdit ? 'text-slate-400' : 'invisible'}`} />
+        <ChevronDown className={`w-3 h-3 ${canDriverEdit ? 'text-slate-400' : 'invisible'}`} />
       </span>
     </div>;
 
@@ -361,7 +342,7 @@ function DriverSlotCell({
               className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent"
               style={{ color: 'var(--text-slate-600)' }}
               onClick={() => {onDriverChange(date, slotKey, store, `__default__:${defaultDriverId}`);setOpen(false);}}>
-                  ↩ Default: {appUsers.find((u) => u.user_id === defaultDriverId || u.id === defaultDriverId)?.user_name || 'Default'}
+                  ↩ Default: {appUserMap?.get(defaultDriverId)?.user_name || 'Default'}
                 </button>
             }
               {!isBookedOff &&
@@ -398,7 +379,13 @@ function DriverSlotCell({
       }}>
       {cardContent}
     </div>);
-}
+}, (prev, next) => {
+  return prev.date === next.date && prev.slotKey === next.slotKey && prev.store?.id === next.store?.id
+    && prev.overrideMap === next.overrideMap && prev.deliveriesByDay === next.deliveriesByDay
+    && prev.currentUser?.id === next.currentUser?.id && prev.isAdmin === next.isAdmin
+    && prev.unlockedSlots === next.unlockedSlots && prev.isDeliveryDriven === next.isDeliveryDriven
+    && prev.deliveryDrivenDriverId === next.deliveryDrivenDriverId;
+});
 
 // ── main page ────────────────────────────────────────────────────────────────
 
@@ -425,7 +412,7 @@ export default function DriverScheduleCalendar() {
   const isAdmin = useMemo(() => {
     if (userHasRole(currentUser, 'admin')) return true;
     // Also treat AppUser-level admins as admins
-    const appUser = appUsers.find((u) => u.user_id === currentUser?.id);
+    const appUser = appUserMap.get(currentUser?.id);
     return appUser?.app_roles?.includes('admin') === true;
   }, [currentUser, appUsers]);
 
@@ -461,8 +448,10 @@ export default function DriverScheduleCalendar() {
     const start = format(startOfMonth(month), 'yyyy-MM-dd');
     const end = format(endOfMonth(month), 'yyyy-MM-dd');
     try {
-      const all = await base44.entities.DriverScheduleOverride.filter({});
-      setOverrides(all.filter((o) => o.date >= start && o.date <= end));
+      const all = await base44.entities.DriverScheduleOverride.filter({
+        date: { $gte: start, $lte: end }
+      });
+      setOverrides(all);
     } catch {
       setOverrides([]);
     }
@@ -475,7 +464,7 @@ export default function DriverScheduleCalendar() {
       const end = format(endOfMonth(month), 'yyyy-MM-dd');
       const deliveries = await base44.entities.Delivery.filter({
         delivery_date: { $gte: start, $lte: end }
-      });
+      }, null, null, null, 'id,driver_id,driver_name,store_id,store_name,delivery_date,status,patient_id,patient_name,after_hours_pickup,ampm_deliveries,actual_delivery_time,arrival_time,is_cycling_marker,_interstore_source_id,_interstore_dest_id,isNextDelivery');
       const byDay = {};
       deliveries.forEach((d) => {
         if (!byDay[d.delivery_date]) byDay[d.delivery_date] = [];
@@ -562,6 +551,23 @@ export default function DriverScheduleCalendar() {
     return stores.filter((s) => s.id === selectedStoreId);
   }, [stores, selectedStoreId]);
 
+  // Index overrides by date|storeId|slotKey for O(1) lookup
+  const overrideMap = useMemo(() => {
+    const m = new Map();
+    overrides.forEach((o) => m.set(`${o.date}|${o.store_id}|${o.slot_key}`, o));
+    return m;
+  }, [overrides]);
+
+  // Index appUsers by both user_id and id for O(1) lookup
+  const appUserMap = useMemo(() => {
+    const m = new Map();
+    appUsers.forEach((u) => {
+      if (u.user_id) m.set(u.user_id, u);
+      if (u.id) m.set(u.id, u);
+    });
+    return m;
+  }, [appUsers]);
+
   const handleToggleSlotLock = useCallback((lockKey) => {
     setUnlockedSlots((prev) => {
       const next = new Set(prev);
@@ -600,7 +606,7 @@ export default function DriverScheduleCalendar() {
         const isAM = slotKey.endsWith('_am');
         const ampm = isAM ? 'AM' : 'PM';
         const targetDriverId = defaultDriverId;
-        const targetDriverApp = appUsers.find((u) => u.user_id === defaultDriverId || u.id === defaultDriverId);
+        const targetDriverApp = appUserMap.get(defaultDriverId);
         const targetDriverName = targetDriverApp?.user_name || '';
         const wasBookedOff = existing?.driver_id === '__booked_off__';
         const prevDriverId = existing ? (wasBookedOff ? null : existing.driver_id) : null;
@@ -642,7 +648,7 @@ export default function DriverScheduleCalendar() {
         return;
       }
 
-      const driver = isBookOff ? null : appUsers.find((u) => u.user_id === newDriverId || u.id === newDriverId);
+      const driver = isBookOff ? null : appUserMap.get(newDriverId);
       const payload = {
         date: dateStr,
         store_id: store.id,
@@ -667,7 +673,7 @@ export default function DriverScheduleCalendar() {
 
       // Target driver: null when booking off, newDriverId when assigning
       const targetDriverId = isBookOff ? null : newDriverId;
-      const targetDriverName = isBookOff ? '' : (appUsers.find((u) => u.user_id === newDriverId || u.id === newDriverId)?.user_name || '');
+      const targetDriverName = isBookOff ? '' : (appUserMap.get(newDriverId)?.user_name || '');
 
       // Who previously owned this slot:
       // - No existing override → default driver from store schedule
@@ -735,13 +741,39 @@ export default function DriverScheduleCalendar() {
     } finally {
       setSaving(false);
     }
-  }, [overrides, appUsers, currentUser, stores, deliveriesByDay]);
+  }, [overrides, appUsers, appUserMap, currentUser, stores, deliveriesByDay]);
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-      </div>);
+      <div className="flex flex-col h-full">
+        <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between border-b"
+        style={{ borderColor: 'var(--border-slate-200)' }}>
+          <div className="h-7 w-40 rounded animate-pulse" style={{ background: 'var(--bg-slate-200)' }} />
+          <div className="flex gap-2">
+            <div className="h-9 w-9 rounded animate-pulse" style={{ background: 'var(--bg-slate-200)' }} />
+            <div className="h-9 w-24 rounded animate-pulse" style={{ background: 'var(--bg-slate-200)' }} />
+            <div className="h-9 w-9 rounded animate-pulse" style={{ background: 'var(--bg-slate-200)' }} />
+          </div>
+        </div>
+        <div className="flex-shrink-0 px-4 py-1.5 flex gap-3 border-b"
+        style={{ borderColor: 'var(--border-slate-200)' }}>
+          {[1,2,3,4].map((i) => <div key={i} className="h-3 w-20 rounded animate-pulse" style={{ background: 'var(--bg-slate-100)' }} />)}
+        </div>
+        <div className="flex-1 p-3 overflow-hidden">
+          <div className={`grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-7'}`}>
+            {Array.from({ length: isMobile ? 5 : 35 }).map((_, i) => (
+              <div key={i} className="rounded-xl border p-2" style={{ minHeight: 90, borderColor: 'var(--border-slate-200)' }}>
+                <div className="h-4 w-8 rounded animate-pulse mb-2" style={{ background: 'var(--bg-slate-100)' }} />
+                <div className="space-y-1.5">
+                  <div className="h-6 rounded animate-pulse" style={{ background: 'var(--bg-slate-50)' }} />
+                  <div className="h-6 rounded animate-pulse" style={{ width: '70%', background: 'var(--bg-slate-50)' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -798,11 +830,11 @@ export default function DriverScheduleCalendar() {
       </div>
 
       {/* Legend */}
-      <div className="flex-shrink-0 px-4 py-1.5 flex flex-wrap items-center gap-3 border-b"
-      style={{ borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-500)' }}>
-        <span className="flex items-center gap-1.5 text-xs"><span className="w-2.5 h-2.5 rounded-full bg-green-100 border border-green-400 inline-block" /> Scheduled</span>
-        <span className="flex items-center gap-1.5 text-xs"><span className="w-2.5 h-2.5 rounded-full bg-indigo-100 border border-indigo-400 inline-block" /> Transferred deliveries</span>
-        <span className="flex items-center gap-1.5 text-xs"><span className="w-2.5 h-2.5 rounded-full bg-amber-300 inline-block" /> Reassigned</span>
+      <div className="flex-shrink-0 sticky top-0 z-10 px-4 py-1.5 flex flex-wrap items-center gap-3 border-b"
+      style={{ borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-500)', background: 'var(--bg-white)' }}>
+        <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-green-100 border border-green-400 inline-block" /> Scheduled</span>
+        <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-indigo-100 border border-indigo-400 inline-block" /> Transferred deliveries</span>
+        <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-amber-300 inline-block" /> Reassigned</span>
         <span className="flex items-center gap-1.5 text-xs"><Lock className="w-3 h-3" /> Past</span>
         {isAdmin && <span className="flex items-center gap-1.5 text-xs"><LockOpen className="w-3 h-3 text-orange-500" /> Tap lock to unlock</span>}
         {!isMobile && isAdmin && <span className="text-xs">⠿ Drag to reassign</span>}
@@ -810,7 +842,7 @@ export default function DriverScheduleCalendar() {
 
       {/* Calendar grid */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto p-3">
-        <div className={`grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-7'}`}>
+        <div key={format(monthDate, 'yyyy-MM')} className={`grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-7'}`} style={{ animation: 'schedFadeIn 200ms ease-in' }}>
 
           {!isMobile && Array.from({ length: (days[0].getDay() + 6) % 7 }).map((_, i) =>
           <div key={`blank-${i}`} />
@@ -829,7 +861,7 @@ export default function DriverScheduleCalendar() {
             visibleStores.forEach((store) => {
               getSlotKey(date).forEach((sk) => {
                 if (!isSlotEnabled(store, sk)) return;
-                const override = overrides.find((o) => o.date === dateStr && o.slot_key === sk && o.store_id === store.id);
+                const override = overrideMap.get(`${dateStr}|${store.id}|${sk}`);
                 const defaultDriverId = getDefaultDriverId(store, sk);
                 const effectiveDriverId = override ? override.driver_id : defaultDriverId;
                 const isBookedOff = effectiveDriverId === '__booked_off__';
@@ -863,7 +895,7 @@ export default function DriverScheduleCalendar() {
               const sk = (!ampm || ampm === 'AM') ? amSk : pmSk;
 
               // Skip if this driver is already the scheduled driver for this store/slot
-              const override = overrides.find((o) => o.date === dateStr && o.slot_key === sk && o.store_id === store.id);
+              const override = overrideMap.get(`${dateStr}|${store.id}|${sk}`);
               const scheduledDriverId = override ? override.driver_id : getDefaultDriverId(store, sk);
               if (scheduledDriverId === delivery.driver_id) return;
 
@@ -895,8 +927,8 @@ export default function DriverScheduleCalendar() {
               // Current user's driver group always first
               if (a === myUserId) return -1;
               if (b === myUserId) return 1;
-              const da = appUsers.find((u) => u.user_id === a || u.id === a);
-              const db = appUsers.find((u) => u.user_id === b || u.id === b);
+              const da = appUserMap.get(a);
+              const db = appUserMap.get(b);
               return (da?.sort_order ?? 999) - (db?.sort_order ?? 999);
             });
 
@@ -937,8 +969,8 @@ export default function DriverScheduleCalendar() {
                       if (!hasAssignment) return null;
                     }
 
-                    const driver = appUsers.find((u) => u.user_id === driverId || u.id === driverId);
-                    const driverColor = generateDriverColor(driver?.user_name || driverId);
+                    const driver = appUserMap.get(driverId);
+                    const driverColor = getCachedDriverColor(driver?.user_name || driverId);
                     const driverTextColor = getContrastColor(driverColor);
 
                     // On stat holidays, build entries from actual deliveries instead of default schedule
@@ -976,9 +1008,9 @@ export default function DriverScheduleCalendar() {
                           driver={driver}
                           entries={entries}
                           date={date}
-                          overrides={overrides}
+                          overrideMap={overrideMap}
                           drivers={drivers}
-                          appUsers={appUsers}
+                          appUserMap={appUserMap}
                           currentUser={currentUser}
                           onDriverChange={handleDriverChange}
                           deliveriesByDay={deliveriesByDay}
@@ -998,9 +1030,9 @@ export default function DriverScheduleCalendar() {
                         driver={driver}
                         entries={entries}
                         date={date}
-                        overrides={overrides}
+                        overrideMap={overrideMap}
                         drivers={drivers}
-                        appUsers={appUsers}
+                        appUserMap={appUserMap}
                         currentUser={currentUser}
                         onDriverChange={handleDriverChange}
                         deliveriesByDay={deliveriesByDay}
@@ -1020,10 +1052,10 @@ export default function DriverScheduleCalendar() {
                     dateStr={dateStr}
                     isAdmin={isAdmin}
                     drivers={drivers}
-                    appUsers={appUsers}
+                    appUserMap={appUserMap}
                     currentUser={currentUser}
                     onDriverChange={handleDriverChange}
-                    overrides={overrides}
+                    overrideMap={overrideMap}
                     deliveriesByDay={deliveriesByDay}
                     unlockedSlots={unlockedSlots}
                     onToggleSlotLock={handleToggleSlotLock}
@@ -1052,9 +1084,9 @@ export default function DriverScheduleCalendar() {
                       </>);
                     // Drivers: show BookOff zone only if no unassigned card, plus their own drop target
                     const myDriverId = currentUser?.id;
-                    const myDriver = appUsers.find((u) => u.user_id === myDriverId || u.id === myDriverId);
+                    const myDriver = appUserMap.get(myDriverId);
                     if (!myDriver) return null;
-                    const driverColor = generateDriverColor(myDriver.user_name || myDriverId);
+                    const driverColor = getCachedDriverColor(myDriver.user_name || myDriverId);
                     return (
                       <>
                         {!hasNoDriverCard && <BookOffDropZone dateStr={dateStr} dragItem={dragItem} onDriverChange={handleDriverChange} />}
@@ -1119,7 +1151,7 @@ function StatHolidayBanner({ name }) {
 
 // ── MobileDriverGroup ─────────────────────────────────────────────────────────
 
-function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers, appUsers, currentUser,
+const MobileDriverGroup = React.memo(function MobileDriverGroup({ driverId, driver, entries, date, overrideMap, drivers, appUserMap, currentUser,
   onDriverChange, deliveriesByDay, isAdmin, unlockedSlots, onToggleSlotLock, isMobile, driverColor, driverTextColor }) {
 
   const past = isPastDate(date);
@@ -1139,18 +1171,18 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
   const canBookOff = canBookOffDay && scheduledEntries.length > 0;
 
   const header =
-  <div className="grid items-center w-full py-1 px-1" style={{ gridTemplateColumns: '26px 26px 1fr 28px 14px', background: driverColor, color: driverTextColor }}>
+  <div className="grid items-center w-full py-1 px-1" style={{ gridTemplateColumns: '28px 28px 1fr 30px 16px', background: driverColor, color: driverTextColor }}>
       <span />
       <span />
       <span className="text-xs font-bold truncate text-center px-1">
         {driver?.user_name || 'Unknown Driver'}
       </span>
-      <span className={`text-[9px] font-semibold rounded-full leading-4 h-4 inline-flex items-center justify-center ${total > 0 ? '' : 'invisible'}`}
+      <span className={`text-[10px] font-semibold rounded-full leading-[18px] h-[18px] inline-flex items-center justify-center ${total > 0 ? '' : 'invisible'}`}
     style={{ background: 'rgba(255,255,255,0.3)', color: driverTextColor }}>
         {total}
       </span>
       <span className={`inline-flex items-center justify-center opacity-70 ${canBookOff ? '' : 'invisible'}`}>
-        <ChevronDown className="w-2.5 h-2.5" style={{ color: driverTextColor }} />
+        <ChevronDown className="w-3 h-3" style={{ color: driverTextColor }} />
       </span>
     </div>;
 
@@ -1199,7 +1231,7 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
         <DriverSlotCell
           key={`${store.id}-${slotKey}`}
           date={date} slotKey={slotKey} store={store}
-          overrides={overrides} drivers={drivers} appUsers={appUsers}
+          overrideMap={overrideMap} drivers={drivers} appUserMap={appUserMap}
           currentUser={currentUser} onDriverChange={onDriverChange}
           deliveriesByDay={deliveriesByDay} isAdmin={isAdmin}
           unlockedSlots={unlockedSlots} onToggleSlotLock={onToggleSlotLock}
@@ -1209,11 +1241,11 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
         )}
       </div>
     </div>);
-}
+});
 
 // ── DriverGroupDraggable ──────────────────────────────────────────────────────
 
-function DriverGroupDraggable({ driverId, driver, entries, date, overrides, drivers, appUsers, currentUser,
+const DriverGroupDraggable = React.memo(function DriverGroupDraggable({ driverId, driver, entries, date, overrideMap, drivers, appUserMap, currentUser,
   onDriverChange, deliveriesByDay, isAdmin, unlockedSlots, onToggleSlotLock, isMobile, dragItem, onDragStart, stores }) {
 
   const dateStr = format(date, 'yyyy-MM-dd');
@@ -1230,7 +1262,7 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
     if (adminUnlocked) return true;
     if (isToday(date)) {
       const isAMSlot = slotKey.endsWith('_am');
-      const override = overrides.find((o) => o.date === dateStr && o.slot_key === slotKey && o.store_id === store.id);
+      const override = overrideMap?.get(`${dateStr}|${store.id}|${slotKey}`);
       const defaultDriverIdSlot = getDefaultDriverId(store, slotKey);
       const effectiveDriverIdSlot = override ? override.driver_id : defaultDriverIdSlot;
       return !isSlotLockedToday(deliveriesByDay, dateStr, effectiveDriverIdSlot, store.id, isAMSlot);
@@ -1240,7 +1272,7 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
 
   const canBookOffDay = !past && (isAdmin || driverId === currentUser?.id) && scheduledEntries.length > 0 && hasEditableScheduledEntry;
 
-  const driverColor = generateDriverColor(driver?.user_name || driverId);
+  const driverColor = getCachedDriverColor(driver?.user_name || driverId);
   const driverTextColor = getContrastColor(driverColor);
 
   const isDraggingMySlot = dragItem && dragItem.dateStr === dateStr &&
@@ -1298,14 +1330,14 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
         };
 
         const headerContent =
-        <div className="grid items-center w-full py-1 mb-0.5 px-3" style={{ gridTemplateColumns: '26px 26px 1fr 28px 14px' }}>
+        <div className="grid items-center w-full py-1 mb-0.5 px-3" style={{ gridTemplateColumns: '28px 28px 1fr 30px 16px' }}>
             <span />
             <span />
             <span className="text-xs font-bold truncate text-center px-1">
               {driver?.user_name || 'Unknown Driver'}
               {isDragOver && <span className="ml-2 font-normal opacity-75">← Drop here</span>}
             </span>
-            <span className={`text-[9px] font-semibold rounded-full leading-4 h-4 inline-flex items-center justify-center ${total > 0 ? '' : 'invisible'}`}
+            <span className={`text-[10px] font-semibold rounded-full leading-[18px] h-[18px] inline-flex items-center justify-center ${total > 0 ? '' : 'invisible'}`}
           style={{ background: 'rgba(255,255,255,0.3)', color: driverTextColor }}>
               {total}
             </span>
@@ -1316,11 +1348,11 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
               style={{ cursor: 'pointer', lineHeight: 0 }}
               onClick={handleToggleAllLocks}>
                   {allUnlocked ?
-              <LockOpen className="w-2.5 h-2.5 text-orange-500" /> :
-              <Lock className="w-2.5 h-2.5" style={{ color: '#000000' }} />}
+              <LockOpen className="w-3 h-3 text-orange-500" /> :
+              <Lock className="w-3 h-3" style={{ color: '#000000' }} />}
                 </span> :
             canBookOffDay ?
-            <ChevronDown className="w-2.5 h-2.5 opacity-70" style={{ color: driverTextColor }} /> :
+            <ChevronDown className="w-3 h-3 opacity-70" style={{ color: driverTextColor }} /> :
             null}
             </span>
           </div>;
@@ -1373,7 +1405,7 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
           const lockKey = slotLockKey(dateStr, store.id, slotKey);
           const adminUnlocked = isAdmin && unlockedSlots.has(lockKey);
           const isAMSlot = slotKey.endsWith('_am');
-          const override = overrides.find((o) => o.date === dateStr && o.slot_key === slotKey && o.store_id === store.id);
+          const override = overrideMap?.get(`${dateStr}|${store.id}|${slotKey}`);
           const defaultDriverIdSlot = getDefaultDriverId(store, slotKey);
           const effectiveDriverIdSlot = override ? override.driver_id : defaultDriverIdSlot;
           const slotLockedToday = isToday(date) && isSlotLockedToday(deliveriesByDay, dateStr, effectiveDriverIdSlot, store.id, isAMSlot);
@@ -1391,7 +1423,7 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
               style={{ cursor: canDrag ? 'grab' : undefined }}>
               <DriverSlotCell
                 date={date} slotKey={slotKey} store={store}
-                overrides={overrides} drivers={drivers} appUsers={appUsers}
+                overrideMap={overrideMap} drivers={drivers} appUserMap={appUserMap}
                 currentUser={currentUser} onDriverChange={onDriverChange}
                 deliveriesByDay={deliveriesByDay} isAdmin={isAdmin}
                 unlockedSlots={unlockedSlots} onToggleSlotLock={onToggleSlotLock}
@@ -1402,12 +1434,12 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
         })}
       </div>
     </div>);
-}
+});
 
 // ── UnassignedGroupCard ───────────────────────────────────────────────────────
 
-function UnassignedGroupCard({ noDriverEntries, date, dateStr, isAdmin, drivers, appUsers, currentUser,
-  onDriverChange, overrides, deliveriesByDay, unlockedSlots, onToggleSlotLock, isMobile, dragItem, setDragItem }) {
+const UnassignedGroupCard = React.memo(function UnassignedGroupCard({ noDriverEntries, date, dateStr, isAdmin, drivers, appUserMap, currentUser,
+  onDriverChange, overrideMap, deliveriesByDay, unlockedSlots, onToggleSlotLock, isMobile, dragItem, setDragItem }) {
   const [isDropHover, setIsDropHover] = useState(false);
   const hasBookedOff = noDriverEntries.some((e) => e.isBookedOff);
   const isDragTarget = dragItem?.dateStr === dateStr;
@@ -1453,7 +1485,7 @@ function UnassignedGroupCard({ noDriverEntries, date, dateStr, isAdmin, drivers,
               style={{ cursor: canDrag ? 'grab' : undefined }}>
               <DriverSlotCell
                 date={date} slotKey={slotKey} store={store}
-                overrides={overrides} drivers={drivers} appUsers={appUsers}
+                overrideMap={overrideMap} drivers={drivers} appUserMap={appUserMap}
                 currentUser={currentUser} onDriverChange={onDriverChange}
                 deliveriesByDay={deliveriesByDay} isAdmin={isAdmin}
                 unlockedSlots={unlockedSlots} onToggleSlotLock={onToggleSlotLock}
@@ -1462,7 +1494,7 @@ function UnassignedGroupCard({ noDriverEntries, date, dateStr, isAdmin, drivers,
         })}
       </div>
     </div>);
-}
+});
 
 // ── UnassignedGroupHeader ─────────────────────────────────────────────────────
 
@@ -1534,7 +1566,7 @@ function BookOffDropZone({ dateStr, dragItem, onDriverChange }) {
   const [isDragOver, setIsDragOver] = useState(false);
   return (
     <div
-      className="rounded-md border-2 border-dashed px-2 py-1 text-[9px] text-center transition-colors"
+      className="rounded-md border-2 border-dashed px-2 py-1 text-[10px] text-center transition-colors"
       style={isDragOver ?
       { borderColor: 'var(--border-slate-400)', background: 'var(--bg-slate-100)', color: 'var(--text-slate-600)' } :
       { borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-400)', background: 'transparent' }}
@@ -1552,14 +1584,14 @@ function BookOffDropZone({ dateStr, dragItem, onDriverChange }) {
 
 // ── DriverDropTargets ─────────────────────────────────────────────────────────
 
-function DriverDropTargets({ drivers, dateStr, dragItem, onDriverChange, existingDriverIds }) {
+const DriverDropTargets = React.memo(function DriverDropTargets({ drivers, dateStr, dragItem, onDriverChange, existingDriverIds }) {
   const newDriverTargets = drivers.filter((d) => !existingDriverIds.includes(d.user_id || d.id));
   if (newDriverTargets.length === 0) return null;
   return (
     <div className="space-y-1">
       {newDriverTargets.map((d) => {
         const driverId = d.user_id || d.id;
-        const driverColor = generateDriverColor(d.user_name || driverId);
+        const driverColor = getCachedDriverColor(d.user_name || driverId);
         return (
           <DriverDropTarget
             key={driverId}
@@ -1570,13 +1602,13 @@ function DriverDropTargets({ drivers, dateStr, dragItem, onDriverChange, existin
             onDriverChange={onDriverChange} />);
       })}
     </div>);
-}
+});
 
 function DriverDropTarget({ driverId, driverName, driverColor, dateStr, onDriverChange }) {
   const [isDragOver, setIsDragOver] = useState(false);
   return (
     <div
-      className="rounded-md border-2 border-dashed px-2 py-1 text-[9px] text-center transition-all"
+      className="rounded-md border-2 border-dashed px-2 py-1 text-[10px] text-center transition-all"
       style={{
         borderColor: isDragOver ? driverColor : driverColor + '44',
         background: isDragOver ? driverColor + '15' : 'transparent',
