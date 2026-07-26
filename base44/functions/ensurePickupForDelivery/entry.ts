@@ -410,6 +410,22 @@ Deno.serve(async (req) => {
     const homeLon = driverAppUsers?.[0]?.home_longitude != null ? Number(driverAppUsers[0].home_longitude) : null;
     const hasHome = homeLat != null && homeLon != null && Number.isFinite(homeLat) && Number.isFinite(homeLon) && !(homeLat === 0 && homeLon === 0);
 
+    // Determine after_hours_pickup flag:
+    // - driver is not the scheduled driver for this store/slot (checking override first, then store default)
+    // - OR the route already has active/completed stops (after-route addition)
+    const getEffectiveScheduledDriverId = (slot) => {
+      const override = (dateOverrides || []).find((o) => o.store_id === storeId && o.slot_key === `${dow === 6 ? 'saturday' : dow === 0 ? 'sunday' : 'weekday'}_${slot === 'PM' ? 'pm' : 'am'}`);
+      if (override) return override.driver_id;
+      const fieldKey = slot === 'AM'
+        ? (isWeekday ? 'weekday_am_driver_id' : dow === 6 ? 'saturday_am_driver_id' : 'sunday_am_driver_id')
+        : (isWeekday ? 'weekday_pm_driver_id' : dow === 6 ? 'saturday_pm_driver_id' : 'sunday_pm_driver_id');
+      return store?.[fieldKey] || null;
+    };
+    const scheduledDriverId = getEffectiveScheduledDriverId(chosenSlot);
+    const driverNotScheduled = !scheduledDriverId || scheduledDriverId === '__booked_off__' || String(scheduledDriverId) !== String(driverId);
+    const routeHasActiveStops = (allPickups || []).some(d => ['en_route', 'in_transit', 'completed', 'failed', 'cancelled'].includes(d?.status));
+    const afterHoursPickup = driverNotScheduled || routeHasActiveStops;
+
     const newPickup = await base44.asServiceRole.entities.Delivery.create({
       stop_id: puid,
       puid,
@@ -426,6 +442,7 @@ Deno.serve(async (req) => {
       delivery_time_end,
       tracking_number: trackingNumber,
       stop_order: stopOrder,
+      after_hours_pickup: afterHoursPickup,
       ...(allExistingFinished && hasHome ? { first_leg_origin_lat: homeLat, first_leg_origin_lng: homeLon } : {}),
     });
 
