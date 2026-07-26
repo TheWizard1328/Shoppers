@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useDevice } from '@/components/utils/DeviceContext';
 import {
   format, startOfMonth, endOfMonth, addMonths, subMonths,
-  eachDayOfInterval, isBefore, isToday, startOfDay } from 'date-fns';
+  eachDayOfInterval, isBefore, isToday, startOfDay, startOfWeek, endOfWeek, addDays, subDays, isSameDay } from 'date-fns';
 import { ChevronLeft, ChevronRight, Calendar, Lock, LockOpen, RefreshCw, Clock, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -406,6 +406,7 @@ export default function DriverScheduleCalendar() {
   const [selectedDriverId, setSelectedDriverId] = useState('all');
   const [unlockedSlots, setUnlockedSlots] = useState(new Set());
   const [dragItem, setDragItem] = useState(null);
+  const [viewMode, setViewMode] = useState('week');
   const scrollContainerRef = useRef(null);
   const todayRef = useRef(null);
 
@@ -462,23 +463,32 @@ export default function DriverScheduleCalendar() {
   }, []);
 
   const loadOverrides = useCallback(async (month) => {
-    const start = format(startOfMonth(month), 'yyyy-MM-dd');
-    const end = format(endOfMonth(month), 'yyyy-MM-dd');
+    // Load overrides covering the visible range (week may span month boundaries)
+    const rangeStart = viewMode === 'week'
+      ? format(startOfWeek(month, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+      : format(startOfMonth(month), 'yyyy-MM-dd');
+    const rangeEnd = viewMode === 'week'
+      ? format(endOfWeek(month, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+      : format(endOfMonth(month), 'yyyy-MM-dd');
     try {
       const all = await base44.entities.DriverScheduleOverride.filter({
-        date: { $gte: start, $lte: end }
+        date: { $gte: rangeStart, $lte: rangeEnd }
       });
       setOverrides(all);
     } catch {
       setOverrides([]);
     }
-  }, []);
+  }, [viewMode]);
 
   const loadDeliveriesForMonth = useCallback(async (month) => {
     setLoadingDeliveries(true);
     try {
-      const start = format(startOfMonth(month), 'yyyy-MM-dd');
-      const end = format(endOfMonth(month), 'yyyy-MM-dd');
+      const start = viewMode === 'week'
+        ? format(startOfWeek(month, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+        : format(startOfMonth(month), 'yyyy-MM-dd');
+      const end = viewMode === 'week'
+        ? format(endOfWeek(month, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+        : format(endOfMonth(month), 'yyyy-MM-dd');
       const deliveries = await base44.entities.Delivery.filter({
         delivery_date: { $gte: start, $lte: end }
       }, null, null, null, 'id,driver_id,driver_name,store_id,store_name,delivery_date,status,patient_id,patient_name,after_hours_pickup,ampm_deliveries,actual_delivery_time,arrival_time,is_cycling_marker,_interstore_source_id,_interstore_dest_id,isNextDelivery');
@@ -493,7 +503,7 @@ export default function DriverScheduleCalendar() {
     } finally {
       setLoadingDeliveries(false);
     }
-  }, []);
+  }, [viewMode]);
 
   useEffect(() => {
     if (loading) return;
@@ -541,20 +551,24 @@ export default function DriverScheduleCalendar() {
 
   useEffect(() => {
     if (loading) return;
-    const isCurrentMonth =
-    format(monthDate, 'yyyy-MM') === format(new Date(), 'yyyy-MM');
-    if (!isCurrentMonth) return;
-    // Wait for both the DOM to render and any delivery/override data to settle
+    const isCurrentPeriod = viewMode === 'week'
+      ? isSameDay(monthDate, startOfWeek(new Date(), { weekStartsOn: 1 })) || isSameDay(monthDate, new Date())
+      : format(monthDate, 'yyyy-MM') === format(new Date(), 'yyyy-MM');
+    if (!isCurrentPeriod) return;
     const t = setTimeout(() => {
       todayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 400);
     return () => clearTimeout(t);
-  }, [monthDate, loading, loadingDeliveries]);
+  }, [monthDate, loading, loadingDeliveries, viewMode]);
 
-  const days = useMemo(() =>
-  eachDayOfInterval({ start: startOfMonth(monthDate), end: endOfMonth(monthDate) }),
-  [monthDate]
-  );
+  const days = useMemo(() => {
+    if (viewMode === 'week') {
+      const ws = startOfWeek(monthDate, { weekStartsOn: 1 }); // Monday start
+      const we = endOfWeek(monthDate, { weekStartsOn: 1 });
+      return eachDayOfInterval({ start: ws, end: we });
+    }
+    return eachDayOfInterval({ start: startOfMonth(monthDate), end: endOfMonth(monthDate) });
+  }, [monthDate, viewMode]);
 
   const drivers = useMemo(() =>
   appUsers.
@@ -812,18 +826,21 @@ export default function DriverScheduleCalendar() {
             </SelectContent>
           </Select>
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="icon" className={isMobile ? 'h-8 w-8' : ''} onClick={() => setMonthDate((m) => subMonths(m, 1))}>
+            <Button variant="outline" size="icon" className={isMobile ? 'h-8 w-8' : ''} onClick={() => setMonthDate((m) => viewMode === 'week' ? subDays(m, 7) : subMonths(m, 1))}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className={`font-semibold text-center ${isMobile ? 'text-xs px-1 min-w-[90px]' : 'text-sm px-3 min-w-[130px]'}`}
+            <span className={`font-semibold text-center ${isMobile ? 'text-xs px-1 min-w-[100px]' : 'text-sm px-3 min-w-[140px]'}`}
             style={{ color: 'var(--text-slate-900)' }}>
-              {isMobile ? format(monthDate, 'MMM yyyy') : format(monthDate, 'MMMM yyyy')}
+              {viewMode === 'week' ? format(monthDate, 'MMM d') : (isMobile ? format(monthDate, 'MMM yyyy') : format(monthDate, 'MMMM yyyy'))}
             </span>
-            <Button variant="outline" size="icon" className={isMobile ? 'h-8 w-8' : ''} onClick={() => setMonthDate((m) => addMonths(m, 1))}>
+            <Button variant="outline" size="icon" className={isMobile ? 'h-8 w-8' : ''} onClick={() => setMonthDate((m) => viewMode === 'week' ? addDays(m, 7) : addMonths(m, 1))}>
               <ChevronRight className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="sm" className={isMobile ? 'h-8 text-xs px-2' : ''} onClick={() => setMonthDate(startOfMonth(new Date()))}>
-              This Month
+            <Button variant="outline" size="sm" className={isMobile ? 'h-8 text-xs px-2' : ''} onClick={() => setMonthDate(viewMode === 'week' ? startOfWeek(new Date(), { weekStartsOn: 1 }) : startOfMonth(new Date()))}>
+              {viewMode === 'week' ? 'This Week' : 'This Month'}
+            </Button>
+            <Button variant="outline" size="sm" className={isMobile ? 'h-8 text-xs px-2' : ''} onClick={() => setViewMode((v) => v === 'week' ? 'month' : 'week')}>
+              {viewMode === 'week' ? 'Month' : 'Week'}
             </Button>
           </div>
         </div>
@@ -842,9 +859,9 @@ export default function DriverScheduleCalendar() {
 
       {/* Calendar grid */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto p-3">
-        <div key={format(monthDate, 'yyyy-MM')} className={`grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-7'}`} style={{ animation: 'schedFadeIn 200ms ease-in' }}>
+        <div key={format(monthDate, 'yyyy-MM-dd')} className={`grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-7'}`} style={{ animation: 'schedFadeIn 200ms ease-in' }}>
 
-          {!isMobile && Array.from({ length: (days[0].getDay() + 6) % 7 }).map((_, i) =>
+          {!isMobile && viewMode === 'month' && Array.from({ length: (days[0].getDay() + 6) % 7 }).map((_, i) =>
           <div key={`blank-${i}`} />
           )}
 
@@ -936,18 +953,18 @@ export default function DriverScheduleCalendar() {
               <div
                 key={dateStr}
                 ref={today ? todayRef : null}
-                className={`rounded-xl border flex flex-col ${today ? 'border-blue-400 shadow-md' : past ? 'border-slate-200' : 'border-green-300'}`}
-                style={{ background: 'var(--bg-white)', minHeight: 90 }}>
+                className={`rounded-xl border flex flex-col ${today ? 'border-blue-500 shadow-lg ring-2 ring-blue-200' : past ? 'border-slate-200 opacity-55' : 'border-green-300'}`}
+                style={{ background: 'var(--bg-white)', minHeight: 90, transition: 'opacity 200ms ease' }}>
 
                 <div className={`rounded-t-xl flex items-center px-5`}
                 style={{
-                  background: today ? 'rgba(59,130,246,0.12)' : past ? 'var(--bg-slate-50)' : 'rgba(134,239,172,0.18)'
+                  background: today ? 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(96,165,250,0.08))' : past ? 'var(--bg-slate-50)' : 'rgba(134,239,172,0.18)'
                 }}>
-                  <span className={`text-sm font-bold min-w-[20px] ${today ? 'text-blue-500' : past ? '' : 'text-green-700'}`}
-                  style={past && !today ? { color: 'var(--text-slate-500)' } : {}}>
+                  <span className={`text-sm font-bold min-w-[20px] ${today ? 'text-white' : past ? '' : 'text-green-700'}`}
+                  style={today ? { background: '#3b82f6', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 } : past && !today ? { color: 'var(--text-slate-500)' } : {}}>
                     {format(date, 'd')}
                   </span>
-                  <span className={`flex-1 text-center text-xs font-semibold uppercase ${today ? 'text-blue-400' : past ? '' : 'text-green-600'}`}
+                  <span className={`flex-1 text-center text-xs font-semibold uppercase ${today ? 'text-blue-600' : past ? '' : 'text-green-600'}`}
                   style={past && !today ? { color: 'var(--text-slate-400)' } : {}}>
                     {dayName}
                   </span>
