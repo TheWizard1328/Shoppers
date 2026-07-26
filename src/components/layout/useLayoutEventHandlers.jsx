@@ -389,7 +389,7 @@ export function useLayoutEventHandlers({
         console.log('🔒 [Layout] deliveriesUpdated ignored — UI locked during filter-change sync');
         return;
       }
-      const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId, fullReplacement } = event.detail || {};
+      const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId, fullReplacement, trustIsNextDelivery } = event.detail || {};
       const { forcePolylineUpdate } = event.detail || {};
       const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate', 'pullToSyncDataReady', 'pullToSyncComplete', 'initialDataReady', 'eta_recalculation'];
       // CRITICAL: If this is a polyline update from a remote device, do NOT short-circuit —
@@ -398,7 +398,24 @@ export function useLayoutEventHandlers({
         // CRITICAL: Always remove deleted IDs even when preserving local state (cross-device realtime deletes)
         const idsToRemove = new Set([...(deletedIds || []), ...(deletedId ? [deletedId] : [])]);
         if (idsToRemove.size > 0) setDeliveries((prev) => prev.filter((d) => !idsToRemove.has(d?.id)));
-        if (freshDeliveries?.length > 0) setDeliveries((prev) => {const map = new Map(prev.filter((d) => !idsToRemove.has(d?.id)).map((d) => [d?.id, d]).filter(([id]) => !!id));freshDeliveries.forEach((d) => {if (d?.id && !idsToRemove.has(d.id)) {const existing = map.get(d.id);map.set(d.id, existing ? { ...existing, ...d } : d);}});return Array.from(map.values());});
+        if (freshDeliveries?.length > 0) setDeliveries((prev) => {
+          const map = new Map(prev.filter((d) => !idsToRemove.has(d?.id)).map((d) => [d?.id, d]).filter(([id]) => !!id));
+          freshDeliveries.forEach((d) => {
+            if (d?.id && !idsToRemove.has(d.id)) {
+              const existing = map.get(d.id);
+              const merged = existing ? { ...existing, ...d } : d;
+              // trustIsNextDelivery: the backend has already set the authoritative flag
+              // (e.g. onDutyFlagSync / ensureDriverOnline). Don't let stale in-memory
+              // true values override the server-confirmed value for other stops.
+              if (!trustIsNextDelivery && existing?.isNextDelivery === true && !merged.isNextDelivery) {
+                map.set(d.id, { ...merged, isNextDelivery: true });
+              } else {
+                map.set(d.id, merged);
+              }
+            }
+          });
+          return Array.from(map.values());
+        });
         return;
       }
       console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy}) - fullReplacement: ${fullReplacement}`);
@@ -419,11 +436,12 @@ export function useLayoutEventHandlers({
             } else {
               merged = existing ? { ...existing, ...d } : d;
             }
-            // CRITICAL: Preserve isNextDelivery=true from in-memory state.
+            // CRITICAL: Preserve isNextDelivery=true from in-memory state —
+            // UNLESS this is a trusted authoritative sync (trustIsNextDelivery=true).
             // setNextDeliveryFlag runs async — incoming data (from reconciler, smartRefresh,
             // or WebSocket flush) may still carry false on the next stop while the backend
             // hasn't committed yet. Never allow an incoming false to clobber a local true.
-            if (existing?.isNextDelivery === true && !merged.isNextDelivery) {
+            if (!trustIsNextDelivery && existing?.isNextDelivery === true && !merged.isNextDelivery) {
               merged = { ...merged, isNextDelivery: true };
             }
             map.set(d.id, merged);
