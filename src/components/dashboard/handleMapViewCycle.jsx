@@ -28,7 +28,12 @@ export function createHandleMapViewCycle({
     setAreCardsVisible(false);
 
     const phase = mapViewPhaseRef.current;
-    const lockExpired = !mapLockExpiresAtRef.current || mapLockExpiresAtRef.current <= Date.now();
+    // CRITICAL: Treat the lock as expired if the user manually panned/unlocked the map.
+    // After a user pan, _userMapControlUntil is set for 4s. During that window, clicking
+    // the FAB should always advance the phase (not re-lock phase 1), so the first click
+    // feels responsive even if the 3s programmatic lock hasn't expired yet.
+    const userJustUnlockedMap = (window._userMapControlUntil || 0) > Date.now();
+    const lockExpired = userJustUnlockedMap || !mapLockExpiresAtRef.current || mapLockExpiresAtRef.current <= Date.now();
 
     const goPhase = (nextPhase, shouldLock, unlockMs = null, skipMapTrigger = false) => {
       if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }

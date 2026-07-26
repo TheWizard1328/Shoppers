@@ -143,8 +143,20 @@ export default function MapController({
       // Only echo center back to Dashboard state on genuine user moves.
       // fitBounds/setView fire moveend — echoing back updates mapCenter prop, which
       // re-triggers the setView effect causing a double-bounce.
+      // ALSO suppress during active user control: GPS ticks keep _lastProgrammaticMapMove
+      // fresh every few seconds, so after 1.2s the timer passes and we'd echo center
+      // back, causing setView in DeliveryMap to snap the map back (jitter).
+      // _userMapControlUntil is set to 4s on any drag/zoom and is the reliable signal.
       const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
       if (timeSinceProgrammatic < 1200) return;
+      // CRITICAL: Suppress ALL state echoes while the user is actively controlling the map.
+      // GPS ticks keep _lastProgrammaticMapMove fresh every few seconds, so after 1.2s
+      // the timer passes even during an active drag. _userMapControlUntil is the reliable
+      // signal — it's set to 4s on dragstart/zoomstart and cleared when it expires.
+      // Echoing mapCenter or mapZoom back to state during this window causes DeliveryMap's
+      // setView effect to re-fire (even as a no-op comparison, it can disturb Leaflet),
+      // producing the 1-second "jitter" / snap-back the user sees after panning.
+      if ((window._userMapControlUntil || 0) > Date.now()) return;
       
       window.__currentMapCenter = newCenter;
       setMapCenter(prev => {
@@ -153,14 +165,6 @@ export default function MapController({
         }
         return prev;
       });
-
-      // CRITICAL: Also sync mapZoom state with the actual map zoom.
-      // Without this, the mapZoom state can become stale (e.g., user zoomed in
-      // but zoomend's 3500ms guard suppressed the setMapZoom call). When the user
-      // pans and releases, moveend calls setMapCenter, which triggers the
-      // setView effect in DeliveryMap with the stale zoom — snapping the map
-      // back to the old zoom level. Syncing here ensures the zoom state always
-      // matches the actual map zoom, so the setView effect is a no-op.
       setMapZoom?.(prev => {
         if (Math.abs((prev || 0) - roundedZoom) < 0.01) return prev;
         return roundedZoom;
