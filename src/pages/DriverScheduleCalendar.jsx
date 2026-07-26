@@ -17,9 +17,9 @@ import { loadStatHolidays, getStatHoliday } from '@/components/utils/statHoliday
 // ── color cache (avoid re-hashing driver names on every render) ────────────
 const _driverColorCache = new Map();
 function getCachedDriverColor(nameOrId) {
-  if (!nameOrId) return getCachedDriverColor(nameOrId);
+  if (!nameOrId) return '#64748b';
   if (!_driverColorCache.has(nameOrId)) {
-    _driverColorCache.set(nameOrId, getCachedDriverColor(nameOrId));
+    _driverColorCache.set(nameOrId, generateDriverColor(nameOrId));
   }
   return _driverColorCache.get(nameOrId);
 }
