@@ -409,12 +409,29 @@ export default function DriverScheduleCalendar() {
   const scrollContainerRef = useRef(null);
   const todayRef = useRef(null);
 
+  // Index overrides by date|storeId|slotKey for O(1) lookup
+  const overrideMap = useMemo(() => {
+    const m = new Map();
+    overrides.forEach((o) => m.set(`${o.date}|${o.store_id}|${o.slot_key}`, o));
+    return m;
+  }, [overrides]);
+
+  // Index appUsers by both user_id and id for O(1) lookup
+  const appUserMap = useMemo(() => {
+    const m = new Map();
+    appUsers.forEach((u) => {
+      if (u.user_id) m.set(u.user_id, u);
+      if (u.id) m.set(u.id, u);
+    });
+    return m;
+  }, [appUsers]);
+
   const isAdmin = useMemo(() => {
     if (userHasRole(currentUser, 'admin')) return true;
     // Also treat AppUser-level admins as admins
     const appUser = appUserMap.get(currentUser?.id);
     return appUser?.app_roles?.includes('admin') === true;
-  }, [currentUser, appUsers]);
+  }, [currentUser, appUserMap]);
 
   useEffect(() => {
     const load = async () => {
@@ -550,23 +567,6 @@ export default function DriverScheduleCalendar() {
     if (selectedStoreId === 'all') return stores;
     return stores.filter((s) => s.id === selectedStoreId);
   }, [stores, selectedStoreId]);
-
-  // Index overrides by date|storeId|slotKey for O(1) lookup
-  const overrideMap = useMemo(() => {
-    const m = new Map();
-    overrides.forEach((o) => m.set(`${o.date}|${o.store_id}|${o.slot_key}`, o));
-    return m;
-  }, [overrides]);
-
-  // Index appUsers by both user_id and id for O(1) lookup
-  const appUserMap = useMemo(() => {
-    const m = new Map();
-    appUsers.forEach((u) => {
-      if (u.user_id) m.set(u.user_id, u);
-      if (u.id) m.set(u.id, u);
-    });
-    return m;
-  }, [appUsers]);
 
   const handleToggleSlotLock = useCallback((lockKey) => {
     setUnlockedSlots((prev) => {
