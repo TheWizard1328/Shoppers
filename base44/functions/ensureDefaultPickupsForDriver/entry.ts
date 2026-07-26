@@ -232,6 +232,12 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
   const homeLon = driverForHome?.home_longitude != null ? Number(driverForHome.home_longitude) : null;
   const hasHome = homeLat != null && homeLon != null && Number.isFinite(homeLat) && Number.isFinite(homeLon) && !(homeLat === 0 && homeLon === 0);
 
+  // after_hours_pickup: true if the route already has active/completed stops when this pickup is created
+  // (this function only runs for the driver's assigned stores, so driver-mismatch is not applicable here)
+  const routeHasActiveStops = existingRouteDeliveries.some(d =>
+    ['en_route', 'in_transit', 'completed', 'failed', 'cancelled'].includes(d?.status)
+  );
+
   const pickupStopId = generateShortStopId();
   const createdPickup = await base44.asServiceRole.entities.Delivery.create({
     stop_id: pickupStopId,
@@ -248,6 +254,7 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     status: 'en_route',
     delivery_time_start: resolvedStart,
     delivery_time_end: resolvedEnd,
+    after_hours_pickup: routeHasActiveStops,
     ...(allExistingFinished && hasHome ? { first_leg_origin_lat: homeLat, first_leg_origin_lng: homeLon } : {}),
   });
 
