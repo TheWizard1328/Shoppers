@@ -310,53 +310,83 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       if (isOwnUser) locationTracker.setDriverStatus(confirmedStatus);
       if (confirmedStatus === lastRequestedStatusRef.current) lastRequestedStatusRef.current = null;
 
-      // After going on_duty, sync the full route + isNextDelivery flag to offline DB + React state.
-      // The backend (setDriverStatus → setNextDeliveryFlag) has already written it to the server,
-      // but the frontend doesn't know which stop was flagged — fetch all deliveries and propagate now.
+      // After going on_duty, determine the next stop, set isNextDelivery=true on it
+      // immediately (frontend-driven), write to IDB + server, and push to UI.
+      // We do NOT wait for the backend's setNextDeliveryFlag because it may not have
+      // committed by the time we fetch — the log shows "next=none" when we rely on it.
       if (newStatus === 'on_duty') {
         try {
           const { offlineDB } = await import('../utils/offlineDatabase');
-          // Fetch ALL deliveries for this driver/date — we need the full set so we can
-          // write them all to IDB and push freshDeliveries to the UI immediately.
+          const INCOMPLETE_STATUSES = new Set(['in_transit', 'en_route', 'pending', 'arrived']);
+          const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+
+          // Fetch all route deliveries for this driver/date
           const allRouteDeliveries = await base44.entities.Delivery.filter({
             driver_id: effectiveUser.id,
             delivery_date: optimizerDate,
           });
+
           if (allRouteDeliveries?.length > 0) {
-            // Write full set to offline DB so IDB is the ground truth
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allRouteDeliveries);
-            // Update local React state immediately with the full fresh set
-            if (appDataContext?.applyDeliveryChangesLocally) {
-              appDataContext.applyDeliveryChangesLocally({ upserts: allRouteDeliveries });
-            } else if (appDataContext?.updateDeliveriesLocally) {
-              appDataContext.updateDeliveriesLocally(allRouteDeliveries, false);
+            // Find the next stop: lowest stop_order among incomplete, non-cycling, non-pending-only
+            // Priority: in_transit/en_route first, then pending
+            const activeStops = allRouteDeliveries
+              .filter(d => d && (d.status === 'in_transit' || d.status === 'en_route') && !d.is_cycling_marker)
+              .sort((a, b) => Number(a.stop_order || 0) - Number(b.stop_order || 0));
+
+            const pendingStops = allRouteDeliveries
+              .filter(d => d && d.status === 'pending' && !d.is_cycling_marker)
+              .sort((a, b) => Number(a.stop_order || 0) - Number(b.stop_order || 0));
+
+            const nextStop = activeStops[0] || pendingStops[0] || null;
+
+            // Build the updated deliveries: set isNextDelivery=true on nextStop, false on all others
+            const updatedDeliveries = allRouteDeliveries.map(d => ({
+              ...d,
+              isNextDelivery: nextStop ? d.id === nextStop.id : false,
+            }));
+
+            // Write full set to offline DB immediately
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
+
+            // Persist the flag to the server for the next stop (fire-and-forget)
+            if (nextStop) {
+              // Clear any stale flags first, then set the correct one
+              const staleFlags = allRouteDeliveries.filter(d => d?.isNextDelivery === true && d.id !== nextStop.id);
+              await Promise.all([
+                ...staleFlags.map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)),
+                base44.entities.Delivery.update(nextStop.id, { isNextDelivery: true }).catch(() => null),
+              ]);
             }
-            // Dispatch with freshDeliveries so the dashboard renders immediately
-            // without waiting for a secondary IDB read.
-            // trustIsNextDelivery=true: backend already set the authoritative flag —
-            // bypass the "preserve local true" guard so stale flags don't survive.
+
+            // Push to React state immediately
+            if (appDataContext?.applyDeliveryChangesLocally) {
+              appDataContext.applyDeliveryChangesLocally({ upserts: updatedDeliveries });
+            } else if (appDataContext?.updateDeliveriesLocally) {
+              appDataContext.updateDeliveriesLocally(updatedDeliveries, false);
+            }
+
+            // Dispatch event — trustIsNextDelivery bypasses the stale-flag guard
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
               detail: {
                 triggeredBy: 'onDutyFlagSync',
                 deliveryDate: optimizerDate,
                 driverId: effectiveUser.id,
-                freshDeliveries: allRouteDeliveries,
+                freshDeliveries: updatedDeliveries,
                 fullReplacement: false,
                 preserveLocalState: true,
                 trustIsNextDelivery: true,
               }
             }));
-            // Also center the stop card for the isNextDelivery stop
-            const nextStop = allRouteDeliveries.find(d => d?.isNextDelivery === true);
+
+            // Scroll to the next stop card
             if (nextStop) {
-              setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));
-              }, 300);
+              setTimeout(() => window.dispatchEvent(new CustomEvent('centerNextDeliveryCard')), 300);
             }
-            console.log(`[DriverStatusToggle] Synced ${allRouteDeliveries.length} deliveries to IDB + UI on on_duty (next=${nextStop?.id || 'none'})`);
+
+            console.log(`[DriverStatusToggle] on_duty sync: ${updatedDeliveries.length} deliveries, nextStop=${nextStop?.id || 'none'} (${nextStop?.status || '-'})`);
           }
         } catch (e) {
-          console.warn('[DriverStatusToggle] Could not sync deliveries after on_duty:', e?.message);
+          console.warn('[DriverStatusToggle] Could not sync isNextDelivery after on_duty:', e?.message);
         }
       }
 
