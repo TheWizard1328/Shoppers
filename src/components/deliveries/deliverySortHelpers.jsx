@@ -38,6 +38,60 @@ export function sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverI
   });
 }
 
+export function sortDeliveriesByTime(deliveries) {
+  if (!Array.isArray(deliveries)) return [];
+
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
+
+  // Build a store-group sort key: if the store has a completed pickup, use its actual_delivery_time;
+  // otherwise fall back to the earliest delivery_time_start for that store's deliveries.
+  const storePickupTime = {};
+  const storeScheduledTime = {};
+  deliveries.forEach((d) => {
+    if (!d?.store_id) return;
+    const isPickup = !d.patient_id || d.patient_id === '';
+    if (isPickup && finishedStatuses.includes(d.status) && d.actual_delivery_time) {
+      const t = d.actual_delivery_time;
+      if (!storePickupTime[d.store_id] || t < storePickupTime[d.store_id]) {
+        storePickupTime[d.store_id] = t;
+      }
+    }
+    const sched = d.delivery_time_start || '';
+    if (!storeScheduledTime[d.store_id] || (sched && sched < storeScheduledTime[d.store_id])) {
+      storeScheduledTime[d.store_id] = sched;
+    }
+  });
+
+  const getStoreSortKey = (storeId) =>
+    storePickupTime[storeId] || storeScheduledTime[storeId] || 'ZZ';
+
+  const incomplete = deliveries.filter((d) => d && !finishedStatuses.includes(d.status));
+  const completed = deliveries.filter((d) => d && finishedStatuses.includes(d.status));
+
+  incomplete.sort((a, b) => {
+    if (!a || !b) return 0;
+    if (a.isNextDelivery && !b.isNextDelivery) return -1;
+    if (!a.isNextDelivery && b.isNextDelivery) return 1;
+    const storeKeyA = getStoreSortKey(a.store_id);
+    const storeKeyB = getStoreSortKey(b.store_id);
+    if (storeKeyA !== storeKeyB) return storeKeyA.localeCompare(storeKeyB);
+    const timeA = a.delivery_time_eta || a.delivery_time_start || '';
+    const timeB = b.delivery_time_eta || b.delivery_time_start || '';
+    if (timeA !== timeB) return timeA.localeCompare(timeB);
+    return (a.stop_order ?? Infinity) - (b.stop_order ?? Infinity);
+  });
+
+  completed.sort((a, b) => {
+    if (!a || !b) return 0;
+    const storeKeyA = getStoreSortKey(a.store_id);
+    const storeKeyB = getStoreSortKey(b.store_id);
+    if (storeKeyA !== storeKeyB) return storeKeyA.localeCompare(storeKeyB);
+    return (Date.parse(a.actual_delivery_time || '') || Infinity) - (Date.parse(b.actual_delivery_time || '') || Infinity) || (a.stop_order ?? Infinity) - (b.stop_order ?? Infinity);
+  });
+
+  return [...incomplete, ...completed];
+}
+
 export function sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, selectedDriverId, deliveryDate, isDispatcher = false, scheduledDriverMap = {} }) {
   const scheduledPatientIds = new Set(
     (allDeliveries || [])
