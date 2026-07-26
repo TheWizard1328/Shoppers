@@ -25,14 +25,18 @@ export default function MapController({
 
   const mapInstance = useMapEvents({
     zoomstart: () => {
-      const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
-      const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-      const isProgrammaticFromTimer = timeSinceProgrammatic < 1200;
       const timeSinceGesture = Date.now() - (window._lastUserGestureStart || 0);
       const isRealUserGesture = timeSinceGesture < 500;
-      
-      if (!isRealUserGesture && (isProgrammaticFromFlag || isProgrammaticFromTimer)) {
-        return;
+      // CRITICAL: If a real gesture just started, always allow the interaction through.
+      // GPS ticks keep _lastProgrammaticMapMove fresh, so a timer-only check would
+      // incorrectly swallow legitimate pinch-zoom events from the user.
+      if (!isRealUserGesture) {
+        const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
+        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+        const isProgrammaticFromTimer = timeSinceProgrammatic < 1200;
+        if (isProgrammaticFromFlag || isProgrammaticFromTimer) {
+          return;
+        }
       }
       
       // Cancel any in-flight programmatic animation so the user's pinch-zoom
@@ -61,17 +65,27 @@ export default function MapController({
       hasMovedRef.current = false;
       
       if (wasDragging && didMove) {
-        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        const isProgrammaticDrag = timeSinceProgrammatic < 1500;
         const timeSinceGesture = Date.now() - (window._lastUserGestureStart || 0);
         const isRealUserGesture = timeSinceGesture < 2000;
-
-        if (!isProgrammaticDrag || isRealUserGesture) {
+        // CRITICAL: Always trust a real user gesture — GPS ticks keep _lastProgrammaticMapMove
+        // fresh every few seconds in Phase 2, so the programmatic timer is never a reliable
+        // signal when the user is actively dragging. Check real gesture FIRST.
+        if (isRealUserGesture) {
           markUserMapControlActive();
           if (onMapInteraction) {
             onMapInteraction(true);
           }
           window.dispatchEvent(new CustomEvent('mapBackgroundClick'));
+        } else {
+          const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+          const isProgrammaticDrag = timeSinceProgrammatic < 1500;
+          if (!isProgrammaticDrag) {
+            markUserMapControlActive();
+            if (onMapInteraction) {
+              onMapInteraction(true);
+            }
+            window.dispatchEvent(new CustomEvent('mapBackgroundClick'));
+          }
         }
       }
     },

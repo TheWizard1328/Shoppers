@@ -58,13 +58,13 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
 
       const isOut = Number(tempCelsius) < TEMP_MIN_C || Number(tempCelsius) > TEMP_MAX_C;
       if (isOut) {
-        toast.warning(`⚠️ Cooler temp ${tempCelsius}°C is outside target range (${TEMP_MIN_C}–${TEMP_MAX_C}°C)`);
+        toast.warning(`⚠️ Cooler temp ${tempCelsius}°C is outside target range (${TEMP_MIN_C}–${TEMP_MAX_C}°C)`, { duration: 4000 });
       } else {
-        toast.success(`✓ Cooler temp recorded: ${tempCelsius}°C`);
+        toast.success(`✓ Cooler temp recorded: ${tempCelsius}°C`, { duration: 3000 });
       }
       onDone?.();
     } catch (err) {
-      toast.error(`Failed to save temperature: ${err?.message}`);
+      toast.error(`Failed to save temperature: ${err?.message}`, { duration: 4000 });
       setIsSaving(false);
     }
   }, [delivery, currentUser, actionLabel, sensorName, onDone]);

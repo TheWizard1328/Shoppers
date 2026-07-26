@@ -1071,6 +1071,11 @@ function DeliveryMap({
   useEffect(() => {
     if (!map || !map._loaded || !map._container || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
     if (mapViewPhase === 2 && isMapViewLocked) return;
+    // CRITICAL: Don't fight an active user pan/zoom — _userMapControlUntil is set
+    // by MapController whenever a real gesture (drag/pinch) is detected. Without this
+    // check, echoing mapCenter/mapZoom state back from moveend and then re-entering
+    // setView causes a 1-second "jitter" where the map fights the user's pan.
+    if ((window._userMapControlUntil || 0) > Date.now()) return;
     const currentCenter = map.getCenter();
     const sameCenter = Math.abs(currentCenter.lat - center[0]) < 0.000001 && Math.abs(currentCenter.lng - center[1]) < 0.000001;
     const sameZoom = Math.abs(map.getZoom() - zoom) < 0.01;
