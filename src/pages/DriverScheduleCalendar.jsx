@@ -392,7 +392,8 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
 export default function DriverScheduleCalendar() {
   const { isMobile } = useDevice();
 
-  const [monthDate, setMonthDate] = useState(startOfMonth(new Date()));
+  const [viewMode, setViewMode] = useState('week');
+  const [monthDate, setMonthDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [stores, setStores] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
   const [overrides, setOverrides] = useState([]);
@@ -406,7 +407,6 @@ export default function DriverScheduleCalendar() {
   const [selectedDriverId, setSelectedDriverId] = useState('all');
   const [unlockedSlots, setUnlockedSlots] = useState(new Set());
   const [dragItem, setDragItem] = useState(null);
-  const [viewMode, setViewMode] = useState('week');
   const scrollContainerRef = useRef(null);
   const todayRef = useRef(null);
 
@@ -839,7 +839,11 @@ export default function DriverScheduleCalendar() {
             <Button variant="outline" size="sm" className={isMobile ? 'h-8 text-xs px-2' : ''} onClick={() => setMonthDate(viewMode === 'week' ? startOfWeek(new Date(), { weekStartsOn: 1 }) : startOfMonth(new Date()))}>
               {viewMode === 'week' ? 'This Week' : 'This Month'}
             </Button>
-            <Button variant="outline" size="sm" className={isMobile ? 'h-8 text-xs px-2' : ''} onClick={() => setViewMode((v) => v === 'week' ? 'month' : 'week')}>
+            <Button variant="outline" size="sm" className={isMobile ? 'h-8 text-xs px-2' : ''} onClick={() => setViewMode((v) => {
+              const next = v === 'week' ? 'month' : 'week';
+              setMonthDate(next === 'week' ? startOfWeek(new Date(), { weekStartsOn: 1 }) : startOfMonth(new Date()));
+              return next;
+            })}>
               {viewMode === 'week' ? 'Month' : 'Week'}
             </Button>
           </div>
