@@ -123,8 +123,9 @@ export async function runAcceptAllBatchPipeline({
       const patient = d.patient_id ? patientMap.get(d.patient_id) : null;
       return {
         deliveryId: d.id,
+        driverId: d.driver_id,
         patientName: patient?.full_name || d.patient_name || '',
-        storeAbbreviation: store?.abbreviation || '',
+        storeAbbreviation: store?.abbreviation || store?.store_abbreviation || '',
         codAmount: d.cod_total_amount_required,
         deliveryDate: d.delivery_date,
         storeId: d.store_id

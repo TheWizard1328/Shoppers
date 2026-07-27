@@ -328,11 +328,13 @@ export default function useStopCardActions(params) {
     pauseOfflineMutations();
     pauseRealtimeSync();
     backgroundSyncManager.pause();
+    smartRefreshManager.pause();
     setIsAcceptingAll(true);
-    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+    // Import driverLocationPoller INSIDE the try so the finally closure always has it
+    let driverLocationPoller = null;
     try {
+      ({ driverLocationPoller } = await import('../utils/driverLocationPoller'));
       driverLocationPoller.pause();
-      smartRefreshManager.pause();
       setIsEntityUpdating(true);
 
       // ── Pre-flight: scope to pending stops for this store/driver/date ────────
@@ -422,20 +424,32 @@ export default function useStopCardActions(params) {
 
       // ── STEP 2b: Fire notifications immediately — before optimizer runs ──────
       // CRITICAL: Must fire here (not after optimizer) so notifications always send
-      // even if optimization times out or fails. TR#s may not be final yet but the
-      // delivery list and store info are accurate at this point.
+      // even if optimization times out or fails.
       try {
         const notifyDeliveries = stagedChangedDeliveries.filter(d => transitionedIds.has(d?.id));
         if (notifyDeliveries.length > 0) {
-          notifyDriverAccepted({
-            delivery,
-            allAcceptedDeliveries: notifyDeliveries,
-            isBatch: true,
-            currentUser,
-            store,
-            stores,
-            patients,
-          }).catch(() => {});
+          const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
+          if (isDriverAction) {
+            // Driver accepted their own deliveries — notify dispatchers/admins
+            notifyDriverAccepted({
+              driver: currentUser,
+              store,
+              appUsers,
+              pendingCount: notifyDeliveries.length,
+            }).catch(() => {});
+          } else {
+            // Dispatcher assigned deliveries to a driver — notify the driver
+            const assignedDriverAppUser = appUsers.find(u => u?.user_id === delivery.driver_id);
+            if (assignedDriverAppUser) {
+              notifyDispatcherAssignedAll({
+                dispatcher: currentUser,
+                driver: assignedDriverAppUser,
+                store,
+                deliveries: notifyDeliveries,
+                patients,
+              }).catch(() => {});
+            }
+          }
         }
       } catch (_) {}
 
@@ -518,9 +532,11 @@ export default function useStopCardActions(params) {
         toast.error('Route optimization encountered an error. Stop order may not be optimized.');
       }
 
-      // ── STEP 5: Recalculate TR#s scoped to this store's deliveries only ──────
-      // Use the fresh deliveries that the coordinator returned (which have stop_order set).
-      // CRITICAL: scope to this store only — do NOT touch other stores' TR#s.
+      // ── STEP 5: Merge optimizer results — do NOT recalculate TR#s ────────────
+      // TR#s are assigned at delivery-creation time and must not be changed here.
+      // Recalculating them post-optimizer causes the "TR#s updating after optimizer"
+      // bug because the local recalc fires a server write AFTER the optimizer already
+      // wrote the authoritative stop_order, creating a race.
       const optimizedDeliveries = Array.isArray(coordResult?.freshDeliveries) ? coordResult.freshDeliveries : [];
       const allDeliveriesWithOptimized = optimizedDeliveries.length > 0
         ? (() => {
@@ -529,41 +545,7 @@ export default function useStopCardActions(params) {
           })()
         : fullDeliveriesForOptimizer;
 
-      // Only recalculate TR#s for deliveries belonging to THIS store's pickup chain
-      const thisStoreDeliveries = (allDeliveriesWithOptimized || []).filter(
-        d => d && d.store_id === delivery.store_id && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-      );
-      // Get all other stores' deliveries — these are FROZEN, we must not touch their TR#s
-      const otherStoreDeliveries = (allDeliveriesWithOptimized || []).filter(
-        d => d && !(d.store_id === delivery.store_id && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date)
-      );
-
-      // Recalc only within this store's scope
-      const trUpdates = recalculateTrackingNumbersLocal({
-        deliveries: thisStoreDeliveries,
-        stores: stores || [],
-        patients: patients || [],
-      });
-
-      let finalDeliveries = allDeliveriesWithOptimized;
-      if (trUpdates.length > 0) {
-        const trMap = new Map(trUpdates.map(u => [u.id, u.tracking_number]));
-        finalDeliveries = (allDeliveriesWithOptimized || []).map(d => {
-          if (!d?.id) return d;
-          const newTR = trMap.get(d.id);
-          return newTR != null ? { ...d, tracking_number: newTR } : d;
-        });
-
-        // Write TR# updates to IDB + server (non-blocking)
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        const trDeliveries = trUpdates.map(u => finalDeliveries.find(d => d?.id === u.id)).filter(Boolean);
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, trDeliveries).catch(() => {});
-        // Server writes for TR#s (fire-and-forget)
-        Promise.all(trUpdates.map(u =>
-          base44.entities.Delivery.update(u.id, { tracking_number: u.tracking_number }).catch(() => {})
-        ));
-        console.log(`[AcceptAll] TR# recalculated: ${trUpdates.length} stops updated (store ${delivery.store_id} scope only)`);
-      }
+      const finalDeliveries = allDeliveriesWithOptimized;
 
       // ── STEP 6: In-app message + push notification with updated TR#s ─────────
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
@@ -622,7 +604,7 @@ export default function useStopCardActions(params) {
       try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[AcceptAll] resumeOfflineSync failed:', e?.message); }
       try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptAll] resumeOfflineMutations failed:', e?.message); }
       try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
-      try { driverLocationPoller.resume(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
+      try { driverLocationPoller?.resume?.(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
       try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.restart failed:', e?.message); }
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
