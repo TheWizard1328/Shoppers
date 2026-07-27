@@ -590,14 +590,6 @@ export default function PatientForm({
                   detail: { triggeredBy: 'patient_address_change', fullReplacement: false }
                 }));
 
-                // Trigger polyline regeneration
-                if (optimizeResult?.optimizeData?.shouldRefreshPolylines) {
-                  base44.functions.invoke('purgeAndRegeneratePolylines', {
-                    driverId: selectedDriverId,
-                    deliveryDate: selectedDate
-                  }).catch(() => {});
-                  console.log('  🗺️ Polyline regeneration triggered');
-                }
               } catch (reoptErr) {
                 console.warn('⚠️ [PatientForm] Re-optimization after address change failed:', reoptErr?.message || reoptErr);
               }

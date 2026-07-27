@@ -221,14 +221,14 @@ export default function DashboardDialogs({
 
                 const now = new Date();
                 const completionTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                await base44.functions.invoke('purgeAndRegeneratePolylines', {
+                const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+                await performRouteOptimization({
                   driverId: targetDriverId,
                   deliveryDate,
-                  routeStopOrder: fullOrderedIds,
-                  reason: 'route_reordered',
-                  scope: 'active_only',
+                  preserveExistingOrder: true,
                   bypassDriverStatus: true,
-                });
+                  source: 'admin_reset_polylines',
+                }).catch(() => null);
 
                 // Wait for backend to finish writing polylines before fetching fresh data
                 await new Promise(resolve => setTimeout(resolve, 1500));

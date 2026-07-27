@@ -56,6 +56,13 @@ export async function cancelPickupForDispatcher({ delivery, store, appUsers, cur
 
   // 5) Trigger polyline refresh for the driver's route
   if (driverId && deliveryDate) {
-    base44.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate }).catch(() => {});
+    const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+    await performRouteOptimization({
+      driverId,
+      deliveryDate,
+      preserveExistingOrder: true,
+      bypassDriverStatus: true,
+      source: 'cancel_pickup',
+    }).catch(() => {});
   }
 }

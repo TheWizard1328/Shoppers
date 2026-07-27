@@ -34,12 +34,6 @@ export async function deleteDeliveryWithPolylineRefresh({ deliveryId, deliveries
       } catch (error) {
         console.warn("[deleteDeliveryWithPolylineRefresh] Route optimization failed:", error?.message || error);
       }
-      // Purge stale polylines and regenerate with updated stop order
-      base44.functions.invoke("purgeAndRegeneratePolylines", {
-        driverId: deletedDelivery.driver_id,
-        deliveryDate: deletedDelivery.delivery_date,
-        scope: 'active_only',
-      }).catch((error) => console.warn("[deleteDeliveryWithPolylineRefresh] Polyline regen failed:", error?.message || error));
     } else {
       console.log('[deleteDeliveryWithPolylineRefresh] No active stops remaining after delete — skipping optimization & polyline regen');
     }

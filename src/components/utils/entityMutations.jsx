@@ -527,11 +527,13 @@ export const createDelivery = async (deliveryData, options = {}) => {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
       await refreshOfflineEntitySnapshots('Delivery', backendDelivery);
       if (!options?.deferPolylineRefresh && backendDelivery?.driver_id && backendDelivery?.delivery_date) {
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+        await performRouteOptimization({
           driverId: backendDelivery.driver_id,
           deliveryDate: backendDelivery.delivery_date,
-          scope: 'active_only',
-          reason: 'stops_added'
+          preserveExistingOrder: true,
+          bypassDriverStatus: true,
+          source: 'entity_mutation_create',
         }).catch(() => null);
       }
       
@@ -724,11 +726,13 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
     }
 
     if (deletedDeliverySnapshot?.driver_id && deletedDeliverySnapshot?.delivery_date) {
-      await base44.functions.invoke('purgeAndRegeneratePolylines', {
+      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+      await performRouteOptimization({
         driverId: deletedDeliverySnapshot.driver_id,
         deliveryDate: deletedDeliverySnapshot.delivery_date,
-        scope: 'active_only',
-        reason: 'stops_deleted'
+        preserveExistingOrder: true,
+        bypassDriverStatus: true,
+        source: 'entity_mutation_delete',
       }).catch(() => null);
     }
 
@@ -818,11 +822,13 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       await refreshOfflineEntitySnapshots('Delivery', backendDeliveries[0]);
       const firstRouteDelivery = backendDeliveries.find((delivery) => delivery?.driver_id && delivery?.delivery_date);
       if (firstRouteDelivery) {
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+        await performRouteOptimization({
           driverId: firstRouteDelivery.driver_id,
           deliveryDate: firstRouteDelivery.delivery_date,
-          scope: 'active_only',
-          reason: 'stops_added'
+          preserveExistingOrder: true,
+          bypassDriverStatus: true,
+          source: 'entity_mutation_bulk_create',
         }).catch(() => null);
       }
 
@@ -948,11 +954,13 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     
     const firstDeletedDelivery = offlineDeliveries.find(d => idsToDeleteOffline.includes(d.id));
     if (firstDeletedDelivery?.driver_id && firstDeletedDelivery?.delivery_date) {
-      await base44.functions.invoke('purgeAndRegeneratePolylines', {
+      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+      await performRouteOptimization({
         driverId: firstDeletedDelivery.driver_id,
         deliveryDate: firstDeletedDelivery.delivery_date,
-        scope: 'active_only',
-        reason: 'stops_deleted'
+        preserveExistingOrder: true,
+        bypassDriverStatus: true,
+        source: 'entity_mutation_bulk_delete',
       }).catch(() => null);
     }
 

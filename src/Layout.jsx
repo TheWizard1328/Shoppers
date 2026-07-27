@@ -577,11 +577,15 @@ export default function Layout({ children, currentPageName }) {
       }
 
       type1PolylineRefreshRef.current.set(refreshKey, Date.now());
-      await base44.functions.invoke('regenerateType1Polyline', {
+      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+      await performRouteOptimization({
         driverId,
         deliveryDate,
-        currentLocation: nextLocation
-      });
+        currentLocation: nextLocation,
+        preserveExistingOrder: true,
+        bypassDriverStatus: true,
+        source: 'layout_refresh',
+      }).catch(() => null);
     } catch (error) {
 
       // Silent fail

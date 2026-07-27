@@ -122,9 +122,6 @@ export async function runDeliverySubmitSideEffects({
         try {
           const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
           await performRouteOptimization({ driverId: oldDriverId, deliveryDate: oldDate, bypassDriverStatus: true, source: 'driver_changed_old' });
-          const dels = await base44.entities.Delivery.filter({ driver_id: oldDriverId, delivery_date: oldDate }).catch(() => []);
-          const ids = (dels || []).filter(d => d?.id && !['completed','failed','cancelled','pending','Staged'].includes(d?.status)).sort((a,b) => (Number(a.stop_order)||0)-(Number(b.stop_order)||0)).map(d => d.id);
-          if (ids.length > 0) await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: oldDriverId, deliveryDate: oldDate, orderedDeliveryIds: ids, bypassDriverStatus: true });
         } catch (_) {}
       }, 500);
     }
@@ -137,9 +134,6 @@ export async function runDeliverySubmitSideEffects({
         try {
           const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
           await performRouteOptimization({ driverId: newDriverId, deliveryDate: newDate, bypassDriverStatus: true, source: 'driver_changed_new' });
-          const dels = await base44.entities.Delivery.filter({ driver_id: newDriverId, delivery_date: newDate }).catch(() => []);
-          const ids = (dels || []).filter(d => d?.id && !['completed','failed','cancelled','pending','Staged'].includes(d?.status)).sort((a,b) => (Number(a.stop_order)||0)-(Number(b.stop_order)||0)).map(d => d.id);
-          if (ids.length > 0) await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: newDriverId, deliveryDate: newDate, orderedDeliveryIds: ids, bypassDriverStatus: true });
         } catch (_) {}
       }, 1000);
     }

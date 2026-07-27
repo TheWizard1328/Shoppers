@@ -64,9 +64,13 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
 
     if (driverId && deliveryDate && hasActiveStops) {
       try {
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+        await performRouteOptimization({
           driverId,
-          deliveryDate
+          deliveryDate,
+          preserveExistingOrder: true,
+          bypassDriverStatus: true,
+          source: 'delete_delivery',
         });
         console.log('✅ [DELETE Handler] Polylines purged and regenerated');
       } catch (polylineError) {

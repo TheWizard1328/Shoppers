@@ -161,12 +161,6 @@ export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEdit
         }).catch(() => null);
       }
 
-      await base44.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId: driver_id,
-        deliveryDate: delivery_date,
-        scope: 'active_only',
-        reason: 'route_reordered'
-      }).catch(() => null);
     }
 
     smartRefreshManager.restart();

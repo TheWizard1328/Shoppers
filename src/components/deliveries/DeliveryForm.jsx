@@ -829,12 +829,6 @@ export default function DeliveryForm({
       for (const { driverId, deliveryDate } of uniqueRoutes) {
         const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
         await performRouteOptimization({ driverId, deliveryDate, bypassDriverStatus: true, source: 'batch_save_pickup' }).catch(() => null);
-        const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }).catch(() => []);
-        const orderedIds = (freshDeliveries || [])
-          .filter(d => d?.id && !['completed', 'failed', 'cancelled'].includes(d?.status))
-          .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0))
-          .map(d => d.id);
-        base44.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate, routeStopOrder: orderedIds, reason: 'stops_added', scope: 'active_only', bypassDriverStatus: true }).catch(() => null);
       }
       return;
     }
