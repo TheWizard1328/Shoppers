@@ -1,5 +1,5 @@
-// Redeployed on 2026-04-09
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+// Updated 2026-07-27 - SDK version aligned with squareCodCore (0.8.25) to fix auth context forwarding
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
   try {

@@ -1,5 +1,5 @@
 // Redeployed on 2026-05-01
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const isNotFoundError = (error) =>
   error?.status === 404 ||
