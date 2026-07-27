@@ -376,9 +376,11 @@ export default function useStopCardActions(params) {
         triggerDelivery: delivery,
         allDeliveries,
         stores,
+        patients,
         currentLocalTime,
         deliveryTimeStart,
         updateDeliveriesLocally,
+        localDeviceTodayStr,
       });
 
       // ── STEP 2: Confirm transition complete — update UI optimistically ─────────
@@ -418,15 +420,39 @@ export default function useStopCardActions(params) {
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       invalidate('Delivery');
 
+      // ── STEP 2b: Fire notifications immediately — before optimizer runs ──────
+      // CRITICAL: Must fire here (not after optimizer) so notifications always send
+      // even if optimization times out or fails. TR#s may not be final yet but the
+      // delivery list and store info are accurate at this point.
+      try {
+        const notifyDeliveries = stagedChangedDeliveries.filter(d => transitionedIds.has(d?.id));
+        if (notifyDeliveries.length > 0) {
+          notifyDriverAccepted({
+            delivery,
+            allAcceptedDeliveries: notifyDeliveries,
+            isBatch: true,
+            currentUser,
+            store,
+            stores,
+            patients,
+          }).catch(() => {});
+        }
+      } catch (_) {}
+
       // ── STEP 3: Square COD catalog items (fire-and-forget, does not block optimizer) ─
+      // CRITICAL: Wait for pending batch mutations to flush to the server FIRST so the
+      // deliveries are confirmed in_transit before Square tries to create catalog items.
+      // Use a short delay to allow the fire-and-forget server writes to begin.
       if (codBatch.length > 0) {
-        base44.functions.invoke('syncSquareCods', { items: codBatch })
-          .then(r => {
-            const errors = (r?.results || []).filter(x => x?.status === 'error');
-            if (errors.length > 0) console.error('❌ [Square] COD sync errors:', errors);
-            else console.log(`✅ [Square] COD sync: ${r?.processed || 0} items OK`);
-          })
-          .catch(e => console.error('❌ [Square] COD sync FAILED:', e?.message || e));
+        setTimeout(() => {
+          base44.functions.invoke('syncSquareCods', { items: codBatch })
+            .then(r => {
+              const errors = (r?.results || []).filter(x => x?.status === 'error');
+              if (errors.length > 0) console.error('❌ [Square] COD sync errors:', errors);
+              else console.log(`✅ [Square] COD sync: ${r?.processed || 0} items OK`);
+            })
+            .catch(e => console.error('❌ [Square] COD sync FAILED:', e?.message || e));
+        }, 3000);
       }
 
       // Write pickup route summary note (fire-and-forget)
@@ -540,20 +566,8 @@ export default function useStopCardActions(params) {
       }
 
       // ── STEP 6: In-app message + push notification with updated TR#s ─────────
-      try {
-        const notifyDeliveries = finalDeliveries.filter(d => transitionedIds.has(d?.id));
-        if (notifyDeliveries.length > 0) {
-          notifyDriverAccepted({
-            delivery,
-            allAcceptedDeliveries: notifyDeliveries,
-            isBatch: true,
-            currentUser,
-            store,
-            stores,
-            patients,
-          }).catch(() => {});
-        }
-      } catch (_) {}
+      // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
+      // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
 
       // ── STEP 7: Update IDB + online DB + WebSocket ────────────────────────────
       if (finalDeliveries.length > 0) {
@@ -602,11 +616,14 @@ export default function useStopCardActions(params) {
     } finally {
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
-      try { resumeRealtimeSync(); } catch (_) {}
-      try { resumeOfflineSync('delivery_actions'); } catch (_) {}
-      try { resumeOfflineMutations(); } catch (_) {}
-      try { backgroundSyncManager.resume(); } catch (_) {}
-      try { smartRefreshManager.restart(); } catch (_) {}
+      // CRITICAL: Each resume wrapped in try/catch — one failure must not leave
+      // the remaining managers permanently paused and the UI buttons disabled.
+      try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
+      try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[AcceptAll] resumeOfflineSync failed:', e?.message); }
+      try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptAll] resumeOfflineMutations failed:', e?.message); }
+      try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
+      try { driverLocationPoller.resume(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
+      try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.restart failed:', e?.message); }
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
       try { dispatchStopCardActionCollapse(); } catch (e) { console.warn('[AcceptAll] dispatchStopCardActionCollapse failed:', e?.message); }

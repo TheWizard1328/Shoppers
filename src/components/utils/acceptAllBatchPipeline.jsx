@@ -91,27 +91,27 @@ export async function runAcceptAllBatchPipeline({
     updateDeliveriesLocally(updatedDeliveries, false);
   }
 
-  // Fire ALL backend writes in parallel — no sequential awaiting.
-  const finalOfflineUpdates = [];
+  // Fire ALL backend writes in parallel — use direct API calls (not isBatchOperation queue)
+  // so the server is updated immediately. isBatchOperation queues to pending mutations which
+  // only sync after background sync resumes, causing the 3-5 min ghost-stop / revert issue.
+  const finalOfflineUpdates = [...updatedDeliveries]; // IDB already written above
   try {
-    const results = await Promise.all(
+    await Promise.all(
       updatedDeliveries.map((updated) =>
-        updateDeliveryLocal(updated.id, {
+        base44.entities.Delivery.update(updated.id, {
           status: 'in_transit',
           delivery_time_start: updated.delivery_time_start,
           delivery_time_end: updated.delivery_time_end,
           delivery_time_eta: updated.delivery_time_eta,
           puid: updated.puid
-        }, { skipSmartRefresh: true, isBatchOperation: true })
-          .then((result) => result || updated)
-          .catch(() => updated)
+        }).catch((err) => {
+          console.warn(`[AcceptAll] Server write failed for ${updated.id}:`, err?.message || err);
+        })
       )
     );
-    finalOfflineUpdates.push(...results.filter(Boolean));
   } catch (batchErr) {
     // Even on error, do NOT resume managers — the caller's finally handles that.
-    // Just log and propagate so the caller can clean up.
-    console.warn('[AcceptAll] Batch write error (managers stay paused for caller to resume):', batchErr?.message || batchErr);
+    console.warn('[AcceptAll] Batch server write error (managers stay paused for caller to resume):', batchErr?.message || batchErr);
     throw batchErr;
   }
 
@@ -120,9 +120,10 @@ export async function runAcceptAllBatchPipeline({
     .filter((d) => d.driver_id && Number(d.cod_total_amount_required || 0) > 0)
     .map((d) => {
       const store = stores?.find((s) => s && s.id === d.store_id);
+      const patient = d.patient_id ? patientMap.get(d.patient_id) : null;
       return {
         deliveryId: d.id,
-        patientName: d.patient_name || '',
+        patientName: patient?.full_name || d.patient_name || '',
         storeAbbreviation: store?.abbreviation || '',
         codAmount: d.cod_total_amount_required,
         deliveryDate: d.delivery_date,
