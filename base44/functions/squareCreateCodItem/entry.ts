@@ -120,20 +120,26 @@ async function handleCreateCodItem(base44, payload) {
   const lookedUp=deliveryRecord?await resolveDeliveryPatientName(base44,deliveryRecord,patientById,patientByPid):'';
   const usableName=lookedUp==='Unknown Patient'?'':lookedUp;
   const resolvedPatientName=normalizeText(usableName||patientName||deliveryRecord?.patient_name);
-  if(!resolvedPatientName||resolvedPatientName==='COD'||resolvedPatientName==='Unknown Patient')return{success:true,skipped:true,reason:'missing_patient_name'};
+  // CRITICAL: Don't skip on missing patient name — use a fallback so the COD item
+  // is still created in Square. The delivery_id in the description provides traceability.
+  // The previous skip was silently preventing COD items from being created when the
+  // patient name couldn't be resolved from the DB, leaving dispatchers with no Square
+  // catalog items for COD deliveries.
+  let effectivePatientName=resolvedPatientName;
+  if(!effectivePatientName||effectivePatientName==='COD'||effectivePatientName==='Unknown Patient'){effectivePatientName=`Delivery ${deliveryId.slice(-6)}`;console.warn('[squareCreateCodItem] Using fallback patient name for delivery:', deliveryId);}
   const resolvedPatientId=patientRecord?.id||(isValidEntityId(deliveryRecord?.patient_id)?deliveryRecord.patient_id:null);
   const resolvedStoreAbbr=normalizeText(store?.abbreviation||storeAbbreviation||'XX');
   const amountCents=Math.round(Number(codAmount)*100);
-  const itemName=formatItemName(resolvedDeliveryDate,resolvedStoreAbbr,resolvedPatientName);
+  const itemName=formatItemName(resolvedDeliveryDate,resolvedStoreAbbr,effectivePatientName);
   const existingPending=await base44.asServiceRole.entities.SquareTransaction.filter({delivery_id:deliveryId,status:'pending'}).catch(()=>[]);
   if(existingPending?.length&&existingPending[0]?.square_catalog_object_id&&existingPending[0]?.item_name===itemName&&existingPending[0]?.amount_cents===amountCents){const tx=existingPending[0];return{success:true,catalogObjectId:tx.square_catalog_object_id,catalogVersion:tx.square_catalog_version,itemName:tx.item_name,transactionId:tx.id,note:'Skipped: existing pending item'};}
   let catalogObjectId,catalogVersion;
-  if(existingPending?.length&&existingPending[0]?.square_catalog_object_id&&(existingPending[0]?.item_name!==itemName||existingPending[0]?.amount_cents!==amountCents)){const updated=await updateCatalogItem({catalogObjectId:existingPending[0].square_catalog_object_id,catalogVersion:existingPending[0].square_catalog_version,itemName,amountCents,locationId,deliveryId,patientName:resolvedPatientName,accessToken});catalogObjectId=updated?.id||existingPending[0].square_catalog_object_id;catalogVersion=updated?.version||existingPending[0].square_catalog_version;}
+  if(existingPending?.length&&existingPending[0]?.square_catalog_object_id&&(existingPending[0]?.item_name!==itemName||existingPending[0]?.amount_cents!==amountCents)){const updated=await updateCatalogItem({catalogObjectId:existingPending[0].square_catalog_object_id,catalogVersion:existingPending[0].square_catalog_version,itemName,amountCents,locationId,deliveryId,patientName:effectivePatientName,accessToken});catalogObjectId=updated?.id||existingPending[0].square_catalog_object_id;catalogVersion=updated?.version||existingPending[0].square_catalog_version;}
   else{
     const liveItems=await listActiveCatalogItems(accessToken);
     const existingLive=liveItems.find((item)=>{const desc=normalizeText(item?.item_data?.description||'').toLowerCase();return desc.includes(`delivery ${deliveryId}`)||desc.includes(deliveryId);});
-    if(existingLive){const updated=await updateCatalogItem({catalogObjectId:existingLive.id,catalogVersion:existingLive.version,itemName,amountCents,locationId,deliveryId,patientName:resolvedPatientName,accessToken});catalogObjectId=updated?.id||existingLive.id;catalogVersion=updated?.version||existingLive.version;}
-    else{const ci=await createCatalogItem({itemName,amountCents,locationId,deliveryId,patientName:resolvedPatientName,accessToken});catalogObjectId=ci?.id||null;catalogVersion=ci?.version||null;if(!catalogObjectId)throw new Error(`Square did not return a catalog item for delivery ${deliveryId}`);}
+    if(existingLive){const updated=await updateCatalogItem({catalogObjectId:existingLive.id,catalogVersion:existingLive.version,itemName,amountCents,locationId,deliveryId,patientName:effectivePatientName,accessToken});catalogObjectId=updated?.id||existingLive.id;catalogVersion=updated?.version||existingLive.version;}
+    else{const ci=await createCatalogItem({itemName,amountCents,locationId,deliveryId,patientName:effectivePatientName,accessToken});catalogObjectId=ci?.id||null;catalogVersion=ci?.version||null;if(!catalogObjectId)throw new Error(`Square did not return a catalog item for delivery ${deliveryId}`);}
   }
   const existingTx=await base44.asServiceRole.entities.SquareTransaction.filter({delivery_id:deliveryId,status:'pending'}).catch(()=>[]);
   const txPayload={square_catalog_object_id:catalogObjectId,square_catalog_version:catalogVersion,item_name:itemName,amount:Number(codAmount),amount_cents:amountCents,patient_id:resolvedPatientId,store_id:effectiveStoreId,location_id:locationId};
@@ -150,9 +156,12 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     await requireUser(base44);
     const payload = await req.json().catch(() => ({}));
+    console.log('[squareCreateCodItem] invoked for delivery:', payload?.deliveryId, 'amount:', payload?.codAmount, 'storeId:', payload?.storeId);
     const result = await handleCreateCodItem(base44, payload);
+    console.log('[squareCreateCodItem] result:', JSON.stringify({ success: result?.success, skipped: result?.skipped, reason: result?.reason, catalogObjectId: result?.catalogObjectId }));
     return Response.json(result);
   } catch (error) {
+    console.error('[squareCreateCodItem] ERROR:', error?.message || error, 'for delivery:', payload?.deliveryId);
     return Response.json({ error: error?.message || 'Internal Server Error' }, { status: error?.status || 500 });
   }
 });

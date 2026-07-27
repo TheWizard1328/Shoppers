@@ -117,7 +117,7 @@ export async function runAcceptAllBatchPipeline({
 
   // Build COD batch for Square sync
   const codBatch = updatedDeliveries
-    .filter((d) => d.patient_id && d.driver_id && Number(d.cod_total_amount_required || 0) > 0)
+    .filter((d) => d.driver_id && Number(d.cod_total_amount_required || 0) > 0)
     .map((d) => {
       const store = stores?.find((s) => s && s.id === d.store_id);
       return {

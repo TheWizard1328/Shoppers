@@ -382,18 +382,20 @@ export default function useStopCardActions(params) {
       // throw and skip this call. The previous code had this at the very END of the
       // try block, which meant any exception in steps 1-3 would skip it entirely.
       if (codBatch.length > 0) {
-        // Await the Square COD sync so failures are visible and don't silently disappear.
-        // This is non-blocking to the optimizer since it runs BEFORE optimization.
+        console.log(`🔵 [AcceptAll] Firing Square COD sync for ${codBatch.length} items:`, codBatch.map(c => ({ id: c.deliveryId, amt: c.codAmount, store: c.storeId })));
+        // Fire-and-forget — don't block the optimizer on Square API calls.
         base44.functions.invoke('syncSquareCods', { items: codBatch })
           .then((r) => {
             const errors = (r?.results || []).filter(x => x?.status === 'error');
             if (errors.length > 0) {
               console.error('❌ [Square] COD sync had errors:', errors.map(e => ({ id: e.deliveryId, err: e.error })));
             } else {
-              console.log(`✅ [Square] COD sync: ${r?.processed || 0} items processed`);
+              console.log(`✅ [Square] COD sync: ${r?.processed || 0} items processed, results:`, r?.results?.map(x => ({ id: x.deliveryId, status: x.status })) || []);
             }
           })
           .catch((e) => console.error('❌ [Square] Batch COD sync FAILED:', e?.message || e));
+      } else {
+        console.log('[AcceptAll] No COD deliveries in batch — skipping Square sync');
       }
 
       // Build and append route summary note to the pickup delivery's notes
@@ -551,20 +553,32 @@ export default function useStopCardActions(params) {
         ...[...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])].filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
       ];
 
-      const coordResult = await performRouteOptimization({
-        driverId: delivery.driver_id,
-        deliveryDate: delivery.delivery_date,
-        currentLocation: acceptAllCurrentLocation,
-        deliveries: _acceptAllFullDeliveries,
-        patients,
-        stores,
-        appUsers,
-        source: 'accept_all',
-        bypassDriverStatus: true,
-      }).catch((err) => {
-        console.error('❌ [AcceptAll] performRouteOptimization THREW:', err?.message || err);
-        return null;
-      });
+      // CRITICAL: Wrap in Promise.race with 90s timeout — if the HERE API hangs,
+      // the timeout resolves so the finally block (which resumes sync managers)
+      // is guaranteed to execute. Without this, a hung HERE API call would block
+      // the entire try block and the finally would never fire, leaving all sync
+      // managers permanently paused.
+      const _OPTIMIZER_TIMEOUT_MS = 90000;
+      const coordResult = await Promise.race([
+        performRouteOptimization({
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          currentLocation: acceptAllCurrentLocation,
+          deliveries: _acceptAllFullDeliveries,
+          patients,
+          stores,
+          appUsers,
+          source: 'accept_all',
+          bypassDriverStatus: true,
+        }).catch((err) => {
+          console.error('❌ [AcceptAll] performRouteOptimization THREW:', err?.message || err);
+          return null;
+        }),
+        new Promise((resolve) => setTimeout(() => {
+          console.error('⏱️ [AcceptAll] performRouteOptimization TIMED OUT after 90s — proceeding with unoptimized route');
+          resolve(null);
+        }, _OPTIMIZER_TIMEOUT_MS))
+      ]);
 
       // Explicit failure detection — don't silently continue if the optimizer bailed.
       if (coordResult && coordResult.success === false) {
@@ -597,7 +611,13 @@ export default function useStopCardActions(params) {
       const polylineResponse = null;
 
       // STEP 3: Fetch fresh deliveries once (after both optimize + polyline calls complete).
-      const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+      const refreshedDeliveries = await Promise.race([
+        forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date),
+        new Promise((resolve) => setTimeout(() => {
+          console.warn('⏱️ [AcceptAll] forceRefreshDriverDeliveries TIMED OUT after 15s');
+          resolve([]);
+        }, 15000))
+      ]);
       const refreshedList = Array.isArray(refreshedDeliveries)
         ? refreshedDeliveries
         : Array.isArray(refreshedDeliveries?.deliveries)
@@ -645,10 +665,16 @@ export default function useStopCardActions(params) {
       // This runs AFTER optimization so stop_order is already set for in_transit stops,
       // and pending stops are sorted by haversine distance from the store.
       try {
-        const trResult = await base44.functions.invoke('recalculateTrackingNumbers', {
-          driverId: delivery.driver_id,
-          deliveryDate: delivery.delivery_date,
-        });
+        const trResult = await Promise.race([
+          base44.functions.invoke('recalculateTrackingNumbers', {
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+          }),
+          new Promise((resolve) => setTimeout(() => {
+            console.warn('⏱️ [AcceptAll] recalculateTrackingNumbers TIMED OUT after 30s');
+            resolve(null);
+          }, 30000))
+        ]);
         if (trResult?.updates?.length > 0) {
           console.log(`[AcceptAll] Recalculated ${trResult.updates.length} tracking numbers`);
           // Fetch fresh deliveries again to get updated TR#s into the UI
@@ -1151,7 +1177,13 @@ export default function useStopCardActions(params) {
 
 
             // Fetch fresh deliveries after optimization
-            const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+            const refreshedDeliveries = await Promise.race([
+        forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date),
+        new Promise((resolve) => setTimeout(() => {
+          console.warn('⏱️ [AcceptAll] forceRefreshDriverDeliveries TIMED OUT after 15s');
+          resolve([]);
+        }, 15000))
+      ]);
             const refreshedList = Array.isArray(refreshedDeliveries)
               ? refreshedDeliveries
               : Array.isArray(refreshedDeliveries?.deliveries)
