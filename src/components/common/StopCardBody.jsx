@@ -38,6 +38,7 @@ export default function StopCardBody({
   isAcceptingAll,
   acceptButtonText,
   handleAcceptAllStops,
+  handleAcceptSingleStop,
   onEdit,
   onCODUpdate,
   allDeliveries,
@@ -185,6 +186,7 @@ export default function StopCardBody({
               canAccessAcceptButtons={canAccessAcceptButtons}
               isAcceptingAll={isAcceptingAll}
               handleAcceptAllStops={handleAcceptAllStops}
+              handleAcceptSingleStop={handleAcceptSingleStop}
               acceptButtonText={acceptButtonText}
               onEdit={onEdit}
               patients={patients}

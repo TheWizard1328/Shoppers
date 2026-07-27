@@ -1626,12 +1626,250 @@ export default function useStopCardActions(params) {
     resetActionLocks, safeDriver, setIsFailing, setPendingFailureStatus, setShowFailureReasonDialog,
     store, updateDeliveriesLocally, userHasRole]);
 
+  // ── Accept a SINGLE pending delivery from the pickup card "+" button ──────────
+  // Creates a new pickup with a fresh PUID, transitions the selected delivery to
+  // in_transit, sets the new pickup as isNextDelivery=true, then runs the optimizer.
+  const handleAcceptSingleStop = useCallback(async (projectedDelivery) => {
+    if (!projectedDelivery?.id) {
+      toast.error('Cannot accept this delivery — missing delivery ID.');
+      return;
+    }
+
+    const lockResult = await runWithDeliveryActionLock('accept_single_delivery', async () => {
+      pauseOfflineSync('delivery_actions');
+      pauseOfflineMutations();
+      pauseRealtimeSync();
+      backgroundSyncManager.pause();
+      setIsAcceptingAll(true);
+
+      const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+      try {
+        driverLocationPoller.pause();
+        smartRefreshManager.pause();
+        setIsEntityUpdating(true);
+
+        const targetDeliveryId = projectedDelivery.id;
+        const driverId = projectedDelivery.driver_id || delivery.driver_id;
+        const deliveryDate = projectedDelivery.delivery_date || delivery.delivery_date;
+        const storeId = projectedDelivery.store_id || delivery.store_id;
+        const ampmDeliveries = projectedDelivery.ampm_deliveries || delivery.ampm_deliveries || 'AM';
+
+        // STEP 1: Call ensurePickupForDelivery to create a NEW pickup with a fresh PUID
+        // We use allowCreateIfMissing=true and forceAttachIfInTransit=false so it
+        // creates a brand new pickup rather than reusing an existing one.
+        let ensureResult = null;
+        try {
+          ensureResult = await base44.functions.invoke('ensurePickupForDelivery', {
+            storeId,
+            deliveryDate,
+            driverId,
+            ampmDeliveries,
+            allowCreateIfMissing: true,
+            forceAttachIfInTransit: false,
+            deliveryId: targetDeliveryId,
+          });
+        } catch (e) {
+          console.error('[AcceptSingle] ensurePickupForDelivery failed:', e);
+          toast.error('Failed to create pickup for this delivery.');
+          return;
+        }
+
+        const newPuid = ensureResult?.puid || ensureResult?.data?.puid || null;
+        const newPickupId = ensureResult?.pickupId || ensureResult?.data?.pickupId || null;
+        const newPickup = ensureResult?.pickup || ensureResult?.data?.pickup || null;
+
+        if (!newPuid || !newPickupId) {
+          console.error('[AcceptSingle] No PUID/pickup returned from ensurePickupForDelivery', ensureResult);
+          toast.error('Failed to generate pickup location.');
+          return;
+        }
+
+        console.log(`[AcceptSingle] New pickup created: id=${newPickupId}, puid=${newPuid}`);
+
+        // STEP 2: Transition the selected delivery to in_transit with the new PUID
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const startMinutes = currentMinutes + 5;
+        const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+
+        const updatedDelivery = {
+          ...projectedDelivery,
+          status: 'in_transit',
+          puid: newPuid,
+          delivery_time_start: projectedDelivery.delivery_time_start || deliveryTimeStart,
+          delivery_time_eta: deliveryTimeStart,
+        };
+
+        // Write to offline DB
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+        } catch (e) {
+          console.warn('[AcceptSingle] offlineDB save failed:', e?.message || e);
+        }
+
+        // Optimistic UI update
+        updateDeliveriesLocally?.([updatedDelivery], false);
+
+        // Backend write (fire and don't block optimizer on it)
+        updateDeliveryLocal(targetDeliveryId, {
+          status: 'in_transit',
+          puid: newPuid,
+          delivery_time_start: updatedDelivery.delivery_time_start,
+          delivery_time_eta: updatedDelivery.delivery_time_eta,
+        }, { skipSmartRefresh: true }).catch((e) => {
+          console.warn('[AcceptSingle] Backend delivery update failed:', e?.message || e);
+        });
+
+        // STEP 3: Set the new pickup as isNextDelivery=true (and clear other flags)
+        // First, clear all isNextDelivery flags for this driver/date
+        try {
+          const allDriverDeliveries = await base44.entities.Delivery.filter({
+            driver_id: driverId,
+            delivery_date: deliveryDate
+          });
+          const clearPromises = (allDriverDeliveries || [])
+            .filter((d) => d?.isNextDelivery === true && d?.id !== newPickupId)
+            .map((d) => {
+              updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true }).catch(() => {});
+              return base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null);
+            });
+          await Promise.allSettled(clearPromises);
+        } catch (e) {
+          console.warn('[AcceptSingle] Failed to clear stale isNextDelivery flags:', e?.message || e);
+        }
+
+        // Set the new pickup as isNextDelivery=true
+        try {
+          updateDeliveryLocal(newPickupId, { isNextDelivery: true }, { skipSmartRefresh: true }).catch(() => {});
+          await base44.entities.Delivery.update(newPickupId, { isNextDelivery: true });
+          console.log(`[AcceptSingle] Set pickup ${newPickupId} as isNextDelivery=true`);
+        } catch (e) {
+          console.warn('[AcceptSingle] Failed to set isNextDelivery on pickup:', e?.message || e);
+        }
+
+        // Dispatch UI events
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            triggeredBy: 'acceptSingle',
+            driverId,
+            deliveryDate,
+            preserveLocalState: true,
+            freshDeliveries: [updatedDelivery, ...(newPickup ? [newPickup] : [])],
+            alreadyOptimized: false
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId, deliveryDate } }));
+        invalidate('Delivery');
+
+        // STEP 4: Wait briefly for the backend write to commit, then run the optimizer
+        await new Promise((r) => setTimeout(r, 500));
+
+        window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
+          detail: { source: 'accept_single', driverId, deliveryDate }
+        }));
+
+        // Resolve driver location for optimizer
+        const driverAppUser = appUsers.find((u) => u?.user_id === driverId);
+        const driverLat = Number(driverAppUser?.current_latitude);
+        const driverLon = Number(driverAppUser?.current_longitude);
+        const currentLocation = Number.isFinite(driverLat) && Number.isFinite(driverLon)
+          ? { lat: driverLat, lon: driverLon }
+          : null;
+
+        // Run the client-side route optimizer
+        try {
+          const optimizationResult = await optimizeRouteAndApplyNextDelivery({
+            driverId,
+            deliveryDate,
+            updateDeliveryLocal,
+            updateDeliveriesLocally,
+            forceRefreshDriverDeliveries,
+            shouldRegeneratePolylines: true,
+            fallbackNextDeliveryId: newPickupId,
+            runOptimization: true,
+          });
+
+          if (optimizationResult?.refreshedDriverDeliveries) {
+            const { offlineDB } = await import('../utils/offlineDatabase');
+            await Promise.all(optimizationResult.refreshedDriverDeliveries.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+            updateDeliveriesLocally?.(optimizationResult.refreshedDriverDeliveries, false);
+          }
+
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              triggeredBy: 'acceptSingleOptimized',
+              driverId,
+              deliveryDate,
+              alreadyOptimized: true,
+              preserveLocalState: true,
+              freshDeliveries: optimizationResult?.refreshedDriverDeliveries || [],
+            }
+          }));
+          window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId, deliveryDate, source: 'accept_single_button' } }));
+        } catch (optErr) {
+          console.error('[AcceptSingle] Optimization failed:', optErr);
+          // Non-fatal — the delivery is already in_transit
+        }
+
+        // COD sync if needed
+        if (projectedDelivery.cod_total_amount_required && Number(projectedDelivery.cod_total_amount_required) > 0) {
+          const storeAbbr = store?.abbreviation || stores?.find((s) => s?.id === storeId)?.abbreviation || '';
+          triggerSquareCodUpsert({
+            deliveryId: targetDeliveryId,
+            patientName: projectedDelivery.patient_name || '',
+            storeAbbreviation: storeAbbr,
+            codAmount: projectedDelivery.cod_total_amount_required,
+            deliveryDate,
+            storeId,
+          });
+        }
+
+        // Notify
+        const isDriverAction = userHasRole(currentUser, 'driver') && driverId === currentUser.id;
+        if (isDriverAction) {
+          notifyDriverAccepted({
+            driver: currentUser,
+            store: store || stores?.find((s) => s?.id === storeId),
+            appUsers,
+            pendingCount: 1,
+            patientName: projectedDelivery.patient_name || '',
+          }).catch(() => {});
+        }
+
+        toast.success(`Accepted delivery for ${projectedDelivery.patient_name || 'patient'}`);
+
+      } catch (error) {
+        console.error('❌ [AcceptSingle] Error:', error);
+        toast.error(`Failed to accept delivery: ${error.message}`);
+        throw error;
+      } finally {
+        window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
+          detail: { source: 'accept_single', driverId: projectedDelivery.driver_id || delivery.driver_id, deliveryDate: projectedDelivery.delivery_date || delivery.delivery_date }
+        }));
+        resumeRealtimeSync();
+        resumeOfflineSync('delivery_actions');
+        resumeOfflineMutations();
+        backgroundSyncManager.resume();
+        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+        driverLocationPoller.resume();
+        smartRefreshManager.resume();
+        setIsEntityUpdating(false);
+        setIsAcceptingAll(false);
+        dispatchStopCardActionCollapse();
+        onClick?.(null);
+      }
+    });
+    if (lockResult?.skipped) return;
+  }, [allDeliveries, appUsers, currentUser, delivery, onClick, patients, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
+
   return {
     blockCardToggle,
     pendingCoolerLog,
     clearCoolerLog,
     handleAddCODPayment,
     handleAcceptAllStops,
+    handleAcceptSingleStop,
     handleReturnClick,
     handleConfirmReturn,
     handleCancelReturn,

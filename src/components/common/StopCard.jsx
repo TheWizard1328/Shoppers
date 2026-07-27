@@ -679,6 +679,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     clearCoolerLog,
     handleAddCODPayment,
     handleAcceptAllStops,
+    handleAcceptSingleStop,
     handleReturnClick,
     handleConfirmReturn,
     handleCancelReturn,
@@ -1181,6 +1182,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             isAcceptingAll={isAcceptingAll}
             acceptButtonText={acceptButtonText}
             handleAcceptAllStops={handleAcceptAllStops}
+            handleAcceptSingleStop={handleAcceptSingleStop}
             onEdit={onEdit}
             onCODUpdate={onCODUpdate}
             allDeliveries={allDeliveries}
