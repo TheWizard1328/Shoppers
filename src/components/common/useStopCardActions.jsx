@@ -695,7 +695,7 @@ export default function useStopCardActions(params) {
       try { resumeOfflineSync('delivery_actions'); } catch (_) {}
       try { resumeOfflineMutations(); } catch (_) {}
       try { backgroundSyncManager.resume(); } catch (_) {}
-      try { smartRefreshManager.resume(); } catch (_) {}
+      try { smartRefreshManager.restart(); } catch (_) {}
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
       try { dispatchStopCardActionCollapse(); } catch (e) { console.warn('[AcceptAll] dispatchStopCardActionCollapse failed:', e?.message); }
@@ -1619,7 +1619,7 @@ export default function useStopCardActions(params) {
         // remaining managers stay permanently paused and buttons stay disabled.
         try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[Complete] resumeOfflineSync failed:', e?.message); }
         try { driverLocationPoller?.resume?.(); } catch (e) { console.warn('[Complete] driverLocationPoller.resume failed:', e?.message); }
-        try { smartRefreshManager.resume(); } catch (e) { console.warn('[Complete] smartRefreshManager.resume failed:', e?.message); }
+        try { smartRefreshManager.restart(); } catch (e) { console.warn('[Complete] smartRefreshManager.restart failed:', e?.message); }
         try { backgroundSyncManager.resume(); } catch (e) { console.warn('[Complete] backgroundSyncManager.resume failed:', e?.message); }
         try { resumeRealtimeSync(); } catch (e) { console.warn('[Complete] resumeRealtimeSync failed:', e?.message); }
         try { resetActionLocks(true); } catch (e) { console.warn('[Complete] resetActionLocks failed:', e?.message); }
@@ -2230,7 +2230,7 @@ export default function useStopCardActions(params) {
         try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptSingle] resumeOfflineMutations failed:', e?.message); }
         try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptSingle] backgroundSyncManager.resume failed:', e?.message); }
         try { driverLocationPoller.resume(); } catch (e) { console.warn('[AcceptSingle] driverLocationPoller.resume failed:', e?.message); }
-        try { smartRefreshManager.resume(); } catch (e) { console.warn('[AcceptSingle] smartRefreshManager.resume failed:', e?.message); }
+        try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptSingle] smartRefreshManager.restart failed:', e?.message); }
         setIsEntityUpdating(false);
         setIsAcceptingAll(false);
         dispatchStopCardActionCollapse();
