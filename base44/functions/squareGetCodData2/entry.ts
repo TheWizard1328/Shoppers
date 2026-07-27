@@ -185,6 +185,67 @@ async function buildPatientMaps(base44, deliveries) {
   const patients=[...(byEid||[]),...((byPid||[]).filter((p)=>!(byEid||[]).some((e)=>e.id===p.id)))];
   return{patientById:new Map(patients.map((p)=>[p.id,p])),patientByPid:new Map(patients.map((p)=>[normalizeText(p?.patient_id),p]).filter(([id])=>id))};
 }
+function createSquareRequestQueue(monitor) {
+  let counter=0;
+  return{async run(step,task){const idx=counter++;if(idx>0)await sleep(SQUARE_REQUEST_SPACING_MS);if(idx>0&&idx%SQUARE_BATCH_SIZE===0)await sleep(SQUARE_BATCH_PAUSE_MS);monitor.state.requestCount++;return task();}};
+}
+function createSquareSyncMonitor(base44, syncName='square_sync') {
+  const state={runId:null,requestCount:0,retryCount:0,rateLimitHits:0,errorCount:0};
+  const writeLog=async(level,step,message,details={})=>{console.log(`[SquareSync][${level}] ${step}: ${message}`,JSON.stringify(details));await base44.asServiceRole.entities.SquareSyncLog.create({sync_run_id:state.runId,level,step,message,details,logged_at:new Date().toISOString()}).catch(()=>null);};
+  return{state,async start(meta={}){const run=await base44.asServiceRole.entities.SquareSyncHealth.create({sync_name:syncName,status:'running',started_at:new Date().toISOString(),request_count:0,retry_count:0,rate_limit_hits:0,error_count:0,summary:'Sync started',meta}).catch(()=>null);state.runId=run?.id||null;await writeLog('info','start','Square sync started',meta);},async finish(status,summary,meta={}){if(state.runId)await base44.asServiceRole.entities.SquareSyncHealth.update(state.runId,{status,finished_at:new Date().toISOString(),request_count:state.requestCount,retry_count:state.retryCount,rate_limit_hits:state.rateLimitHits,error_count:state.errorCount,summary,meta}).catch(()=>null);await writeLog(status==='error'?'error':status==='warning'?'warn':'info','finish',summary,meta);},async log(level,step,message,details={}){await writeLog(level,step,message,details);}};
+}
+const getLookbackStartAt = (days) => new Date(Date.now() - days * 86400000).toISOString();
+const SQUARE_BATCH_SIZE = 8;
+const SQUARE_BATCH_PAUSE_MS = 400;
+const SQUARE_REQUEST_SPACING_MS = 100;
+const BASE44_SYNC_CHUNK_DELAY_MS = 0; // Eliminated artificial delay — was 300ms per chunk
+async function getStoreSquareContext(base44, effectiveStoreId) {
+  if(!effectiveStoreId)throw new HttpError(400,'Store ID is required for Square COD item creation');
+  const store=await base44.asServiceRole.entities.Store.get(effectiveStoreId).catch(()=>null);if(!store)throw new HttpError(400,`Store not found with ID: ${effectiveStoreId}`);
+  if(!store.square_location_config_id)throw new HttpError(400,`Store "${store.name}" is not configured for Square COD payments.`);
+  const config=await base44.asServiceRole.entities.SquareLocationConfig.get(store.square_location_config_id).catch(()=>null);if(!config)throw new HttpError(400,`Square location config not found for store "${store.name}"`);
+  if(config.status!=='active')throw new HttpError(400,`Square location "${config.name}" is inactive for store "${store.name}"`);
+  return{store,config,locationId:config.square_location_id};
+}
+const buildComparableLocationSignature = (n, c, lid) => `${normalizeText(lid)}::${normalizeMatchName(n)}::${toAmountCents(c)}`;
+const requireAdminIfAuthenticated = async (b44) => { const ok = await b44.auth.isAuthenticated().catch(() => false); if (!ok) return null; const u = await b44.auth.me().catch(() => null); if (u?.role !== 'admin') throw new HttpError(403, 'Forbidden: Admin access required'); return u; };
+async function paginatedDeleteAll(entityApi, pageSize=200) {
+  while(true){const records=await entityApi.list('-updated_date',pageSize).catch(()=>[]);if(!records?.length)break;await Promise.all(records.map((r)=>entityApi.delete(r.id).catch(()=>null)));if(records.length<pageSize)break;}
+}
+async function safeDeleteSquareCatalogObject(catalogObjectId, accessToken) {
+  if (!catalogObjectId) return {attempted:false,ok:false};let lastFailure=null;
+  for (let attempt=1;attempt<=SQUARE_API_MAX_RETRIES;attempt++) {
+    try {
+      const r=await fetch(`${SQUARE_BASE_URL}/v2/catalog/object/${catalogObjectId}`,{method:'DELETE',headers:{Authorization:`Bearer ${accessToken}`,'Square-Version':SQUARE_VERSION}});
+      const text=await r.text();let body=null;try{body=text?JSON.parse(text):null;}catch{body=text||null;}
+      if(r.ok||r.status===404)return{attempted:true,ok:true,status:r.status,body};
+      lastFailure={attempted:true,ok:false,status:r.status,body};if(attempt<SQUARE_API_MAX_RETRIES&&isRetryableSquareStatus(r.status)){await sleep(SQUARE_RETRY_BASE_DELAY_MS*attempt);continue;}return lastFailure;
+    } catch(e){lastFailure={attempted:true,ok:false,error:e?.message||String(e)};if(attempt<SQUARE_API_MAX_RETRIES){await sleep(SQUARE_RETRY_BASE_DELAY_MS*attempt);continue;}return lastFailure;}
+  }
+  return lastFailure||{attempted:true,ok:false,error:'Delete failed'};
+}
+async function deleteCatalogObjects(objectIds, accessToken) {
+  if (!objectIds.length) return {deleted:[],failed:[]};
+  try{await squareFetch('/v2/catalog/batch-delete','POST',accessToken,{object_ids:objectIds});return{deleted:objectIds,failed:[]};}
+  catch{const deleted=[];const failed=[];for(const id of objectIds){const r=await safeDeleteSquareCatalogObject(id,accessToken);if(r?.ok)deleted.push(id);else failed.push({objectId:id,result:r});}if(failed.length)throw new Error(`Failed to delete Square catalog items: ${failed.map((e)=>e.objectId).join(', ')}`);return{deleted,failed:[]};}
+}
+async function createCatalogItem({itemName,amountCents,locationId,deliveryId,patientName,accessToken}) {
+  const json=await squareFetch('/v2/catalog/batch-upsert','POST',accessToken,{idempotency_key:crypto.randomUUID(),batches:[{objects:[{type:'ITEM',id:`#item-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:locationId?[locationId]:[],item_data:{name:itemName,description:`COD for ${patientName||'patient'} | Delivery ${deliveryId}`,is_taxable:true,product_type:'REGULAR',variations:[{type:'ITEM_VARIATION',id:`#variation-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:locationId?[locationId]:[],item_variation_data:{name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'},sellable:true,stockable:true}}]}}]}]});
+  return (json.objects||[]).find((o)=>o.type==='ITEM')||null;
+}
+async function updateCatalogItem({catalogObjectId,catalogVersion,itemName,amountCents,locationId,deliveryId,patientName,accessToken}) {
+  const existingJson=await squareFetch(`/v2/catalog/object/${catalogObjectId}`,'GET',accessToken,null).catch(()=>null);
+  const existingItem=existingJson?.object;
+  if(!existingItem)return createCatalogItem({itemName,amountCents,locationId,deliveryId,patientName,accessToken});
+  const evs=existingItem?.item_data?.variations||[];
+  const presentAtLids=locationId?[locationId]:[];
+  const updatedVariations=evs.length>0
+    ?evs.map((v)=>({type:'ITEM_VARIATION',id:v.id,version:v.version,present_at_all_locations:false,present_at_location_ids:presentAtLids,item_variation_data:{...v.item_variation_data,name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'}}}))
+    :[{type:'ITEM_VARIATION',id:`#variation-${deliveryId}`,present_at_all_locations:false,present_at_location_ids:presentAtLids,item_variation_data:{name:'Default',pricing_type:'FIXED_PRICING',price_money:{amount:amountCents,currency:'CAD'},sellable:true,stockable:true}}];
+  const json=await squareFetch('/v2/catalog/batch-upsert','POST',accessToken,{idempotency_key:crypto.randomUUID(),batches:[{objects:[{type:'ITEM',id:catalogObjectId,version:catalogVersion||existingItem.version,present_at_all_locations:false,present_at_location_ids:presentAtLids,item_data:{name:itemName,description:`COD for ${patientName||'patient'} | Delivery ${deliveryId}`,is_taxable:true,product_type:'REGULAR',variations:updatedVariations}}]}]});
+  return (json.objects||[]).find((o)=>o.type==='ITEM')||null;
+}
+
 async function handleGetCodData(base44, payload={}) {
   const accessToken=ensureSquareToken();const monitor=createSquareSyncMonitor(base44,'square_get_cod_data');const queue=createSquareRequestQueue(monitor);await monitor.start({action:'getCodData'});
   const daysBack=Math.max(1,Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);

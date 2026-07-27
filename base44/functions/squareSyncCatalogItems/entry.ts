@@ -5,7 +5,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     await req.text().catch(() => '');
-    const response = await base44.functions.invoke('squareCodCore', {
+    const response = await base44.functions.invoke('squareSyncCatalog2', {
       action: 'syncCatalogItems',
     });
 

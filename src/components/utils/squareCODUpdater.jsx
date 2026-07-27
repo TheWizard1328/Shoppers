@@ -43,7 +43,7 @@ export async function updateSquareCODIfChanged({
   if (currentCodDollars > 0) {
     try {
       const response = await Promise.race([
-        base44.functions.invoke('squareGetCODData', { deliveryId: delivery.id }),
+        base44.functions.invoke('squareGetCodData2', { deliveryId: delivery.id }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Square lookup timeout')), 8000))
       ]);
       const payload = response?.data || response || {};

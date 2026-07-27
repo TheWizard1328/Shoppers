@@ -303,8 +303,7 @@ export default function SquareManagement() {
       }).filter((item) => item && item.deliveryId && Number(item.codAmount) > 0);
 
       if (itemsToAdd.length > 0) {
-        await base44.functions.invoke('squareCodCore', {
-          action: 'syncSquareCods',
+        await base44.functions.invoke('syncSquareCods', {
           items: itemsToAdd,
           deletions: [],
         });
@@ -391,11 +390,11 @@ export default function SquareManagement() {
       let transactionError = null;
       try {
         // Step A: Purge + rebuild online SquareCatalogItems from live Square catalog API
-        const purgeResult = await base44.functions.invoke('squareCodCore', { action: 'purgeAndRebuildCatalog' });
+        const purgeResult = await base44.functions.invoke('squarePurgeCatalog', {});
         const purgeData = purgeResult?.data || purgeResult || {};
 
         // Step B: Pull fresh transactions + deliveries from Square API (rebuilds online SquareTransaction records)
-        const codResponse = await base44.functions.invoke('squareGetCODData', {
+        const codResponse = await base44.functions.invoke('squareGetCodData2', {
           forceDeliveryRefresh: true,
           daysBack: 90,
         });
@@ -446,11 +445,11 @@ export default function SquareManagement() {
       // Cleanup: delete catalog items that have already been collected via Square POS.
       // This runs inline (not as a background fire-and-forget) so the UI reflects the true state.
       try {
-        const cleanupResult = await base44.functions.invoke('squareCodCore', { action: 'cleanupCollectedCatalogItems' });
+        const cleanupResult = await base44.functions.invoke('squareCleanupCatalog', {});
         const cleanupData = cleanupResult?.data || cleanupResult || {};
         if (cleanupData?.deletedCount > 0) {
           // Re-fetch after cleanup so the UI reflects removed items
-          const freshResponse = await base44.functions.invoke('squareGetCODData', { daysBack: 90 });
+          const freshResponse = await base44.functions.invoke('squareGetCodData2', { daysBack: 90 });
           const freshData = freshResponse?.data || freshResponse || {};
           await squareCODOfflineManager.saveCatalogItemsOffline(freshData.catalogRecords || []);
           await squareCODOfflineManager.savePaymentTransactionsOffline(freshData.transactionRecords || []);
@@ -994,8 +993,7 @@ export default function SquareManagement() {
     if (!itemToDelete) return;
     setDeletingId(itemToDelete.catalog_object_id);
     try {
-      await base44.functions.invoke('squareCodCore', {
-        action: 'markCollectedDebit',
+      await base44.functions.invoke('squareMarkDebit', {
         deliveryId: itemToDelete.delivery_id,
         catalogObjectId: itemToDelete.catalog_object_id,
         transactionId: itemToDelete.transaction_id

@@ -28,8 +28,6 @@ async function squareFetch(path, method, accessToken, body, options={}) {
 
 const TRANSACTION_RETENTION_DAYS = 90;
 const MAX_TRANSACTION_ORDERS = 2000;
-const normalizeText = (v) => String(v || '').trim();
-const toAmountCents = (v) => Math.max(0, Math.round(Number(v || 0)));
 const shouldIgnoreManualOrderLabel = (v) => ['top ups','top up','topup','tip','top'].includes(String(v||'').replace(/\s+/g,' ').trim().toLowerCase());
 const requireAdminIfAuthenticated = async (b44) => { const ok = await b44.auth.isAuthenticated().catch(() => false); if (!ok) return null; const u = await b44.auth.me().catch(() => null); if (u?.role !== 'admin') throw new HttpError(403, 'Forbidden: Admin access required'); return u; };
 const getTransactionRetentionStartMs = () => { const t = new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate()-TRANSACTION_RETENTION_DAYS); return t.getTime(); };
@@ -114,6 +112,9 @@ function flattenOrderItems(orders) {
   }
   return items;
 }
+const buildItemSignature = (n, c) => `${normalizeText(n)}::${toAmountCents(c)}`;
+const getLookbackStartAt = (days) => new Date(Date.now() - days * 86400000).toISOString();
+
 async function handleCleanupCollectedCatalogItems(base44, payload={}) {
   const accessToken = ensureSquareToken();
   const[allLocationConfigs]=await Promise.all([base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',500).catch(()=>[])]);

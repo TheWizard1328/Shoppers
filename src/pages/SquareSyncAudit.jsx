@@ -45,7 +45,7 @@ export default function SquareSyncAudit() {
       await clearSquareCODOfflineData();
 
       // Step 2: Wipe the online SquareCatalogItems DB and rebuild it fresh from the live Square catalog API
-      const purgeResult = await base44.functions.invoke("squareCodCore", { action: "purgeAndRebuildCatalog" });
+      const purgeResult = await base44.functions.invoke("squarePurgeCatalog", {});
       const purgeData = purgeResult?.data || purgeResult || {};
 
       // Step 3: Immediately populate the offline DB with exactly what Square has (no ghost records possible)

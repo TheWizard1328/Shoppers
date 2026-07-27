@@ -4,7 +4,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const payload = await req.json().catch(() => ({}));
-    const response = await base44.functions.invoke('squareCodCore', {
+    const response = await base44.functions.invoke('squareFetchPmts', {
       action: 'fetchPayments',
       ...payload,
     });

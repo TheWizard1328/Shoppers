@@ -51,8 +51,7 @@ export function useSquareLocationCheck({ isNextDelivery, hasCODRequired, isCODCo
 
     const run = async () => {
       try {
-        const resp = await base44.functions.invoke('squareCodCore', {
-          action: 'peekDriverTransaction',
+        const resp = await base44.functions.invoke('squarePeekDriver', {
           locationId: expectedLocationId,
           driverName: driverName || null,
         });
