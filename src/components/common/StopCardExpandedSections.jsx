@@ -274,7 +274,7 @@ export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, de
                   })()}
                 </span>
                 {canAccessAcceptButtons &&
-                <Button size="sm" variant="ghost" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground rounded-md text-xs h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700" disabled={isAcceptingAll} onClick={async (e) => {e.stopPropagation();if (handleAcceptSingleStop && projectedDelivery.id) await handleAcceptSingleStop(projectedDelivery);}}>
+                <Button size="sm" variant="ghost" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground rounded-md text-xs h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700" disabled={isAcceptingAll || pendingPickups.length <= 1} title={pendingPickups.length <= 1 ? "Only one delivery — use Accept All" : ""} onClick={async (e) => {e.stopPropagation();if (handleAcceptSingleStop && projectedDelivery.id) await handleAcceptSingleStop(projectedDelivery);}}>
                     <Plus className="w-3 h-3" />
                   </Button>
                 }
