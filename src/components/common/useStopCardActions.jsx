@@ -377,6 +377,14 @@ export default function useStopCardActions(params) {
         updateDeliveriesLocally
       });
 
+      // CRITICAL: Fire Square COD sync IMMEDIATELY after the batch pipeline — before
+      // optimization, before forceRefreshDriverDeliveries, before anything that could
+      // throw and skip this call. The previous code had this at the very END of the
+      // try block, which meant any exception in steps 1-3 would skip it entirely.
+      if (codBatch.length > 0) {
+        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed:', e));
+      }
+
       // Build and append route summary note to the pickup delivery's notes
       try {
         const pickupDeliveries = pendingPickups || scopedPendingDeliveries;
@@ -445,7 +453,7 @@ export default function useStopCardActions(params) {
       // Instead we poll until all transitioned deliveries are confirmed in_transit (max ~4s).
       try {
         const expectedIds = new Set(stagedChangedDeliveries.map(d => d.id).filter(Boolean));
-        const maxAttempts = 8;
+        const maxAttempts = 10;
         const pollIntervalMs = 500;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           await new Promise(r => setTimeout(r, pollIntervalMs));
@@ -464,9 +472,11 @@ export default function useStopCardActions(params) {
               break;
             }
             console.log(`[AcceptAll] Write confirmation poll ${attempt + 1}/${maxAttempts}: ${confirmedInTransit.size}/${expectedIds.size} confirmed`);
-          } catch (_) {
-            // Poll failure is non-fatal — just move on after a brief wait
-            break;
+          } catch (pollErr) {
+            // CRITICAL: Do NOT break on poll failure — continue to next attempt.
+            // Breaking here was causing the optimizer to start before all DB
+            // writes committed, especially under network latency or rate limits.
+            console.warn(`[AcceptAll] Poll attempt ${attempt + 1} failed:`, pollErr?.message);
           }
         }
       } catch (_) {
@@ -579,9 +589,7 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'accept_all_button' } }));
       }
 
-      if (codBatch.length > 0) {
-        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
-      }
+      // Square COD sync already fired above (right after batch pipeline)
 
       if (isDriverAction) {
         notifyDriverAccepted({ driver: currentUser, store, appUsers }).catch(() => {});
@@ -596,16 +604,19 @@ export default function useStopCardActions(params) {
     } finally {
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
-      resumeRealtimeSync();
-      resumeOfflineSync('delivery_actions');
-      resumeOfflineMutations();
-      backgroundSyncManager.resume();
-      driverLocationPoller.resume();
-      smartRefreshManager.resume();
+      // CRITICAL: Wrap each resume in individual try/catch so one failure doesn't
+      // prevent the others from running — leaving managers permanently paused and
+      // buttons stuck in disabled state.
+      try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
+      try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[AcceptAll] resumeOfflineSync failed:', e?.message); }
+      try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptAll] resumeOfflineMutations failed:', e?.message); }
+      try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
+      try { driverLocationPoller.resume(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
+      try { smartRefreshManager.resume(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.resume failed:', e?.message); }
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
-      dispatchStopCardActionCollapse();
-      onClick?.(null);
+      try { dispatchStopCardActionCollapse(); } catch (e) { console.warn('[AcceptAll] dispatchStopCardActionCollapse failed:', e?.message); }
+      try { onClick?.(null); } catch (e) { console.warn('[AcceptAll] onClick failed:', e?.message); }
     }
   }, [allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
 
@@ -1370,6 +1381,15 @@ export default function useStopCardActions(params) {
         const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
         if (isPickup && hasPendingPickupTransitions) {
           await executeAcceptAllStops();
+          // CRITICAL: executeAcceptAllStops's finally block resumes ALL managers.
+          // When called from the Complete handler, we must RE-PAUSE them so the
+          // completion logic (executeTerminalAction, server writes) doesn't get
+          // interrupted by WebSocket echoes or background sync cycles.
+          pauseOfflineSync('delivery_actions');
+          pauseRealtimeSync();
+          backgroundSyncManager.pause();
+          try { (await import('../utils/driverLocationPoller')).driverLocationPoller?.pause?.(); } catch (_) {}
+          smartRefreshManager.pause();
           await waitForRouteTransitionSettle(pendingPickups?.length || 0);
         }
 
@@ -1511,18 +1531,16 @@ export default function useStopCardActions(params) {
         toast.error(`Failed to complete: ${error.message}`);
         throw error;
       } finally {
-        resumeOfflineSync('delivery_actions');
-        driverLocationPoller?.resume?.();
-        smartRefreshManager.resume();
-        backgroundSyncManager.resume();
-        resumeRealtimeSync();
-        resetActionLocks(true);
+        // CRITICAL: Wrap each resume in individual try/catch — same pattern as
+        // executeAcceptAllStops. Without this, if any single resume throws, the
+        // remaining managers stay permanently paused and buttons stay disabled.
+        try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[Complete] resumeOfflineSync failed:', e?.message); }
+        try { driverLocationPoller?.resume?.(); } catch (e) { console.warn('[Complete] driverLocationPoller.resume failed:', e?.message); }
+        try { smartRefreshManager.resume(); } catch (e) { console.warn('[Complete] smartRefreshManager.resume failed:', e?.message); }
+        try { backgroundSyncManager.resume(); } catch (e) { console.warn('[Complete] backgroundSyncManager.resume failed:', e?.message); }
+        try { resumeRealtimeSync(); } catch (e) { console.warn('[Complete] resumeRealtimeSync failed:', e?.message); }
+        try { resetActionLocks(true); } catch (e) { console.warn('[Complete] resetActionLocks failed:', e?.message); }
         // ── F: Signal breadcrumb resume after completion ──────────────────────
-        // The completion chain may have blocked the main thread for several seconds,
-        // causing the 5s breadcrumb timer to miss ticks. Dispatch an event so
-        // locationTracker immediately collects a breadcrumb at the current GPS
-        // position, bridging any gap. The watchdog would eventually catch this,
-        // but explicit signaling is faster (0s vs up to 7s watchdog delay).
         window.dispatchEvent(new CustomEvent('breadcrumbResumeAfterAction'));
       }
     });
