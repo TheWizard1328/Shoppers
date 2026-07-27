@@ -382,7 +382,18 @@ export default function useStopCardActions(params) {
       // throw and skip this call. The previous code had this at the very END of the
       // try block, which meant any exception in steps 1-3 would skip it entirely.
       if (codBatch.length > 0) {
-        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed:', e));
+        // Await the Square COD sync so failures are visible and don't silently disappear.
+        // This is non-blocking to the optimizer since it runs BEFORE optimization.
+        base44.functions.invoke('syncSquareCods', { items: codBatch })
+          .then((r) => {
+            const errors = (r?.results || []).filter(x => x?.status === 'error');
+            if (errors.length > 0) {
+              console.error('❌ [Square] COD sync had errors:', errors.map(e => ({ id: e.deliveryId, err: e.error })));
+            } else {
+              console.log(`✅ [Square] COD sync: ${r?.processed || 0} items processed`);
+            }
+          })
+          .catch((e) => console.error('❌ [Square] Batch COD sync FAILED:', e?.message || e));
       }
 
       // Build and append route summary note to the pickup delivery's notes
@@ -550,7 +561,22 @@ export default function useStopCardActions(params) {
         appUsers,
         source: 'accept_all',
         bypassDriverStatus: true,
-      }).catch(() => null);
+      }).catch((err) => {
+        console.error('❌ [AcceptAll] performRouteOptimization THREW:', err?.message || err);
+        return null;
+      });
+
+      // Explicit failure detection — don't silently continue if the optimizer bailed.
+      if (coordResult && coordResult.success === false) {
+        console.error('❌ [AcceptAll] Route optimization failed:', coordResult.error || 'unknown error', {
+          hereKeyAvailable: !!(acceptAllCurrentLocation),
+          deliveriesCount: _acceptAllFullDeliveries?.length || 0,
+        });
+        toast.error(`Route optimization failed: ${coordResult.error || 'unknown'}. Stop order and map lines may not be optimized.`);
+      } else if (!coordResult) {
+        console.error('❌ [AcceptAll] Route optimization threw an exception (coordResult is null)');
+        toast.error('Route optimization encountered an error. Stop order and map lines may not be optimized.');
+      }
 
 
       const optimizeData = coordResult?.optimizeData || null;

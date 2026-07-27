@@ -2033,7 +2033,7 @@ function Dashboard() {
       // Check if any active stops remain for this driver/date after deletion.
       // Terminal statuses don't count as "active" for routing purposes.
       // CRITICAL: Filter out the just-deleted delivery ID so the optimizer never sees it.
-      const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+      const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
       const driverDeliveries = (deliveriesRef.current || []).filter(
         (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
           && d.id !== deletedDeliveryId

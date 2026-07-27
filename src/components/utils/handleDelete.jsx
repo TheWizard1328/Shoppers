@@ -38,7 +38,7 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
 
     // Check if any active stops remain for this driver/date after deletion.
     // If none remain, skip ETA recalculation and polyline regeneration — there's no route.
-    const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+    const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
     const remainingActiveAfterDelete = (deliveries || []).filter(
       (d) => d && d.id !== deliveryId
         && d.driver_id === driverId

@@ -13,7 +13,7 @@ export async function deleteDeliveryWithPolylineRefresh({ deliveryId, deliveries
   if (!shouldSkipPolylineRefresh && deletedDelivery?.driver_id && deletedDelivery?.delivery_date) {
     // Check if any active stops remain for this driver/date after deletion.
     // Terminal statuses don't count as "active" for routing purposes.
-    const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+    const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
     const remainingActiveStops = (deliveries || []).filter(
       (d) => d && d.id !== deliveryId
         && d.driver_id === deletedDelivery.driver_id

@@ -76,8 +76,8 @@ export async function performRouteOptimization({
 
   // ── Early exit: if deliveries were provided and contain zero active stops, bail.
   // This prevents wasted HERE API calls when a delete leaves the route empty.
-  // "Active" = not in a terminal status (completed/failed/cancelled/returned/pending).
-  const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+  // ""Active" = not in a terminal status (completed/failed/cancelled).
+  const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
   if (Array.isArray(deliveries) && deliveries.length > 0) {
     const activeStops = deliveries.filter(
       (d) => d && !TERMINAL_STATUSES.includes(String(d.status || ''))
@@ -86,6 +86,15 @@ export async function performRouteOptimization({
       console.log(`[RouteOptimization] ${source} — no active stops for driver ${driverId} on ${deliveryDate}, skipping`);
       return { success: true, skipped: true, reason: 'no_active_stops', freshDeliveries: [], optimizeData: { skipped: true, reason: 'no_active_stops' } };
     }
+    // Diagnostic: log the status breakdown so we can see what's happening
+    const _statusBreakdown = {};
+    for (const d of deliveries) {
+      const s = String(d?.status || 'unknown');
+      _statusBreakdown[s] = (_statusBreakdown[s] || 0) + 1;
+    }
+    console.log(`[RouteOptimization] ${source} — ENTRY: ${deliveries.length} deliveries, ${activeStops.length} active. Status breakdown:`, _statusBreakdown);
+  } else {
+    console.log(`[RouteOptimization] ${source} — ENTRY: deliveries=${deliveries === null ? 'null (will fetch from backend)' : 'empty array'}, driverId=${driverId}, date=${deliveryDate}`);
   }
 
   // ── Fire KITT bar immediately so UI responds before any async work ────────
@@ -98,10 +107,12 @@ export async function performRouteOptimization({
   let hereApiKey = null;
   try {
     hereApiKey = await getOrFetchHereApiKey();
+    console.log(`[RouteOptimization] ${source} — HERE API key resolved: ${hereApiKey ? '✅ available' : '❌ NULL'}`);
   } catch (e) {
-    console.warn(`[RouteOptimization] ${source} — failed to get HERE API key:`, e?.message);
+    console.error(`[RouteOptimization] ${source} — failed to get HERE API key:`, e?.message);
   }
   if (!hereApiKey) {
+    console.error(`[RouteOptimization] ${source} — BAILING: HERE API key not available (check getActiveHereApiKey backend function + bootstrap manifest)`);
     return { success: false, error: 'HERE API key not available' };
   }
 
@@ -155,7 +166,7 @@ export async function performRouteOptimization({
   // ── Second active-stops check: after backend fetch (for callers that passed deliveries=null).
   // If the fetched data shows no active stops, bail before wasting HERE API calls.
   {
-    const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+    const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
     const activeStops = (resolvedDeliveries || []).filter(
       (d) => d && !TERMINAL_STATUSES.includes(String(d.status || ''))
     );
@@ -199,8 +210,15 @@ export async function performRouteOptimization({
       });
 
       if (!engineResult?.success) {
-        console.warn(`[RouteOptimization] ${source} — engine did not succeed:`, engineResult?.error || 'unknown');
-        // Non-fatal — fall through and try to fetch whatever exists
+        console.error(`[RouteOptimization] ${source} — engine FAILED:`, engineResult?.error || 'unknown');
+        // Engine failed — return failure so the caller can show an error.
+        // Previously this was "non-fatal" which caused silent optimization failures:
+        // no stop_order updates, no polylines, no ETAs — and the caller had no idea.
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+          window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source, driverId, deliveryDate, optimizedCount: null, error: engineResult?.error || 'engine_failed' } }));
+        }
+        return { success: false, error: engineResult?.error || 'Engine failed to optimize route', freshDeliveries: resolvedDeliveries || [] };
       } else {
         const _polyCount = (engineResult.writeBatch || []).filter(w => w.data?.encoded_polyline != null).length;
         console.log(`[RouteOptimization] ${source} — engine SUCCESS: ${engineResult.optimizedCount} stops, routeChanged=${engineResult.routeChanged}, writeBatch=${engineResult.writeBatch?.length}, withPolylines=${_polyCount}, usedFallbackOrdering=${engineResult.usedFallbackOrdering}`);
