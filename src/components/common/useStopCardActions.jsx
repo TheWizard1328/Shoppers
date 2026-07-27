@@ -443,18 +443,8 @@ export default function useStopCardActions(params) {
         }
       } catch (_) {}
 
-      // ── STEP 3: Square COD catalog items — fire immediately after status transition ─
-      // Fired here (before optimization) so Square sync always completes regardless
-      // of whether the optimizer succeeds, times out, or fails.
-      if (codBatch.length > 0) {
-        base44.functions.invoke('syncSquareCods', { items: codBatch })
-          .then(r => {
-            const errors = (r?.results || []).filter(x => x?.status === 'error');
-            if (errors.length > 0) console.error('❌ [Square] COD sync errors:', errors);
-            else console.log(`✅ [Square] COD sync: ${r?.processed || 0} items OK`);
-          })
-          .catch(e => console.error('❌ [Square] COD sync FAILED:', e?.message || e));
-      }
+      // NOTE: Square COD sync is now handled inside runAcceptAllBatchPipeline,
+      // sequentially after all in_transit server writes are confirmed. No duplicate call needed here.
 
       // Write pickup route summary note (fire-and-forget)
       try {

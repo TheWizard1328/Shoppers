@@ -75,27 +75,23 @@ export async function runAcceptAllBatchPipeline({
     updateDeliveriesLocally(updatedDeliveries, false);
   }
 
-  // Fire ALL backend writes in parallel — use direct API calls (not isBatchOperation queue)
-  // so the server is updated immediately. isBatchOperation queues to pending mutations which
-  // only sync after background sync resumes, causing the 3-5 min ghost-stop / revert issue.
+  // Fire backend writes SEQUENTIALLY — ensures each delivery is fully committed to
+  // in_transit on the server before the next one is written. This prevents the race
+  // condition where syncSquareCods fires before the status change is visible to the
+  // event trigger, causing the catalog item creation to be silently skipped.
   const finalOfflineUpdates = [...updatedDeliveries]; // IDB already written above
-  try {
-    await Promise.all(
-      updatedDeliveries.map((updated) =>
-        base44.entities.Delivery.update(updated.id, {
-          status: 'in_transit',
-          delivery_time_start: updated.delivery_time_start,
-          delivery_time_end: updated.delivery_time_end,
-          delivery_time_eta: updated.delivery_time_eta,
-          puid: updated.puid
-        }).catch((err) => {
-          console.warn(`[AcceptAll] Server write failed for ${updated.id}:`, err?.message || err);
-        })
-      )
-    );
-  } catch (batchErr) {
-    console.warn('[AcceptAll] Batch server write error:', batchErr?.message || batchErr);
-    throw batchErr;
+  for (const updated of updatedDeliveries) {
+    try {
+      await base44.entities.Delivery.update(updated.id, {
+        status: 'in_transit',
+        delivery_time_start: updated.delivery_time_start,
+        delivery_time_end: updated.delivery_time_end,
+        delivery_time_eta: updated.delivery_time_eta,
+        puid: updated.puid
+      });
+    } catch (err) {
+      console.warn(`[AcceptAll] Server write failed for ${updated.id}:`, err?.message || err);
+    }
   }
 
   // Build COD batch for Square sync
@@ -114,6 +110,24 @@ export async function runAcceptAllBatchPipeline({
         storeId: d.store_id
       };
     });
+
+  // Square COD sync runs HERE — after all in_transit writes are confirmed on the server.
+  // Awaiting this ensures the catalog items are created before control returns to the
+  // caller, preventing the race condition between status transition and Square sync.
+  if (codBatch.length > 0) {
+    try {
+      const codResult = await base44.functions.invoke('syncSquareCods', { items: codBatch });
+      const errors = (codResult?.results || []).filter(x => x?.status === 'error');
+      if (errors.length > 0) {
+        console.error('[AcceptAll] Square COD sync errors:', errors);
+      } else {
+        console.log(`[AcceptAll] Square COD sync: ${codResult?.processed || 0} items OK`);
+      }
+    } catch (codErr) {
+      console.error('[AcceptAll] Square COD sync FAILED:', codErr?.message || codErr);
+      // Non-fatal — delivery transitions are already committed
+    }
+  }
 
   // NOTE: optimizeRemainingStops is intentionally NOT called here.
   // It must run AFTER all backend writes are confirmed — the caller
