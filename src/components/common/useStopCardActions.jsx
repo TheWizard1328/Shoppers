@@ -1842,9 +1842,10 @@ export default function useStopCardActions(params) {
           }
         }
 
-        // Write isNextDelivery=false to all previous holders
+        // Write isNextDelivery=false to all previous holders (local + backend)
         for (const d of updatedDeliveries) {
           updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true }).catch(() => {});
+          base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => {});
         }
 
         console.log(`[AcceptSingle] STEP 2 — isNextDelivery set on new pickup, cleared ${updatedDeliveries.length} others`);
@@ -1877,7 +1878,8 @@ export default function useStopCardActions(params) {
           console.warn('[AcceptSingle] offlineDB save for delivery failed:', e?.message || e);
         }
 
-        // Backend write (fire-and-forget — we proceed with local data)
+        // Backend write — use BOTH updateDeliveryLocal (local sync) AND direct entity update (persist)
+        // The direct entity update ensures the change persists even if updateDeliveryLocal's queue is delayed
         updateDeliveryLocal(targetDeliveryId, {
           status: 'in_transit',
           puid: newPuid,
@@ -1886,6 +1888,17 @@ export default function useStopCardActions(params) {
           delivery_time_eta: updatedDelivery.delivery_time_eta,
           isNextDelivery: false,
         }, { skipSmartRefresh: true }).catch((e) => {
+          console.warn('[AcceptSingle] updateDeliveryLocal failed:', e?.message || e);
+        });
+        // Direct backend persist (fire-and-forget but more reliable path)
+        base44.entities.Delivery.update(targetDeliveryId, {
+          status: 'in_transit',
+          puid: newPuid,
+          tracking_number: newDeliveryTR,
+          delivery_time_start: updatedDelivery.delivery_time_start,
+          delivery_time_eta: updatedDelivery.delivery_time_eta,
+          isNextDelivery: false,
+        }).catch((e) => {
           console.warn('[AcceptSingle] Backend delivery update failed:', e?.message || e);
         });
 
@@ -1969,103 +1982,106 @@ export default function useStopCardActions(params) {
             appUsers,
             source: 'accept_single',
             bypassDriverStatus: true,
-          }).catch(() => null);
+          }).catch((err) => {
+            console.error('[AcceptSingle] Optimization error:', err?.message || err);
+            return null;
+          });
 
-          const optimizeData = coordResult?.optimizeData || null;
+          // CRITICAL: Use the optimizer's freshDeliveries (local data merged with writeBatch).
+          // DO NOT call forceRefreshDriverDeliveries — that fetches from the DB where
+          // the fire-and-forget writes haven't committed yet, causing stale data to
+          // overwrite our local changes.
+          let freshDeliveries = coordResult?.freshDeliveries || [];
 
-          if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
-            window.dispatchEvent(new CustomEvent('etaUpdated', {
-              detail: {
-                driverId,
-                updates: optimizeData.optimizedRoute.map((stop) => ({
-                  deliveryId: stop.deliveryId || stop.delivery_id,
-                  newEta: stop.newETA || stop.eta
-                })).filter((stop) => stop.deliveryId && stop.newEta)
-              }
-            }));
+          // If optimizer didn't return fresh data, use our local merged deliveries
+          if (!Array.isArray(freshDeliveries) || freshDeliveries.length === 0) {
+            freshDeliveries = _fullDeliveries;
+            console.warn('[AcceptSingle] No freshDeliveries from optimizer, using local data');
           }
 
-          // Fetch fresh deliveries to get the optimized stop_orders + polylines
-          const refreshedDeliveries = await forceRefreshDriverDeliveries(driverId, deliveryDate);
-          const refreshedList = Array.isArray(refreshedDeliveries)
-            ? refreshedDeliveries
-            : Array.isArray(refreshedDeliveries?.deliveries)
-              ? refreshedDeliveries.deliveries
-              : null;
-
-          if (Array.isArray(refreshedList) && refreshedList.length > 0) {
-            // Ensure isNextDelivery is correct on the new pickup in the refreshed data
-            for (const d of refreshedList) {
-              if (d?.id === newPickup.id || d?.stop_id === newPuid) {
-                d.isNextDelivery = true;
-              } else if (d?.isNextDelivery === true) {
-                d.isNextDelivery = false;
-              }
+          // Patch isNextDelivery on the local data (optimizer doesn't touch this field)
+          for (const d of freshDeliveries) {
+            if (d?.id === newPickup.id || d?.stop_id === newPuid) {
+              d.isNextDelivery = true;
+            } else if (d?.isNextDelivery === true) {
+              d.isNextDelivery = false;
             }
-
-            const { offlineDB } = await import('../utils/offlineDatabase');
-            await Promise.all(refreshedList.map((d) => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
-            updateDeliveriesLocally?.(refreshedList, false);
-
-            // Re-assert isNextDelivery on the pickup in the DB
-            if (newPickup.id) {
-              base44.entities.Delivery.update(newPickup.id, { isNextDelivery: true }).catch(() => {});
-            }
-
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: {
-                triggeredBy: 'acceptSingleOptimized',
-                driverId,
-                deliveryDate,
-                alreadyOptimized: true,
-                preserveLocalState: true,
-                freshDeliveries: refreshedList,
-              }
-            }));
-          } else {
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: {
-                triggeredBy: 'acceptSingleOptimized',
-                driverId,
-                deliveryDate,
-                alreadyOptimized: true,
-                preserveLocalState: false,
-                fullReplacement: true
-              }
-            }));
           }
 
+          // Ensure the new pickup is present in freshDeliveries (in case the optimizer
+          // didn't include it because it wasn't in the resolvedDeliveries)
+          const hasNewPickup = freshDeliveries.some(
+            (d) => d?.id === newPickup.id || d?.stop_id === newPuid
+          );
+          if (!hasNewPickup && newPickup.id) {
+            freshDeliveries = [...freshDeliveries, newPickup];
+          }
+
+          // Ensure the updated delivery has the correct status/puid in freshDeliveries
+          for (const d of freshDeliveries) {
+            if (d?.id === targetDeliveryId) {
+              d.status = 'in_transit';
+              d.puid = newPuid;
+              d.tracking_number = newDeliveryTR;
+              d.delivery_time_start = updatedDelivery.delivery_time_start;
+              d.delivery_time_eta = updatedDelivery.delivery_time_eta;
+              d.isNextDelivery = false;
+            }
+          }
+
+          // Write to offline DB and update UI — all from local data, no DB fetch
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          await Promise.all(freshDeliveries.map((d) => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+          updateDeliveriesLocally?.(freshDeliveries, false);
+
+          // Re-assert isNextDelivery on the pickup in the DB (fire-and-forget)
+          if (newPickup.id) {
+            base44.entities.Delivery.update(newPickup.id, { isNextDelivery: true }).catch(() => {});
+          }
+          // Clear isNextDelivery on all other stops in the DB (fire-and-forget)
+          for (const d of freshDeliveries) {
+            if (d?.id !== newPickup.id && d?.isNextDelivery === false) {
+              base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => {});
+            }
+          }
+
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              triggeredBy: 'acceptSingleOptimized',
+              driverId,
+              deliveryDate,
+              alreadyOptimized: true,
+              preserveLocalState: true,
+              freshDeliveries: freshDeliveries,
+            }
+          }));
           window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId, deliveryDate, source: 'accept_single_button' } }));
 
-          console.log(`[AcceptSingle] STEP 6 — Optimization complete`);
+          console.log(`[AcceptSingle] STEP 6 — Optimization complete: ${freshDeliveries.length} deliveries, optimizer=${coordResult?.success ? 'OK' : 'FALLBACK'}`);
 
-          // TR# recalculation (backend, fire-and-forget — non-blocking)
+          // TR# recalculation (backend, fire-and-forget — patches ONLY tracking_number, nothing else)
           base44.functions.invoke('recalculateTrackingNumbers', {
             driverId,
             deliveryDate,
           }).then((trResult) => {
             if (trResult?.updates?.length > 0) {
               console.log(`[AcceptSingle] Recalculated ${trResult.updates.length} tracking numbers`);
-              // Refresh to get updated TR#s — but DON'T overwrite isNextDelivery
-              forceRefreshDriverDeliveries(driverId, deliveryDate).then((trRefreshed) => {
-                const trList = Array.isArray(trRefreshed) ? trRefreshed : trRefreshed?.deliveries || null;
-                if (Array.isArray(trList) && trList.length > 0) {
-                  for (const d of trList) {
-                    if (d?.id === newPickup.id || d?.stop_id === newPuid) {
-                      d.isNextDelivery = true;
-                    } else if (d?.isNextDelivery === true) {
-                      d.isNextDelivery = false;
-                    }
-                  }
-                  import('../utils/offlineDatabase').then(({ offlineDB }) => {
-                    Promise.all(trList.map((d) => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
-                  });
-                  updateDeliveriesLocally?.(trList, false);
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                    detail: { triggeredBy: 'acceptSingleTRRecalc', driverId, deliveryDate, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: trList }
-                  }));
+              // Patch ONLY the tracking_number field on local deliveries — DO NOT re-fetch from DB
+              const trMap = new Map((trResult.updates || []).map((u) => [u.id, u.tracking_number]));
+              const patchedDeliveries = freshDeliveries.map((d) => {
+                const newTR = trMap.get(d?.id);
+                if (newTR && d.tracking_number !== newTR) {
+                  const patched = { ...d, tracking_number: newTR };
+                  // Persist to offline DB
+                  offlineDB.save(offlineDB.STORES.DELIVERIES, patched).catch(() => {});
+                  return patched;
                 }
-              }).catch(() => {});
+                return d;
+              });
+              updateDeliveriesLocally?.(patchedDeliveries, false);
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: { triggeredBy: 'acceptSingleTRRecalc', driverId, deliveryDate, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: patchedDeliveries }
+              }));
             }
           }).catch((e) => console.warn('[AcceptSingle] TR recalc failed:', e?.message || e));
 
