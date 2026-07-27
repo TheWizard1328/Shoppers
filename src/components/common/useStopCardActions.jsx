@@ -324,15 +324,7 @@ export default function useStopCardActions(params) {
 
   const executeAcceptAllStops = useCallback(async () => {
     setIsAcceptingAll(true);
-    // Import driverLocationPoller INSIDE the try so the finally closure always has it
-    let driverLocationPoller = null;
-    // Helper — ensures smartRefresh is running after accept-all completes.
-    // Managers are NOT paused during accept-all (client-side engine, no backend timeout).
-    const resumeAllManagers = () => {
-      try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.restart failed:', e?.message); }
-    };
     try {
-      ({ driverLocationPoller } = await import('../utils/driverLocationPoller'));
       setIsEntityUpdating(true);
 
       // ── Pre-flight: scope to pending stops for this store/driver/date ────────
@@ -647,9 +639,6 @@ export default function useStopCardActions(params) {
       console.error('❌ [Accept All] Error:', error);
       toast.error(`Failed to accept all: ${error.message}`);
     } finally {
-      // Always resume — managers may have been paused in STEP 7 or not at all
-      // (e.g. optimizer timeout before STEP 7). resumeAllManagers() is safe either way.
-      resumeAllManagers();
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
