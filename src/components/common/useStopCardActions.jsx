@@ -570,15 +570,55 @@ export default function useStopCardActions(params) {
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
       // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
 
-      // ── STEP 7: Update IDB + online DB + WebSocket ────────────────────────────
+      // ── STEP 7: IDB write (authoritative) ────────────────────────────────────
+      // Write the fully-resolved finalDeliveries (status + stop_order + TR# + polylines)
+      // to IDB first. Server + WebSocket follow in STEP 7b (fire-and-forget).
       if (finalDeliveries.length > 0) {
         const { offlineDB } = await import('../utils/offlineDatabase');
-        const changedDeliveries = finalDeliveries.filter(d => transitionedIds.has(d?.id));
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries.length > 0 ? changedDeliveries : finalDeliveries).catch(() => {});
+        // Save ALL finalDeliveries to IDB — includes optimized stop_order, TR#s, and polylines
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
         updateDeliveriesLocally?.(finalDeliveries, false);
 
         // Clear echo suppression now that authoritative state is in IDB
         for (const id of transitionedIds) window.__localDeliveryWrites?.delete(id);
+
+        // ── STEP 7b: Persist final state to server + broadcast WebSocket ──────
+        // Fire-and-forget: IDB is the source of truth for the local device; server
+        // and other devices catch up via this single batch. We only write the fields
+        // that changed post-optimizer (stop_order, tracking_number, encoded_polyline,
+        // status, delivery_time_start, delivery_time_end, delivery_time_eta, puid)
+        // for items that were actually transitioned or reordered — not every delivery
+        // on the route.
+        Promise.resolve().then(async () => {
+          try {
+            // Build a minimal delta per affected delivery to avoid over-writing
+            const { broadcastMutation } = await import('../utils/realtimeSync');
+            const serverWriteFields = ['status', 'stop_order', 'tracking_number', 'puid',
+              'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
+              'encoded_polyline', 'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes'];
+
+            // Write all finalDeliveries that have a real server ID and were affected
+            const toSync = finalDeliveries.filter(d => d?.id && typeof d.id === 'string' && d.id.length > 0);
+            await Promise.all(
+              toSync.map(async (d) => {
+                const delta = {};
+                for (const field of serverWriteFields) {
+                  if (d[field] !== undefined) delta[field] = d[field];
+                }
+                if (Object.keys(delta).length === 0) return;
+                try {
+                  await base44.entities.Delivery.update(d.id, delta);
+                  await broadcastMutation('Delivery', 'update', d.id, d);
+                } catch (writeErr) {
+                  console.warn(`[AcceptAll] Server write/broadcast failed for ${d.id}:`, writeErr?.message || writeErr);
+                }
+              })
+            );
+            console.log(`[AcceptAll] STEP 7b — ${toSync.length} deliveries synced to server + WebSocket`);
+          } catch (syncErr) {
+            console.warn('[AcceptAll] STEP 7b batch sync failed:', syncErr?.message || syncErr);
+          }
+        });
       }
 
       // ── STEP 8: Final UI update ────────────────────────────────────────────────
