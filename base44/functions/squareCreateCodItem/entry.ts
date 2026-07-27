@@ -1,6 +1,6 @@
 // Self-contained Square COD item creation — no dependency on squareCodCore
 // Updated 2026-07-27 — inlined all helpers to fix deployment gap
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
