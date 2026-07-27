@@ -1,0 +1,63 @@
+{
+  "name": "MessageRule",
+  "type": "object",
+  "properties": {
+    "event_name": {
+      "type": "string",
+      "description": "The trigger event name (e.g. driver_accepted, delivery_completed)"
+    },
+    "rule_label": {
+      "type": "string",
+      "description": "Human-readable name for this rule"
+    },
+    "priority": {
+      "type": "number",
+      "description": "Lower number = evaluated first"
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Whether this rule is active"
+    },
+    "conditions": {
+      "type": "array",
+      "description": "Array of IF conditions (AND logic). Each item: {field, operator, value}",
+      "items": {
+        "type": "object"
+      }
+    },
+    "channels": {
+      "type": "array",
+      "description": "Delivery channels: in_app, push",
+      "items": {
+        "type": "string"
+      }
+    },
+    "message_template": {
+      "type": "string",
+      "description": "Message body with {{variable}} placeholders"
+    },
+    "recipients": {
+      "type": "array",
+      "description": "Who receives the message: all_admins, all_dispatchers, all_drivers, assigned_driver, store_dispatchers, app_owner",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stop_on_match": {
+      "type": "boolean",
+      "description": "Stop evaluating further rules after this one fires"
+    },
+    "cooldown_seconds": {
+      "type": "number",
+      "description": "Minimum seconds between firings of this rule per recipient"
+    },
+    "shadow_mode": {
+      "type": "boolean",
+      "description": "Log the rule firing without actually sending — dry-run mode"
+    }
+  },
+  "required": [
+    "event_name",
+    "rule_label"
+  ]
+}
