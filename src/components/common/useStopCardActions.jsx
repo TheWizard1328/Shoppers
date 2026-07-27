@@ -443,9 +443,42 @@ export default function useStopCardActions(params) {
       // Small delay so React can render before switching to "Optimizing Route"
       await new Promise((resolve) => setTimeout(resolve, 400));
 
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: [...stagedChangedDeliveries, ...finalOfflineUpdates], alreadyOptimized: false } }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: [...stagedChangedDeliveries, ...finalOfflineUpdates], alreadyOptimized: false, trustIsNextDelivery: false } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       invalidate('Delivery');
+
+      // ── EXTEND ECHO SUPPRESSION WINDOW ──────────────────────────────────────
+      // The default 15s suppression window in realtimeSync is too short — the
+      // optimization pipeline (HERE API + polylines + bulk writes) can take
+      // 1-3 minutes. Extend __localDeliveryWrites TTL to 5 minutes for all
+      // deliveries that were just transitioned, so WebSocket echoes can't
+      // overwrite the correct in_transit state with stale pending data.
+      {
+        // Set a future expiry timestamp (5 minutes from now) so that realtimeSync
+        // suppresses WebSocket echoes for all transitioned deliveries throughout the
+        // entire optimization pipeline (HERE API + polylines + bulk writes).
+        // realtimeSync checks: if ts > Date.now()+1000 → treat as absolute expiry.
+        const EXPIRY_TS = Date.now() + 5 * 60 * 1000;
+        if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+        for (const d of [...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])]) {
+          if (d?.id) window.__localDeliveryWrites.set(d.id, EXPIRY_TS);
+        }
+      }
+      // ── RESUME MANAGERS EARLY ────────────────────────────────────────────────
+      // IDB already has the optimistic in_transit state. Holding all managers
+      // paused for the entire optimization pipeline (HERE API + polylines +
+      // bulk writes) blocks the UI for 2-3+ minutes. Resume them NOW so the
+      // user sees the correct stop states while optimization runs in background.
+      //
+      // Echo suppression above ensures WebSocket echoes during the optimization
+      // pipeline don't overwrite the correct in_transit state with stale data.
+      try { resumeRealtimeSync(); } catch (_) {}
+      try { resumeOfflineSync('delivery_actions'); } catch (_) {}
+      try { resumeOfflineMutations(); } catch (_) {}
+      try { backgroundSyncManager.resume(); } catch (_) {}
+      try { (driverLocationPoller)?.resume?.(); } catch (_) {}
+      try { smartRefreshManager.resume(); } catch (_) {}
+      // ────────────────────────────────────────────────────────────────────────
 
       // STEP 1: Wait for all backend status writes to commit before calling the optimizer.
       // A flat 600ms delay was insufficient when writing 10-20 deliveries in parallel —
@@ -546,13 +579,38 @@ export default function useStopCardActions(params) {
           : null;
 
       if (Array.isArray(refreshedList) && refreshedList.length > 0) {
-        // CRITICAL: Write fully-optimized + polyline-updated deliveries back to offline DB
-        // so the UI reads the final ground-truth state (stop_order, encoded_polyline, ETAs)
-        // rather than the intermediate optimistic snapshot written earlier in the pipeline.
+        // CRITICAL: Preserve isNextDelivery from the optimizer's local write batch.
+        // The server DB might not have flushed the bulkUpdateDeliveries isNextDelivery
+        // writes by the time forceRefreshDriverDeliveries responds, so the fetched
+        // records may incorrectly show isNextDelivery=false. Patch them from the
+        // coordResult writeBatch which has the authoritative post-optimization state.
+        const optimizerWriteMap = new Map();
+        for (const w of (coordResult?.optimizeData?.writeBatch || [])) {
+          if (w?.id) optimizerWriteMap.set(w.id, w.data);
+        }
+        const mergedList = refreshedList.map(d => {
+          const patch = optimizerWriteMap.get(d.id);
+          if (!patch) return d;
+          // Apply optimizer patches: stop_order, ETAs, isNextDelivery, polyline
+          return { ...d, ...patch };
+        });
+
+        // Write fully-optimized + polyline-updated deliveries back to offline DB
         const { offlineDB } = await import('../utils/offlineDatabase');
-        await Promise.all(refreshedList.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
-        updateDeliveriesLocally?.(refreshedList, false);
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: refreshedList } }));
+        await Promise.all(mergedList.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+        updateDeliveriesLocally?.(mergedList, false);
+
+        // Clear the extended echo suppression now that the authoritative state is in IDB
+        if (window.__localDeliveryWrites) {
+          for (const d of [...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])]) {
+            if (d?.id) window.__localDeliveryWrites.delete(d.id);
+          }
+        }
+
+        // CRITICAL: trustIsNextDelivery=true so the optimizer's authoritative flag
+        // assignment wins — the layout merge must NOT preserve stale in-memory
+        // isNextDelivery=true values from before optimization ran.
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: mergedList, trustIsNextDelivery: true } }));
       } else {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
       }
@@ -578,7 +636,7 @@ export default function useStopCardActions(params) {
             const { offlineDB } = await import('../utils/offlineDatabase');
             await Promise.all(trRefreshedList.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
             updateDeliveriesLocally?.(trRefreshedList, false);
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllTRRecalc', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: trRefreshedList } }));
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllTRRecalc', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: trRefreshedList, trustIsNextDelivery: true } }));
           }
         }
       } catch (trErr) {
@@ -604,15 +662,14 @@ export default function useStopCardActions(params) {
     } finally {
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
-      // CRITICAL: Wrap each resume in individual try/catch so one failure doesn't
-      // prevent the others from running — leaving managers permanently paused and
-      // buttons stuck in disabled state.
-      try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
-      try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[AcceptAll] resumeOfflineSync failed:', e?.message); }
-      try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptAll] resumeOfflineMutations failed:', e?.message); }
-      try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
-      try { driverLocationPoller.resume(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
-      try { smartRefreshManager.resume(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.resume failed:', e?.message); }
+      // Safety-net resumes — managers were already resumed early (after IDB writes),
+      // but if an error caused the early resume to be skipped, these ensure
+      // they are never left permanently paused. All resume calls are idempotent.
+      try { resumeRealtimeSync(); } catch (_) {}
+      try { resumeOfflineSync('delivery_actions'); } catch (_) {}
+      try { resumeOfflineMutations(); } catch (_) {}
+      try { backgroundSyncManager.resume(); } catch (_) {}
+      try { smartRefreshManager.resume(); } catch (_) {}
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
       try { dispatchStopCardActionCollapse(); } catch (e) { console.warn('[AcceptAll] dispatchStopCardActionCollapse failed:', e?.message); }

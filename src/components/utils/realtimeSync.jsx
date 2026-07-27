@@ -630,10 +630,18 @@ const subscribeToEntity = (entityName) => {
     if (entityName === 'Delivery') {
       const localWrites = window.__localDeliveryWrites;
       if (localWrites && localWrites.has(id)) {
-        const writtenAt = localWrites.get(id);
-        if (Date.now() - writtenAt < 15000) {
-          console.log(`🔇 [RealtimeSync] Self-echo suppressed for Delivery ${type}:${id} — originated from this device (${Math.round((Date.now() - writtenAt) / 1000)}s ago)`);
-          localWrites.delete(id);
+        const ts = localWrites.get(id);
+        const now = Date.now();
+        // Support two TTL modes:
+        // 1. ts is a past write timestamp → suppress for 15s (legacy broadcastMutation)
+        // 2. ts is a future expiry timestamp (ts > now+1000) → suppress until expiry
+        //    Used by AcceptAll to extend suppression during 1-3 min optimization window
+        const isExtendedExpiry = ts > now + 1000;
+        const isWithinWindow = isExtendedExpiry ? (now < ts) : (now - ts < 15000);
+        if (isWithinWindow) {
+          const secRemaining = isExtendedExpiry ? Math.round((ts - now) / 1000) : Math.round((15000 - (now - ts)) / 1000);
+          console.log(`🔇 [RealtimeSync] Self-echo suppressed for Delivery ${type}:${id} — ${isExtendedExpiry ? 'extended suppression' : 'recent write'}, ${secRemaining}s remaining`);
+          if (!isExtendedExpiry) localWrites.delete(id); // only auto-clear legacy writes
           return;
         }
         localWrites.delete(id);
