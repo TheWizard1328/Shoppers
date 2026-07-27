@@ -448,8 +448,7 @@ export default function useStopCardActions(params) {
         }
       } catch (_) {}
 
-      // NOTE: Square COD sync is now handled inside runAcceptAllBatchPipeline,
-      // sequentially after all in_transit server writes are confirmed. No duplicate call needed here.
+      // NOTE: Square COD sync fires in STEP 7c after the atomic bulkUpdateDeliveries commit.
 
       // Write pickup route summary note (fire-and-forget)
       try {
@@ -558,7 +557,7 @@ export default function useStopCardActions(params) {
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
       // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
 
-      // ── STEP 7: IDB write (authoritative) then server sync ────────────────────
+      // ── STEP 7: IDB write (authoritative) then single atomic server commit ──────
       if (finalDeliveries.length > 0) {
         const { offlineDB } = await import('../utils/offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
@@ -567,38 +566,49 @@ export default function useStopCardActions(params) {
         // Clear echo suppression — authoritative state is now in IDB
         for (const id of transitionedIds) window.__localDeliveryWrites?.delete(id);
 
-        // ── STEP 7b: Server writes + WebSocket broadcast (awaited before finally) ──
-        // Run this BEFORE the finally block resumes managers so we don't race
-        // against incoming WebSocket echoes that would overwrite our new state.
-        try {
-          const { broadcastMutation } = await import('../utils/realtimeSync');
-          const serverWriteFields = ['status', 'stop_order', 'tracking_number', 'puid',
-            'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
-            'encoded_polyline', 'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes'];
+        // ── STEP 7b: Single atomic bulkUpdateDeliveries commit ────────────────
+        // All local work (status, stop_order, TR#, polylines) is done.
+        // Push everything in ONE request — no per-delivery round-trips, no
+        // mid-pipeline WS echoes that can overwrite optimistic UI state.
+        const serverWriteFields = ['status', 'stop_order', 'tracking_number', 'puid',
+          'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
+          'encoded_polyline', 'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes'];
 
-          const toSync = finalDeliveries.filter(d => d?.id && typeof d.id === 'string' && d.id.length > 0);
-          await Promise.all(
-            toSync.map(async (d) => {
-              const delta = {};
-              for (const field of serverWriteFields) {
-                if (d[field] !== undefined) delta[field] = d[field];
-              }
-              if (Object.keys(delta).length === 0) return;
-              try {
-                await base44.entities.Delivery.update(d.id, delta);
-                await broadcastMutation('Delivery', 'update', d.id, d);
-              } catch (writeErr) {
-                console.warn(`[AcceptAll] Server write/broadcast failed for ${d.id}:`, writeErr?.message || writeErr);
-              }
-            })
-          );
-          console.log(`[AcceptAll] STEP 7b — ${toSync.length} deliveries synced to server + WebSocket`);
-        } catch (syncErr) {
-          console.warn('[AcceptAll] STEP 7b batch sync failed (non-fatal):', syncErr?.message || syncErr);
+        const toSync = finalDeliveries.filter(d => d?.id && typeof d.id === 'string' && d.id.length > 0);
+        const updates = toSync.map(d => {
+          const data = {};
+          for (const field of serverWriteFields) {
+            if (d[field] !== undefined) data[field] = d[field];
+          }
+          return { id: d.id, data };
+        }).filter(u => Object.keys(u.data).length > 0);
+
+        if (updates.length > 0) {
+          try {
+            await base44.functions.invoke('bulkUpdateDeliveries', { updates });
+            console.log(`[AcceptAll] STEP 7b — ${updates.length} deliveries committed atomically`);
+          } catch (syncErr) {
+            console.warn('[AcceptAll] STEP 7b bulk commit failed (non-fatal):', syncErr?.message || syncErr);
+          }
         }
 
-        // Square COD sync already fired in STEP 3 (before optimization) so it completes
-        // regardless of optimizer outcome.
+        // ── STEP 7c: Square COD sync — fires AFTER server commit is confirmed ──
+        if (codBatch.length > 0) {
+          try {
+            const codResult = await Promise.race([
+              base44.functions.invoke('syncSquareCods', { items: codBatch }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Square COD sync timed out after 20s')), 20000))
+            ]);
+            const errors = (codResult?.results || []).filter(x => x?.status === 'error');
+            if (errors.length > 0) {
+              console.error('[AcceptAll] Square COD sync errors:', errors);
+            } else {
+              console.log(`[AcceptAll] Square COD sync: ${codResult?.processed || 0} items OK`);
+            }
+          } catch (codErr) {
+            console.error('[AcceptAll] Square COD sync FAILED (non-fatal):', codErr?.message || codErr);
+          }
+        }
       }
 
       // ── STEP 8: Final UI update ────────────────────────────────────────────────

@@ -63,7 +63,9 @@ export async function runAcceptAllBatchPipeline({
     };
   });
 
-  // Persist to offline DB
+  // Persist to offline DB only — NO server writes here.
+  // The caller (executeAcceptAllStops) will do a single atomic bulkUpdateDeliveries
+  // commit after optimization and TR# recalc are complete.
   try {
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
   } catch (e) {
@@ -75,26 +77,7 @@ export async function runAcceptAllBatchPipeline({
     updateDeliveriesLocally(updatedDeliveries, false);
   }
 
-  // Fire backend writes SEQUENTIALLY — ensures each delivery is fully committed to
-  // in_transit on the server before the next one is written. This prevents the race
-  // condition where syncSquareCods fires before the status change is visible to the
-  // event trigger, causing the catalog item creation to be silently skipped.
-  const finalOfflineUpdates = [...updatedDeliveries]; // IDB already written above
-  for (const updated of updatedDeliveries) {
-    try {
-      await base44.entities.Delivery.update(updated.id, {
-        status: 'in_transit',
-        delivery_time_start: updated.delivery_time_start,
-        delivery_time_end: updated.delivery_time_end,
-        delivery_time_eta: updated.delivery_time_eta,
-        puid: updated.puid
-      });
-    } catch (err) {
-      console.warn(`[AcceptAll] Server write failed for ${updated.id}:`, err?.message || err);
-    }
-  }
-
-  // Build COD batch for Square sync
+  // Build COD batch for the caller to fire AFTER the atomic server commit.
   const codBatch = updatedDeliveries
     .filter((d) => d.driver_id && Number(d.cod_total_amount_required || 0) > 0)
     .map((d) => {
@@ -111,34 +94,9 @@ export async function runAcceptAllBatchPipeline({
       };
     });
 
-  // Square COD sync runs HERE — after all in_transit writes are confirmed on the server.
-  // Uses a 20s timeout so a slow Square API call never blocks the pipeline indefinitely
-  // and leaves sync managers paused / the app unresponsive.
-  if (codBatch.length > 0) {
-    try {
-      const codResult = await Promise.race([
-        base44.functions.invoke('syncSquareCods', { items: codBatch }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Square COD sync timed out after 20s')), 20000))
-      ]);
-      const errors = (codResult?.results || []).filter(x => x?.status === 'error');
-      if (errors.length > 0) {
-        console.error('[AcceptAll] Square COD sync errors:', errors);
-      } else {
-        console.log(`[AcceptAll] Square COD sync: ${codResult?.processed || 0} items OK`);
-      }
-    } catch (codErr) {
-      console.error('[AcceptAll] Square COD sync FAILED (non-fatal):', codErr?.message || codErr);
-      // Non-fatal — delivery transitions are already committed; COD item can be created on next sync
-    }
-  }
-
-  // NOTE: optimizeRemainingStops is intentionally NOT called here.
-  // It must run AFTER all backend writes are confirmed — the caller
-  // (executeAcceptAllStops) handles optimization + polyline regeneration
-  // once all delivery status updates have been persisted.
   return {
     stagedChangedDeliveries: updatedDeliveries,
-    finalOfflineUpdates,
+    finalOfflineUpdates: updatedDeliveries,
     codBatch,
     driverId,
     deliveryDate
