@@ -547,6 +547,34 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
       }
 
+      // Recalculate tracking numbers sequentially based on distance-from-store sort.
+      // This runs AFTER optimization so stop_order is already set for in_transit stops,
+      // and pending stops are sorted by haversine distance from the store.
+      try {
+        const trResult = await base44.functions.invoke('recalculateTrackingNumbers', {
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+        });
+        if (trResult?.updates?.length > 0) {
+          console.log(`[AcceptAll] Recalculated ${trResult.updates.length} tracking numbers`);
+          // Fetch fresh deliveries again to get updated TR#s into the UI
+          const trRefreshed = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+          const trRefreshedList = Array.isArray(trRefreshed)
+            ? trRefreshed
+            : Array.isArray(trRefreshed?.deliveries)
+              ? trRefreshed.deliveries
+              : null;
+          if (Array.isArray(trRefreshedList) && trRefreshedList.length > 0) {
+            const { offlineDB } = await import('../utils/offlineDatabase');
+            await Promise.all(trRefreshedList.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+            updateDeliveriesLocally?.(trRefreshedList, false);
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllTRRecalc', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: trRefreshedList } }));
+          }
+        }
+      } catch (trErr) {
+        console.warn('[AcceptAll] Tracking number recalculation failed:', trErr?.message || trErr);
+      }
+
       if (polylineResponse) {
         window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'accept_all_button' } }));
       }
@@ -1807,6 +1835,31 @@ export default function useStopCardActions(params) {
             }
           }));
           window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId, deliveryDate, source: 'accept_single_button' } }));
+
+          // Recalculate tracking numbers sequentially based on distance-from-store sort.
+          try {
+            const trResult = await base44.functions.invoke('recalculateTrackingNumbers', {
+              driverId,
+              deliveryDate,
+            });
+            if (trResult?.updates?.length > 0) {
+              console.log(`[AcceptSingle] Recalculated ${trResult.updates.length} tracking numbers`);
+              const trRefreshed = await forceRefreshDriverDeliveries(driverId, deliveryDate);
+              const trRefreshedList = Array.isArray(trRefreshed)
+                ? trRefreshed
+                : Array.isArray(trRefreshed?.deliveries)
+                  ? trRefreshed.deliveries
+                  : null;
+              if (Array.isArray(trRefreshedList) && trRefreshedList.length > 0) {
+                const { offlineDB } = await import('../utils/offlineDatabase');
+                await Promise.all(trRefreshedList.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+                updateDeliveriesLocally?.(trRefreshedList, false);
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptSingleTRRecalc', driverId, deliveryDate, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: trRefreshedList } }));
+              }
+            }
+          } catch (trErr) {
+            console.warn('[AcceptSingle] Tracking number recalculation failed:', trErr?.message || trErr);
+          }
         } catch (optErr) {
           console.error('[AcceptSingle] Optimization failed:', optErr);
           // Non-fatal — the delivery is already in_transit

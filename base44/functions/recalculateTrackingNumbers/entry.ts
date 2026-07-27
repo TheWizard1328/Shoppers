@@ -12,6 +12,38 @@ function parseTrackingNumber(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+// Haversine distance in km between two {lat, lon} points
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Resolve patient coordinates for distance-based sorting
+function resolveDeliveryCoords(delivery, patientMap) {
+  // Try delivery's own coordinates first
+  if (Number.isFinite(Number(delivery.latitude)) && Number.isFinite(Number(delivery.longitude))) {
+    return { lat: Number(delivery.latitude), lon: Number(delivery.longitude) };
+  }
+  // Fall back to patient's coordinates
+  if (delivery.patient_id) {
+    const patient = patientMap.get(delivery.patient_id);
+    if (patient) {
+      const pLat = Number(patient.latitude || patient.lat);
+      const pLon = Number(patient.longitude || patient.lng || patient.lon);
+      if (Number.isFinite(pLat) && Number.isFinite(pLon)) {
+        return { lat: pLat, lon: pLon };
+      }
+    }
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -42,6 +74,22 @@ Deno.serve(async (req) => {
       ? await base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, undefined, 50000)
       : [];
     const storeMap = new Map((stores || []).map((store) => [store.id, store]));
+
+    // Fetch patients for coordinate-based distance sorting
+    const patientIds = [...new Set(deliveries.map((d) => d?.patient_id).filter(Boolean))];
+    const patientMap = new Map();
+    if (patientIds.length > 0) {
+      try {
+        const patients = await base44.asServiceRole.entities.Patient.filter(
+          { id: { $in: patientIds } }, undefined, 50000
+        );
+        for (const p of (patients || [])) {
+          if (p?.id) patientMap.set(p.id, p);
+        }
+      } catch (_) {
+        // Non-fatal — distance sort falls back to stop_order
+      }
+    }
 
     const pickups = deliveries
       .filter((delivery) => delivery && !delivery.patient_id && delivery.stop_id)
@@ -80,14 +128,33 @@ Deno.serve(async (req) => {
       const pickupBase = pickupBaseMap.get(pickup.stop_id);
       if (pickupBase === null || pickupBase === undefined) continue;
 
+      // Get the store for this pickup to compute distance from store
+      const store = storeMap.get(pickup.store_id);
+      const storeLat = store ? Number(store.latitude) : null;
+      const storeLon = store ? Number(store.longitude) : null;
+      const hasStoreCoords = Number.isFinite(storeLat) && Number.isFinite(storeLon);
+
       const linkedDeliveries = deliveries
         .filter((delivery) => delivery && delivery.patient_id && delivery.puid === pickup.stop_id)
         .sort((a, b) => {
+          // Finished deliveries always come first (their TR#s are reserved)
           const aPending = a.status === 'pending';
           const bPending = b.status === 'pending';
           if (aPending && !bPending) return 1;
           if (!aPending && bPending) return -1;
 
+          // For pending stops: sort by distance from store (closest first)
+          if (aPending && bPending && hasStoreCoords) {
+            const coordsA = resolveDeliveryCoords(a, patientMap);
+            const coordsB = resolveDeliveryCoords(b, patientMap);
+            if (coordsA && coordsB) {
+              const distA = haversineKm(storeLat, storeLon, coordsA.lat, coordsA.lon);
+              const distB = haversineKm(storeLat, storeLon, coordsB.lat, coordsB.lon);
+              if (Math.abs(distA - distB) > 0.01) return distA - distB;
+            }
+          }
+
+          // Fall back to stop_order (set by optimizer for in_transit stops)
           const stopDelta = (a.stop_order || 999999) - (b.stop_order || 999999);
           if (stopDelta !== 0) return stopDelta;
           const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
