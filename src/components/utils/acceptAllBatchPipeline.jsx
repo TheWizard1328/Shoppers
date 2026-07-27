@@ -4,12 +4,8 @@
  * transitions all pending deliveries for the same store/driver/date to in_transit,
  * persists them offline, and returns data for downstream steps (COD sync, optimization).
  */
-import { updateDelivery as updateDeliveryLocal } from './entityMutations';
 import { offlineDB } from './offlineDatabase';
 import { base44 } from '@/api/base44Client';
-import { pauseRealtimeSync } from './realtimeSync';
-import { smartRefreshManager } from './smartRefreshManager';
-import { backgroundSyncManager } from './backgroundSyncManager';
 
 export async function runAcceptAllBatchPipeline({
   triggerDelivery,
@@ -74,18 +70,6 @@ export async function runAcceptAllBatchPipeline({
     console.warn('[AcceptAll] offlineDB bulkSave failed:', e?.message || e);
   }
 
-  // CRITICAL: Pause realtime + smart refresh for the entire batch so WebSocket
-  // echoes don't thrash the UI while we're writing.
-  // NOTE: We do NOT resume these in our finally — the caller (executeAcceptAllStops)
-  // owns the full pause/resume lifecycle and resumes everything in ITS finally block
-  // after the optimizer + polyline regeneration completes. Resuming here prematurely
-  // unpauses the managers while optimization is still running, which allows other
-  // code paths to re-pause them (the pause mechanism is a simple boolean, not
-  // reference-counted), leaving them permanently stuck paused.
-  pauseRealtimeSync();
-  smartRefreshManager.pause();
-  backgroundSyncManager.pause();
-
   // Update UI IMMEDIATELY (optimistic) — don't wait for any backend writes.
   if (updateDeliveriesLocally && updatedDeliveries.length > 0) {
     updateDeliveriesLocally(updatedDeliveries, false);
@@ -110,8 +94,7 @@ export async function runAcceptAllBatchPipeline({
       )
     );
   } catch (batchErr) {
-    // Even on error, do NOT resume managers — the caller's finally handles that.
-    console.warn('[AcceptAll] Batch server write error (managers stay paused for caller to resume):', batchErr?.message || batchErr);
+    console.warn('[AcceptAll] Batch server write error:', batchErr?.message || batchErr);
     throw batchErr;
   }
 

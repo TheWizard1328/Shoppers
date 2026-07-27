@@ -323,18 +323,20 @@ export default function useStopCardActions(params) {
   }, [codTotalCollected, codTotalRequired, setCodPayments]);
 
   const executeAcceptAllStops = useCallback(async () => {
-    // ── STEP 0: Pause all sync managers immediately ──────────────────────────
-    pauseOfflineSync('delivery_actions');
-    pauseOfflineMutations();
-    pauseRealtimeSync();
-    backgroundSyncManager.pause();
-    smartRefreshManager.pause();
     setIsAcceptingAll(true);
     // Import driverLocationPoller INSIDE the try so the finally closure always has it
     let driverLocationPoller = null;
+    // Helper — resumes all managers unconditionally; safe to call multiple times
+    const resumeAllManagers = () => {
+      try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
+      try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[AcceptAll] resumeOfflineSync failed:', e?.message); }
+      try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptAll] resumeOfflineMutations failed:', e?.message); }
+      try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
+      try { driverLocationPoller?.resume?.(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
+      try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.restart failed:', e?.message); }
+    };
     try {
       ({ driverLocationPoller } = await import('../utils/driverLocationPoller'));
-      driverLocationPoller.pause();
       setIsEntityUpdating(true);
 
       // ── Pre-flight: scope to pending stops for this store/driver/date ────────
@@ -570,6 +572,16 @@ export default function useStopCardActions(params) {
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
       // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
 
+      // ── STEP 7: Pause managers just before the authoritative write ────────────
+      // Managers are paused HERE (not at entry) so that the 90s optimizer above
+      // runs with sync fully active — a timeout no longer permanently hangs the app.
+      pauseOfflineSync('delivery_actions');
+      pauseOfflineMutations();
+      pauseRealtimeSync();
+      backgroundSyncManager.pause();
+      smartRefreshManager.pause();
+      driverLocationPoller?.pause?.();
+
       // ── STEP 7: IDB write (authoritative) then server sync + Square COD ────────
       if (finalDeliveries.length > 0) {
         const { offlineDB } = await import('../utils/offlineDatabase');
@@ -654,18 +666,10 @@ export default function useStopCardActions(params) {
     } catch (error) {
       console.error('❌ [Accept All] Error:', error);
       toast.error(`Failed to accept all: ${error.message}`);
-      throw error;
     } finally {
-      // CRITICAL: Resume ALL managers unconditionally — each in its own try/catch.
-      // Managers were paused at the top of executeAcceptAllStops; they MUST be
-      // resumed here regardless of what happened in the try block. A single failed
-      // resume must never prevent the remaining ones from running.
-      try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
-      try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[AcceptAll] resumeOfflineSync failed:', e?.message); }
-      try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptAll] resumeOfflineMutations failed:', e?.message); }
-      try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
-      try { driverLocationPoller?.resume?.(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
-      try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.restart failed:', e?.message); }
+      // Always resume — managers may have been paused in STEP 7 or not at all
+      // (e.g. optimizer timeout before STEP 7). resumeAllManagers() is safe either way.
+      resumeAllManagers();
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
