@@ -453,21 +453,10 @@ export default function useStopCardActions(params) {
         }
       } catch (_) {}
 
-      // ── STEP 3: Square COD catalog items (fire-and-forget, does not block optimizer) ─
-      // CRITICAL: Wait for pending batch mutations to flush to the server FIRST so the
-      // deliveries are confirmed in_transit before Square tries to create catalog items.
-      // Use a short delay to allow the fire-and-forget server writes to begin.
-      if (codBatch.length > 0) {
-        setTimeout(() => {
-          base44.functions.invoke('syncSquareCods', { items: codBatch })
-            .then(r => {
-              const errors = (r?.results || []).filter(x => x?.status === 'error');
-              if (errors.length > 0) console.error('❌ [Square] COD sync errors:', errors);
-              else console.log(`✅ [Square] COD sync: ${r?.processed || 0} items OK`);
-            })
-            .catch(e => console.error('❌ [Square] COD sync FAILED:', e?.message || e));
-        }, 3000);
-      }
+      // ── STEP 3: Square COD catalog items — deferred until after IDB write (STEP 7) ─
+      // Stored in a closure here; fired after the IDB bulk-save so Square sees
+      // confirmed in-transit deliveries. Using a variable avoids the fragile 3-second
+      // timeout that was racing against the server writes.
 
       // Write pickup route summary note (fire-and-forget)
       try {
@@ -545,22 +534,33 @@ export default function useStopCardActions(params) {
           })()
         : fullDeliveriesForOptimizer;
 
-      // Recalculate TR#s locally using the optimized stop_order, then apply to
-      // finalDeliveries in-memory. IDB write happens in STEP 7 as part of the
-      // bulk save — no extra server round-trip.
+      // Recalculate TR#s locally using the optimized stop_order.
+      // CRITICAL: Scope to the FULL driver route (not just the transitioned stops)
+      // so that pre-existing in-transit stops get correct sequential TR#s too.
+      const allDriverDeliveriesForTR = [
+        // Start with all deliveries on this driver/date from the optimizer result
+        ...allDeliveriesWithOptimized,
+        // Add any stops from allDeliveries not yet in the optimizer set (e.g. completed stops)
+        ...(allDeliveries || []).filter(d =>
+          d?.driver_id === delivery.driver_id &&
+          d?.delivery_date === delivery.delivery_date &&
+          !allDeliveriesWithOptimized.find(o => o?.id === d.id)
+        ),
+      ].filter(Boolean);
+
       let finalDeliveries = allDeliveriesWithOptimized;
       try {
         const trUpdates = recalculateTrackingNumbersLocal({
-          deliveries: finalDeliveries,
+          deliveries: allDriverDeliveriesForTR,
           stores: stores || [],
           patients: patients || [],
         });
         if (trUpdates.length > 0) {
           const trMap = new Map(trUpdates.map(u => [u.id, u.tracking_number]));
-          finalDeliveries = finalDeliveries.map(d =>
+          finalDeliveries = allDeliveriesWithOptimized.map(d =>
             d?.id && trMap.has(d.id) ? { ...d, tracking_number: trMap.get(d.id) } : d
           );
-          console.log(`[AcceptAll] TR# recalculated locally: ${trUpdates.length} stops updated (IDB-only, no server write)`);
+          console.log(`[AcceptAll] TR# recalculated locally: ${trUpdates.length} stops updated across full route`);
         }
       } catch (trErr) {
         console.warn('[AcceptAll] TR# recalc failed (non-fatal):', trErr?.message || trErr);
@@ -570,55 +570,56 @@ export default function useStopCardActions(params) {
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
       // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
 
-      // ── STEP 7: IDB write (authoritative) ────────────────────────────────────
-      // Write the fully-resolved finalDeliveries (status + stop_order + TR# + polylines)
-      // to IDB first. Server + WebSocket follow in STEP 7b (fire-and-forget).
+      // ── STEP 7: IDB write (authoritative) then server sync + Square COD ────────
       if (finalDeliveries.length > 0) {
         const { offlineDB } = await import('../utils/offlineDatabase');
-        // Save ALL finalDeliveries to IDB — includes optimized stop_order, TR#s, and polylines
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
         updateDeliveriesLocally?.(finalDeliveries, false);
 
-        // Clear echo suppression now that authoritative state is in IDB
+        // Clear echo suppression — authoritative state is now in IDB
         for (const id of transitionedIds) window.__localDeliveryWrites?.delete(id);
 
-        // ── STEP 7b: Persist final state to server + broadcast WebSocket ──────
-        // Fire-and-forget: IDB is the source of truth for the local device; server
-        // and other devices catch up via this single batch. We only write the fields
-        // that changed post-optimizer (stop_order, tracking_number, encoded_polyline,
-        // status, delivery_time_start, delivery_time_end, delivery_time_eta, puid)
-        // for items that were actually transitioned or reordered — not every delivery
-        // on the route.
-        Promise.resolve().then(async () => {
-          try {
-            // Build a minimal delta per affected delivery to avoid over-writing
-            const { broadcastMutation } = await import('../utils/realtimeSync');
-            const serverWriteFields = ['status', 'stop_order', 'tracking_number', 'puid',
-              'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
-              'encoded_polyline', 'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes'];
+        // ── STEP 7b: Server writes + WebSocket broadcast (awaited before finally) ──
+        // Run this BEFORE the finally block resumes managers so we don't race
+        // against incoming WebSocket echoes that would overwrite our new state.
+        try {
+          const { broadcastMutation } = await import('../utils/realtimeSync');
+          const serverWriteFields = ['status', 'stop_order', 'tracking_number', 'puid',
+            'delivery_time_start', 'delivery_time_end', 'delivery_time_eta',
+            'encoded_polyline', 'transport_mode', 'estimated_distance_km', 'estimated_duration_minutes'];
 
-            // Write all finalDeliveries that have a real server ID and were affected
-            const toSync = finalDeliveries.filter(d => d?.id && typeof d.id === 'string' && d.id.length > 0);
-            await Promise.all(
-              toSync.map(async (d) => {
-                const delta = {};
-                for (const field of serverWriteFields) {
-                  if (d[field] !== undefined) delta[field] = d[field];
-                }
-                if (Object.keys(delta).length === 0) return;
-                try {
-                  await base44.entities.Delivery.update(d.id, delta);
-                  await broadcastMutation('Delivery', 'update', d.id, d);
-                } catch (writeErr) {
-                  console.warn(`[AcceptAll] Server write/broadcast failed for ${d.id}:`, writeErr?.message || writeErr);
-                }
-              })
-            );
-            console.log(`[AcceptAll] STEP 7b — ${toSync.length} deliveries synced to server + WebSocket`);
-          } catch (syncErr) {
-            console.warn('[AcceptAll] STEP 7b batch sync failed:', syncErr?.message || syncErr);
-          }
-        });
+          const toSync = finalDeliveries.filter(d => d?.id && typeof d.id === 'string' && d.id.length > 0);
+          await Promise.all(
+            toSync.map(async (d) => {
+              const delta = {};
+              for (const field of serverWriteFields) {
+                if (d[field] !== undefined) delta[field] = d[field];
+              }
+              if (Object.keys(delta).length === 0) return;
+              try {
+                await base44.entities.Delivery.update(d.id, delta);
+                await broadcastMutation('Delivery', 'update', d.id, d);
+              } catch (writeErr) {
+                console.warn(`[AcceptAll] Server write/broadcast failed for ${d.id}:`, writeErr?.message || writeErr);
+              }
+            })
+          );
+          console.log(`[AcceptAll] STEP 7b — ${toSync.length} deliveries synced to server + WebSocket`);
+        } catch (syncErr) {
+          console.warn('[AcceptAll] STEP 7b batch sync failed (non-fatal):', syncErr?.message || syncErr);
+        }
+
+        // ── STEP 7c: Square COD sync — fires after IDB + server writes confirm ──
+        // Fired here (not in STEP 3) so Square sees deliveries already in_transit on server.
+        if (codBatch.length > 0) {
+          base44.functions.invoke('syncSquareCods', { items: codBatch })
+            .then(r => {
+              const errors = (r?.results || []).filter(x => x?.status === 'error');
+              if (errors.length > 0) console.error('❌ [Square] COD sync errors:', errors);
+              else console.log(`✅ [Square] COD sync: ${r?.processed || 0} items OK`);
+            })
+            .catch(e => console.error('❌ [Square] COD sync FAILED:', e?.message || e));
+        }
       }
 
       // ── STEP 8: Final UI update ────────────────────────────────────────────────
@@ -655,10 +656,10 @@ export default function useStopCardActions(params) {
       toast.error(`Failed to accept all: ${error.message}`);
       throw error;
     } finally {
-      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
-      // CRITICAL: Each resume wrapped in try/catch — one failure must not leave
-      // the remaining managers permanently paused and the UI buttons disabled.
+      // CRITICAL: Resume ALL managers unconditionally — each in its own try/catch.
+      // Managers were paused at the top of executeAcceptAllStops; they MUST be
+      // resumed here regardless of what happened in the try block. A single failed
+      // resume must never prevent the remaining ones from running.
       try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
       try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[AcceptAll] resumeOfflineSync failed:', e?.message); }
       try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptAll] resumeOfflineMutations failed:', e?.message); }
@@ -667,6 +668,7 @@ export default function useStopCardActions(params) {
       try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.restart failed:', e?.message); }
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
+      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       try { dispatchStopCardActionCollapse(); } catch (e) { console.warn('[AcceptAll] dispatchStopCardActionCollapse failed:', e?.message); }
       try { onClick?.(null); } catch (e) { console.warn('[AcceptAll] onClick failed:', e?.message); }
     }
