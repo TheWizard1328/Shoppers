@@ -757,17 +757,16 @@ class LocationTracker {
         if (movedEnoughForPolyline && enoughTimeForPolyline && canRefreshPolylineFromThisDevice) {
           this.lastPolylineRefreshPosition = { latitude, longitude };
           this.lastPolylineRefreshAt = now;
-          base44.functions.invoke('regenerateType1Polyline', {
-            driverId: this.currentUser.id,
-            deliveryDate: this.currentDeliveryDate,
-            currentLocation: {
-              lat: latitude,
-              lon: longitude
-            },
-            isPrimaryDevice: this.isPrimaryDevice,
-            allowNonPrimaryPolylineRefresh: this.allowNonPrimaryPolylineRefresh,
-            routeChangeSource: this.allowNonPrimaryPolylineRefresh ? 'accept_all' : 'poll'
-          }).catch((polylineError) => {
+          import('@/components/utils/routeOptimizationCoordinator').then(({ performRouteOptimization }) =>
+            performRouteOptimization({
+              driverId: this.currentUser.id,
+              deliveryDate: this.currentDeliveryDate,
+              currentLocation: { lat: latitude, lon: longitude },
+              preserveExistingOrder: true,
+              bypassDriverStatus: true,
+              source: 'gps_polyline_refresh',
+            })
+          ).catch((polylineError) => {
             console.warn('⚠️ [LocationTracker] Polyline refresh skipped:', polylineError?.message || polylineError);
           });
         }

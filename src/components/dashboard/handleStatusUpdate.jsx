@@ -377,11 +377,19 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
 
       // Fire final polyline regeneration for the completed route (fire-and-forget)
-      base44.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId,
-        deliveryDate,
-        reason: 'route_completed',
-      }).catch((e) => console.warn('⚠️ Final polyline regen failed (non-critical):', e?.message));
+      (async () => {
+        try {
+          const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+          await performRouteOptimization({
+            driverId,
+            deliveryDate,
+            preserveExistingOrder: true,
+            source: 'status_update',
+          });
+        } catch (e) {
+          console.warn('⚠️ Final polyline regen failed (non-critical):', e?.message);
+        }
+      })();
 
       // Show end-of-day dialog — dedup by key so it only shows once per driver/date
       const summaryKey = `${driverId}_${deliveryDate}`;
