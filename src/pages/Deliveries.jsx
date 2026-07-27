@@ -82,7 +82,7 @@ import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { updateDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { ProjectedPickupCard } from '../components/deliveries/RouteManagementHelpers';
-import { applyRouteToolbarFilters, getDriverFilterOptions, getRouteScopedStoreOptions } from '../components/deliveries/routeToolbarFilters';
+import { applyRouteToolbarFilters, getDriverFilterOptions, getRouteScopedStoreOptions, sortDeliveriesByTime } from '../components/deliveries/routeToolbarFilters';
 import DriverRouteHeader from "../components/deliveries/DriverRouteHeader";
 import { useProjectedRoutes } from "../components/deliveries/useProjectedRoutes";
 import { useDeliveryRealtimeSync } from "../components/deliveries/useDeliveryRealtimeSync";
@@ -1394,32 +1394,6 @@ export default function DeliveriesPage() {
   groupedDeliveries,
   isLoadingData]
   );
-
-  const sortDeliveriesByTime = useCallback((deliveries) => {
-    if (!Array.isArray(deliveries)) return [];
-
-    const finishedStatuses = ['completed', 'failed', 'cancelled'];
-
-    const incomplete = deliveries.filter((d) => d && !finishedStatuses.includes(d.status));
-    const completed = deliveries.filter((d) => d && finishedStatuses.includes(d.status));
-
-    incomplete.sort((a, b) => {
-      if (!a || !b) return 0;
-      if (a.isNextDelivery && !b.isNextDelivery) return -1;
-      if (!a.isNextDelivery && b.isNextDelivery) return 1;
-      const timeA = a.delivery_time_eta || a.delivery_time_start || '';
-      const timeB = b.delivery_time_eta || b.delivery_time_start || '';
-      if (timeA !== timeB) return timeA.localeCompare(timeB);
-      return (a.stop_order ?? Infinity) - (b.stop_order ?? Infinity);
-    });
-
-    completed.sort((a, b) => {
-      if (!a || !b) return 0;
-      return (Date.parse(a.actual_delivery_time || '') || Infinity) - (Date.parse(b.actual_delivery_time || '') || Infinity) || (a.stop_order ?? Infinity) - (b.stop_order ?? Infinity);
-    });
-
-    return [...incomplete, ...completed];
-  }, []);
 
   const filteredAndSortedDeliveries = useMemo(() => applyRouteToolbarFilters({
     selectedDateDeliveries,

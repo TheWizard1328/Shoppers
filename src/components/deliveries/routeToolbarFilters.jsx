@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { sortUsers } from '../utils/sorting';
 import { userHasRole } from '../utils/userRoles';
+export { sortDeliveriesByTime } from './deliverySortHelpers';
 
 export function getRouteScopedStoreOptions(selectedDateDeliveries = [], stores = []) {
   const counts = (selectedDateDeliveries || []).reduce((acc, delivery) => {

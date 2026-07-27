@@ -392,7 +392,8 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
 export default function DriverScheduleCalendar() {
   const { isMobile } = useDevice();
 
-  const [monthDate, setMonthDate] = useState(startOfMonth(new Date()));
+  const [viewMode, setViewMode] = useState('week');
+  const [monthDate, setMonthDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [stores, setStores] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
   const [overrides, setOverrides] = useState([]);
@@ -406,7 +407,6 @@ export default function DriverScheduleCalendar() {
   const [selectedDriverId, setSelectedDriverId] = useState('all');
   const [unlockedSlots, setUnlockedSlots] = useState(new Set());
   const [dragItem, setDragItem] = useState(null);
-  const [viewMode, setViewMode] = useState('week');
   const scrollContainerRef = useRef(null);
   const todayRef = useRef(null);
 
@@ -839,7 +839,11 @@ export default function DriverScheduleCalendar() {
             <Button variant="outline" size="sm" className={isMobile ? 'h-8 text-xs px-2' : ''} onClick={() => setMonthDate(viewMode === 'week' ? startOfWeek(new Date(), { weekStartsOn: 1 }) : startOfMonth(new Date()))}>
               {viewMode === 'week' ? 'This Week' : 'This Month'}
             </Button>
-            <Button variant="outline" size="sm" className={isMobile ? 'h-8 text-xs px-2' : ''} onClick={() => setViewMode((v) => v === 'week' ? 'month' : 'week')}>
+            <Button variant="outline" size="sm" className={isMobile ? 'h-8 text-xs px-2' : ''} onClick={() => setViewMode((v) => {
+              const next = v === 'week' ? 'month' : 'week';
+              setMonthDate(next === 'week' ? startOfWeek(new Date(), { weekStartsOn: 1 }) : startOfMonth(new Date()));
+              return next;
+            })}>
               {viewMode === 'week' ? 'Month' : 'Week'}
             </Button>
           </div>
@@ -1229,21 +1233,27 @@ const MobileDriverGroup = React.memo(function MobileDriverGroup({ driverId, driv
       header}
       <div className="p-1 space-y-1">
         {[...entries].sort((a, b) => {
-          const ampm = (sk) => sk.endsWith('_am') ? 'AM' : 'PM';
           const dateKey = format(date, 'yyyy-MM-dd');
-          const getEarliestActual = (entry) => {
-            const dayDelivs = deliveriesByDay[dateKey] || [];
-            const completed = dayDelivs.filter((d) =>
-              d.store_id === entry.store.id &&
-              (!d.ampm_deliveries || d.ampm_deliveries === ampm(entry.slotKey)) &&
+          const getFirstActualTime = (entry) => {
+            const dayDelivs = deliveriesByDay?.[dateKey] || [];
+            const ampm = entry.slotKey.endsWith('_am') ? 'AM' : 'PM';
+            const slotDelivs = dayDelivs.filter((d) =>
+              d.driver_id === driverId && d.store_id === entry.store.id &&
+              (!d.ampm_deliveries || d.ampm_deliveries === ampm) &&
               d.actual_delivery_time
             );
-            if (!completed.length) return null;
-            return completed.reduce((min, d) => d.actual_delivery_time < min ? d.actual_delivery_time : min, completed[0].actual_delivery_time);
+            if (slotDelivs.length === 0) return null;
+            return slotDelivs.reduce((min, d) =>
+              d.actual_delivery_time < min ? d.actual_delivery_time : min,
+              slotDelivs[0].actual_delivery_time
+            );
           };
-          const ta = getEarliestActual(a) || a.startTime || '';
-          const tb = getEarliestActual(b) || b.startTime || '';
-          return ta.localeCompare(tb);
+          const ta = getFirstActualTime(a);
+          const tb = getFirstActualTime(b);
+          if (ta && tb) return ta.localeCompare(tb);
+          if (ta) return -1;
+          if (tb) return 1;
+          return (a.startTime || '').localeCompare(b.startTime || '');
         }).map(({ store, slotKey, isDeliveryDriven }) =>
         <DriverSlotCell
           key={`${store.id}-${slotKey}`}
@@ -1404,20 +1414,31 @@ const DriverGroupDraggable = React.memo(function DriverGroupDraggable({ driverId
       })()}
       <div className="p-1 space-y-1">
         {[...entries].sort((a, b) => {
-          const ampm = (sk) => sk.endsWith('_am') ? 'AM' : 'PM';
-          const getEarliestActual = (entry) => {
-            const dayDelivs = deliveriesByDay[dateStr] || [];
-            const completed = dayDelivs.filter((d) =>
-              d.store_id === entry.store.id &&
-              (!d.ampm_deliveries || d.ampm_deliveries === ampm(entry.slotKey)) &&
+          // For past dates: sort by actual first delivery time of that slot
+          const dateKey = format(date, 'yyyy-MM-dd');
+          const getFirstActualTime = (entry) => {
+            const dayDelivs = deliveriesByDay?.[dateKey] || [];
+            const ampm = entry.slotKey.endsWith('_am') ? 'AM' : 'PM';
+            const slotDelivs = dayDelivs.filter((d) =>
+              d.driver_id === driverId && d.store_id === entry.store.id &&
+              (!d.ampm_deliveries || d.ampm_deliveries === ampm) &&
               d.actual_delivery_time
             );
-            if (!completed.length) return null;
-            return completed.reduce((min, d) => d.actual_delivery_time < min ? d.actual_delivery_time : min, completed[0].actual_delivery_time);
+            if (slotDelivs.length === 0) return null;
+            return slotDelivs.reduce((min, d) =>
+              d.actual_delivery_time < min ? d.actual_delivery_time : min,
+              slotDelivs[0].actual_delivery_time
+            );
           };
-          const ta = getEarliestActual(a) || a.startTime || '';
-          const tb = getEarliestActual(b) || b.startTime || '';
-          return ta.localeCompare(tb);
+          const ta = getFirstActualTime(a);
+          const tb = getFirstActualTime(b);
+          // If both have actual times, sort by those
+          if (ta && tb) return ta.localeCompare(tb);
+          // If only one has actual time, it goes first
+          if (ta) return -1;
+          if (tb) return 1;
+          // Fall back to scheduled start time
+          return (a.startTime || '').localeCompare(b.startTime || '');
         }).map(({ store, slotKey, isDeliveryDriven }) => {
           const lockKey = slotLockKey(dateStr, store.id, slotKey);
           const adminUnlocked = isAdmin && unlockedSlots.has(lockKey);
