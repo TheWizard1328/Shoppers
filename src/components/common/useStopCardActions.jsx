@@ -522,18 +522,18 @@ export default function useStopCardActions(params) {
         : fullDeliveriesForOptimizer;
 
       // Recalculate TR#s locally using the optimized stop_order.
-      // CRITICAL: Scope to the FULL driver route (not just the transitioned stops)
-      // so that pre-existing in-transit stops get correct sequential TR#s too.
+      // SCOPE: only active (non-finished) stops for this driver/date so that
+      // completed stops with high TR#s don't pollute the reservedTrackingNumbers
+      // set and push new TR#s into the thousands.
+      const FINISHED_SET = new Set(['completed', 'failed', 'cancelled']);
       const allDriverDeliveriesForTR = [
-        // Start with all deliveries on this driver/date from the optimizer result
         ...allDeliveriesWithOptimized,
-        // Add any stops from allDeliveries not yet in the optimizer set (e.g. completed stops)
         ...(allDeliveries || []).filter(d =>
           d?.driver_id === delivery.driver_id &&
           d?.delivery_date === delivery.delivery_date &&
           !allDeliveriesWithOptimized.find(o => o?.id === d.id)
         ),
-      ].filter(Boolean);
+      ].filter(d => d && !FINISHED_SET.has(d.status));
 
       let finalDeliveries = allDeliveriesWithOptimized;
       try {
@@ -585,17 +585,12 @@ export default function useStopCardActions(params) {
 
         if (updates.length > 0) {
           try {
-            await base44.functions.invoke('bulkUpdateDeliveries', { updates });
-            console.log(`[AcceptAll] STEP 7b — ${updates.length} deliveries committed atomically`);
-            // ── Broadcast WS mutations so other devices get notified ──────────
-            // bulkUpdateDeliveries uses asServiceRole which bypasses WS events.
-            // We must broadcast manually so dispatchers/admins see the changes.
-            try {
-              const { broadcastMutation } = await import('../utils/realtimeSync');
-              await Promise.all(toSync.map(d => broadcastMutation('Delivery', 'update', d.id, d)));
-            } catch (broadcastErr) {
-              console.warn('[AcceptAll] STEP 7b broadcast failed (non-fatal):', broadcastErr?.message || broadcastErr);
-            }
+            // Use client-side bulkUpdate — goes through user-scoped auth which
+            // triggers WS events natively. No manual broadcast needed.
+            await base44.entities.Delivery.bulkUpdate(
+              updates.map(u => ({ id: u.id, ...u.data }))
+            );
+            console.log(`[AcceptAll] STEP 7b — ${updates.length} deliveries committed atomically via bulkUpdate`);
           } catch (syncErr) {
             console.warn('[AcceptAll] STEP 7b bulk commit failed (non-fatal):', syncErr?.message || syncErr);
           }
