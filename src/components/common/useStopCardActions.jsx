@@ -587,6 +587,15 @@ export default function useStopCardActions(params) {
           try {
             await base44.functions.invoke('bulkUpdateDeliveries', { updates });
             console.log(`[AcceptAll] STEP 7b — ${updates.length} deliveries committed atomically`);
+            // ── Broadcast WS mutations so other devices get notified ──────────
+            // bulkUpdateDeliveries uses asServiceRole which bypasses WS events.
+            // We must broadcast manually so dispatchers/admins see the changes.
+            try {
+              const { broadcastMutation } = await import('../utils/realtimeSync');
+              await Promise.all(toSync.map(d => broadcastMutation('Delivery', 'update', d.id, d)));
+            } catch (broadcastErr) {
+              console.warn('[AcceptAll] STEP 7b broadcast failed (non-fatal):', broadcastErr?.message || broadcastErr);
+            }
           } catch (syncErr) {
             console.warn('[AcceptAll] STEP 7b bulk commit failed (non-fatal):', syncErr?.message || syncErr);
           }
@@ -647,7 +656,9 @@ export default function useStopCardActions(params) {
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
       try { driverLocationPoller.resume(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
-      try { smartRefreshManager.resume(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.resume failed:', e?.message); }
+      // Use restart (not resume) so the local client does a fresh server pull that
+      // reflects the just-committed bulk update state, preventing stale-data revert.
+      try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.restart failed:', e?.message); }
       try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
       try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
