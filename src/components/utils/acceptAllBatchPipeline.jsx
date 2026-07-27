@@ -112,11 +112,14 @@ export async function runAcceptAllBatchPipeline({
     });
 
   // Square COD sync runs HERE — after all in_transit writes are confirmed on the server.
-  // Awaiting this ensures the catalog items are created before control returns to the
-  // caller, preventing the race condition between status transition and Square sync.
+  // Uses a 20s timeout so a slow Square API call never blocks the pipeline indefinitely
+  // and leaves sync managers paused / the app unresponsive.
   if (codBatch.length > 0) {
     try {
-      const codResult = await base44.functions.invoke('syncSquareCods', { items: codBatch });
+      const codResult = await Promise.race([
+        base44.functions.invoke('syncSquareCods', { items: codBatch }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Square COD sync timed out after 20s')), 20000))
+      ]);
       const errors = (codResult?.results || []).filter(x => x?.status === 'error');
       if (errors.length > 0) {
         console.error('[AcceptAll] Square COD sync errors:', errors);
@@ -124,8 +127,8 @@ export async function runAcceptAllBatchPipeline({
         console.log(`[AcceptAll] Square COD sync: ${codResult?.processed || 0} items OK`);
       }
     } catch (codErr) {
-      console.error('[AcceptAll] Square COD sync FAILED:', codErr?.message || codErr);
-      // Non-fatal — delivery transitions are already committed
+      console.error('[AcceptAll] Square COD sync FAILED (non-fatal):', codErr?.message || codErr);
+      // Non-fatal — delivery transitions are already committed; COD item can be created on next sync
     }
   }
 

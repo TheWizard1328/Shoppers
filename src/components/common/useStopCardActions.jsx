@@ -324,6 +324,11 @@ export default function useStopCardActions(params) {
 
   const executeAcceptAllStops = useCallback(async () => {
     setIsAcceptingAll(true);
+    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+    driverLocationPoller.pause();
+    smartRefreshManager.pause();
+    backgroundSyncManager.pause();
+    pauseRealtimeSync();
     try {
       setIsEntityUpdating(true);
 
@@ -631,6 +636,10 @@ export default function useStopCardActions(params) {
     } finally {
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
+      try { driverLocationPoller.resume(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
+      try { smartRefreshManager.resume(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.resume failed:', e?.message); }
+      try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
+      try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       try { dispatchStopCardActionCollapse(); } catch (e) { console.warn('[AcceptAll] dispatchStopCardActionCollapse failed:', e?.message); }
       try { onClick?.(null); } catch (e) { console.warn('[AcceptAll] onClick failed:', e?.message); }
