@@ -366,8 +366,8 @@ export default function useStopCardActions(params) {
         }
       }
 
-      // KITT bar fires immediately
-      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: isDriverAction ? 'accept_all' : 'assign_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+      // NOTE: routeOptimizationStarted is fired by the coordinator itself — do NOT fire it here
+      // or the KITT bar gets two "start" events and never clears on the single "complete".
       window.dispatchEvent(new CustomEvent('pendingStopsProcessingStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
       // ── STEP 1: Transition pending → in_transit ───────────────────────────────

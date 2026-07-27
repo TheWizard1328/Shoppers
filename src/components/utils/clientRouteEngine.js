@@ -534,6 +534,13 @@ export async function optimizeRouteClientSide({
   // Resolve InterStore (ISP/ISD) coordinates from the in-memory InterStoreLocation cache.
   // The cache is populated during bootstrap sync and indexed by phone digits.
   // Map: _interstore_source_id (ISP) or _interstore_dest_id (ISD) → { lat, lon }
+  // Import the entity-ID fallback lookup ONCE before the loop to avoid per-iteration dynamic imports.
+  let _getInterStoreLocationByEntityId = null;
+  try {
+    const mod = await import('./interStoreDisplayName');
+    _getInterStoreLocationByEntityId = mod.getInterStoreLocationByEntityId || null;
+  } catch { /* non-fatal */ }
+
   const ispSourceMap = new Map();
   for (const d of allDeliveries) {
     if (d.patient_id) continue;
@@ -555,12 +562,10 @@ export async function optimizeRouteClientSide({
       }
     }
     // 2. Fallback: look up InterStoreLocation directly by entity ID stored on the delivery.
-    // This handles fresh ISP/ISD records created before the location cache was populated
-    // (e.g. first use of a location, or cold start with empty locationCache).
-    try {
-      const { getInterStoreLocationByEntityId } = await import('./interStoreDisplayName');
-      if (getInterStoreLocationByEntityId) {
-        const loc = await getInterStoreLocationByEntityId(keyId);
+    // getInterStoreLocationByEntityId is imported once outside the loop (see below).
+    if (_getInterStoreLocationByEntityId) {
+      try {
+        const loc = await _getInterStoreLocationByEntityId(keyId);
         if (loc) {
           const lat = Number(loc.store_latitude);
           const lon = Number(loc.store_longitude);
@@ -568,8 +573,8 @@ export async function optimizeRouteClientSide({
             ispSourceMap.set(keyId, { store_latitude: lat, store_longitude: lon });
           }
         }
-      }
-    } catch { /* non-fatal */ }
+      } catch { /* non-fatal */ }
+    }
   }
 
   // Build pickup window lookup
