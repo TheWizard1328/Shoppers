@@ -326,13 +326,9 @@ export default function useStopCardActions(params) {
     setIsAcceptingAll(true);
     // Import driverLocationPoller INSIDE the try so the finally closure always has it
     let driverLocationPoller = null;
-    // Helper — resumes all managers unconditionally; safe to call multiple times
+    // Helper — ensures smartRefresh is running after accept-all completes.
+    // Managers are NOT paused during accept-all (client-side engine, no backend timeout).
     const resumeAllManagers = () => {
-      try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
-      try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[AcceptAll] resumeOfflineSync failed:', e?.message); }
-      try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptAll] resumeOfflineMutations failed:', e?.message); }
-      try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
-      try { driverLocationPoller?.resume?.(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
       try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.restart failed:', e?.message); }
     };
     try {
@@ -506,24 +502,19 @@ export default function useStopCardActions(params) {
       const driverLon = Number(driverAppUser?.current_longitude);
       const currentLocation = Number.isFinite(driverLat) && Number.isFinite(driverLon) ? { lat: driverLat, lon: driverLon } : null;
 
-      const coordResult = await Promise.race([
-        performRouteOptimization({
-          driverId: delivery.driver_id,
-          deliveryDate: delivery.delivery_date,
-          currentLocation,
-          deliveries: fullDeliveriesForOptimizer,
-          patients,
-          stores,
-          appUsers,
-          source: 'accept_all',
-          bypassDriverStatus: true,
-          recalcTrackingNumbers: false,  // TR# recalc done locally in STEP 5 after stop_order is known
-        }).catch(err => { console.error('❌ [AcceptAll] optimizer threw:', err?.message || err); return null; }),
-        new Promise(resolve => setTimeout(() => {
-          console.error('⏱️ [AcceptAll] optimizer timed out after 90s');
-          resolve(null);
-        }, 90000)),
-      ]);
+      // Client-side engine runs in the browser — no backend timeout needed.
+      const coordResult = await performRouteOptimization({
+        driverId: delivery.driver_id,
+        deliveryDate: delivery.delivery_date,
+        currentLocation,
+        deliveries: fullDeliveriesForOptimizer,
+        patients,
+        stores,
+        appUsers,
+        source: 'accept_all',
+        bypassDriverStatus: true,
+        recalcTrackingNumbers: false,  // TR# recalc done locally in STEP 5 after stop_order is known
+      }).catch(err => { console.error('❌ [AcceptAll] optimizer threw:', err?.message || err); return null; });
 
       if (coordResult && coordResult.success === false) {
         toast.error(`Route optimization failed: ${coordResult.error || 'unknown'}. Stop order may not be optimized.`);
@@ -580,17 +571,7 @@ export default function useStopCardActions(params) {
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
       // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
 
-      // ── STEP 7: IDB write (authoritative) then server sync + Square COD ────────
-      // Pause managers HERE — just before we touch IDB/server — so WebSocket echoes
-      // from our own writes don't overwrite the optimized local state.
-      // Managers were intentionally left running during the optimizer (STEP 4) so
-      // the app remains responsive during the 90s HERE API call.
-      pauseOfflineSync('delivery_actions');
-      pauseOfflineMutations();
-      pauseRealtimeSync();
-      backgroundSyncManager.pause();
-      smartRefreshManager.pause();
-      driverLocationPoller?.pause?.();
+      // ── STEP 7: IDB write (authoritative) then server sync ────────────────────
       if (finalDeliveries.length > 0) {
         const { offlineDB } = await import('../utils/offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
