@@ -26,8 +26,7 @@ function extractPatientNamesFromReturnNotes(notes) {
 }
 
 export const NOTIFICATION_EVENTS = {
-  DRIVER_ACCEPTED_ALL:    'driver_accepted_all',
-  DRIVER_ACCEPTED_ONE:    'driver_accepted_one',
+  DRIVER_ACCEPTED:        'driver_accepted',
   DISPATCHER_ASSIGNED_ALL:'dispatcher_assigned_all',
   DRIVER_STARTED:         'driver_started',
   DRIVER_COMPLETED:       'driver_completed',
@@ -39,17 +38,13 @@ export const NOTIFICATION_EVENTS = {
 
 /** Hardcoded fallbacks — used only if the entity record is missing */
 export const notificationRules = {
-  [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL]: {
+  [NOTIFICATION_EVENTS.DRIVER_ACCEPTED]: {
     enabled: true, inApp: true,
     recipients: ['dispatchers', 'appowner'],
-    buildMessage: ({ driverName }) =>
-      `${driverName} has accepted all pending deliveries.`
-  },
-  [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE]: {
-    enabled: true, inApp: true,
-    recipients: ['dispatchers', 'appowner'],
-    buildMessage: ({ driverName, patientName }) =>
-      `${driverName} has accepted delivery for ${patientName || 'Unknown Patient'}.`
+    buildMessage: ({ driverName, pendingCount, patientName }) =>
+      pendingCount > 1
+        ? `${driverName} has accepted ${pendingCount} pending deliveries.`
+        : `${driverName} has accepted delivery for ${patientName || 'Unknown Patient'}.`
   },
   [NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL]: {
     enabled: true, inApp: true,

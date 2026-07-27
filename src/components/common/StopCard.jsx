@@ -21,7 +21,7 @@ import { deleteCODWithTimeout } from '../utils/squareCODHandler';
 import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
-import { notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
+import { notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";

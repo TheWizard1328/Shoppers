@@ -277,15 +277,16 @@ async function getStoreUser(store) {
  * 1. Driver accepts all pending deliveries
  * Message FROM driver TO configured recipients
  */
-export async function notifyDriverAcceptedAll({
+export async function notifyDriverAccepted({
   driver,
   store,
   appUsers,
-  pendingCount = null
+  pendingCount = null,
+  patientName = null
 }) {
-  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'inApp'))) return;
+  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED, 'inApp'))) return;
 
-  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL) || [];
+  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_ACCEPTED) || [];
   const recipients = await getRecipientsForEvent(recipientTypes, { 
     storeId: store?.id, 
     appUsers,
@@ -295,12 +296,12 @@ export async function notifyDriverAcceptedAll({
   if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName, pendingCount };
+  const messageData = { driverName, pendingCount, patientName };
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue; // Don't notify self
     await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL,
+      event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED,
       messageData,
       senderId: driver?.id,
       senderName: driverName,
@@ -310,43 +311,7 @@ export async function notifyDriverAcceptedAll({
   }
 }
 
-/**
- * 2. Driver accepts single delivery
- * Message FROM driver TO configured recipients
- */
-export async function notifyDriverAcceptedOne({
-  driver,
-  patientName,
-  store,
-  appUsers,
-  pendingCount = null
-}) {
-  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'inApp'))) return;
 
-  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE) || [];
-  const recipients = await getRecipientsForEvent(recipientTypes, { 
-    storeId: store?.id, 
-    appUsers,
-    driverId: driver?.id 
-  });
-  
-  if (!recipients || recipients.length === 0) return;
-
-  const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const messageData = { driverName, patientName, pendingCount };
-
-  for (const recipient of recipients) {
-    if (recipient.id === driver?.id) continue;
-    await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE,
-      messageData,
-      senderId: driver?.id,
-      senderName: driverName,
-      receiverId: recipient.id,
-      receiverName: recipient.name
-    });
-  }
-}
 
 /**
  * 3. Dispatcher assigns all deliveries to driver

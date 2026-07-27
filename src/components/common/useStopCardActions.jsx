@@ -25,7 +25,7 @@ import { pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineM
 import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
-import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
+import { notifyDriverAccepted, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/travelModeHelpers';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
@@ -556,7 +556,7 @@ export default function useStopCardActions(params) {
       }
 
       if (isDriverAction) {
-        notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(() => {});
+        notifyDriverAccepted({ driver: currentUser, store, appUsers }).catch(() => {});
       } else {
         const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
         if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: scopedPendingDeliveries, patients }).catch(() => {});
