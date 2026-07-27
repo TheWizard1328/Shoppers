@@ -518,7 +518,7 @@ export default function useStopCardActions(params) {
           appUsers,
           source: 'accept_all',
           bypassDriverStatus: true,
-          recalcTrackingNumbers: false,  // TR# handled in STEP 5 below, after we have stop_order
+          recalcTrackingNumbers: false,  // TR# recalc done locally in STEP 5 after stop_order is known
         }).catch(err => { console.error('❌ [AcceptAll] optimizer threw:', err?.message || err); return null; }),
         new Promise(resolve => setTimeout(() => {
           console.error('⏱️ [AcceptAll] optimizer timed out after 90s');
@@ -532,11 +532,11 @@ export default function useStopCardActions(params) {
         toast.error('Route optimization encountered an error. Stop order may not be optimized.');
       }
 
-      // ── STEP 5: Merge optimizer results — do NOT recalculate TR#s ────────────
-      // TR#s are assigned at delivery-creation time and must not be changed here.
-      // Recalculating them post-optimizer causes the "TR#s updating after optimizer"
-      // bug because the local recalc fires a server write AFTER the optimizer already
-      // wrote the authoritative stop_order, creating a race.
+      // ── STEP 5: Merge optimizer results + recalculate TR#s → IDB only ────────
+      // The optimizer sets stop_order; TR#s are based on stop_order so we recalc
+      // them HERE (after stop_order is known) and write to IDB only — no server
+      // writes. Server-writing TR#s post-optimizer races with the optimizer's own
+      // bulk update and causes the "TR#s flashing after accept all" bug.
       const optimizedDeliveries = Array.isArray(coordResult?.freshDeliveries) ? coordResult.freshDeliveries : [];
       const allDeliveriesWithOptimized = optimizedDeliveries.length > 0
         ? (() => {
@@ -545,7 +545,26 @@ export default function useStopCardActions(params) {
           })()
         : fullDeliveriesForOptimizer;
 
-      const finalDeliveries = allDeliveriesWithOptimized;
+      // Recalculate TR#s locally using the optimized stop_order, then apply to
+      // finalDeliveries in-memory. IDB write happens in STEP 7 as part of the
+      // bulk save — no extra server round-trip.
+      let finalDeliveries = allDeliveriesWithOptimized;
+      try {
+        const trUpdates = recalculateTrackingNumbersLocal({
+          deliveries: finalDeliveries,
+          stores: stores || [],
+          patients: patients || [],
+        });
+        if (trUpdates.length > 0) {
+          const trMap = new Map(trUpdates.map(u => [u.id, u.tracking_number]));
+          finalDeliveries = finalDeliveries.map(d =>
+            d?.id && trMap.has(d.id) ? { ...d, tracking_number: trMap.get(d.id) } : d
+          );
+          console.log(`[AcceptAll] TR# recalculated locally: ${trUpdates.length} stops updated (IDB-only, no server write)`);
+        }
+      } catch (trErr) {
+        console.warn('[AcceptAll] TR# recalc failed (non-fatal):', trErr?.message || trErr);
+      }
 
       // ── STEP 6: In-app message + push notification with updated TR#s ─────────
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
