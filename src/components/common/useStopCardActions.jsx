@@ -25,6 +25,7 @@ import { pauseOfflineMutations, resumeOfflineMutations } from '../utils/offlineM
 import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
+import { recalculateTrackingNumbersLocal, applyTrackingNumberUpdates } from '../utils/recalculateTrackingNumbersLocal';
 import { notifyDriverAccepted, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/travelModeHelpers';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
@@ -456,7 +457,7 @@ export default function useStopCardActions(params) {
       // Small delay so React can render before switching to "Optimizing Route"
       await new Promise((resolve) => setTimeout(resolve, 400));
 
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: [...stagedChangedDeliveries, ...finalOfflineUpdates], alreadyOptimized: false, trustIsNextDelivery: false } }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: [...new Map([...stagedChangedDeliveries, ...finalOfflineUpdates].filter(Boolean).map(d => [d.id, d])).values()], alreadyOptimized: false, trustIsNextDelivery: false } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       invalidate('Delivery');
 
@@ -477,20 +478,24 @@ export default function useStopCardActions(params) {
           if (d?.id) window.__localDeliveryWrites.set(d.id, EXPIRY_TS);
         }
       }
-      // ── RESUME MANAGERS EARLY ────────────────────────────────────────────────
-      // IDB already has the optimistic in_transit state. Holding all managers
-      // paused for the entire optimization pipeline (HERE API + polylines +
-      // bulk writes) blocks the UI for 2-3+ minutes. Resume them NOW so the
-      // user sees the correct stop states while optimization runs in background.
-      //
-      // Echo suppression above ensures WebSocket echoes during the optimization
-      // pipeline don't overwrite the correct in_transit state with stale data.
+
+      // Fire notifications NOW — don't wait for optimization to complete.
+      // The driver/dispatcher should be notified immediately when stops are accepted.
+      if (isDriverAction) {
+        notifyDriverAccepted({ driver: currentUser, store, appUsers }).catch(() => {});
+      } else {
+        const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
+        if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: scopedPendingDeliveries, patients }).catch(() => {});
+      }
+      // ── PARTIAL RESUME — realtime only ───────────────────────────────────────
+      // Resume ONLY realtime sync so WebSocket updates flow through (with echo
+      // suppression active). Do NOT resume backgroundSyncManager or offlineSync
+      // here — their IDB writes compete with forceRefreshDriverDeliveries reads
+      // and cause 15s+ hangs. Those resume in the finally block after the full
+      // optimization + tracking number pipeline completes.
       try { resumeRealtimeSync(); } catch (_) {}
-      try { resumeOfflineSync('delivery_actions'); } catch (_) {}
       try { resumeOfflineMutations(); } catch (_) {}
-      try { backgroundSyncManager.resume(); } catch (_) {}
       try { (driverLocationPoller)?.resume?.(); } catch (_) {}
-      try { smartRefreshManager.resume(); } catch (_) {}
       // ────────────────────────────────────────────────────────────────────────
 
       // STEP 1: Wait for all backend status writes to commit before calling the optimizer.
@@ -607,44 +612,18 @@ export default function useStopCardActions(params) {
         toast.warning('Route order approximated — HERE routing was unavailable, so stop order/map lines may not be fully optimized.');
       }
 
-      // polylineResponse stub — polylines regenerated internally by coordinator
-      const polylineResponse = null;
+      // STEP 3: Use the coordinator's freshDeliveries directly — no forceRefreshDriverDeliveries.
+      // The coordinator already wrote optimized deliveries to IDB and returns them with
+      // stop_order, ETAs, isNextDelivery, and polylines applied. Skipping the IDB re-read
+      // eliminates the 15s timeout that occurred when backgroundSyncManager's concurrent
+      // sync held IDB write locks that blocked our read transaction.
+      const optimizedDeliveries = Array.isArray(coordResult?.freshDeliveries) ? coordResult.freshDeliveries : [];
 
-      // STEP 3: Fetch fresh deliveries once (after both optimize + polyline calls complete).
-      const refreshedDeliveries = await Promise.race([
-        forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date),
-        new Promise((resolve) => setTimeout(() => {
-          console.warn('⏱️ [AcceptAll] forceRefreshDriverDeliveries TIMED OUT after 15s');
-          resolve([]);
-        }, 15000))
-      ]);
-      const refreshedList = Array.isArray(refreshedDeliveries)
-        ? refreshedDeliveries
-        : Array.isArray(refreshedDeliveries?.deliveries)
-          ? refreshedDeliveries.deliveries
-          : null;
-
-      if (Array.isArray(refreshedList) && refreshedList.length > 0) {
-        // CRITICAL: Preserve isNextDelivery from the optimizer's local write batch.
-        // The server DB might not have flushed the bulkUpdateDeliveries isNextDelivery
-        // writes by the time forceRefreshDriverDeliveries responds, so the fetched
-        // records may incorrectly show isNextDelivery=false. Patch them from the
-        // coordResult writeBatch which has the authoritative post-optimization state.
-        const optimizerWriteMap = new Map();
-        for (const w of (coordResult?.optimizeData?.writeBatch || [])) {
-          if (w?.id) optimizerWriteMap.set(w.id, w.data);
-        }
-        const mergedList = refreshedList.map(d => {
-          const patch = optimizerWriteMap.get(d.id);
-          if (!patch) return d;
-          // Apply optimizer patches: stop_order, ETAs, isNextDelivery, polyline
-          return { ...d, ...patch };
-        });
-
-        // Write fully-optimized + polyline-updated deliveries back to offline DB
+      if (optimizedDeliveries.length > 0) {
+        // Ensure IDB has the fully-optimized state (coordinator already did fire-and-forget saves)
         const { offlineDB } = await import('../utils/offlineDatabase');
-        await Promise.all(mergedList.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
-        updateDeliveriesLocally?.(mergedList, false);
+        await Promise.all(optimizedDeliveries.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+        updateDeliveriesLocally?.(optimizedDeliveries, false);
 
         // Clear the extended echo suppression now that the authoritative state is in IDB
         if (window.__localDeliveryWrites) {
@@ -653,60 +632,40 @@ export default function useStopCardActions(params) {
           }
         }
 
-        // CRITICAL: trustIsNextDelivery=true so the optimizer's authoritative flag
-        // assignment wins — the layout merge must NOT preserve stale in-memory
-        // isNextDelivery=true values from before optimization ran.
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: mergedList, trustIsNextDelivery: true } }));
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: optimizedDeliveries, trustIsNextDelivery: true } }));
       } else {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
       }
 
-      // Recalculate tracking numbers sequentially based on distance-from-store sort.
-      // This runs AFTER optimization so stop_order is already set for in_transit stops,
-      // and pending stops are sorted by haversine distance from the store.
+      // STEP 4: Recalculate tracking numbers LOCALLY — no server round-trip.
+      // The optimizer already set stop_order for in_transit stops, and we have
+      // stores + patients in memory. This replaces the backend recalculateTrackingNumbers
+      // function that was causing 30s timeouts, stale data races (server DB lag), and
+      // an unnecessary forceRefreshDriverDeliveries re-fetch.
       try {
-        const trResult = await Promise.race([
-          base44.functions.invoke('recalculateTrackingNumbers', {
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date,
-          }),
-          new Promise((resolve) => setTimeout(() => {
-            console.warn('⏱️ [AcceptAll] recalculateTrackingNumbers TIMED OUT after 30s');
-            resolve(null);
-          }, 30000))
-        ]);
-        if (trResult?.updates?.length > 0) {
-          console.log(`[AcceptAll] Recalculated ${trResult.updates.length} tracking numbers`);
-          // Fetch fresh deliveries again to get updated TR#s into the UI
-          const trRefreshed = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-          const trRefreshedList = Array.isArray(trRefreshed)
-            ? trRefreshed
-            : Array.isArray(trRefreshed?.deliveries)
-              ? trRefreshed.deliveries
-              : null;
-          if (Array.isArray(trRefreshedList) && trRefreshedList.length > 0) {
-            const { offlineDB } = await import('../utils/offlineDatabase');
-            await Promise.all(trRefreshedList.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
-            updateDeliveriesLocally?.(trRefreshedList, false);
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllTRRecalc', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: trRefreshedList, trustIsNextDelivery: true } }));
-          }
+        const trSource = optimizedDeliveries.length > 0 ? optimizedDeliveries : _acceptAllFullDeliveries;
+        const trUpdates = recalculateTrackingNumbersLocal({
+          deliveries: trSource,
+          stores,
+          patients,
+        });
+        if (trUpdates.length > 0) {
+          console.log(`[AcceptAll] Recalculated ${trUpdates.length} tracking numbers locally`);
+          await applyTrackingNumberUpdates({
+            updates: trUpdates,
+            allDeliveries: trSource,
+            updateDeliveriesLocally,
+            updateDeliveryLocal,
+          });
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllTRRecalc', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: trSource, trustIsNextDelivery: true } }));
         }
       } catch (trErr) {
-        console.warn('[AcceptAll] Tracking number recalculation failed:', trErr?.message || trErr);
+        console.warn('[AcceptAll] Local tracking number recalculation failed:', trErr?.message || trErr);
       }
 
-      if (polylineResponse) {
-        window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'accept_all_button' } }));
-      }
+      window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'accept_all_button' } }));
 
       // Square COD sync already fired above (right after batch pipeline)
-
-      if (isDriverAction) {
-        notifyDriverAccepted({ driver: currentUser, store, appUsers }).catch(() => {});
-      } else {
-        const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
-        if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: scopedPendingDeliveries, patients }).catch(() => {});
-      }
     } catch (error) {
       console.error('❌ [Accept All] Error:', error);
       toast.error(`Failed to accept all: ${error.message}`);
@@ -1210,10 +1169,13 @@ export default function useStopCardActions(params) {
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
             }
 
-            await base44.functions.invoke('recalculateTrackingNumbers', {
-              driverId: delivery.driver_id,
-              deliveryDate: delivery.delivery_date,
-            }).catch(() => null);
+            try {
+              const _startDeliveries = allDeliveries.filter(d => d?.driver_id === delivery.driver_id && d?.delivery_date === delivery.delivery_date);
+              const _startTRUpdates = recalculateTrackingNumbersLocal({ deliveries: _startDeliveries, stores, patients });
+              if (_startTRUpdates.length > 0) {
+                await applyTrackingNumberUpdates({ updates: _startTRUpdates, allDeliveries: _startDeliveries, updateDeliveriesLocally, updateDeliveryLocal });
+              }
+            } catch (_) {}
 
             window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
@@ -2199,31 +2161,17 @@ export default function useStopCardActions(params) {
 
           console.log(`[AcceptSingle] STEP 6 — Optimization complete: ${freshDeliveries.length} deliveries, optimizer=${coordResult?.success ? 'OK' : 'FALLBACK'}`);
 
-          // TR# recalculation (backend, fire-and-forget — patches ONLY tracking_number, nothing else)
-          base44.functions.invoke('recalculateTrackingNumbers', {
-            driverId,
-            deliveryDate,
-          }).then((trResult) => {
-            if (trResult?.updates?.length > 0) {
-              console.log(`[AcceptSingle] Recalculated ${trResult.updates.length} tracking numbers`);
-              // Patch ONLY the tracking_number field on local deliveries — DO NOT re-fetch from DB
-              const trMap = new Map((trResult.updates || []).map((u) => [u.id, u.tracking_number]));
-              const patchedDeliveries = freshDeliveries.map((d) => {
-                const newTR = trMap.get(d?.id);
-                if (newTR && d.tracking_number !== newTR) {
-                  const patched = { ...d, tracking_number: newTR };
-                  // Persist to offline DB
-                  offlineDB.save(offlineDB.STORES.DELIVERIES, patched).catch(() => {});
-                  return patched;
-                }
-                return d;
-              });
-              updateDeliveriesLocally?.(patchedDeliveries, false);
+          // TR# recalculation (LOCAL — no server round-trip, no stale data, no timeout)
+          try {
+            const _singleTRUpdates = recalculateTrackingNumbersLocal({ deliveries: freshDeliveries, stores, patients });
+            if (_singleTRUpdates.length > 0) {
+              console.log(`[AcceptSingle] Recalculated ${_singleTRUpdates.length} tracking numbers locally`);
+              await applyTrackingNumberUpdates({ updates: _singleTRUpdates, allDeliveries: freshDeliveries, updateDeliveriesLocally, updateDeliveryLocal });
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                detail: { triggeredBy: 'acceptSingleTRRecalc', driverId, deliveryDate, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: patchedDeliveries }
+                detail: { triggeredBy: 'acceptSingleTRRecalc', driverId, deliveryDate, alreadyOptimized: true, preserveLocalState: true, freshDeliveries }
               }));
             }
-          }).catch((e) => console.warn('[AcceptSingle] TR recalc failed:', e?.message || e));
+          } catch (e) { console.warn('[AcceptSingle] Local TR recalc failed:', e?.message || e); }
 
         } catch (optErr) {
           console.error('[AcceptSingle] Optimization failed:', optErr);
