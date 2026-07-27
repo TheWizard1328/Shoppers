@@ -455,10 +455,18 @@ export default function useStopCardActions(params) {
         }
       } catch (_) {}
 
-      // ── STEP 3: Square COD catalog items — deferred until after IDB write (STEP 7) ─
-      // Stored in a closure here; fired after the IDB bulk-save so Square sees
-      // confirmed in-transit deliveries. Using a variable avoids the fragile 3-second
-      // timeout that was racing against the server writes.
+      // ── STEP 3: Square COD catalog items — fire immediately after status transition ─
+      // Fired here (before optimization) so Square sync always completes regardless
+      // of whether the optimizer succeeds, times out, or fails.
+      if (codBatch.length > 0) {
+        base44.functions.invoke('syncSquareCods', { items: codBatch })
+          .then(r => {
+            const errors = (r?.results || []).filter(x => x?.status === 'error');
+            if (errors.length > 0) console.error('❌ [Square] COD sync errors:', errors);
+            else console.log(`✅ [Square] COD sync: ${r?.processed || 0} items OK`);
+          })
+          .catch(e => console.error('❌ [Square] COD sync FAILED:', e?.message || e));
+      }
 
       // Write pickup route summary note (fire-and-forget)
       try {
@@ -621,17 +629,8 @@ export default function useStopCardActions(params) {
           console.warn('[AcceptAll] STEP 7b batch sync failed (non-fatal):', syncErr?.message || syncErr);
         }
 
-        // ── STEP 7c: Square COD sync — fires after IDB + server writes confirm ──
-        // Fired here (not in STEP 3) so Square sees deliveries already in_transit on server.
-        if (codBatch.length > 0) {
-          base44.functions.invoke('syncSquareCods', { items: codBatch })
-            .then(r => {
-              const errors = (r?.results || []).filter(x => x?.status === 'error');
-              if (errors.length > 0) console.error('❌ [Square] COD sync errors:', errors);
-              else console.log(`✅ [Square] COD sync: ${r?.processed || 0} items OK`);
-            })
-            .catch(e => console.error('❌ [Square] COD sync FAILED:', e?.message || e));
-        }
+        // Square COD sync already fired in STEP 3 (before optimization) so it completes
+        // regardless of optimizer outcome.
       }
 
       // ── STEP 8: Final UI update ────────────────────────────────────────────────
