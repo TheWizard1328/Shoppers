@@ -287,28 +287,6 @@ const getDeliveryCoords = (delivery, patientMap, storeMap, ispSourceMap = new Ma
   return null;
 };
 
-// ─── HERE API: single segment duration ───────────────────────────────────────
-
-const getHereSegmentDuration = async (origin, destination, hereApiKey, hereTransportMode) => {
-  if (!origin || !destination) return null;
-  try {
-    const params = new URLSearchParams({
-      transportMode: hereTransportMode === 'bicycle' ? 'bicycle' : hereTransportMode === 'pedestrian' ? 'pedestrian' : 'car',
-      origin: `${origin.lat},${origin.lng}`,
-      destination: `${destination.lat},${destination.lng}`,
-      return: 'summary',
-      apiKey: hereApiKey
-    });
-    const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, { signal: AbortSignal.timeout(8000) });
-    logHereApiCall({ apiType: 'Routes (HERE)', purpose: 'Segment duration check', source: 'getHereSegmentDuration' }).catch(() => {});
-    if (!resp.ok) return null;
-    const data = await resp.json().catch(() => null);
-    const summary = data?.routes?.[0]?.sections?.[0]?.summary;
-    if (!summary) return null;
-    return { durationMinutes: Math.ceil(Number(summary.duration || 0) / 60), distanceKm: Number((Number(summary.length || 0) / 1000).toFixed(3)) };
-  } catch { return null; }
-};
-
 // ─── HERE API: multi-stop route (replaces getHereDirections) ──────────────────
 
 async function getMultiStopRouteHere(points, transportMode, hereApiKey) {
@@ -714,12 +692,6 @@ export async function optimizeRouteClientSide({
   }
   console.log(`[clientRouteEngine] ${source} — currentPosition=(${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)}) source=${locationSource}`);
 
-  const logicalSegmentOrigin = latestFinishedCoords
-    || (_driverAppUser.home_latitude != null && _driverAppUser.home_longitude != null
-      ? { lat: Number(_driverAppUser.home_latitude), lng: Number(_driverAppUser.home_longitude) }
-      : null)
-    || currentPosition;
-
   const resolvedHomePosition = _driverAppUser.home_latitude != null && _driverAppUser.home_longitude != null
     ? { lat: Number(_driverAppUser.home_latitude), lng: Number(_driverAppUser.home_longitude) }
     : null;
@@ -758,15 +730,12 @@ export async function optimizeRouteClientSide({
   let directionsLegs = [];
   let segmentPolylines = [];
 
-  // Logical segment for isNextDelivery stop
-  let nextStopLogicalSegment = null;
-  if (lockedNextStop && logicalSegmentOrigin && explicitNextCoords) {
-    const samePoint = Math.abs(logicalSegmentOrigin.lat - currentPosition.lat) < 0.0001 &&
-                      Math.abs(logicalSegmentOrigin.lng - currentPosition.lng) < 0.0001;
-    if (!samePoint) {
-      nextStopLogicalSegment = await getHereSegmentDuration(logicalSegmentOrigin, explicitNextCoords, hereApiKey, hereTransportMode);
-    }
-  }
+  // NOTE: The "logical segment" duration/distance for the isNextDelivery stop
+  // is now derived from the first section of getMultiStopRouteHere results
+  // (segmentPolylineByDeliveryId), which covers the same origin→nextStop leg.
+  // This eliminates a redundant HERE Routes API call that was made on every
+  // optimization. The origins are identical: both use latestFinishedCoords →
+  // home → currentPosition, and the locked next stop is always first in the route.
 
   // Dispatch phase event: optimization (sequencing) starting
   if (typeof window !== 'undefined') {
@@ -1296,12 +1265,8 @@ export async function optimizeRouteClientSide({
       : String(effectiveTravelMode).toLowerCase();
     const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(rawTransportMode) ? rawTransportMode : 'driving';
     const isNextStop = stop.id === nextStopId;
-    const logicalDurationMinutes = isNextStop && nextStopLogicalSegment
-      ? nextStopLogicalSegment.durationMinutes
-      : (typeof seg?.estimatedDurationMinutes === 'number' ? seg.estimatedDurationMinutes : null);
-    const logicalDistanceKm = isNextStop && nextStopLogicalSegment
-      ? nextStopLogicalSegment.distanceKm
-      : (typeof seg?.estimatedDistanceKm === 'number' ? seg.estimatedDistanceKm : null);
+    const logicalDurationMinutes = (typeof seg?.estimatedDurationMinutes === 'number' ? seg.estimatedDurationMinutes : null);
+    const logicalDistanceKm = (typeof seg?.estimatedDistanceKm === 'number' ? seg.estimatedDistanceKm : null);
     const isPending = stop.status === 'pending';
 
     // Correct pickup status if somehow in_transit.
