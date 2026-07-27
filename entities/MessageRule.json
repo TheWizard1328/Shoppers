@@ -1,0 +1,86 @@
+{
+  "properties": {
+    "event_name": {
+      "type": "string",
+      "description": "Trigger event key (e.g. driver_completed, driver_failed, app_update_available)"
+    },
+    "rule_label": {
+      "type": "string",
+      "description": "User-given name for this rule"
+    },
+    "priority": {
+      "type": "number",
+      "description": "Evaluation order \u2014 lower number = evaluated first"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "conditions": {
+      "type": "array",
+      "description": "IF conditions \u2014 array of {field, operator, value} objects, ALL must pass (AND logic)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "channels": {
+      "type": "array",
+      "description": "THEN channels \u2014 which delivery methods to use",
+      "items": {
+        "type": "string",
+        "enum": [
+          "in_app",
+          "push"
+        ]
+      }
+    },
+    "message_template": {
+      "type": "string",
+      "description": "Message text with {{variable}} support"
+    },
+    "recipients": {
+      "type": "array",
+      "description": "THEN recipients \u2014 who gets the message",
+      "items": {
+        "type": "string"
+      },
+      "examples": [
+        "role:admin",
+        "role:dispatcher",
+        "role:driver",
+        "relation:driver",
+        "relation:dispatchers",
+        "relation:appowner",
+        "user:USER_ID"
+      ]
+    },
+    "stop_on_match": {
+      "type": "boolean",
+      "default": true,
+      "description": "If true, stop evaluating further rules for this event once this one fires"
+    },
+    "cooldown_seconds": {
+      "type": "number",
+      "description": "Minimum seconds between duplicate fires of this rule for the same event (dedup/throttle)"
+    },
+    "shadow_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, log what would be sent but don't actually send"
+    }
+  },
+  "type": "object",
+  "required": [],
+  "name": "MessageRule"
+}
