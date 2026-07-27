@@ -572,17 +572,17 @@ export default function useStopCardActions(params) {
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
       // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
 
-      // ── STEP 7: Pause managers just before the authoritative write ────────────
-      // Managers are paused HERE (not at entry) so that the 90s optimizer above
-      // runs with sync fully active — a timeout no longer permanently hangs the app.
+      // ── STEP 7: IDB write (authoritative) then server sync + Square COD ────────
+      // Pause managers HERE — just before we touch IDB/server — so WebSocket echoes
+      // from our own writes don't overwrite the optimized local state.
+      // Managers were intentionally left running during the optimizer (STEP 4) so
+      // the app remains responsive during the 90s HERE API call.
       pauseOfflineSync('delivery_actions');
       pauseOfflineMutations();
       pauseRealtimeSync();
       backgroundSyncManager.pause();
       smartRefreshManager.pause();
       driverLocationPoller?.pause?.();
-
-      // ── STEP 7: IDB write (authoritative) then server sync + Square COD ────────
       if (finalDeliveries.length > 0) {
         const { offlineDB } = await import('../utils/offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
