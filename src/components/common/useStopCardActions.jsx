@@ -1786,6 +1786,10 @@ export default function useStopCardActions(params) {
 
         console.log(`[AcceptSingle] STEP 1 — New pickup created: id=pending, puid=${newPuid}, TR=${newPickupTR}, stop_order=${newPickupStopOrder}`);
 
+        // Register pending updates so WebSocket echoes from our backend writes
+        // don't trigger a full refresh that overwrites local state
+        smartRefreshManager.registerPendingUpdate(targetDeliveryId, driverId, deliveryDate);
+
         // Write pickup to offline DB immediately
         try {
           const { offlineDB } = await import('../utils/offlineDatabase');
@@ -1826,6 +1830,9 @@ export default function useStopCardActions(params) {
             } catch (_) {}
           }
           console.log(`[AcceptSingle] Pickup created on server: id=${createdPickup?.id}`);
+          if (createdPickup?.id) {
+            smartRefreshManager.registerPendingUpdate(createdPickup.id, driverId, deliveryDate);
+          }
         } catch (e) {
           console.warn('[AcceptSingle] Backend pickup create failed (proceeding with local):', e?.message || e);
         }
@@ -2115,13 +2122,14 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
           detail: { source: 'accept_single', driverId: projectedDelivery.driver_id || delivery.driver_id, deliveryDate: projectedDelivery.delivery_date || delivery.delivery_date }
         }));
-        resumeRealtimeSync();
-        resumeOfflineSync('delivery_actions');
-        resumeOfflineMutations();
-        backgroundSyncManager.resume();
-        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-        driverLocationPoller.resume();
-        smartRefreshManager.resume();
+        // Resume all managers — each wrapped in try/catch so one failure
+        // doesn't prevent the others from resuming
+        try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptSingle] resumeRealtimeSync failed:', e?.message); }
+        try { resumeOfflineSync('delivery_actions'); } catch (e) { console.warn('[AcceptSingle] resumeOfflineSync failed:', e?.message); }
+        try { resumeOfflineMutations(); } catch (e) { console.warn('[AcceptSingle] resumeOfflineMutations failed:', e?.message); }
+        try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptSingle] backgroundSyncManager.resume failed:', e?.message); }
+        try { driverLocationPoller.resume(); } catch (e) { console.warn('[AcceptSingle] driverLocationPoller.resume failed:', e?.message); }
+        try { smartRefreshManager.resume(); } catch (e) { console.warn('[AcceptSingle] smartRefreshManager.resume failed:', e?.message); }
         setIsEntityUpdating(false);
         setIsAcceptingAll(false);
         dispatchStopCardActionCollapse();
