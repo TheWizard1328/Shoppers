@@ -1739,15 +1739,38 @@ export default function useStopCardActions(params) {
         // Optimistic UI update
         updateDeliveriesLocally?.([updatedDelivery], false);
 
-        // Backend write (fire and don't block optimizer on it)
-        updateDeliveryLocal(targetDeliveryId, {
-          status: 'in_transit',
-          puid: newPuid,
-          delivery_time_start: updatedDelivery.delivery_time_start,
-          delivery_time_eta: updatedDelivery.delivery_time_eta,
-        }, { skipSmartRefresh: true }).catch((e) => {
+        // Backend write — AWAIT it so the optimizer sees the committed status
+        try {
+          await updateDeliveryLocal(targetDeliveryId, {
+            status: 'in_transit',
+            puid: newPuid,
+            delivery_time_start: updatedDelivery.delivery_time_start,
+            delivery_time_eta: updatedDelivery.delivery_time_eta,
+          }, { skipSmartRefresh: true });
+        } catch (e) {
           console.warn('[AcceptSingle] Backend delivery update failed:', e?.message || e);
-        });
+        }
+
+        // Poll until the DB confirms the status change (max ~4s)
+        try {
+          const maxAttempts = 8;
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            await new Promise(r => setTimeout(r, 500));
+            const checkDeliveries = await base44.entities.Delivery.filter({
+              driver_id: driverId,
+              delivery_date: deliveryDate
+            });
+            const confirmed = (checkDeliveries || []).find(
+              (d) => d?.id === targetDeliveryId && d?.status === 'in_transit'
+            );
+            if (confirmed) {
+              console.log(`[AcceptSingle] Status confirmed in_transit after ${(attempt + 1) * 500}ms`);
+              break;
+            }
+          }
+        } catch (_) {
+          // Non-fatal — proceed to optimizer regardless
+        }
 
         // STEP 3: Set the new pickup as isNextDelivery=true (and clear other flags)
         // First, clear all isNextDelivery flags for this driver/date
@@ -1790,9 +1813,7 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId, deliveryDate } }));
         invalidate('Delivery');
 
-        // STEP 4: Wait briefly for the backend write to commit, then run the optimizer
-        await new Promise((r) => setTimeout(r, 500));
-
+        // STEP 4: Run the optimizer (backend write already confirmed above)
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
           detail: { source: 'accept_single', driverId, deliveryDate }
         }));
@@ -1822,6 +1843,23 @@ export default function useStopCardActions(params) {
             const { offlineDB } = await import('../utils/offlineDatabase');
             await Promise.all(optimizationResult.refreshedDriverDeliveries.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
             updateDeliveriesLocally?.(optimizationResult.refreshedDriverDeliveries, false);
+          }
+
+          // Re-assert isNextDelivery on the new pickup AFTER the optimizer,
+          // because the optimizer's DB refresh may have overwritten it.
+          try {
+            await base44.entities.Delivery.update(newPickupId, { isNextDelivery: true });
+            updateDeliveryLocal(newPickupId, { isNextDelivery: true }, { skipSmartRefresh: true }).catch(() => {});
+            // Patch the refreshed deliveries array so the UI sees it immediately
+            if (optimizationResult?.refreshedDriverDeliveries) {
+              for (const d of optimizationResult.refreshedDriverDeliveries) {
+                if (d?.id === newPickupId) d.isNextDelivery = true;
+                else if (d?.isNextDelivery === true) d.isNextDelivery = false;
+              }
+            }
+            console.log(`[AcceptSingle] Re-asserted isNextDelivery=true on pickup ${newPickupId} post-optimization`);
+          } catch (e) {
+            console.warn('[AcceptSingle] Post-opt isNextDelivery re-assert failed:', e?.message || e);
           }
 
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -1878,16 +1916,35 @@ export default function useStopCardActions(params) {
           });
         }
 
-        // Notify
+        // Notify (in-app + push) — accept single delivery
         const isDriverAction = userHasRole(currentUser, 'driver') && driverId === currentUser.id;
+        const resolvedStore = store || stores?.find((s) => s?.id === storeId);
         if (isDriverAction) {
           notifyDriverAccepted({
             driver: currentUser,
-            store: store || stores?.find((s) => s?.id === storeId),
+            store: resolvedStore,
             appUsers,
             pendingCount: 1,
             patientName: projectedDelivery.patient_name || '',
-          }).catch(() => {});
+          }).catch((e) => console.warn('[AcceptSingle] notifyDriverAccepted failed:', e?.message || e));
+        }
+        // Push notification for dispatchers/admins
+        try {
+          const dispatcherRecipients = (appUsers || []).filter((u) => {
+            if (!u || u.user_id === currentUser?.id) return false;
+            const role = String(u.role || u.user_role || '').toLowerCase();
+            return role.includes('dispatcher') || role.includes('admin');
+          });
+          for (const recipient of dispatcherRecipients) {
+            base44.functions.invoke('sendPushNotification', {
+              userId: recipient.user_id,
+              title: 'Delivery Accepted',
+              body: `${currentUser?.user_name || 'Driver'} accepted 1 delivery from ${resolvedStore?.name || 'store'}`,
+              tag: `accept-single-${driverId}-${deliveryDate}`,
+            }).catch(() => {});
+          }
+        } catch (e) {
+          console.warn('[AcceptSingle] Push notification failed:', e?.message || e);
         }
 
         toast.success(`Accepted delivery for ${projectedDelivery.patient_name || 'patient'}`);
