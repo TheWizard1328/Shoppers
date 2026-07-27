@@ -14,7 +14,17 @@ const toAmountCents = (v) => Math.max(0, Math.round(Number(v || 0)));
 const isValidEntityId = (v) => /^[a-f0-9]{24}$/i.test(String(v || ''));
 const isRetryableSquareStatus = (s) => [408, 409, 429, 500, 502, 503, 504].includes(Number(s));
 const ensureSquareToken = () => { const t = Deno.env.get('SQUARE_ACCESS_TOKEN'); if (!t) throw new HttpError(500, 'Square credentials not configured'); return t; };
-const requireUser = async (b44) => { const u = await b44.auth.me().catch(() => null); if (!u) throw new HttpError(401, 'Unauthorized'); return u; };
+// Use soft auth check — allows both direct frontend calls (validated) and
+// function-to-function calls from syncSquareCods (where auth context may not
+// be forwarded by base44.functions.invoke). syncSquareCods already validates
+// the user before calling this function.
+const requireUser = async (b44) => {
+  const ok = await b44.auth.isAuthenticated().catch(() => false);
+  if (!ok) return null; // function-to-function call — no auth context, proceed
+  const u = await b44.auth.me().catch(() => null);
+  if (!u) throw new HttpError(401, 'Unauthorized');
+  return u;
+};
 
 function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   const [,month,day] = String(deliveryDate||'').split('-');

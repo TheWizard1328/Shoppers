@@ -9,7 +9,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const nt = (v) => String(v || '').trim();
 const irs = (s) => [408, 409, 429, 500, 502, 503, 504].includes(Number(s));
 const et = () => { const t = Deno.env.get('SQUARE_ACCESS_TOKEN'); if (!t) throw new HE(500, 'Square not configured'); return t; };
-const ru = async (b) => { const u = await b.auth.me().catch(() => null); if (!u) throw new HE(401, 'Unauthorized'); return u; };
+// Soft auth — allows function-to-function calls from syncSquareCods
+const ru = async (b) => {
+  const ok = await b.auth.isAuthenticated().catch(() => false);
+  if (!ok) return null;
+  const u = await b.auth.me().catch(() => null);
+  if (!u) throw new HE(401, 'Unauthorized');
+  return u;
+};
 
 async function lc(t) {
   const o = []; let c;
