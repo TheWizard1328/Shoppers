@@ -98,12 +98,21 @@ class BackgroundSyncManager {
 
   /**
    * Resume background syncs
+   * CRITICAL: Clear any existing timeout and schedule a fresh sync immediately.
+   * The old code only scheduled if !currentSyncInterval, which meant if a timeout
+   * was already pending (set before the pause), resume would NOT schedule a new one.
+   * With a 60-minute default interval, this meant the next sync could be up to
+   * 60 minutes after resume — leaving the manager effectively "paused" to the user.
    */
   resume() {
     console.log('▶️ [BackgroundSync] Resumed');
     this.isPaused = false;
 
-    if (this.isRunning && !this.currentSyncInterval) {
+    if (this.isRunning) {
+      if (this.currentSyncInterval) {
+        clearTimeout(this.currentSyncInterval);
+        this.currentSyncInterval = null;
+      }
       this.scheduleNextSync();
     }
   }

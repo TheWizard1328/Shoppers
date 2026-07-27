@@ -245,22 +245,19 @@ export default function ResetPolylinesButton({
               console.warn(`[ResetPolylinesButton] Could not fetch driver home coords for ${driverId}:`, err);
             }
 
-            const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
+            const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
+            const coordResult = await performRouteOptimization({
               driverId,
               deliveryDate: selectedDate,
+              currentLocation: homePosition,
               orderedDeliveryIds: orderedStopIds,
-              currentPosition: homePosition,
-              forceHomeOrigin: true,        // Always use driver home as absolute route origin for FAB regeneration
-              bypassPolylineUpdated: true,  // Force-regen: pre-nulls polyline fields in-memory so
-                                            // bulkUpdateDeliveries change-detection never skips stops
-                                            // that already have PolylineUpdated=true or a matching polyline value
-              bypassDriverStatus: true,     // FAB is a manual admin action — must run regardless of driver's
-                                            // current shift status (off_duty, unavailable, etc.)
-              ...(forceDrivingMode ? { forceTransportMode: 'driving' } : {})
+              preserveExistingOrder: true,
+              bypassDriverStatus: true,
+              source: 'reset_polylines_button',
             });
-            result = response?.data || response || {};
+            result = { success: coordResult?.success !== false };
             if (!result.success) {
-              throw new Error(result.error || 'Polyline regeneration failed');
+              throw new Error(coordResult?.error || 'Polyline regeneration failed');
             }
           }
 
