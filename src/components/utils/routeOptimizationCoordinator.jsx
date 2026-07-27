@@ -18,6 +18,7 @@ import { invalidate } from '@/components/utils/dataManager';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { getOrFetchHereApiKey } from '@/components/utils/hereApiKeyStore';
 import { optimizeRouteClientSide } from '@/components/utils/clientRouteEngine';
+import { recalculateTrackingNumbersLocal } from '@/components/utils/recalculateTrackingNumbersLocal';
 
 /**
  * Core route optimization engine (client-side).
@@ -44,6 +45,7 @@ import { optimizeRouteClientSide } from '@/components/utils/clientRouteEngine';
  * @param {Object}  [params.drivingOrigin]
  * @param {string[]} [params.excludeStopIds]
  * @param {number}  [params.startingStopOrder]
+ * @param {boolean} [params.recalcTrackingNumbers=false] — When true, recalculate TR#s into writeBatch before bulk DB write (Accept All only)
  * @returns {Promise<{success: boolean, optimizeData?: Object, freshDeliveries?: Array, orderedDeliveryIds?: string[], error?: string}>}
  */
 export async function performRouteOptimization({
@@ -68,6 +70,7 @@ export async function performRouteOptimization({
   drivingOrigin = null,
   excludeStopIds = [],
   startingStopOrder = null,
+  recalcTrackingNumbers = false,
 }) {
   if (!driverId || !deliveryDate) {
     console.warn(`[RouteOptimization] ${source} — missing driverId or deliveryDate`);
@@ -226,13 +229,52 @@ export async function performRouteOptimization({
 
       optimizeData = engineResult;
 
+      // ── Step 1b: Recalculate tracking numbers into writeBatch (Accept All only) ─
+      // Runs AFTER the engine assigns stop_order but BEFORE the bulk DB write,
+      // so TR#s and stop_order are written atomically in a single bulkUpdateDeliveries
+      // call. This eliminates the race where stop_order is written first and a
+      // separate TR# write follows seconds later (or times out).
+      if (recalcTrackingNumbers && optimizeData?.writeBatch?.length > 0) {
+        try {
+          // Merge stop_order from writeBatch back into resolvedDeliveries so the
+          // TR# calculator sees the post-optimization order.
+          const _stopOrderMap = new Map(optimizeData.writeBatch.map(w => [w.id, w.data?.stop_order]));
+          const _trSource = (resolvedDeliveries || []).map(d => {
+            const newOrder = _stopOrderMap.get(d.id);
+            return newOrder != null ? { ...d, stop_order: newOrder } : d;
+          });
+          const _trUpdates = recalculateTrackingNumbersLocal({
+            deliveries: _trSource,
+            stores: stores || [],
+            patients: patients || [],
+          });
+          if (_trUpdates.length > 0) {
+            const _trMap = new Map(_trUpdates.map(u => [u.id, u.tracking_number]));
+            let _patched = 0;
+            for (const w of optimizeData.writeBatch) {
+              const tr = _trMap.get(w.id);
+              if (tr != null) { w.data.tracking_number = tr; _patched++; }
+            }
+            // Also patch resolvedDeliveries so freshDeliveries gets correct TR#s
+            for (let i = 0; i < (resolvedDeliveries || []).length; i++) {
+              const tr = _trMap.get(resolvedDeliveries[i]?.id);
+              if (tr != null) resolvedDeliveries[i].tracking_number = tr;
+            }
+            console.log(`[RouteOptimization] ${source} — TR# recalculated: ${_trUpdates.length} computed, ${_patched} merged into writeBatch (atomic with stop_order)`);
+          }
+        } catch (_trErr) {
+          console.warn(`[RouteOptimization] ${source} — TR# recalculation failed (non-fatal):`, _trErr?.message || _trErr);
+        }
+      }
+
       // ── Step 2: Write results to backend DB via single bulk call ─────────
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('routeOptimizationPhase', { detail: { source, driverId, deliveryDate, phase: 'polylines' } }));
       }
       if (optimizeData?.writeBatch && optimizeData.writeBatch.length > 0) {
         const _polyWrites = optimizeData.writeBatch.filter(w => w.data?.encoded_polyline != null).length;
-        console.log(`[RouteOptimization] ${source} — bulk-writing ${optimizeData.writeBatch.length} updates (${_polyWrites} with polylines)`);
+        const _trWrites = optimizeData.writeBatch.filter(w => w.data?.tracking_number != null).length;
+        console.log(`[RouteOptimization] ${source} — bulk-writing ${optimizeData.writeBatch.length} updates (${_polyWrites} with polylines, ${_trWrites} with TR#)`);
         try {
           await base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch });
         } catch (e) {

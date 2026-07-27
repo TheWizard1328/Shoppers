@@ -575,6 +575,7 @@ export default function useStopCardActions(params) {
           appUsers,
           source: 'accept_all',
           bypassDriverStatus: true,
+          recalcTrackingNumbers: true,
         }).catch((err) => {
           console.error('❌ [AcceptAll] performRouteOptimization THREW:', err?.message || err);
           return null;
@@ -637,31 +638,11 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
       }
 
-      // STEP 4: Recalculate tracking numbers LOCALLY — no server round-trip.
-      // The optimizer already set stop_order for in_transit stops, and we have
-      // stores + patients in memory. This replaces the backend recalculateTrackingNumbers
-      // function that was causing 30s timeouts, stale data races (server DB lag), and
-      // an unnecessary forceRefreshDriverDeliveries re-fetch.
-      try {
-        const trSource = optimizedDeliveries.length > 0 ? optimizedDeliveries : _acceptAllFullDeliveries;
-        const trUpdates = recalculateTrackingNumbersLocal({
-          deliveries: trSource,
-          stores,
-          patients,
-        });
-        if (trUpdates.length > 0) {
-          console.log(`[AcceptAll] Recalculated ${trUpdates.length} tracking numbers locally`);
-          await applyTrackingNumberUpdates({
-            updates: trUpdates,
-            allDeliveries: trSource,
-            updateDeliveriesLocally,
-            updateDeliveryLocal,
-          });
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllTRRecalc', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: trSource, trustIsNextDelivery: true } }));
-        }
-      } catch (trErr) {
-        console.warn('[AcceptAll] Local tracking number recalculation failed:', trErr?.message || trErr);
-      }
+      // TR# recalculation is now integrated into the optimization pipeline itself
+      // (recalcTrackingNumbers: true passed to performRouteOptimization). The
+      // coordinator merges TR#s into the same writeBatch as stop_order, so both
+      // are written atomically via a single bulkUpdateDeliveries call. No separate
+      // step needed here — freshDeliveries already has correct TR#s.
 
       window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'accept_all_button' } }));
 
