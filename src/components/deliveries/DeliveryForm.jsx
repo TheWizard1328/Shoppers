@@ -382,8 +382,9 @@ export default function DeliveryForm({
       if (event?.type === 'delete') return onCancel?.();
       const d = event?.data; if (!d) return;
       const livePatient = delivery.patient_id ? patients?.find((p) => p && p.id === delivery.patient_id) : null;
-      const canonicalTimeStart = d.delivery_time_start || livePatient?.time_window_start || '';
-      const canonicalTimeEnd = d.delivery_time_end || livePatient?.time_window_end || '';
+      const isTransitioned = ['in_transit', 'en_route', 'completed', 'failed', 'cancelled'].includes(d.status);
+      const canonicalTimeStart = d.delivery_time_start || (!isTransitioned ? livePatient?.time_window_start : '') || '';
+      const canonicalTimeEnd = d.delivery_time_end || (!isTransitioned ? livePatient?.time_window_end : '') || '';
       setFormData(prev => ({ ...prev, delivery_date: d.delivery_date || prev.delivery_date, delivery_time_start: canonicalTimeStart, delivery_time_end: canonicalTimeEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time || '', actual_delivery_time: d.actual_delivery_time || '', status: d.status || prev.status, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null }));
       if (d.actual_delivery_time && !Number.isNaN(new Date(d.actual_delivery_time).getTime())) setCompletionTime(format(new Date(d.actual_delivery_time), 'HH:mm'));
     });
@@ -405,7 +406,7 @@ export default function DeliveryForm({
       }
       setFormData({
         patient_id: delivery.patient_id || "", delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
-        delivery_time_start: delivery.delivery_time_start || patient?.time_window_start || "", delivery_time_end: delivery.delivery_time_end || patient?.time_window_end || "",
+        delivery_time_start: delivery.delivery_time_start || (!['in_transit', 'en_route', 'completed', 'failed', 'cancelled'].includes(delivery.status) ? patient?.time_window_start : "") || "", delivery_time_end: delivery.delivery_time_end || (!['in_transit', 'en_route', 'completed', 'failed', 'cancelled'].includes(delivery.status) ? patient?.time_window_end : "") || "", 
         arrival_time: delivery.arrival_time ? (delivery.arrival_time.includes('T') ? delivery.arrival_time.substring(11, 16) : delivery.arrival_time) : "",
         time_window_start: patient?.time_window_start || delivery.time_window_start || "", time_window_end: patient?.time_window_end || delivery.time_window_end || "",
         status: delivery.status || "Ready For Pickup", driver_name: delivery.driver_name || "", driver_id: delivery.driver_id || "",

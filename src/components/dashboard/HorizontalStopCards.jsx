@@ -313,7 +313,9 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   // Dashboard ordering:
   // - All Drivers mode: sort by actual_delivery_time (most recent first), then arrival_time, then stop_order
-  // - Single driver mode: follow stop_order, with pending stops last
+  // - Single driver mode: finished stops first (by actual_delivery_time), then incomplete by stop_order/ETA,
+  //   then pending last. This prevents finished/incomplete mixing even if stop_order values overlap.
+  const FINISHED_DISPLAY = ['completed', 'failed', 'cancelled'];
   const sortedPickupCards = [...validCards].sort((a, b) => {
     if (!a || !b) return 0;
 
@@ -326,7 +328,21 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       return 0;
     }
 
-    // Cycling markers are positional anchors — never treat as "pending push to end"
+    // Single driver mode: separate finished from incomplete to prevent mixing
+    const aFinished = FINISHED_DISPLAY.includes(a.status);
+    const bFinished = FINISHED_DISPLAY.includes(b.status);
+    if (aFinished && !bFinished) return -1;
+    if (!aFinished && bFinished) return 1;
+
+    // Both finished: sort by actual_delivery_time, fallback to stop_order
+    if (aFinished && bFinished) {
+      const ta = Date.parse(a.actual_delivery_time || '') || Infinity;
+      const tb = Date.parse(b.actual_delivery_time || '') || Infinity;
+      if (ta !== tb) return ta - tb;
+      return (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0);
+    }
+
+    // Both incomplete: pending last, then by stop_order, then ETA
     const isACycling = !!a.is_cycling_marker;
     const isBCycling = !!b.is_cycling_marker;
     const isAPending = a.status === 'pending' && !isACycling;
