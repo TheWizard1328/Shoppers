@@ -46,6 +46,7 @@ import { recalculateTrackingNumbersLocal } from '@/components/utils/recalculateT
  * @param {string[]} [params.excludeStopIds]
  * @param {number}  [params.startingStopOrder]
  * @param {boolean} [params.recalcTrackingNumbers=false] — When true, recalculate TR#s into writeBatch before bulk DB write (Accept All only)
+ * @param {string}  [params.recalcTrackingStoreId=null] — When set, only write TR#s for deliveries matching this store_id (prevents overwriting other stores' TR#s). All deliveries are still passed to the calculator for collision detection.
  * @returns {Promise<{success: boolean, optimizeData?: Object, freshDeliveries?: Array, orderedDeliveryIds?: string[], error?: string}>}
  */
 export async function performRouteOptimization({
@@ -243,24 +244,44 @@ export async function performRouteOptimization({
             const newOrder = _stopOrderMap.get(d.id);
             return newOrder != null ? { ...d, stop_order: newOrder } : d;
           });
-          const _trUpdates = recalculateTrackingNumbersLocal({
+          // Compute TR#s using ALL deliveries (need full view for pickup base collision
+          // detection — store A gets base 00, store B gets base 20, etc.)
+          const _allTrUpdates = recalculateTrackingNumbersLocal({
             deliveries: _trSource,
             stores: stores || [],
             patients: patients || [],
           });
-          if (_trUpdates.length > 0) {
-            const _trMap = new Map(_trUpdates.map(u => [u.id, u.tracking_number]));
+          if (_allTrUpdates.length > 0) {
+            // Only WRITE TR#s for deliveries matching recalcTrackingStoreId (if set).
+            // Other stores' TR#s are computed for collision detection but not written.
+            const _trMap = new Map(_allTrUpdates.map(u => [u.id, u.tracking_number]));
             let _patched = 0;
+            let _skipped = 0;
             for (const w of optimizeData.writeBatch) {
               const tr = _trMap.get(w.id);
-              if (tr != null) { w.data.tracking_number = tr; _patched++; }
+              if (tr != null) {
+                // If store-scoped, check the delivery's store_id
+                if (recalcTrackingStoreId) {
+                  const _d = (resolvedDeliveries || []).find(d => d?.id === w.id);
+                  if (_d && _d.store_id !== recalcTrackingStoreId) {
+                    _skipped++;
+                    continue; // Don't write TR#s for other stores
+                  }
+                }
+                w.data.tracking_number = tr;
+                _patched++;
+              }
             }
-            // Also patch resolvedDeliveries so freshDeliveries gets correct TR#s
+            // Patch resolvedDeliveries — but only for the scoped store
             for (let i = 0; i < (resolvedDeliveries || []).length; i++) {
-              const tr = _trMap.get(resolvedDeliveries[i]?.id);
-              if (tr != null) resolvedDeliveries[i].tracking_number = tr;
+              const d = resolvedDeliveries[i];
+              if (!d?.id) continue;
+              const tr = _trMap.get(d.id);
+              if (tr == null) continue;
+              if (recalcTrackingStoreId && d.store_id !== recalcTrackingStoreId) continue;
+              resolvedDeliveries[i].tracking_number = tr;
             }
-            console.log(`[RouteOptimization] ${source} — TR# recalculated: ${_trUpdates.length} computed, ${_patched} merged into writeBatch (atomic with stop_order)`);
+            console.log(`[RouteOptimization] ${source} — TR# recalculated: ${_allTrUpdates.length} computed, ${_patched} merged into writeBatch${_skipped > 0 ? `, ${_skipped} skipped (other stores)` : ''} (atomic with stop_order)`);
           }
         } catch (_trErr) {
           console.warn(`[RouteOptimization] ${source} — TR# recalculation failed (non-fatal):`, _trErr?.message || _trErr);

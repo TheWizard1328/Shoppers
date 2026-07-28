@@ -388,7 +388,7 @@ export default function useStopCardActions(params) {
       ].filter(Boolean));
 
       // Suppress WebSocket echoes for 5 minutes for all transitioned deliveries
-      const ECHO_EXPIRY = Date.now() + 5 * 60 * 1000;
+      const ECHO_EXPIRY = Date.now() + 30 * 1000;  // 30s — enough for WS round-trip, not so long it blocks legitimate remote updates
       if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
       for (const id of transitionedIds) window.__localDeliveryWrites.set(id, ECHO_EXPIRY);
 
@@ -478,7 +478,8 @@ export default function useStopCardActions(params) {
           appUsers,
           source: 'accept_all',
           bypassDriverStatus: true,
-          recalcTrackingNumbers: false,  // TR# handled in STEP 5 below, after we have stop_order
+          recalcTrackingNumbers: true,   // TR# computed inside coordinator, merged atomically with stop_order
+          recalcTrackingStoreId: delivery.store_id,  // Only WRITE TR#s for this store — see all for collision detection
         }).catch(err => { console.error('❌ [AcceptAll] optimizer threw:', err?.message || err); return null; }),
         new Promise(resolve => setTimeout(() => {
           console.error('⏱️ [AcceptAll] optimizer timed out after 90s');
@@ -492,52 +493,16 @@ export default function useStopCardActions(params) {
         toast.error('Route optimization encountered an error. Stop order may not be optimized.');
       }
 
-      // ── STEP 5: Recalculate TR#s scoped to this store's deliveries only ──────
-      // Use the fresh deliveries that the coordinator returned (which have stop_order set).
-      // CRITICAL: scope to this store only — do NOT touch other stores' TR#s.
+      // ── STEP 5: TR#s already handled by coordinator (recalcTrackingNumbers: true) ──
+      // The coordinator merged TR#s into the same bulkUpdateDeliveries write as stop_order —
+      // atomic, no race, no separate server round-trip. freshDeliveries already has correct TR#s.
       const optimizedDeliveries = Array.isArray(coordResult?.freshDeliveries) ? coordResult.freshDeliveries : [];
-      const allDeliveriesWithOptimized = optimizedDeliveries.length > 0
+      const finalDeliveries = optimizedDeliveries.length > 0
         ? (() => {
             const optMap = new Map(optimizedDeliveries.map(d => [d.id, d]));
             return (fullDeliveriesForOptimizer || []).map(d => optMap.get(d?.id) || d);
           })()
         : fullDeliveriesForOptimizer;
-
-      // Only recalculate TR#s for deliveries belonging to THIS store's pickup chain
-      const thisStoreDeliveries = (allDeliveriesWithOptimized || []).filter(
-        d => d && d.store_id === delivery.store_id && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-      );
-      // Get all other stores' deliveries — these are FROZEN, we must not touch their TR#s
-      const otherStoreDeliveries = (allDeliveriesWithOptimized || []).filter(
-        d => d && !(d.store_id === delivery.store_id && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date)
-      );
-
-      // Recalc only within this store's scope
-      const trUpdates = recalculateTrackingNumbersLocal({
-        deliveries: thisStoreDeliveries,
-        stores: stores || [],
-        patients: patients || [],
-      });
-
-      let finalDeliveries = allDeliveriesWithOptimized;
-      if (trUpdates.length > 0) {
-        const trMap = new Map(trUpdates.map(u => [u.id, u.tracking_number]));
-        finalDeliveries = (allDeliveriesWithOptimized || []).map(d => {
-          if (!d?.id) return d;
-          const newTR = trMap.get(d.id);
-          return newTR != null ? { ...d, tracking_number: newTR } : d;
-        });
-
-        // Write TR# updates to IDB + server (non-blocking)
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        const trDeliveries = trUpdates.map(u => finalDeliveries.find(d => d?.id === u.id)).filter(Boolean);
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, trDeliveries).catch(() => {});
-        // Server writes for TR#s (fire-and-forget)
-        Promise.all(trUpdates.map(u =>
-          base44.entities.Delivery.update(u.id, { tracking_number: u.tracking_number }).catch(() => {})
-        ));
-        console.log(`[AcceptAll] TR# recalculated: ${trUpdates.length} stops updated (store ${delivery.store_id} scope only)`);
-      }
 
       // ── STEP 6: In-app message + push notification with updated TR#s ─────────
       try {
