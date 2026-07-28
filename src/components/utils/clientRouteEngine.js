@@ -534,6 +534,13 @@ export async function optimizeRouteClientSide({
   // Resolve InterStore (ISP/ISD) coordinates from the in-memory InterStoreLocation cache.
   // The cache is populated during bootstrap sync and indexed by phone digits.
   // Map: _interstore_source_id (ISP) or _interstore_dest_id (ISD) → { lat, lon }
+  // Import the entity-ID fallback lookup ONCE before the loop to avoid per-iteration dynamic imports.
+  let _getInterStoreLocationByEntityId = null;
+  try {
+    const mod = await import('./interStoreDisplayName');
+    _getInterStoreLocationByEntityId = mod.getInterStoreLocationByEntityId || null;
+  } catch { /* non-fatal */ }
+
   const ispSourceMap = new Map();
   for (const d of allDeliveries) {
     if (d.patient_id) continue;
@@ -555,12 +562,10 @@ export async function optimizeRouteClientSide({
       }
     }
     // 2. Fallback: look up InterStoreLocation directly by entity ID stored on the delivery.
-    // This handles fresh ISP/ISD records created before the location cache was populated
-    // (e.g. first use of a location, or cold start with empty locationCache).
-    try {
-      const { getInterStoreLocationByEntityId } = await import('./interStoreDisplayName');
-      if (getInterStoreLocationByEntityId) {
-        const loc = await getInterStoreLocationByEntityId(keyId);
+    // getInterStoreLocationByEntityId is imported once outside the loop (see below).
+    if (_getInterStoreLocationByEntityId) {
+      try {
+        const loc = await _getInterStoreLocationByEntityId(keyId);
         if (loc) {
           const lat = Number(loc.store_latitude);
           const lon = Number(loc.store_longitude);
@@ -568,8 +573,8 @@ export async function optimizeRouteClientSide({
             ispSourceMap.set(keyId, { store_latitude: lat, store_longitude: lon });
           }
         }
-      }
-    } catch { /* non-fatal */ }
+      } catch { /* non-fatal */ }
+    }
   }
 
   // Build pickup window lookup
@@ -618,17 +623,10 @@ export async function optimizeRouteClientSide({
     console.log(`[clientRouteEngine] ${source} — ${stops.length} stops resolved with valid coords`);
   }
 
-  // ── Future route light mode ──────────────────────────────────────────────
+  // ── Route date classification ────────────────────────────────────────────
   const historicalRoute = isHistoricalRouteDate(deliveryDate);
   const isFutureRoute = !historicalRoute && deliveryDate > getEdmontonTodayDateString();
   const routeOfficiallyStarted = completedDeliveries.length > 0;
-
-  if (isFutureRoute && !routeOfficiallyStarted) {
-    return _handleFutureRoute({
-      optimizableDeliveries, stops, storeMap, patientMap, deliveryDate,
-      startingStopOrder, completedDeliveries, currentMinutes, source
-    });
-  }
 
   // ── Determine current position (origin) ───────────────────────────────────
   const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
@@ -1016,9 +1014,19 @@ export async function optimizeRouteClientSide({
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
+    // Polyline origin must NEVER be a pending stop's coords.
+    // Priority: last finished stop → driver GPS → home → first active stop coords.
+    const firstActiveStopCoords = activeRouteStops.length > 0
+      ? { lat: activeRouteStops[0].lat, lon: activeRouteStops[0].lng }
+      : null;
+    const driverGpsForPolyline = (_driverAppUser?.current_latitude != null && _driverAppUser?.current_longitude != null)
+      ? { lat: Number(_driverAppUser.current_latitude), lon: Number(_driverAppUser.current_longitude) }
+      : null;
     const polylineOrigin = (() => {
       if (latestFinishedCoords) return { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng };
+      if (driverGpsForPolyline) return driverGpsForPolyline;
       if (resolvedHomePosition) return { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng };
+      if (firstActiveStopCoords) return firstActiveStopCoords;
       return { lat: currentPosition.lat, lon: currentPosition.lng };
     })();
     console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'currentPos'}`);
@@ -1075,8 +1083,10 @@ export async function optimizeRouteClientSide({
     );
 
     // Map sections back to each stop
+    // Use routeStops index (not activeRouteStops index) for directionsLegs so pending
+    // stops interleaved in the full route don't cause off-by-one leg assignments.
     for (const { group, sections } of groupResults) {
-      group.stops.forEach(({ stopIndex, stop }, groupLocalIndex) => {
+      group.stops.forEach(({ stop }, groupLocalIndex) => {
         const section = sections[groupLocalIndex] || null;
         segmentPolylineByDeliveryId.set(stop.delivery.id, {
           deliveryId: stop.delivery.id,
@@ -1084,16 +1094,18 @@ export async function optimizeRouteClientSide({
           estimatedDistanceKm: section?.estimated_distance_km ?? null,
           estimatedDurationMinutes: section?.estimated_duration_minutes ?? null
         });
-        // Re-sync directionsLegs with actual HERE routing durations
+        // Re-sync directionsLegs using the stop's position in routeStops (full list)
         if (section?.estimated_duration_minutes && Number(section.estimated_duration_minutes) > 0) {
-          const routeStopIdx = routeStops.indexOf(stop);
-          directionsLegs[routeStopIdx] = {
-            ...directionsLegs[routeStopIdx],
-            duration: Number(section.estimated_duration_minutes) * 60,
-            distance: section.estimated_distance_km
-              ? Number(section.estimated_distance_km) * 1000
-              : directionsLegs[routeStopIdx]?.distance
-          };
+          const routeStopIdx = routeStops.findIndex(s => s.delivery.id === stop.delivery.id);
+          if (routeStopIdx !== -1) {
+            directionsLegs[routeStopIdx] = {
+              ...directionsLegs[routeStopIdx],
+              duration: Number(section.estimated_duration_minutes) * 60,
+              distance: section.estimated_distance_km
+                ? Number(section.estimated_distance_km) * 1000
+                : directionsLegs[routeStopIdx]?.distance
+            };
+          }
         }
       });
     }
@@ -1442,13 +1454,18 @@ function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliv
     return { id: delivery.id, data: updateData };
   });
 
+  // ── No polylines for future/not-started routes ────────────────────────────
+  // All stops are pending (route hasn't started). Pending stops never get polylines.
+  // The main engine's active-stops filter enforces the same rule for today's routes.
+  console.log(`[clientRouteEngine] ${source} — future route: skipping polylines (all stops are pending)`);
+
   return {
     success: true, driverId: null, deliveryDate,
     routeChanged: true, optimizedCount: writeBatch.length,
     locationSource: 'future_schedule', usedTimeWindows: true, usedFallbackOrdering: false,
     preserveExistingOrder: false, shouldRefreshPolylines: true,
     orderedDeliveryIds: writeBatch.map(w => w.id),
-    optimizedRoute: writeBatch.map((w, i) => ({ deliveryId: w.id, newETA: w.data.delivery_time_eta, stop_order: startOrder + i + 1, isNextDelivery: i === 0 })),
+    optimizedRoute: writeBatch.map((w, i) => ({ deliveryId: w.id, newETA: w.data.delivery_time_eta, stop_order: startOrder + i + 1, isNextDelivery: i === 0, encoded_polyline: w.data.encoded_polyline || null })),
     writeBatch
   };
 }

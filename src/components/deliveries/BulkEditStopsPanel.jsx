@@ -8,6 +8,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, Dr
 import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
 import { userHasRole } from "@/components/utils/userRoles";
 import { useAppData } from "@/components/utils/AppDataContext";
+import { Checkbox } from "@/components/ui/checkbox";
 import { X, Car, Bike } from "lucide-react";
 
 const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
@@ -94,6 +95,8 @@ function TravelModeButtons({ value, onChange, disabled, isMixed = false }) {
 function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, patients, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues, hasMixedPuids, selectedDeliveries }) {
   const isAdmin = userHasRole(currentUser, "admin");
   const isDriver = userHasRole(currentUser, "driver");
+  // Only show After Hours when ALL selected stops are pickups (no patient_id)
+  const allPickups = selectedDeliveries.length > 0 && selectedDeliveries.every(d => !d?.patient_id);
   const isMixedTravelMode = initialValues.travelModeChoice === "mixed" && values.travelModeChoice === "mixed";
   const effectiveDriverId = values.driverChoice !== "unchanged" && values.driverChoice !== "unassigned" ? values.driverChoice : null;
   const changedFieldStyle = { background: '#fef3c7', borderColor: '#f59e0b' };
@@ -417,13 +420,27 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
       </div>
 
       <div className="border-t px-4 py-2" style={{ borderColor: "var(--border-slate-200)" }}>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={!hasChanges || isSaving}>
-            {isSaving ? "Updating..." : "Apply to Selected Stops"}
-          </Button>
+        <div className="flex items-center gap-3">
+          {allPickups && (
+            <label className="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
+              <Checkbox
+                checked={values.after_hours_pickup === true}
+                onCheckedChange={(checked) => setValues(current => ({ ...current, after_hours_pickup: !!checked }))}
+                disabled={isSaving}
+                className="mt-0.5 shrink-0" />
+              <span className="text-xs font-medium leading-tight" style={{ color: "var(--text-slate-700)" }}>
+                After Hours
+              </span>
+            </label>
+          )}
+          <div className="flex gap-2 ml-auto shrink-0">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!hasChanges || isSaving}>
+              {isSaving ? "Updating..." : "Apply to Selected Stops"}
+            </Button>
+          </div>
         </div>
       </div>
     </form>);
@@ -490,7 +507,10 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     })(),
     storeChoice: "unchanged",
     ampmChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.ampm_deliveries, "unchanged"),
-    puid: hasMixedPuids ? "" : getSharedValue(selectedDeliveries, (delivery) => delivery?.puid, "")
+    puid: hasMixedPuids ? "" : getSharedValue(selectedDeliveries, (delivery) => delivery?.puid, ""),
+    after_hours_pickup: selectedDeliveries.every(d => !d?.patient_id)
+      ? (selectedDeliveries.every(d => d?.after_hours_pickup === true) ? true : false)
+      : undefined,
   }), [selectedDeliveries, hasMixedPuids, hasTerminalStatus, allSameStore]);
 
   const [values, setValues] = useState(initialValues);

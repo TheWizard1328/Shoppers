@@ -107,7 +107,8 @@ class BackgroundSyncManager {
   resume() {
     console.log('▶️ [BackgroundSync] Resumed');
     this.isPaused = false;
-
+    // Always clear pause regardless of isRunning state — if the manager isn't
+    // running yet, the pause flag is still correctly cleared for when it does start.
     if (this.isRunning) {
       if (this.currentSyncInterval) {
         clearTimeout(this.currentSyncInterval);

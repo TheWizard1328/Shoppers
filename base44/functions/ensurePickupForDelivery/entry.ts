@@ -243,38 +243,7 @@ Deno.serve(async (req) => {
       return updated || { ...pickup, delivery_time_start: newStart, delivery_time_end: newEnd, delivery_time_eta: newStart };
     };
 
-    // Helper: trigger polyline regen for a reused pickup that had stale times updated,
-    // passing forcedPickupId so the corrected times are written AFTER all ETA recalc.
-    const triggerRegenForReusedPickup = (pickup, updatedPickup) => {
-      // Only trigger if times were actually changed (maybeUpdatePickupTimes returns original if no change)
-      const timesChanged = updatedPickup?.delivery_time_start !== pickup?.delivery_time_start ||
-                           updatedPickup?.delivery_time_end !== pickup?.delivery_time_end;
-      if (!timesChanged || !updatedPickup?.id) return;
-      const forcedStart = updatedPickup.delivery_time_start;
-      const forcedEnd = updatedPickup.delivery_time_end;
-      base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order', 50000).then(allDels => {
-        const orderedDeliveryIds = (allDels || [])
-          .filter(d => d?.id)
-          .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0))
-          .map(d => d.id);
-        const nowEdmRegen = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Edmonton' }));
-        const nowStr = `${String(nowEdmRegen.getHours()).padStart(2,'0')}:${String(nowEdmRegen.getMinutes()).padStart(2,'0')}`;
-        return base44.functions.invoke('purgeAndRegeneratePolylines', {
-          driverId,
-          deliveryDate,
-          orderedDeliveryIds,
-          bypassDriverStatus: true,
-          recalculateEtas: true,
-          completionTime: nowStr,
-          forcedPickupId: updatedPickup.id,
-          forcedPickupTimeStart: forcedStart,
-          forcedPickupTimeEnd: forcedEnd,
-        });
-      }).catch((err) => console.warn('[ensurePickupForDelivery] reused pickup regen failed:', err?.message));
-    };
+    // Polyline regen for reused pickups is handled client-side — no backend call needed.
 
     if (!skipReuseCheck) {
       let enRoutePickup = storePickups.find((pickup) => pickup.status === 'en_route' && (pickup.ampm_deliveries || 'AM') === primarySlot);
@@ -287,7 +256,6 @@ Deno.serve(async (req) => {
         if (!pickupWithDriverName) {
           return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
         }
-        triggerRegenForReusedPickup(enRoutePickup, updated);
         return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
       }
 
@@ -332,7 +300,6 @@ Deno.serve(async (req) => {
         if (!pickupWithDriverName) {
           return Response.json({ puid: null, pickupId: null, isNew: false, skipAutoCreate: true, skipped: true, reason: 'pickup_not_found_during_driver_name_update' });
         }
-        triggerRegenForReusedPickup(targetPickup, updated);
         return Response.json({ puid: pickupWithDriverName.stop_id, pickupId: pickupWithDriverName.id, isNew: false, pickup: pickupWithDriverName });
       }
     }
@@ -411,8 +378,10 @@ Deno.serve(async (req) => {
     const hasHome = homeLat != null && homeLon != null && Number.isFinite(homeLat) && Number.isFinite(homeLon) && !(homeLat === 0 && homeLon === 0);
 
     // Determine after_hours_pickup flag:
-    // - driver is not the scheduled driver for this store/slot (checking override first, then store default)
-    // - OR the route already has active/completed stops (after-route addition)
+    // Rule 1: Driver is not the scheduled/default driver for this store + AM/PM slot → always after_hours.
+    // Rule 2: Driver IS the scheduled driver BUT has already completed/started a pickup for this
+    //         same store + slot earlier today → the new pickup is a second run → after_hours.
+    // Rule 3: Driver IS the scheduled driver and no prior activity exists for this store + slot → NOT after_hours.
     const getEffectiveScheduledDriverId = (slot) => {
       const override = (dateOverrides || []).find((o) => o.store_id === storeId && o.slot_key === `${dow === 6 ? 'saturday' : dow === 0 ? 'sunday' : 'weekday'}_${slot === 'PM' ? 'pm' : 'am'}`);
       if (override) return override.driver_id;
@@ -423,8 +392,14 @@ Deno.serve(async (req) => {
     };
     const scheduledDriverId = getEffectiveScheduledDriverId(chosenSlot);
     const driverNotScheduled = !scheduledDriverId || scheduledDriverId === '__booked_off__' || String(scheduledDriverId) !== String(driverId);
-    const routeHasActiveStops = (allPickups || []).some(d => ['en_route', 'in_transit', 'completed', 'failed', 'cancelled'].includes(d?.status));
-    const afterHoursPickup = driverNotScheduled || routeHasActiveStops;
+    // Check if there is already any pickup activity for this driver at this store in this slot
+    const hasExistingSlotActivity = (allPickups || []).some(d =>
+      d.store_id === storeId &&
+      (d.ampm_deliveries || 'AM') === chosenSlot &&
+      d.driver_id === driverId &&
+      ['en_route', 'in_transit', 'completed', 'failed', 'cancelled'].includes(d?.status)
+    );
+    const afterHoursPickup = driverNotScheduled || hasExistingSlotActivity;
 
     const newPickup = await base44.asServiceRole.entities.Delivery.create({
       stop_id: puid,
@@ -448,39 +423,9 @@ Deno.serve(async (req) => {
 
     const normalizedPickup = await normalizePickupPuid(base44, newPickup);
 
-    // Trigger polyline regeneration after creating a new pickup.
-    // If all previous stops were finished (after-route pickup), pass recalculateEtas=true
-    // with completionTime = now so ETAs are computed from the current time, not the old window.
-    const nowEdmForRegen = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Edmonton' }));
-    const nowHH = String(nowEdmForRegen.getHours()).padStart(2, '0');
-    const nowMM = String(nowEdmForRegen.getMinutes()).padStart(2, '0');
-    const currentTimeStr = `${nowHH}:${nowMM}`;
-
-    // Compute forced ETA fields for after-route pickups so polyline regen can apply them last
-    const forcedPickupStart = allExistingFinished ? (normalizedPickup?.delivery_time_start || newPickup.delivery_time_start) : null;
-    const forcedPickupEnd = allExistingFinished ? (normalizedPickup?.delivery_time_end || newPickup.delivery_time_end) : null;
-
-    base44.asServiceRole.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    }, 'stop_order', 50000).then(allDels => {
-      const orderedDeliveryIds = (allDels || [])
-        .filter(d => d?.id)
-        .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0))
-        .map(d => d.id);
-      return base44.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId,
-        deliveryDate,
-        orderedDeliveryIds,
-        bypassDriverStatus: true,
-        recalculateEtas: allExistingFinished,
-        completionTime: allExistingFinished ? currentTimeStr : null,
-        // Force-apply these times to the pickup AFTER all ETA writes, so polyline regen can't overwrite them
-        forcedPickupId: allExistingFinished ? (normalizedPickup?.id || newPickup.id) : null,
-        forcedPickupTimeStart: forcedPickupStart,
-        forcedPickupTimeEnd: forcedPickupEnd,
-      });
-    }).catch((err) => console.warn('[ensurePickupForDelivery] polyline regen failed:', err.message));
+    // Polyline regeneration is handled client-side by the route optimization coordinator.
+    // purgeAndRegeneratePolylines has been removed — the client triggers a fresh optimization
+    // after receiving the new pickup record via WebSocket/data refresh.
 
     return Response.json({ puid, pickupId: normalizedPickup?.id || newPickup.id, isNew: true, pickup: normalizedPickup || newPickup });
   } catch (error) {

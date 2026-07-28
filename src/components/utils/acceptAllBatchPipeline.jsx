@@ -4,12 +4,8 @@
  * transitions all pending deliveries for the same store/driver/date to in_transit,
  * persists them offline, and returns data for downstream steps (COD sync, optimization).
  */
-import { updateDelivery as updateDeliveryLocal } from './entityMutations';
 import { offlineDB } from './offlineDatabase';
 import { base44 } from '@/api/base44Client';
-import { pauseRealtimeSync } from './realtimeSync';
-import { smartRefreshManager } from './smartRefreshManager';
-import { backgroundSyncManager } from './backgroundSyncManager';
 
 export async function runAcceptAllBatchPipeline({
   triggerDelivery,
@@ -67,76 +63,40 @@ export async function runAcceptAllBatchPipeline({
     };
   });
 
-  // Persist to offline DB
+  // Persist to offline DB only — NO server writes here.
+  // The caller (executeAcceptAllStops) will do a single atomic bulkUpdateDeliveries
+  // commit after optimization and TR# recalc are complete.
   try {
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
   } catch (e) {
     console.warn('[AcceptAll] offlineDB bulkSave failed:', e?.message || e);
   }
 
-  // CRITICAL: Pause realtime + smart refresh for the entire batch so WebSocket
-  // echoes don't thrash the UI while we're writing.
-  // NOTE: We do NOT resume these in our finally — the caller (executeAcceptAllStops)
-  // owns the full pause/resume lifecycle and resumes everything in ITS finally block
-  // after the optimizer + polyline regeneration completes. Resuming here prematurely
-  // unpauses the managers while optimization is still running, which allows other
-  // code paths to re-pause them (the pause mechanism is a simple boolean, not
-  // reference-counted), leaving them permanently stuck paused.
-  pauseRealtimeSync();
-  smartRefreshManager.pause();
-  backgroundSyncManager.pause();
-
   // Update UI IMMEDIATELY (optimistic) — don't wait for any backend writes.
   if (updateDeliveriesLocally && updatedDeliveries.length > 0) {
     updateDeliveriesLocally(updatedDeliveries, false);
   }
 
-  // Fire ALL backend writes in parallel — no sequential awaiting.
-  const finalOfflineUpdates = [];
-  try {
-    const results = await Promise.all(
-      updatedDeliveries.map((updated) =>
-        updateDeliveryLocal(updated.id, {
-          status: 'in_transit',
-          delivery_time_start: updated.delivery_time_start,
-          delivery_time_end: updated.delivery_time_end,
-          delivery_time_eta: updated.delivery_time_eta,
-          puid: updated.puid
-        }, { skipSmartRefresh: true, isBatchOperation: true })
-          .then((result) => result || updated)
-          .catch(() => updated)
-      )
-    );
-    finalOfflineUpdates.push(...results.filter(Boolean));
-  } catch (batchErr) {
-    // Even on error, do NOT resume managers — the caller's finally handles that.
-    // Just log and propagate so the caller can clean up.
-    console.warn('[AcceptAll] Batch write error (managers stay paused for caller to resume):', batchErr?.message || batchErr);
-    throw batchErr;
-  }
-
-  // Build COD batch for Square sync
+  // Build COD batch for the caller to fire AFTER the atomic server commit.
   const codBatch = updatedDeliveries
     .filter((d) => d.driver_id && Number(d.cod_total_amount_required || 0) > 0)
     .map((d) => {
       const store = stores?.find((s) => s && s.id === d.store_id);
+      const patient = d.patient_id ? patientMap.get(d.patient_id) : null;
       return {
         deliveryId: d.id,
-        patientName: d.patient_name || '',
-        storeAbbreviation: store?.abbreviation || '',
+        driverId: d.driver_id,
+        patientName: patient?.full_name || d.patient_name || '',
+        storeAbbreviation: store?.abbreviation || store?.store_abbreviation || '',
         codAmount: d.cod_total_amount_required,
         deliveryDate: d.delivery_date,
         storeId: d.store_id
       };
     });
 
-  // NOTE: optimizeRemainingStops is intentionally NOT called here.
-  // It must run AFTER all backend writes are confirmed — the caller
-  // (executeAcceptAllStops) handles optimization + polyline regeneration
-  // once all delivery status updates have been persisted.
   return {
     stagedChangedDeliveries: updatedDeliveries,
-    finalOfflineUpdates,
+    finalOfflineUpdates: updatedDeliveries,
     codBatch,
     driverId,
     deliveryDate

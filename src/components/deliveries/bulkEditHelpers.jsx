@@ -59,6 +59,11 @@ export function buildBulkEditBaseUpdates({ values, initialValues, currentUser, b
     baseUpdates.finished_leg_transport_mode = values.travelModeChoice;
   }
 
+  // Only apply after_hours_pickup if it was defined (i.e. all-pickup selection) and changed
+  if (values.after_hours_pickup !== undefined && values.after_hours_pickup !== initialValues?.after_hours_pickup) {
+    baseUpdates.after_hours_pickup = values.after_hours_pickup;
+  }
+
   return baseUpdates;
 }
 
@@ -68,14 +73,15 @@ export function getSelectedStoreOption(storeChoice) {
   return { storeId, slot };
 }
 
-export function hasBulkEditChanges({ baseUpdates, values, currentUser, selectedStoreOption }) {
+export function hasBulkEditChanges({ baseUpdates, values, initialValues, currentUser, selectedStoreOption }) {
   const isAdmin = userHasRole(currentUser, "admin");
   return (
     Object.keys(baseUpdates).length > 0 ||
     values.statusChoice !== "unchanged" ||
     values.ampmChoice !== "unchanged" ||
     !!selectedStoreOption ||
-    (isAdmin && !!values.puid)
+    (isAdmin && !!values.puid) ||
+    (values.after_hours_pickup !== undefined && values.after_hours_pickup !== initialValues?.after_hours_pickup)
   );
 }
 
@@ -191,6 +197,7 @@ export async function applyBulkEditStops({
   const hasMeaningfulChanges = hasBulkEditChanges({
     baseUpdates,
     values,
+    initialValues,
     currentUser,
     selectedStoreOption
   });
