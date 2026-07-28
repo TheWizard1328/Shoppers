@@ -840,12 +840,38 @@ const subscribeToEntity = (entityName) => {
                   // server's authoritative record is written to IDB.
                   const mergeSource = dataToSave || data;
                   const merged = { ...existing, ...mergeSource };
+
+                  // CRITICAL: Fields that must NEVER be regressed by a stale WS echo.
+                  // If the incoming value is null/undefined/empty but the existing IDB
+                  // record has a real value, preserve the existing value. This prevents
+                  // a pre-optimization WS echo (e.g. from updateDeliveryLocal writing
+                  // delivery_notes before the coordinator has set stop_order) from wiping
+                  // stop_order/tracking_number/encoded_polyline that were written later.
+                  const STRICT_PRESERVE_FIELDS = new Set([
+                    'stop_order', 'tracking_number', 'encoded_polyline',
+                    'estimated_distance_km', 'estimated_duration_minutes',
+                    'polyline_saved_at', 'transport_mode', 'travel_dist',
+                  ]);
+
                   for (const field of PRESERVE_FIELDS) {
+                    const inMergeSource = field in mergeSource;
+                    const inData = field in data;
                     // Only restore from existing if the field is completely absent from both
                     // the WS payload AND the full server record (very rare — mainly for
                     // fields like encoded_polyline that may be stripped by server-side sanitizers)
-                    if (!(field in mergeSource) && !(field in data) && existing[field]) {
+                    if (!inMergeSource && !inData && existing[field]) {
                       merged[field] = existing[field];
+                    }
+                    // CRITICAL: Even if the field IS present in the incoming data, if it's
+                    // null/undefined/empty AND the existing record has a non-null value AND
+                    // the field is in STRICT_PRESERVE_FIELDS, keep the existing value.
+                    // This handles the race where a WS echo from a pre-optimization write
+                    // arrives after the optimized data is already in IDB.
+                    if (STRICT_PRESERVE_FIELDS.has(field) && existing[field] != null && existing[field] !== '') {
+                      const incomingVal = merged[field];
+                      if (incomingVal == null || incomingVal === '' || incomingVal === 0 && field === 'stop_order') {
+                        merged[field] = existing[field];
+                      }
                     }
                   }
 

@@ -387,7 +387,7 @@ export default function useStopCardActions(params) {
       ].filter(Boolean));
 
       // Suppress WebSocket echoes for 5 minutes for all transitioned deliveries
-      const ECHO_EXPIRY = Date.now() + 30 * 1000;  // 30s — enough for WS round-trip, not so long it blocks legitimate remote updates
+      const ECHO_EXPIRY = Date.now() + 120 * 1000;  // 120s — covers full 90s coordinator timeout + WS round-trip
       if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
       for (const id of transitionedIds) window.__localDeliveryWrites.set(id, ECHO_EXPIRY);
 
@@ -459,26 +459,33 @@ export default function useStopCardActions(params) {
           .catch(e => console.error('❌ [Square] COD sync FAILED:', e?.message || e));
       }
 
-      // Write pickup route summary note (fire-and-forget)
-      try {
-        const totalCount = scopedPendingDeliveries.length;
-        const ispCount = scopedPendingDeliveries.filter(d => String(d?.delivery_id || '').toUpperCase().startsWith('ISP') || String(d?.delivery_notes || '').toLowerCase().includes('(ips)')).length;
-        const isdCount = scopedPendingDeliveries.filter(d => String(d?.delivery_id || '').toUpperCase().startsWith('ISD') || String(d?.delivery_notes || '').toLowerCase().includes('(isd)')).length;
-        const codItems = scopedPendingDeliveries.filter(d => Number(d?.cod_total_amount_required || 0) > 0);
-        const codTotal = codItems.reduce((s, d) => s + Number(d.cod_total_amount_required || 0), 0);
-        const oversizedCount = scopedPendingDeliveries.filter(d => d?.oversized === true).length;
-        const fridgeCount = scopedPendingDeliveries.filter(d => d?.fridge_item === true).length;
-        const noteLines = [`Deliveries: ${totalCount}`];
-        if (ispCount > 0 || isdCount > 0) noteLines.push(`ISP: ${ispCount} ISD: ${isdCount}`);
-        if (codItems.length > 0) noteLines.push(`COD's: ${codItems.length} - $${codTotal.toFixed(2)}`);
-        if (oversizedCount > 0) noteLines.push(`Oversized: ${oversizedCount}`);
-        if (fridgeCount > 0) noteLines.push(`Fridge: ${fridgeCount}`);
-        const summaryNote = noteLines.join('\n');
-        const existingNotes = delivery.delivery_notes && delivery.delivery_notes !== 'No driver notes' ? delivery.delivery_notes : '';
-        const updatedNotes = existingNotes ? `${existingNotes}\n${summaryNote}` : summaryNote;
-        updateDeliveryLocal(delivery.id, { delivery_notes: updatedNotes }, { skipSmartRefresh: true }).catch(() => {});
-        updateDeliveriesLocally?.([{ ...delivery, delivery_notes: updatedNotes }], false);
-      } catch (_) {}
+      // Write pickup route summary note — DEFERRED to after optimization (Step 7).
+      // CRITICAL: This was previously fired BEFORE the coordinator (Step 3b), which meant
+      // the server write triggered a WS echo carrying a server record with NO stop_order/TR#
+      // (optimization hadn't run yet). If the coordinator took >30s, the echo suppression
+      // expired and the stale echo overwrote the optimized IDB data. Moving it here ensures
+      // the server record already has stop_order/TR# when the notes write fires, so even
+      // an unsuppressed echo carries the correct optimized data.
+      const pickupNoteData = (() => {
+        try {
+          const totalCount = scopedPendingDeliveries.length;
+          const ispCount = scopedPendingDeliveries.filter(d => String(d?.delivery_id || '').toUpperCase().startsWith('ISP') || String(d?.delivery_notes || '').toLowerCase().includes('(ips)')).length;
+          const isdCount = scopedPendingDeliveries.filter(d => String(d?.delivery_id || '').toUpperCase().startsWith('ISD') || String(d?.delivery_notes || '').toLowerCase().includes('(isd)')).length;
+          const codItems = scopedPendingDeliveries.filter(d => Number(d?.cod_total_amount_required || 0) > 0);
+          const codTotal = codItems.reduce((s, d) => s + Number(d.cod_total_amount_required || 0), 0);
+          const oversizedCount = scopedPendingDeliveries.filter(d => d?.oversized === true).length;
+          const fridgeCount = scopedPendingDeliveries.filter(d => d?.fridge_item === true).length;
+          const noteLines = [`Deliveries: ${totalCount}`];
+          if (ispCount > 0 || isdCount > 0) noteLines.push(`ISP: ${ispCount} ISD: ${isdCount}`);
+          if (codItems.length > 0) noteLines.push(`COD's: ${codItems.length} - $${codTotal.toFixed(2)}`);
+          if (oversizedCount > 0) noteLines.push(`Oversized: ${oversizedCount}`);
+          if (fridgeCount > 0) noteLines.push(`Fridge: ${fridgeCount}`);
+          const summaryNote = noteLines.join('\n');
+          const existingNotes = delivery.delivery_notes && delivery.delivery_notes !== 'No driver notes' ? delivery.delivery_notes : '';
+          const updatedNotes = existingNotes ? `${existingNotes}\n${summaryNote}` : summaryNote;
+          return updatedNotes;
+        } catch (_) { return null; }
+      })();
 
       // Cycling mode dialog (driver-only, blocks until user confirms/cancels)
       const driverAppUser = appUsers.find(u => u?.user_id === delivery.driver_id);
@@ -546,6 +553,15 @@ export default function useStopCardActions(params) {
 
         // Clear echo suppression — authoritative state is now in IDB
         for (const id of transitionedIds) window.__localDeliveryWrites?.delete(id);
+      }
+
+      // ── STEP 7b: Write pickup summary notes (deferred from Step 3b) ──────────
+      // Now that the coordinator has written optimized stop_order/TR# to the server,
+      // this notes write's WS echo will carry the correct optimized data — no stale
+      // overwrite risk even if echo suppression has expired.
+      if (pickupNoteData) {
+        updateDeliveryLocal(delivery.id, { delivery_notes: pickupNoteData }, { skipSmartRefresh: true }).catch(() => {});
+        updateDeliveriesLocally?.([{ ...delivery, delivery_notes: pickupNoteData }], false);
       }
 
       // ── STEP 8: Final UI update ────────────────────────────────────────────────
