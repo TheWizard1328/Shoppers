@@ -237,12 +237,22 @@ export async function performRouteOptimization({
       // separate TR# write follows seconds later (or times out).
       if (recalcTrackingNumbers && optimizeData?.writeBatch?.length > 0) {
         try {
-          // Merge stop_order from writeBatch back into resolvedDeliveries so the
-          // TR# calculator sees the post-optimization order.
+          // Merge stop_order AND status from writeBatch back into resolvedDeliveries so the
+          // TR# calculator sees the post-optimization order and correct statuses.
+          // CRITICAL: resolvedDeliveries may still have status='pending' for transitioning
+          // deliveries (built before the batch pipeline ran). The TR# sorter uses status to
+          // distinguish finished (reserved) from active (sequenced) deliveries — wrong status
+          // means wrong sort order, wrong TR# assignments.
           const _stopOrderMap = new Map(optimizeData.writeBatch.map(w => [w.id, w.data?.stop_order]));
+          const _statusMap = new Map(optimizeData.writeBatch.map(w => [w.id, w.data?.status]));
           const _trSource = (resolvedDeliveries || []).map(d => {
             const newOrder = _stopOrderMap.get(d.id);
-            return newOrder != null ? { ...d, stop_order: newOrder } : d;
+            const newStatus = _statusMap.get(d.id);
+            return {
+              ...d,
+              ...(newOrder != null ? { stop_order: newOrder } : {}),
+              ...(newStatus != null ? { status: newStatus } : {}),
+            };
           });
           // Compute TR#s using ALL deliveries (need full view for pickup base collision
           // detection — store A gets base 00, store B gets base 20, etc.)

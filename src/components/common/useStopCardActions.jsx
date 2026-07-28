@@ -396,10 +396,19 @@ export default function useStopCardActions(params) {
       for (const d of [...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])]) {
         if (d?.id) transitionedMap.set(d.id, d);
       }
+
+      // CRITICAL: Scope to this driver+date ONLY. Passing all-drivers allDeliveries
+      // to the engine causes O(n²) array ops (Maps/finds over 200+ records) that
+      // block the main thread long enough to trigger "Page Unresponsive".
+      // The coordinator already has global collision-detection for TR# via recalcTrackingNumbers.
+      const scopedAllDeliveries = (allDeliveries || []).filter(
+        d => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+      );
+      const scopedIds = new Set(scopedAllDeliveries.map(d => d?.id).filter(Boolean));
       const fullDeliveriesForOptimizer = [
-        ...(allDeliveries || []).map(d => transitionedMap.get(d?.id) || d),
+        ...scopedAllDeliveries.map(d => transitionedMap.get(d?.id) || d),
         ...[...(stagedChangedDeliveries || []), ...(finalOfflineUpdates || [])].filter(
-          d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id)
+          d => d?.id && !scopedIds.has(d.id)
         ),
       ];
 
@@ -580,12 +589,15 @@ export default function useStopCardActions(params) {
       }
 
       // ── STEP 7b: Write pickup summary notes (deferred from Step 3b) ──────────
-      // Now that the coordinator has written optimized stop_order/TR# to the server,
-      // this notes write's WS echo will carry the correct optimized data — no stale
-      // overwrite risk even if echo suppression has expired.
+      // Write notes to IDB + state immediately so UI shows them now.
+      // Server write is fire-and-forget — the final server sync (finally block, +2s)
+      // will pull back the server record which by then has the notes. We store
+      // pickupNoteData in a ref so the finally-block sync can include it in the merge.
       if (pickupNoteData) {
-        updateDeliveryLocal(delivery.id, { delivery_notes: pickupNoteData }, { skipSmartRefresh: true }).catch(() => {});
+        // IDB + state immediately (so UI shows now)
         updateDeliveriesLocally?.([{ ...delivery, delivery_notes: pickupNoteData }], false);
+        // Server write fire-and-forget (coordinator has already committed stop_order/TR#)
+        updateDeliveryLocal(delivery.id, { delivery_notes: pickupNoteData }, { skipSmartRefresh: true }).catch(() => {});
       }
 
       // ── STEP 8: Final UI update ────────────────────────────────────────────────
@@ -634,19 +646,33 @@ export default function useStopCardActions(params) {
       // let the server's bulkUpdateDeliveries commit propagate before fetching.
       // forceRefreshDriverDeliveries fetches from server, writes to IDB, and dispatches
       // deliveriesUpdated — syncing sync managers and UI in one shot.
+      // Capture closure values for the final sync (closures are evaluated lazily)
+      const _finalPickupId = delivery.id;
+      const _finalPickupNotes = pickupNoteData;
+      const _finalDriverId = delivery.driver_id;
+      const _finalDate = delivery.delivery_date;
+
       setTimeout(() => {
-        forceRefreshDriverDeliveries?.(delivery.driver_id, delivery.delivery_date)
+        forceRefreshDriverDeliveries?.(_finalDriverId, _finalDate)
           .then(fresh => {
             if (Array.isArray(fresh) && fresh.length > 0) {
-              updateDeliveriesLocally?.(fresh, false);
+              // CRITICAL: If the pickup's delivery_notes server write hasn't propagated yet,
+              // the fresh array will have stale (empty) notes for the pickup card.
+              // Preserve the just-written notes by merging pickupNoteData into the result.
+              const mergedFresh = _finalPickupNotes
+                ? fresh.map(d => d?.id === _finalPickupId && !d?.delivery_notes
+                    ? { ...d, delivery_notes: _finalPickupNotes }
+                    : d)
+                : fresh;
+              updateDeliveriesLocally?.(mergedFresh, false);
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                 detail: {
                   triggeredBy: 'acceptAllFinalSync',
-                  driverId: delivery.driver_id,
-                  deliveryDate: delivery.delivery_date,
+                  driverId: _finalDriverId,
+                  deliveryDate: _finalDate,
                   preserveLocalState: false,
                   fullReplacement: false,
-                  freshDeliveries: fresh,
+                  freshDeliveries: mergedFresh,
                   alreadyOptimized: true,
                   trustIsNextDelivery: true,
                 }
@@ -655,7 +681,7 @@ export default function useStopCardActions(params) {
             }
           })
           .catch(e => console.warn('[AcceptAll] Final server sync failed:', e?.message));
-      }, 2000); // 2s delay — gives bulkUpdateDeliveries time to commit and propagate
+      }, 2500); // 2.5s — gives bulkUpdateDeliveries + notes write time to propagate
 
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       try { dispatchStopCardActionCollapse(); } catch (e) { console.warn('[AcceptAll] dispatchStopCardActionCollapse failed:', e?.message); }

@@ -443,6 +443,12 @@ export async function optimizeRouteClientSide({
     return { success: false, error: 'Missing HERE API key' };
   }
 
+  // Yield main thread immediately so the browser can paint the optimistic UI update
+  // before we start building Maps and running sorts. Without this yield the 'Page
+  // Unresponsive' dialog appears even on small routes because the event loop is blocked
+  // from the moment this function is called until the first `await` (HERE API call).
+  await new Promise(r => setTimeout(r, 0));
+
   const allDeliveries = deliveries || [];
   if (allDeliveries.length === 0) {
     return { success: true, routeChanged: false, optimizedCount: 0, orderedDeliveryIds: [], optimizedRoute: [], writeBatch: [] };
