@@ -72,6 +72,7 @@ export async function performRouteOptimization({
   excludeStopIds = [],
   startingStopOrder = null,
   recalcTrackingNumbers = false,
+  recalcTrackingStoreId = null,
 }) {
   if (!driverId || !deliveryDate) {
     console.warn(`[RouteOptimization] ${source} — missing driverId or deliveryDate`);
