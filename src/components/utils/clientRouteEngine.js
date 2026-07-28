@@ -1288,13 +1288,21 @@ export async function optimizeRouteClientSide({
     const isPickupStop = !stop.patient_id && !stop.is_cycling_marker && !isInterStoreStop;
     const correctedStatus = isPickupStop && stop.status === 'in_transit' ? 'en_route' : undefined;
 
+    // CRITICAL: Carry the authoritative status into the writeBatch so the
+    // bulkUpdateDeliveries server write commits status alongside stop_order/polyline.
+    // Without this, the server stays at 'pending' after Accept All, and any
+    // realtimeSync background fetch overwrites IDB's 'in_transit' with stale 'pending'.
+    // correctedStatus takes priority (pickup en_route correction); otherwise write
+    // the delivery's current status if it is 'in_transit' (transitioning deliveries).
+    const statusToWrite = correctedStatus || (stop.status === 'in_transit' ? 'in_transit' : undefined);
+
     const updateData = {
       stop_order: newOrder,
       delivery_time_eta: stop.delivery_time_eta,
       isNextDelivery: stop.id === nextStopId,
       ...(stop.id !== nextStopId ? { isNextDelivery: false } : {}),
       transport_mode: safeTransportMode,
-      ...(correctedStatus ? { status: correctedStatus } : {}),
+      ...(statusToWrite ? { status: statusToWrite } : {}),
       travel_dist: isPending ? null : (Number(directionsLegs[i]?.distance)
         ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3)) : null),
       ...(!isPending && logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),

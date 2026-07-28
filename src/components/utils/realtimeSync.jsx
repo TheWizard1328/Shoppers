@@ -1229,7 +1229,13 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
         // otherwise cause duplicates (create) or resurrect deleted records (delete).
         if (entity === 'Delivery' && id) {
           if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
-          window.__localDeliveryWrites.set(id, Date.now());
+          // CRITICAL: Only set if no extended-expiry suppression is already active.
+          // Accept All sets a future expiry (Date.now() + 120s). If broadcastMutation
+          // overwrites that with Date.now() (legacy TTL), suppression drops to 15s
+          // and WS echoes slip through while the server still has stale 'pending' status.
+          const _existingTs = window.__localDeliveryWrites.get(id);
+          const _isExtended = _existingTs != null && _existingTs > Date.now() + 1000;
+          if (!_isExtended) window.__localDeliveryWrites.set(id, Date.now());
         }
         // CRITICAL: Merge AppUser/Patient/Delivery data with existing offline record before saving.
         // broadcastMutation is called by DriverStatusToggle with partial finalData (only
@@ -1249,7 +1255,9 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
         // Track local Delivery deletes so the WS self-echo can be suppressed.
         if (entity === 'Delivery') {
           if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
-          window.__localDeliveryWrites.set(id, Date.now());
+          const _existingDelTs = window.__localDeliveryWrites.get(id);
+          const _isExtendedDel = _existingDelTs != null && _existingDelTs > Date.now() + 1000;
+          if (!_isExtendedDel) window.__localDeliveryWrites.set(id, Date.now());
         }
         await offlineDB.deleteRecord(storeName, id);
         const broadcastDeletedLabel = entity === 'Patient' ? (data?.full_name || id) : id;
