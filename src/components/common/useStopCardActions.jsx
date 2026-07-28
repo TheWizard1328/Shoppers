@@ -31,7 +31,6 @@ import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/tra
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
 import { consolidateBreadcrumbSegment } from "@/functions/consolidateBreadcrumbSegment";
-import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 
 const START_ACTION_NAME = 'start_delivery';
 
@@ -330,7 +329,6 @@ export default function useStopCardActions(params) {
     smartRefreshManager.pause();
     backgroundSyncManager.pause();
     pauseRealtimeSync();
-    let pickupNoteData = null;
     try {
       setIsEntityUpdating(true);
 
@@ -477,7 +475,7 @@ export default function useStopCardActions(params) {
       // expired and the stale echo overwrote the optimized IDB data. Moving it here ensures
       // the server record already has stop_order/TR# when the notes write fires, so even
       // an unsuppressed echo carries the correct optimized data.
-      pickupNoteData = (() => {
+      const pickupNoteData = (() => {
         try {
           const totalCount = scopedPendingDeliveries.length;
           const ispCount = scopedPendingDeliveries.filter(d => String(d?.delivery_id || '').toUpperCase().startsWith('ISP') || String(d?.delivery_notes || '').toLowerCase().includes('(ips)')).length;
@@ -1401,15 +1399,6 @@ export default function useStopCardActions(params) {
         affectedFullRecords,
       }).catch(() => {})
     );
-
-    // 10. Re-sort stop orders — finished by actual_delivery_time, incomplete by ETA.
-    //     Fire-and-forget: IDB already has actual_delivery_time from step 1.
-    //     This is the ONLY place that re-sorts after a dashboard Complete/Fail/Cancel.
-    if (delivery?.driver_id && delivery?.delivery_date) {
-      recalculateAndUpdateStopOrders(delivery.driver_id, delivery.delivery_date).catch((err) => {
-        console.warn('[executeTerminalAction] stop order recalc failed:', err?.message || err);
-      });
-    }
 
     return { nextStop, routeIsFinished, incompleteDeliveries };
   }, [

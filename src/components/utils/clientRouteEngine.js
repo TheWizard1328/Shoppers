@@ -1219,12 +1219,7 @@ export async function optimizeRouteClientSide({
     } while (swapped);
   }
 
-  // Use max completed stop_order + 1 (not just count) to avoid collisions when
-  // completed stops have non-contiguous stop_order values (e.g. 2, 5, 7).
-  const maxCompletedOrder = completedDeliveries.reduce(
-    (max, d) => Math.max(max, Number(d?.stop_order) || 0), 0
-  );
-  const startOrder = startingStopOrder != null ? startingStopOrder : maxCompletedOrder;
+  const startOrder = startingStopOrder != null ? startingStopOrder : completedDeliveries.length;
   const originalActiveOrder = activeRouteDeliveries
     .slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
     .map(d => String(d.id));

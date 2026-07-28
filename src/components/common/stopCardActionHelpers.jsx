@@ -401,18 +401,7 @@ export function reorderActiveRouteLocally(driverDeliveries = [], nextDeliveryId 
   const finishedStatuses = ['completed', 'failed', 'cancelled'];
   const finished = scopedDeliveries
     .filter((item) => finishedStatuses.includes(item.status))
-    .sort((a, b) => {
-      // Sort finished stops by actual_delivery_time (not stop_order) so
-      // out-of-sequence completions are ordered by when they actually finished.
-      const ta = new Date(a.actual_delivery_time || '').getTime();
-      const tb = new Date(b.actual_delivery_time || '').getTime();
-      const aHas = Number.isFinite(ta);
-      const bHas = Number.isFinite(tb);
-      if (aHas && bHas && ta !== tb) return ta - tb;
-      if (aHas && !bHas) return -1;
-      if (!aHas && bHas) return 1;
-      return (a.stop_order || 0) - (b.stop_order || 0);
-    });
+    .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
   const pending = scopedDeliveries
     .filter((item) => item.status === 'pending')
     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
