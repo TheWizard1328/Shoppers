@@ -429,7 +429,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
                 disabled={isSaving}
                 className="mt-0.5 shrink-0" />
               <span className="text-xs font-medium leading-tight" style={{ color: "var(--text-slate-700)" }}>
-                After<br />Hours
+                After Hours
               </span>
             </label>
           )}
