@@ -1275,7 +1275,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             dispatchBleReconnect={dispatchBleReconnect}
             hasCODRequired={hasCODRequired}
             isCODComplete={isCODComplete}
-            squareAppId={squareAppId} />
+            squareAppId={squareAppId}
+            onExpandCard={() => { if (!isSelected) onClick && onClick(delivery); }}
+            setShowCODCollection={setShowCODCollection} />
           
         </CardContent>
       </Card>

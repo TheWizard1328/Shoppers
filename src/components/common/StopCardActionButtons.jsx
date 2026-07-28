@@ -69,6 +69,8 @@ export default function StopCardActionButtons(props) {
     store,
     allDeliveries,
     stores,
+    onExpandCard,
+    setShowCODCollection,
   } = props;
 
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -172,6 +174,9 @@ export default function StopCardActionButtons(props) {
   // on Android WebView. Any React state update before launchSquarePOS breaks the chain.
   const handleSquareButtonTap = useCallback((e) => {
     e.stopPropagation();
+    // Expand the card and open COD collection panel before launching Square POS
+    onExpandCard && onExpandCard();
+    setShowCODCollection && setShowCODCollection(true);
     const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
     const codAmount = delivery?.cod_total_amount_required;
     remoteLogger.info('[Square] Button tapped (direct launch)', JSON.stringify({
