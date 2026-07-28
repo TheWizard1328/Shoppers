@@ -239,7 +239,9 @@ export default function StopCardActionButtons(props) {
               </Button>
             }
             <div className="relative z-[60] pointer-events-auto">
-              <StopCardFooterMenu {...props} />
+              <StopCardFooterMenu
+                blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} store={store}
+              />
             </div>
           </div>
         </div>
@@ -333,7 +335,9 @@ export default function StopCardActionButtons(props) {
           </Button>
         }
         <div className="relative z-[60] pointer-events-auto">
-          <StopCardFooterMenu {...props} />
+          <StopCardFooterMenu
+            blockCardToggle={blockCardToggle} currentUser={currentUser} isAppOwner={props.isAppOwner} userHasRole={props.userHasRole} onEdit={props.onEdit} isStrippedForDispatcher={props.isStrippedForDispatcher} delivery={delivery} onEditPatient={props.onEditPatient} patient={patient} isPickup={isPickup} handleUpdateGPS={props.handleUpdateGPS} isNextDelivery={isNextDelivery} isFinishedDelivery={isFinishedDelivery} onStatusUpdate={onStatusUpdate} setPendingFailureStatus={props.setPendingFailureStatus} setShowFailureReasonDialog={props.setShowFailureReasonDialog} onDelete={props.onDelete} setShowDeleteConfirm={props.setShowDeleteConfirm} routeCompleted={routeCompleted} isAssignedDriverOrAppOwner={props.isAssignedDriverOrAppOwner} canEdit={props.canEdit} allDeliveries={allDeliveries} onRestart={onRestart} restartCurrentDelivery={restartCurrentDelivery} isRestarting={isRestarting} isProcessingBackground={isProcessingBackground} isFailing={isFailing} dispatchBleReconnect={props.dispatchBleReconnect} handleCompleteAction={handleCompleteAction} isCompleting={isCompleting} isGlobalCompleteLocked={isGlobalCompleteLocked} isGlobalRestartLocked={isGlobalRestartLocked} store={store}
+          />
         </div>
       </div>
     </>);
