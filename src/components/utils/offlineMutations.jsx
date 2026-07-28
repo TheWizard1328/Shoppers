@@ -25,7 +25,7 @@ const normalizeComparableValue = (value) => {
   return value;
 };
 
-const FORCE_DELIVERY_UPDATE_FIELDS = new Set(['arrival_time', 'actual_delivery_time', 'transport_mode', 'delivery_time_start', 'delivery_time_end']);
+const FORCE_DELIVERY_UPDATE_FIELDS = new Set(['arrival_time', 'actual_delivery_time', 'transport_mode', 'delivery_time_start', 'delivery_time_end', 'after_hours_pickup']);
 
 export const hasStopOrderChanged = (previousDelivery = {}, nextDelivery = {}) => {
   const previousStopOrder = previousDelivery?.stop_order ?? null;
