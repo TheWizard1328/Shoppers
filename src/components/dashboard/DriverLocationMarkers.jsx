@@ -238,20 +238,25 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return true;
       }
 
-    // RULE 2: Admin/AppOwner can see all shared driver markers except their own on their primary device,
-    // as long as the shared marker still has a recent heartbeat (about 62 seconds)
+    // RULE 2: Admin/AppOwner can see ALL drivers as long as there is ANY heartbeat
+    // (regardless of driver_status — off_duty/on_break included).
+    // Non-AppOwner admins see on_duty/on_break only at their last known location.
     const isAppOwner = currentUser?.email && 
                       (currentUser.email.endsWith('@rxdeliver.com') || 
                        currentUser.email === 'dan@dcscripts.ca');
     const updatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+    const hasAnyHeartbeat = updatedAt > 0;
     const hasRecentHeartbeat = updatedAt > 0 && (Date.now() - updatedAt) <= 62 * 1000;
-    const allowedDriverStatuses = ['on_duty', 'off_duty', 'on_break'];
 
-    if (isAppOwner || isAdmin) {
-      if (!allowedDriverStatuses.includes(user.driver_status)) return false;
-      // Always show on_duty/on_break drivers at their last known location, even if heartbeat stopped.
+    if (isAppOwner) {
+      // App Owner: show any driver that has EVER sent a heartbeat (coords must exist)
+      return hasAnyHeartbeat;
+    }
+
+    if (isAdmin) {
+      // Regular admin: show on_duty/on_break only (last known location, no auto-hide when heartbeat stops)
       const isActiveStatus = user.driver_status === 'on_duty' || user.driver_status === 'on_break';
-      return isActiveStatus || hasRecentHeartbeat;
+      return isActiveStatus;
     }
 
     // RULE 4: Dispatcher - hide only if assigned driver is off_duty

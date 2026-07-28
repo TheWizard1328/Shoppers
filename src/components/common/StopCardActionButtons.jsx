@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, useState } from "react";
 import { isMobileDevice } from '../utils/deviceUtils';
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Clock, Loader2, RotateCcw, Undo2 } from "lucide-react";
@@ -10,6 +10,7 @@ import { useAppData } from "../utils/AppDataContext";
 import { launchSquarePOS } from "../utils/squarePOSLauncher";
 import { remoteLogger } from "../utils/remoteLogger";
 import { useSquareLocationCheck } from "../dashboard/useSquareLocationCheck";
+import RestartConfirmDialog from "./RestartConfirmDialog";
 
 // Generate the Square item name: "MM/DD(StoreAbbr)-PatientName"
 const generateSquareItemName = (delivery, patient, store) => {
@@ -69,6 +70,19 @@ export default function StopCardActionButtons(props) {
     allDeliveries,
     stores,
   } = props;
+
+  const [showRestartDialog, setShowRestartDialog] = useState(false);
+
+  const handleRestartClick = useCallback((e) => {
+    e.stopPropagation();
+    if (isRestarting || isProcessingBackground || isFailing) return;
+    setShowRestartDialog(true);
+  }, [isRestarting, isProcessingBackground, isFailing]);
+
+  const handleRestartConfirm = useCallback(async () => {
+    setShowRestartDialog(false);
+    await restartCurrentDelivery(false);
+  }, [restartCurrentDelivery]);
 
   // Reactive Square location configs — from AppDataContext (avoids stale window cache)
   const appData = useAppData();
@@ -191,34 +205,54 @@ export default function StopCardActionButtons(props) {
 
   if (delivery.status === 'failed' && !isPickup) {
     return (
-      <div className="flex items-center gap-2 w-full relative z-20">
-        {onStatusUpdate &&
-        <Button data-stopcard-action="retry" type="button" onPointerDownCapture={handleRetryDelivery} onMouseDown={blockCardToggle} onTouchStart={blockCardToggle} onClick={blockCardToggle} size="sm" className="bg-blue-600 hover:bg-blue-700 h-10 !text-white text-sm flex-1 relative z-30 pointer-events-auto" disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery || isFailing}>
-            {isRetrying || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-            <span className="text-white">Retry</span>
-          </Button>
-        }
-        <Button data-stopcard-action="return" type="button" onPointerDownCapture={handleReturnClick} onMouseDown={blockCardToggle} onTouchStart={blockCardToggle} onClick={blockCardToggle} size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 text-sm bg-orange-600 hover:bg-orange-700 !text-white h-10 flex-1 relative z-30 pointer-events-auto" disabled={isPreparingReturn || isCreatingReturn || hasFutureReturn || hasCompletedDelivery || isFailing}>
-          {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-          Return
-        </Button>
-        <div className="flex items-center ml-auto">
-          {onRestart && ['completed', 'failed', 'cancelled'].includes(delivery.status) && !routeCompleted && !isPastDeliveryDate &&
-          <Button onClick={async (e) => {e.stopPropagation();await restartCurrentDelivery(false);}} size="sm" className="bg-[#ff0000] text-primary-foreground px-3 text-sm font-medium rounded-r-none inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" disabled={isRestarting || isProcessingBackground || isFailing}>
-              {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-              <span className="text-white">Restart</span>
+      <>
+        <RestartConfirmDialog
+          open={showRestartDialog}
+          onClose={() => setShowRestartDialog(false)}
+          onConfirm={handleRestartConfirm}
+          delivery={delivery}
+          patient={patient}
+          store={store}
+          isRestarting={isRestarting}
+        />
+        <div className="flex items-center gap-2 w-full relative z-20">
+          {onStatusUpdate &&
+          <Button data-stopcard-action="retry" type="button" onPointerDownCapture={handleRetryDelivery} onMouseDown={blockCardToggle} onTouchStart={blockCardToggle} onClick={blockCardToggle} size="sm" className="bg-blue-600 hover:bg-blue-700 h-10 !text-white text-sm flex-1 relative z-30 pointer-events-auto" disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery || isFailing}>
+              {isRetrying || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+              <span className="text-white">Retry</span>
             </Button>
           }
-          <div className="relative z-[60] pointer-events-auto">
-          <StopCardFooterMenu {...props} />
+          <Button data-stopcard-action="return" type="button" onPointerDownCapture={handleReturnClick} onMouseDown={blockCardToggle} onTouchStart={blockCardToggle} onClick={blockCardToggle} size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 text-sm bg-orange-600 hover:bg-orange-700 !text-white h-10 flex-1 relative z-30 pointer-events-auto" disabled={isPreparingReturn || isCreatingReturn || hasFutureReturn || hasCompletedDelivery || isFailing}>
+            {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+            Return
+          </Button>
+          <div className="flex items-center ml-auto">
+            {onRestart && ['completed', 'failed', 'cancelled'].includes(delivery.status) && !routeCompleted && !isPastDeliveryDate &&
+            <Button onClick={handleRestartClick} size="sm" className="bg-[#ff0000] text-primary-foreground px-3 text-sm font-medium rounded-r-none inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" disabled={isRestarting || isProcessingBackground || isFailing}>
+                {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                <span className="text-white">Restart</span>
+              </Button>
+            }
+            <div className="relative z-[60] pointer-events-auto">
+              <StopCardFooterMenu {...props} />
+            </div>
+          </div>
         </div>
-        </div>
-      </div>);
-
+      </>
+    );
   }
 
   return (
     <>
+      <RestartConfirmDialog
+        open={showRestartDialog}
+        onClose={() => setShowRestartDialog(false)}
+        onConfirm={handleRestartConfirm}
+        delivery={delivery}
+        patient={patient}
+        store={store}
+        isRestarting={isRestarting}
+      />
       <StopCardPOD
         delivery={delivery}
         patient={patient}
@@ -288,7 +322,7 @@ export default function StopCardActionButtons(props) {
 
         }
         {delivery.status !== 'failed' && ['completed', 'cancelled'].includes(delivery.status) && onRestart && !routeCompleted &&
-        <Button data-stopcard-action="restart" type="button" onPointerDownCapture={async (e) => {blockCardToggle(e);if (isRestarting || isProcessingBackground || isFailing) return;await restartCurrentDelivery(false);}} onPointerDown={blockCardToggle} onMouseDown={blockCardToggle} onTouchStart={blockCardToggle} onClick={blockCardToggle} size="sm" className="bg-[#ff0000] text-primary-foreground px-3 text-sm font-medium rounded-r-none inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" disabled={isRestarting || isProcessingBackground || isFailing}>
+        <Button data-stopcard-action="restart" type="button" onPointerDownCapture={handleRestartClick} onPointerDown={blockCardToggle} onMouseDown={blockCardToggle} onTouchStart={blockCardToggle} onClick={blockCardToggle} size="sm" className="bg-[#ff0000] text-primary-foreground px-3 text-sm font-medium rounded-r-none inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" disabled={isRestarting || isProcessingBackground || isFailing}>
             {isRestarting || isProcessingBackground || isFailing ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
             <span className="text-white">Restart</span>
           </Button>
