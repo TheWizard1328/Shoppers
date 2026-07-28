@@ -813,6 +813,8 @@ const subscribeToEntity = (entityName) => {
                   // We restore from the existing IDB record when the field is truly absent
                   // (undefined) from the incoming payload AND has a non-falsy value locally.
                   const PRESERVE_FIELDS = [
+                    // Status (prevent stale 'pending' overwriting local 'in_transit')
+                    'status',
                     // Route / polyline
                     'encoded_polyline', 'transport_mode', 'estimated_distance_km',
                     'estimated_duration_minutes', 'first_leg_origin_lat', 'first_leg_origin_lng',
@@ -852,6 +854,16 @@ const subscribeToEntity = (entityName) => {
                     'estimated_distance_km', 'estimated_duration_minutes',
                     'polyline_saved_at', 'transport_mode', 'travel_dist',
                   ]);
+
+                  // CRITICAL: Status regression guard. If the existing IDB record has
+                  // status='in_transit' (just transitioned by Accept All) and the incoming
+                  // WS payload or background fetch carries status='pending' (stale server
+                  // data that hasn't received the status write yet), preserve 'in_transit'.
+                  // This is a one-way ratchet: pending→in_transit is allowed (server
+                  // catching up), but in_transit→pending is blocked.
+                  if (existing?.status === 'in_transit' && merged.status === 'pending') {
+                    merged.status = 'in_transit';
+                  }
 
                   for (const field of PRESERVE_FIELDS) {
                     const inMergeSource = field in mergeSource;
@@ -1007,7 +1019,14 @@ const subscribeToEntity = (entityName) => {
             if (!full?.id) return;
             const { offlineDB: idb } = await import('./offlineDatabase');
             const existing = await idb.getById(idb.STORES.DELIVERIES, data.id);
-            const merged = existing ? { ...existing, ...full } : full;
+            let merged = existing ? { ...existing, ...full } : full;
+            // CRITICAL: Status regression guard — if IDB has 'in_transit' (Accept All
+            // just transitioned) but the server still has 'pending' (status write
+            // hasn't propagated yet), preserve 'in_transit'. The server will catch up
+            // on the next WS event after the status commit completes.
+            if (existing?.status === 'in_transit' && merged.status === 'pending') {
+              merged.status = 'in_transit';
+            }
             // Protect locked fields (e.g. status=completed, actual_delivery_time) from being
             // overwritten by a background fetch that raced against the completion write.
             const { applyRealtimeMergeWithLockout: applyLockout } = await import('./completionLockout');

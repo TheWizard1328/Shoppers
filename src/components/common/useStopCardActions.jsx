@@ -545,13 +545,51 @@ export default function useStopCardActions(params) {
       // NOTE: Notifications were already sent in STEP 2b (before optimizer) using
       // stagedChangedDeliveries, so they always fire regardless of optimizer outcome.
 
-      // ── STEP 7: IDB write (authoritative) then single atomic server commit ──────
+      // ── STEP 7: IDB write + server commit for status transitions ──────────────
       if (finalDeliveries.length > 0) {
         const { offlineDB } = await import('../utils/offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
         updateDeliveriesLocally?.(finalDeliveries, false);
 
-        // Clear echo suppression — authoritative state is now in IDB
+        // CRITICAL: Write status transitions to the server. The batch pipeline (Step 1)
+        // only wrote to IDB. The coordinator (Step 4) wrote stop_order/TR#/polyline to the
+        // server via bulkUpdateDeliveries but did NOT include the status field. Without
+        // this server write, the server still has status='pending' and any WS echo or
+        // background fetch from realtimeSync would overwrite IDB's 'in_transit' status.
+        // Re-extend echo suppression before this server write so the resulting WS echoes
+        // don't trigger stale-data overwrites.
+        const _statusExpiry = Date.now() + 60 * 1000;
+        const statusUpdates = (stagedChangedDeliveries || []).map(d => ({
+          id: d.id,
+          data: {
+            status: 'in_transit',
+            delivery_time_start: d.delivery_time_start,
+            delivery_time_end: d.delivery_time_end || '',
+            delivery_time_eta: d.delivery_time_eta,
+          }
+        })).filter(u => u.id);
+
+        if (statusUpdates.length > 0) {
+          for (const u of statusUpdates) window.__localDeliveryWrites?.set(u.id, _statusExpiry);
+          try {
+            await base44.functions.invoke('bulkUpdateDeliveries', { updates: statusUpdates });
+            console.log(`✅ [AcceptAll] Server status commit: ${statusUpdates.length} deliveries → in_transit`);
+          } catch (e) {
+            console.warn('⚠️ [AcceptAll] bulkUpdateDeliveries status failed, falling back to individual writes:', e?.message);
+            // Fallback: individual writes
+            const CHUNK = 20;
+            for (let i = 0; i < statusUpdates.length; i += CHUNK) {
+              const chunk = statusUpdates.slice(i, i + CHUNK);
+              await Promise.all(chunk.map(async ({ id, data }) => {
+                try { await base44.entities.Delivery.update(id, data); }
+                catch (_) {}
+              }));
+            }
+            console.log(`✅ [AcceptAll] Individual status writes completed (${statusUpdates.length} deliveries)`);
+          }
+        }
+
+        // Clear echo suppression — server + IDB are now in sync
         for (const id of transitionedIds) window.__localDeliveryWrites?.delete(id);
       }
 
