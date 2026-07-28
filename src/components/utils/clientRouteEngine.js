@@ -623,17 +623,10 @@ export async function optimizeRouteClientSide({
     console.log(`[clientRouteEngine] ${source} — ${stops.length} stops resolved with valid coords`);
   }
 
-  // ── Future route light mode ──────────────────────────────────────────────
+  // ── Route date classification ────────────────────────────────────────────
   const historicalRoute = isHistoricalRouteDate(deliveryDate);
   const isFutureRoute = !historicalRoute && deliveryDate > getEdmontonTodayDateString();
   const routeOfficiallyStarted = completedDeliveries.length > 0;
-
-  if (isFutureRoute && !routeOfficiallyStarted) {
-    return _handleFutureRoute({
-      optimizableDeliveries, stops, storeMap, patientMap, deliveryDate,
-      startingStopOrder, completedDeliveries, currentMinutes, source
-    });
-  }
 
   // ── Determine current position (origin) ───────────────────────────────────
   const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
