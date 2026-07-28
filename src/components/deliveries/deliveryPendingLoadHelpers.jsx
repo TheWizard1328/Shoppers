@@ -76,9 +76,11 @@ export const mapPendingDeliveriesToStaged = ({
     ampm_deliveries: timeSlot,
     puid: puid || '',
     paid_km_override: delivery.paid_km_override ?? distanceFromStore ?? null,
-    // CRITICAL: Patient time windows always take priority over stored delivery time windows
-    delivery_time_start: patient?.time_window_start || delivery.delivery_time_start || '',
-    delivery_time_end: patient?.time_window_end || delivery.delivery_time_end || '',
+    // Delivery's own time windows take priority over patient time windows.
+    // Patient windows are only a fallback for deliveries that haven't had
+    // their delivery_time_start/end explicitly set yet.
+    delivery_time_start: delivery.delivery_time_start || patient?.time_window_start || '',
+    delivery_time_end: delivery.delivery_time_end || patient?.time_window_end || '',
     time_window_start: patient?.time_window_start || delivery.time_window_start || '',
     time_window_end: patient?.time_window_end || delivery.time_window_end || '',
     // CRITICAL: Recurring fields from patient record

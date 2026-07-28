@@ -1335,11 +1335,11 @@ export async function optimizeRouteClientSide({
       stop.delivery_time_start = pendingStartTime;
     }
 
-    // Apply patient time windows to the delivery record.
-    // Patient windows take priority over the store-derived delivery_time_start.
-    // For pending stops transitioning to in_transit (Accept All), this ensures
-    // the committed record carries the patient's time constraints, not the store's.
-    if (stop.patient_id) {
+    // Apply patient time windows to the delivery record — ONLY for pending stops
+    // transitioning to in_transit. Once a stop is in_transit or en_route, the
+    // delivery's own delivery_time_start/end are authoritative and must NOT be
+    // overwritten by patient windows (the driver may have manually changed them).
+    if (stop.patient_id && isPending) {
       const patient = patientMap.get(stop.patient_id);
       if (patient) {
         if (patient.time_window_start) {
