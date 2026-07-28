@@ -19,8 +19,8 @@ export default function RestartConfirmDialog({ open, onClose, onConfirm, deliver
   const notes = delivery.delivery_notes || delivery.delivery_instructions || null;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-sm mx-auto">
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); } }}>
+      <DialogContent className="max-w-sm mx-auto" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <RotateCcw className="w-4 h-4 text-red-600" />
