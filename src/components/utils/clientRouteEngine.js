@@ -629,12 +629,10 @@ export async function optimizeRouteClientSide({
   const routeOfficiallyStarted = completedDeliveries.length > 0;
 
   if (isFutureRoute && !routeOfficiallyStarted) {
-    const futureResult = await _handleFutureRoute({
+    return _handleFutureRoute({
       optimizableDeliveries, stops, storeMap, patientMap, deliveryDate,
-      startingStopOrder, completedDeliveries, currentMinutes, source,
-      hereApiKey, resolvedCurrentLocation: currentLocation, _driverAppUser,
+      startingStopOrder, completedDeliveries, currentMinutes, source
     });
-    return futureResult;
   }
 
   // ── Determine current position (origin) ───────────────────────────────────
@@ -1364,7 +1362,7 @@ export async function optimizeRouteClientSide({
 
 // ─── Future route handler (light mode, no HERE call) ─────────────────────────
 
-async function _handleFutureRoute({ optimizableDeliveries, stops, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, resolvedCurrentLocation, _driverAppUser }) {
+function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source }) {
   const startOrder = (startingStopOrder != null) ? startingStopOrder : completedDeliveries.length;
   const weekdayCode = getWeekdayCode(deliveryDate);
   const isWeekend = weekdayCode === 'sa' || weekdayCode === 'su';
@@ -1449,49 +1447,10 @@ async function _handleFutureRoute({ optimizableDeliveries, stops, storeMap, pati
     return { id: delivery.id, data: updateData };
   });
 
-  // ── Polyline generation for future routes ─────────────────────────────────
-  // Build a stop-coords lookup from the resolved stops array (passed from the main engine)
-  const stopsCoordsMap = new Map((stops || []).map(s => [s.delivery.id, { lat: s.lat, lng: s.lng }]));
-
-  // Determine route origin: driver home → GPS → first stop coords
-  const futureOrigin = (() => {
-    if (_driverAppUser?.home_latitude != null && _driverAppUser?.home_longitude != null)
-      return { lat: Number(_driverAppUser.home_latitude), lon: Number(_driverAppUser.home_longitude) };
-    if (resolvedCurrentLocation?.lat != null && resolvedCurrentLocation?.lon != null)
-      return resolvedCurrentLocation;
-    const firstCoords = orderedStops[0] ? stopsCoordsMap.get(orderedStops[0].delivery.id) : null;
-    return firstCoords ? { lat: firstCoords.lat, lon: firstCoords.lng } : null;
-  })();
-
-  if (hereApiKey && futureOrigin && orderedStops.length > 0) {
-    // Build the ordered points for a single driving HERE call
-    const points = [
-      futureOrigin,
-      ...orderedStops.map(({ delivery }) => {
-        const c = stopsCoordsMap.get(delivery.id);
-        return c ? { lat: c.lat, lon: c.lng } : null;
-      }).filter(Boolean)
-    ];
-
-    try {
-      const { sections } = await getMultiStopRouteHere(points, 'driving', hereApiKey);
-      // sections[i] is the leg that arrives at orderedStops[i]
-      sections.forEach((section, i) => {
-        const stop = orderedStops[i];
-        if (!stop || !section?.encoded_polyline) return;
-        const wb = writeBatch.find(w => w.id === stop.delivery.id);
-        if (wb) {
-          wb.data.encoded_polyline = section.encoded_polyline;
-          if (section.estimated_distance_km != null) wb.data.estimated_distance_km = section.estimated_distance_km;
-          if (section.estimated_duration_minutes != null) wb.data.estimated_duration_minutes = section.estimated_duration_minutes;
-        }
-      });
-      const _polyCount = writeBatch.filter(w => w.data.encoded_polyline).length;
-      console.log(`[clientRouteEngine] ${source} — future route polylines: ${_polyCount}/${orderedStops.length} generated`);
-    } catch (err) {
-      console.warn(`[clientRouteEngine] ${source} — future route polyline generation failed (non-fatal):`, err?.message || err);
-    }
-  }
+  // ── No polylines for future/not-started routes ────────────────────────────
+  // All stops are pending (route hasn't started). Pending stops never get polylines.
+  // The main engine's active-stops filter enforces the same rule for today's routes.
+  console.log(`[clientRouteEngine] ${source} — future route: skipping polylines (all stops are pending)`);
 
   return {
     success: true, driverId: null, deliveryDate,
