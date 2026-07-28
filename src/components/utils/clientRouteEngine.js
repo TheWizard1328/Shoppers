@@ -1021,9 +1021,19 @@ export async function optimizeRouteClientSide({
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
+    // Polyline origin must NEVER be a pending stop's coords.
+    // Priority: last finished stop → driver GPS → home → first active stop coords.
+    const firstActiveStopCoords = activeRouteStops.length > 0
+      ? { lat: activeRouteStops[0].lat, lon: activeRouteStops[0].lng }
+      : null;
+    const driverGpsForPolyline = (_driverAppUser?.current_latitude != null && _driverAppUser?.current_longitude != null)
+      ? { lat: Number(_driverAppUser.current_latitude), lon: Number(_driverAppUser.current_longitude) }
+      : null;
     const polylineOrigin = (() => {
       if (latestFinishedCoords) return { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng };
+      if (driverGpsForPolyline) return driverGpsForPolyline;
       if (resolvedHomePosition) return { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng };
+      if (firstActiveStopCoords) return firstActiveStopCoords;
       return { lat: currentPosition.lat, lon: currentPosition.lng };
     })();
     console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'currentPos'}`);
@@ -1080,8 +1090,10 @@ export async function optimizeRouteClientSide({
     );
 
     // Map sections back to each stop
+    // Use routeStops index (not activeRouteStops index) for directionsLegs so pending
+    // stops interleaved in the full route don't cause off-by-one leg assignments.
     for (const { group, sections } of groupResults) {
-      group.stops.forEach(({ stopIndex, stop }, groupLocalIndex) => {
+      group.stops.forEach(({ stop }, groupLocalIndex) => {
         const section = sections[groupLocalIndex] || null;
         segmentPolylineByDeliveryId.set(stop.delivery.id, {
           deliveryId: stop.delivery.id,
@@ -1089,16 +1101,18 @@ export async function optimizeRouteClientSide({
           estimatedDistanceKm: section?.estimated_distance_km ?? null,
           estimatedDurationMinutes: section?.estimated_duration_minutes ?? null
         });
-        // Re-sync directionsLegs with actual HERE routing durations
+        // Re-sync directionsLegs using the stop's position in routeStops (full list)
         if (section?.estimated_duration_minutes && Number(section.estimated_duration_minutes) > 0) {
-          const routeStopIdx = routeStops.indexOf(stop);
-          directionsLegs[routeStopIdx] = {
-            ...directionsLegs[routeStopIdx],
-            duration: Number(section.estimated_duration_minutes) * 60,
-            distance: section.estimated_distance_km
-              ? Number(section.estimated_distance_km) * 1000
-              : directionsLegs[routeStopIdx]?.distance
-          };
+          const routeStopIdx = routeStops.findIndex(s => s.delivery.id === stop.delivery.id);
+          if (routeStopIdx !== -1) {
+            directionsLegs[routeStopIdx] = {
+              ...directionsLegs[routeStopIdx],
+              duration: Number(section.estimated_duration_minutes) * 60,
+              distance: section.estimated_distance_km
+                ? Number(section.estimated_distance_km) * 1000
+                : directionsLegs[routeStopIdx]?.distance
+            };
+          }
         }
       });
     }
