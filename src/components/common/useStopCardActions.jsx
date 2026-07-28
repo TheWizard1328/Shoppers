@@ -330,6 +330,7 @@ export default function useStopCardActions(params) {
     smartRefreshManager.pause();
     backgroundSyncManager.pause();
     pauseRealtimeSync();
+    let pickupNoteData = null;
     try {
       setIsEntityUpdating(true);
 
@@ -476,7 +477,7 @@ export default function useStopCardActions(params) {
       // expired and the stale echo overwrote the optimized IDB data. Moving it here ensures
       // the server record already has stop_order/TR# when the notes write fires, so even
       // an unsuppressed echo carries the correct optimized data.
-      const pickupNoteData = (() => {
+      pickupNoteData = (() => {
         try {
           const totalCount = scopedPendingDeliveries.length;
           const ispCount = scopedPendingDeliveries.filter(d => String(d?.delivery_id || '').toUpperCase().startsWith('ISP') || String(d?.delivery_notes || '').toLowerCase().includes('(ips)')).length;
