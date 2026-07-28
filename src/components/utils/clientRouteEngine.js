@@ -172,11 +172,19 @@ const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
   return `${String(Number(parts[0]) || 0).padStart(2, '0')}:${String(Number(parts[1]) || 0).padStart(2, '0')}:${String(Number(parts[2]) || 0).padStart(2, '0')}`;
 };
 
-const getEffectiveWindowStart = (delivery, patient = null) =>
-  delivery?.delivery_time_start || delivery?.time_window_start || patient?.time_window_start || null;
+// Patient time windows take priority over delivery_time_start (which is set
+// from the store/pickup time window rules at creation time). If a patient has
+// their own time_window_start/end, use those — the delivery's delivery_time_start
+// is a fallback for patients without specific time constraints.
+const getEffectiveWindowStart = (delivery, patient = null) => {
+  if (patient?.time_window_start) return patient.time_window_start;
+  return delivery?.delivery_time_start || delivery?.time_window_start || null;
+};
 
-const getEffectiveWindowEnd = (delivery, patient = null) =>
-  delivery?.delivery_time_end || delivery?.time_window_end || patient?.time_window_end || null;
+const getEffectiveWindowEnd = (delivery, patient = null) => {
+  if (patient?.time_window_end) return patient.time_window_end;
+  return delivery?.delivery_time_end || delivery?.time_window_end || null;
+};
 
 const isLateWindowStop = (windowStart, currentMinutes) => {
   const startMinutes = parseTimeToMinutes(windowStart);
@@ -1322,15 +1330,20 @@ export async function optimizeRouteClientSide({
       stop.delivery_time_start = pendingStartTime;
     }
 
-    // Backfill patient time windows onto the delivery if missing
-    if (stop.status === 'pending' && stop.patient_id) {
+    // Apply patient time windows to the delivery record.
+    // Patient windows take priority over the store-derived delivery_time_start.
+    // For pending stops transitioning to in_transit (Accept All), this ensures
+    // the committed record carries the patient's time constraints, not the store's.
+    if (stop.patient_id) {
       const patient = patientMap.get(stop.patient_id);
       if (patient) {
-        if (!updateData.delivery_time_start && !stop.delivery_time_start && patient.time_window_start) {
+        if (patient.time_window_start) {
           updateData.delivery_time_start = patient.time_window_start;
+          stop.delivery_time_start = patient.time_window_start;
         }
-        if (!stop.delivery_time_end && patient.time_window_end) {
+        if (patient.time_window_end) {
           updateData.delivery_time_end = patient.time_window_end;
+          stop.delivery_time_end = patient.time_window_end;
         }
       }
     }

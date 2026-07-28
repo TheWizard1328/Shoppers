@@ -48,10 +48,19 @@ export async function runAcceptAllBatchPipeline({
     const etaMins = baseMinutes % 60;
     const eta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
 
-    // Apply patient time windows if the delivery is missing them
+    // Patient time windows take priority over delivery_time_start (which is set
+    // from the store/pickup time window rules at creation time). If a patient
+    // has their own time_window_start/end, those are the authoritative windows
+    // for the delivery — the store's window is just a fallback for patients
+    // without specific time constraints.
     const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-    const resolvedStart = delivery.delivery_time_start || (patient?.time_window_start) || deliveryTimeStart || '09:00';
-    const resolvedEnd = delivery.delivery_time_end || (patient?.time_window_end) || '';
+    const hasPatientWindow = !!(patient?.time_window_start || patient?.time_window_end);
+    const resolvedStart = hasPatientWindow
+      ? (patient.time_window_start || delivery.delivery_time_start || deliveryTimeStart || '09:00')
+      : (delivery.delivery_time_start || deliveryTimeStart || '09:00');
+    const resolvedEnd = hasPatientWindow
+      ? (patient.time_window_end || delivery.delivery_time_end || '')
+      : (delivery.delivery_time_end || '');
 
     return {
       ...delivery,
