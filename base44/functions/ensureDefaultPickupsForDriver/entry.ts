@@ -232,9 +232,15 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
   const homeLon = driverForHome?.home_longitude != null ? Number(driverForHome.home_longitude) : null;
   const hasHome = homeLat != null && homeLon != null && Number.isFinite(homeLat) && Number.isFinite(homeLon) && !(homeLat === 0 && homeLon === 0);
 
-  // after_hours_pickup: true if the route already has active/completed stops when this pickup is created
-  // (this function only runs for the driver's assigned stores, so driver-mismatch is not applicable here)
-  const routeHasActiveStops = existingRouteDeliveries.some(d =>
+  // after_hours_pickup:
+  // - false if this driver is the scheduled driver for this store+slot AND no prior pickup exists for
+  //   this store+slot on this route (first pickup of the day for this location).
+  // - true if this driver already has a pickup (any status) for this store+slot (second run).
+  // Note: ensureDefaultPickups only runs for the driver's assigned stores, so driverNotScheduled
+  // is never true here — we only check for existing slot activity.
+  const hasExistingSlotActivity = existingStoreDeliveries.some(d =>
+    !d?.patient_id && !d?._interstore_source_id && !d?._interstore_dest_id &&
+    (d?.ampm_deliveries || 'AM') === slot &&
     ['en_route', 'in_transit', 'completed', 'failed', 'cancelled'].includes(d?.status)
   );
 
@@ -254,7 +260,7 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     status: 'en_route',
     delivery_time_start: resolvedStart,
     delivery_time_end: resolvedEnd,
-    after_hours_pickup: routeHasActiveStops,
+    after_hours_pickup: hasExistingSlotActivity,
     ...(allExistingFinished && hasHome ? { first_leg_origin_lat: homeLat, first_leg_origin_lng: homeLon } : {}),
   });
 
@@ -385,15 +391,9 @@ Deno.serve(async (req) => {
       .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0))
       .map(d => d.id);
 
-    await base44.functions.invoke('purgeAndRegeneratePolylines', {
-      driverId,
-      deliveryDate,
-      orderedDeliveryIds,
-      bypassDriverStatus: true
-    }).catch((error) => {
-      if (!isNotFoundError(error)) throw error;
-      return null;
-    });
+    // Polyline regeneration is handled client-side by the route optimization coordinator.
+    // purgeAndRegeneratePolylines has been removed — the client triggers a fresh optimization
+    // after receiving the new pickup records via WebSocket/data refresh.
 
     await base44.functions.invoke('recalculateTrackingNumbers', {
       driverId,
