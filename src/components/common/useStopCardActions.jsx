@@ -624,11 +624,39 @@ export default function useStopCardActions(params) {
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
       try { driverLocationPoller.resume(); } catch (e) { console.warn('[AcceptAll] driverLocationPoller.resume failed:', e?.message); }
-      // Use restart (not resume) so the local client does a fresh server pull that
-      // reflects the just-committed bulk update state, preventing stale-data revert.
       try { smartRefreshManager.restart(); } catch (e) { console.warn('[AcceptAll] smartRefreshManager.restart failed:', e?.message); }
       try { backgroundSyncManager.resume(); } catch (e) { console.warn('[AcceptAll] backgroundSyncManager.resume failed:', e?.message); }
       try { resumeRealtimeSync(); } catch (e) { console.warn('[AcceptAll] resumeRealtimeSync failed:', e?.message); }
+
+      // CRITICAL: Pull authoritative server state for this driver/date so the local
+      // device UI reflects what all other devices already see. Runs fire-and-forget
+      // so it doesn't block spinner removal or card collapse. Uses a short delay to
+      // let the server's bulkUpdateDeliveries commit propagate before fetching.
+      // forceRefreshDriverDeliveries fetches from server, writes to IDB, and dispatches
+      // deliveriesUpdated — syncing sync managers and UI in one shot.
+      setTimeout(() => {
+        forceRefreshDriverDeliveries?.(delivery.driver_id, delivery.delivery_date)
+          .then(fresh => {
+            if (Array.isArray(fresh) && fresh.length > 0) {
+              updateDeliveriesLocally?.(fresh, false);
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: {
+                  triggeredBy: 'acceptAllFinalSync',
+                  driverId: delivery.driver_id,
+                  deliveryDate: delivery.delivery_date,
+                  preserveLocalState: false,
+                  fullReplacement: false,
+                  freshDeliveries: fresh,
+                  alreadyOptimized: true,
+                  trustIsNextDelivery: true,
+                }
+              }));
+              console.log(`✅ [AcceptAll] Final server sync: ${fresh.length} deliveries pulled`);
+            }
+          })
+          .catch(e => console.warn('[AcceptAll] Final server sync failed:', e?.message));
+      }, 2000); // 2s delay — gives bulkUpdateDeliveries time to commit and propagate
+
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       try { dispatchStopCardActionCollapse(); } catch (e) { console.warn('[AcceptAll] dispatchStopCardActionCollapse failed:', e?.message); }
       try { onClick?.(null); } catch (e) { console.warn('[AcceptAll] onClick failed:', e?.message); }

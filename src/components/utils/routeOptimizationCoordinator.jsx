@@ -297,6 +297,10 @@ export async function performRouteOptimization({
         const _trWrites = optimizeData.writeBatch.filter(w => w.data?.tracking_number != null).length;
         console.log(`[RouteOptimization] ${source} — bulk-writing ${optimizeData.writeBatch.length} updates (${_polyWrites} with polylines, ${_trWrites} with TR#)`);
         try {
+          // Yield to the browser before the heavy payload serialization so it can paint
+          // the optimistic UI update before we block the main thread with JSON.stringify
+          // of potentially 20+ polyline strings (up to 400KB total).
+          await new Promise(r => setTimeout(r, 0));
           await base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch });
         } catch (e) {
           console.warn(`[RouteOptimization] ${source} — bulkUpdateDeliveries failed, falling back to individual writes:`, e?.message);
@@ -330,7 +334,11 @@ export async function performRouteOptimization({
       // freshDeliveries only contains THIS driver's deliveries — replaceRecordsByIndex
       // would DELETE all other drivers' deliveries for the same date from IDB,
       // causing cached data loss when optimization is triggered via status toggle.
-      Promise.all(freshDeliveries.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {}))).catch(() => {});
+      // Use bulkSave (single IDB transaction) instead of N individual saves.
+      // N concurrent IDB transactions block the main thread between commits — visible as
+      // a "Page Unresponsive" freeze on large routes. bulkSave batches all writes in
+      // one transaction, releasing the thread in a single yield.
+      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
     }
 
     const usedFallbackOrdering = optimizeData?.usedFallbackOrdering === true;
