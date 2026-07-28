@@ -129,7 +129,7 @@ export default function StopCardFooterMenu(props) {
   };
 
   return (
-    <React.Fragment>
+    <>
       <RestartConfirmDialog
         open={showRestartDialog}
         onClose={() => setShowRestartDialog(false)}
@@ -211,6 +211,6 @@ export default function StopCardFooterMenu(props) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-    </React.Fragment>
+    </>
   );
 }
