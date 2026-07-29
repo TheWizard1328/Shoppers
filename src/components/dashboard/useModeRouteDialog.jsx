@@ -222,11 +222,13 @@ export default function useModeRouteDialog({
 
       // ── 5. Compute authoritative stop_order layout ────────────────────────
       // [finished] → startMarker → [cycling stops] → endMarker → [driving stops]
-      const finishedCount = freshDeliveries.filter(
-        (d) => d && d.driver_id === currentUser.id && d.delivery_date === deliveryDateStr && FINISHED.has(d.status)
-      ).length;
+      // Use MAX stop_order of finished stops (not count) — finished stops may have
+      // non-contiguous stop_orders after partial completions.
+      const maxCompletedOrder = freshDeliveries
+        .filter((d) => d && d.driver_id === currentUser.id && d.delivery_date === deliveryDateStr && FINISHED.has(d.status))
+        .reduce((max, d) => Math.max(max, Number(d?.stop_order) || 0), 0);
 
-      const startMarkerOrder  = finishedCount + 1;
+      const startMarkerOrder  = maxCompletedOrder + 1;
       const cyclingStartOrder = startMarkerOrder + 1;
       const endMarkerOrder    = cyclingStartOrder + selectedDeliveries.length;
 
@@ -309,7 +311,7 @@ export default function useModeRouteDialog({
         cyclingOrigin: startCoords,
         cyclingDestination: endCoords,
         cyclingStopIds: [startMarker.id, endMarker.id, ...crowSortedIds],
-        startingStopOrder: cyclingStartOrder,
+        startingStopOrder: maxCompletedOrder,
         skipPolyline: false,
       }).catch((e) => { console.warn('[useModeRouteDialog] Stage 1 failed:', e?.message); return null; });
 
@@ -336,7 +338,7 @@ export default function useModeRouteDialog({
         drivingSegmentOnly: true,
         drivingOrigin: endCoords,
         excludeStopIds: [startMarker.id, endMarker.id, ...crowSortedIds],
-        startingStopOrder: endMarkerOrder + 1,
+        startingStopOrder: endMarkerOrder,
         preserveExistingOrder: false,
         skipPolyline: false,
       }).catch((e) => { console.warn('[useModeRouteDialog] Stage 2 failed:', e?.message); return null; });
