@@ -644,10 +644,14 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       // UI already updated optimistically above — no extra notify needed on failure
     }
     
+    // CRITICAL: Do NOT restart SmartRefresh after a simple delivery update.
+    // The optimistic notifyMutation already updated the local UI instantly.
+    // restartSmartRefresh() triggers a full server re-fetch cycle which causes
+    // the 10-second local UI lag the user observes. SmartRefresh will run on
+    // its own natural interval to reconcile other devices.
     if (shouldManageSmartRefresh) {
       const { smartRefreshManager } = await import('./smartRefreshManager');
-      smartRefreshManager.resetTimers();
-      await restartSmartRefresh();
+      smartRefreshManager.resume(); // resume polling without forcing an immediate re-fetch
     }
     return optimistic;
   } catch (error) {
