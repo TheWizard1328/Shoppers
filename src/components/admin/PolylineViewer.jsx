@@ -1274,10 +1274,12 @@ export default function PolylineViewer({ users = [] }) {
                   const pts = decodePolyline(item.encoded_polyline);
                   const distKm = calcPolylineDistanceKm(pts);
                   const distStr = distKm >= 1 ? `${distKm.toFixed(2)} km` : `${(distKm * 1000).toFixed(0)} m`;
+                  const matchingDelivery = deliveries.find(d => d.driver_id === item.driver_id && d.delivery_date === item.delivery_date && d.stop_order === item.stop_order);
+                  const activeMode = matchingDelivery?.transport_mode || item.transport_mode;
                   return (
                     <>
                       <div className="flex items-center justify-between gap-1">
-                        <span>{item.transport_mode ? `${item.transport_mode === 'cycling' ? '🚲' : item.transport_mode === 'pedestrian' ? '🚶' : '🚗'} ${item.transport_mode}` : ''}</span>
+                        <span>{activeMode ? `${activeMode === 'cycling' ? '🚲' : activeMode === 'pedestrian' ? '🚶' : '🚗'} ${activeMode}` : ''}</span>
                         <span className="text-slate-500">📏 {distStr}</span>
                       </div>
                       {isFocused && (
@@ -1465,7 +1467,7 @@ export default function PolylineViewer({ users = [] }) {
             )}
             {hasCrumb && (
               <div className="flex items-center justify-between gap-2 text-green-700">
-                <span>{crumb.transport_mode ? `${crumb.transport_mode === 'cycling' ? '🚲' : crumb.transport_mode === 'pedestrian' ? '🚶' : '🚗'} ${crumb.transport_mode}` : '🛤 Crumb'}</span>
+                <span>{(() => { const m = delivery?.transport_mode || crumb.transport_mode; return m ? `${m === 'cycling' ? '🚲' : m === 'pedestrian' ? '🚶' : '🚗'} ${m}` : '🛤 Crumb'; })()}</span>
                 <span>📏 {crumbDistStr} · {isEditingCrumb ? cleanedPoints.length : (crumb.point_count || 0)} pts</span>
               </div>
             )}
