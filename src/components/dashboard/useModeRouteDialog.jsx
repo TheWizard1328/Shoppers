@@ -5,6 +5,7 @@ import { getCurrentDriverLocation, getNearbyModeStops } from '@/components/dashb
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { base44 } from '@/api/base44Client';
+import { lockDeliveryFields } from '@/components/utils/completionLockout';
 import { format } from 'date-fns';
 
 // ── Haversine crow-flies distance (km) ────────────────────────────────────────
@@ -288,6 +289,14 @@ export default function useModeRouteDialog({
           ...updatedDrivingStops,
           ...clearedNextStops,
         ];
+      }
+
+      // Lock stop_order + transport_mode against WS reversion for ALL stops touched
+      // by the cycling setup. This prevents stale WS echoes from reverting the
+      // cycling→driving mode assignment or the new stop_order sequence before
+      // the optimizer confirms it. 60s TTL covers the optimization round-trip.
+      for (const d of localUpserts) {
+        if (d?.id) lockDeliveryFields(d.id, ['stop_order', 'transport_mode', 'isNextDelivery'], 60000);
       }
 
       // Apply to local UI and IDB immediately so the stop cards reflect the new order
