@@ -1656,6 +1656,7 @@ export default function DeliveryFormView({
                       ...(startMarkerTimeStart && { delivery_time_start: startMarkerTimeStart }),
                       ...(startMarkerTimeEnd && { delivery_time_end: startMarkerTimeEnd }),
                       transport_mode: 'driving',
+                      isNextDelivery: true,
                     };
                     const endPayload = isStart ? {
                       ...basePayload,
@@ -1668,6 +1669,7 @@ export default function DeliveryFormView({
                       ...(endMarkerTimeStart && { delivery_time_start: endMarkerTimeStart }),
                       ...(endMarkerTimeEnd && { delivery_time_end: endMarkerTimeEnd }),
                       transport_mode: 'cycling',
+                      isNextDelivery: false,
                     } : null;
 
                     // ── Step 1: Write both markers to local UI immediately ────
@@ -1679,6 +1681,21 @@ export default function DeliveryFormView({
                     const tempRecords = [tempStart, tempEnd].filter(Boolean);
                     await _odb.bulkSave(_odb.STORES.DELIVERIES, tempRecords).catch(() => null);
                     applyDeliveryChangesLocally?.({ upserts: tempRecords, deleteIds: [] });
+
+                    // ── Step 1b: Clear isNextDelivery on all other active stops for this driver/date ──
+                    // The cycling start marker must be the only stop with isNextDelivery=true so
+                    // any optimization (Accept All, manual, cycling dialog) locks it as the first stop.
+                    const otherNextStops = (allDeliveries || [])
+                      .filter(d => d && d.isNextDelivery === true &&
+                        d.driver_id === formData.driver_id &&
+                        d.delivery_date === formData.delivery_date &&
+                        !d.is_cycling_marker)
+                      .map(d => ({ ...d, isNextDelivery: false }));
+
+                    if (otherNextStops.length > 0) {
+                      await _odb.bulkSave(_odb.STORES.DELIVERIES, otherNextStops).catch(() => null);
+                      applyDeliveryChangesLocally?.({ upserts: otherNextStops, deleteIds: [] });
+                    }
 
                     // ── Step 2: Close form + open stop-selection dialog immediately ──
                     // Driver sees the dialog while DB writes happen in the background.
@@ -1716,6 +1733,16 @@ export default function DeliveryFormView({
                       })));
                       await _odb.bulkSave(_odb.STORES.DELIVERIES, realRecords);
                       applyDeliveryChangesLocally?.({ upserts: realRecords, deleteIds: tempRecords.map((t) => t.id) });
+                    }
+
+                    // ── Step 3b: Clear isNextDelivery on other stops in backend (fire-and-forget) ──
+                    // The start marker was created with isNextDelivery=true (Step 3 create call).
+                    // Now clear any other stops that still have isNextDelivery=true in the backend
+                    // so the server state matches local IDB.
+                    if (otherNextStops.length > 0) {
+                      base44.functions.invoke('bulkUpdateDeliveries', {
+                        updates: otherNextStops.map(d => ({ id: d.id, data: { isNextDelivery: false } }))
+                      }).catch(() => null);
                     }
 
                     // ── Step 4: Library save / usage increment (fire-and-forget) ──
