@@ -413,10 +413,20 @@ export default function useStopCardActions(params) {
         ...(finalOfflineUpdates || []).map(d => d?.id),
       ].filter(Boolean));
 
-      // Suppress WebSocket echoes for 5 minutes for all transitioned deliveries
+      // Suppress WebSocket echoes for all transitioned deliveries
       const ECHO_EXPIRY = Date.now() + 120 * 1000;  // 120s — covers full 90s coordinator timeout + WS round-trip
       if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
       for (const id of transitionedIds) window.__localDeliveryWrites.set(id, ECHO_EXPIRY);
+
+      // CRITICAL: Lock transitioned fields against WS reversion. During Accept All,
+      // the pending→in_transit transition + stop_order + tracking_number are all
+      // written locally before the server confirms them. Stale WS echoes carrying
+      // status='pending' or old stop_order would revert the optimistic UI state,
+      // causing pending stops to reappear in the pickup card or duplicate
+      // isNextDelivery flags. The 90s TTL covers the full coordinator timeout.
+      for (const id of transitionedIds) {
+        lockDeliveryFields(id, ['status', 'isNextDelivery', 'stop_order', 'tracking_number', 'delivery_time_start'], 90000);
+      }
 
       // Merge transitioned deliveries into allDeliveries for optimizer
       const transitionedMap = new Map();
@@ -938,6 +948,10 @@ export default function useStopCardActions(params) {
           if (changed.length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changed);
             updateDeliveriesLocally?.(changed, false);
+            // Lock isNextDelivery on cycling marker to prevent WS reversion
+            for (const item of changed) {
+              lockDeliveryFields(item.id, ['isNextDelivery', 'stop_order'], 60000);
+            }
             await Promise.all(changed.map((item) =>
               base44.entities.Delivery.update(item.id, { isNextDelivery: item.isNextDelivery }).catch(() => null)
             ));
@@ -1031,6 +1045,16 @@ export default function useStopCardActions(params) {
         if (startedChangedDeliveries.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, startedChangedDeliveries.filter(Boolean));
           updateDeliveriesLocally?.(startedChangedDeliveries.filter(Boolean), false);
+          // Lock fields against WS reversion — the Start action sets isNextDelivery + status
+          // locally before the server confirms. Stale echoes with the old isNextDelivery
+          // flag on the previous stop would cause duplicate next badges until refresh.
+          for (const item of startedChangedDeliveries) {
+            if (item?.isNextDelivery === true) {
+              lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order'], 60000);
+            } else if (item?.isNextDelivery === false) {
+              lockDeliveryFields(item.id, ['isNextDelivery'], 60000);
+            }
+          }
         }
 
         await Promise.all(
@@ -1274,8 +1298,8 @@ export default function useStopCardActions(params) {
     // events from the backend update can read stale IDB data and revert the
     // optimistic isNextDelivery flag, causing the visible "bounce" back to the
     // old stop. This mirrors the lock pattern in handleStatusUpdate.jsx.
-    lockDeliveryFields(delivery.id, ['status', 'isNextDelivery']);
-    if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery']);
+    lockDeliveryFields(delivery.id, ['status', 'isNextDelivery', 'stop_order', 'actual_delivery_time']);
+    if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery', 'stop_order']);
 
     // CRITICAL: Register ALL affected delivery IDs in smartRefreshManager BEFORE
     // any server writes. setAndCenterNextDelivery with persistToBackend:true fires

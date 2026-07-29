@@ -235,12 +235,12 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     // reversion AND background IDB resyncs BEFORE dispatching the optimistic UI update.
     // The backend fires 2-3 rapid WS events during this transition; background full-record
     // fetches can also race and pull back stale data. The 45s TTL covers all of these.
-    const lockedFields = ['status', 'isNextDelivery'];
+    const lockedFields = ['status', 'isNextDelivery', 'stop_order'];
     if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
       lockedFields.push('actual_delivery_time');
     }
     lockDeliveryFields(deliveryId, lockedFields);
-    siblingUpdates.forEach((s) => lockDeliveryFields(s.id, ['isNextDelivery']));
+    siblingUpdates.forEach((s) => lockDeliveryFields(s.id, ['isNextDelivery', 'stop_order']));
 
     if (updateDeliveriesLocally) {
       const uiPatches = [targetRecord, ...siblingUpdates.map((s) => ({ id: s.id, isNextDelivery: s.record.isNextDelivery }))];

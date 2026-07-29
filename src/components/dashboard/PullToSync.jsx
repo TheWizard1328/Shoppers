@@ -85,7 +85,7 @@ export default function PullToSync({
   const performSync = async (silent = false) => {
     const now = Date.now();
     if (isSyncing || (window.__dashboardSyncing && window.__activePullToSyncRunId)) return;
-    if (now - lastSyncStartedAtRef.current < 10000) return;
+    if (now - lastSyncStartedAtRef.current < 3000) return;  // 3s cooldown — was 10s (too long, blocked rapid taps)
 
     lastSyncStartedAtRef.current = now;
     const syncRunId = `${Date.now()}`;
