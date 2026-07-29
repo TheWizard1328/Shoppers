@@ -1027,7 +1027,7 @@ export default function DeliveryForm({
     return () => {
       setIsFormOverlayOpen(false);
       loadedDeliveryIdRef.current = null;
-      import('../utils/smartRefreshManager').then(({ smartRefreshManager }) => { smartRefreshManager.resume(); smartRefreshManager.resetTimers?.(); }).catch(() => {});
+      import('../utils/smartRefreshManager').then(({ smartRefreshManager }) => { smartRefreshManager.resume(); }).catch(() => {});
       import('../utils/routePolylineManager').then(({ routePolylineManager }) => routePolylineManager?.resume?.()).catch(() => {});
       import('../utils/fabControlEvents').then(({ fabControlEvents }) => fabControlEvents.resumeFAB()).catch(() => {});
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));

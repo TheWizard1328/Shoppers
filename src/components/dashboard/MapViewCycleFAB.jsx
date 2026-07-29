@@ -69,11 +69,17 @@ export default function MapViewCycleFAB({
   useEffect(() => {
     const unsubscribe = fabControlEvents.subscribe((event) => {
       if (event?.type === 'DEACTIVATE_FAB') {
+        // In phase 2 or 3 the FAB should always stay colored/active — never gray it out
+        if (currentPhase === 2 || currentPhase === 3) {
+          setIsTemporarilyDeactivated(false);
+          if (deactivateTimeoutRef.current) { clearTimeout(deactivateTimeoutRef.current); deactivateTimeoutRef.current = null; }
+          return;
+        }
         setIsTemporarilyDeactivated(false);
         if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
         deactivateTimeoutRef.current = setTimeout(() => {
           setIsTemporarilyDeactivated(true);
-        }, currentPhase === 1 ? 3000 : Math.max(1200, (window.__suppressCardAutoCenterUntil || 0) - Date.now()));
+        }, 3000);
         return;
       }
 
