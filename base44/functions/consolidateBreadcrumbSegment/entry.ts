@@ -523,8 +523,21 @@ Deno.serve(async (req) => {
       const existing = existingByStopOrder.get(stopOrder);
       let savedRecord;
       if (existing?.id) {
-        savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existing.id, payload);
         existingByStopOrder.delete(stopOrder); // mark as handled
+        // Skip overwriting legs that have already been manually saved
+        if (existing.saved_to_route === true) {
+          console.log(`⏭️ [consolidateBreadcrumbSegment] Skipping stop #${stopOrder} — already saved_to_route`);
+          results.push({
+            stop_order: stopOrder,
+            delivery_id: seg.delivery.delivery_id || seg.delivery.id,
+            point_count: existing.point_count || 0,
+            match_distance_m: Math.round(seg.matchDistance),
+            has_polyline: !!existing.encoded_polyline,
+            skipped: true,
+          });
+          continue;
+        }
+        savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existing.id, payload);
       } else {
         savedRecord = await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(payload);
       }
