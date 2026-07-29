@@ -1045,14 +1045,8 @@ export default function PolylineViewer({ users = [] }) {
       // Update local state
       const updatedItem = { ...item, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: false, imported_from_delivery: true };
       setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
-      setFocusedItem(updatedItem);
-      // Enter cleaning mode with the imported points ready to edit
-      setCleanedPoints(pts);
-      cleanedPointsRef.current = pts;
-      setUndoStack([]);
-      setIsCleaningMode(true);
-      pendingCleanRef.current = { item: updatedItem };
-      toast.success(`Stop #${item.stop_order} — Delivery polyline imported (${pts.length} pts). Now in cleaning mode.`);
+      if (focusedItem?.id === item.id) setFocusedItem(updatedItem);
+      toast.success(`Stop #${item.stop_order} — Delivery polyline imported (${pts.length} pts).`);
     } catch (e) {
       toast.error(`Import failed: ${e.message}`);
     } finally {
