@@ -1005,7 +1005,7 @@ export default function useStopCardActions(params) {
         const expectedStartStatus = (isPickup && !isInterStoreStart) ? 'en_route' : 'in_transit';
 
         // Optimistic UI: only update isNextDelivery + status on the started stop.
-        // stop_order is NOT reassigned here — repairStopOrders (backend) is the single authority.
+        // stop_order is NOT reassigned here — setNextDeliveryFlag (backend) is the single authority.
         const startedRouteDeliveries = routeDeliveries.map((d) => {
           if (d?.id === delivery.id) {
             return { ...d, status: expectedStartStatus, isNextDelivery: true };
@@ -1075,16 +1075,12 @@ export default function useStopCardActions(params) {
           if (!isNotFound) console.warn('⚠️ [Start] handleStartDelivery failed:', startErr?.message || startErr);
         }
 
-        // ── Backend authority: repairStopOrders sequences ALL stops (including cycling markers) ──
+        // ── Backend authority: setNextDeliveryFlag runs buildStopOrderRepairs for ALL stops (including cycling markers) ──
         try {
-          const repairResult = await base44.functions.invoke('repairStopOrders', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-          if (repairResult?.repairedDeliveries?.length > 0) {
-            const { offlineDB: _odb } = await import('../utils/offlineDatabase');
-            await _odb.bulkSave(_odb.STORES.DELIVERIES, repairResult.repairedDeliveries).catch(() => null);
-            updateDeliveriesLocally?.(repairResult.repairedDeliveries, false);
-          }
+          const repairResult = await base44.functions.invoke('setNextDeliveryFlag', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
+          // setNextDeliveryFlag runs buildStopOrderRepairs on the server; local state already updated above.
         } catch (repairErr) {
-          console.warn('⚠️ [Start] repairStopOrders failed:', repairErr?.message || repairErr);
+          console.warn('⚠️ [Start] setNextDeliveryFlag failed:', repairErr?.message || repairErr);
         }
 
         // ── Unlock UI immediately — optimization/polyline work runs in background ──

@@ -1876,10 +1876,10 @@ export default function DeliveryFormView({
                         }
                       }
 
-                      // Single authority: backend repairStopOrders handles ALL stop_order sequencing
+                      // Single authority: backend setNextDeliveryFlag runs buildStopOrderRepairs for ALL stop_order sequencing
                       // (includes cycling markers, unlike the old client-side resort that excluded them).
                       // Local recalculateAndUpdateStopOrders runs first for immediate IDB/UI update,
-                      // then repairStopOrders ensures the server DB matches.
+                      // then setNextDeliveryFlag ensures the server DB matches.
                       const routeDriverId = _formDataSnapshot.driver_id || _deliverySnapshot?.driver_id;
                       const routeDate = _formDataSnapshot.delivery_date || _deliverySnapshot?.delivery_date;
                       if (routeDriverId && routeDate) {
@@ -1888,14 +1888,11 @@ export default function DeliveryFormView({
                         // Backend authority (ensures server DB is correct, includes cycling markers)
                         try {
                           const { base44: b44 } = await import('@/api/base44Client');
-                          const result = await b44.functions.invoke('repairStopOrders', { driverId: routeDriverId, deliveryDate: routeDate });
-                          if (result?.repairedDeliveries?.length > 0) {
-                            const { offlineDB } = await import('../utils/offlineDatabase');
-                            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.repairedDeliveries).catch(() => null);
-                            applyDeliveryChangesLocally?.({ upserts: result.repairedDeliveries, deleteIds: [] });
-                          }
+                          const result = await b44.functions.invoke('setNextDeliveryFlag', { driverId: routeDriverId, deliveryDate: routeDate });
+                          // setNextDeliveryFlag doesn't return repairedDeliveries, but recalculateAndUpdateStopOrders
+                          // already updated local IDB. Server DB is now authoritative.
                         } catch (e) {
-                          console.warn('[DeliveryForm] repairStopOrders failed:', e?.message);
+                          console.warn('[DeliveryForm] setNextDeliveryFlag failed:', e?.message);
                         }
                       }
 
@@ -1909,13 +1906,10 @@ export default function DeliveryFormView({
                         await recalculateAndUpdateStopOrders(_previousDriverId, _previousDeliveryDate);
                         try {
                           const { base44: b44 } = await import('@/api/base44Client');
-                          const prevResult = await b44.functions.invoke('repairStopOrders', { driverId: _previousDriverId, deliveryDate: _previousDeliveryDate });
-                          if (prevResult?.repairedDeliveries?.length > 0) {
-                            const { offlineDB } = await import('../utils/offlineDatabase');
-                            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, prevResult.repairedDeliveries).catch(() => null);
-                          }
+                          const prevResult = await b44.functions.invoke('setNextDeliveryFlag', { driverId: _previousDriverId, deliveryDate: _previousDeliveryDate });
+                          // setNextDeliveryFlag handles the server-side repair; local IDB already updated above.
                         } catch (e) {
-                          console.warn('[DeliveryForm] repairStopOrders (prev driver) failed:', e?.message);
+                          console.warn('[DeliveryForm] setNextDeliveryFlag (prev driver) failed:', e?.message);
                         }
                       }
                       runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser });

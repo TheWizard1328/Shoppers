@@ -31,14 +31,10 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
 
     // Backend authority: resequence ALL remaining stops (including cycling markers)
     try {
-      const repairResult = await base44.functions.invoke('repairStopOrders', { driverId, deliveryDate });
-      if (repairResult?.repairedDeliveries?.length > 0) {
-        const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, repairResult.repairedDeliveries).catch(() => null);
-        updateDeliveriesLocally?.(repairResult.repairedDeliveries, false);
-      }
+      const repairResult = await base44.functions.invoke('setNextDeliveryFlag', { driverId, deliveryDate });
+      // setNextDeliveryFlag runs buildStopOrderRepairs on the server; local UI already updated above.
     } catch (repairErr) {
-      console.warn('⚠️ [DELETE Handler] repairStopOrders failed:', repairErr?.message || repairErr);
+      console.warn('⚠️ [DELETE Handler] setNextDeliveryFlag failed:', repairErr?.message || repairErr);
     }
 
     if (selectedCardId === deliveryId) {
