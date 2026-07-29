@@ -373,6 +373,23 @@ export default function useStopCardActions(params) {
       // or the KITT bar gets two "start" events and never clears on the single "complete".
       window.dispatchEvent(new CustomEvent('pendingStopsProcessingStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
+      // ── STEP 0: Cycling mode dialog (driver-only, blocks until user confirms/cancels) ──
+      // Opens FIRST so the driver can select cycling stops before any pending → in_transit
+      // transition. The dialog sets transport_mode='cycling' on selected stops and
+      // transport_mode='driving' on the rest, then suppresses its own optimization.
+      // Accept All's Step 4 optimizer handles the full route after the transition.
+      const driverAppUser = appUsers.find(u => u?.user_id === delivery.driver_id);
+      const isCyclingMode = String(driverAppUser?.preferred_travel_mode || '').toLowerCase() === 'cycling';
+      if (isDriverAction && isCyclingMode) {
+        await new Promise(resolve => {
+          const onDone = () => { window.removeEventListener('cyclingModeDialogDone', onDone); resolve(); };
+          window.addEventListener('cyclingModeDialogDone', onDone);
+          window.dispatchEvent(new CustomEvent('openCyclingModeDialog', {
+            detail: { deliveryDate: delivery.delivery_date, fromAcceptAll: true }
+          }));
+        });
+      }
+
       // ── STEP 1: Transition pending → in_transit ───────────────────────────────
       const now = new Date();
       const startMins = now.getHours() * 60 + now.getMinutes() + 5;
@@ -505,17 +522,6 @@ export default function useStopCardActions(params) {
           return updatedNotes;
         } catch (_) { return null; }
       })();
-
-      // Cycling mode dialog (driver-only, blocks until user confirms/cancels)
-      const driverAppUser = appUsers.find(u => u?.user_id === delivery.driver_id);
-      const isCyclingMode = String(driverAppUser?.preferred_travel_mode || '').toLowerCase() === 'cycling';
-      if (isDriverAction && isCyclingMode) {
-        await new Promise(resolve => {
-          const onDone = () => { window.removeEventListener('cyclingModeDialogDone', onDone); resolve(); };
-          window.addEventListener('cyclingModeDialogDone', onDone);
-          window.dispatchEvent(new CustomEvent('openCyclingModeDialog', { detail: { deliveryDate: delivery.delivery_date } }));
-        });
-      }
 
       // ── STEP 4: Route optimization + polyline generation ─────────────────────
       // Uses same client-side engine as the manual FAB — should be ~same speed.
