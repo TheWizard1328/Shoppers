@@ -1876,48 +1876,26 @@ export default function DeliveryFormView({
                         }
                       }
 
-                      // Full route resort: finished by actual_delivery_time, incomplete by ETA, resequence stop_order
-                      // For InterStore updates, always fetch fresh data from DB to include the just-saved timestamps
-                      const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+                      // Single authority: backend repairStopOrders handles ALL stop_order sequencing
+                      // (includes cycling markers, unlike the old client-side resort that excluded them).
+                      // Local recalculateAndUpdateStopOrders runs first for immediate IDB/UI update,
+                      // then repairStopOrders ensures the server DB matches.
                       const routeDriverId = _formDataSnapshot.driver_id || _deliverySnapshot?.driver_id;
                       const routeDate = _formDataSnapshot.delivery_date || _deliverySnapshot?.delivery_date;
-
-                      let resortDeliveries = _allDeliveriesSnapshot;
-                      if (_isInterStore && routeDriverId && routeDate) {
+                      if (routeDriverId && routeDate) {
+                        // Local IDB sort first (immediate UI response)
+                        await recalculateAndUpdateStopOrders(routeDriverId, routeDate);
+                        // Backend authority (ensures server DB is correct, includes cycling markers)
                         try {
                           const { base44: b44 } = await import('@/api/base44Client');
-                          const fresh = await b44.entities.Delivery.filter({ driver_id: routeDriverId, delivery_date: routeDate });
-                          if (fresh && fresh.length > 0) resortDeliveries = fresh;
-                        } catch (_) {}
-                      }
-
-                      const routeDeliveries = resortDeliveries.filter(
-                        (d) => d && d.driver_id === routeDriverId && d.delivery_date === routeDate && !d.is_cycling_marker
-                      );
-                      if (routeDeliveries.length > 0) {
-                        const parseActualTime = (d) => {
-                          const t = new Date(d.actual_delivery_time || '');
-                          return Number.isNaN(t.getTime()) ? Infinity : t.getTime();
-                        };
-                        const parseEta = (d) => {
-                          if (!d.delivery_time_eta) return Infinity;
-                          const [h, m] = d.delivery_time_eta.split(':').map(Number);
-                          return Number.isNaN(h) ? Infinity : h * 60 + (m || 0);
-                        };
-                        const finished = routeDeliveries.filter((d) => FINISHED_STATUSES.includes(d.status)).sort((a, b) => parseActualTime(a) - parseActualTime(b));
-                        const incomplete = routeDeliveries.filter((d) => !FINISHED_STATUSES.includes(d.status)).sort((a, b) => {
-                          const diff = parseEta(a) - parseEta(b);
-                          return diff !== 0 ? diff : Number(a.stop_order || 0) - Number(b.stop_order || 0);
-                        });
-                        const reorderUpdates = [];
-                        [...finished, ...incomplete].forEach((d, idx) => {
-                          const newOrder = idx + 1;
-                          if (Number(d.stop_order || 0) !== newOrder) reorderUpdates.push({ ...d, stop_order: newOrder });
-                        });
-                        if (reorderUpdates.length > 0) {
-                          import('../utils/offlineDatabase').then(({ offlineDB }) => offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, reorderUpdates).catch(() => null)).catch(() => null);
-                          reorderUpdates.forEach(({ id, stop_order: so }) => import('@/api/base44Client').then(({ base44: b44 }) => b44.entities.Delivery.update(id, { stop_order: so }).catch(() => null)).catch(() => null));
-                          applyDeliveryChangesLocally?.({ upserts: reorderUpdates, deleteIds: [] });
+                          const result = await b44.functions.invoke('repairStopOrders', { driverId: routeDriverId, deliveryDate: routeDate });
+                          if (result?.repairedDeliveries?.length > 0) {
+                            const { offlineDB } = await import('../utils/offlineDatabase');
+                            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.repairedDeliveries).catch(() => null);
+                            applyDeliveryChangesLocally?.({ upserts: result.repairedDeliveries, deleteIds: [] });
+                          }
+                        } catch (e) {
+                          console.warn('[DeliveryForm] repairStopOrders failed:', e?.message);
                         }
                       }
 
@@ -1926,13 +1904,20 @@ export default function DeliveryFormView({
                         return;
                       }
 
-                      const affectedRoutes = [[_driverId, _deliveryDate], [_previousDriverId, _previousDeliveryDate]].filter(([rid, rd]) => rid && rd);
-                      await Promise.all(
-                        Array.from(new Set(affectedRoutes.map(([rid, rd]) => `${rid}__${rd}`))).map((key) => {
-                          const [rid, rd] = key.split('__');
-                          return recalculateAndUpdateStopOrders(rid, rd);
-                        })
-                      );
+                      // Only resequence the PREVIOUS driver's route (current route already handled above)
+                      if (_previousDriverId && _previousDeliveryDate) {
+                        await recalculateAndUpdateStopOrders(_previousDriverId, _previousDeliveryDate);
+                        try {
+                          const { base44: b44 } = await import('@/api/base44Client');
+                          const prevResult = await b44.functions.invoke('repairStopOrders', { driverId: _previousDriverId, deliveryDate: _previousDeliveryDate });
+                          if (prevResult?.repairedDeliveries?.length > 0) {
+                            const { offlineDB } = await import('../utils/offlineDatabase');
+                            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, prevResult.repairedDeliveries).catch(() => null);
+                          }
+                        } catch (e) {
+                          console.warn('[DeliveryForm] repairStopOrders (prev driver) failed:', e?.message);
+                        }
+                      }
                       runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser });
                     } catch (_) {}
                   })();

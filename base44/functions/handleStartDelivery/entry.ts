@@ -44,11 +44,11 @@ Deno.serve(async (req) => {
 
     const previousNextDelivery = (routeDeliveries || []).find((d) => d?.id !== deliveryId && d?.isNextDelivery === true) || null;
 
-    // Determine the next stop_order: the lowest active (non-finished, non-pending) stop_order
-    // that is >= the first active stop — or just put it right after completed stops.
+    // stop_order is NOT written here — repairStopOrders (called by the client after
+    // this function returns) is the single authority for stop_order sequencing.
+    // Writing stop_order here caused collisions with in-transit cycling markers.
     const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled']);
     const completedStops = (routeDeliveries || []).filter((d) => FINISHED_STATUSES.has(d?.status));
-    const nextStopOrder = completedStops.length + 1;
 
     // Resolve departure origin for first_leg_origin stamping
     const liveOriginLat = driverCurrentLatitude != null ? Number(driverCurrentLatitude) : null;
@@ -73,11 +73,9 @@ Deno.serve(async (req) => {
       } catch (_) {/* non-critical */}
     }
 
-    // STEP 1: Two targeted writes — clear old isNextDelivery, set new one
+    // STEP 1: Only set isNextDelivery and origin coords — stop_order handled by repairStopOrders
     const newStopPayload = {
       isNextDelivery: true,
-      stop_order: nextStopOrder,
-      display_stop_order: nextStopOrder,
       ...(departureOriginLat != null ? { first_leg_origin_lat: departureOriginLat } : {}),
       ...(departureOriginLng != null ? { first_leg_origin_lng: departureOriginLng } : {})
     };
@@ -102,7 +100,7 @@ Deno.serve(async (req) => {
 
     await Promise.all(writes);
 
-    console.log(`[handleStartDelivery] Set isNextDelivery on ${deliveryId} (stop_order=${nextStopOrder}), cleared ${previousNextDelivery?.id || 'none'}`);
+    console.log(`[handleStartDelivery] Set isNextDelivery on ${deliveryId}, cleared ${previousNextDelivery?.id || 'none'} (stop_order deferred to repairStopOrders)`);
 
     // STEP 2: optimizeRemainingStops is intentionally NOT fired here.
     // The client's background tail (useStopCardActions) calls optimizeRemainingStops
@@ -114,7 +112,6 @@ Deno.serve(async (req) => {
       success: true,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId: previousNextDelivery?.id || null,
-      selectedStopOrder: nextStopOrder,
       routeChanged: true
     });
 

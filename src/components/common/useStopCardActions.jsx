@@ -1001,27 +1001,20 @@ export default function useStopCardActions(params) {
         await collapseDriverStopCards();
 
         const finishedStatuses = new Set(FINISHED_STATUSES);
-        const completedStops = routeDeliveries
-          .filter((d) => d && finishedStatuses.has(d.status))
-          .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
-        const activeStops = routeDeliveries
-          .filter((d) => d && !finishedStatuses.has(d.status) && d.status !== 'pending')
-          .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
-        const pendingStops = routeDeliveries
-          .filter((d) => d && d.status === 'pending')
-          .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
-
-        // Put the started stop first among active stops, clear isNextDelivery on all others
-        const reorderedActiveStops = activeStops.filter((d) => d?.id !== delivery.id);
         const isInterStoreStart = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
-        reorderedActiveStops.unshift({ ...delivery, status: (isPickup && !isInterStoreStart) ? 'en_route' : 'in_transit' });
-        const startedRouteDeliveries = [...completedStops, ...reorderedActiveStops, ...pendingStops]
-          .filter(Boolean)
-          .map((d, index) => ({
-            ...d,
-            stop_order: index + 1,
-            isNextDelivery: d.id === delivery.id
-          }));
+        const expectedStartStatus = (isPickup && !isInterStoreStart) ? 'en_route' : 'in_transit';
+
+        // Optimistic UI: only update isNextDelivery + status on the started stop.
+        // stop_order is NOT reassigned here — repairStopOrders (backend) is the single authority.
+        const startedRouteDeliveries = routeDeliveries.map((d) => {
+          if (d?.id === delivery.id) {
+            return { ...d, status: expectedStartStatus, isNextDelivery: true };
+          }
+          if (d?.isNextDelivery) {
+            return { ...d, isNextDelivery: false };
+          }
+          return d;
+        }).filter(Boolean);
 
         const { offlineDB } = await import('../utils/offlineDatabase');
         const startedChangedDeliveries = startedRouteDeliveries.filter((item) => {
@@ -1040,12 +1033,9 @@ export default function useStopCardActions(params) {
             if (!existing) return Promise.resolve(null);
             const updates = {};
             if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
-            if (Number(existing.stop_order || 0) !== Number(item.stop_order || 0)) updates.stop_order = item.stop_order;
             // For the started stop: persist status immediately (no delivery_time_start on Start)
-            if (item.id === delivery.id) {
-              const isInterStoreStart = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
-              const expectedStartStatus = (isPickup && !isInterStoreStart) ? 'en_route' : 'in_transit';
-              if (existing.status !== expectedStartStatus) updates.status = expectedStartStatus;
+            if (item.id === delivery.id && existing.status !== expectedStartStatus) {
+              updates.status = expectedStartStatus;
             }
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
             return Promise.all([
@@ -1077,12 +1067,24 @@ export default function useStopCardActions(params) {
         // ── Ensure driver is on_duty before starting (auto-toggle if off_duty/on_break) ──
         await ensureDriverOnline().catch(() => {});
 
-        // ── Kick off handleStartDelivery (marks stop as in_transit on backend) ──
+        // ── Kick off handleStartDelivery (marks stop as isNextDelivery on backend) ──
         try {
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
         } catch (startErr) {
           const isNotFound = startErr?.status === 404 || String(startErr?.message || '').includes('404');
           if (!isNotFound) console.warn('⚠️ [Start] handleStartDelivery failed:', startErr?.message || startErr);
+        }
+
+        // ── Backend authority: repairStopOrders sequences ALL stops (including cycling markers) ──
+        try {
+          const repairResult = await base44.functions.invoke('repairStopOrders', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
+          if (repairResult?.repairedDeliveries?.length > 0) {
+            const { offlineDB: _odb } = await import('../utils/offlineDatabase');
+            await _odb.bulkSave(_odb.STORES.DELIVERIES, repairResult.repairedDeliveries).catch(() => null);
+            updateDeliveriesLocally?.(repairResult.repairedDeliveries, false);
+          }
+        } catch (repairErr) {
+          console.warn('⚠️ [Start] repairStopOrders failed:', repairErr?.message || repairErr);
         }
 
         // ── Unlock UI immediately — optimization/polyline work runs in background ──

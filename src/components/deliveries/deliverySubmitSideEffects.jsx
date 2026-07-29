@@ -77,24 +77,26 @@ export async function runDeliverySubmitSideEffects({
         .filter((d) => d.id !== delivery.id && !completionStatuses.includes(d.status) && d.status !== 'pending')
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-      if (incompleteDeliveries.length > 0) {
-        try {
-          await base44.functions.invoke('setNextDeliveryFlag', {
-            driverId: formData.driver_id,
-            deliveryDate: formData.delivery_date,
-            targetDeliveryId: incompleteDeliveries[0].id
-          });
-        } catch (error) {
-          console.warn('[DeliveryForm] setNextDeliveryFlag failed:', error?.message);
-        }
+      // Always call setNextDeliveryFlag — it runs buildStopOrderRepairs which
+      // sequences ALL stops (including cycling markers) by actual_delivery_time.
+      // The old `incompleteDeliveries.length > 0` guard prevented repairs on
+      // fully completed routes, leaving duplicate stop_orders unfixed.
+      try {
+        await base44.functions.invoke('setNextDeliveryFlag', {
+          driverId: formData.driver_id,
+          deliveryDate: formData.delivery_date,
+          targetDeliveryId: incompleteDeliveries[0]?.id || null
+        });
+      } catch (error) {
+        console.warn('[DeliveryForm] setNextDeliveryFlag failed:', error?.message);
+      }
 
-        if (delivery.isNextDelivery && skipRouteOptimization) {
-          await base44.functions.invoke('calculateRealTimeETA', {
-            deliveries: incompleteDeliveries,
-            lastStopCompletionTime: t,
-            lastStopServiceTime: delivery.extra_time || 0
-          }).catch(() => null);
-        }
+      if (incompleteDeliveries.length > 0 && delivery.isNextDelivery && skipRouteOptimization) {
+        await base44.functions.invoke('calculateRealTimeETA', {
+          deliveries: incompleteDeliveries,
+          lastStopCompletionTime: t,
+          lastStopServiceTime: delivery.extra_time || 0
+        }).catch(() => null);
       }
 
     } catch (error) {
