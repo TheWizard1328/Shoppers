@@ -60,7 +60,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: `No delivery found for driver ${driverId}, date ${deliveryDate}, stop ${stopOrder}` }, { status: 404 });
     }
 
-    const delivery = deliveries[0];
+    // If multiple deliveries share the same stop_order (e.g., from a previous
+    // cycling marker stop_order bug), prefer the non-cycling-marker delivery —
+    // cycling markers are waypoints, not stops that need polyline updates.
+    const delivery = deliveries.length === 1
+      ? deliveries[0]
+      : deliveries.find(d => !d.is_cycling_marker) || deliveries[0];
 
     // 2. Decode polyline at breadcrumb precision (1e5) and calculate Haversine distance
     const haversineKm = (lat1, lon1, lat2, lon2) => {

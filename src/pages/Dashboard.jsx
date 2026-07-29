@@ -1983,7 +1983,17 @@ function Dashboard() {
       const regularIncomplete = incomplete.filter((d) => d && !d.is_cycling_marker);
       const enriched = regularIncomplete.map((d) => { if (!d) return null; const e = { ...d }; if (d.patient_id) { const p = patients.find((x) => x && x.id === d.patient_id); if (p?.latitude) { e.latitude = p.latitude; e.longitude = p.longitude; } } else { const s = stores.find((x) => x && x.id === d.store_id); if (s?.latitude) { e.latitude = s.latitude; e.longitude = s.longitude; } } return e; }).filter((d) => d && d.latitude && d.longitude);
       const optimized = optimizeRoute(populateTemporaryStartTimes(enriched, stores), stores, patients, { useAdvancedOptimization: true, respectManualOrder: false, driverHome: driver.home_latitude ? { lat: driver.home_latitude, lon: driver.home_longitude } : null });
-      const incompleteWithCycling = [...optimized, ...cyclingMarkersIncomplete].sort((a, b) => (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999));
+      // Merge optimized regular stops with cycling markers, sorted by stop_order.
+      // Cycling markers have their own stop_order values from the mode dialog —
+      // respect them so they land in the correct position (between driving legs).
+      const incompleteWithCycling = [...optimized, ...cyclingMarkersIncomplete].sort((a, b) => {
+        const ao = Number(a.stop_order) || 99999;
+        const bo = Number(b.stop_order) || 99999;
+        // Cycling markers with no stop_order go last (shouldn't happen, but defensive)
+        if (a.is_cycling_marker && !a.stop_order) return 1;
+        if (b.is_cycling_marker && !b.stop_order) return -1;
+        return ao - bo;
+      });
       const final = [...sortedCompleted, ...incompleteWithCycling];
       for (let i = 0; i < final.length; i++) { const s = final[i]; if (!s) continue; const upd = { stop_order: i + 1 }; if (!fin.includes(s.status)) { upd.delivery_time_eta = s.estimated_arrival || s.delivery_time_start; upd.delivery_time_start = s.delivery_time_start; upd.delivery_time_end = s.delivery_time_end; upd.ampm_deliveries = s.ampm_deliveries; if (!s.tracking_number || s.tracking_number === '99') upd.tracking_number = s.tracking_number; } await updateDeliveryLocal(s.id, upd); }
     }

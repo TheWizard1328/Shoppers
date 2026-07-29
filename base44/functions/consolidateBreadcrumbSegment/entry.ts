@@ -480,12 +480,36 @@ Deno.serve(async (req) => {
       delivery_date
     }).catch(() => []);
 
-    // Build map: stop_order → existing record
-    const existingByStopOrder = new Map();
+    // Build map: stop_order → existing records (may have duplicates from prior runs)
+    const existingByStopOrder = new Map(); // stop_order → first record (to update)
+    const duplicateCrumbIds = [];          // extra records to delete
+    const seenStopOrders = new Set();
     for (const rec of (existingSegments || [])) {
       if (rec.stop_order !== -1) {
-        existingByStopOrder.set(Number(rec.stop_order), rec);
+        const so = Number(rec.stop_order);
+        if (seenStopOrders.has(so)) {
+          // Duplicate! Keep the one with saved_to_route=true if any, delete the rest
+          const existing = existingByStopOrder.get(so);
+          if (existing && existing.saved_to_route === true && rec.saved_to_route !== true) {
+            duplicateCrumbIds.push(rec.id);
+          } else if (existing && existing.saved_to_route !== true && rec.saved_to_route === true) {
+            duplicateCrumbIds.push(existing.id);
+            existingByStopOrder.set(so, rec);
+          } else {
+            // Neither saved, or both saved — keep the first, delete the second
+            duplicateCrumbIds.push(rec.id);
+          }
+        } else {
+          seenStopOrders.add(so);
+          existingByStopOrder.set(so, rec);
+        }
       }
+    }
+
+    // Delete duplicate breadcrumb records
+    for (const dupId of duplicateCrumbIds) {
+      console.log(`🗑️ [consolidateBreadcrumbSegment] Deleting duplicate breadcrumb record ${dupId}`);
+      await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(dupId).catch(() => null);
     }
 
     const results = [];
@@ -496,16 +520,17 @@ Deno.serve(async (req) => {
       const segEncoded = encodePolyline(segCoords);
       const segTimestamps = seg.points.map(p => p[2]).join(',');
 
-      // Determine transport mode from the delivery
+      // Determine transport mode from the delivery's transport_mode field
+      // (NOT preferred_travel_mode — that's on AppUser, not Delivery)
       let segTransportMode = 'driving';
       if (seg.delivery.is_cycling_marker) {
-        // Cycling start marker → the leg TO this marker is driving
-        // Cycling end marker → the leg TO this marker is cycling
+        // Cycling start marker → the leg TO this marker is driving (driver drives to start point)
+        // Cycling end marker → the leg TO this marker is cycling (rider cycles to end point)
         const notes = String(seg.delivery.delivery_notes || '').toLowerCase();
         if (notes.includes('end')) {
           segTransportMode = 'cycling';
         }
-      } else if (seg.delivery.preferred_travel_mode === 'cycling') {
+      } else if (String(seg.delivery.transport_mode || '').toLowerCase() === 'cycling') {
         segTransportMode = 'cycling';
       }
 
@@ -560,6 +585,7 @@ Deno.serve(async (req) => {
         await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(rec.id).catch(() => null);
       }
     }
+    // Duplicate records were already deleted in step 7 above.
 
     console.log(`✅ [consolidateBreadcrumbSegment] Proximity slicing complete: ${segments.length} segments saved, driver=${driver_id}, date=${delivery_date}`);
 
