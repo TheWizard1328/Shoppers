@@ -239,8 +239,12 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
       lockedFields.push('actual_delivery_time');
     }
-    lockDeliveryFields(deliveryId, lockedFields);
-    siblingUpdates.forEach((s) => lockDeliveryFields(s.id, ['isNextDelivery', 'stop_order']));
+    lockDeliveryFields(deliveryId, lockedFields, undefined, {
+      status: newStatus, isNextDelivery: false,
+    });
+    siblingUpdates.forEach((s) => lockDeliveryFields(s.id, ['isNextDelivery', 'stop_order'], undefined, {
+      isNextDelivery: s.record.isNextDelivery,
+    }));
 
     if (updateDeliveriesLocally) {
       const uiPatches = [targetRecord, ...siblingUpdates.map((s) => ({ id: s.id, isNextDelivery: s.record.isNextDelivery }))];

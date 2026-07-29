@@ -296,7 +296,11 @@ export default function useModeRouteDialog({
       // cycling→driving mode assignment or the new stop_order sequence before
       // the optimizer confirms it. 60s TTL covers the optimization round-trip.
       for (const d of localUpserts) {
-        if (d?.id) lockDeliveryFields(d.id, ['stop_order', 'transport_mode', 'isNextDelivery'], 60000);
+        if (d?.id) lockDeliveryFields(d.id, ['stop_order', 'transport_mode', 'isNextDelivery'], 60000, {
+          stop_order: d.stop_order,
+          transport_mode: d.transport_mode,
+          isNextDelivery: d.isNextDelivery,
+        });
       }
 
       // Apply to local UI and IDB immediately so the stop cards reflect the new order

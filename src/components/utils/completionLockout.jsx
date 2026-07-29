@@ -18,6 +18,12 @@
  * Extended (2026-07-29): Now also guards against status regression (pending→in_transit
  * reverts during Accept All), stop_order/transport_mode/tracking_number reverts
  * during route optimization, and cycling marker isNextDelivery persistence.
+ *
+ * Extended (2026-07-29 v2): isNextDelivery guard is now SYMMETRIC — blocks both
+ * true→false AND false→true reversion. Added expected-values support: the lock
+ * stores the optimistic values written, so the guard doesn't depend on IDB
+ * read timing. This fixes the completed-stop reversion where a stale WS echo
+ * carries isNextDelivery=true and status=in_transit for a just-completed stop.
  */
 
 const locks = new Map();  // deliveryId → { fields: Set<string>, expiresAt: number }
@@ -40,14 +46,18 @@ const STATUS_RANK = {
  * @param {string[]} fields  – e.g. ['status', 'isNextDelivery']
  * @param {number} [ttlMs]
  */
-export const lockDeliveryFields = (deliveryId, fields, ttlMs = DEFAULT_TTL_MS) => {
+export const lockDeliveryFields = (deliveryId, fields, ttlMs = DEFAULT_TTL_MS, values = {}) => {
   if (!deliveryId || !fields?.length) return;
   const existing = locks.get(deliveryId);
   const fieldSet = new Set([...(existing?.fields || []), ...fields]);
+  // Merge expected values — these are the optimistic values we just wrote.
+  // If provided, the guard uses these instead of the IDB record, eliminating
+  // races where the WS echo arrives before the IDB optimistic write commits.
+  const mergedValues = { ...(existing?.values || {}), ...values };
   // If there's an existing lock, extend the expiry (don't shorten it)
   const newExpiry = Date.now() + ttlMs;
   const existingExpiry = existing?.expiresAt || 0;
-  locks.set(deliveryId, { fields: fieldSet, expiresAt: Math.max(newExpiry, existingExpiry) });
+  locks.set(deliveryId, { fields: fieldSet, expiresAt: Math.max(newExpiry, existingExpiry), values: mergedValues });
 };
 
 /**
@@ -134,16 +144,27 @@ export const applyRealtimeMergeWithLockout = (deliveryId, incomingData, localDat
     if (field === 'status') {
       // Status regression guard: never let a lower-rank status overwrite a higher one
       // e.g. 'pending' (rank 0) cannot overwrite 'in_transit' (rank 1) or terminal (rank 3)
+      // Use expected value from the lock if available (eliminates IDB read race).
+      const expectedStatus = entry.values?.status;
+      const refStatus = expectedStatus !== undefined ? expectedStatus : localVal;
       const incomingRank = STATUS_RANK[incomingVal] ?? -1;
-      const localRank = STATUS_RANK[localVal] ?? -1;
-      if (localRank > incomingRank) {
-        merged[field] = localVal;
+      const refRank = STATUS_RANK[refStatus] ?? -1;
+      if (refRank > incomingRank) {
+        merged[field] = refStatus;
       }
     } else if (field === 'isNextDelivery') {
-      // Suppress a false incoming when local is already true
-      // (the next stop's true arrives in a separate WS event)
-      if (localVal === true && incomingVal === false) {
-        merged[field] = true;
+      // SYMMETRIC guard: if locked and incoming differs from our optimistic
+      // value, keep ours. This handles BOTH reversion directions:
+      //   - true → false: stale echo clearing the next stop's badge
+      //   - false → true: stale echo re-marking a completed stop as next
+      // The lock was set because we just wrote this field authoritatively —
+      // any incoming echo with a different value is stale.
+      // Use expected value from the lock if available (eliminates IDB read race),
+      // otherwise fall back to the local (IDB) record.
+      const expectedVal = entry.values?.isNextDelivery;
+      const refVal = expectedVal !== undefined ? expectedVal : localVal;
+      if (incomingVal !== refVal) {
+        merged[field] = refVal;
       }
     } else if (field === 'actual_delivery_time') {
       // Never let a null/empty incoming value wipe a completion timestamp

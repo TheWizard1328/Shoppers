@@ -425,7 +425,9 @@ export default function useStopCardActions(params) {
       // causing pending stops to reappear in the pickup card or duplicate
       // isNextDelivery flags. The 90s TTL covers the full coordinator timeout.
       for (const id of transitionedIds) {
-        lockDeliveryFields(id, ['status', 'isNextDelivery', 'stop_order', 'tracking_number', 'delivery_time_start'], 90000);
+        lockDeliveryFields(id, ['status', 'isNextDelivery', 'stop_order', 'tracking_number', 'delivery_time_start'], 90000, {
+        status: 'in_transit', isNextDelivery: false,
+      });
       }
 
       // Merge transitioned deliveries into allDeliveries for optimizer
@@ -950,7 +952,9 @@ export default function useStopCardActions(params) {
             updateDeliveriesLocally?.(changed, false);
             // Lock isNextDelivery on cycling marker to prevent WS reversion
             for (const item of changed) {
-              lockDeliveryFields(item.id, ['isNextDelivery', 'stop_order'], 60000);
+              lockDeliveryFields(item.id, ['isNextDelivery', 'stop_order'], 60000, {
+                isNextDelivery: item.isNextDelivery,
+              });
             }
             await Promise.all(changed.map((item) =>
               base44.entities.Delivery.update(item.id, { isNextDelivery: item.isNextDelivery }).catch(() => null)
@@ -1050,9 +1054,13 @@ export default function useStopCardActions(params) {
           // flag on the previous stop would cause duplicate next badges until refresh.
           for (const item of startedChangedDeliveries) {
             if (item?.isNextDelivery === true) {
-              lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order'], 60000);
+              lockDeliveryFields(item.id, ['status', 'isNextDelivery', 'stop_order'], 60000, {
+                status: expectedStartStatus, isNextDelivery: true,
+              });
             } else if (item?.isNextDelivery === false) {
-              lockDeliveryFields(item.id, ['isNextDelivery'], 60000);
+              lockDeliveryFields(item.id, ['isNextDelivery'], 60000, {
+                isNextDelivery: false,
+              });
             }
           }
         }
@@ -1298,8 +1306,12 @@ export default function useStopCardActions(params) {
     // events from the backend update can read stale IDB data and revert the
     // optimistic isNextDelivery flag, causing the visible "bounce" back to the
     // old stop. This mirrors the lock pattern in handleStatusUpdate.jsx.
-    lockDeliveryFields(delivery.id, ['status', 'isNextDelivery', 'stop_order', 'actual_delivery_time']);
-    if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery', 'stop_order']);
+    lockDeliveryFields(delivery.id, ['status', 'isNextDelivery', 'stop_order', 'actual_delivery_time'], DEFAULT_TTL_MS, {
+      status: 'completed', isNextDelivery: false,
+    });
+    if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery', 'stop_order'], DEFAULT_TTL_MS, {
+      isNextDelivery: true,
+    });
 
     // CRITICAL: Register ALL affected delivery IDs in smartRefreshManager BEFORE
     // any server writes. setAndCenterNextDelivery with persistToBackend:true fires
