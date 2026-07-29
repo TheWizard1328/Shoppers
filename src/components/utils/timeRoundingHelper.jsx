@@ -1,28 +1,50 @@
 import { base44 } from "@/api/base44Client";
 
 /**
- * Determines if this is the first or last incomplete stop for the driver on this date
- * @param {Object} delivery - Current delivery being completed
+ * Determines if this is the first or last FINISHED stop for the driver on this date.
+ *
+ * "First finished" = no other stops are already in a finished state (completed/failed/cancelled)
+ * "Last finished" = no remaining active/pending stops after this completion
+ *
+ * This is based on COMPLETION ORDER, not stop_order position in the route.
+ *
+ * @param {Object} delivery - Current delivery being completed/failed/cancelled
  * @param {Array} allDeliveries - All deliveries for the driver
  * @param {Array} FINISHED_STATUSES - Array of finished status values
- * @returns {boolean} - true if this is the first or last stop
+ * @returns {{ isFirstFinished: boolean, isLastFinished: boolean }}
  */
-export function isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES) {
-  const allDriverDeliveries = allDeliveries.filter(d => 
+export function getFirstLastFinished(delivery, allDeliveries, FINISHED_STATUSES) {
+  const allDriverDeliveries = allDeliveries.filter(d =>
     d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-  ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-  
-  if (allDriverDeliveries.length === 0) return false;
-  
-  const isFirstStop = allDriverDeliveries[0].id === delivery.id;
-  const isLastStop = allDriverDeliveries[allDriverDeliveries.length - 1].id === delivery.id;
-  
-  return isFirstStop || isLastStop;
+  );
+
+  // Already-finished stops (excluding the current delivery being completed)
+  const alreadyFinished = allDriverDeliveries.filter(d =>
+    d.id !== delivery.id && FINISHED_STATUSES.includes(d.status)
+  );
+
+  // Remaining active/pending stops (excluding the current delivery)
+  const remainingActive = allDriverDeliveries.filter(d =>
+    d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status)
+  );
+
+  return {
+    isFirstFinished: alreadyFinished.length === 0,
+    isLastFinished: remainingActive.length === 0,
+  };
 }
 
 /**
- * Generates a local ISO timestamp string, rounding to the nearest 5 minutes
- * only if it's the first or last incomplete stop for the driver on the current date.
+ * Generates a local ISO timestamp string, rounding to 5-minute marks
+ * for the first or last finished stop.
+ *
+ * Rounding rules:
+ *   First finished stop → floor (round DOWN to previous 5-min mark)
+ *   Last finished stop  → ceil  (round UP to next 5-min mark)
+ *   Middle stops         → no rounding (exact time)
+ *
+ * If this is both the first AND last finished stop (only one stop),
+ * first-finished rounding (floor) takes precedence.
  *
  * @param {Object} delivery - The current delivery object.
  * @param {Array} allDeliveries - All deliveries for the driver.
@@ -40,18 +62,28 @@ export const generateCompletionTimestamp = (delivery, allDeliveries, FINISHED_ST
     now.getSeconds(),
     0
   );
-  const shouldRound = isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES);
 
-  if (shouldRound) {
-    let roundedMinutes = Math.round(currentTime.getMinutes() / 5) * 5;
-    let roundedHours = currentTime.getHours();
+  const { isFirstFinished, isLastFinished } = getFirstLastFinished(delivery, allDeliveries, FINISHED_STATUSES);
 
-    if (roundedMinutes === 60) {
-      roundedMinutes = 0;
-      roundedHours += 1;
+  if (isFirstFinished || isLastFinished) {
+    const fiveMin = 5 * 60 * 1000;
+    const ms = currentTime.getTime();
+    let roundedMs;
+
+    if (isFirstFinished) {
+      // First finished stop → floor to previous 5-min mark
+      roundedMs = Math.floor(ms / fiveMin) * fiveMin;
+    } else {
+      // Last finished stop → ceil to next 5-min mark
+      // If already exactly on a 5-min mark, don't round up
+      if (ms % fiveMin === 0) {
+        roundedMs = ms;
+      } else {
+        roundedMs = Math.ceil(ms / fiveMin) * fiveMin;
+      }
     }
 
-    currentTime.setHours(roundedHours, roundedMinutes, 0, 0);
+    currentTime.setTime(roundedMs);
   }
 
   return formatLocalTimestamp(currentTime);
@@ -160,27 +192,9 @@ export const calculateRetroactiveStopTiming = async ({
   let baseTime = null;
   let travelDistanceKm = Number(delivery?.travel_dist);
 
-  console.warn('[RetroTiming] start', {
-    deliveryId: delivery?.id,
-    deliveryDate: delivery?.delivery_date,
-    stopOrder: delivery?.stop_order,
-    currentIndex,
-    isFirstStop,
-    previousStopId: previousStop?.id || null,
-    previousStopActualDeliveryTime: previousStop?.actual_delivery_time || null,
-    previousStopArrivalTime: previousStop?.arrival_time || null,
-    previousStopDeliveryTimeStart: previousStop?.delivery_time_start || null,
-    currentDeliveryTimeStart: delivery?.delivery_time_start || null
-  });
-
   if (isFirstStop) {
     const firstStopStartTime = getStoreFirstStopStartTime(delivery, stores);
     baseTime = parseDateTimeParts(delivery.delivery_date, firstStopStartTime);
-    console.warn('[RetroTiming] first stop base time', {
-      deliveryId: delivery?.id,
-      firstStopStartTime,
-      parsedBaseTime: baseTime ? formatLocalTimestamp(baseTime) : null
-    });
   } else {
     const parsedActualDeliveryTime = parseLocalTimestamp(previousStop.actual_delivery_time);
     const parsedArrivalTime = parseLocalTimestamp(previousStop.arrival_time);
@@ -189,18 +203,6 @@ export const calculateRetroactiveStopTiming = async ({
     baseTime = parsedActualDeliveryTime
       || parsedArrivalTime
       || parsedDeliveryTimeStart;
-
-    console.warn('[RetroTiming] previous stop time sources', {
-      deliveryId: delivery?.id,
-      previousStopId: previousStop?.id,
-      rawActualDeliveryTime: previousStop?.actual_delivery_time || null,
-      rawArrivalTime: previousStop?.arrival_time || null,
-      rawDeliveryTimeStart: previousStop?.delivery_time_start || null,
-      parsedActualDeliveryTime: parsedActualDeliveryTime ? formatLocalTimestamp(parsedActualDeliveryTime) : null,
-      parsedArrivalTime: parsedArrivalTime ? formatLocalTimestamp(parsedArrivalTime) : null,
-      parsedDeliveryTimeStart: parsedDeliveryTimeStart ? formatLocalTimestamp(parsedDeliveryTimeStart) : null,
-      selectedBaseTime: baseTime ? formatLocalTimestamp(baseTime) : null
-    });
 
     const origin = getStopCoordinates(previousStop, patients, stores);
     const destination = getStopCoordinates(delivery, patients, stores);
@@ -213,74 +215,40 @@ export const calculateRetroactiveStopTiming = async ({
       const data = res?.data || res || {};
       const travelMinutes = Number(data.estimated_duration_minutes) || 0;
       travelDistanceKm = Number(data.estimated_distance_km);
-      console.warn('[RetroTiming] directions result', {
-        deliveryId: delivery?.id,
-        previousStopId: previousStop?.id,
-        origin,
-        destination,
-        travelMinutes,
-        travelDistanceKm,
-        baseTimeBeforeTravel: formatLocalTimestamp(baseTime)
-      });
       baseTime = new Date(baseTime.getTime() + travelMinutes * 60000);
-      console.warn('[RetroTiming] base time after travel', {
-        deliveryId: delivery?.id,
-        computedBaseTime: formatLocalTimestamp(baseTime)
-      });
-    } else {
-      console.warn('[RetroTiming] skipped directions', {
-        deliveryId: delivery?.id,
-        hasBaseTime: !!baseTime,
-        origin,
-        destination
-      });
     }
   }
 
-  if (!baseTime) {
-    console.warn('[RetroTiming] no base time resolved', {
-      deliveryId: delivery?.id,
-      previousStopId: previousStop?.id || null
-    });
-    baseTime = parseDateTimeParts(delivery.delivery_date, delivery.delivery_time_start || '09:00');
+  if (!baseTime) return null;
+
+  // Apply 5-min rounding for first/last finished stops (retroactive path)
+  const { isFirstFinished, isLastFinished } = getFirstLastFinished(delivery, allDeliveries, ['completed', 'failed', 'cancelled']);
+  if (isFirstFinished || isLastFinished) {
+    const fiveMin = 5 * 60 * 1000;
+    const ms = baseTime.getTime();
+    let roundedMs;
+    if (isFirstFinished) {
+      roundedMs = Math.floor(ms / fiveMin) * fiveMin;
+    } else {
+      if (ms % fiveMin === 0) {
+        roundedMs = ms;
+      } else {
+        roundedMs = Math.ceil(ms / fiveMin) * fiveMin;
+      }
+    }
+    baseTime = new Date(roundedMs);
   }
 
-  if (!baseTime) {
-    return null;
-  }
-
-  if (isFirstStop) {
-    const arrivalTime = new Date(baseTime.getTime());
-    const deliveryOffsetMinutes = Math.floor(Math.random() * 5) + 1;
-    const actualDeliveryTime = new Date(arrivalTime.getTime() + deliveryOffsetMinutes * 60000);
-    const result = {
-      actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
-      arrival_time: formatLocalTimestamp(arrivalTime),
-      ...(Number.isFinite(travelDistanceKm) ? { travel_dist: travelDistanceKm } : {})
-    };
-    console.warn('[Retro] result first stop', {
-      deliveryId: delivery?.id,
-      result,
-      baseTimeIso: baseTime instanceof Date ? baseTime.toISOString() : null
-    });
-    return result;
-  }
-
-  const arrivalTime = new Date(baseTime.getTime());
-  const deliveryOffsetMinutes = Math.floor(Math.random() * 5) + 1;
-  const actualDeliveryTime = new Date(arrivalTime.getTime() + deliveryOffsetMinutes * 60000);
-  const result = {
-    actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
-    arrival_time: formatLocalTimestamp(arrivalTime),
-    ...(Number.isFinite(travelDistanceKm) ? { travel_dist: travelDistanceKm } : {})
+  const estimatedArrivalTime = new Date(baseTime.getTime() + 2 * 60000); // +2 min
+  return {
+    actual_delivery_time: formatLocalTimestamp(baseTime),
+    arrival_time: formatLocalTimestamp(estimatedArrivalTime),
+    travel_dist: Number.isFinite(travelDistanceKm) ? travelDistanceKm : undefined,
   };
-
-  console.warn('[Retro] result final', {
-    deliveryId: delivery?.id,
-    result,
-    arrivalTimeIso: arrivalTime.toISOString(),
-    actualDeliveryTimeIso: actualDeliveryTime.toISOString()
-  });
-
-  return result;
 };
+
+// Backward compatibility — some code imports isFirstOrLastStop
+export function isFirstOrLastStop(delivery, allDeliveries, FINISHED_STATUSES) {
+  const { isFirstFinished, isLastFinished } = getFirstLastFinished(delivery, allDeliveries, FINISHED_STATUSES);
+  return isFirstFinished || isLastFinished;
+}

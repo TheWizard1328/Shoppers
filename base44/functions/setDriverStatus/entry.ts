@@ -17,8 +17,8 @@ const getEdmDate = () => {
 
 /**
  * Round an ISO timestamp to the nearest 5-minute mark.
- * on_duty / on_break → round DOWN (floor) to previous 5-min mark
- * off_duty           → round UP (ceil) to next 5-min mark
+ * on_duty          → round DOWN (floor) to previous 5-min mark
+ * off_duty / on_break → round UP (ceil) to next 5-min mark
  */
 const roundTo5Min = (isoTimestamp, direction) => {
   const d = new Date(isoTimestamp);
@@ -28,15 +28,30 @@ const roundTo5Min = (isoTimestamp, direction) => {
   if (direction === 'floor') {
     rounded = Math.floor(ms / fiveMin) * fiveMin;
   } else {
-    rounded = Math.ceil(ms / fiveMin) * fiveMin;
+    // If already exactly on a 5-min mark, don't round up
+    if (ms % fiveMin === 0) {
+      rounded = ms;
+    } else {
+      rounded = Math.ceil(ms / fiveMin) * fiveMin;
+    }
   }
   return new Date(rounded).toISOString();
 };
 
 /**
  * Record a DriverDailyActivity segment for a status transition.
+ *
+ * SINGLE SOURCE OF TRUTH: This backend function is the ONLY place that records
+ * DriverDailyActivity segments. Client-side liveDistanceTracker.updateDriverStatus
+ * must NOT write segments — it only updates internal state for distance tracking.
+ *
  * on_duty → open a new segment (close any dangling open segment first)
  * on_break / off_duty → close the open segment with a tot
+ *
+ * Rounding rules:
+ *   on_duty  → floor (previous 5-min mark)
+ *   on_break → ceil (next 5-min mark)
+ *   off_duty → ceil (next 5-min mark)
  *
  * anchorTime: optional ISO timestamp to use instead of "now" for the segment boundary.
  *   - off_duty: should be the actual_delivery_time of the last completed stop
@@ -48,9 +63,10 @@ const recordActivitySegment = async (base44, driverId, driverName, newStatus, pr
     const rawNow = anchorTime || new Date().toISOString();
 
     // Round segment boundary to nearest 5-minute mark per direction rule:
-    //   on_duty / on_break → floor (previous 5-min mark)
-    //   off_duty           → ceil  (next 5-min mark)
-    const roundDirection = newStatus === 'off_duty' ? 'ceil' : 'floor';
+    //   on_duty  → floor (previous 5-min mark)
+    //   on_break → ceil  (next 5-min mark)
+    //   off_duty → ceil  (next 5-min mark)
+    const roundDirection = (newStatus === 'off_duty' || newStatus === 'on_break') ? 'ceil' : 'floor';
     const now = roundTo5Min(rawNow, roundDirection);
     const nowMs = new Date(now).getTime();
 
@@ -81,7 +97,7 @@ const recordActivitySegment = async (base44, driverId, driverName, newStatus, pr
       }
       segments.push({ start_time: now, end_time: null, tot: null });
       await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
-      console.log(`⏱️ [setDriverStatus] Activity segment opened for ${driverId}`);
+      console.log(`⏱️ [setDriverStatus] Activity segment opened for ${driverId} (start: ${now})`);
 
     } else if ((newStatus === 'on_break' || newStatus === 'off_duty') && previousStatus === 'on_duty') {
       const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
@@ -90,8 +106,12 @@ const recordActivitySegment = async (base44, driverId, driverName, newStatus, pr
         const tot = Math.max(0, Math.round((nowMs - startMs) / 60000));
         segments[openIdx] = { ...segments[openIdx], end_time: now, tot };
         await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
-        console.log(`⏸️ [setDriverStatus] Activity segment closed — ${tot} min for ${driverId}`);
+        console.log(`⏸️ [setDriverStatus] Activity segment closed — ${tot} min for ${driverId} (end: ${now})`);
+      } else {
+        console.log(`ℹ️ [setDriverStatus] No open segment to close for ${newStatus} (previous: ${previousStatus})`);
       }
+    } else {
+      console.log(`ℹ️ [setDriverStatus] No segment action for ${newStatus} (previous: ${previousStatus})`);
     }
   } catch (err) {
     console.warn('⚠️ [setDriverStatus] recordActivitySegment failed (non-critical):', err?.message || err);
@@ -144,7 +164,7 @@ Deno.serve(async (req) => {
 
     const appUser = appUsers[0];
     const previousStatus = appUser.driver_status;
-    console.log(`📱 [setDriverStatus] Found AppUser: ${appUser.id}`);
+    console.log(`📱 [setDriverStatus] Found AppUser: ${appUser.id}, previous status: ${previousStatus}`);
 
     const updateData = {
       driver_status: newStatus
@@ -305,7 +325,8 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       newStatus,
-      appUserId: appUser.id
+      appUserId: appUser.id,
+      data: updatedAppUser
     });
 
   } catch (error) {

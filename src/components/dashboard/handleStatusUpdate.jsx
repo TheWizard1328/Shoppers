@@ -340,29 +340,29 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       // Set selected driver off duty and disable location sharing
       const driverAppUserForOffDuty = (appUsers || []).find((au) => au?.user_id === driverId);
       if (driverAppUserForOffDuty?.id) {
-        // Use setDriverStatus backend — it handles DriverDailyActivity segment recording,
-        // isNextDelivery clearing, and broadcasts, covering both own-driver and admin paths.
+        // CRITICAL: setDriverStatus backend is the SOLE path for off-duty transitions.
+        // It handles DriverDailyActivity segment recording (with 5-min rounding),
+        // location sharing, isNextDelivery clearing, and WebSocket broadcast.
+        //
+        // DO NOT call base44.entities.AppUser.update() in parallel — it changes
+        // driver_status before the backend reads previousStatus, causing it to
+        // skip segment recording (sees previousStatus=off_duty, not on_duty).
         base44.functions.invoke('setDriverStatus', {
           newStatus: 'off_duty',
           targetUserId: driverId,
           selectedDate: deliveryDate,
-        }).catch((e) => console.warn('⚠️ Failed to auto set driver off_duty via backend:', e.message));
-        // Also update AppUser locally for immediate UI
-        base44.entities.AppUser.update(driverAppUserForOffDuty.id, {
-          driver_status: 'off_duty',
-          location_tracking_enabled: false,
-          current_latitude: null,
-          current_longitude: null,
-          location_updated_at: null,
         }).then(() => {
+          // Optimistic local UI update after backend confirms
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [{ ...driverAppUserForOffDuty, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true } }));
-          // Also close liveDistanceTracker segment for own driver's device
+          // Update liveDistanceTracker internal state (no segment writes — backend handles that)
           if (driverId === currentUser?.id) {
             import('@/components/utils/liveDistanceTracker').then(({ liveDistanceTracker }) => {
-              liveDistanceTracker.updateDriverStatus('off_duty').catch(() => {});
+              if (liveDistanceTracker.isTracking) {
+                liveDistanceTracker.updateDriverStatus('off_duty').catch(() => {});
+              }
             }).catch(() => {});
           }
-        }).catch((e) => console.warn('⚠️ Failed local AppUser off_duty update:', e.message));
+        }).catch((e) => console.warn('⚠️ Failed to auto set driver off_duty via backend:', e.message));
       }
 
       // Reset map to phase 1

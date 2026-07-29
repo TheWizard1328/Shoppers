@@ -272,6 +272,14 @@ export default function useStopCardActions(params) {
         }
       }
       try { await locationTracker.startTracking({ ...currentUser, appUserId }); } catch {}
+      // Sync liveDistanceTracker internal state (NOT segment writes — those are
+      // handled by the backend setDriverStatus function which was just called).
+      try {
+        const { liveDistanceTracker } = await import('../utils/liveDistanceTracker');
+        if (liveDistanceTracker.isTracking) {
+          await liveDistanceTracker.updateDriverStatus('on_duty');
+        }
+      } catch {}
       if (onDriverStatusChange) onDriverStatusChange('on_duty');
     } catch (error) {
       console.error('Failed to auto-toggle driver online:', error);
@@ -1336,33 +1344,33 @@ export default function useStopCardActions(params) {
     if (routeIsFinished) {
       fabControlEvents.notifyDoneButtonClicked();
 
-      // Disable location sharing on the AppUser record for the completing driver
+      // CRITICAL: Use setDriverStatus backend as the SOLE path for going off-duty.
+      // It handles DriverDailyActivity segment recording (with 5-min rounding),
+      // location sharing disable, isNextDelivery clearing, and WebSocket broadcast.
+      //
+      // DO NOT call base44.entities.AppUser.update() directly before setDriverStatus —
+      // that changes driver_status to 'off_duty' before the backend reads previousStatus,
+      // causing it to skip segment recording (sees previousStatus=off_duty, not on_duty).
       const driverAppUser = (appUsers || []).find((au) => au?.user_id === delivery.driver_id);
-      try {
+      const driverStatus = driverAppUser?.driver_status ?? currentUser?.driver_status;
+      if (driverStatus === 'on_duty') {
+        setDriverStatus({
+          newStatus: 'off_duty',
+          selectedDate: delivery?.delivery_date,
+          targetUserId: delivery?.driver_id,
+        }).catch((e) => console.warn('⚠️ Route-complete off_duty failed:', e?.message));
+        // Optimistic local UI update (fire-and-forget, non-blocking)
         if (driverAppUser?.id) {
-          base44.entities.AppUser.update(driverAppUser.id, {
-            driver_status: 'off_duty',
-            location_tracking_enabled: false,
-            current_latitude: null,
-            current_longitude: null,
-            location_updated_at: null,
-          }).then(() => {
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: [{ ...driverAppUser, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
-            }));
-          }).catch(() => {});
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: [{ ...driverAppUser, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
+          }));
         }
-      } catch {}
+      }
 
-      // If the current logged-in user IS the completing driver, also update local status + stop tracker
-      // Fire-and-forget: don't block the EOD dialog on the server round-trip
+      // If the current logged-in user IS the completing driver, stop local tracking
       if (currentUser?.id === delivery.driver_id) {
-        const driverStatus = driverAppUser?.driver_status ?? currentUser?.driver_status;
-        if (driverStatus === 'on_duty') {
-          setDriverStatus({ newStatus: 'off_duty' }).catch(() => {});
-          try { locationTracker.stopTracking(); } catch {}
-          if (onDriverStatusChange) onDriverStatusChange('off_duty');
-        }
+        try { locationTracker.stopTracking(); } catch {}
+        if (onDriverStatusChange) onDriverStatusChange('off_duty');
       }
 
       // Fire the EOD dialog event immediately — don't wait for off-duty server sync

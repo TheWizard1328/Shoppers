@@ -164,13 +164,18 @@ const flushCompletionJob = async (entry) => {
     );
   }
 
-  // 3c. Set driver off-duty if last stop completed — can run in parallel with status writes
-  if (setOffDuty && entry.payload.appUserId && /^[a-f0-9]{24}$/i.test(String(entry.payload.appUserId))) {
+  // 3c. Set driver off-duty if last stop completed — via setDriverStatus backend
+  // (handles DriverDailyActivity segment recording with 5-min rounding, location
+  // sharing, isNextDelivery clearing, and WebSocket broadcast).
+  // Runs in parallel with delivery status writes — segment recording reads
+  // previousStatus from the AppUser record which hasn't been touched yet at this point.
+  if (setOffDuty && driverId && deliveryDate) {
     statusWritePromises.push(
-      scheduleAppUserUpdate(entry.payload.appUserId, {
-        driver_status: 'off_duty',
-        location_tracking_enabled: false
-      }, 0).catch(() => null)
+      base44.functions.invoke('setDriverStatus', {
+        newStatus: 'off_duty',
+        targetUserId: driverId,
+        selectedDate: deliveryDate,
+      }).catch((e) => console.warn('⚠️ [CompleteQueue] setDriverStatus off_duty failed:', e?.message))
     );
   }
 
