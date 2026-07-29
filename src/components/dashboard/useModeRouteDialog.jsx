@@ -249,25 +249,46 @@ export default function useModeRouteDialog({
         .sort((a, b) => (Number(a.stop_order) || 999) - (Number(b.stop_order) || 999));
 
       // ── 6. Build the full local delivery list the optimizer will run on ───
-      // Apply all the stop_order + transport_mode + isNextDelivery changes
-      // directly to the in-memory array so the client engine sees fresh state.
+      // Apply stop_order + transport_mode changes to the in-memory array so the
+      // client engine sees fresh state.
+      //
+      // isNextDelivery handling:
+      //   - Standalone (not fromAcceptAll): set isNextDelivery=true on the start
+      //     marker and clear it on all other stops (the marker is the first stop).
+      //   - From Accept All: leave isNextDelivery alone — the pickup already has
+      //     it set (by setNextDeliveryFlag or a prior optimization). The Accept All
+      //     optimizer will handle sequencing from the existing isNextDelivery flag.
       const otherNextStops = freshDeliveries.filter(
         (d) => d && d.isNextDelivery === true && d.id !== startMarker.id && d.driver_id === currentUser.id
       );
 
-      const updatedStartMarker  = { ...startMarker, stop_order: startMarkerOrder, isNextDelivery: true,  transport_mode: 'driving'  };
-      const updatedEndMarker    = { ...endMarker,   stop_order: endMarkerOrder,   isNextDelivery: false, transport_mode: 'cycling'  };
+      const updatedStartMarker  = { ...startMarker, stop_order: startMarkerOrder, transport_mode: 'driving' };
+      const updatedEndMarker    = { ...endMarker,   stop_order: endMarkerOrder,   transport_mode: 'cycling' };
       const updatedCyclingStops = crowSorted.map((d, i) => ({ ...d, stop_order: cyclingStartOrder + i, transport_mode: 'cycling' }));
       const updatedDrivingStops = drivingStops.map((d, i) => ({ ...d, stop_order: endMarkerOrder + 1 + i }));
-      const clearedNextStops    = otherNextStops.map((d) => ({ ...d, isNextDelivery: false }));
 
-      const localUpserts = [
-        updatedStartMarker,
-        updatedEndMarker,
-        ...updatedCyclingStops,
-        ...updatedDrivingStops,
-        ...clearedNextStops,
-      ];
+      let localUpserts;
+      if (fromAcceptAllRef.current) {
+        // Accept All path: don't touch isNextDelivery — pickup already has it.
+        localUpserts = [
+          updatedStartMarker,
+          updatedEndMarker,
+          ...updatedCyclingStops,
+          ...updatedDrivingStops,
+        ];
+      } else {
+        // Standalone path: set isNextDelivery on start marker, clear on others.
+        const startWithNext = { ...updatedStartMarker, isNextDelivery: true };
+        const endWithNext   = { ...updatedEndMarker,   isNextDelivery: false };
+        const clearedNextStops = otherNextStops.map((d) => ({ ...d, isNextDelivery: false }));
+        localUpserts = [
+          startWithNext,
+          endWithNext,
+          ...updatedCyclingStops,
+          ...updatedDrivingStops,
+          ...clearedNextStops,
+        ];
+      }
 
       // Apply to local UI and IDB immediately so the stop cards reflect the new order
       applyDeliveryChangesLocally?.({ upserts: localUpserts, deleteIds: [] });
