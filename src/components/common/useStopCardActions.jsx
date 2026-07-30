@@ -1755,6 +1755,7 @@ export default function useStopCardActions(params) {
               if (retroactiveTiming.arrival_time) retroUpdate.arrival_time = retroactiveTiming.arrival_time;
               if (typeof retroactiveTiming.travel_dist === 'number') retroUpdate.travel_dist = retroactiveTiming.travel_dist;
               updateDeliveryLocal(delivery.id, retroUpdate, { skipSmartRefresh: true }).catch(() => {});
+              base44.entities.Delivery.update(delivery.id, retroUpdate).catch(() => {});
             }).catch(() => {});
         }
 
