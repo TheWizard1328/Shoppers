@@ -88,30 +88,40 @@ const recordActivitySegment = async (base44, driverId, driverName, newStatus, pr
 
     const segments = Array.isArray(record.activity_segments) ? [...record.activity_segments] : [];
 
-    if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
-      // Close any dangling open segment (crash recovery)
-      const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
+    const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
+
+    if (newStatus === 'on_duty') {
+      // DEFENSIVE: Open a new segment any time we transition to on_duty AND there is
+      // no currently open segment. This is the authoritative guard — it is immune to
+      // stale previousStatus values (e.g. clientPreviousStatus='on_duty' due to a
+      // rapid double-tap, component remount, or race between the frontend AppUser.update
+      // and the setDriverStatus invocation). Without this, a stale previousStatus of
+      // 'on_duty' would fall through to the else branch ("No segment action") and
+      // silently skip opening a new segment when returning from on_break.
       if (openIdx !== -1) {
+        // Already has an open segment — close it first (crash recovery / double-on_duty guard)
         const startMs = new Date(segments[openIdx].start_time).getTime();
         segments[openIdx] = { ...segments[openIdx], end_time: now, tot: Math.max(0, Math.round((nowMs - startMs) / 60000)) };
+        console.log(`⏱️ [setDriverStatus] Closed dangling open segment before opening new one for ${driverId}`);
       }
       segments.push({ start_time: now, end_time: null, tot: null });
       await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
-      console.log(`⏱️ [setDriverStatus] Activity segment opened for ${driverId} (start: ${now})`);
+      console.log(`⏱️ [setDriverStatus] Activity segment opened for ${driverId} (start: ${now}, previousStatus: ${previousStatus})`);
 
-    } else if ((newStatus === 'on_break' || newStatus === 'off_duty') && previousStatus === 'on_duty') {
-      const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
+    } else if (newStatus === 'on_break' || newStatus === 'off_duty') {
+      // Close the open segment. Guard: require previousStatus === 'on_duty' OR an open segment exists.
+      // This prevents double-close if the driver is already on_break/off_duty.
       if (openIdx !== -1) {
         const startMs = new Date(segments[openIdx].start_time).getTime();
         const tot = Math.max(0, Math.round((nowMs - startMs) / 60000));
         segments[openIdx] = { ...segments[openIdx], end_time: now, tot };
         await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
-        console.log(`⏸️ [setDriverStatus] Activity segment closed — ${tot} min for ${driverId} (end: ${now})`);
+        console.log(`⏸️ [setDriverStatus] Activity segment closed — ${tot} min for ${driverId} (end: ${now}, newStatus: ${newStatus})`);
       } else {
-        console.log(`ℹ️ [setDriverStatus] No open segment to close for ${newStatus} (previous: ${previousStatus})`);
+        console.log(`ℹ️ [setDriverStatus] No open segment to close for ${newStatus} (previousStatus: ${previousStatus})`);
       }
     } else {
-      console.log(`ℹ️ [setDriverStatus] No segment action for ${newStatus} (previous: ${previousStatus})`);
+      console.log(`ℹ️ [setDriverStatus] No segment action for ${newStatus} (previousStatus: ${previousStatus})`);
     }
   } catch (err) {
     console.warn('⚠️ [setDriverStatus] recordActivitySegment failed (non-critical):', err?.message || err);
