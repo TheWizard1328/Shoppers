@@ -144,7 +144,9 @@ const DRIVER_FIELDS = [
   'full_name',
   'app_roles',
   'status',
+  'company_id',
   'city_id',
+  'city_ids',
   'sort_order',
   'pay_cycle_type',
   'pay_rate_per_delivery',
@@ -660,15 +662,15 @@ Deno.serve(async (req) => {
         deliveries.map((delivery) => delivery.patient_id).filter(Boolean).filter(isValidObjectId)
       ));
 
-      const appUserFilter = cityId && cityId !== 'all'
-        ? { city_ids: { $in: [cityId] } }
-        : {};
-
       const [storesRaw, appUsersRaw, patientsRaw] = await Promise.all([
         relevantStoreIds.length
           ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
           : (cityStores.length ? cityStores : []),
-        base44.asServiceRole.entities.AppUser.filter(appUserFilter, '', APP_USER_BATCH_LIMIT).catch((error) => {
+        // CRITICAL: Fetch ALL AppUsers with NO city filter.
+        // The city_ids field may be stale/missing on inactive drivers, causing them to
+        // be excluded from payroll even when they have deliveries in the selected city.
+        // driverIdsToKeep below ensures only relevant users are kept in the final output.
+        base44.asServiceRole.entities.AppUser.filter({}, '', APP_USER_BATCH_LIMIT).catch((error) => {
           if (isNotFoundError(error)) return [];
           throw error;
         }),
@@ -681,25 +683,8 @@ Deno.serve(async (req) => {
 
       const payrollDriverIds = dedupeById(allYearPayrollRaw || []).map((record) => record?.driver_id).filter(Boolean);
       const driverIdsToKeep = new Set([...relevantDriverIds, ...payrollDriverIds]);
-
-      // CRITICAL FIX: Inactive drivers may have deliveries in the selected city's stores
-      // but their AppUser.city_ids might not include the selected city (or may be stale).
-      // The city-filtered fetch above misses them entirely. Fetch them by user_id so
-      // they appear in payroll alongside active drivers.
-      const cityAppUserIds = new Set((appUsersRaw || []).map((au) => au?.user_id).filter(Boolean));
-      const missingDriverIds = [...driverIdsToKeep].filter((id) => !cityAppUserIds.has(id));
-      let extraAppUsersRaw = [];
-      if (missingDriverIds.length > 0) {
-        extraAppUsersRaw = await base44.asServiceRole.entities.AppUser.filter(
-          { user_id: { $in: missingDriverIds } }, '', Math.max(missingDriverIds.length + 50, 100)
-        ).catch((error) => {
-          if (isNotFoundError(error)) return [];
-          throw error;
-        });
-      }
-      const mergedAppUsersRaw = dedupeById([...(appUsersRaw || []), ...(extraAppUsersRaw || [])]);
-      const appUsers = mergedAppUsersRaw
-        .filter((appUserRecord) => driverIdsToKeep.size === 0 || driverIdsToKeep.has(appUserRecord.user_id))
+      const appUsers = (appUsersRaw || [])
+        .filter((appUserRecord) => driverIdsToKeep.size === 0 || driverIdsToKeep.has(appUserRecord.user_id) || driverIdsToKeep.has(appUserRecord.id))
         .map((appUserRecord) => pickFields(appUserRecord, DRIVER_FIELDS));
 
       const patients = (patientsRaw || []).map((patient) => pickFields(patient, PATIENT_FIELDS));
