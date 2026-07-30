@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
-const CACHE_VERSION = '5';
+const CACHE_VERSION = '6';
 const SUMMARY_VERSION = '4';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
@@ -662,23 +662,21 @@ Deno.serve(async (req) => {
         deliveries.map((delivery) => delivery.patient_id).filter(Boolean).filter(isValidObjectId)
       ));
 
-      const appUserFilter = cityId && cityId !== 'all'
-        ? { city_ids: { $in: [cityId] } }
-        : {};
-
       const [storesRaw, appUsersRaw, inactiveAppUsersRaw, patientsRaw] = await Promise.all([
         relevantStoreIds.length
           ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
           : (cityStores.length ? cityStores : []),
-        // Fetch AppUsers for the selected city (platform may default to active-only)
-        base44.asServiceRole.entities.AppUser.filter(appUserFilter, '', APP_USER_BATCH_LIMIT).catch((error) => {
+        // Fetch ALL AppUsers with NO city_ids filter.
+        // The city_ids field may be stale/missing on inactive drivers, excluding them
+        // from payroll even when they have deliveries in the selected city.
+        // driverIdsToKeep (built from city-scoped deliveries + payroll records) is the
+        // sole authority for which drivers appear in the output.
+        base44.asServiceRole.entities.AppUser.filter({}, '', APP_USER_BATCH_LIMIT).catch((error) => {
           if (isNotFoundError(error)) return [];
           throw error;
         }),
-        // CRITICAL: Explicitly fetch inactive drivers for the same city.
-        // The platform may filter out status:'inactive' by default — this second
-        // fetch overrides that so inactive drivers with deliveries still appear in payroll.
-        base44.asServiceRole.entities.AppUser.filter({ ...appUserFilter, status: 'inactive' }, '', APP_USER_BATCH_LIMIT).catch((error) => {
+        // Explicitly fetch inactive drivers too — the platform may default to active-only.
+        base44.asServiceRole.entities.AppUser.filter({ status: 'inactive' }, '', APP_USER_BATCH_LIMIT).catch((error) => {
           if (isNotFoundError(error)) return [];
           throw error;
         }),
