@@ -187,7 +187,23 @@ export const calculateRetroactiveStopTiming = async ({
   const currentIndex = routeStops.findIndex((item) => item?.id === delivery.id);
   if (currentIndex === -1) return null;
 
-  const previousStop = currentIndex > 0 ? routeStops[currentIndex - 1] : null;
+  // Use the most recently FINISHED stop (by actual_delivery_time) as the base,
+  // not the previous stop by stop_order. This handles out-of-order completions
+  // (e.g. completing stop #5 when stop #3 was the last finished stop).
+  const finishedStatuses = ['completed', 'failed', 'cancelled'];
+  const finishedStops = routeStops.filter(
+    (item) => item?.id !== delivery.id && finishedStatuses.includes(item?.status) && item?.actual_delivery_time
+  );
+  const mostRecentFinished = finishedStops.length > 0
+    ? finishedStops.reduce((latest, item) => {
+        const t = parseLocalTimestamp(item.actual_delivery_time);
+        const latestT = parseLocalTimestamp(latest.actual_delivery_time);
+        return t && latestT && t > latestT ? item : latest;
+      })
+    : null;
+
+  // Fall back to previous stop by stop_order if no finished stops exist
+  const previousStop = mostRecentFinished || (currentIndex > 0 ? routeStops[currentIndex - 1] : null);
   const isFirstStop = !previousStop;
   let baseTime = null;
   let travelDistanceKm = Number(delivery?.travel_dist);

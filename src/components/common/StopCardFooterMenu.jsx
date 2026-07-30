@@ -93,7 +93,7 @@ export default function StopCardFooterMenu(props) {
   );
 
   const canShowFailCancel = !!(!isDispatcherOnly && onStatusUpdate && canManageStop && (
-    isActivePickup || (isActiveDelivery && isNextDelivery)
+    isActivePickup || (isActiveDelivery && (isNextDelivery || canShowComplete))
   ) && !isInterStore);
 
   const canShowDelete = !!(!isDispatcherOnly && canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
@@ -180,7 +180,7 @@ export default function StopCardFooterMenu(props) {
           {canShowComplete && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} onClick={(e) => { closeMenu(); blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="flex cursor-pointer items-center text-emerald-600 dark:text-emerald-400 text-base py-2.5 md:py-1.5 focus:bg-emerald-50 dark:focus:bg-emerald-950 focus:text-emerald-700 dark:focus:text-emerald-300">
+              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="flex cursor-pointer items-center text-emerald-600 dark:text-emerald-400 text-base py-2.5 md:py-1.5 focus:bg-emerald-50 dark:focus:bg-emerald-950 focus:text-emerald-700 dark:focus:text-emerald-300">
                 <CheckCircle className="w-5 h-5 mr-2" />Complete
               </DropdownMenuItem>
             </>
@@ -188,7 +188,7 @@ export default function StopCardFooterMenu(props) {
           {canShowFailCancel && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} onClick={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300">
+              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300">
                 <XCircle className="w-5 h-5 mr-2" />{isPickupForMenu ? 'Cancel Pickup' : 'Mark as Failed'}
               </DropdownMenuItem>
             </>

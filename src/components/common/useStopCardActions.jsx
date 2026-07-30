@@ -1306,10 +1306,10 @@ export default function useStopCardActions(params) {
     // events from the backend update can read stale IDB data and revert the
     // optimistic isNextDelivery flag, causing the visible "bounce" back to the
     // old stop. This mirrors the lock pattern in handleStatusUpdate.jsx.
-    lockDeliveryFields(delivery.id, ['status', 'isNextDelivery', 'stop_order', 'actual_delivery_time'], DEFAULT_TTL_MS, {
+    lockDeliveryFields(delivery.id, ['status', 'isNextDelivery', 'stop_order', 'actual_delivery_time'], 90000, {
       status: 'completed', isNextDelivery: false,
     });
-    if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery', 'stop_order'], DEFAULT_TTL_MS, {
+    if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery', 'stop_order'], 90000, {
       isNextDelivery: true,
     });
 
@@ -1539,13 +1539,29 @@ export default function useStopCardActions(params) {
         const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
         const fallbackSignatureUrl = patientSavedSignatureUrl || null;
 
-        // CRITICAL: For the initial write, use localTimeString (synchronous).
-        // If retroactive timing is needed (past-date deliveries), it fires as
-        // fire-and-forget AFTER the IDB write — the UI shows the completion
-        // immediately, and the retroactive timestamp updates in the background.
+        // CRITICAL: Await retro timing BEFORE building criticalUpdate so a single
+        // write goes to IDB + backend with the correct times. Fire-and-forget caused
+        // a race where smartRefreshManager.restart() re-fetched stale backend data
+        // (with localTimeString) before the retro backend write committed.
+        let completionActualTime = localTimeString;
+        let completionArrivalTime = !delivery.arrival_time ? localTimeString : null;
+        let retroTravelDist = null;
+        if (useRetroactiveTiming) {
+          try {
+            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true });
+            if (retroactiveTiming) {
+              completionActualTime = retroactiveTiming.actual_delivery_time;
+              if (retroactiveTiming.arrival_time) completionArrivalTime = retroactiveTiming.arrival_time;
+              if (typeof retroactiveTiming.travel_dist === 'number') retroTravelDist = retroactiveTiming.travel_dist;
+            }
+          } catch (_) { /* fall back to localTimeString */ }
+        }
+
+        const fallbackTravelDist = retroTravelDist ?? resolveTravelDistFallback(delivery, null, sameRouteDeliveries);
+
         const completionUpdate = {
           status: 'completed',
-          actual_delivery_time: localTimeString,
+          actual_delivery_time: completionActualTime,
           finished_leg_transport_mode: normalizeTravelMode(delivery.transport_mode || currentPreferredTravelMode),
           isNextDelivery: false,
           finished_leg_encoded_polyline: null,
@@ -1553,24 +1569,12 @@ export default function useStopCardActions(params) {
           ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
           ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}),
           ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}),
-          ...(!delivery.arrival_time ? { arrival_time: localTimeString } : {}),
+          ...(completionArrivalTime ? { arrival_time: completionArrivalTime } : {}),
+          ...(typeof fallbackTravelDist === 'number' ? { travel_dist: fallbackTravelDist } : {}),
         };
 
-        // Fire-and-forget: retroactive timing correction for past-date deliveries
-        if (useRetroactiveTiming) {
-          calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true })
-            .then(retroactiveTiming => {
-              if (!retroactiveTiming) return;
-              const retroUpdate = { actual_delivery_time: retroactiveTiming.actual_delivery_time };
-              if (retroactiveTiming.arrival_time) retroUpdate.arrival_time = retroactiveTiming.arrival_time;
-              if (typeof retroactiveTiming.travel_dist === 'number') retroUpdate.travel_dist = retroactiveTiming.travel_dist;
-              updateDeliveryLocal(delivery.id, retroUpdate, { skipSmartRefresh: true }).catch(() => {});
-            }).catch(() => {});
-        }
-        const fallbackTravelDist = resolveTravelDistFallback(delivery, null, sameRouteDeliveries);
-
         const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
-        const shouldRecalculateCompletionEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
+        const shouldRecalculateCompletionEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionActualTime);
 
         // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
         if (completionUpdate.actual_delivery_time && completionUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
@@ -1732,31 +1736,35 @@ export default function useStopCardActions(params) {
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
         const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
         const allRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-        const fallbackTravelDist = resolveTravelDistFallback(delivery, null, allRouteDeliveries);
+
+        // Await retro timing before building criticalUpdate — same race-condition fix as Complete.
+        let failActualTime = localTimeString;
+        let failArrivalTime = !delivery.arrival_time ? localTimeString : null;
+        let failTravelDist = null;
+        if (useRetroactiveTiming) {
+          try {
+            const retroactiveTiming = await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true });
+            if (retroactiveTiming) {
+              failActualTime = retroactiveTiming.actual_delivery_time;
+              if (retroactiveTiming.arrival_time) failArrivalTime = retroactiveTiming.arrival_time;
+              if (typeof retroactiveTiming.travel_dist === 'number') failTravelDist = retroactiveTiming.travel_dist;
+            }
+          } catch (_) { /* fall back to localTimeString */ }
+        }
+
+        const fallbackTravelDist = failTravelDist ?? resolveTravelDistFallback(delivery, null, allRouteDeliveries);
 
         const criticalUpdate = {
           status,
           delivery_notes: updatedNotes,
-          actual_delivery_time: localTimeString,
+          actual_delivery_time: failActualTime,
           finished_leg_transport_mode: normalizeTravelMode(delivery.transport_mode || currentPreferredTravelMode),
           isNextDelivery: false,
           PolylineUpdated: true,
           ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
-          ...(!delivery.arrival_time ? { arrival_time: localTimeString } : {}),
+          ...(failArrivalTime ? { arrival_time: failArrivalTime } : {}),
           ...(typeof fallbackTravelDist === 'number' ? { travel_dist: fallbackTravelDist } : {}),
         };
-
-        // Fire-and-forget: retroactive timing correction for past-date deliveries
-        if (useRetroactiveTiming) {
-          calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true })
-            .then(retroactiveTiming => {
-              if (!retroactiveTiming) return;
-              const retroUpdate = { actual_delivery_time: retroactiveTiming.actual_delivery_time };
-              if (retroactiveTiming.arrival_time) retroUpdate.arrival_time = retroactiveTiming.arrival_time;
-              if (typeof retroactiveTiming.travel_dist === 'number') retroUpdate.travel_dist = retroactiveTiming.travel_dist;
-              updateDeliveryLocal(delivery.id, retroUpdate, { skipSmartRefresh: true }).catch(() => {});
-            }).catch(() => {});
-        }
 
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
         const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, localTimeString);
