@@ -362,7 +362,9 @@ export default function DriverPayroll() {
         if (!d) return false;
         const driverId = d.user_id || d.id;
         const au = appUsersByDriverId.get(driverId);
-        if (au?.pay_cycle_type !== payPeriod) return false;
+        // For inactive drivers (no AppUser in map), include them if they have payroll records
+        const cycleMatches = !au || au?.pay_cycle_type === payPeriod;
+        if (!cycleMatches && !payrollDriverIds.has(driverId)) return false;
         return driversWithDeliveriesInPeriod.has(driverId) || payrollDriverIds.has(driverId);
       }).
       map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
@@ -425,7 +427,9 @@ export default function DriverPayroll() {
         if (!d) return false;
         const driverId = d.user_id || d.id;
         const au = appUsersByDriverId.get(driverId);
-        if (au?.pay_cycle_type !== payPeriod) return false;
+        // For inactive drivers (no AppUser in map), include them if they have payroll records
+        const cycleMatches = !au || au?.pay_cycle_type === payPeriod;
+        if (!cycleMatches && !payrollDriverIds.has(driverId)) return false;
         return driversWithDeliveriesInPeriod.has(driverId) || payrollDriverIds.has(driverId);
       }).
       map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
@@ -501,7 +505,7 @@ export default function DriverPayroll() {
       filtered = filtered.filter((d) => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
     }
 
-    // Filter by pay cycle (include inactive drivers)
+    // Filter by pay cycle — include inactive drivers who have payroll records in this period
     if (payrollData?.appUsers && payPeriod) {
       const matchingDriverIds = new Set();
       payrollData.appUsers.forEach((au) => {
@@ -509,6 +513,16 @@ export default function DriverPayroll() {
           matchingDriverIds.add(au.user_id);
         }
       });
+      // Also include drivers who have payroll records in this period (covers inactive drivers)
+      if (currentPeriod && Array.isArray(payrollData?.payrollRecords)) {
+        const periodStart = toLocalYMD(currentPeriod.start);
+        const periodEnd = toLocalYMD(currentPeriod.end);
+        payrollData.payrollRecords.forEach((r) => {
+          if (r?.driver_id && r.pay_period_start === periodStart && r.pay_period_end === periodEnd) {
+            matchingDriverIds.add(r.driver_id);
+          }
+        });
+      }
       filtered = filtered.filter((d) => d && matchingDriverIds.has(d.driver_id));
     }
 
@@ -761,7 +775,7 @@ export default function DriverPayroll() {
       return fullYearPayrollDataRef.current;
     }
 
-    if (!forceFresh && fullYearPayrollDataRef.current?.__cacheKey === cacheKey) {
+    if (!forceFresh && fullYearPayrollDataRef.current?.__cacheKey === cacheKey && lastFetchTimestampRef.current > 0) {
       return fullYearPayrollDataRef.current;
     }
 
@@ -861,9 +875,10 @@ export default function DriverPayroll() {
   }, [needsCitySelection]);
 
   // Trigger fetch when filters change (after initialization)
+  // Force a fresh fetch when year changes so stale cached data for past years is replaced
   useEffect(() => {
     if (hasInitialized && isPayrollPageActive && selectedCityId) {
-      fetchPayroll(false, false).catch(() => {});
+      fetchPayroll(false, true).catch(() => {});
     }
   }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll]);
 
