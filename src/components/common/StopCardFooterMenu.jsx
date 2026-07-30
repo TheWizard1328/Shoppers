@@ -188,7 +188,7 @@ export default function StopCardFooterMenu(props) {
           {canShowFailCancel && (
             <>
               <DropdownMenuSeparator className="dark:bg-slate-600" />
-              <DropdownMenuItem inset={false} onClick={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300">
+              <DropdownMenuItem inset={false} onPointerDownCapture={(e) => { closeMenu(); dispatchBleReconnect?.(); blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300">
                 <XCircle className="w-5 h-5 mr-2" />{isPickupForMenu ? 'Cancel Pickup' : 'Mark as Failed'}
               </DropdownMenuItem>
             </>
