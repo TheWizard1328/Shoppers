@@ -681,7 +681,24 @@ Deno.serve(async (req) => {
 
       const payrollDriverIds = dedupeById(allYearPayrollRaw || []).map((record) => record?.driver_id).filter(Boolean);
       const driverIdsToKeep = new Set([...relevantDriverIds, ...payrollDriverIds]);
-      const appUsers = (appUsersRaw || [])
+
+      // CRITICAL FIX: Inactive drivers may have deliveries in the selected city's stores
+      // but their AppUser.city_ids might not include the selected city (or may be stale).
+      // The city-filtered fetch above misses them entirely. Fetch them by user_id so
+      // they appear in payroll alongside active drivers.
+      const cityAppUserIds = new Set((appUsersRaw || []).map((au) => au?.user_id).filter(Boolean));
+      const missingDriverIds = [...driverIdsToKeep].filter((id) => !cityAppUserIds.has(id));
+      let extraAppUsersRaw = [];
+      if (missingDriverIds.length > 0) {
+        extraAppUsersRaw = await base44.asServiceRole.entities.AppUser.filter(
+          { user_id: { $in: missingDriverIds } }, '', Math.max(missingDriverIds.length + 50, 100)
+        ).catch((error) => {
+          if (isNotFoundError(error)) return [];
+          throw error;
+        });
+      }
+      const mergedAppUsersRaw = dedupeById([...(appUsersRaw || []), ...(extraAppUsersRaw || [])]);
+      const appUsers = mergedAppUsersRaw
         .filter((appUserRecord) => driverIdsToKeep.size === 0 || driverIdsToKeep.has(appUserRecord.user_id))
         .map((appUserRecord) => pickFields(appUserRecord, DRIVER_FIELDS));
 
