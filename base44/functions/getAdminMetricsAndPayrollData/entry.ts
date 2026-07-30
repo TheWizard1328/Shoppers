@@ -662,15 +662,23 @@ Deno.serve(async (req) => {
         deliveries.map((delivery) => delivery.patient_id).filter(Boolean).filter(isValidObjectId)
       ));
 
-      const [storesRaw, appUsersRaw, patientsRaw] = await Promise.all([
+      const appUserFilter = cityId && cityId !== 'all'
+        ? { city_ids: { $in: [cityId] } }
+        : {};
+
+      const [storesRaw, appUsersRaw, inactiveAppUsersRaw, patientsRaw] = await Promise.all([
         relevantStoreIds.length
           ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
           : (cityStores.length ? cityStores : []),
-        // CRITICAL: Fetch ALL AppUsers with NO city filter.
-        // The city_ids field may be stale/missing on inactive drivers, causing them to
-        // be excluded from payroll even when they have deliveries in the selected city.
-        // driverIdsToKeep below ensures only relevant users are kept in the final output.
-        base44.asServiceRole.entities.AppUser.filter({}, '', APP_USER_BATCH_LIMIT).catch((error) => {
+        // Fetch AppUsers for the selected city (platform may default to active-only)
+        base44.asServiceRole.entities.AppUser.filter(appUserFilter, '', APP_USER_BATCH_LIMIT).catch((error) => {
+          if (isNotFoundError(error)) return [];
+          throw error;
+        }),
+        // CRITICAL: Explicitly fetch inactive drivers for the same city.
+        // The platform may filter out status:'inactive' by default — this second
+        // fetch overrides that so inactive drivers with deliveries still appear in payroll.
+        base44.asServiceRole.entities.AppUser.filter({ ...appUserFilter, status: 'inactive' }, '', APP_USER_BATCH_LIMIT).catch((error) => {
           if (isNotFoundError(error)) return [];
           throw error;
         }),
@@ -683,7 +691,8 @@ Deno.serve(async (req) => {
 
       const payrollDriverIds = dedupeById(allYearPayrollRaw || []).map((record) => record?.driver_id).filter(Boolean);
       const driverIdsToKeep = new Set([...relevantDriverIds, ...payrollDriverIds]);
-      const appUsers = (appUsersRaw || [])
+      const allAppUsersRaw = dedupeById([...(appUsersRaw || []), ...(inactiveAppUsersRaw || [])]);
+      const appUsers = allAppUsersRaw
         .filter((appUserRecord) => driverIdsToKeep.size === 0 || driverIdsToKeep.has(appUserRecord.user_id) || driverIdsToKeep.has(appUserRecord.id))
         .map((appUserRecord) => pickFields(appUserRecord, DRIVER_FIELDS));
 
