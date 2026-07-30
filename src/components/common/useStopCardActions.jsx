@@ -1102,24 +1102,34 @@ export default function useStopCardActions(params) {
         const finishedSet = new Set(FINISHED_STATUSES);
         const isAlreadyNaturalNext = false; // Always run full optimization path
 
-        // ── Ensure driver is on_duty before starting (auto-toggle if off_duty/on_break) ──
-        await ensureDriverOnline().catch(() => {});
+        // ── Ensure driver is on_duty (fire-and-forget — don't block optimization) ──
+        // The optimistic update already set isNextDelivery + status. Driver status
+        // toggle doesn't affect route optimization and can complete in the background.
+        ensureDriverOnline().catch(() => {});
 
-        // ── Kick off handleStartDelivery (marks stop as isNextDelivery on backend) ──
-        try {
-          await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
-        } catch (startErr) {
+        // ── handleStartDelivery (fire-and-forget) ──
+        // The optimistic update above already wrote isNextDelivery + status to both
+        // IDB and the server via base44.entities.Delivery.update. This backend call
+        // duplicates that work (fetches all route deliveries, sets isNextDelivery,
+        // clears previous, stamps departure origin). Running it without await saves
+        // 2-5s on the Start critical path. If it fails, the optimistic state is
+        // already correct and the optimizer's bulkUpdateDeliveries will confirm it.
+        base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime }).catch((startErr) => {
           const isNotFound = startErr?.status === 404 || String(startErr?.message || '').includes('404');
           if (!isNotFound) console.warn('⚠️ [Start] handleStartDelivery failed:', startErr?.message || startErr);
-        }
+        });
 
-        // ── Backend authority: setNextDeliveryFlag runs buildStopOrderRepairs for ALL stops (including cycling markers) ──
-        try {
-          const repairResult = await base44.functions.invoke('setNextDeliveryFlag', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-          // setNextDeliveryFlag runs buildStopOrderRepairs on the server; local state already updated above.
-        } catch (repairErr) {
+        // ── setNextDeliveryFlag (fire-and-forget) ──
+        // The optimistic update already set isNextDelivery on the correct stop and
+        // cleared it on the previous one via direct Delivery.update calls. This
+        // backend function also repairs stop_order — but the optimizer assigns its
+        // own stop_order via the HERE engine and writes it atomically through
+        // bulkUpdateDeliveries, making the repair redundant. Running it without await
+        // saves 2-5s on the Start critical path while still confirming isNextDelivery
+        // and repairing any edge-case stop_order issues in the background.
+        base44.functions.invoke('setNextDeliveryFlag', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }).catch((repairErr) => {
           console.warn('⚠️ [Start] setNextDeliveryFlag failed:', repairErr?.message || repairErr);
-        }
+        });
 
         // ── Unlock UI immediately — optimization/polyline work runs in background ──
         // NOTE: managers stay paused; background tail re-pauses them before its API calls
@@ -1171,7 +1181,7 @@ export default function useStopCardActions(params) {
             ];
 
 
-            await performRouteOptimization({
+            const coordResult = await performRouteOptimization({
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
               deliveries: _startFullDeliveries,
@@ -1180,45 +1190,33 @@ export default function useStopCardActions(params) {
               appUsers,
               source: 'start_button',
               bypassDriverStatus: true,
-            }).catch(() => null);
+            }).catch((err) => { console.warn('⚠️ [Start bg] optimization failed:', err?.message || err); return null; });
 
-
-            // Fetch fresh deliveries after optimization
-            const refreshedDeliveries = await Promise.race([
-        forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date),
-        new Promise((resolve) => setTimeout(() => {
-          console.warn('⏱️ [AcceptAll] forceRefreshDriverDeliveries TIMED OUT after 15s');
-          resolve([]);
-        }, 15000))
-      ]);
-            const refreshedList = Array.isArray(refreshedDeliveries)
-              ? refreshedDeliveries
-              : Array.isArray(refreshedDeliveries?.deliveries)
-                ? refreshedDeliveries.deliveries
-                : null;
+            // Use freshDeliveries from the optimizer — it already wrote to IDB and
+            // the backend via bulkUpdateDeliveries. No need to re-fetch from server
+            // (the old forceRefreshDriverDeliveries call added up to 15s of latency).
+            const refreshedList = coordResult?.freshDeliveries || null;
             const _refreshPolyCount = Array.isArray(refreshedList) ? refreshedList.filter(d => d?.encoded_polyline).length : 0;
-            console.log(`[Start bg] forceRefreshDriverDeliveries returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
+            console.log(`[Start bg] optimizer returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
 
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
               const withNextFlag = refreshedList.map((d) => ({
                 ...d,
                 isNextDelivery: d.id === delivery.id ? true : (d.isNextDelivery && d.id !== delivery.id ? false : d.isNextDelivery),
               }));
-              await Promise.all(withNextFlag.map(d => offlineDB.save(offlineDB.STORES.DELIVERIES, d).catch(() => {})));
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, withNextFlag).catch(() => {});
               updateDeliveriesLocally?.(withNextFlag, false);
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: withNextFlag } }));
-              try {
-                const { broadcastMutation } = await import('../utils/realtimeSync');
-                await Promise.all(withNextFlag.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
-              } catch (broadcastError) {
-                console.warn('⚠️ [Start bg] delivery broadcast failed:', broadcastError?.message || broadcastError);
-              }
+              // Broadcast mutations fire-and-forget (don't block UI completion)
+              import('../utils/realtimeSync').then(({ broadcastMutation }) => {
+                Promise.all(withNextFlag.map((item) => broadcastMutation('Delivery', 'update', item.id, item))).catch(() => {});
+              }).catch(() => {});
             } else {
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
             }
 
             try {
-              const _startDeliveries = allDeliveries.filter(d => d?.driver_id === delivery.driver_id && d?.delivery_date === delivery.delivery_date);
+              const _startDeliveries = (refreshedList || allDeliveries).filter(d => d?.driver_id === delivery.driver_id && d?.delivery_date === delivery.delivery_date);
               const _startTRUpdates = recalculateTrackingNumbersLocal({ deliveries: _startDeliveries, stores, patients });
               if (_startTRUpdates.length > 0) {
                 await applyTrackingNumberUpdates({ updates: _startTRUpdates, allDeliveries: _startDeliveries, updateDeliveriesLocally, updateDeliveryLocal });
