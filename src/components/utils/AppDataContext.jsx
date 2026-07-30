@@ -135,31 +135,49 @@ export const AppDataProvider = ({ children, value }) => {
         // just-written optimistic state), ONLY merge the incoming WS upserts into the
         // existing in-memory map. This avoids the IDB snapshot overwriting optimistic UI
         // state for the completed delivery and adjacent stops.
+        // CRITICAL: Apply completionLockout to every incoming WS upsert. The lockout
+        // system (completionLockout.jsx) protects status, isNextDelivery, stop_order,
+        // tracking_number, and other fields from being reverted by stale WS echoes
+        // that carry pre-optimistic-write values. Without this, a WS broadcast arriving
+        // after echo suppression expires can re-set isNextDelivery=true on a just-completed
+        // stop, creating duplicate "next delivery" badges in the UI.
+        // This mirrors the lockout already applied in realtimeSync.jsx flushBuffered (line 297)
+        // and forceRefreshDriverDeliveries (line 781).
+        let _lockoutApply;
+        try {
+          _lockoutApply = (await import('./completionLockout')).applyRealtimeMergeWithLockout;
+        } catch (_lockErr) {
+          _lockoutApply = null;
+        }
         deliveryUpserts.forEach((item) => {
           if (!item?.id) return;
           const inMemory = currentById.get(item.id);
-          // Preserve status optimistically (don't revert a locally-completed delivery)
-          // but NEVER preserve isNextDelivery — the backend is the authoritative source
-          // for which stop is "next" across the entire route. Preserving it locally causes
-          // duplicate "next delivery" markers when the old next is cleared by the server.
-          const preservedStatus = inMemory?.status === 'completed' && item.status !== 'completed'
-            ? inMemory.status
-            : item.status;
-          // Preserve cycling marker fields — real-time updates from other fields (e.g. ETA, status)
-          // often omit is_cycling_marker/cycling_lat/lng causing them to reset to null/false.
-          const preservedIsCyclingMarker = inMemory?.is_cycling_marker === true && !item.is_cycling_marker
-            ? true
-            : item.is_cycling_marker;
-          const preservedCyclingLatitude = (inMemory?.cycling_latitude && !item.cycling_latitude)
-            ? inMemory.cycling_latitude
-            : item.cycling_latitude;
-          const preservedCyclingLongitude = (inMemory?.cycling_longitude && !item.cycling_longitude)
-            ? inMemory.cycling_longitude
-            : item.cycling_longitude;
-          currentById.set(item.id, {
+          // Base merge: in-memory spread + incoming WS data
+          let merged = {
             ...(inMemory || {}),
             ...item,
-            status: preservedStatus,
+          };
+          // Apply completion lockout — if a lock is active for this delivery,
+          // protected fields (status, isNextDelivery, stop_order, tracking_number, etc.)
+          // are preserved at their optimistic values instead of being overwritten by
+          // stale WS data. If no lock is active, merged is returned unchanged.
+          if (_lockoutApply) {
+            merged = _lockoutApply(item.id, merged, inMemory);
+          }
+          // Preserve cycling marker fields — real-time updates from other fields (e.g. ETA, status)
+          // often omit is_cycling_marker/cycling_lat/lng causing them to reset to null/false.
+          // (Not covered by completionLockout, so handled separately here.)
+          const preservedIsCyclingMarker = inMemory?.is_cycling_marker === true && !merged.is_cycling_marker
+            ? true
+            : merged.is_cycling_marker;
+          const preservedCyclingLatitude = (inMemory?.cycling_latitude && !merged.cycling_latitude)
+            ? inMemory.cycling_latitude
+            : merged.cycling_latitude;
+          const preservedCyclingLongitude = (inMemory?.cycling_longitude && !merged.cycling_longitude)
+            ? inMemory.cycling_longitude
+            : merged.cycling_longitude;
+          currentById.set(item.id, {
+            ...merged,
             is_cycling_marker: preservedIsCyclingMarker,
             cycling_latitude: preservedCyclingLatitude,
             cycling_longitude: preservedCyclingLongitude,
@@ -225,8 +243,16 @@ export const AppDataProvider = ({ children, value }) => {
     if (deliveryChanged && !nextDeliveries.length && deliveriesRef.current?.length) {
       const byId = new Map(deliveriesRef.current.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
       deliveryDeletes.forEach((id) => byId.delete(id));
+      // Apply lockout in the fallback path too — same protection as the main merge.
+      let _fallbackLockout;
+      try {
+        _fallbackLockout = (await import('./completionLockout')).applyRealtimeMergeWithLockout;
+      } catch (_) { _fallbackLockout = null; }
       deliveryUpserts.forEach((item) => {
-        if (item?.id) byId.set(item.id, item);
+        if (!item?.id) return;
+        const existing = byId.get(item.id);
+        const merged = { ...(existing || {}), ...item };
+        byId.set(item.id, _fallbackLockout ? _fallbackLockout(item.id, merged, existing) : merged);
       });
       nextDeliveries = Array.from(byId.values());
     }
