@@ -972,6 +972,15 @@ export default function useStopCardActions(params) {
           resumeRealtimeSync();
           resetActionLocks(true);
           fabControlEvents.reactivatePhaseTwoIfAvailable();
+          // Same completionFabRelock dispatch for cycling marker start path
+          const _cyclingPhase = window.__currentMapViewPhase || 1;
+          if (_cyclingPhase === 2 || _cyclingPhase === 3) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('completionFabRelock', {
+                detail: { phase: _cyclingPhase, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+              }));
+            }, 300);
+          }
 
           // 2. Background route optimization only
           window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -1045,6 +1054,23 @@ export default function useStopCardActions(params) {
           const existing = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
           return existing && JSON.stringify(existing) !== JSON.stringify(item);
         });
+
+        // CRITICAL: Extended WebSocket echo suppression for all affected delivery IDs.
+        // Start triggers sequential server writes: direct Delivery.update for status +
+        // isNextDelivery, then setAndCenterNextDelivery, then handleStartDelivery +
+        // setNextDeliveryFlag backend calls, then the route optimizer's bulkUpdate.
+        // Each generates WS echoes that can arrive 5-15s later — past broadcastMutation's
+        // 15s legacy TTL. Using 90s extended suppression covers the full window.
+        const _startEchoExpiry = Date.now() + 90 * 1000;
+        if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+        for (const _d of startedRouteDeliveries) {
+          if (_d?.id) {
+            const _existing = window.__localDeliveryWrites.get(_d.id);
+            if (!_existing || _existing < Date.now() + 1000) {
+              window.__localDeliveryWrites.set(_d.id, _startEchoExpiry);
+            }
+          }
+        }
 
         if (startedChangedDeliveries.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, startedChangedDeliveries.filter(Boolean));
@@ -1157,6 +1183,17 @@ export default function useStopCardActions(params) {
           triggerCoolerLogIfNeeded('Arrived');
         }
         fabControlEvents.reactivatePhaseTwoIfAvailable();
+        // CRITICAL: Also dispatch completionFabRelock for phase 3 —
+        // reactivatePhaseTwoIfAvailable only handles phase 2. If the driver
+        // is in phase 3, the FAB stays deactivated after Start.
+        const _phaseAfterStart = window.__currentMapViewPhase || 1;
+        if (_phaseAfterStart === 2 || _phaseAfterStart === 3) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('completionFabRelock', {
+              detail: { phase: _phaseAfterStart, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+            }));
+          }, 300);
+        }
 
         // ── Background: optimization + polyline regen via unified coordinator ──
         // KITT bar activates IMMEDIATELY on Start button click
@@ -1324,6 +1361,32 @@ export default function useStopCardActions(params) {
         smartRefreshManager.registerPendingUpdate(_id, delivery.driver_id, delivery.delivery_date);
       }
     } catch (_) {}
+
+    // CRITICAL: Extended WebSocket echo suppression for ALL affected delivery IDs.
+    // Complete/Fail/Cancel triggers multiple sequential server writes:
+    //   1. updateDeliveryLocal (status + actual_delivery_time)
+    //   2. setAndCenterNextDelivery (isNextDelivery for next stop + travel_dist)
+    //   3. ETA cascade (delivery_time_eta for each remaining stop)
+    //   4. scheduleCompletionSideEffects → setNextDeliveryFlag (service-role WS echoes)
+    //   5. recalculateAndUpdateStopOrders (stop_order resequencing)
+    // broadcastMutation only sets 15s TTL per write, but echoes from later writes
+    // (especially setNextDeliveryFlag's service-role writes) arrive 5-15s after the
+    // initial write — past the 15s window. This causes the visible "bounce" where
+    // the UI reverts to stale data until a manual/automatic refresh fixes it.
+    // Using 90s extended suppression (same pattern as Accept All) covers the full
+    // multi-write window.
+    const _terminalEchoExpiry = Date.now() + 90 * 1000;
+    if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
+    const _terminalAffectedIds = new Set([delivery.id]);
+    if (nextStop?.id) _terminalAffectedIds.add(nextStop.id);
+    incompleteDeliveries.forEach((d) => { if (d?.id) _terminalAffectedIds.add(d.id); });
+    for (const _id of _terminalAffectedIds) {
+      // Don't downgrade an existing extended suppression (e.g., from Accept All's 120s)
+      const _existing = window.__localDeliveryWrites.get(_id);
+      if (!_existing || _existing < Date.now() + 1000) {
+        window.__localDeliveryWrites.set(_id, _terminalEchoExpiry);
+      }
+    }
 
     // 5. Single authoritative isNextDelivery write — this is the ONLY place it fires
     await setAndCenterNextDelivery({
@@ -1607,6 +1670,22 @@ export default function useStopCardActions(params) {
 
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
+        // CRITICAL: Dispatch completionFabRelock to re-engage the FAB in phase 2/3.
+        // reactivateFAB alone can be blocked by the user interaction guard
+        // (isUserControllingMap / isUserSwipingStopCards) since the driver just
+        // tapped a button. It also doesn't clear mapUserUnlockedRef, so if the
+        // driver had previously panned the map, the FAB wouldn't actually follow
+        // the new next stop. completionFabRelock bypasses both issues — it always
+        // re-locks and clears the free-pan flag. 300ms delay lets the optimistic
+        // UI settle before the map repositions.
+        const _phaseAfterComplete = window.__currentMapViewPhase || 1;
+        if (_phaseAfterComplete === 2 || _phaseAfterComplete === 3) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('completionFabRelock', {
+              detail: { phase: _phaseAfterComplete, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+            }));
+          }, 300);
+        }
         // Prompt cooler temp if:
         // 1. Direct fridge delivery (fridge_item flag), OR
         // 2. Pickup whose notes contain a "Fridge: N" summary (from Accept All)
@@ -1786,6 +1865,20 @@ export default function useStopCardActions(params) {
         // ────────────────────────────────────────────────────────────────────
 
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
+        fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
+        // CRITICAL: Same completionFabRelock dispatch as the Complete handler.
+        // Fail/Cancel also needs the FAB to re-engage in phase 2/3 after the
+        // terminal action completes. Without this, the FAB stays deactivated
+        // (from the deactivateFAB call at the start of the handler) and the
+        // map doesn't follow the new next stop.
+        const _phaseAfterFail = window.__currentMapViewPhase || 1;
+        if (_phaseAfterFail === 2 || _phaseAfterFail === 3) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('completionFabRelock', {
+              detail: { phase: _phaseAfterFail, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+            }));
+          }, 300);
+        }
         // Only prompt if no arrival_time reading was already taken for this fridge stop
         if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded(status === 'failed' ? 'Failed' : 'Cancelled');
         dispatchStopCardActionCollapse();
