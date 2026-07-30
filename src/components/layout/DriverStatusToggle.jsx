@@ -297,12 +297,20 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       }
 
       // Call backend (handles isNextDelivery clearing, single-device enforcement, etc.)
+      // CRITICAL: Pass previousStatus so the backend's recordActivitySegment can
+      // correctly detect the transition. The frontend already wrote the new
+      // driver_status to the AppUser record above (line ~258), so the backend
+      // CANNOT read the true previous status from the DB — it would see the
+      // already-updated value. This is why manual toggle wasn't recording
+      // DriverDailyActivity segments (on_break wasn't closing the on_duty segment,
+      // and returning on_duty from break wasn't opening a new segment).
       const result = await base44.functions.invoke('setDriverStatus', {
         newStatus,
         deviceId,
         selectedDate: optimizerDate,
         disableLocationTracking: newStatus === 'off_duty',
         targetUserId: effectiveUser.id,
+        previousStatus,
       });
 
       const confirmedStatus = result?.data?.driver_status || newStatus;

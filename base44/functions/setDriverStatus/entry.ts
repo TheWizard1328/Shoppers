@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { newStatus, deviceId, selectedDate, targetUserId } = await req.json();
+    const { newStatus, deviceId, selectedDate, targetUserId, previousStatus: clientPreviousStatus } = await req.json();
 
     if (!newStatus) {
       return Response.json({ error: 'Missing required field: newStatus' }, { status: 400 });
@@ -163,8 +163,17 @@ Deno.serve(async (req) => {
     }
 
     const appUser = appUsers[0];
-    const previousStatus = appUser.driver_status;
-    console.log(`📱 [setDriverStatus] Found AppUser: ${appUser.id}, previous status: ${previousStatus}`);
+    // CRITICAL: The frontend (DriverStatusToggle) may have ALREADY written the new
+    // driver_status to the AppUser record via base44.entities.AppUser.update() before
+    // calling this backend function. In that case, reading driver_status from the DB
+    // would return the NEW status (not the actual previous status), causing
+    // recordActivitySegment to miss the transition entirely (e.g., previousStatus
+    // would be 'on_break' instead of 'on_duty' when going on break — the segment
+    // close condition `previousStatus === 'on_duty'` would fail silently).
+    // The frontend passes the true previous status; fall back to the DB value only
+    // if the client didn't provide it (e.g., stop card actions path).
+    const previousStatus = clientPreviousStatus || appUser.driver_status;
+    console.log(`📱 [setDriverStatus] Found AppUser: ${appUser.id}, previous status: ${previousStatus} (source: ${clientPreviousStatus ? 'client' : 'db'})`);
 
     const updateData = {
       driver_status: newStatus
