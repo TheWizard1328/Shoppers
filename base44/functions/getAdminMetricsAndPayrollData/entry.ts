@@ -662,23 +662,24 @@ Deno.serve(async (req) => {
         deliveries.map((delivery) => delivery.patient_id).filter(Boolean).filter(isValidObjectId)
       ));
 
-      const appUserFilter = cityId && cityId !== 'all'
+      const appUserCityFilter = cityId && cityId !== 'all'
         ? { city_ids: { $in: [cityId] } }
         : {};
+      // Always pass status explicitly so the platform doesn't apply a default active-only filter
+      const appUserFilter = { ...appUserCityFilter, status: 'active' };
 
       const [storesRaw, appUsersRaw, inactiveAppUsersRaw, patientsRaw] = await Promise.all([
         relevantStoreIds.length
           ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
           : (cityStores.length ? cityStores : []),
-        // Fetch AppUsers for the selected city (platform may default to active-only)
-        base44.asServiceRole.entities.AppUser.filter(appUserFilter, '', APP_USER_BATCH_LIMIT).catch((error) => {
+        // Fetch active AppUsers for the selected city
+        base44.asServiceRole.entities.AppUser.filter({ ...appUserFilter, status: 'active' }, '', APP_USER_BATCH_LIMIT).catch((error) => {
           if (isNotFoundError(error)) return [];
           throw error;
         }),
-        // CRITICAL: Explicitly fetch inactive drivers for the same city.
-        // The platform may filter out status:'inactive' by default — this second
-        // fetch overrides that so inactive drivers with deliveries still appear in payroll.
-        base44.asServiceRole.entities.AppUser.filter({ ...appUserFilter, status: 'inactive' }, '', APP_USER_BATCH_LIMIT).catch((error) => {
+        // CRITICAL: Always explicitly fetch inactive AppUsers — they must appear in payroll
+        // even after being deactivated, as long as they have deliveries in the period.
+        base44.asServiceRole.entities.AppUser.filter({ ...appUserCityFilter, status: 'inactive' }, '', APP_USER_BATCH_LIMIT).catch((error) => {
           if (isNotFoundError(error)) return [];
           throw error;
         }),
