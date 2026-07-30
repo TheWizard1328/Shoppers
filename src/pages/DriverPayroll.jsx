@@ -396,6 +396,19 @@ export default function DriverPayroll() {
       driversWithDeliveriesInPeriod.add(selectedDriverId);
     }
 
+    // Also include drivers who already have payroll records for this period,
+    // even if their deliveries aren't in the current data set.
+    const periodStartStr = periodStart;
+    const periodEndStr = periodEnd;
+    const payrollDriverIds = new Set();
+    if (Array.isArray(payrollData?.payrollRecords)) {
+      payrollData.payrollRecords.forEach((r) => {
+        if (r?.pay_period_start === periodStartStr && r?.pay_period_end === periodEndStr) {
+          payrollDriverIds.add(r.driver_id);
+        }
+      });
+    }
+
     const result = sortUsers(
       payrollData.drivers.
       filter((d) => {
@@ -403,13 +416,13 @@ export default function DriverPayroll() {
         const driverId = d.user_id || d.id;
         const au = appUsersByDriverId.get(driverId);
         if (au?.pay_cycle_type !== payPeriod) return false;
-        return driversWithDeliveriesInPeriod.has(driverId);
+        return driversWithDeliveriesInPeriod.has(driverId) || payrollDriverIds.has(driverId);
       }).
       map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
 
     return result;
-  }, [payrollData?.appUsers, payrollData?.drivers, payrollData?.deliveries, payPeriod, currentPeriod, selectedDriverId]);
+  }, [payrollData?.appUsers, payrollData?.drivers, payrollData?.deliveries, payPeriod, currentPeriod, selectedDriverId, payrollData?.payrollRecords]);
 
   // Calculate available pay cycles and their counts for the selected city/year
   const payCycleInfo = useMemo(() => {
@@ -499,16 +512,33 @@ export default function DriverPayroll() {
     const periodEnd = toLocalYMD(currentPeriod.end);
     const payCycleDriverIds = new Set(driversInPayCycle.map((driver) => driver.user_id || driver.id));
 
+    // Build a map of driver_id -> pay_cycle_type from appUsers so we can match
+    // payroll records to the driver's ACTUAL pay cycle, not just the page-level payPeriod.
+    const driverCycleMap = new Map();
+    if (payrollData?.appUsers) {
+      payrollData.appUsers.forEach((au) => {
+        if (au?.user_id && au?.pay_cycle_type) {
+          driverCycleMap.set(au.user_id, au.pay_cycle_type);
+        }
+      });
+    }
+
     return payrollRecords.filter((record) => {
       const matchesPeriod = record.pay_period_start === periodStart && record.pay_period_end === periodEnd;
       const matchesDriver = selectedDriverId === 'all' ?
       payCycleDriverIds.has(record.driver_id) :
       record.driver_id === selectedDriverId;
       const matchesCity = !selectedCityId || selectedCityId === 'all' || record.city_id === selectedCityId;
-      const matchesPayPeriod = !payPeriod || record.pay_period_type === payPeriod;
+      // Match if the record's pay_period_type matches the page payPeriod OR the
+      // driver's actual pay_cycle_type. This prevents records from being hidden
+      // when the page-level payPeriod doesn't match the driver's real cycle.
+      const driverCycle = driverCycleMap.get(record.driver_id);
+      const matchesPayPeriod = !payPeriod ||
+        record.pay_period_type === payPeriod ||
+        (driverCycle && record.pay_period_type === driverCycle);
       return matchesPeriod && matchesDriver && matchesCity && matchesPayPeriod;
     });
-  }, [payrollRecords, currentPeriod, driversInPayCycle, selectedDriverId, selectedCityId, payPeriod]);
+  }, [payrollRecords, currentPeriod, driversInPayCycle, selectedDriverId, selectedCityId, payPeriod, payrollData?.appUsers]);
 
   const totalNetPay = useMemo(() => filteredPayrollRecords.reduce((sum, r) => sum + (Number(r.net_pay) || 0), 0), [filteredPayrollRecords]);
   const totalDeliveries = useMemo(() => {
@@ -554,21 +584,12 @@ export default function DriverPayroll() {
         setSelectedDriverId('all');
       }
 
-      setPayrollData((prev) => {
-        if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
-          const driverAppUser = prev.appUsers.find((au) => au.user_id === selectedDriverId);
-          if (driverAppUser) {
-            base44.entities.AppUser.update(driverAppUser.id, {
-              pay_cycle_type: newPayPeriod
-            }).catch((error) => console.error('Failed to save pay cycle type:', error));
-            return {
-              ...prev,
-              appUsers: prev.appUsers.map((au) => au.id === driverAppUser.id ? { ...au, pay_cycle_type: newPayPeriod } : au)
-            };
-          }
-        }
-        return prev;
-      });
+      // REMOVED: Previously this block updated the selected driver's pay_cycle_type
+      // in the database when the admin changed the pay period dropdown while a
+      // specific driver was selected. This was a dangerous side-effect — the
+      // dropdown is for VIEWING different pay periods, not for SETTING a driver's
+      // pay cycle. Driver pay cycle should only be changed via DriverEditForm.
+      // The selectedDriverId is already reset to 'all' above.
     });
 
     setTimeout(() => {isManualChangeRef.current = false;}, 200);
@@ -949,9 +970,21 @@ export default function DriverPayroll() {
 
     // Only update if live data disagrees with offline-based selection
     if (liveCycle && liveCycle !== payPeriod) {
+      console.warn(`🔧 [DriverPayroll] Live pay cycle (${liveCycle}) differs from current (${payPeriod}), correcting`);
       setPayPeriod(liveCycle);
       // Reset period selection so it recalculates for new cycle
       periodSelectionDoneWithRecordsRef.current = false;
+    } else if (!liveCycle && payPeriod === 'monthly') {
+      // Fallback: if live data couldn't determine a cycle and we're stuck on the
+      // 'monthly' default, check if ANY semimonthly drivers exist and switch
+      const hasSemiMonthly = payrollData.appUsers?.some((au) =>
+        au?.app_roles?.includes('driver') && au?.pay_cycle_type === 'semimonthly'
+      );
+      if (hasSemiMonthly) {
+        console.warn(`🔧 [DriverPayroll] Stuck on monthly default but semimonthly drivers exist, correcting`);
+        setPayPeriod('semimonthly');
+        periodSelectionDoneWithRecordsRef.current = false;
+      }
     }
 
     hasLoadedInitialDataRef.current = true;
