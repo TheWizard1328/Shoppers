@@ -1306,10 +1306,10 @@ export default function useStopCardActions(params) {
     // events from the backend update can read stale IDB data and revert the
     // optimistic isNextDelivery flag, causing the visible "bounce" back to the
     // old stop. This mirrors the lock pattern in handleStatusUpdate.jsx.
-    lockDeliveryFields(delivery.id, ['status', 'isNextDelivery', 'stop_order', 'actual_delivery_time'], DEFAULT_TTL_MS, {
+    lockDeliveryFields(delivery.id, ['status', 'isNextDelivery', 'stop_order', 'actual_delivery_time'], 90000, {
       status: 'completed', isNextDelivery: false,
     });
-    if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery', 'stop_order'], DEFAULT_TTL_MS, {
+    if (nextStop?.id) lockDeliveryFields(nextStop.id, ['isNextDelivery', 'stop_order'], 90000, {
       isNextDelivery: true,
     });
 
