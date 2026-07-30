@@ -334,7 +334,8 @@ export default function DriverPayroll() {
       if (au?.user_id) appUsersByDriverId.set(au.user_id, au);
     });
 
-    // Only include drivers who have deliveries in the current pay period
+    // Include drivers who have deliveries OR existing payroll records in the current pay period.
+    // This ensures inactive drivers with data are still shown.
     const periodStart = currentPeriod ? toLocalYMD(currentPeriod.start) : null;
     const periodEnd = currentPeriod ? toLocalYMD(currentPeriod.end) : null;
     const driversWithDeliveriesInPeriod = new Set();
@@ -342,6 +343,15 @@ export default function DriverPayroll() {
       payrollData.deliveries.forEach((d) => {
         if (d?.driver_id && d.delivery_date >= periodStart && d.delivery_date <= periodEnd) {
           driversWithDeliveriesInPeriod.add(d.driver_id);
+        }
+      });
+    }
+    // Also include drivers who already have payroll records for this period
+    const payrollDriverIds = new Set();
+    if (periodStart && periodEnd && Array.isArray(payrollData?.payrollRecords)) {
+      payrollData.payrollRecords.forEach((r) => {
+        if (r?.pay_period_start === periodStart && r?.pay_period_end === periodEnd) {
+          payrollDriverIds.add(r.driver_id);
         }
       });
     }
@@ -353,11 +363,11 @@ export default function DriverPayroll() {
         const driverId = d.user_id || d.id;
         const au = appUsersByDriverId.get(driverId);
         if (au?.pay_cycle_type !== payPeriod) return false;
-        return driversWithDeliveriesInPeriod.has(driverId);
+        return driversWithDeliveriesInPeriod.has(driverId) || payrollDriverIds.has(driverId);
       }).
       map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
-  }, [payrollData?.drivers, payrollData?.appUsers, payrollData?.deliveries, payPeriod, currentPeriod]);
+  }, [payrollData?.drivers, payrollData?.appUsers, payrollData?.deliveries, payPeriod, currentPeriod, payrollData?.payrollRecords]);
 
   const availablePayCycles = useMemo(() => {
     if (!payrollData?.appUsers) return [];
@@ -1003,6 +1013,11 @@ export default function DriverPayroll() {
 
     // Use full-year records if available to evaluate previous period; fallback to current state
     const allRecords = payrollData?.payrollRecords || payrollRecords || [];
+
+    // Don't lock in the period selection until we have real live records.
+    // If allRecords is empty, we're still using stale offline data — wait for live data.
+    if (allRecords.length === 0 && !periodSelectionDoneWithRecordsRef.current) return;
+
     if (periodSelectionDoneWithRecordsRef.current) return;
 
     const targetIdx = determinePreferredPayrollPeriodIndex({
@@ -1015,6 +1030,7 @@ export default function DriverPayroll() {
     });
 
     if (targetIdx !== selectedPeriodIndex) {
+      console.log(`🔧 [DriverPayroll] Period selection: ${selectedPeriodIndex} → ${targetIdx} (based on ${allRecords.length} records)`);
       setSelectedPeriodIndex(targetIdx);
     }
     periodSelectionDoneWithRecordsRef.current = true;
@@ -1038,16 +1054,45 @@ export default function DriverPayroll() {
     refreshPayrollRecords();
   }, [currentPeriod?.label, hasInitialized, payrollRecords.length]);
 
-  // Auto-select previous period if current has no data
+  // Auto-select previous period if current has no data AND previous period is not finalized.
+  // CRITICAL: Only run after live data has loaded — not during initial offline-only phase.
   useEffect(() => {
-    if (!hasInitialized || payrollRecords.length > 0) return;
+    if (!hasInitialized || !payrollData) return;
     if (isManualChangeRef.current) return;
     if (selectedPeriodIndex === 0) return; // Can't go back further
     if (triedPreviousPeriodRef.current) return; // Already tried going back
 
+    // Only proceed if we have live data loaded
+    const allRecords = payrollData?.payrollRecords || [];
+    if (allRecords.length === 0) return;
+
+    // Check if the CURRENT period has any records
+    if (!currentPeriod) return;
+    const periodStart = toLocalYMD(currentPeriod.start);
+    const periodEnd = toLocalYMD(currentPeriod.end);
+    const currentPeriodRecords = allRecords.filter((r) =>
+      r?.pay_period_start === periodStart && r?.pay_period_end === periodEnd
+    );
+    if (currentPeriodRecords.length > 0) return; // Current period has data, stay here
+
+    // Current period has no records — check if previous period is finalized.
+    // Only go back if previous period is NOT fully admin-finalized.
+    const previousIdx = selectedPeriodIndex - 1;
+    const previousPeriod = allPeriods[previousIdx];
+    if (!previousPeriod) return;
+    const prevStart = toLocalYMD(previousPeriod.start);
+    const prevEnd = toLocalYMD(previousPeriod.end);
+    const prevRecords = allRecords.filter((r) =>
+      r?.pay_period_start === prevStart && r?.pay_period_end === prevEnd
+    );
+    // If previous period has records and ALL are admin-finalized, stay on current period
+    if (prevRecords.length > 0 && prevRecords.every((r) => isPayrollAdminFinalized(r))) {
+      return; // Previous period is fully finalized — stay on current period
+    }
+
     triedPreviousPeriodRef.current = true;
-    setSelectedPeriodIndex(selectedPeriodIndex - 1);
-  }, [payrollRecords, hasInitialized, selectedPeriodIndex]);
+    setSelectedPeriodIndex(previousIdx);
+  }, [payrollRecords, hasInitialized, selectedPeriodIndex, payrollData, currentPeriod, allPeriods]);
 
   // Reset the flag when period is manually changed
   useEffect(() => {
