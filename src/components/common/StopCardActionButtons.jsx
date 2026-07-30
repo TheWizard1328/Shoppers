@@ -71,6 +71,10 @@ export default function StopCardActionButtons(props) {
     stores,
     onExpandCard,
     setShowCODCollection,
+    setCodPayments,
+    codPayments,
+    codTotalRequired,
+    codTotalCollected,
   } = props;
 
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -176,7 +180,16 @@ export default function StopCardActionButtons(props) {
     e.stopPropagation();
     // Expand the card and open COD collection panel before launching Square POS
     onExpandCard && onExpandCard();
-    setShowCODCollection && setShowCODCollection(true);
+    // Mirror the "Collect" button behaviour: show the panel and auto-seed a
+    // Debit entry for the full remaining amount if no payments have been entered yet.
+    if (setShowCODCollection) {
+      setShowCODCollection(true);
+      const currentPayments = codPayments || [];
+      if (currentPayments.length === 0 && setCodPayments) {
+        const remaining = Math.max(0, (codTotalRequired || 0) - (codTotalCollected || 0));
+        setCodPayments([{ type: 'Debit', amount: remaining }]);
+      }
+    }
     const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
     const codAmount = delivery?.cod_total_amount_required;
     remoteLogger.info('[Square] Button tapped (direct launch)', JSON.stringify({
