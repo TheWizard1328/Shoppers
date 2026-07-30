@@ -117,13 +117,27 @@ export function useFabControlEventHandler({
       // Clear free-pan flag so the FAB re-engages auto-follow
       if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
       clearTimer();
+      // CRITICAL: Sync BOTH refs AND React state. Without setMapViewPhase,
+      // the FAB visual stays in a stale phase and window.__currentMapViewPhase
+      // (set by MapViewCycleFAB's effect) never updates — downstream consumers
+      // that read the window var see the old phase.
       isMapViewLockedRef.current = true;
       setIsMapViewLocked(true);
       pendingPhaseRef.current = phase;
       mapViewPhaseRef.current = phase;
-      lastProgrammaticMapMoveRef.current = Date.now();
-      window._lastProgrammaticMapMove = Date.now();
-      setMapViewTrigger((p) => p + 1);
+      setMapViewPhase(phase);
+      // CRITICAL: Defer setMapViewTrigger to the next animation frame. The
+      // completionFabRelock event fires 300ms after executeTerminalAction,
+      // but updateDeliveriesLocally's setDeliveries may still be committing
+      // if React batched it with other state updates. Without this RAF,
+      // the map effect can read stale deliveriesRef.current (isNextDelivery
+      // still true on the completed stop) and center on the completed stop
+      // instead of the new next stop.
+      requestAnimationFrame(() => {
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((p) => p + 1);
+      });
     };
     window.addEventListener('completionFabRelock', onCompletionFabRelock);
 

@@ -1348,6 +1348,13 @@ export default function useStopCardActions(params) {
       isNextDelivery: true,
     });
 
+    // CRITICAL: Suppress proximity snap for 30s after any terminal action.
+    // The driver is physically close to the just-finished stop, and without
+    // suppression, useDriverLocationSync's proximity snap (phase 1 only) can
+    // re-snap to the completed stop before isNextDelivery propagates fully.
+    // This mirrors the suppression in handleStatusUpdate.jsx.
+    window.__suppressProximitySnapUntil = Date.now() + 30000;
+
     // CRITICAL: Register ALL affected delivery IDs in smartRefreshManager BEFORE
     // any server writes. setAndCenterNextDelivery with persistToBackend:true fires
     // user-scoped server writes that trigger WS broadcasts. If smartRefreshManager
