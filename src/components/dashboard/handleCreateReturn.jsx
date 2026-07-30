@@ -51,7 +51,7 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
       preferredTravelMode: resolvedTravelMode
     });
 
-    await createDeliveryLocal(returnDeliveryData);
+    const createdReturnDelivery = await createDeliveryLocal(returnDeliveryData);
 
     try {
       await notifyDriverReturn({ driver: currentUser, patientName: returnPatient.full_name, delivery: originalDelivery, store, appUsers });
@@ -71,6 +71,8 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
       }).catch((e) => console.warn('⚠️ [CREATE RETURN] Background optimize failed:', e?.message || e))
         .finally(() => window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } })))
     );
+
+    return createdReturnDelivery;
 
   } catch (error) {
     console.error('❌ [CREATE RETURN] Error:', error);

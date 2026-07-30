@@ -758,27 +758,15 @@ export default function useStopCardActions(params) {
       setReturnPatient(null);
       dispatchStopCardActionCollapse();
       onClick?.(null);
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+      // Use the RETURN delivery's actual date (today), NOT the original delivery's date.
+      // handleCreateReturn already ran performRouteOptimization with the correct date,
+      // so we only need COD cleanup + notification here — no redundant optimization.
+      const _returnDeliveryDate = createdReturnDelivery?.delivery_date || createdReturnDelivery?.data?.delivery_date;
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: _returnDeliveryDate } }));
       Promise.resolve().then(async () => {
         try {
-          const createdReturnDeliveryId = createdReturnDelivery?.id || createdReturnDelivery?.data?.id || null;
           const backgroundTasks = [];
           if ((delivery.cod_total_amount_required || 0) > 0) backgroundTasks.push(deleteCODWithTimeout(delivery.id, 'Removed after creating return delivery'));
-          backgroundTasks.push((async () => {
-            const routeDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-            const refreshedRouteDeliveries = Array.isArray(routeDeliveries)
-              ? routeDeliveries
-              : Array.isArray(routeDeliveries?.deliveries)
-                ? routeDeliveries.deliveries
-                : [];
-            const routeWithoutNewReturn = refreshedRouteDeliveries.filter((item) => item?.id !== createdReturnDeliveryId);
-            const highestStopOrder = routeWithoutNewReturn.reduce((max, item) => Math.max(max, Number(item?.stop_order || 0)), 0);
-            if (createdReturnDeliveryId) {
-              await updateDeliveryLocal(createdReturnDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }, { skipSmartRefresh: true });
-              await base44.entities.Delivery.update(createdReturnDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }).catch(() => null);
-            }
-            await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, runOptimization: false });
-          })());
           if (userHasRole(currentUser, 'driver')) backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery, store, appUsers }));
           await Promise.allSettled(backgroundTasks);
         } catch {}
@@ -786,7 +774,7 @@ export default function useStopCardActions(params) {
     } finally {
       setIsCreatingReturn(false);
     }
-  }, [appUsers, currentUser, delivery, displayName, forceRefreshDriverDeliveries, isCreatingReturn, onClick, onCreateReturn, returnPatient, setIsCreatingReturn, setReturnPatient, setShowReturnConfirm, store, stores, updateDeliveriesLocally, userHasRole]);
+  }, [appUsers, currentUser, delivery, displayName, isCreatingReturn, onClick, onCreateReturn, returnPatient, setIsCreatingReturn, setReturnPatient, setShowReturnConfirm, store, stores, userHasRole]);
 
   const handleCancelReturn = useCallback((e) => {
     e?.preventDefault?.();
@@ -821,9 +809,26 @@ export default function useStopCardActions(params) {
             if (retryDeliveryId && !isPickup) triggerSquareCodUpsert({ deliveryId: retryDeliveryId, patientName: patient?.full_name || 'Patient', storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: retryDate, storeId: delivery.store_id });
           }
           await ensureDriverOnline();
+          // Run the route optimizer + polyline generator on the RETRY delivery's date (retryDate),
+          // NOT the original delivery's date or the driver's selected date. buildRetryDelivery
+          // may set retryDate to today (if before 9pm) or keep the original date — we must optimize
+          // whichever date the retry delivery was actually assigned to.
+          window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'retry', driverId: delivery.driver_id, deliveryDate: retryDate } }));
           try {
-            await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: retryDate, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, runOptimization: false });
-          } catch {}
+            const retryCoordResult = await performRouteOptimization({
+              driverId: delivery.driver_id,
+              deliveryDate: retryDate,
+              source: 'retry',
+            });
+            if (retryCoordResult?.success && Array.isArray(retryCoordResult.freshDeliveries) && retryCoordResult.freshDeliveries.length > 0) {
+              updateDeliveriesLocally(retryCoordResult.freshDeliveries, false);
+            }
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'retryOptimized', driverId: delivery.driver_id, deliveryDate: retryDate, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: retryCoordResult?.freshDeliveries } }));
+          } catch (retryOptErr) {
+            console.warn('⚠️ [Retry] Route optimization failed:', retryOptErr?.message || retryOptErr);
+          } finally {
+            window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'retry', driverId: delivery.driver_id, deliveryDate: retryDate } }));
+          }
           if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
           dispatchStopCardActionCollapse();
         });
