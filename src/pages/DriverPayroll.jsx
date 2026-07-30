@@ -761,7 +761,7 @@ export default function DriverPayroll() {
       return fullYearPayrollDataRef.current;
     }
 
-    if (!forceFresh && fullYearPayrollDataRef.current?.__cacheKey === cacheKey) {
+    if (!forceFresh && fullYearPayrollDataRef.current?.__cacheKey === cacheKey && lastFetchTimestampRef.current > 0) {
       return fullYearPayrollDataRef.current;
     }
 
@@ -861,9 +861,10 @@ export default function DriverPayroll() {
   }, [needsCitySelection]);
 
   // Trigger fetch when filters change (after initialization)
+  // Force a fresh fetch when year changes so stale cached data for past years is replaced
   useEffect(() => {
     if (hasInitialized && isPayrollPageActive && selectedCityId) {
-      fetchPayroll(false, false).catch(() => {});
+      fetchPayroll(false, true).catch(() => {});
     }
   }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll]);
 

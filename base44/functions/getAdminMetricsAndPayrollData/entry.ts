@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
-const CACHE_VERSION = '5';
+const CACHE_VERSION = '6';
 const SUMMARY_VERSION = '4';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
