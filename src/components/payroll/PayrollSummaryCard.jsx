@@ -240,10 +240,13 @@ export default function PayrollSummaryCard({
             // CRITICAL FIX: Use the driver's actual pay_cycle_type from their AppUser record,
             // NOT the page-level payPeriod. This prevents semimonthly drivers from getting
             // monthly payroll records when the admin is viewing the monthly tab.
+            // Also include company_id which was previously missing entirely.
             const driverAppUser = appUsers?.find((au) => au && (au.user_id === driverId || au.id === driverId));
-            const driverPayCycle = driverAppUser?.pay_cycle_type || payPeriod;
+            const driverPayCycle = driverAppUser?.pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
+            const driverCompanyId = driverAppUser?.company_id || driverData?.driver?.company_id || null;
 
-            const recordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
+            const recordData = { driver_id: driverId, company_id: driverCompanyId,
+              city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
               pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: driverPayCycle,
               total_deliveries: driverData?.totalDeliveries || 0, total_extra_km: driverData?.totalExtraKm || 0,
               total_oversized_deliveries: driverData?.oversizedCount || 0, total_after_hours_deliveries: driverData?.afterHoursCount || 0,
@@ -328,9 +331,11 @@ export default function PayrollSummaryCard({
         const saveAppFeeAmount = countBillableDeliveries(driverId) * (driverData.appFeePercentage || 0) / 100;
 
         const driverAppUser = appUsers?.find((au) => au && (au.user_id === driverId || au.id === driverId));
-        const driverPayCycle = driverAppUser?.pay_cycle_type || payPeriod;
+        const driverPayCycle = driverAppUser?.pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
+        const driverCompanyId = driverAppUser?.company_id || driverData?.driver?.company_id || null;
         const newRecordData = {
           driver_id: driverId,
+          company_id: driverCompanyId,
           city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
           pay_period_start: periodStartStr,
           pay_period_end: periodEndStr,
@@ -495,8 +500,10 @@ export default function PayrollSummaryCard({
       const finalizedPaidAmount = parsePaidAmount(edit.paidAmount, finalizedNetPay);
       const finalizeDriverId = driverData.driver.id;
       const finalizeAppUser = appUsers?.find((au) => au && (au.user_id === finalizeDriverId || au.id === finalizeDriverId));
-      const finalizePayCycle = finalizeAppUser?.pay_cycle_type || payPeriod;
-      const payrollRecord = { driver_id: finalizeDriverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
+      const finalizePayCycle = finalizeAppUser?.pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
+      const finalizeCompanyId = finalizeAppUser?.company_id || driverData?.driver?.company_id || null;
+      const payrollRecord = { driver_id: finalizeDriverId, company_id: finalizeCompanyId,
+        city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
         pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: finalizePayCycle,
         total_deliveries: driverData.totalDeliveries, total_extra_km: driverData.totalExtraKm,
         total_oversized_deliveries: driverData.oversizedCount, total_after_hours_deliveries: driverData.afterHoursCount || 0,

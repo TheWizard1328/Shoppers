@@ -64,6 +64,17 @@ export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayro
       }
     }
 
+    // Patch missing company_id and wrong pay_period_type on existing draft records
+    if (!record.company_id && data.driver?.company_id) {
+      updates.company_id = data.driver.company_id;
+      hasDrift = true;
+    }
+    const driverPayCycle = data.driver?.pay_cycle_type;
+    if (driverPayCycle && record.pay_period_type !== driverPayCycle && record.status === 'draft') {
+      updates.pay_period_type = driverPayCycle;
+      hasDrift = true;
+    }
+
     if (hasDrift) {
       updatesToApply.push({ data, record, updates });
     }
