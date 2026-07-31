@@ -427,7 +427,6 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
           })}
           </div>
         </div>
-      }
 
       {/* Route summary */}
       {

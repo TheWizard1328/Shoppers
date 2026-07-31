@@ -419,7 +419,14 @@ export default function DeliveryForm({
         delivery_time_start: delivery.delivery_time_start || (!['in_transit', 'en_route', 'completed', 'failed', 'cancelled'].includes(delivery.status) ? patient?.time_window_start : "") || "", delivery_time_end: delivery.delivery_time_end || (!['in_transit', 'en_route', 'completed', 'failed', 'cancelled'].includes(delivery.status) ? patient?.time_window_end : "") || "", 
         arrival_time: delivery.arrival_time ? (delivery.arrival_time.includes('T') ? delivery.arrival_time.substring(11, 16) : delivery.arrival_time) : "",
         time_window_start: patient?.time_window_start || delivery.time_window_start || "", time_window_end: patient?.time_window_end || delivery.time_window_end || "",
-        status: delivery.status || "Ready For Pickup", driver_name: delivery.driver_name || "", driver_id: delivery.driver_id || "",
+        status: (() => {
+          const raw = delivery.status || 'Ready For Pickup';
+          // Interstore deliveries (ISP-/ISD-) only have in_transit/completed as valid statuses.
+          // If the DB has 'en_route' (legacy write bug), normalize it to 'in_transit' immediately
+          // so the Select shows a valid value instead of rendering blank.
+          if (isInterStoreDelivery(delivery.delivery_id) && raw === 'en_route') return 'in_transit';
+          return raw;
+        })(), driver_name: delivery.driver_name || '', driver_id: delivery.driver_id || '',
         prescription_number: delivery.prescription_number || "", delivery_instructions: patient?.notes || delivery.delivery_instructions || "",
         delivery_notes: delivery.delivery_notes || "", cod_total_amount_required: delivery.cod_total_amount_required ? delivery.cod_total_amount_required * 100 : 0,
         cod_payments: delivery.cod_payments || [], cod_payment_type: delivery.cod_payment_type || "No Payment", cod_amount: delivery.cod_amount || "",
