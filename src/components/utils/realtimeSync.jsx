@@ -1008,34 +1008,10 @@ const subscribeToEntity = (entityName) => {
       // Buffer notifications to debounce UI updates — fires IMMEDIATELY with WS payload
       bufferEvent(entityName, { entityType: entityName, eventType: type, data: bufferData, id, updatedBy, changedFields: effectiveChangedFields });
 
-      // BACKGROUND: For Delivery updates, fetch the full authoritative record from the server
-      // and silently update IDB — the UI has already been updated above from the WS payload.
-      // CRITICAL: Apply completionLockout before saving so a race between the completion
-      // write and this background fetch never reverts a just-completed stop back to in_transit.
-      if (entityName === 'Delivery' && type === 'update' && data?.id) {
-        (async () => {
-          try {
-            const full = await base44.entities.Delivery.get(data.id);
-            if (!full?.id) return;
-            const { offlineDB: idb } = await import('./offlineDatabase');
-            const existing = await idb.getById(idb.STORES.DELIVERIES, data.id);
-            let merged = existing ? { ...existing, ...full } : full;
-            // CRITICAL: Status regression guard — if IDB has 'in_transit' (Accept All
-            // just transitioned) but the server still has 'pending' (status write
-            // hasn't propagated yet), preserve 'in_transit'. The server will catch up
-            // on the next WS event after the status commit completes.
-            if (existing?.status === 'in_transit' && merged.status === 'pending') {
-              merged.status = 'in_transit';
-            }
-            // Protect locked fields (e.g. status=completed, actual_delivery_time) from being
-            // overwritten by a background fetch that raced against the completion write.
-            const { applyRealtimeMergeWithLockout: applyLockout } = await import('./completionLockout');
-            const protected_ = applyLockout(data.id, merged, existing || merged);
-            await idb.save(idb.STORES.DELIVERIES, protected_);
-            console.log(`📥 [RealtimeSync] [${rsTime()}] Background full-record IDB sync: ${data.id}`);
-          } catch (_) { /* non-critical — IDB already has the partial WS data */ }
-        })();
-      }
+      // Background full-record fetch intentionally removed.
+      // The WS payload is already merged with the existing IDB record above (PRESERVE_FIELDS + STRICT_PRESERVE_FIELDS),
+      // so a redundant Delivery.get() round-trip is not needed and was the primary source of
+      // lag on receiving devices (extra network call + second IDB write + second UI reconciliation).
     });
 
     activeSubscriptions.set(entityName, unsubscribe);

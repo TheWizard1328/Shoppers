@@ -46,149 +46,25 @@ class DeliveryWebSocketReconciler {
   }
 
   /**
-   * Compare online DB vs offline DB and sync if needed
+   * Refresh UI from the offline DB for this date.
+   * No longer fetches from the online API — realtimeSync already keeps IDB accurate
+   * via per-record WS merge, so a bulk Delivery.filter() round-trip here is redundant
+   * and was the primary source of lag on receiving devices.
    */
   async performReconciliation(dateStr) {
-    if (this.isReconciling) {
-      console.log(`⏸️ [DeliveryReconciler] Reconcile already in progress for ${dateStr}`);
-      return;
-    }
-
+    if (this.isReconciling) return;
     this.isReconciling = true;
-    console.log(`🔄 [DeliveryReconciler] Starting reconciliation for ${dateStr}...`);
 
     try {
-      // Step 1: Get offline data for this date
-      const offlineDeliveries = await offlineDB.getByDate(
-        offlineDB.STORES.DELIVERIES,
-        dateStr
-      );
-      const offlineMap = new Map(offlineDeliveries?.map(d => [d.id, d]) || []);
-      console.log(`💾 [DeliveryReconciler] Offline DB: ${offlineMap.size} deliveries for ${dateStr}`);
-
-      // Step 2: Fetch fresh data from online API
-      const onlineDeliveries = await base44.entities.Delivery.filter({
-        delivery_date: dateStr
-      });
-      const onlineMap = new Map(onlineDeliveries?.map(d => [d.id, d]) || []);
-      console.log(`☁️ [DeliveryReconciler] Online DB: ${onlineMap.size} deliveries for ${dateStr}`);
-
-      // Step 3: Detect differences
-      const toAdd = [];
-      const toUpdate = [];
-      const toDelete = [];
-
-      // Check online for adds/updates
-      for (const [id, onlineRecord] of onlineMap) {
-        const offlineRecord = offlineMap.get(id);
-        
-        if (!offlineRecord) {
-          toAdd.push(onlineRecord);
-        } else {
-          // Compare timestamps to detect changes
-          const onlineTime = new Date(onlineRecord.updated_date || 0).getTime();
-          const offlineTime = new Date(offlineRecord.updated_date || 0).getTime();
-          
-          if (onlineTime > offlineTime) {
-            // CRITICAL: Preserve the offline isNextDelivery flag when it's true but the online
-            // record still has false. setNextDeliveryFlag runs asynchronously after a delivery
-            // is completed — if the reconciler fires before it finishes, it would overwrite the
-            // optimistic local flag and cause the "next delivery" badge to visually revert.
-            const preservedRecord = (offlineRecord.isNextDelivery === true && onlineRecord.isNextDelivery !== true)
-              ? { ...onlineRecord, isNextDelivery: true }
-              : onlineRecord;
-            toUpdate.push(preservedRecord);
-          }
-        }
-      }
-
-      // Check offline for deletes
-      for (const [id, offlineRecord] of offlineMap) {
-        if (!onlineMap.has(id)) {
-          toDelete.push(id);
-        }
-      }
-
-      const hasDifferences = toAdd.length > 0 || toUpdate.length > 0 || toDelete.length > 0;
-
-      if (hasDifferences) {
-        console.log(`⚠️ [DeliveryReconciler] Found differences:`);
-        console.log(`   + ${toAdd.length} to add, ~ ${toUpdate.length} to update, - ${toDelete.length} to delete`);
-
-        // Step 4: Update offline DB
-        if (toAdd.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, toAdd);
-          console.log(`✅ [DeliveryReconciler] Added ${toAdd.length} deliveries`);
-        }
-
-        if (toUpdate.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, toUpdate);
-          console.log(`✅ [DeliveryReconciler] Updated ${toUpdate.length} deliveries`);
-        }
-
-        if (toDelete.length > 0) {
-          for (const id of toDelete) {
-            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id);
-          }
-          console.log(`✅ [DeliveryReconciler] Deleted ${toDelete.length} deliveries`);
-        }
-
-        // Dispatch reconcile event
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('deliveryWebSocketReconciled', {
-            detail: {
-              date: dateStr,
-              added: toAdd.length,
-              updated: toUpdate.length,
-              deleted: toDelete.length
-            }
-          }));
-        }
-      } else {
-        console.log(`✅ [DeliveryReconciler] Online and offline DBs match for ${dateStr}`);
-      }
-
-      // Step 5: ALWAYS update UI with fresh offline DB data
-      const freshOfflineDeliveries = await offlineDB.getByDate(
-        offlineDB.STORES.DELIVERIES,
-        dateStr
-      );
-
-      if (typeof window !== 'undefined') {
+      const freshOfflineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      if (typeof window !== 'undefined' && freshOfflineDeliveries?.length > 0) {
         window.dispatchEvent(new CustomEvent('deliveryReconcilerUIRefresh', {
-          detail: {
-            date: dateStr,
-            deliveries: freshOfflineDeliveries,
-            hadDifferences: hasDifferences
-          }
+          detail: { date: dateStr, deliveries: freshOfflineDeliveries, hadDifferences: false }
         }));
       }
-
-      console.log(`✅ [DeliveryReconciler] UI refreshed with ${freshOfflineDeliveries?.length || 0} deliveries for ${dateStr}`);
-
+      console.log(`✅ [DeliveryReconciler] IDB→UI refresh: ${freshOfflineDeliveries?.length || 0} deliveries for ${dateStr}`);
     } catch (error) {
-      console.error(`❌ [DeliveryReconciler] Error:`, error.message);
-      
-      // Even on error, try to update UI with whatever offline data we have
-      try {
-        const offlineDeliveries = await offlineDB.getByDate(
-          offlineDB.STORES.DELIVERIES,
-          dateStr
-        );
-        
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('deliveryReconcilerUIRefresh', {
-            detail: {
-              date: dateStr,
-              deliveries: offlineDeliveries,
-              hadDifferences: false,
-              error: error.message
-            }
-          }));
-        }
-      } catch (fallbackError) {
-        console.warn(`⚠️ [DeliveryReconciler] Fallback UI update failed:`, fallbackError.message);
-      }
+      console.warn(`⚠️ [DeliveryReconciler] Error:`, error.message);
     } finally {
       this.isReconciling = false;
       this.reconcileTimer = null;
