@@ -990,12 +990,15 @@ function DeliveryMap({
         // so both markers are visible.  Without this, completing a stop while at
         // zoom 18 leaves the map stuck at 18 even though the bounds need 17.5 or less.
         const userOverZoomed = currentZoom > requestedMaxZoom + 0.01;
-        // zoomAlreadyCorrect: only take the fast-pan path when zoom is within a tight
-        // ±0.3 range of what the bounds need.  A looser upper bound (e.g. 0.5) caused
-        // the map to silently "fast-pan without zooming" when the driver moves away from
-        // the next stop, because gradual zoom-out deltas (e.g. 0.4) were absorbed by the
-        // shortcut instead of triggering a proper fitBounds zoom-out.
-        const zoomAlreadyCorrect = !userOverZoomed && zoomDiff >= -0.05 && zoomDiff <= 0.3;
+        // zoomAlreadyCorrect: only fast-pan when the current zoom is within ±0.05 of
+        // what the bounds need.  The old threshold of 0.3 was too loose — when the
+        // driver moves AWAY from the next stop, the bounds expand and the target zoom
+        // drops below the current zoom.  At zoomDiff 0.1–0.3, the fast-pan fired at a
+        // zoom that was too tight for the expanded bounds, causing the driver marker
+        // or the next-stop marker to drift off-screen.  With a tight ±0.05 threshold,
+        // even small expansions trigger a proper fitBounds zoom-out so both markers
+        // stay visible.
+        const zoomAlreadyCorrect = !userOverZoomed && zoomDiff >= -0.05 && zoomDiff <= 0.05;
 
         fitBoundsInFlightRef.current = true;
         let settled = false;
@@ -1015,7 +1018,11 @@ function DeliveryMap({
         // completion indefinitely. Force-clear the in-flight flag after the requested
         // animation duration (+ margin) so a missed event can never permanently jam
         // the follow — it just picks up the latest position a little late instead.
-        const panDuration = zoomAlreadyCorrect ? 0.5 : (opts.duration != null ? opts.duration : 0.9);
+        // For small zoom adjustments during GPS follow (driver moving away from stop),
+        // use a shorter 0.5s duration so the map keeps up with GPS ticks.  For the
+        // initial Phase 2 entry (large zoom change), use the original longer duration.
+        const _zoomDelta = Math.abs(zoomDiff);
+        const panDuration = zoomAlreadyCorrect ? 0.5 : (_zoomDelta < 1 ? 0.5 : (opts.duration != null ? opts.duration : 0.9));
         const animMs = Math.round(panDuration * 1000) + 600;
         safetyTimer = setTimeout(settle, animMs);
 
@@ -1036,10 +1043,11 @@ function DeliveryMap({
           map.setView(adjusted, currentZoom, { animate: opts.animate !== false, duration: 0.5 });
           window._lastProgrammaticMapMove = Date.now();
         } else {
-          // ── ZOOM-IN PATH (initial Phase 2 entry or bounds expanded) ────────
-          // Map is zoomed out further than the bounds need.  Use fitBounds to
-          // animate the zoom-in + pan in one smooth step.  No redundant setZoom
-          // call — the old setZoom(fittedZoom) cancelled this animation and fired
+          // ── FITBOUNDS PATH (initial Phase 2 entry, zoom-in, OR zoom-out) ───
+          // Either the map is too zoomed out (initial entry) or too zoomed in
+          // (driver moved away from next stop, bounds expanded).  Use fitBounds
+          // to animate zoom + pan in one smooth step.  No redundant setZoom call
+          // — the old setZoom(fittedZoom) cancelled this animation and fired
           // moveend prematurely, breaking the in-flight guard.
           map.fitBounds(bounds, { ...opts, paddingTopLeft, paddingBottomRight, animate: true });
           window._lastProgrammaticMapMove = Date.now();
