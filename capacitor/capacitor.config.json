@@ -1,0 +1,28 @@
+{
+  "appId": "com.rxdeliver.driver",
+  "appName": "RxDeliver",
+  "webDir": "dist",
+  "server": {
+    "url": "https://app.base44.com/apps/68570f3cd01bfa2d2408a9d6",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#ffffff"
+  },
+  "plugins": {
+    "BackgroundGeolocation": {
+      "notificationTitle": "RxDeliver GPS Active",
+      "notificationText": "Location tracking is running",
+      "notificationIcon": "ic_notification",
+      "interval": 10000,
+      "fastestInterval": 5000,
+      "locationAccuracy": 100,
+      "startForeground": true,
+      "smallestDisplacement": 10
+    },
+    "BluetoothLe": {
+      "askForPermissions": true
+    }
+  }
+}
