@@ -91,22 +91,25 @@ const recordActivitySegment = async (base44, driverId, driverName, newStatus, pr
     const openIdx = segments.findIndex(s => s.start_time && !s.end_time);
 
     if (newStatus === 'on_duty') {
-      // DEFENSIVE: Open a new segment any time we transition to on_duty AND there is
-      // no currently open segment. This is the authoritative guard — it is immune to
-      // stale previousStatus values (e.g. clientPreviousStatus='on_duty' due to a
-      // rapid double-tap, component remount, or race between the frontend AppUser.update
-      // and the setDriverStatus invocation). Without this, a stale previousStatus of
-      // 'on_duty' would fall through to the else branch ("No segment action") and
-      // silently skip opening a new segment when returning from on_break.
-      if (openIdx !== -1) {
-        // Already has an open segment — close it first (crash recovery / double-on_duty guard)
-        const startMs = new Date(segments[openIdx].start_time).getTime();
-        segments[openIdx] = { ...segments[openIdx], end_time: now, tot: Math.max(0, Math.round((nowMs - startMs) / 60000)) };
-        console.log(`⏱️ [setDriverStatus] Closed dangling open segment before opening new one for ${driverId}`);
+      if (previousStatus === 'on_duty' && openIdx !== -1) {
+        // Already on duty with an open segment — NO-OP. A redundant setDriverStatus('on_duty')
+        // (e.g. from ensureDriverOnline using stale React state) must NOT close and reopen
+        // the activity segment. This was the root cause of segments being closed at the
+        // exact timestamp of a pickup completion and a new one opened simultaneously.
+        console.log(`⏱️ [setDriverStatus] Already on_duty with open segment — no segment change for ${driverId}`);
+      } else {
+        // DEFENSIVE: Open a new segment when transitioning to on_duty AND there is
+        // no currently open segment. If there IS an open segment (crash recovery /
+        // returning from on_break where the close didn't propagate), close it first.
+        if (openIdx !== -1) {
+          const startMs = new Date(segments[openIdx].start_time).getTime();
+          segments[openIdx] = { ...segments[openIdx], end_time: now, tot: Math.max(0, Math.round((nowMs - startMs) / 60000)) };
+          console.log(`⏱️ [setDriverStatus] Closed dangling open segment before opening new one for ${driverId}`);
+        }
+        segments.push({ start_time: now, end_time: null, tot: null });
+        await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
+        console.log(`⏱️ [setDriverStatus] Activity segment opened for ${driverId} (start: ${now}, previousStatus: ${previousStatus})`);
       }
-      segments.push({ start_time: now, end_time: null, tot: null });
-      await base44.asServiceRole.entities.DriverDailyActivity.update(record.id, { activity_segments: segments });
-      console.log(`⏱️ [setDriverStatus] Activity segment opened for ${driverId} (start: ${now}, previousStatus: ${previousStatus})`);
 
     } else if (newStatus === 'on_break' || newStatus === 'off_duty') {
       // Close the open segment. Guard: require previousStatus === 'on_duty' OR an open segment exists.

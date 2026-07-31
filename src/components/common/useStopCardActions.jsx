@@ -1572,7 +1572,12 @@ export default function useStopCardActions(params) {
           toast.error('This delivery has been deleted. Please refresh the page.');
           return;
         }
-        if (currentUser?.driver_status !== 'on_duty') ensureDriverOnline().catch(() => {});
+        // Always call ensureDriverOnline — it has its own internal guard that checks
+        // the LIVE appUsers array (not stale currentUser React state). The outer
+        // guard used currentUser?.driver_status which can be stale, causing a
+        // redundant setDriverStatus('on_duty') call that closes and reopens the
+        // DriverDailyActivity segment even when the driver was never off duty.
+        ensureDriverOnline().catch(() => {});
 
         const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate
           ? [{ type: 'Cash', amount: codTotalRequired }] : null;
