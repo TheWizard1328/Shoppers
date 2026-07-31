@@ -1,6 +1,7 @@
 import { getStoreAssignedTimeSlotForDriver } from '../utils/ampmUtils';
 import { base44 } from '@/api/base44Client';
 import { resolvePickupPuid } from './deliveryAddHelpers';
+import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 
 export async function buildInTransitDirectSaveData({
   prepareDeliverySaveData,
@@ -20,20 +21,9 @@ export async function buildInTransitDirectSaveData({
     completionTime
   });
 
-  // Detect interstore deliveries (ISP pickup or ISD drop-off) — never create an originating pickup for these
-  const isInterstore = (() => {
-    const checkStr = (v) => {
-      const s = String(v || '').toLowerCase();
-      return s.includes('(isp)') || s.includes(' isp') || s.includes('interstore drop') || s.includes('(isd)') || s.includes(' isd');
-    };
-    return (
-      checkStr(selectedPatient?.full_name) ||
-      checkStr(selectedPatient?.address) ||
-      checkStr(selectedPatient?.notes) ||
-      checkStr(dataToSave.delivery_notes) ||
-      checkStr(dataToSave.delivery_instructions)
-    );
-  })();
+  // Detect interstore deliveries via delivery_id prefix (ISP-/ISD-).
+  // Never create an originating regular pickup for these — they are their own stops.
+  const isInterstore = isInterStoreDelivery(dataToSave.delivery_id);
 
   if (!delivery?.id && dataToSave.status === 'in_transit' && dataToSave.patient_id && !isInterstore) {
     const patientStoreId = selectedPatient?.store_id || dataToSave.store_id;

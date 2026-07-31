@@ -48,6 +48,7 @@ import { closeDeliveryFormAfterSave, flushPendingInterStoreOptimizations } from 
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
 import { loadStatHolidays, getStatHoliday } from '../utils/statHolidayResolver';
 import { shouldUseImmediateAddToRouteStage, buildImmediateAddToRouteStage } from './Add2RouteStatusHelper';
+import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 import { createPatientFromDraft, resolvePickupPuid, resolvePickupTimeWindow } from './deliveryAddHelpers';
 import { addPickupToRoute } from './pickupAddHelpers';
 import { getRoutePickupsForStore, choosePickupForNewDelivery, buildPickupSelectValue, buildPendingNewPickup, getStorePickupOptions } from './pickupSelectionHelpers';
@@ -460,7 +461,7 @@ export default function DeliveryForm({
         _interstore_resolving: !delivery._interstore_source_id && !delivery._interstore_dest_id, // flag while async lookup is running
         _interstore_stop_type: String(delivery.delivery_id || '').toUpperCase().startsWith('ISD-') ? 'dropoff' : 'pickup',
       });
-      setIsPickupMode(!delivery.patient_id);
+      setIsPickupMode(!delivery.patient_id && !isInterStoreDelivery(delivery.delivery_id));
       if (patient) {
         setSelectedPatient(patient);
         const initialPid = patient?.patient_id || '';

@@ -1,3 +1,5 @@
+import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+
 export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus, completionTime, currentTravelMode = 'driving' }) => {
   const now = new Date();
   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -67,9 +69,7 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
   // CRITICAL: never apply this default to interstore deliveries (ISP-/ISD- prefix)
   // — those are always 'in_transit'.  Using 'en_route' causes the status to appear
   // blank in the interstore edit form which only offers in_transit/completed.
-  const isInterstoreCreate = !delivery?.id && !dataToSave.patient_id &&
-    (String(dataToSave.delivery_id || '').toUpperCase().startsWith('ISP-') ||
-     String(dataToSave.delivery_id || '').toUpperCase().startsWith('ISD-'));
+  const isInterstoreCreate = !delivery?.id && isInterStoreDelivery(dataToSave.delivery_id);
   if (!delivery?.id && !dataToSave.patient_id && !isInterstoreCreate) {
     dataToSave.status = 'en_route';
   }
@@ -83,7 +83,7 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     }
   }
 
-  const isInterstoreStop = !dataToSave.patient_id && !!dataToSave.store_id;
+  const isInterstoreStop = isInterStoreDelivery(dataToSave.delivery_id);
   const transitionedToInTransit = dataToSave.status === 'in_transit' && delivery?.status !== 'in_transit';
   if (isInterstoreStop && transitionedToInTransit) {
     dataToSave.delivery_time_start = currentLocalTime;

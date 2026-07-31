@@ -89,18 +89,19 @@ export const attachTrackingNumbers = ({ newDeliveries, existingDeliveries, store
   };
 };
 
+import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+
 export const getStagedActivationStatus = (delivery) => {
   if (delivery.status !== 'Staged') return delivery.status;
 
-  let newStatus = !delivery.patient_id ? 'en_route' : 'pending';
-  if (delivery.patient_id) {
-    const patientName = (delivery.patient_name || '').toLowerCase();
-    const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();
-    const patientNotes = (delivery.delivery_instructions || '').toLowerCase();
-    const deliveryAddress = (delivery.delivery_address || '').toLowerCase();
-    const interStoreText = `${patientName} ${deliveryNotes} ${patientNotes} ${deliveryAddress}`;
-    const isInterStore = interStoreText.includes('interstore') || interStoreText.includes('(ips)') || interStoreText.includes('(isd)') || interStoreText.includes(' ips ') || interStoreText.includes(' isd ');
-    if (isInterStore) newStatus = 'in_transit';
+  const isInterStore = isInterStoreDelivery(delivery.delivery_id);
+  let newStatus;
+  if (isInterStore) {
+    newStatus = 'in_transit';
+  } else if (!delivery.patient_id) {
+    newStatus = 'en_route';
+  } else {
+    newStatus = 'pending';
   }
 
   return newStatus;

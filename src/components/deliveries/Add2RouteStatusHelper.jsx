@@ -1,3 +1,5 @@
+import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+
 export const shouldUseImmediateAddToRouteStage = ({ openMode, delivery, stagedDeliveries, formData }) => {
   return openMode === 'add_to_route' && !delivery && (stagedDeliveries?.length || 0) === 0 && !!formData?.patient_id && !!formData?.store_id && !!formData?.delivery_date;
 };
@@ -5,7 +7,7 @@ export const shouldUseImmediateAddToRouteStage = ({ openMode, delivery, stagedDe
 export const buildImmediateAddToRouteStage = ({ formData, selectedPatient, stores, allDeliveries }) => {
   const store = (stores || []).find((item) => item && item.id === formData.store_id);
   // ISP/ISD deliveries (patient or non-patient) must always be in_transit
-  const isInterStore = !!(formData?._interstore_source_id || String(formData?.delivery_id || '').toUpperCase().startsWith('ISP-') || String(formData?.delivery_id || '').toUpperCase().startsWith('ISD-'));
+  const isInterStore = !!(formData?._interstore_source_id) || isInterStoreDelivery(formData?.delivery_id);
   const stagedStatus = (isInterStore || formData?.status === 'in_transit') ? 'in_transit' : 'Staged';
   return {
     ...formData,
