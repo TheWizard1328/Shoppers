@@ -47,11 +47,13 @@ export default function DashboardBulkEditControls({
 
   const openBulkEditPanel = useCallback(() => {
     smartRefreshManager.pause();
+    window.dispatchEvent(new CustomEvent('bulkEditPanelStateChange', { detail: { open: true } }));
     setShowBulkEditPanel(true);
   }, []);
 
   const closeBulkEditPanel = useCallback((open) => {
     if (!open) smartRefreshManager.resume();
+    window.dispatchEvent(new CustomEvent('bulkEditPanelStateChange', { detail: { open } }));
     setShowBulkEditPanel(open);
   }, []);
   const [isSaving, setIsSaving] = useState(false);

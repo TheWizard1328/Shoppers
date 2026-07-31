@@ -59,6 +59,7 @@ export default function GuideAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [isStopCardExpanded, setIsStopCardExpanded] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBulkEditPanelOpen, setIsBulkEditPanelOpen] = useState(false);
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
   });
@@ -82,17 +83,20 @@ export default function GuideAssistant() {
     window.addEventListener('stopCardExpandedChange', handleExpand);
     // Re-use the existing pauseBackgroundSync / resumeBackgroundSync events which
     // are fired when forms/dialogs open and close (DeliveryForm, PatientForm, etc.)
+    const handleBulkEditPanel = (e) => setIsBulkEditPanelOpen(!!e?.detail?.open);
     window.addEventListener('pauseBackgroundSync', handleDialogOpen);
     window.addEventListener('resumeBackgroundSync', handleDialogClose);
+    window.addEventListener('bulkEditPanelStateChange', handleBulkEditPanel);
     return () => {
       window.removeEventListener('stopCardExpandedChange', handleExpand);
       window.removeEventListener('pauseBackgroundSync', handleDialogOpen);
       window.removeEventListener('resumeBackgroundSync', handleDialogClose);
+      window.removeEventListener('bulkEditPanelStateChange', handleBulkEditPanel);
     };
   }, []);
 
   // FAB should be hidden when a stop card is expanded and no dialog is open
-  const hideFabForExpandedCard = isStopCardExpanded && !isDialogOpen && !isOpen;
+  const hideFabForExpandedCard = (isStopCardExpanded && !isDialogOpen && !isOpen) || isBulkEditPanelOpen;
 
   // ── Dynamic bottom offset — tracks MapViewCycleFAB via getBoundingClientRect ────
   // Uses direct DOM measurement (viewport-accurate regardless of position context).
