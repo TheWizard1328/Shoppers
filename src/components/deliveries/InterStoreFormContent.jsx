@@ -402,8 +402,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
   return (
     <div className="flex flex-col gap-3">
 
-      {/* Pickup / Dropoff toggle — only in Add to Route mode */}
-      {isAddToRouteMode &&
+      {/* Pickup / Dropoff toggle — visible in both Add and Edit modes */}
       <div className="flex justify-center">
           <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-slate-300)' }}>
             {['pickup', 'dropoff'].map((type) => {
@@ -412,7 +411,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
               <button
                 key={type}
                 type="button"
-                disabled={isSaving}
+                disabled={isSaving || !isAddToRouteMode}
                 onClick={() => setFormData((prev) => ({ ...prev, _interstore_stop_type: type }))}
                 className={`px-5 py-1.5 text-sm font-semibold transition-colors capitalize ${
                 isActive ?

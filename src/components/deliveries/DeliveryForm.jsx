@@ -458,6 +458,7 @@ export default function DeliveryForm({
         _interstore_distance_km: delivery.estimated_distance_km ?? null,
         _interstore_notes: '', // notes are baked into delivery_notes; leave blank on edit
         _interstore_resolving: !delivery._interstore_source_id && !delivery._interstore_dest_id, // flag while async lookup is running
+        _interstore_stop_type: String(delivery.delivery_id || '').toUpperCase().startsWith('ISD-') ? 'dropoff' : 'pickup',
       });
       setIsPickupMode(!delivery.patient_id);
       if (patient) {
