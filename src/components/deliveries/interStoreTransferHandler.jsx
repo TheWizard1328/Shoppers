@@ -190,42 +190,20 @@ export async function createInterStoreTransfer({
   const stop_order = existingStopOrders.length > 0 ? Math.max(...existingStopOrders) + 1 : 1;
 
   // ── delivery_time_start ───────────────────────────────────────────────
-  // Priority: form value → From store delivery_time_start + 5 min → now + 5 min
+  // Priority: user-set form value → now + 5 minutes (always)
   // ── delivery_time_end ─────────────────────────────────────────────────
-  // Priority: form value → To store delivery_time_end → blank
-  // Reuse already-resolved store matches
-  const fromStore = matchedSrcStore;
-  const toStore = matchedDestStore;
+  // Priority: user-set form value → blank (always)
+  // Store business hours are NOT used — interstore times are independent of store hours.
 
-  // Helper: get whichever delivery_time field is active for the current day/time
-  const getStoreTimeField = (store, field) => {
-    if (!store) return '';
-    const day = now.getDay(); // 0=Sun...6=Sat
-    if (day === 0) return store[`sunday_am_${field}`] || store[`sunday_pm_${field}`] || '';
-    if (day === 6) return store[`saturday_am_${field}`] || store[`saturday_pm_${field}`] || '';
-    return store[`weekday_am_${field}`] || store[`weekday_pm_${field}`] || '';
-  };
-
-  // delivery_time_start: form override → From store start + 5 min → now + 5 min
+  // delivery_time_start: user override → now + 5 min
   let delivery_time_start = formData.delivery_time_start || '';
   if (!delivery_time_start) {
-    const fromStoreStart = getStoreTimeField(fromStore, 'start');
-    if (fromStoreStart) {
-      const [h, m] = fromStoreStart.split(':').map(Number);
-      const storeStartMs = new Date(now).setHours(h, m, 0, 0);
-      const adjusted = new Date(storeStartMs + 5 * 60 * 1000);
-      delivery_time_start = `${String(adjusted.getHours()).padStart(2, '0')}:${String(adjusted.getMinutes()).padStart(2, '0')}`;
-    } else {
-      const startTime = new Date(now.getTime() + 5 * 60 * 1000);
-      delivery_time_start = `${String(startTime.getHours()).padStart(2, '0')}:${String(startTime.getMinutes()).padStart(2, '0')}`;
-    }
+    const startTime = new Date(now.getTime() + 5 * 60 * 1000);
+    delivery_time_start = `${String(startTime.getHours()).padStart(2, '0')}:${String(startTime.getMinutes()).padStart(2, '0')}`;
   }
 
-  // delivery_time_end: form override → To store end → blank
+  // delivery_time_end: user override → blank
   let delivery_time_end = formData.delivery_time_end || '';
-  if (!delivery_time_end) {
-    delivery_time_end = getStoreTimeField(toStore, 'end') || '';
-  }
 
   // ── estimated_distance_km ─────────────────────────────────────────────
   const estimated_distance_km = formData._interstore_distance_km != null
