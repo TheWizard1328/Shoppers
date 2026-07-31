@@ -35,7 +35,7 @@ import HomeMarkers from "./HomeMarkers";
 import MapBreadcrumbs from "./MapBreadcrumbs";
 import { createLiveLocationDot } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
-import { getInterStoreLocationSync, isInterStoreDelivery } from "../utils/interStoreDisplayName";
+import { getInterStoreLocationSync, isInterStoreDelivery, parseInterStoreDeliveryId } from "../utils/interStoreDisplayName";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -498,13 +498,30 @@ function DeliveryMap({
         }
       }
       if (!pickupLat || !pickupLng) return;
+      // For interstore pickups, resolve the source store via the delivery_id's
+      // assignedStorePhone — same logic as StopCard.jsx's ispSourceStore — so the
+      // marker color matches the stop card's store badge instead of using the
+      // origin store (delivery.store_id) which may be a different store.
+      let markerStore = store;
+      let markerColor = getStoreColor(store);
+      if (isInterStore) {
+        const parsed = parseInterStoreDeliveryId(delivery.delivery_id);
+        const toPhone = parsed?.assignedStorePhone;
+        if (toPhone) {
+          const byPhone = safeStores.find((s) => s?.phone && String(s.phone).replace(/\D/g, '') === toPhone);
+          if (byPhone) {
+            markerStore = byPhone;
+            markerColor = getStoreColor(byPhone);
+          }
+        }
+      }
       pickups.push({
         ...delivery,
         latitude: pickupLat,
         longitude: pickupLng,
-        store,
+        store: markerStore,
         driver,
-        pinColor: getStoreColor(store),
+        pinColor: markerColor,
         number: delivery.display_stop_order || delivery.stop_order || 0,
         markerType: "pickup",
         isInterStorePickup: isInterStore,
