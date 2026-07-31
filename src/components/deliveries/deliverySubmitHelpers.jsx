@@ -63,7 +63,14 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     }
   }
 
-  if (!delivery?.id && !dataToSave.patient_id) {
+  // Default new store-pickups (no patient, no delivery id) to 'en_route'.
+  // CRITICAL: never apply this default to interstore deliveries (ISP-/ISD- prefix)
+  // — those are always 'in_transit'.  Using 'en_route' causes the status to appear
+  // blank in the interstore edit form which only offers in_transit/completed.
+  const isInterstoreCreate = !delivery?.id && !dataToSave.patient_id &&
+    (String(dataToSave.delivery_id || '').toUpperCase().startsWith('ISP-') ||
+     String(dataToSave.delivery_id || '').toUpperCase().startsWith('ISD-'));
+  if (!delivery?.id && !dataToSave.patient_id && !isInterstoreCreate) {
     dataToSave.status = 'en_route';
   }
 

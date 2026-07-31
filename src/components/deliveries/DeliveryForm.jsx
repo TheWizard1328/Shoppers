@@ -152,12 +152,21 @@ export default function DeliveryForm({
   const [pendingRoutePickup, setPendingRoutePickup] = useState(null);
   const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode); const [isInterStoreMode, setIsInterStoreMode] = useState(openMode === 'interstore_edit');
 
-  // Auto-select "in_transit" status when switching to InterStore mode on a new form
+  // Auto-select "in_transit" status when switching to InterStore mode on a new form,
+  // OR when editing an existing interstore that has 'en_route' in the DB (a legacy
+  // artifact from the time interstore deliveries incorrectly defaulted to en_route).
+  // The interstore status dropdown only has in_transit / completed, so en_route
+  // renders as a blank selection — normalise it to in_transit on form open.
   useEffect(() => {
-    if (isInterStoreMode && !delivery) {
+    if (!isInterStoreMode) return;
+    if (!delivery) {
+      // New interstore: default to in_transit
+      setFormData((prev) => ({ ...prev, status: 'in_transit' }));
+    } else if (delivery.status === 'en_route') {
+      // Existing interstore with legacy en_route status: coerce to in_transit
       setFormData((prev) => ({ ...prev, status: 'in_transit' }));
     }
-  }, [isInterStoreMode, delivery]);
+  }, [isInterStoreMode, delivery?.id, delivery?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync completionTime when InterStore form sets actual_delivery_time directly
   useEffect(() => {
