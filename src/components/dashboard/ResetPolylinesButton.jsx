@@ -8,6 +8,109 @@ import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager"
 import { getOrFetchHereApiKey } from "@/components/utils/hereApiKeyStore";
 import { Loader2, RotateCcw } from "lucide-react";
 
+// ─── HERE Flexible Polyline decode ──────────────────────────────────────────
+const HERE_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const HERE_DECODER = HERE_ALPHA.split('').reduce((acc, c, i) => { acc[c] = i; return acc; }, {});
+
+function decodeHereFlexiblePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  const values = [];
+  let current = 0, shift = 0;
+  for (const char of encoded) {
+    const value = HERE_DECODER[char];
+    if (value == null) return [];
+    current |= (value & 0x1f) << shift;
+    if (value & 0x20) { shift += 5; continue; }
+    values.push(current); current = 0; shift = 0;
+  }
+  if (shift > 0 || values.length < 2 || values[0] !== 1) return [];
+  const header = values[1];
+  const precision = header & 15;
+  const thirdDimension = (header >> 4) & 7;
+  const factor = 10 ** precision;
+  const dimension = thirdDimension ? 3 : 2;
+  const toSigned = (v) => ((v & 1) ? ~(v >> 1) : (v >> 1));
+  let lat = 0, lon = 0;
+  const coords = [];
+  for (let i = 2; i < values.length; i += dimension) {
+    lat += toSigned(values[i]); lon += toSigned(values[i + 1]);
+    coords.push([lat / factor, lon / factor]);
+  }
+  return coords;
+}
+
+function encodeGooglePolyline(points) {
+  const encodeSigned = (v) => {
+    let s = v << 1; if (v < 0) s = ~s;
+    let out = '';
+    while (s >= 0x20) { out += String.fromCharCode((0x20 | (s & 0x1f)) + 63); s >>= 5; }
+    return out + String.fromCharCode(s + 63);
+  };
+  let lastLat = 0, lastLng = 0, encoded = '';
+  for (const [lat, lng] of points) {
+    const latE5 = Math.round(lat * 1e5), lngE5 = Math.round(lng * 1e5);
+    encoded += encodeSigned(latE5 - lastLat) + encodeSigned(lngE5 - lastLng);
+    lastLat = latE5; lastLng = lngE5;
+  }
+  return encoded;
+}
+
+/**
+ * Single multi-waypoint HERE Router v8 call.
+ * Returns an array of { encoded_polyline, estimated_distance_km, estimated_duration_minutes }
+ * — one entry per leg (N points → N-1 legs).
+ */
+async function callHereMultiStop(points, transportMode, hereApiKey) {
+  const valid = (points || []).filter(p => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
+  if (valid.length < 2) return [];
+
+  const hereMode = transportMode === 'cycling' ? 'bicycle'
+    : transportMode === 'pedestrian' ? 'pedestrian' : 'car';
+
+  const params = new URLSearchParams();
+  params.set('apiKey', hereApiKey);
+  params.set('transportMode', hereMode);
+  params.set('origin', `${valid[0].lat},${valid[0].lon}`);
+  params.set('destination', `${valid[valid.length - 1].lat},${valid[valid.length - 1].lon}`);
+  params.set('return', 'polyline,summary');
+  valid.slice(1, -1).forEach(p => params.append('via', `${p.lat},${p.lon}`));
+
+  const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+    signal: AbortSignal.timeout(20000), headers: { accept: 'application/json' }
+  });
+  const data = await resp.json().catch(() => null);
+  const sections = data?.routes?.[0]?.sections || [];
+
+  // Log the API call
+  base44.entities.GoogleAPILog.create({
+    timestamp: new Date().toISOString(),
+    api_type: 'Directions (HERE)',
+    purpose: `ResetPolylines — ${valid.length - 1} leg(s), mode=${hereMode}`,
+    function_name: 'ResetPolylinesButton',
+    metadata: { provider: 'HERE', source: 'reset_polylines', call_count: 1 },
+  }).catch(() => {});
+
+  return valid.slice(0, -1).map((fromPt, i) => {
+    const sec = sections[i] || {};
+    let polyline = null;
+    if (typeof sec.polyline === 'string') {
+      const coords = decodeHereFlexiblePolyline(sec.polyline);
+      if (coords.length > 1) polyline = encodeGooglePolyline(coords);
+    }
+    if (!polyline && typeof sec.encoded_polyline === 'string') polyline = sec.encoded_polyline;
+    if (!polyline) {
+      const toPt = valid[i + 1];
+      polyline = encodeGooglePolyline([[fromPt.lat, fromPt.lon], [toPt.lat, toPt.lon]]);
+    }
+    const summary = sec.summary || {};
+    return {
+      encoded_polyline: polyline,
+      estimated_distance_km: summary.length ? Number((summary.length / 1000).toFixed(3)) : null,
+      estimated_duration_minutes: summary.duration ? Math.ceil(summary.duration / 60) : null,
+    };
+  });
+}
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 /** Resolve the destination coords for a delivery record. */
@@ -158,62 +261,53 @@ export default function ResetPolylinesButton({
       pendingUpdates.set(id, { ...(pendingUpdates.get(id) || {}), ...fields });
     };
 
-    // ── PASS 1: Driving baseline ────────────────────────────────────────────
-    // All stops treated as 'driving'. Origin = home (if set) or first stop.
-    console.log(`[ResetPolylinesButton] PASS 1 — driving baseline, ${sorted.length} stops`);
+    // ── PASS 1: Driving baseline — SINGLE multi-waypoint HERE call ──────────
+    // Build ordered point list: home (if set) + all stops in stop_order.
+    // One API call covers every leg. Cycling legs will be overwritten in Pass 2.
+    console.log(`[ResetPolylinesButton] PASS 1 — driving baseline, ${sorted.length} stops (1 API call)`);
 
-    let prevCoords = homePosition || resolveStopCoords(sorted[0], patientMap, storeMap);
+    if (hereApiKey) {
+      // Build waypoint list: origin first, then each stop in order
+      const originPoint = homePosition
+        ? { lat: homePosition.latitude, lon: homePosition.longitude }
+        : null;
 
-    for (let i = 0; i < sorted.length; i++) {
-      const delivery = sorted[i];
-      const toCoords = resolveStopCoords(delivery, patientMap, storeMap);
-      if (!toCoords || !prevCoords) {
-        prevCoords = toCoords || prevCoords;
-        continue;
-      }
+      const stopPoints = sorted.map(d => {
+        const c = resolveStopCoords(d, patientMap, storeMap);
+        return c ? { lat: c.latitude, lon: c.longitude, deliveryId: d.id } : null;
+      }).filter(Boolean);
 
-      if (hereApiKey) {
+      // Prepend origin if we have it; we need at least 2 points to route
+      const allPoints = originPoint ? [originPoint, ...stopPoints] : stopPoints;
+
+      if (allPoints.length >= 2) {
         try {
-          const encoded = await base44.functions.invoke('getHereDirections', {
-            origin: { lat: prevCoords.latitude, lng: prevCoords.longitude },
-            destination: { lat: toCoords.latitude, lng: toCoords.longitude },
-            caller: 'reset_polylines_pass1_driving',
-          });
-          const polyline = encoded?.data?.sections?.[0]?.encoded_polyline
-            || encoded?.data?.encoded_polyline
-            || null;
-          const distKm = encoded?.data?.sections?.[0]?.estimated_distance_km
-            ?? encoded?.data?.estimated_distance_km
-            ?? null;
-          const durMin = encoded?.data?.sections?.[0]?.estimated_duration_minutes
-            ?? encoded?.data?.estimated_duration_minutes
-            ?? null;
-
-          if (polyline) {
-            mergeUpdate(delivery.id, {
-              encoded_polyline: polyline,
+          const sections = await callHereMultiStop(allPoints, 'driving', hereApiKey);
+          // sections[i] covers the leg arriving at allPoints[i+1]
+          // allPoints[0] is origin (home), so sections[i] → stopPoints[i]
+          const offset = originPoint ? 0 : 1; // when no origin, sections[i] → stopPoints[i+1]
+          sections.forEach((sec, i) => {
+            const targetIdx = originPoint ? i : i + 1;
+            const sp = stopPoints[targetIdx];
+            if (!sp || !sec?.encoded_polyline) return;
+            mergeUpdate(sp.deliveryId, {
+              encoded_polyline: sec.encoded_polyline,
               transport_mode: 'driving',
-              ...(distKm != null ? { estimated_distance_km: distKm } : {}),
-              ...(durMin != null ? { estimated_duration_minutes: durMin } : {}),
+              ...(sec.estimated_distance_km != null ? { estimated_distance_km: sec.estimated_distance_km } : {}),
+              ...(sec.estimated_duration_minutes != null ? { estimated_duration_minutes: sec.estimated_duration_minutes } : {}),
             });
-          }
+          });
         } catch (err) {
-          console.warn(`[ResetPolylinesButton] Pass 1 HERE call failed for stop ${i + 1}:`, err?.message || err);
+          console.warn(`[ResetPolylinesButton] Pass 1 multi-stop HERE call failed:`, err?.message || err);
         }
-        await tick(150);
       }
-
-      prevCoords = toCoords;
     }
 
-    // ── PASS 2: Cycling loop patching ──────────────────────────────────────
-    // Find cycling Start/End marker pairs, re-polyline the loop with cycling mode.
+    // ── PASS 2: Cycling loop patching — ONE call per cycling loop ────────────
+    // Find Start/End marker pairs and re-polyline each loop in a single HERE call (bicycle mode).
     const cyclingMarkers = sorted.filter(d => d.is_cycling_marker);
 
-    if (cyclingMarkers.length >= 2) {
-      console.log(`[ResetPolylinesButton] PASS 2 — cycling loop patching, ${cyclingMarkers.length} markers`);
-
-      // Pair markers: Start → End
+    if (cyclingMarkers.length >= 2 && hereApiKey) {
       const startMarkers = cyclingMarkers.filter(m =>
         (m.delivery_notes || '').toLowerCase().includes('start')
       );
@@ -221,53 +315,44 @@ export default function ResetPolylinesButton({
         (m.delivery_notes || '').toLowerCase().includes('end')
       );
 
+      console.log(`[ResetPolylinesButton] PASS 2 — ${startMarkers.length} cycling loop(s), 1 API call each`);
+
+      // Process each loop independently — each is ONE multi-waypoint cycling call
       for (const startMarker of startMarkers) {
-        // Find the matching End marker that comes after this Start in stop_order
         const matchingEnd = endMarkers.find(e =>
           Number(e.stop_order) > Number(startMarker.stop_order)
         );
         if (!matchingEnd) continue;
 
-        // Collect all stops between Start and End (inclusive) by stop_order
         const loopStops = sorted.filter(d =>
           Number(d.stop_order) >= Number(startMarker.stop_order) &&
           Number(d.stop_order) <= Number(matchingEnd.stop_order)
         );
-
         if (loopStops.length < 2) continue;
-        console.log(`[ResetPolylinesButton] Pass 2 — cycling loop: ${loopStops.length} stops`);
 
-        // Re-polyline each leg in the loop with 'cycling' mode
-        for (let i = 1; i < loopStops.length; i++) {
-          const fromStop = loopStops[i - 1];
-          const toStop = loopStops[i];
-          const fromCoords = resolveStopCoords(fromStop, patientMap, storeMap);
-          const toCoords = resolveStopCoords(toStop, patientMap, storeMap);
+        console.log(`[ResetPolylinesButton] Pass 2 — cycling loop: ${loopStops.length} stops → 1 HERE call`);
 
-          if (!fromCoords || !toCoords) continue;
+        // Build waypoints for this loop: stop[0] → stop[1] → ... → stop[N-1]
+        const loopPoints = loopStops.map(d => {
+          const c = resolveStopCoords(d, patientMap, storeMap);
+          return c ? { lat: c.latitude, lon: c.longitude, deliveryId: d.id } : null;
+        }).filter(Boolean);
 
-          if (hereApiKey) {
-            try {
-              const encoded = await base44.functions.invoke('getHereDirections', {
-                origin: { lat: fromCoords.latitude, lng: fromCoords.longitude },
-                destination: { lat: toCoords.latitude, lng: toCoords.longitude },
-                transport_mode: 'cycling',
-                caller: 'reset_polylines_pass2_cycling',
-              });
-              const polyline = encoded?.data?.sections?.[0]?.encoded_polyline
-                || encoded?.data?.encoded_polyline
-                || null;
-              if (polyline) {
-                mergeUpdate(toStop.id, {
-                  encoded_polyline: polyline,
-                  transport_mode: 'cycling',
-                });
-              }
-            } catch (err) {
-              console.warn(`[ResetPolylinesButton] Pass 2 cycling call failed:`, err?.message || err);
-            }
-            await tick(150);
-          }
+        if (loopPoints.length < 2) continue;
+
+        try {
+          const sections = await callHereMultiStop(loopPoints, 'cycling', hereApiKey);
+          // sections[i] covers the leg arriving at loopPoints[i+1]
+          sections.forEach((sec, i) => {
+            const targetPt = loopPoints[i + 1];
+            if (!targetPt || !sec?.encoded_polyline) return;
+            mergeUpdate(targetPt.deliveryId, {
+              encoded_polyline: sec.encoded_polyline,
+              transport_mode: 'cycling',
+            });
+          });
+        } catch (err) {
+          console.warn(`[ResetPolylinesButton] Pass 2 cycling loop call failed:`, err?.message || err);
         }
       }
     } else {
@@ -299,13 +384,15 @@ export default function ResetPolylinesButton({
       } catch (_2) {}
     }
 
-    // Filter to only unsaved, non-master-timeline segments that have a polyline
+    // Filter to only saved_to_route=true, non-master-timeline segments that have a polyline.
+    // These are breadcrumbs already confirmed as the authoritative path for a stop —
+    // they override the driving baseline polyline written in Pass 1.
     const masterStopOrder = -1;
     const pendingBreadcrumbs = (breadcrumbSegments || []).filter(seg =>
       seg &&
       seg.encoded_polyline &&
       seg.stop_order !== masterStopOrder &&
-      !seg.saved_to_route
+      seg.saved_to_route === true
     );
 
     console.log(`[ResetPolylinesButton] Pass 3 — ${pendingBreadcrumbs.length} unsaved breadcrumb segments to apply`);
@@ -345,18 +432,7 @@ export default function ResetPolylinesButton({
       }
     }
 
-    // ── PASS 3 epilogue: seal breadcrumb records ──────────────────────────
-    if (breadcrumbsToSeal.length > 0) {
-      console.log(`[ResetPolylinesButton] Sealing ${breadcrumbsToSeal.length} breadcrumb segments (saved_to_route=true)`);
-      await Promise.all(
-        breadcrumbsToSeal.map(seg =>
-          base44.entities.DeliveryBreadcrumbs.update(seg.id, { saved_to_route: true }).catch(() => {})
-        )
-      );
-      // Mirror seals to offline DB
-      const sealedSegments = breadcrumbsToSeal.map(s => ({ ...s, saved_to_route: true }));
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS, sealedSegments).catch(() => {});
-    }
+    // No sealing needed — Pass 3 only reads already-sealed (saved_to_route=true) records.
 
     // ── Sync fresh deliveries to offline DB and dispatch UI update ────────
     const freshDeliveries = await base44.entities.Delivery.filter(
