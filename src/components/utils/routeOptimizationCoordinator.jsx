@@ -73,6 +73,7 @@ export async function performRouteOptimization({
   startingStopOrder = null,
   recalcTrackingNumbers = false,
   recalcTrackingStoreId = null,
+  forceRegenerate = false,
 }) {
   if (!driverId || !deliveryDate) {
     console.warn(`[RouteOptimization] ${source} — missing driverId or deliveryDate`);
@@ -81,9 +82,10 @@ export async function performRouteOptimization({
 
   // ── Early exit: if deliveries were provided and contain zero active stops, bail.
   // This prevents wasted HERE API calls when a delete leaves the route empty.
-  // ""Active" = not in a terminal status (completed/failed/cancelled).
+  // "Active" = not in a terminal status (completed/failed/cancelled).
+  // EXCEPTION: forceRegenerate=true bypasses this gate (e.g. ResetPolylinesButton on a completed route).
   const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
-  if (Array.isArray(deliveries) && deliveries.length > 0) {
+  if (!forceRegenerate && Array.isArray(deliveries) && deliveries.length > 0) {
     const activeStops = deliveries.filter(
       (d) => d && !TERMINAL_STATUSES.includes(String(d.status || ''))
     );
@@ -170,8 +172,8 @@ export async function performRouteOptimization({
 
   // ── Second active-stops check: after backend fetch (for callers that passed deliveries=null).
   // If the fetched data shows no active stops, bail before wasting HERE API calls.
-  {
-    const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
+  // EXCEPTION: forceRegenerate=true bypasses this gate.
+  if (!forceRegenerate) {
     const activeStops = (resolvedDeliveries || []).filter(
       (d) => d && !TERMINAL_STATUSES.includes(String(d.status || ''))
     );

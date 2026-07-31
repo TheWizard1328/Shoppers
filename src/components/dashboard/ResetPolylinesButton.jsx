@@ -253,6 +253,7 @@ export default function ResetPolylinesButton({
               orderedDeliveryIds: orderedStopIds,
               preserveExistingOrder: true,
               bypassDriverStatus: true,
+              forceRegenerate: true,
               source: 'reset_polylines_button',
             });
             result = { success: coordResult?.success !== false };
