@@ -153,9 +153,19 @@ export default function RouteOptimizationCompareDialog({ open, onClose, rows = [
                     </span>
                   </div>
 
-                  {/* New ETA */}
-                  <div className="text-center font-mono font-semibold text-emerald-700 dark:text-emerald-400">
-                    {pending ? <span className="text-slate-300 dark:text-slate-600">…</span> : (row.newEta || "—")}
+                  {/* New ETA + store abbreviation badge */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                      {pending ? <span className="text-slate-300 dark:text-slate-600">…</span> : (row.newEta || "—")}
+                    </span>
+                    {!pending && row.storeAbbrev && (
+                      <span
+                        className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full text-white"
+                        style={{ backgroundColor: row.storeColor || '#64748b' }}
+                      >
+                        {row.storeAbbrev}
+                      </span>
+                    )}
                   </div>
 
                   {/* New stop order */}

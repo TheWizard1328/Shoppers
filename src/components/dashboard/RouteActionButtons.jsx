@@ -120,6 +120,14 @@ export default function RouteActionButtons({
     return delivery.patient_name || delivery.delivery_id || 'Unknown';
   };
 
+  // Returns { abbrev, color } for a delivery's store, or null if not a patient delivery
+  const getStoreInfo = (delivery) => {
+    if (!delivery?.store_id || delivery?.is_cycling_marker) return null;
+    const store = (stores || []).find((s) => s?.id === delivery.store_id);
+    if (!store?.abbreviation) return null;
+    return { abbrev: store.abbreviation, color: store.color || '#64748b' };
+  };
+
   // ── Silent reoptimize triggered programmatically (e.g. after new delivery added) ──
   useEffect(() => {
     const handler = async (e) => {
@@ -283,6 +291,8 @@ export default function RouteActionButtons({
                     newStopOrder: null,
                     newEta: null,
                     orderChanged: false,
+                    storeAbbrev: getStoreInfo(d)?.abbrev ?? null,
+                    storeColor: getStoreInfo(d)?.color ?? null,
                   };
                 });
               setCompareRows(beforeRows);
@@ -323,6 +333,8 @@ export default function RouteActionButtons({
                         newStopOrder: d.stop_order ?? null,
                         newEta: d.delivery_time_eta ?? null,
                         orderChanged: (before.stopOrder ?? null) !== (d.stop_order ?? null),
+                        storeAbbrev: getStoreInfo(d)?.abbrev ?? null,
+                        storeColor: getStoreInfo(d)?.color ?? null,
                       };
                     });
                   setCompareRows(afterRows);
