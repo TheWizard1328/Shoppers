@@ -309,23 +309,23 @@ export async function performRouteOptimization({
         const _polyWrites = optimizeData.writeBatch.filter(w => w.data?.encoded_polyline != null).length;
         const _trWrites = optimizeData.writeBatch.filter(w => w.data?.tracking_number != null).length;
         console.log(`[RouteOptimization] ${source} — bulk-writing ${optimizeData.writeBatch.length} updates (${_polyWrites} with polylines, ${_trWrites} with TR#)`);
-        try {
-          // Yield to the browser before the heavy payload serialization so it can paint
-          // the optimistic UI update before we block the main thread with JSON.stringify
-          // of potentially 20+ polyline strings (up to 400KB total).
-          await new Promise(r => setTimeout(r, 0));
-          await base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch });
-        } catch (e) {
+        // Fire-and-forget: freshDeliveries is built from writeBatch data (not the server
+        // response), so we don't need to await bulkUpdateDeliveries. The setTimeout(0)
+        // yield that was here was a macrotask — it waited behind ALL pending useEffect
+        // hooks (500ms-5s) before the server write could even start. Removing it lets
+        // the coordinator return freshDeliveries immediately while the server write
+        // completes in the background.
+        base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch }).catch((e) => {
           console.warn(`[RouteOptimization] ${source} — bulkUpdateDeliveries failed, falling back to individual writes:`, e?.message);
-          // Fallback: individual writes in parallel batches of 20
+          // Fallback: individual writes in parallel batches of 20 (fire-and-forget)
           const CHUNK_SIZE = 20;
           for (let i = 0; i < optimizeData.writeBatch.length; i += CHUNK_SIZE) {
             const chunk = optimizeData.writeBatch.slice(i, i + CHUNK_SIZE);
-            await Promise.all(chunk.map(async ({ id, data }) => {
+            Promise.all(chunk.map(async ({ id, data }) => {
               try { await base44.entities.Delivery.update(id, data); } catch (_) {}
-            }));
+            })).catch(() => {});
           }
-        }
+        });
       }
     } else if (orderedDeliveryIds) {
       // Caller provided pre-computed order — just use it

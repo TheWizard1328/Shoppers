@@ -451,11 +451,17 @@ export async function optimizeRouteClientSide({
     return { success: false, error: 'Missing HERE API key' };
   }
 
-  // Yield main thread immediately so the browser can paint the optimistic UI update
-  // before we start building Maps and running sorts. Without this yield the 'Page
-  // Unresponsive' dialog appears even on small routes because the event loop is blocked
-  // from the moment this function is called until the first `await` (HERE API call).
-  await new Promise(r => setTimeout(r, 0));
+  // NOTE: The setTimeout(0) yield that was here has been REMOVED.
+  // It was causing a 500ms-5s delay because setTimeout(0) is a MACROTASK — it waits
+  // behind ALL pending React useEffect hooks (map recalculation, polyline rebuilds,
+  // stats refresh) that were scheduled by the setDeliveries call in the blocking path.
+  // Without this yield, the engine's synchronous work (100-300ms: building Maps,
+  // filtering, resolving coords) runs in the microtask, then 'await fetch()' for
+  // the HERE API yields the main thread. useEffect hooks run WHILE the HERE API
+  // call is in flight (1-5s network round-trip), saving the full useEffect delay.
+  // The 'Page Unresponsive' dialog threshold is 5-10s — well above the 300ms sync work.
+  // The browser paints the optimistic UI when the microtask queue drains (after sync
+  // work, before the HERE API response arrives).
 
   const allDeliveries = deliveries || [];
   if (allDeliveries.length === 0) {
