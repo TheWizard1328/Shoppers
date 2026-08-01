@@ -1427,15 +1427,17 @@ export default function useStopCardActions(params) {
         currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
       }
       const [hrs, mins] = currentLocalTime.split(':').map(Number);
+      // Start from the actual completion time of the just-finished stop.
+      // For each remaining stop, add its own travel duration to arrive, then
+      // a 2-minute dwell before moving to the next stop.
       let currentEtaMinutes = hrs * 60 + mins;
-      const updatedRemainingWithEtas = incompleteDeliveries.map((stop, index) => {
-        if (index === 0) {
-          currentEtaMinutes = currentEtaMinutes + 5 + (stop.estimated_duration_minutes || 5);
-        } else {
-          currentEtaMinutes = currentEtaMinutes + (incompleteDeliveries[index - 1]?.estimated_duration_minutes || 5);
-        }
+      const updatedRemainingWithEtas = incompleteDeliveries.map((stop) => {
+        // ETA for this stop = base time + travel time to reach it
+        currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
         const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
         const newEtaMins = currentEtaMinutes % 60;
+        // Add 2-min dwell so the next stop's travel time starts after completion
+        currentEtaMinutes += 2;
         return { ...stop, delivery_time_eta: `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}` };
       });
 
@@ -1652,7 +1654,12 @@ export default function useStopCardActions(params) {
         };
 
         const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
-        const shouldRecalculateCompletionEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionActualTime);
+        // Always recalculate ETAs when using retro timing — the stored ETAs were based on
+        // current time at the time they were set, which is wrong for past-day completions.
+        const _remainingCount = sameRouteDeliveries.filter(d => !['completed','failed','cancelled'].includes(d.status) && d.id !== delivery.id).length;
+        const shouldRecalculateCompletionEtas = useRetroactiveTiming
+          ? _remainingCount > 0
+          : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionActualTime));
 
         // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
         if (completionUpdate.actual_delivery_time && completionUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
@@ -1883,7 +1890,10 @@ export default function useStopCardActions(params) {
         };
 
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
-        const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, failActualTime);
+        const _failRemainingCount = allRouteDeliveries.filter(d => !['completed','failed','cancelled'].includes(d.status) && d.id !== delivery.id).length;
+        const shouldRecalculateFailureEtas = useRetroactiveTiming
+          ? _failRemainingCount > 0
+          : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, failActualTime));
 
         // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
         if (criticalUpdate.actual_delivery_time && criticalUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
