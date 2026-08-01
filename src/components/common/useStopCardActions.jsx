@@ -1217,9 +1217,16 @@ export default function useStopCardActions(params) {
             for (const d of (startedRouteDeliveries || [])) {
               if (d?.id) _startChangedMap.set(d.id, d);
             }
+            // CRITICAL: Filter to ONLY the current driver + date. Passing ALL deliveries
+            // causes the optimizer to return ALL deliveries as freshDeliveries, which then
+            // get broadcast via broadcastMutation for every single one — including
+            // out-of-date deliveries from other drivers/months (the 32k broadcast cascade).
+            const _startScopedDeliveries = (allDeliveries || []).filter(
+              d => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+            );
             const _startFullDeliveries = [
-              ...(allDeliveries || []).map(d => _startChangedMap.get(d?.id) || d),
-              ...(startedRouteDeliveries || []).filter(d => d?.id && !(allDeliveries || []).find(a => a?.id === d.id))
+              ..._startScopedDeliveries.map(d => _startChangedMap.get(d?.id) || d),
+              ...(startedRouteDeliveries || []).filter(d => d?.id && !_startScopedDeliveries.find(a => a?.id === d.id))
             ];
 
 

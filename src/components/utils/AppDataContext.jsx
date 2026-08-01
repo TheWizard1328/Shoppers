@@ -339,7 +339,7 @@ export const AppDataProvider = ({ children, value }) => {
             preserveLocalState: true,
             skipMapPhaseOneRefresh: true,
             skipDriverLocationRefresh: true,
-            forcePolylineRefresh: hasPolylineUpdate,
+            forcePolylineUpdate: hasPolylineUpdate,
           }
         }));
       }
