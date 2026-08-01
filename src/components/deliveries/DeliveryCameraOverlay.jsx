@@ -241,94 +241,109 @@ export default function DeliveryCameraOverlay({
 
   if (!show) return null;
 
-  const showCaptureButton = scanState === 'idle' || scanState === 'error';
-
   return (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[10030] bg-black flex flex-col items-center justify-start p-2 pt-3"
+        className="fixed inset-0 z-[10030] bg-black flex flex-col items-center justify-between"
+        style={{ paddingTop: "env(safe-area-inset-top, 12px)", paddingBottom: "env(safe-area-inset-bottom, 12px)" }}
       >
-        {/* Top bar */}
-        <div className="w-full max-w-lg flex items-center justify-between mb-2">
-          <div className="text-white text-sm font-medium px-2">
+        {/* ── Top: viewfinder + status hint + results ── */}
+        <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
+          {/* Viewfinder */}
+          <div className="relative w-full" style={{ aspectRatio: '16 / 7' }}>
+            <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
+              scanState === 'selected' ? 'border-emerald-400' :
+              scanState === 'scanning' ? 'border-blue-400' :
+              scanState === 'bursting' ? 'border-amber-400' :
+              blurWarning ? 'border-red-400/60' :
+              'border-white/30'
+            }`}>
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+              {/* Burst progress bar */}
+              {scanState === 'bursting' && (
+                <div className="absolute top-0 left-0 right-0 h-1 bg-black/40">
+                  <div className="h-full bg-amber-400 transition-all duration-100" style={{ width: `${burstProgress}%` }} />
+                </div>
+              )}
+
+              {/* Scanning overlay */}
+              {scanState === 'scanning' && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="animate-spin w-8 h-8 border-3 border-white border-t-transparent rounded-full" />
+                    <div className="text-white text-sm">Extracting...</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Selected flash */}
+              {scanState === 'selected' && (
+                <div className="absolute inset-0 bg-emerald-500/30 flex items-center justify-center">
+                  <div className="flex items-center gap-2 text-white text-lg font-semibold">
+                    <Check className="w-7 h-7" /> Matched
+                  </div>
+                </div>
+              )}
+
+              {/* Blur warning flash */}
+              {blurWarning && scanState === 'idle' && (
+                <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                  <div className="flex items-center gap-2 text-white text-base font-medium">
+                    <AlertCircle className="w-6 h-6" /> Too blurry
+                  </div>
+                </div>
+              )}
+
+              {/* Corner brackets */}
+              {scanState === 'idle' && !blurWarning && (
+                <>
+                  <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-white/40 rounded-tl" />
+                  <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-white/40 rounded-tr" />
+                  <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-white/40 rounded-bl" />
+                  <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-white/40 rounded-br" />
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Status hint — centered white text below viewfinder */}
+          <div className="text-white text-sm font-medium text-center px-4">
             {scanState === 'bursting' ? `Capturing... ${Math.round(burstProgress)}%` :
              scanState === 'scanning' ? 'Scanning label...' :
              scanState === 'results' ? 'Select patient' :
-             scanState === 'selected' ? '✓ Patient selected' :
+             scanState === 'selected' ? '\u2713 Patient selected' :
              scanState === 'error' ? 'Scan failed' :
-             blurWarning ? 'Too blurry — try again' :
+             blurWarning ? 'Too blurry \u2014 try again' :
              'Point at a prescription label & tap'}
           </div>
-          <div className="w-9 h-9" />{/* close moved to bottom bar */}
+
+          {/* Results panel (scrollable if needed) */}
+          {scanState === 'error' && scanResults?.error && (
+            <div className="flex items-center gap-2 p-3 bg-red-500/20 border border-red-500/40 rounded-lg text-white text-sm w-full">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              {scanResults.error}
+            </div>
+          )}
+
+          {scanState === 'results' && scanResults && !scanResults.error && (
+            <ResultsPanel
+              scanResults={scanResults}
+              stores={stores}
+              onSelectPatient={handleSelectPatient}
+              onCreateNew={handleCreateNew}
+              onRetake={handleRetake}
+            />
+          )}
         </div>
 
-        {/* Viewfinder — wide landscape */}
-        <div className="relative w-full max-w-lg" style={{ aspectRatio: '16 / 7' }}>
-          <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
-            scanState === 'selected' ? 'border-emerald-400' :
-            scanState === 'scanning' ? 'border-blue-400' :
-            scanState === 'bursting' ? 'border-amber-400' :
-            blurWarning ? 'border-red-400/60' :
-            'border-white/30'
-          }`}>
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-            <canvas ref={canvasRef} style={{ display: 'none' }} />
-
-            {/* Burst progress bar at top of viewfinder */}
-            {scanState === 'bursting' && (
-              <div className="absolute top-0 left-0 right-0 h-1 bg-black/40">
-                <div className="h-full bg-amber-400 transition-all duration-100" style={{ width: `${burstProgress}%` }} />
-              </div>
-            )}
-
-            {/* Scanning overlay */}
-            {scanState === 'scanning' && (
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="animate-spin w-8 h-8 border-3 border-white border-t-transparent rounded-full" />
-                  <div className="text-white text-sm">Extracting...</div>
-                </div>
-              </div>
-            )}
-
-            {/* Selected flash */}
-            {scanState === 'selected' && (
-              <div className="absolute inset-0 bg-emerald-500/30 flex items-center justify-center">
-                <div className="flex items-center gap-2 text-white text-lg font-semibold">
-                  <Check className="w-7 h-7" /> Matched
-                </div>
-              </div>
-            )}
-
-            {/* Blur warning flash */}
-            {blurWarning && scanState === 'idle' && (
-              <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
-                <div className="flex items-center gap-2 text-white text-base font-medium">
-                  <AlertCircle className="w-6 h-6" /> Too blurry
-                </div>
-              </div>
-            )}
-
-            {/* Corner brackets */}
-            {scanState === 'idle' && !blurWarning && (
-              <>
-                <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-white/40 rounded-tl" />
-                <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-white/40 rounded-tr" />
-                <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-white/40 rounded-bl" />
-                <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-white/40 rounded-br" />
-              </>
-            )}
-
-
-          </div>
-        </div>
-
-        {/* Bottom action bar — switch left | capture center | close right */}
-        <div className="w-full max-w-lg mt-3 flex items-center justify-between px-4">
-          {/* Left: switch camera (same size as capture btn, or placeholder) */}
+        {/* ── Bottom: action bar pinned to bottom of screen ── */}
+        <div className="w-full max-w-lg flex items-center justify-between px-6 pb-3">
+          {/* Left: switch camera */}
           <div className="w-16 h-16 flex items-center justify-center">
             {cameraCount > 1 && (scanState === 'idle' || scanState === 'error') ? (
               <button
@@ -346,7 +361,7 @@ export default function DeliveryCameraOverlay({
           </div>
 
           {/* Center: capture */}
-          {showCaptureButton && (
+          {showCaptureButton ? (
             <button
               type="button"
               onClick={handleBurstCapture}
@@ -356,8 +371,7 @@ export default function DeliveryCameraOverlay({
             >
               <Camera className="w-7 h-7" />
             </button>
-          )}
-          {!showCaptureButton && <div className="w-16 h-16" />}
+          ) : <div className="w-16 h-16" />}
 
           {/* Right: close */}
           <button
@@ -368,26 +382,6 @@ export default function DeliveryCameraOverlay({
           >
             <X className="w-7 h-7" />
           </button>
-        </div>
-
-        {/* Results panel */}
-        <div className="w-full max-w-lg flex-1 overflow-y-auto mt-2">
-          {scanState === 'error' && scanResults?.error && (
-            <div className="flex items-center gap-2 p-3 bg-red-500/20 border border-red-500/40 rounded-lg text-white text-sm">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              {scanResults.error}
-            </div>
-          )}
-
-          {scanState === 'results' && scanResults && !scanResults.error && (
-            <ResultsPanel
-              scanResults={scanResults}
-              stores={stores}
-              onSelectPatient={handleSelectPatient}
-              onCreateNew={handleCreateNew}
-              onRetake={handleRetake}
-            />
-          )}
         </div>
       </motion.div>
     </AnimatePresence>
