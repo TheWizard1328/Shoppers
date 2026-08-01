@@ -9,7 +9,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 import BarcodeThumb from './BarcodeThumb';
-import { cycleRearCamera, getSavedCameraId, listCameras } from './useDeliveryCamera';
+import { openStream, cycleRearCamera, getSavedCameraId, listCameras } from './useDeliveryCamera';
 import LargeBarcodePreview from './LargeBarcodePreview';
 
 const classifyBarcode = (value) => {
