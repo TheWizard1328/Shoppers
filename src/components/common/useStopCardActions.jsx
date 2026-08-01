@@ -1626,26 +1626,6 @@ export default function useStopCardActions(params) {
 
         const fallbackTravelDist = retroTravelDist ?? resolveTravelDistFallback(delivery, null, sameRouteDeliveries);
 
-        // DEFERRED from step 7: now that completionActualTime is resolved, fire setDriverStatus
-        // with anchorTime so the segment end_time = this delivery's actual completion time
-        // (rounded to next 5-min mark by the backend). Without anchorTime, the backend
-        // re-queries deliveries — but the DB write hasn't committed yet, so it picks up
-        // a stale time (often from an earlier segment) instead of the current completion time.
-        if (routeIsFinished && driverStatusForEOD === 'on_duty') {
-          setDriverStatus({
-            newStatus: 'off_duty',
-            selectedDate: delivery?.delivery_date,
-            targetUserId: delivery?.driver_id,
-            anchorTime: completionActualTime,
-          }).catch((e) => console.warn('⚠️ Route-complete off_duty failed:', e?.message));
-          // Optimistic local UI update
-          if (driverAppUserForEOD?.id) {
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: [{ ...driverAppUserForEOD, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
-            }));
-          }
-        }
-
         const completionUpdate = {
           status: 'completed',
           actual_delivery_time: completionActualTime,
@@ -1684,7 +1664,7 @@ export default function useStopCardActions(params) {
 
         // ── Terminal engine ──────────────────────────────────────────────────
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
-        await executeTerminalAction({
+        const terminalResult = await executeTerminalAction({
           status: 'completed',
           criticalUpdate: completionUpdate,
           pendingBreadcrumbsString,
@@ -1693,6 +1673,27 @@ export default function useStopCardActions(params) {
           skipCollapseCard: false,
         });
         // ────────────────────────────────────────────────────────────────────
+
+        // DEFERRED from executeTerminalAction step 7: now that completionActualTime is resolved,
+        // fire setDriverStatus with anchorTime so the segment end_time = this delivery's actual
+        // completion time. executeTerminalAction fires showRouteSummary/notifyDone immediately,
+        // but setDriverStatus needs anchorTime which is only known here.
+        const _routeIsFinished = terminalResult?.routeIsFinished ?? false;
+        const _driverAppUserForEOD = _routeIsFinished ? (appUsers || []).find((au) => au?.user_id === delivery.driver_id) : null;
+        const _driverStatusForEOD = _driverAppUserForEOD?.driver_status ?? currentUser?.driver_status;
+        if (_routeIsFinished && _driverStatusForEOD === 'on_duty') {
+          setDriverStatus({
+            newStatus: 'off_duty',
+            selectedDate: delivery?.delivery_date,
+            targetUserId: delivery?.driver_id,
+            anchorTime: completionActualTime,
+          }).catch((e) => console.warn('⚠️ Route-complete off_duty failed:', e?.message));
+          if (_driverAppUserForEOD?.id) {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [{ ..._driverAppUserForEOD, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
+            }));
+          }
+        }
 
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
