@@ -1,110 +1,72 @@
 import { useCallback, useEffect } from 'react';
 import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescriptionScanHelpers';
 
-// Pick the best rear camera — tries all back-facing devices and picks highest resolution.
-// Falls back to a user-selectable camera index stored in localStorage.
-// Priority: highest-res back cam > label heuristic > index 1 > any back cam
-const getBestBackCameraId = async () => {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter(d => d.kind === 'videoinput');
-    if (cams.length === 0) return null;
+// ── Simple camera selection for PWA/Chrome ──
+// No probing (opening multiple streams is flaky in Chrome PWA).
+// Strategy:
+//   1. If we have a saved preferred deviceId (localStorage), use it directly.
+//   2. Otherwise open with facingMode:ideal (safe, picks a rear cam).
+//   3. The UI provides a "Switch Camera" button to cycle through cameras.
+//   4. When user picks a camera, we save it to localStorage for next time.
 
-    // Try to get resolution of each back-facing candidate
-    const backCams = cams.filter(d => {
-      const lbl = d.label.toLowerCase();
-      // Include unlabelled cameras — we'll test them all
-      return lbl === '' || /back|rear|environment/i.test(lbl);
-    });
+const SAVED_CAM_KEY = 'rxdeliver_preferred_camera_id';
 
-    const candidates = backCams.length > 0 ? backCams : cams;
-
-    // Prefer label-based: has back/rear but NOT wide/ultra/tele
-    const main1x = candidates.find(d => /back|rear/i.test(d.label) && !/wide|ultra|tele|0\.6|0\.5/i.test(d.label));
-    if (main1x?.deviceId) {
-      console.log('[camera] Label heuristic selected:', main1x.label);
-      return main1x.deviceId;
-    }
-
-    // Try resolution-based: open each candidate briefly, pick highest native res
-    let bestId = null;
-    let bestPixels = 0;
-    for (const cam of candidates) {
-      if (!cam.deviceId) continue;
-      let testStream = null;
-      try {
-        testStream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: cam.deviceId }, width: { ideal: 3840 }, height: { ideal: 2160 } },
-          audio: false
-        });
-        const track = testStream.getVideoTracks()[0];
-        const s = track.getSettings();
-        const pixels = (s.width || 0) * (s.height || 0);
-        console.log('[camera] Candidate:', cam.label || cam.deviceId.slice(0,8), `${s.width}x${s.height}`, pixels);
-        if (pixels > bestPixels) {
-          bestPixels = pixels;
-          bestId = cam.deviceId;
-        }
-      } catch {}
-      finally {
-        testStream?.getTracks().forEach(t => t.stop());
-      }
-    }
-    if (bestId) {
-      console.log('[camera] Resolution heuristic selected deviceId:', bestId.slice(0,8), 'pixels:', bestPixels);
-      return bestId;
-    }
-
-    // Fallback: second camera (most Android: 0=ultra-wide, 1=main)
-    const byIndex = cams.length >= 2 ? cams[1] : cams[0];
-    return byIndex?.deviceId || null;
-  } catch (e) {
-    console.warn('[camera] getBestBackCameraId failed:', e?.message);
-    return null;
-  }
+const getSavedCameraId = () => {
+  try { return localStorage.getItem(SAVED_CAM_KEY) || null; } catch { return null; }
 };
 
-// Cached so we don't re-probe every time
-let _cachedCameraId = null;
+const saveCameraId = (id) => {
+  try { if (id) localStorage.setItem(SAVED_CAM_KEY, id); } catch {}
+};
 
-const getMainCameraStream = async () => {
-  // Step 1: open with facingMode:ideal to trigger permission prompt
-  const safeStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+// Open a stream with a specific deviceId, or fall back to facingMode:ideal
+const openStream = async (deviceId) => {
+  if (deviceId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+        audio: false
+      });
+    } catch {
+      // exact deviceId failed — clear saved and fall through to facingMode
+      saveCameraId(null);
+    }
+  }
+  return await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
     audio: false
   });
-
-  // Step 2: after permission, probe for best camera (cached after first call)
-  if (!_cachedCameraId) {
-    _cachedCameraId = await getBestBackCameraId();
-  }
-
-  if (_cachedCameraId) {
-    const currentId = safeStream.getVideoTracks()[0]?.getSettings?.()?.deviceId;
-    if (currentId !== _cachedCameraId) {
-      try {
-        safeStream.getTracks().forEach(t => t.stop());
-        const betterStream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: _cachedCameraId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-          audio: false
-        });
-        console.log('[camera] Switched to best camera:', _cachedCameraId.slice(0,8));
-        return betterStream;
-      } catch (e) {
-        console.warn('[camera] Exact deviceId failed, using safe stream:', e?.message);
-        _cachedCameraId = null; // reset so we re-probe next time
-        return await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: false
-        });
-      }
-    }
-  }
-
-  return safeStream;
 };
 
-export { getMainCameraStream, getBestBackCameraId };
+// Get list of video devices (call AFTER permission is granted)
+const listCameras = async () => {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(d => d.kind === 'videoinput');
+  } catch { return []; }
+};
+
+// Cycle to the next camera and return the new stream
+const switchToNextCamera = async (currentDeviceId) => {
+  const cams = await listCameras();
+  if (cams.length <= 1) return null; // can't switch
+
+  const currentIdx = cams.findIndex(c => c.deviceId === currentDeviceId);
+  // Try next index, wrap around
+  const nextIdx = (currentIdx + 1) % cams.length;
+  const nextCam = cams[nextIdx];
+  if (!nextCam?.deviceId) return null;
+
+  saveCameraId(nextCam.deviceId);
+  return openStream(nextCam.deviceId);
+};
+
+export { openStream, listCameras, switchToNextCamera, getSavedCameraId, saveCameraId, SAVED_CAM_KEY };
+
+const startCameraWithStream = async () => {
+  const savedId = getSavedCameraId();
+  return openStream(savedId);
+};
 
 export default function useDeliveryCamera({
   videoRef,
@@ -122,7 +84,7 @@ export default function useDeliveryCamera({
 }) {
   const startCamera = useCallback(async () => {
     try {
-      const stream = await getMainCameraStream();
+      const stream = await startCameraWithStream();
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         try { await videoRef.current.play(); } catch {}

@@ -9,7 +9,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 import BarcodeThumb from './BarcodeThumb';
-import { getMainCameraStream } from './useDeliveryCamera';
+import { openStream, listCameras, switchToNextCamera, getSavedCameraId, saveCameraId } from './useDeliveryCamera';
 import LargeBarcodePreview from './LargeBarcodePreview';
 
 const classifyBarcode = (value) => {
@@ -301,13 +301,27 @@ export default function SmartBarcodeScanner({
     } catch {}
   }, []);
 
+  const [cameraLabel, setCameraLabel] = useState('');
+  const [cameraCount, setCameraCount] = useState(1);
+
   const startCamera = useCallback(async () => {
     if (disabled || isReaderActiveRef.current) return;
     setCameraError(null);
     setIsStartingCamera(true);
 
     try {
-      let stream = await getMainCameraStream();
+      // Open with saved deviceId (if any), or facingMode:ideal
+      const savedId = getSavedCameraId();
+      let stream = await openStream(savedId);
+
+      // Get camera label + count for the switch button
+      try {
+        const cams = await listCameras();
+        setCameraCount(cams.length);
+        const currentId = stream.getVideoTracks()[0]?.getSettings?.()?.deviceId;
+        const current = cams.find(c => c.deviceId === currentId);
+        setCameraLabel(current?.label || 'Camera');
+      } catch {}
 
       // Attach stream to video element
       if (videoRef.current) {
@@ -397,6 +411,34 @@ export default function SmartBarcodeScanner({
     isReaderActiveRef.current = false;
     setCameraError(null);
   }, []);
+
+  const switchCamera = useCallback(async () => {
+    const currentStream = streamRef.current || videoRef.current?.srcObject;
+    const currentId = currentStream?.getVideoTracks?.()?.[0]?.getSettings?.()?.deviceId;
+    try {
+      const newStream = await switchToNextCamera(currentId);
+      if (!newStream) return; // only 1 camera or failed
+
+      // Stop old stream
+      try { currentStream?.getTracks?.().forEach(t => t.stop()); } catch {}
+      if (videoRef.current) {
+        videoRef.current.srcObject = newStream;
+        try { await videoRef.current.play(); } catch {}
+      }
+      streamRef.current = newStream;
+      configureTrack(newStream);
+
+      // Update label
+      try {
+        const cams = await listCameras();
+        const newId = newStream.getVideoTracks()[0]?.getSettings?.()?.deviceId;
+        const cam = cams.find(c => c.deviceId === newId);
+        setCameraLabel(cam?.label || 'Camera');
+      } catch {}
+    } catch (e) {
+      console.warn('[SmartBarcodeScanner] Switch camera failed:', e?.message);
+    }
+  }, [configureTrack]);
 
   const adjustZoom = (delta) => {
     const track = streamRef.current?.getVideoTracks?.()[0];
@@ -570,12 +612,20 @@ export default function SmartBarcodeScanner({
                   </Button>
               }
               </div>
-              <Button variant="secondary" size="sm" onClick={() => {stopCameraReader();setShowCamera(false);}}>
-                <X className="w-4 h-4 mr-1" /> Close
-              </Button>
+              <div className="flex items-center gap-2">
+                {cameraCount > 1 &&
+                <Button variant="secondary" size="sm" onClick={switchCamera} title="Switch camera lens">
+                  <Camera className="w-4 h-4 mr-1" /> Switch
+                </Button>
+                }
+                <Button variant="secondary" size="sm" onClick={() => {stopCameraReader();setShowCamera(false);}}>
+                  <X className="w-4 h-4 mr-1" /> Close
+                </Button>
+              </div>
             </div>
             <div className="mt-2 text-center text-xs text-white/70">
               {cameraError ? <span className="text-red-400">{cameraError}</span> : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Point camera at a barcode'}
+              {cameraCount > 1 && !cameraError && <div className="mt-1 text-white/40">📷 {cameraLabel}</div>}
             </div>
           </div>
         </div>
