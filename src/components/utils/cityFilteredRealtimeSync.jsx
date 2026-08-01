@@ -92,6 +92,22 @@ class CityFilteredRealtimeSync {
       // Process the event WITHOUT city filtering so new creates reach all devices immediately.
        try {
           if (event.type === 'create' || event.type === 'update') {
+              // CRITICAL: Self-echo suppression — check if this WS event is an echo of a
+              // local write. realtimeSync.jsx has its own suppression, but this is a SEPARATE
+              // subscription that receives the same WS events without any suppression.
+              // Without this, local broadcastMutation writes → server WS echoes → this
+              // handler re-processes them → unnecessary IDB writes, UI flicker, and in
+              // extreme cases (Start Delivery with unscoped allDeliveries) a broadcast cascade.
+              const _deliveryId = event.data?.id || event.id;
+              if (_deliveryId && typeof window !== 'undefined' && window.__localDeliveryWrites) {
+                const _suppressTs = window.__localDeliveryWrites.get(_deliveryId);
+                if (_suppressTs && _suppressTs > Date.now()) {
+                  const _remaining = Math.round((_suppressTs - Date.now()) / 1000);
+                  console.log(`🔇 [cityFilteredRealtimeSync] Self-echo suppressed for ${event.type}: ${event.data?.patient_name || _deliveryId} — ${_remaining}s remaining`);
+                  return;
+                }
+              }
+
               console.log(`🚀 [Realtime Delivery] PROCESSING ${event.type} for ${event.data?.patient_name || event.id}`);
 
               const freshDelivery = event.data;
@@ -157,6 +173,15 @@ class CityFilteredRealtimeSync {
 
               console.log(`✅ [Realtime Delivery] Complete - ${event.type} processed and broadcast to ${this.updateCallbacks.size} subscribers`);
            } else if (event.type === 'delete') {
+             // Self-echo suppression for deletes (same as create/update above)
+             const _deleteId = event.id;
+             if (_deleteId && typeof window !== 'undefined' && window.__localDeliveryWrites) {
+               const _suppressTs = window.__localDeliveryWrites.get(_deleteId);
+               if (_suppressTs && _suppressTs > Date.now()) {
+                 console.log(`🔇 [cityFilteredRealtimeSync] Self-echo suppressed for delete: ${_deleteId}`);
+                 return;
+               }
+             }
              console.log(`🗑️ [Realtime Delivery] PROCESSING delete for ${event.id}`);
 
              const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');

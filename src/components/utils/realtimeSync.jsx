@@ -361,7 +361,11 @@ async function flushBuffered(entityName) {
     } else {
       let allDateDeliveries = (fullReplacementData || []).filter((delivery) => {
         if (!delivery) return false;
-        if (selectedDate && delivery.delivery_date && delivery.delivery_date !== selectedDate) return false;
+        // CRITICAL: Exclude deliveries with no delivery_date — they slip through the old
+        // filter (falsy delivery_date made the && short-circuit, bypassing the return false).
+        // Also exclude deliveries from other dates.
+        if (!delivery.delivery_date) return false;
+        if (selectedDate && delivery.delivery_date !== selectedDate) return false;
         return true;
       });
 
@@ -369,8 +373,13 @@ async function flushBuffered(entityName) {
       // delivery, inject the WS payload directly so it always reaches the map.
       if (hasPolylineUpdates && relevantItems.length > 0) {
         const snapshotIds = new Set(allDateDeliveries.map(d => d.id));
+        // CRITICAL: Only inject polyline updates for the SELECTED date. Without this,
+        // WS payloads from other dates (with encoded_polyline) bypass the date filter
+        // and get injected into allDateDeliveries, polluting the UI with out-of-date stops.
         const missing = relevantItems.filter(item =>
-          item?.data?.encoded_polyline && !snapshotIds.has(item.id)
+          item?.data?.encoded_polyline &&
+          item?.data?.delivery_date === selectedDate &&
+          !snapshotIds.has(item.id)
         );
         if (missing.length > 0) {
           allDateDeliveries = [...allDateDeliveries, ...missing.map(i => i.data)];
