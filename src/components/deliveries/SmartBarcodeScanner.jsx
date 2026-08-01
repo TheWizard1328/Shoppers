@@ -713,15 +713,15 @@ export default function SmartBarcodeScanner({
             </button>
           ) : <div className="w-14 h-14" />}
 
-          {/* Right: close */}
+          {/* Right: close (green check when barcodes scanned, X when empty) */}
           <button
             type="button"
             onClick={() => { stopCameraReader(); setShowCamera(false); }}
-            className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-14 h-14 text-white transition active:scale-95 touch-manipulation"
+            className={`flex items-center justify-center rounded-full w-14 h-14 text-white transition active:scale-95 touch-manipulation ${allValues.length > 0 ? 'bg-emerald-600' : 'bg-white/20 backdrop-blur-sm'}`}
             style={{ WebkitTapHighlightColor: 'transparent' }}
-            title="Close camera"
+            title={allValues.length > 0 ? 'Done' : 'Close camera'}
           >
-            <X className="w-6 h-6" />
+            {allValues.length > 0 ? <Check className="w-6 h-6" /> : <X className="w-6 h-6" />}
           </button>
         </div>
       </div>
