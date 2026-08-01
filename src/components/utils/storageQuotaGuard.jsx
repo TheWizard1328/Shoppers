@@ -47,3 +47,23 @@ Storage.prototype.setItem = function patchedSetItem(key, value) {
     return originalSetItem.call(this, key, value);
   }
 };
+// ─── Chunk load error recovery ───────────────────────────────────────────────
+// Dynamic imports outside React render cycle (event handlers, async utils)
+// don't get caught by React error boundaries. We intercept unhandledrejection
+// here so a stale-chunk crash in a background handler also triggers a reload.
+const RELOAD_FLAG = 'rxdeliver_chunk_reload_attempted';
+const isChunkMsg = (msg) =>
+  msg.includes('Failed to fetch dynamically imported module') ||
+  msg.includes('Importing a module script failed') ||
+  msg.includes('ChunkLoadError') ||
+  msg.includes('Unable to preload CSS');
+
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = String(event?.reason?.message || event?.reason || '');
+  if (!isChunkMsg(msg)) return;
+  event.preventDefault();
+  if (!sessionStorage.getItem(RELOAD_FLAG)) {
+    sessionStorage.setItem(RELOAD_FLAG, '1');
+    setTimeout(() => window.location.reload(), 300);
+  }
+});

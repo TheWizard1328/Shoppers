@@ -1,4 +1,5 @@
 import '@/components/utils/storageQuotaGuard'
+import ChunkErrorBoundary from '@/components/utils/ChunkErrorBoundary'
 import '@/components/utils/remoteLoggerInit'
 import './App.css'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -169,19 +170,21 @@ const AuthenticatedApp = () => {
 function App() {
 
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <DeviceProvider>
-          <Router>
-            <MobileNavigationProvider>
-              <NavigationTracker />
-              <MobileTabScrollManager />
-              <AuthenticatedApp />
-            </MobileNavigationProvider>
-          </Router>
-        </DeviceProvider>
-      </QueryClientProvider>
-    </AuthProvider>
+    <ChunkErrorBoundary>
+      <AuthProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <DeviceProvider>
+            <Router>
+              <MobileNavigationProvider>
+                <NavigationTracker />
+                <MobileTabScrollManager />
+                <AuthenticatedApp />
+              </MobileNavigationProvider>
+            </Router>
+          </DeviceProvider>
+        </QueryClientProvider>
+      </AuthProvider>
+    </ChunkErrorBoundary>
   )
 }
 
