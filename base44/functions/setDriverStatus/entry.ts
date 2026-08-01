@@ -199,11 +199,12 @@ Deno.serve(async (req) => {
     }
 
     if (newStatus === 'off_duty') {
+      // Only disable location_tracking_enabled — do NOT null coordinates.
+      // Other users are already gated by location_tracking_enabled + driver_status
+      // checks in shouldShowMarker(). The driver themselves should still see their
+      // own last known location marker on their devices.
       updateData.location_tracking_enabled = false;
-      updateData.current_latitude = null;
-      updateData.current_longitude = null;
-      updateData.location_updated_at = null;
-      console.log('📍 [setDriverStatus] Disabling location sharing for off duty');
+      console.log('📍 [setDriverStatus] Disabling location sharing (coords preserved) for off duty');
     }
 
     // CRITICAL: Update with broadcast to ensure all clients receive the change immediately

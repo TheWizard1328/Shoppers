@@ -883,7 +883,7 @@ function Dashboard() {
             if (selectedDriverLoc?.latitude && selectedDriverLoc?.longitude) {allCoordinates.push([selectedDriverLoc.latitude, selectedDriverLoc.longitude]);hasDriverMarkers = true;}
           }
         }
-        const shouldIncludeBlueDot = isMobile && isDriver && !isDriverOffDuty(appUsersRef.current, currentUser?.id, currentUser?.driver_status) && isViewingToday && driverLocationRef.current?.latitude && driverLocationRef.current?.longitude && (selectedDriverId === currentUser?.id || selectedDriverIdRef.current === 'all');
+        const shouldIncludeBlueDot = isMobile && isDriver && isViewingToday && driverLocationRef.current?.latitude && driverLocationRef.current?.longitude && (selectedDriverId === currentUser?.id || selectedDriverIdRef.current === 'all');
 
         // 2. SHARED DRIVER LOCATIONS: Skip when a specific driver is selected — their location was already added above.
         const shouldIncludeSharedLocations = !(selectedDriverIdRef.current && selectedDriverIdRef.current !== 'all') && (shouldShowAllMarkersForBounds || isDispatcher || isAdmin);
@@ -1065,11 +1065,11 @@ function Dashboard() {
           let userRefLon = null;
           let locationSource = null;
 
-          if (!isDriverOffDuty(appUsersRef.current, currentUser?.id, currentUser?.driver_status) && driverLocationRef.current?.latitude && driverLocationRef.current?.longitude) {
+          if (driverLocationRef.current?.latitude && driverLocationRef.current?.longitude) {
             userRefLat = driverLocationRef.current.latitude;
             userRefLon = driverLocationRef.current.longitude;
             locationSource = 'current_gps';
-          } else if (!isDriverOffDuty(appUsersRef.current, currentUser?.id, currentUser?.driver_status) && currentUser?.current_latitude && currentUser?.current_longitude) {
+          } else if (currentUser?.current_latitude && currentUser?.current_longitude) {
             userRefLat = currentUser.current_latitude;
             userRefLon = currentUser.current_longitude;
             locationSource = 'last_known';

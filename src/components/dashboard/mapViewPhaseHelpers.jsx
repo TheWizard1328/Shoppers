@@ -6,15 +6,14 @@ export function isDriverOffDuty(appUsers, userId, fallbackStatus = null) {
 export function getSelfDriverLocationForBounds({ currentUser, appUsers, driverLocation, isMobile, isPrimaryDevice, selectedDriverId, isDriver, isDriverOffDuty: isOffDutyFn }) {
   if (!isDriver || !currentUser?.id) return null;
   const selfId = currentUser.id;
-  const isOnDuty = !isOffDutyFn(appUsers, selfId, currentUser?.driver_status);
-  if (!isOnDuty) return null;
   const isRelevant = selectedDriverId === selfId || selectedDriverId === 'all';
   if (!isRelevant) return null;
-  // GPS blue dot — only on primary device
+  // GPS blue dot — only on primary device (works regardless of duty status)
   if (isPrimaryDevice && driverLocation?.latitude && driverLocation?.longitude) return { latitude: driverLocation.latitude, longitude: driverLocation.longitude, source: 'gps' };
   // Shared location from AppUser — covers non-primary tablets/phones
+  // Show regardless of duty status so drivers can see their own location when off duty
   const selfAppUser = (appUsers || []).find((au) => au?.user_id === selfId);
-  if (selfAppUser?.driver_status === 'on_duty' && selfAppUser?.current_latitude && selfAppUser?.current_longitude) {
+  if (selfAppUser?.current_latitude && selfAppUser?.current_longitude) {
     return { latitude: selfAppUser.current_latitude, longitude: selfAppUser.current_longitude, source: 'shared' };
   }
   // Non-primary device GPS fallback (secondary device with GPS active)

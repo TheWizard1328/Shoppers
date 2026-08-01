@@ -204,7 +204,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
   // CONSOLIDATED VISIBILITY LOGIC - Single source of truth for marker filtering
   const shouldShowMarker = (user) => {
-    if (!user || !user.current_latitude || !user.current_longitude) return false;
+    if (!user) return false;
 
     const currentUserId = currentUser?.id;
     const currentUserUserId = currentUser?.user_id;
@@ -215,28 +215,26 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                    userId === currentUserUserId ||
                    user.user_id === currentUserId;
 
-    // RULE 0: Primary driver device never shows its own shared AppUser marker.
-    // The live GPS dot (blue dot) is the authoritative self-marker on the primary device.
-    // CRITICAL: Do NOT gate on isMobile/orientation — the primary device check is
-    // device-identity based, not screen-orientation based. Landscape mode on a phone
-    // is still a mobile phone and should suppress the shared self-marker.
-    const _isPrimary = isPrimaryDeviceRef.current;
-    if (isSelf && _isPrimary && isDriver) {
-      return false;
+    // Self-marker: drivers should ALWAYS see their own location, even when off duty.
+    // The coordinate check is deferred to the individual rules below — off-duty
+    // drivers may have stale but valid last-known coordinates from before going off.
+    if (isSelf && isDriver) {
+      if (!user.current_latitude || !user.current_longitude) return false;
+      // Primary device: blue GPS dot is the authoritative self-marker, so suppress
+      // the shared AppUser marker to avoid duplication.
+      if (isPrimaryDeviceRef.current) return false;
+      // Non-primary device: show shared self-marker as long as coordinates exist.
+      return true;
     }
 
-      // RULE 1: Self marker on non-primary device — show as long as coordinates exist.
-      // If the driver is on_duty or on_break, always show (even if heartbeat is stale/stopped).
-      // Only hide when off_duty (coordinates are nulled) or no coordinates available.
-      if (isSelf && !_isPrimary) {
-        const isActiveStatus = user.driver_status === 'on_duty' || user.driver_status === 'on_break';
-        return isActiveStatus || (user.location_updated_at != null);
-      }
+    // Non-driver self markers (dispatchers, admins) on primary device
+    if (isSelf && isPrimaryDeviceRef.current && !isDriver) {
+      if (!user.current_latitude || !user.current_longitude) return false;
+      return true;
+    }
 
-      // RULE 2: Non-driver self markers (dispatchers, admins) on primary device
-      if (isSelf && _isPrimary && !isDriver) {
-        return true;
-      }
+    // Non-self markers require coordinates
+    if (!user.current_latitude || !user.current_longitude) return false;
 
     // RULE 2: Admin/AppOwner can see ALL drivers as long as there is ANY heartbeat
     // (regardless of driver_status — off_duty/on_break included).

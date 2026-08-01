@@ -1463,9 +1463,15 @@ export default function useStopCardActions(params) {
     if (routeIsFinished) {
       fabControlEvents.notifyDoneButtonClicked();
 
-      // If the current logged-in user IS the completing driver, stop local tracking immediately
+      // If the current logged-in user IS the completing driver, switch to web-only
+      // tracking so they still see their own live location marker. Full tracking
+      // (breadcrumbs, native GPS, frequent uploads) stops, but the lightweight
+      // heartbeat keeps the self-marker position fresh.
       if (currentUser?.id === delivery.driver_id) {
-        try { locationTracker.stopTracking(); } catch {}
+        try { 
+          locationTracker.stopTracking();
+          locationTracker.startWebOnlyTracking(currentUser).catch(() => {});
+        } catch {}
         if (onDriverStatusChange) onDriverStatusChange('off_duty');
       }
 
