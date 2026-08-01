@@ -661,13 +661,13 @@ export default function DeliveryForm({
     if (!file) return;
     setIsScanning(true); setError(null);
     try {
-      const result = await scanPrescriptionLabel({ file, mode: 'fileUrl' });
+      const result = await scanPrescriptionLabel({ file, mode: 'fileUrl', appUser: currentUser });
       await handlePrescriptionScanResult({ result, onCreatePatient, handlePatientSelect, setScanMatches, setShowMatchPopup, setExtractedData, setIsPatientFormOpen });
     } catch (error) { console.error('Error scanning prescription:', error); setError(`Scan failed: ${error.message}`); }
     finally { setIsScanning(false); if (patientSearchInputRef.current) patientSearchInputRef.current.value = ''; }
   }, [onCreatePatient, handlePatientSelect]);
 
-  const { startCamera, stopCamera, handleCameraCapture } = useDeliveryCamera({ videoRef, canvasRef, setIsCameraActive, setShowCameraOverlay, setIsScanning, setError, onCreatePatient, handlePatientSelect, setScanMatches, setShowMatchPopup, setExtractedData, setIsPatientFormOpen });
+  const { startCamera, stopCamera, handleCameraCapture } = useDeliveryCamera({ videoRef, canvasRef, setIsCameraActive, setShowCameraOverlay, setIsScanning, setError, onCreatePatient, handlePatientSelect, setScanMatches, setShowMatchPopup, setExtractedData, setIsPatientFormOpen, appUser: currentUser });
   const handleSelectMatchedPatient = useCallback(async (patient) => { setShowMatchPopup(false); setScanMatches([]); setExtractedData(null); await handlePatientSelect(patient, false); }, [handlePatientSelect]);
 
   const handleDuplicatePatient = useCallback((patient) => {

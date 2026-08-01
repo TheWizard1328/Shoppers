@@ -1,4 +1,4 @@
-// Redeployed on 2026-03-28
+// Slimmed: LLM extraction ONLY — patient matching is now client-side (IDB)
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 Deno.serve(async (req) => {
@@ -11,60 +11,18 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { base64Image, fileUrl, selectedCityId } = body;
-    const callerAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }).catch(() => []);
-    const appUser = callerAppUsers?.[0] || null;
-
-    const logIntegrationUsage = async ({ operationName, feature, startedAt, success, errorMessage = null, metadata = {}, estimatedCreditsUsed = 1 }) => {
-      try {
-        await base44.asServiceRole.entities.IntegrationUsageLog.create({
-          timestamp: new Date(startedAt).toISOString(),
-          integration_name: 'Core',
-          operation_name: operationName,
-          feature,
-          app_user_id: appUser?.id || null,
-          app_user_name: appUser?.user_name || user.full_name || null,
-          auth_user_id: user.id,
-          duration_ms: Date.now() - startedAt,
-          success,
-          estimated_credits_used: estimatedCreditsUsed,
-          error_message: errorMessage,
-          metadata
-        });
-      } catch (trackingError) {
-        console.warn('[scanPrescriptionLabel] Tracking failed:', trackingError?.message || trackingError);
-      }
-    };
-
-    const runTrackedIntegration = async ({ operationName, feature, metadata = {}, estimatedCreditsUsed = 1, call }) => {
-      const startedAt = Date.now();
-      try {
-        const result = await call();
-        await logIntegrationUsage({ operationName, feature, startedAt, success: true, metadata, estimatedCreditsUsed });
-        return result;
-      } catch (error) {
-        await logIntegrationUsage({ operationName, feature, startedAt, success: false, errorMessage: error?.message || 'Unknown error', metadata, estimatedCreditsUsed });
-        throw error;
-      }
-    };
+    const { base64Image, fileUrl } = body;
 
     if (!base64Image && !fileUrl) {
       return Response.json({ error: 'No image data provided' }, { status: 400 });
     }
 
-    // Use fileUrl if provided, otherwise base64Image — prefer fileUrl (no double-upload)
     const imageSource = fileUrl || base64Image;
-
-    console.log('📸 [scanPrescriptionLabel] Processing image...');
-
-    let extractionResult = null;
-    let lastError = null;
     let uploadedFileUrl = imageSource;
 
-    // If base64, upload once to get a URL — then use that URL
+    // If base64, upload once to get a URL
     if (imageSource.startsWith('data:')) {
       try {
-        console.log('📤 [scanPrescriptionLabel] Uploading base64 image...');
         const base64Data = imageSource.split(',')[1];
         const mimeType = imageSource.split(';')[0].split(':')[1] || 'image/jpeg';
         const byteCharacters = atob(base64Data);
@@ -72,31 +30,22 @@ Deno.serve(async (req) => {
         for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
         const blob = new Blob([byteArray], { type: mimeType });
         const file = new File([blob], 'prescription_label.jpg', { type: mimeType });
-        const uploadResult = await runTrackedIntegration({
-          operationName: 'UploadFile',
-          feature: 'prescription_label_upload',
-          metadata: { source: 'scanPrescriptionLabel' },
-          call: () => base44.integrations.Core.UploadFile({ file })
-        });
+        const uploadResult = await base44.integrations.Core.UploadFile({ file });
         if (uploadResult?.file_url) uploadedFileUrl = uploadResult.file_url;
       } catch (uploadError) {
         console.warn('[scanPrescriptionLabel] Upload failed, using raw base64:', uploadError.message);
       }
     }
 
-    // Single direct InvokeLLM call — faster than ExtractDataFromUploadedFile
-    // Tight JSON-only prompt reduces token output and latency
-    console.log('🔍 [scanPrescriptionLabel] Running vision LLM extraction...');
+    // Single LLM call — tight JSON-only prompt
+    console.log('[scanPrescriptionLabel] Running vision LLM extraction...');
+    let extractionResult = null;
+
     try {
-      const textResponse = await runTrackedIntegration({
-        operationName: 'InvokeLLM',
-        feature: 'prescription_label_llm_extraction',
-        metadata: { source: 'scanPrescriptionLabel', has_url: !uploadedFileUrl.startsWith('data:') },
-        call: () => base44.integrations.Core.InvokeLLM({
-          prompt: `Extract from this prescription label. Return ONLY JSON, nothing else:
+      const textResponse = await base44.integrations.Core.InvokeLLM({
+        prompt: `Extract from this prescription label. Return ONLY JSON, nothing else:
 {"patient_name":"","street_address":"","city":"","state":"","zip_code":"","phone_number":""}`,
-          file_urls: [uploadedFileUrl]
-        })
+        file_urls: [uploadedFileUrl]
       });
 
       if (typeof textResponse === 'string' && textResponse.trim()) {
@@ -108,247 +57,34 @@ Deno.serve(async (req) => {
       }
     } catch (llmError) {
       console.error('[scanPrescriptionLabel] LLM failed:', llmError.message);
-      lastError = llmError;
-    }
-
-    if (!extractionResult) {
       return Response.json({
         error: 'Failed to extract data from image. Please ensure the label is clear and readable.',
-        details: lastError?.message || 'LLM extraction failed'
+        details: llmError.message
       }, { status: 400 });
     }
 
-    console.log('📊 [scanPrescriptionLabel] Final extraction result:', extractionResult);
-
-    // Check if the LLM returned usable data
     if (!extractionResult || !extractionResult.patient_name) {
-      console.error('❌ [scanPrescriptionLabel] LLM extraction failed or no patient name extracted');
-      return Response.json({ 
+      return Response.json({
         error: 'Failed to extract data from image. Please ensure the label is clear and readable.',
-        details: 'No relevant data found'
+        details: 'No patient name found'
       }, { status: 400 });
     }
 
-    // Construct extractedData from LLM response
     const extractedData = {
       patient_name: extractionResult.patient_name,
       street_address: extractionResult.street_address,
       city_state_zip: [extractionResult.city, extractionResult.state, extractionResult.zip_code].filter(Boolean).join(', '),
       phone_number: extractionResult.phone_number
     };
-    console.log('✅ [scanPrescriptionLabel] Extracted data from LLM:', extractedData);
 
-    // Now search for matching patients
-    // Get user's role and store access
-    console.log('👤 [scanPrescriptionLabel] Fetching user roles...');
-    if (!appUser) {
-      console.error('❌ [scanPrescriptionLabel] AppUser not found for user:', user.id);
-      return Response.json({ error: 'User not found' }, { status: 404 });
-    }
+    console.log('[scanPrescriptionLabel] Extracted:', extractedData);
 
-    const isAdmin = appUser.app_roles?.includes('admin');
-    const isDispatcher = appUser.app_roles?.includes('dispatcher');
-    const isDriver = appUser.app_roles?.includes('driver');
-    console.log('✅ [scanPrescriptionLabel] User roles:', { isAdmin, isDispatcher, isDriver });
-
-    // Build patient filter based on role
-    let patientFilter = {};
-
-    if (isAdmin) {
-      // Get all stores in the selected city (from request)
-      if (selectedCityId) {
-        console.log('🏙️ [scanPrescriptionLabel] Admin mode - filtering by city:', selectedCityId);
-        const stores = await base44.asServiceRole.entities.Store.filter({ city_id: selectedCityId }).catch(() => []);
-        const storeIds = stores.map(s => s.id);
-        console.log('🏪 [scanPrescriptionLabel] Found stores in city:', storeIds.length);
-        if (storeIds.length > 0) {
-          patientFilter.store_id = { $in: storeIds };
-        }
-      }
-    } else if (isDispatcher || isDriver) {
-      // Filter to user's assigned stores
-      const storeIds = appUser.store_ids || [];
-      console.log('🏪 [scanPrescriptionLabel] Dispatcher/Driver mode - filtering by stores:', storeIds);
-      if (storeIds.length > 0) {
-        patientFilter.store_id = { $in: storeIds };
-      }
-    }
-
-    // Phone-first and then name-second narrowing
-    const normalizePhoneStr = (s) => (s || '').replace(/\D/g, '');
-    const extractedDigits = normalizePhoneStr(extractedData.phone_number || '');
-    const last7 = extractedDigits.slice(-7);
-
-    let phoneMatches = [];
-    if (last7.length >= 7) {
-      try {
-        phoneMatches = await base44.entities.Patient.filter({
-          ...patientFilter,
-          phone: { $contains: last7 }
-        }).catch(() => []);
-        console.log('✅ [scanPrescriptionLabel] Phone narrowing yielded', phoneMatches.length, 'candidates');
-      } catch (e) {
-        console.warn('⚠️ [scanPrescriptionLabel] $contains not supported on phone, will fallback to local filter after fetch');
-      }
-    }
-
-    // If phone narrowing produced no candidates, fetch scoped patients
-    let allPatients = [];
-    if (phoneMatches.length === 0) {
-      console.log('🔍 [scanPrescriptionLabel] Fetching patients with filter:', patientFilter);
-      allPatients = await base44.entities.Patient.filter(patientFilter).catch(() => []);
-      console.log('✅ [scanPrescriptionLabel] Found', allPatients.length, 'patients to search');
-
-      // Local phone narrowing fallback if server-side $contains was unavailable
-      if (last7.length >= 7) {
-        const localPhone = allPatients.filter(p => {
-          const pd = normalizePhoneStr(p.phone);
-          return pd.includes(last7) || pd.endsWith(last7);
-        });
-        if (localPhone.length > 0) {
-          console.log('✅ [scanPrescriptionLabel] Local phone narrowing yielded', localPhone.length, 'candidates');
-          phoneMatches = localPhone;
-        }
-      }
-    }
-
-    // Name-second narrowing (only if phone yielded none)
-    let nameMatches = [];
-    if (phoneMatches.length === 0 && (allPatients.length > 0) && extractedData.patient_name) {
-      const nameLower = extractedData.patient_name.toLowerCase().trim();
-      nameMatches = allPatients.filter(p => (p.full_name || '').toLowerCase().includes(nameLower));
-      console.log('✅ [scanPrescriptionLabel] Name narrowing yielded', nameMatches.length, 'candidates');
-    }
-
-    const candidatePatients = phoneMatches.length ? phoneMatches : (nameMatches.length ? nameMatches : allPatients);
-
-    // Normalize address for exact matching (ignore street type variations)
-    const normalizeAddress = (address) => {
-      return address
-        .toLowerCase()
-        .trim()
-        .replace(/\b(avenue|ave|street|st|road|rd|drive|dr|boulevard|blvd|lane|ln)\b/gi, '')
-        .replace(/\b(nw|ne|sw|se|north|south|east|west)\b/gi, '')
-        .replace(/[,\-\.]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-    };
-
-    // Check for exact match
-    const isExactMatch = (patient, extracted) => {
-      const patientName = (patient.full_name || '').toLowerCase().trim();
-      const extractedName = (extracted.patient_name || '').toLowerCase().trim();
-      const nameMatch = patientName === extractedName;
-
-      const patientPhone = (patient.phone || '').replace(/\D/g, '');
-      const extractedPhone = (extracted.phone_number || '').replace(/\D/g, '');
-      const phoneMatch = patientPhone && extractedPhone && patientPhone === extractedPhone;
-
-      const patientAddressNorm = normalizeAddress(patient.address || '');
-      const extractedAddressNorm = normalizeAddress(extracted.street_address || '');
-      const addressMatch = patientAddressNorm && extractedAddressNorm && patientAddressNorm === extractedAddressNorm;
-
-      // Exact match requires name + (address OR phone)
-      return nameMatch && (addressMatch || phoneMatch);
-    };
-
-    // Fuzzy matching function
-    const calculateMatch = (patient, extracted) => {
-      // Check for exact match first
-      if (isExactMatch(patient, extracted)) {
-        return 100;
-      }
-
-      let score = 0;
-      let maxScore = 0;
-
-      // Name matching (weight: 40%)
-      maxScore += 40;
-      const patientName = (patient.full_name || '').toLowerCase().trim();
-      const extractedName = (extracted.patient_name || '').toLowerCase().trim();
-      if (patientName === extractedName) {
-        score += 40;
-      } else if (patientName.includes(extractedName) || extractedName.includes(patientName)) {
-        score += 30;
-      } else {
-        const nameWords = extractedName.split(/\s+/);
-        const patientWords = patientName.split(/\s+/);
-        const matchedWords = nameWords.filter(word => 
-          patientWords.some(pw => pw.includes(word) || word.includes(pw))
-        );
-        score += (matchedWords.length / nameWords.length) * 40;
-      }
-
-      // Address matching (weight: 35%) - use normalized addresses
-      maxScore += 35;
-      const patientAddressNorm = normalizeAddress(patient.address || '');
-      const extractedAddressNorm = normalizeAddress(extracted.street_address || '');
-      
-      if (patientAddressNorm === extractedAddressNorm) {
-        score += 35;
-      } else if (patientAddressNorm.includes(extractedAddressNorm) || extractedAddressNorm.includes(patientAddressNorm)) {
-        score += 28;
-      } else {
-        const addressWords = extractedAddressNorm.split(/\s+/).filter(w => w.length > 2);
-        const patientAddressWords = patientAddressNorm.split(/\s+/);
-        const matchedWords = addressWords.filter(word => 
-          patientAddressWords.some(pw => pw.includes(word) || word.includes(pw))
-        );
-        if (addressWords.length > 0) {
-          score += (matchedWords.length / addressWords.length) * 35;
-        }
-      }
-
-      // Phone matching (weight: 25%)
-      maxScore += 25;
-      const patientPhone = (patient.phone || '').replace(/\D/g, '');
-      const extractedPhone = (extracted.phone_number || '').replace(/\D/g, '');
-      if (patientPhone === extractedPhone) {
-        score += 25;
-      } else if (patientPhone.includes(extractedPhone) || extractedPhone.includes(patientPhone)) {
-        score += 15;
-      }
-
-      return (score / maxScore) * 100;
-    };
-
-    // Calculate match scores for all patients
-    console.log('🧮 [scanPrescriptionLabel] Calculating match scores...');
-    const patientsWithScores = (candidatePatients || []).map(patient => ({
-      patient,
-      score: calculateMatch(patient, extractedData)
-    })).filter(item => item.score >= 60) // Only keep matches above 60%
-      .sort((a, b) => b.score - a.score);
-
-    console.log('✅ [scanPrescriptionLabel] Found', patientsWithScores.length, 'matches above 60%');
-    if (patientsWithScores.length > 0) {
-      console.log('   Top matches:', patientsWithScores.slice(0, 3).map(m => ({
-        name: m.patient.full_name,
-        score: Math.round(m.score)
-      })));
-    }
-
-    // Separate exact matches (100%) from partial matches
-    const exactMatches = patientsWithScores.filter(item => item.score === 100);
-    const partialMatches = patientsWithScores.filter(item => item.score < 100);
-
-    console.log(`📊 [scanPrescriptionLabel] Exact matches: ${exactMatches.length}, Partial matches: ${partialMatches.length}`);
-
-    return Response.json({
-      extractedData,
-      exactMatches: exactMatches.map(item => ({
-        patient: item.patient,
-        matchScore: 100
-      })),
-      matches: partialMatches.map(item => ({
-        patient: item.patient,
-        matchScore: Math.round(item.score)
-      }))
-    });
+    // Return ONLY extracted data — client does matching against IDB
+    return Response.json({ extractedData });
 
   } catch (error) {
     console.error('Error in scanPrescriptionLabel:', error);
-    return Response.json({ 
+    return Response.json({
       error: error.message || 'Internal server error'
     }, { status: 500 });
   }

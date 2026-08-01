@@ -49,6 +49,7 @@ export default function DeliveryCameraOverlay({
   onPatientSelect,
   onCreatePatient,
   stores,
+  appUser,
 }) {
   const [cameraCount, setCameraCount] = useState(1);
   const [switching, setSwitching] = useState(false);
@@ -111,7 +112,7 @@ export default function DeliveryCameraOverlay({
 
       console.log('[DeliveryCameraOverlay] Barcode-triggered capture → LLM');
       const file = new File([blob], 'prescription_scan.jpg', { type: 'image/jpeg' });
-      const result = await scanPrescriptionLabel({ file, mode: 'fileUrl' });
+      const result = await scanPrescriptionLabel({ file, mode: 'fileUrl', appUser });
 
       if (result.error) throw new Error(result.error);
       setScanResults(result);
@@ -267,7 +268,7 @@ export default function DeliveryCameraOverlay({
     setScanState('scanning');
     try {
       const file = new File([bestBlob], 'prescription_scan.jpg', { type: 'image/jpeg' });
-      const result = await scanPrescriptionLabel({ file, mode: 'fileUrl' });
+      const result = await scanPrescriptionLabel({ file, mode: 'fileUrl', appUser });
 
       if (result.error) throw new Error(result.error);
 

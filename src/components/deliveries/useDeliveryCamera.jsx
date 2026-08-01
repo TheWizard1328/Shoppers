@@ -136,7 +136,8 @@ export default function useDeliveryCamera({
   setScanMatches,
   setShowMatchPopup,
   setExtractedData,
-  setIsPatientFormOpen
+  setIsPatientFormOpen,
+  appUser
 }) {
   const startCamera = useCallback(async () => {
     try {
@@ -187,7 +188,7 @@ export default function useDeliveryCamera({
       }
       const file = new File([blob], 'prescription_scan.jpg', { type: 'image/jpeg' });
       try {
-        const result = await scanPrescriptionLabel({ file, mode: 'fileUrl' });
+        const result = await scanPrescriptionLabel({ file, mode: 'fileUrl', appUser });
         await handlePrescriptionScanResult({
           result,
           onCreatePatient,
