@@ -123,6 +123,8 @@ export default function SmartBarcodeScanner({
   const rxBarcodesRef = useRef(rxBarcodeValues);
   receiptBarcodesRef.current = receiptBarcodeValues;
   rxBarcodesRef.current = rxBarcodeValues;
+  const showCameraRef = useRef(false);
+  showCameraRef.current = showCamera;
   // Expose the internal input ref to the parent synchronously before paint
   // so that Tab-key handlers can call .focus() immediately after render.
   if (externalBarcodeInputRef) {
@@ -171,18 +173,22 @@ export default function SmartBarcodeScanner({
     const currentAll = [...(receiptBarcodesRef.current || []), ...(rxBarcodesRef.current || [])];
     if (!trimmed || currentAll.includes(trimmed)) {
       setManualInput('');
-      setTimeout(() => inputRef.current?.focus(), 0);
+      if (!showCameraRef.current) setTimeout(() => inputRef.current?.focus(), 0);
       return;
     }
 
     if (classifyBarcode(trimmed) === 'rx') {
-      onRxChange([...(rxBarcodesRef.current || []), trimmed]);
+      const updated = [...(rxBarcodesRef.current || []), trimmed];
+      rxBarcodesRef.current = updated; // update ref immediately to prevent duplicates
+      onRxChange(updated);
     } else {
-      onReceiptChange([...(receiptBarcodesRef.current || []), trimmed]);
+      const updated = [...(receiptBarcodesRef.current || []), trimmed];
+      receiptBarcodesRef.current = updated; // update ref immediately to prevent duplicates
+      onReceiptChange(updated);
     }
 
     setManualInput('');
-    setTimeout(() => inputRef.current?.focus(), 0);
+    if (!showCameraRef.current) setTimeout(() => inputRef.current?.focus(), 0);
   }, [onReceiptChange, onRxChange]);
 
   const removeReceiptBarcode = useCallback((index) => {
