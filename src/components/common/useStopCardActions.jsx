@@ -1256,9 +1256,13 @@ export default function useStopCardActions(params) {
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, withNextFlag).catch(() => {});
               updateDeliveriesLocally?.(withNextFlag, false);
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: withNextFlag } }));
-              // Broadcast mutations fire-and-forget (don't block UI completion)
+              // Broadcast mutations ONLY for non-terminal deliveries — completed/failed/cancelled
+              // stops are final and should NOT be re-broadcast during Start, Complete, Cancel, or Fail.
+              // This prevents unnecessary WS echoes for finished stops that other devices already have.
+              const _terminalSet = new Set(['completed', 'failed', 'cancelled']);
+              const _activeForBroadcast = withNextFlag.filter(d => !_terminalSet.has(d?.status));
               import('../utils/realtimeSync').then(({ broadcastMutation }) => {
-                Promise.all(withNextFlag.map((item) => broadcastMutation('Delivery', 'update', item.id, item))).catch(() => {});
+                Promise.all(_activeForBroadcast.map((item) => broadcastMutation('Delivery', 'update', item.id, item))).catch(() => {});
               }).catch(() => {});
             } else {
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
