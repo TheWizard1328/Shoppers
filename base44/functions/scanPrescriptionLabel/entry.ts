@@ -52,137 +52,68 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'No image data provided' }, { status: 400 });
     }
 
-    // Use fileUrl if provided, otherwise use base64Image
+    // Use fileUrl if provided, otherwise base64Image — prefer fileUrl (no double-upload)
     const imageSource = fileUrl || base64Image;
 
     console.log('📸 [scanPrescriptionLabel] Processing image...');
 
-    // Extract data using Vision LLM
-    console.log('🔍 [scanPrescriptionLabel] Extracting data from image using Vision LLM...');
-    const isBase64 = imageSource.startsWith('data:');
-    console.log('📎 [scanPrescriptionLabel] Image source type:', isBase64 ? 'base64' : 'url');
-    
     let extractionResult = null;
     let lastError = null;
     let uploadedFileUrl = imageSource;
-    
-    // If base64, upload it first to get a URL
-    if (isBase64) {
+
+    // If base64, upload once to get a URL — then use that URL
+    if (imageSource.startsWith('data:')) {
       try {
         console.log('📤 [scanPrescriptionLabel] Uploading base64 image...');
-        // Convert base64 to blob for upload
         const base64Data = imageSource.split(',')[1];
         const mimeType = imageSource.split(';')[0].split(':')[1] || 'image/jpeg';
         const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
+        const byteArray = new Uint8Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
         const blob = new Blob([byteArray], { type: mimeType });
         const file = new File([blob], 'prescription_label.jpg', { type: mimeType });
-        
         const uploadResult = await runTrackedIntegration({
           operationName: 'UploadFile',
           feature: 'prescription_label_upload',
-          metadata: { source: 'scanPrescriptionLabel', upload_source: 'base64_image' },
+          metadata: { source: 'scanPrescriptionLabel' },
           call: () => base44.integrations.Core.UploadFile({ file })
         });
-        if (uploadResult && uploadResult.file_url) {
-          uploadedFileUrl = uploadResult.file_url;
-          console.log('✅ [scanPrescriptionLabel] Image uploaded:', uploadedFileUrl);
-        }
+        if (uploadResult?.file_url) uploadedFileUrl = uploadResult.file_url;
       } catch (uploadError) {
-        console.error('⚠️ [scanPrescriptionLabel] Upload failed, will try direct LLM:', uploadError.message);
+        console.warn('[scanPrescriptionLabel] Upload failed, using raw base64:', uploadError.message);
       }
     }
-    
-    // Try ExtractDataFromUploadedFile if we have a URL (not base64)
-    if (!uploadedFileUrl.startsWith('data:')) {
-      try {
-        console.log('🔄 [scanPrescriptionLabel] Using ExtractDataFromUploadedFile...');
-        const extractResult = await runTrackedIntegration({
-          operationName: 'ExtractDataFromUploadedFile',
-          feature: 'prescription_label_extract_data',
-          metadata: { source: 'scanPrescriptionLabel', has_uploaded_url: true },
-          call: () => base44.integrations.Core.ExtractDataFromUploadedFile({
-            file_url: uploadedFileUrl,
-            json_schema: {
-              type: "object",
-              properties: {
-                patient_name: { type: "string", description: "Patient's full name" },
-                street_address: { type: "string", description: "Street address" },
-                city: { type: "string", description: "City name" },
-                state: { type: "string", description: "State or province" },
-                zip_code: { type: "string", description: "Zip or postal code" },
-                phone_number: { type: "string", description: "Phone number" }
-              }
-            }
-          })
-        });
-        
-        console.log('📄 [scanPrescriptionLabel] ExtractData response:', extractResult);
-        
-        if (extractResult && extractResult.status === 'success' && extractResult.output) {
-          extractionResult = extractResult.output;
-          console.log('✅ [scanPrescriptionLabel] Successfully extracted data');
-        } else {
-          lastError = new Error(extractResult?.details || 'Extraction returned no data');
-          console.error('❌ [scanPrescriptionLabel] Extraction failed:', lastError.message);
-        }
-      } catch (extractError) {
-        console.error('❌ [scanPrescriptionLabel] ExtractData error:', extractError.message);
-        lastError = extractError;
-      }
-    }
-    
-    // Fallback: Try simple LLM call (works with both base64 and URL)
-    if (!extractionResult) {
-      console.log('🔄 [scanPrescriptionLabel] Trying LLM vision approach...');
-      try {
-        const textResponse = await runTrackedIntegration({
-          operationName: 'InvokeLLM',
-          feature: 'prescription_label_llm_extraction',
-          metadata: { source: 'scanPrescriptionLabel', model: 'automatic', file_count: 1 },
-          call: () => base44.integrations.Core.InvokeLLM({
-            prompt: `Look at this prescription label image carefully. Extract the patient information and return ONLY a valid JSON object with no additional text before or after:
 
-{"patient_name": "full name here", "street_address": "street address here", "city": "city here", "state": "state/province here", "zip_code": "postal code here", "phone_number": "phone here"}
+    // Single direct InvokeLLM call — faster than ExtractDataFromUploadedFile
+    // Tight JSON-only prompt reduces token output and latency
+    console.log('🔍 [scanPrescriptionLabel] Running vision LLM extraction...');
+    try {
+      const textResponse = await runTrackedIntegration({
+        operationName: 'InvokeLLM',
+        feature: 'prescription_label_llm_extraction',
+        metadata: { source: 'scanPrescriptionLabel', has_url: !uploadedFileUrl.startsWith('data:') },
+        call: () => base44.integrations.Core.InvokeLLM({
+          prompt: `Extract from this prescription label. Return ONLY JSON, nothing else:
+{"patient_name":"","street_address":"","city":"","state":"","zip_code":"","phone_number":""}`,
+          file_urls: [uploadedFileUrl]
+        })
+      });
 
-Use null for any field you cannot read. Return ONLY the JSON, nothing else.`,
-            file_urls: [uploadedFileUrl]
-          })
-        });
-        
-        console.log('📄 [scanPrescriptionLabel] LLM response type:', typeof textResponse);
-        console.log('📄 [scanPrescriptionLabel] LLM response:', textResponse);
-        
-        if (typeof textResponse === 'string' && textResponse.trim()) {
-          // Clean the response - remove markdown code blocks if present
-          let cleanedResponse = textResponse.trim();
-          cleanedResponse = cleanedResponse.replace(/```json\s*/gi, '').replace(/```\s*/g, '');
-          
-          const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            extractionResult = JSON.parse(jsonMatch[0]);
-            console.log('✅ [scanPrescriptionLabel] LLM parsing successful');
-          } else {
-            console.error('❌ [scanPrescriptionLabel] No JSON found in response');
-          }
-        } else if (typeof textResponse === 'object' && textResponse !== null) {
-          extractionResult = textResponse;
-          console.log('✅ [scanPrescriptionLabel] LLM returned object directly');
-        }
-      } catch (llmError) {
-        console.error('❌ [scanPrescriptionLabel] LLM approach failed:', llmError.message);
-        lastError = llmError;
+      if (typeof textResponse === 'string' && textResponse.trim()) {
+        const cleaned = textResponse.trim().replace(/```json\s*/gi, '').replace(/```\s*/g, '');
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) extractionResult = JSON.parse(jsonMatch[0]);
+      } else if (textResponse && typeof textResponse === 'object') {
+        extractionResult = textResponse;
       }
+    } catch (llmError) {
+      console.error('[scanPrescriptionLabel] LLM failed:', llmError.message);
+      lastError = llmError;
     }
-    
+
     if (!extractionResult) {
-      console.error('❌ [scanPrescriptionLabel] All extraction attempts failed');
-      return Response.json({ 
-        error: 'Failed to extract data from image. Please ensure the image is clear and contains readable text.',
+      return Response.json({
+        error: 'Failed to extract data from image. Please ensure the label is clear and readable.',
         details: lastError?.message || 'LLM extraction failed'
       }, { status: 400 });
     }

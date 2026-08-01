@@ -262,52 +262,18 @@ export default function SmartBarcodeScanner({
     addBarcode(trimmed);
   }, [addBarcode]);
 
-  // Native BarcodeDetector is 5-10x faster than ZXing on supported browsers
+  // Native BarcodeDetector + ZXing fallback
   const nativeDetectorRef = useRef(null);
   const nativeScanLoopRef = useRef(null);
   const [cameraError, setCameraError] = useState(null);
 
-  const buildCameraConstraints = useCallback(async () => {
-    // Prefer back camera by deviceId, but DON'T mix deviceId + facingMode
-    let selectedDeviceId = null;
+  const configureTrack = useCallback((stream) => {
     try {
-      const inputs = await BrowserMultiFormatReader.listVideoInputDevices();
-      const back = inputs.find((d) => /back|rear|environment/i.test(d.label));
-      selectedDeviceId = (back || inputs[inputs.length - 1])?.deviceId || null;
-    } catch {}
-
-    if (selectedDeviceId) {
-      // Use ONLY exact deviceId — no facingMode conflict
-      return {
-        video: {
-          deviceId: { exact: selectedDeviceId },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30 }
-        },
-        audio: false
-      };
-    }
-    // Fallback: exact environment facing mode (not "ideal" which can pick wrong camera)
-    return {
-      video: {
-        facingMode: { exact: 'environment' },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 30 }
-      },
-      audio: false
-    };
-  }, []);
-
-  const configureTrack = useCallback(() => {
-    try {
-      const stream = videoRef.current?.srcObject;
-      streamRef.current = stream || null;
-      const track = stream?.getVideoTracks?.()[0];
+      const s = stream || streamRef.current || videoRef.current?.srcObject;
+      if (s) streamRef.current = s;
+      const track = s?.getVideoTracks?.()[0];
       if (!track) return;
       const caps = track.getCapabilities?.() || {};
-      // Auto-zoom to 2x for better barcode framing
       if (caps.zoom) {
         setCanZoom(true);
         const target = Math.min(Math.max(2, caps.zoom.min || 1), caps.zoom.max || 1);
@@ -315,7 +281,6 @@ export default function SmartBarcodeScanner({
         setZoom(target);
       }
       if (caps.torch) setHasTorch(true);
-      // Continuous focus/exposure for sharp barcodes
       if (caps.focusMode?.includes?.('continuous')) {
         track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
       }
@@ -328,61 +293,82 @@ export default function SmartBarcodeScanner({
   const startCamera = useCallback(async () => {
     if (disabled || isReaderActiveRef.current) return;
     setCameraError(null);
+    setIsStartingCamera(true);
+
+    // Always-safe constraints: facingMode: ideal never hard-rejects.
+    // Enumerate devices AFTER permission grant (enumerateDevices returns labels only after grant).
+    const baseConstraints = {
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+      audio: false
+    };
+
     try {
-      setIsStartingCamera(true);
-      const constraints = await buildCameraConstraints();
+      // Step 1: Get stream with safe constraints first
+      let stream = await navigator.mediaDevices.getUserMedia(baseConstraints);
 
-      // ── Try native BarcodeDetector first (5-10x faster) ──
-      const hasNativeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
-      if (hasNativeDetector) {
-        try {
-          const NativeBarcodeDetector = window.BarcodeDetector;
-          nativeDetectorRef.current = new NativeBarcodeDetector({
-            formats: ['code_128', 'code_39']
+      // Step 2: After permission granted, try to re-enumerate and find exact back camera
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(d => d.kind === 'videoinput');
+        const backCam = videoInputs.find(d => /back|rear|environment/i.test(d.label));
+        const backId = backCam?.deviceId;
+        if (backId) {
+          // Re-open with exact deviceId for best quality — stop the initial stream first
+          stream.getTracks().forEach(t => t.stop());
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: backId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+            audio: false
           });
-          const stream = await navigator.mediaDevices.getUserMedia(constraints);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            await videoRef.current.play().catch(() => {});
-          }
-          streamRef.current = stream;
-          isReaderActiveRef.current = true;
-          configureTrack();
+        }
+      } catch {
+        // Fine — keep the initial stream
+      }
 
-          // Native scan loop — runs at ~10fps
+      // Attach stream to video element
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try { await videoRef.current.play(); } catch {}
+      }
+      streamRef.current = stream;
+      isReaderActiveRef.current = true;
+
+      // Configure zoom/torch/focus AFTER stream is live
+      configureTrack(stream);
+
+      // Step 3: Clear "Starting camera..." NOW (stream is live and video playing)
+      setIsStartingCamera(false);
+
+      // ── Try native BarcodeDetector (5-10x faster on Chrome/Android) ──
+      const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+      if (hasNative) {
+        try {
+          nativeDetectorRef.current = new window.BarcodeDetector({ formats: ['code_128', 'code_39'] });
           let lastDetectAt = 0;
           nativeScanLoopRef.current = setInterval(async () => {
             if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) return;
             const now = Date.now();
-            if (now - lastDetectAt < 100) return; // throttle to 10fps
+            if (now - lastDetectAt < 100) return;
             lastDetectAt = now;
             try {
               const barcodes = await nativeDetectorRef.current.detect(videoRef.current);
-              if (barcodes && barcodes.length > 0) {
+              if (barcodes?.length > 0) {
                 const text = barcodes[0].rawValue || String(barcodes[0].value || '');
                 if (text) handleCameraDetected(text);
               }
             } catch {}
           }, 100);
-
           console.log('[SmartBarcodeScanner] Using native BarcodeDetector');
-          return;
+          return; // stream + loop running — done
         } catch (nativeErr) {
-          console.warn('[SmartBarcodeScanner] Native BarcodeDetector failed, falling back to ZXing:', nativeErr?.message);
-          // Clean up any partial native setup
+          console.warn('[SmartBarcodeScanner] BarcodeDetector failed, using ZXing:', nativeErr?.message);
           try { clearInterval(nativeScanLoopRef.current); } catch {}
-          try { streamRef.current?.getTracks?.().forEach(t => t.stop()); } catch {}
-          if (videoRef.current) try { videoRef.current.srcObject = null; } catch {}
           nativeDetectorRef.current = null;
         }
       }
 
-      // ── ZXing fallback ──
-      console.log('[SmartBarcodeScanner] Falling back to ZXing');
+      // ── ZXing fallback — stream is already in videoRef, pass it directly ──
+      console.log('[SmartBarcodeScanner] Using ZXing fallback');
       codeReaderRef.current = new BrowserMultiFormatReader();
-      isReaderActiveRef.current = true;
-
-      // Focused hints: only CODE_128 + CODE_39, no TRY_HARDER (2x slowdown)
       try {
         const hints = new Map();
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39]);
@@ -390,26 +376,22 @@ export default function SmartBarcodeScanner({
         codeReaderRef.current.setHints(hints);
       } catch {}
 
-      // decodeFromConstraints returns a Promise — catch it
-      codeReaderRef.current.decodeFromConstraints(constraints, videoRef.current, (result, err) => {
+      // Use decodeFromStream (stream already open) instead of decodeFromConstraints
+      codeReaderRef.current.decodeFromStream(stream, videoRef.current, (result, err) => {
         if (result) {
           const text = result.getText ? result.getText() : String(result?.text || '');
           if (text) handleCameraDetected(text);
         }
       }).catch((zxingErr) => {
-        console.warn('[SmartBarcodeScanner] ZXing decode failed:', zxingErr?.message);
+        console.warn('[SmartBarcodeScanner] ZXing failed:', zxingErr?.message);
         setCameraError('Camera failed to start. Please try again.');
       });
-
-      // Configure track after stream attaches
-      setTimeout(() => configureTrack(), 400);
     } catch (e) {
-      console.warn('[SmartBarcodeScanner] Camera start failed', e);
+      console.warn('[SmartBarcodeScanner] Camera start failed:', e);
       setCameraError(e?.message || 'Could not access camera');
-    } finally {
       setIsStartingCamera(false);
     }
-  }, [disabled, handleCameraDetected, buildCameraConstraints, configureTrack]);
+  }, [disabled, handleCameraDetected, configureTrack]);
 
   const stopCameraReader = useCallback(() => {
     // Stop native scan loop

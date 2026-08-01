@@ -249,46 +249,16 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   }, [addBarcode]);
 
   // Camera start/stop
-  // Native BarcodeDetector refs
+  // Native BarcodeDetector + ZXing fallback
   const nativeDetectorRef = useRef(null);
   const nativeScanLoopRef = useRef(null);
   const [cameraError, setCameraError] = useState(null);
 
-  const buildCameraConstraints = useCallback(async () => {
-    let selectedDeviceId = null;
+  const configureTrack = useCallback((stream) => {
     try {
-      const inputs = await BrowserMultiFormatReader.listVideoInputDevices();
-      const back = inputs.find(d => /back|rear|environment/i.test(d.label));
-      selectedDeviceId = (back || inputs[inputs.length - 1])?.deviceId || null;
-    } catch {}
-
-    if (selectedDeviceId) {
-      return {
-        video: {
-          deviceId: { exact: selectedDeviceId },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30 }
-        },
-        audio: false
-      };
-    }
-    return {
-      video: {
-        facingMode: { exact: 'environment' },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 30 }
-      },
-      audio: false
-    };
-  }, []);
-
-  const configureTrack = useCallback(() => {
-    try {
-      const stream = videoRef.current?.srcObject;
-      streamRef.current = stream || null;
-      const track = stream?.getVideoTracks?.()[0];
+      const s = stream || streamRef.current || videoRef.current?.srcObject;
+      if (s) streamRef.current = s;
+      const track = s?.getVideoTracks?.()[0];
       if (!track) return;
       const caps = track.getCapabilities?.() || {};
       if (caps.zoom) {
@@ -310,26 +280,47 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   const startCamera = useCallback(async () => {
     if (disabled || isReaderActiveRef.current) return;
     setCameraError(null);
+    setIsStartingCamera(true);
+
+    const baseConstraints = {
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+      audio: false
+    };
+
     try {
-      setIsStartingCamera(true);
-      const constraints = await buildCameraConstraints();
+      // Step 1: Safe open — facingMode ideal never hard-rejects
+      let stream = await navigator.mediaDevices.getUserMedia(baseConstraints);
 
-      // ── Try native BarcodeDetector first (5-10x faster) ──
-      const hasNativeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
-      if (hasNativeDetector) {
-        try {
-          nativeDetectorRef.current = new window.BarcodeDetector({
-            formats: ['code_128', 'code_39']
+      // Step 2: Enumerate after permission granted, upgrade to exact deviceId if back cam found
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(d => d.kind === 'videoinput');
+        const backCam = videoInputs.find(d => /back|rear|environment/i.test(d.label));
+        if (backCam?.deviceId) {
+          stream.getTracks().forEach(t => t.stop());
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: backCam.deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+            audio: false
           });
-          const stream = await navigator.mediaDevices.getUserMedia(constraints);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            await videoRef.current.play().catch(() => {});
-          }
-          streamRef.current = stream;
-          isReaderActiveRef.current = true;
-          configureTrack();
+        }
+      } catch { /* keep initial stream */ }
 
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try { await videoRef.current.play(); } catch {}
+      }
+      streamRef.current = stream;
+      isReaderActiveRef.current = true;
+      configureTrack(stream);
+
+      // Clear loading state NOW — video is live
+      setIsStartingCamera(false);
+
+      // ── Native BarcodeDetector (fast path) ──
+      const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+      if (hasNative) {
+        try {
+          nativeDetectorRef.current = new window.BarcodeDetector({ formats: ['code_128', 'code_39'] });
           let lastDetectAt = 0;
           nativeScanLoopRef.current = setInterval(async () => {
             if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) return;
@@ -338,29 +329,24 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
             lastDetectAt = now;
             try {
               const barcodes = await nativeDetectorRef.current.detect(videoRef.current);
-              if (barcodes && barcodes.length > 0) {
+              if (barcodes?.length > 0) {
                 const text = barcodes[0].rawValue || String(barcodes[0].value || '');
                 if (text) handleCameraDetected(text);
               }
             } catch {}
           }, 100);
-
           console.log('[BarcodeScanner] Using native BarcodeDetector');
           return;
         } catch (nativeErr) {
-          console.warn('[BarcodeScanner] Native BarcodeDetector failed, falling back to ZXing:', nativeErr?.message);
+          console.warn('[BarcodeScanner] BarcodeDetector failed, using ZXing:', nativeErr?.message);
           try { clearInterval(nativeScanLoopRef.current); } catch {}
-          try { streamRef.current?.getTracks?.().forEach(t => t.stop()); } catch {}
-          if (videoRef.current) try { videoRef.current.srcObject = null; } catch {}
           nativeDetectorRef.current = null;
         }
       }
 
-      // ── ZXing fallback ──
-      console.log('[BarcodeScanner] Falling back to ZXing');
+      // ── ZXing fallback — stream already attached to videoRef ──
+      console.log('[BarcodeScanner] Using ZXing fallback');
       codeReaderRef.current = new BrowserMultiFormatReader();
-      isReaderActiveRef.current = true;
-
       try {
         const hints = new Map();
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39]);
@@ -368,41 +354,21 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         codeReaderRef.current.setHints(hints);
       } catch {}
 
-      if (typeof codeReaderRef.current.decodeFromConstraints === 'function') {
-        codeReaderRef.current.decodeFromConstraints(
-          constraints,
-          videoRef.current,
-          (result, err) => {
-            if (result) {
-              const text = result.getText ? result.getText() : String(result?.text || '');
-              if (text) handleCameraDetected(text);
-            }
-          }
-        ).catch((zxingErr) => {
-          console.warn('[BarcodeScanner] ZXing decode failed:', zxingErr?.message);
-          setCameraError('Camera failed to start. Please try again.');
-        });
-      } else {
-        codeReaderRef.current.decodeFromVideoDevice(
-          null,
-          videoRef.current,
-          (result, err) => {
-            if (result) {
-              const text = result.getText ? result.getText() : String(result?.text || '');
-              if (text) handleCameraDetected(text);
-            }
-          }
-        ).catch(() => {});
-      }
-
-      setTimeout(() => configureTrack(), 400);
+      codeReaderRef.current.decodeFromStream(stream, videoRef.current, (result, err) => {
+        if (result) {
+          const text = result.getText ? result.getText() : String(result?.text || '');
+          if (text) handleCameraDetected(text);
+        }
+      }).catch((zxingErr) => {
+        console.warn('[BarcodeScanner] ZXing failed:', zxingErr?.message);
+        setCameraError('Camera failed to start. Please try again.');
+      });
     } catch (e) {
-      console.warn('[BarcodeScanner] Camera start failed', e);
+      console.warn('[BarcodeScanner] Camera start failed:', e);
       setCameraError(e?.message || 'Could not access camera');
-    } finally {
       setIsStartingCamera(false);
     }
-  }, [disabled, handleCameraDetected, buildCameraConstraints, configureTrack]);
+  }, [disabled, handleCameraDetected, configureTrack]);
 
   const stopCameraReader = useCallback(() => {
     try { clearInterval(nativeScanLoopRef.current); } catch {}
