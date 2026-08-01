@@ -255,7 +255,7 @@ export default function DeliveryCameraOverlay({
         {/* ── Top: viewfinder + status hint + results ── */}
         <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
           {/* Viewfinder */}
-          <div className="relative w-full" style={{ height: '38vh', minHeight: '200px', maxHeight: '340px' }}>
+          <div className="relative w-full" style={{ aspectRatio: '16 / 3.5' }}>
             <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
               scanState === 'selected' ? 'border-emerald-400' :
               scanState === 'scanning' ? 'border-blue-400' :
@@ -483,7 +483,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
           </div>
         </>
       ) : (
-        <div className="text-white/50 text-sm px-1">No matching patients found.</div>
+        <div className="text-white/70 text-sm px-1">No matching patients found.</div>
       )}
 
       {extractedData?.patient_name && onCreateNew && (

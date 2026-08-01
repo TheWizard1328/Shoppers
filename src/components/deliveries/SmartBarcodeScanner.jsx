@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Barcode, Minus, Sun, ZoomIn, X, SwitchCamera } from 'lucide-react';
+import { Camera, Barcode, Minus, Sun, ZoomIn, X, SwitchCamera, Check } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
@@ -68,7 +68,7 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, s
               {values.map((val, idx) =>
             <div
               key={`${title}-${idx}-${val}`} className={`relative w-[95px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 ${singleVisible ? 'snap-center' : ''}`}
-              style={{ borderColor: 'var(--border-slate-200)', scrollSnapStop: singleVisible ? 'always' : 'normal' }}
+              style={{ scrollSnapStop: singleVisible ? 'always' : 'normal' }}
 
               onClick={() => onSelectBarcode(val)}
               title={val}>
@@ -86,7 +86,7 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, s
           </div>
         </div> :
 
-      <div className="h-[52px] rounded-md border border-dashed flex items-center justify-center text-xs text-slate-400">
+      <div className="h-[52px] rounded-md border border-dashed border-border flex items-center justify-center text-xs text-muted-foreground">
           No barcodes yet
         </div>
       }
@@ -118,6 +118,11 @@ export default function SmartBarcodeScanner({
 
   const internalInputRef = useRef(null);
   const inputRef = internalInputRef;
+  // Refs to track latest barcode arrays — prevents stale closure in camera scan loop
+  const receiptBarcodesRef = useRef(receiptBarcodeValues);
+  const rxBarcodesRef = useRef(rxBarcodeValues);
+  receiptBarcodesRef.current = receiptBarcodeValues;
+  rxBarcodesRef.current = rxBarcodeValues;
   // Expose the internal input ref to the parent synchronously before paint
   // so that Tab-key handlers can call .focus() immediately after render.
   if (externalBarcodeInputRef) {
@@ -163,21 +168,22 @@ export default function SmartBarcodeScanner({
   const addBarcode = useCallback((value) => {
     const trimmed = String(value || '').trim();
     scannerLeadCharRef.current = '';
-    if (!trimmed || allValues.includes(trimmed)) {
+    const currentAll = [...(receiptBarcodesRef.current || []), ...(rxBarcodesRef.current || [])];
+    if (!trimmed || currentAll.includes(trimmed)) {
       setManualInput('');
       setTimeout(() => inputRef.current?.focus(), 0);
       return;
     }
 
     if (classifyBarcode(trimmed) === 'rx') {
-      onRxChange([...(rxBarcodeValues || []), trimmed]);
+      onRxChange([...(rxBarcodesRef.current || []), trimmed]);
     } else {
-      onReceiptChange([...(receiptBarcodeValues || []), trimmed]);
+      onReceiptChange([...(receiptBarcodesRef.current || []), trimmed]);
     }
 
     setManualInput('');
     setTimeout(() => inputRef.current?.focus(), 0);
-  }, [allValues, onReceiptChange, onRxChange, receiptBarcodeValues, rxBarcodeValues]);
+  }, [onReceiptChange, onRxChange]);
 
   const removeReceiptBarcode = useCallback((index) => {
     onReceiptChange(receiptBarcodeValues.filter((_, i) => i !== index));
@@ -572,7 +578,7 @@ export default function SmartBarcodeScanner({
         onClick={() => setSelectedBarcode(null)}>
           <div
           className="relative w-full max-w-3xl rounded-xl border bg-card p-4 shadow-2xl"
-          style={{ borderColor: 'var(--border-slate-200)' }}
+          
           onClick={(e) => e.stopPropagation()}>
             <LargeBarcodePreview value={selectedBarcode} onClose={() => setSelectedBarcode(null)} isRx={rxBarcodeValues.includes(selectedBarcode)} />
           </div>
@@ -580,52 +586,139 @@ export default function SmartBarcodeScanner({
       }
 
       {showCamera &&
-      <div className="fixed inset-0 z-[10030] bg-black/50 backdrop-blur-sm">
-          <div className="relative w-screen mx-auto mt-[10vh] px-0">
-            <div className={`relative mx-auto w-screen aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
-              <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
-              {cameraCount > 1 && (
-                <button
-                  type="button"
-                  onClick={switchCamera}
-                  disabled={isStartingCamera}
-                  className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-full bg-white/25 backdrop-blur-sm px-3 py-2 text-white text-sm font-medium transition active:bg-white/40 disabled:opacity-50 touch-manipulation"
-                  title="Switch camera lens"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  <SwitchCamera className="w-5 h-5" />
-                </button>
+      <div className="fixed inset-0 z-[10030] bg-black flex flex-col items-center justify-between"
+        style={{ paddingTop: 'env(safe-area-inset-top, 12px)', paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
+
+        {/* ── Top: viewfinder + status hint + scanned list ── */}
+        <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
+          {/* Viewfinder — 50% shorter (16:4.5 instead of 16:9) */}
+          <div className="relative w-full" style={{ aspectRatio: '16 / 4.5' }}>
+            <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
+              flashHit ? 'border-emerald-400' : 'border-white/30'
+            }`}>
+              <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline autoPlay muted style={{ objectPosition: 'center' }} />
+
+              {/* Flash hit overlay */}
+              {flashHit && (
+                <div className="absolute inset-0 bg-emerald-500/30 flex items-center justify-center">
+                  <div className="text-white text-lg font-semibold">✓ Scanned</div>
+                </div>
+              )}
+
+              {/* Camera error overlay */}
+              {cameraError && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <div className="text-red-400 text-sm text-center px-4">{cameraError}</div>
+                </div>
+              )}
+
+              {/* Corner brackets */}
+              {!flashHit && !cameraError && (
+                <>
+                  <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-white/40 rounded-tl" />
+                  <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-white/40 rounded-tr" />
+                  <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-white/40 rounded-bl" />
+                  <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-white/40 rounded-br" />
+                </>
               )}
             </div>
-            <div className="mt-3 flex items-center justify-between text-white/90">
-              <div className="flex items-center gap-2">
-                <div className="text-sm">{allValues.length} scanned</div>
-                {canZoom &&
-              <div className="ml-1 flex items-center gap-1">
-                    <Button variant="secondary" size="sm" onClick={() => adjustZoom(-0.5)} title="Zoom out">
-                      <Minus className="w-4 h-4" />
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => adjustZoom(0.5)} title="Zoom in">
-                      <ZoomIn className="w-4 h-4" />
-                    </Button>
-                  </div>
-              }
-                {hasTorch &&
-              <Button variant="secondary" size="sm" onClick={toggleTorch} className={torchOn ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}>
-                    <Sun className="w-4 h-4 mr-1" /> {torchOn ? 'Torch On' : 'Torch'}
-                  </Button>
-              }
-              </div>
-              <Button variant="secondary" size="sm" onClick={() => {stopCameraReader();setShowCamera(false);}}>
-                <X className="w-4 h-4 mr-1" /> Close
-              </Button>
-            </div>
-            <div className="mt-2 text-center text-xs text-white/70">
-              {cameraError ? <span className="text-red-400">{cameraError}</span> : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Point camera at a barcode'}
-              {cameraCount > 1 && !cameraError && <div className="mt-1 text-white/40">📷 {cameraLabel}</div>}
-            </div>
           </div>
+
+          {/* Status hint — centered white text */}
+          <div className="text-white text-sm font-medium text-center px-4">
+            {cameraError ? '' : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Point camera at a barcode'}
+          </div>
+
+          {/* Scanned barcodes list — shows each barcode scanned during this session */}
+          {allValues.length > 0 && (
+            <div className="w-full max-h-[35vh] overflow-y-auto space-y-1.5 pb-1">
+              {allValues.map((val, idx) => {
+                const isRx = rxBarcodeValues.includes(val);
+                return (
+                  <div key={`scan-${idx}-${val}`} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 border border-white/15">
+                    <Badge className={`text-xs px-2 py-0 h-5 flex-shrink-0 ${isRx ? 'bg-emerald-500/30 text-emerald-200' : 'bg-blue-500/30 text-blue-200'}`}>
+                      {isRx ? 'Rx' : 'Rec'}
+                    </Badge>
+                    <span className="text-white text-sm font-mono flex-1 truncate">{val}</span>
+                    <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {/* ── Bottom: all buttons pinned to bottom ── */}
+        <div className="w-full max-w-lg flex items-center justify-between px-6 pb-3 gap-2">
+          {/* Left: switch camera */}
+          <div className="w-14 h-14 flex items-center justify-center">
+            {cameraCount > 1 ? (
+              <button
+                type="button"
+                onClick={switchCamera}
+                disabled={isStartingCamera}
+                className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-14 h-14 text-white transition active:scale-95 disabled:opacity-50 touch-manipulation"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+                title="Switch camera lens"
+              >
+                {isStartingCamera
+                  ? <div className="animate-spin w-6 h-6 border-2 border-white border-t-transparent rounded-full" />
+                  : <SwitchCamera className="w-6 h-6" />}
+              </button>
+            ) : <div className="w-14 h-14" />}
+          </div>
+
+          {/* Left-center: zoom out */}
+          {canZoom ? (
+            <button
+              type="button"
+              onClick={() => adjustZoom(-0.5)}
+              className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-14 h-14 text-white transition active:scale-95 touch-manipulation"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+              title="Zoom out"
+            >
+              <Minus className="w-6 h-6" />
+            </button>
+          ) : <div className="w-14 h-14" />}
+
+          {/* Center: zoom in */}
+          {canZoom ? (
+            <button
+              type="button"
+              onClick={() => adjustZoom(0.5)}
+              className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-14 h-14 text-white transition active:scale-95 touch-manipulation"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+              title="Zoom in"
+            >
+              <ZoomIn className="w-6 h-6" />
+            </button>
+          ) : <div className="w-14 h-14" />}
+
+          {/* Right-center: torch */}
+          {hasTorch ? (
+            <button
+              type="button"
+              onClick={toggleTorch}
+              className={`flex items-center justify-center rounded-full w-14 h-14 transition active:scale-95 touch-manipulation ${torchOn ? 'bg-emerald-600 text-white' : 'bg-white/20 backdrop-blur-sm text-white'}`}
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+              title="Toggle torch"
+            >
+              <Sun className="w-6 h-6" />
+            </button>
+          ) : <div className="w-14 h-14" />}
+
+          {/* Right: close */}
+          <button
+            type="button"
+            onClick={() => { stopCameraReader(); setShowCamera(false); }}
+            className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-14 h-14 text-white transition active:scale-95 touch-manipulation"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+            title="Close camera"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+      </div>
       }
     </div>);
 
