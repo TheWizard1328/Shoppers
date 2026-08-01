@@ -255,7 +255,7 @@ export default function DeliveryCameraOverlay({
         {/* ── Top: viewfinder + status hint + results ── */}
         <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
           {/* Viewfinder */}
-          <div className="relative w-full" style={{ height: '38vh', minHeight: '200px', maxHeight: '340px' }}>
+          <div className="relative w-full" style={{ aspectRatio: '16 / 7' }}>
             <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
               scanState === 'selected' ? 'border-emerald-400' :
               scanState === 'scanning' ? 'border-blue-400' :
@@ -263,7 +263,7 @@ export default function DeliveryCameraOverlay({
               blurWarning ? 'border-red-400/60' :
               'border-white/30'
             }`}>
-              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: "center" }} />
               <canvas ref={canvasRef} style={{ display: 'none' }} />
 
               {/* Burst progress bar */}
