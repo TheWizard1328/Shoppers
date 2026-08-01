@@ -295,8 +295,7 @@ export default function SmartBarcodeScanner({
     setCameraError(null);
     setIsStartingCamera(true);
 
-    // Always-safe constraints: facingMode: ideal never hard-rejects.
-    // Enumerate devices AFTER permission grant (enumerateDevices returns labels only after grant).
+    // facingMode: ideal picks back camera on ~all Android devices without hard-rejecting.
     const baseConstraints = {
       video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
       audio: false
@@ -305,24 +304,6 @@ export default function SmartBarcodeScanner({
     try {
       // Step 1: Get stream with safe constraints first
       let stream = await navigator.mediaDevices.getUserMedia(baseConstraints);
-
-      // Step 2: After permission granted, try to re-enumerate and find exact back camera
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter(d => d.kind === 'videoinput');
-        const backCam = videoInputs.find(d => /back|rear|environment/i.test(d.label));
-        const backId = backCam?.deviceId;
-        if (backId) {
-          // Re-open with exact deviceId for best quality — stop the initial stream first
-          stream.getTracks().forEach(t => t.stop());
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: backId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-            audio: false
-          });
-        }
-      } catch {
-        // Fine — keep the initial stream
-      }
 
       // Attach stream to video element
       if (videoRef.current) {

@@ -291,20 +291,6 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
       // Step 1: Safe open — facingMode ideal never hard-rejects
       let stream = await navigator.mediaDevices.getUserMedia(baseConstraints);
 
-      // Step 2: Enumerate after permission granted, upgrade to exact deviceId if back cam found
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter(d => d.kind === 'videoinput');
-        const backCam = videoInputs.find(d => /back|rear|environment/i.test(d.label));
-        if (backCam?.deviceId) {
-          stream.getTracks().forEach(t => t.stop());
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: backCam.deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-            audio: false
-          });
-        }
-      } catch { /* keep initial stream */ }
-
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         try { await videoRef.current.play(); } catch {}
