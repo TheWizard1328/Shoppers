@@ -1,5 +1,6 @@
 import { offlineDB } from './offlineDatabase';
 import { createOfflineSyncPreRenderHelpers } from './offlineSyncPreRender';
+import { getSyncPaused } from './offlineSyncState';
 
 export const createOfflineSyncPriorityHelpers = ({
   AppUser,
@@ -117,6 +118,10 @@ export const createOfflineSyncPriorityHelpers = ({
           const futureIncomingIds = new Set(futureDeliveries.map(d => d?.id).filter(Boolean));
           const existingFutureForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === futureDateStr);
           const toDeleteFuture = existingFutureForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !futureIncomingIds.has(d.id));
+          if (getSyncPaused()) {
+            console.log('⏸️ [PrioritySyncBeforeRefresh] Skipping future-date bulkSave — paused during action');
+            break;
+          }
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, futureDeliveries);
           if (toDeleteFuture.length > 0) {
             await Promise.all(toDeleteFuture.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
@@ -135,6 +140,10 @@ export const createOfflineSyncPriorityHelpers = ({
         const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
         const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
         const selectedDateDeliveries = deliveries.filter(d => d?.delivery_date === selectedDateStr);
+        if (getSyncPaused()) {
+          console.log('⏸️ [PrioritySyncBeforeRefresh] Skipping selected-date bulkSave — paused during action');
+          return { skipped: true, reason: 'paused_during_action' };
+        }
         if (selectedDateDeliveries.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, selectedDateDeliveries);
         }
@@ -302,6 +311,10 @@ export const createOfflineSyncPriorityHelpers = ({
         const incomingIds2 = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
         const existingForDate2 = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
         const toDelete2 = existingForDate2.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds2.has(d.id));
+        if (getSyncPaused()) {
+          console.log('⏸️ [LoadPriorityData] Skipping deliveries bulkSave — paused during action');
+          return { skipped: true, reason: 'paused_during_action' };
+        }
         if (deliveries && deliveries.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
         }

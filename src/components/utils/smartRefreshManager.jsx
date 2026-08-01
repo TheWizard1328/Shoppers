@@ -421,6 +421,10 @@ class LightweightRefreshManager {
               updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
               console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
               
+              if (this._paused) {
+                console.log('⏸️ [LightweightRefresh] Skipping AppUsers bulkSave — paused during action');
+                return;
+              }
               // Save freshness-guarded records to offline DB
               await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshnessGuarded);
               
@@ -429,6 +433,10 @@ class LightweightRefreshManager {
                 detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
               }));
             } else {
+              if (this._paused) {
+                console.log('⏸️ [LightweightRefresh] Skipping AppUsers bulkSave (no-diff) — paused during action');
+                return;
+              }
               // Even if no structural diff, ensure offline DB has latest server data
               // (non-location fields like driver_status, preferred_travel_mode, etc.)
               await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshnessGuarded);
@@ -533,6 +541,10 @@ class LightweightRefreshManager {
           }
           return serverUser;
         });
+        if (this._paused) {
+          console.log('⏸️ [SmartRefresh] Skipping driver locations bulkSave — paused during action');
+          return { hasChanges: false, appUsers: currentAppUsers };
+        }
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, guardedUsers);
         
         console.log(`✅ [SmartRefresh] Refreshed ${guardedUsers.length} driver locations`);

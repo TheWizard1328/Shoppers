@@ -273,6 +273,10 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     }
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
     // CRITICAL: Use bulkSave to merge, not replaceRecordsByIndex which clears data
+    if (getSyncPaused()) {
+      console.log('⏸️ [LoadPriorityData] Skipping deliveries bulkSave — paused during action');
+      return { skipped: true, reason: 'paused_during_action' };
+    }
     if (deliveries && deliveries.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     }
@@ -447,6 +451,10 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
     const incomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
     const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
     const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
+    if (getSyncPaused()) {
+      console.log('⏸️ [LoadAndCacheDeliveries] Skipping bulkSave — paused during action');
+      return [];
+    }
     if (deliveries && deliveries.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     }
@@ -634,6 +642,10 @@ export const forceSyncAll = async () => {
       const fsIncomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
       const fsExisting = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
       const fsToDelete = fsExisting.filter(d => d?.id && !d.id.startsWith('temp_') && !fsIncomingIds.has(d.id));
+      if (getSyncPaused()) {
+        console.log('⏸️ [ForceSyncAll] Skipping deliveries bulkSave — paused during action');
+        return { skipped: true, reason: 'paused_during_action' };
+      }
       if (deliveries && deliveries.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
       if (fsToDelete.length > 0) await Promise.all(fsToDelete.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
     }
@@ -690,6 +702,10 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
 
     // CRITICAL: Merge deliveries, never delete — user edits must be preserved
+    if (getSyncPaused()) {
+      console.log('⏸️ [ManualSyncSelected] Skipping deliveries bulkSave — paused during action');
+      return { skipped: true, reason: 'paused_during_action' };
+    }
     if (deliveries && deliveries.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     }

@@ -107,6 +107,10 @@ export const createOfflineSyncBackgroundService = ({
             return true;
           })
           .map(d => d.id);
+        if (getSyncPaused()) {
+          console.log('⏸️ [BackgroundSync] Skipping selected-date bulkSave — paused during action');
+          return { skipped: true, reason: 'paused_during_action' };
+        }
         if (selectedDateDeliveries && selectedDateDeliveries.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, selectedDateDeliveries);
         }
@@ -160,6 +164,10 @@ export const createOfflineSyncBackgroundService = ({
               return true;
             })
             .map(d => d.id);
+          if (getSyncPaused()) {
+            console.log('⏸️ [BackgroundSync] Skipping historical-date bulkSave — paused during action');
+            return { skipped: true, reason: 'paused_during_action' };
+          }
           if (onlineDeliveries && onlineDeliveries.length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveries);
           }
