@@ -657,21 +657,21 @@ export default function SmartBarcodeScanner({
         {/* ── Bottom: all buttons pinned to bottom ── */}
         <div className="w-full max-w-lg flex items-center justify-between px-6 pb-3 gap-2">
           {/* Left: switch camera */}
-          <div className="w-14 h-14 flex items-center justify-center">
+          <div className="w-16 h-16 flex items-center justify-center">
             {cameraCount > 1 ? (
               <button
                 type="button"
                 onClick={switchCamera}
                 disabled={isStartingCamera}
-                className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-14 h-14 text-white transition active:scale-95 disabled:opacity-50 touch-manipulation"
+                className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-16 h-16 text-white transition active:scale-95 disabled:opacity-50 touch-manipulation"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
                 title="Switch camera lens"
               >
                 {isStartingCamera
                   ? <div className="animate-spin w-6 h-6 border-2 border-white border-t-transparent rounded-full" />
-                  : <SwitchCamera className="w-6 h-6" />}
+                  : <SwitchCamera className="w-7 h-7" />}
               </button>
-            ) : <div className="w-14 h-14" />}
+            ) : <div className="w-16 h-16" />}
           </div>
 
           {/* Left-center: zoom out */}
@@ -683,9 +683,9 @@ export default function SmartBarcodeScanner({
               style={{ WebkitTapHighlightColor: 'transparent' }}
               title="Zoom out"
             >
-              <Minus className="w-6 h-6" />
+              <Minus className="w-7 h-7" />
             </button>
-          ) : <div className="w-14 h-14" />}
+          ) : <div className="w-16 h-16" />}
 
           {/* Center: zoom in */}
           {canZoom ? (
@@ -696,32 +696,32 @@ export default function SmartBarcodeScanner({
               style={{ WebkitTapHighlightColor: 'transparent' }}
               title="Zoom in"
             >
-              <ZoomIn className="w-6 h-6" />
+              <ZoomIn className="w-7 h-7" />
             </button>
-          ) : <div className="w-14 h-14" />}
+          ) : <div className="w-16 h-16" />}
 
           {/* Right-center: torch */}
           {hasTorch ? (
             <button
               type="button"
               onClick={toggleTorch}
-              className={`flex items-center justify-center rounded-full w-14 h-14 transition active:scale-95 touch-manipulation ${torchOn ? 'bg-emerald-600 text-white' : 'bg-white/20 backdrop-blur-sm text-white'}`}
+              className={`flex items-center justify-center rounded-full w-16 h-16 transition active:scale-95 touch-manipulation ${torchOn ? 'bg-emerald-600 text-white' : 'bg-white/20 backdrop-blur-sm text-white'}`}
               style={{ WebkitTapHighlightColor: 'transparent' }}
               title="Toggle torch"
             >
-              <Sun className="w-6 h-6" />
+              <Sun className="w-7 h-7" />
             </button>
-          ) : <div className="w-14 h-14" />}
+          ) : <div className="w-16 h-16" />}
 
           {/* Right: close (green check when barcodes scanned, X when empty) */}
           <button
             type="button"
             onClick={() => { stopCameraReader(); setShowCamera(false); }}
-            className={`flex items-center justify-center rounded-full w-14 h-14 text-white transition active:scale-95 touch-manipulation ${allValues.length > 0 ? 'bg-emerald-600' : 'bg-white/20 backdrop-blur-sm'}`}
+            className={`flex items-center justify-center rounded-full w-16 h-16 text-white transition active:scale-95 touch-manipulation ${allValues.length > 0 ? 'bg-emerald-600' : 'bg-white/20 backdrop-blur-sm'}`}
             style={{ WebkitTapHighlightColor: 'transparent' }}
             title={allValues.length > 0 ? 'Done' : 'Close camera'}
           >
-            {allValues.length > 0 ? <Check className="w-6 h-6" /> : <X className="w-6 h-6" />}
+            {allValues.length > 0 ? <Check className="w-7 h-7" /> : <X className="w-7 h-7" />}
           </button>
         </div>
       </div>

@@ -446,7 +446,7 @@ export default function DeliveryCameraOverlay({
              scanState === 'error' ? 'Scan failed' :
              blurWarning ? 'Too blurry — try again' :
              barcodeDetected ? 'Barcode detected — capturing...' :
-             'Point at a prescription label'}
+             'Point at a prescription label and click'}
           </div>
 
           {/* Results panel (scrollable if needed) */}
@@ -470,22 +470,18 @@ export default function DeliveryCameraOverlay({
 
         {/* ── Bottom: action bar pinned to bottom of screen ── */}
         <div className="w-full max-w-lg flex items-center justify-between px-6 pb-3">
-          {/* Left: switch camera */}
-          <div className="w-16 h-16 flex items-center justify-center">
-            {cameraCount > 1 && (scanState === 'idle' || scanState === 'error') ? (
-              <button
-                type="button"
-                onClick={handleSwitch}
-                disabled={switching}
-                className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-16 h-16 text-white transition active:scale-95 disabled:opacity-50 touch-manipulation"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                {switching
-                  ? <div className="animate-spin w-6 h-6 border-2 border-white border-t-transparent rounded-full" />
-                  : <SwitchCamera className="w-7 h-7" />}
-              </button>
-            ) : <div className="w-16 h-16" />}
-          </div>
+          {/* Left: switch camera — always visible, same size/shape as capture */}
+          <button
+            type="button"
+            onClick={handleSwitch}
+            disabled={switching || scanState === 'scanning' || scanState === 'bursting'}
+            className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-16 h-16 text-white transition active:scale-95 disabled:opacity-50 touch-manipulation"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            {switching
+              ? <div className="animate-spin w-6 h-6 border-2 border-white border-t-transparent rounded-full" />
+              : <SwitchCamera className="w-7 h-7" />}
+          </button>
 
           {/* Center: capture */}
           {showCaptureButton ? (
@@ -500,7 +496,7 @@ export default function DeliveryCameraOverlay({
             </button>
           ) : <div className="w-16 h-16" />}
 
-          {/* Right: close */}
+          {/* Right: close — same size/shape as capture */}
           <button
             type="button"
             onClick={handleClose}

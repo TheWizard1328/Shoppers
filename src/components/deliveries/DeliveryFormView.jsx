@@ -1990,6 +1990,7 @@ export default function DeliveryFormView({
         onPatientSelect={handleSelectMatchedPatient}
         onCreatePatient={onCreatePatient}
         stores={stores}
+        appUser={currentUser}
         onClose={() => {stopCamera();setShowCameraOverlay(false);setIsScanning(false);}} />
       
 
