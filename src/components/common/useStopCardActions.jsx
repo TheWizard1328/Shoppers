@@ -1096,26 +1096,25 @@ export default function useStopCardActions(params) {
           }
         }
 
-        await Promise.all(
-          startedChangedDeliveries.map((item) => {
-            const existing = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
-            if (!existing) return Promise.resolve(null);
-            const updates = {};
-            if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
-            // For the started stop: persist status immediately (no delivery_time_start on Start)
-            if (item.id === delivery.id && existing.status !== expectedStartStatus) {
-              updates.status = expectedStartStatus;
-            }
-            if (Object.keys(updates).length === 0) return Promise.resolve(null);
-            return Promise.all([
-              updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true }),
-              base44.entities.Delivery.update(item.id, updates).catch(() => null)
-            ]);
-          })
-        );
+        // OPTIMIZATION: Server writes are fire-and-forget — IDB already has the
+        // optimistic state from the bulkSave above. Awaiting these adds ~3-6s of
+        // blocking time (N parallel server round-trips). The 90s WS echo suppression
+        // window above already handles the echoes from these writes.
+        for (const item of startedChangedDeliveries) {
+          const existing = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
+          if (!existing) continue;
+          const updates = {};
+          if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
+          if (item.id === delivery.id && existing.status !== expectedStartStatus) {
+            updates.status = expectedStartStatus;
+          }
+          if (Object.keys(updates).length === 0) continue;
+          updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true }).catch(() => {});
+          base44.entities.Delivery.update(item.id, updates).catch(() => null);
+        }
 
         if (!isPickup && patient?.id && patient?.status === 'inactive') {
-          await base44.entities.Patient.update(patient.id, { status: 'active' });
+          base44.entities.Patient.update(patient.id, { status: 'active' }).catch(() => null);
         }
 
         await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
@@ -1163,12 +1162,11 @@ export default function useStopCardActions(params) {
         });
 
         // ── Unlock UI immediately — optimization/polyline work runs in background ──
-        // NOTE: managers stay paused; background tail re-pauses them before its API calls
-        resumeOfflineSync('delivery_actions');
+        // OPTIMIZATION: Only resume driverLocationPoller (needed for GPS tracking).
+        // Keep sync managers paused — the background tail will resume them after
+        // optimization completes. Resuming here caused sync cycles to fire during
+        // the HERE API calls, competing for bandwidth and main thread time.
         driverLocationPoller.resume();
-        smartRefreshManager.resume();
-        backgroundSyncManager.resume();
-        resumeRealtimeSync();
         resetActionLocks(true);
         if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
           notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }).catch(() => {});
@@ -1204,11 +1202,9 @@ export default function useStopCardActions(params) {
         // KITT bar activates IMMEDIATELY on Start button click
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         Promise.resolve().then(async () => {
-          // Re-pause for the async optimization work
-          smartRefreshManager.pause();
-          backgroundSyncManager.pause();
-          pauseRealtimeSync();
-          pauseOfflineSync('delivery_actions');
+          // Only pause offline mutations — sync managers are still paused from the
+          // blocking path (we never resumed them). This eliminates the resume/re-pause
+          // race that caused sync cycles to fire during HERE API calls.
           pauseOfflineMutations();
           try {
             // Unified FAB path: optimizeRemainingStops → regenerateType1Polyline
@@ -1230,15 +1226,25 @@ export default function useStopCardActions(params) {
             ];
 
 
+            // Resolve driver current location from appUsers (same as manual FAB)
+            const _startDriverAppUser = (appUsers || []).find(au => au?.user_id === delivery.driver_id || au?.id === delivery.driver_id) || null;
+            const _startDriverLat = Number(_startDriverAppUser?.current_latitude);
+            const _startDriverLon = Number(_startDriverAppUser?.current_longitude);
+            const _startCurrentLocation = Number.isFinite(_startDriverLat) && Number.isFinite(_startDriverLon)
+              ? { lat: _startDriverLat, lon: _startDriverLon } : null;
+
             const coordResult = await performRouteOptimization({
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
+              currentLocation: _startCurrentLocation,
               deliveries: _startFullDeliveries,
               patients,
               stores,
               appUsers,
               source: 'start_button',
               bypassDriverStatus: true,
+              recalcTrackingNumbers: true,
+              recalcTrackingStoreId: delivery.store_id,
             }).catch((err) => { console.warn('⚠️ [Start bg] optimization failed:', err?.message || err); return null; });
 
             // Use freshDeliveries from the optimizer — it already wrote to IDB and
@@ -1249,32 +1255,20 @@ export default function useStopCardActions(params) {
             console.log(`[Start bg] optimizer returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
 
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
-              const withNextFlag = refreshedList.map((d) => ({
-                ...d,
-                isNextDelivery: d.id === delivery.id ? true : (d.isNextDelivery && d.id !== delivery.id ? false : d.isNextDelivery),
-              }));
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, withNextFlag).catch(() => {});
-              updateDeliveriesLocally?.(withNextFlag, false);
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: withNextFlag } }));
-              // Broadcast mutations ONLY for non-terminal deliveries — completed/failed/cancelled
-              // stops are final and should NOT be re-broadcast during Start, Complete, Cancel, or Fail.
-              // This prevents unnecessary WS echoes for finished stops that other devices already have.
+              // OPTIMIZATION: Coordinator already wrote freshDeliveries to IDB (line 337 of
+              // routeOptimizationCoordinator.jsx) and the engine already sets isNextDelivery
+              // in the writeBatch. No redundant bulkSave or updateDeliveriesLocally needed —
+              // just dispatch the UI event with the coordinator's fresh data.
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: false, freshDeliveries: refreshedList } }));
+              // Broadcast mutations ONLY for non-terminal deliveries (fire-and-forget)
               const _terminalSet = new Set(['completed', 'failed', 'cancelled']);
-              const _activeForBroadcast = withNextFlag.filter(d => !_terminalSet.has(d?.status));
+              const _activeForBroadcast = refreshedList.filter(d => !_terminalSet.has(d?.status));
               import('../utils/realtimeSync').then(({ broadcastMutation }) => {
                 Promise.all(_activeForBroadcast.map((item) => broadcastMutation('Delivery', 'update', item.id, item))).catch(() => {});
               }).catch(() => {});
             } else {
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
             }
-
-            try {
-              const _startDeliveries = (refreshedList || allDeliveries).filter(d => d?.driver_id === delivery.driver_id && d?.delivery_date === delivery.delivery_date);
-              const _startTRUpdates = recalculateTrackingNumbersLocal({ deliveries: _startDeliveries, stores, patients });
-              if (_startTRUpdates.length > 0) {
-                await applyTrackingNumberUpdates({ updates: _startTRUpdates, allDeliveries: _startDeliveries, updateDeliveriesLocally, updateDeliveryLocal });
-              }
-            } catch (_) {}
 
             window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
@@ -1283,10 +1277,10 @@ export default function useStopCardActions(params) {
           } catch (bgErr) {
             console.warn('⚠️ [Start bg] background optimization failed:', bgErr?.message || bgErr);
           } finally {
-            // Always resume after background work completes or fails
+            // Resume ALL managers — they were kept paused from the blocking path
             resumeOfflineSync('delivery_actions');
             resumeOfflineMutations();
-            smartRefreshManager.resume();
+            smartRefreshManager.restart();
             backgroundSyncManager.resume();
             resumeRealtimeSync();
           }
