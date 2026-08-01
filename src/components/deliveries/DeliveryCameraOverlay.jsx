@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, SwitchCamera, X, Check, User, Phone, MapPin, AlertCircle, Zap } from "lucide-react";
+import { Camera, SwitchCamera, X, Check, User, Phone, MapPin, AlertCircle, Zap, ScanLine } from "lucide-react";
 import { listCameras, cycleRearCamera } from "./useDeliveryCamera";
 import { scanPrescriptionLabel } from "./prescriptionScanHelpers";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
@@ -60,6 +60,17 @@ export default function DeliveryCameraOverlay({
   const overlayActiveRef = useRef(false);
   const scanInProgressRef = useRef(false);
 
+  // ── Barcode-triggered auto-capture ──
+  const nativeDetectorRef = useRef(null);
+  const barcodeLoopRef = useRef(null);
+  const lastBarcodeAtRef = useRef(0);
+  const lastBarcodeValueRef = useRef('');
+  const [barcodeDetected, setBarcodeDetected] = useState(false);
+
+  // Refs for interval-safe access
+  const scanStateRef = useRef(scanState);
+  scanStateRef.current = scanState;
+
   // ── Camera switching ──
   const handleSwitch = useCallback(async () => {
     if (switching || scanState === 'scanning' || scanState === 'bursting' || !videoRef.current) return;
@@ -78,7 +89,109 @@ export default function DeliveryCameraOverlay({
     }
   }, [switching, scanState, videoRef]);
 
-  // ── Burst capture: grab N frames, pick the sharpest ──
+  // ── Barcode-triggered fast capture: single frame, no sharpness gate ──
+  const handleBarcodeCapture = useCallback(async () => {
+    if (scanInProgressRef.current || !videoRef.current || !canvasRef.current) return;
+    if (!overlayActiveRef.current) return;
+
+    scanInProgressRef.current = true;
+    setScanState('scanning');
+    setBlurWarning(false);
+
+    try {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      if (!blob) throw new Error('Failed to capture image');
+
+      console.log('[DeliveryCameraOverlay] Barcode-triggered capture → LLM');
+      const file = new File([blob], 'prescription_scan.jpg', { type: 'image/jpeg' });
+      const result = await scanPrescriptionLabel({ file, mode: 'fileUrl' });
+
+      if (result.error) throw new Error(result.error);
+      setScanResults(result);
+
+      const allMatches = [...(result.exactMatches || []), ...(result.matches || [])];
+      if (allMatches.length === 1 && allMatches[0].matchScore >= CONFIDENCE_THRESHOLD) {
+        setScanState('selected');
+        if (onPatientSelect) await onPatientSelect(allMatches[0].patient, allMatches[0].matchScore === 100);
+        setTimeout(() => handleClose(), 600);
+      } else {
+        setScanState('results');
+      }
+    } catch (e) {
+      console.error('[DeliveryCameraOverlay] Barcode scan failed:', e?.message);
+      setScanState('error');
+      setScanResults({ error: e?.message || 'Scan failed' });
+      setTimeout(() => {
+        if (overlayActiveRef.current) { setScanState('idle'); setScanResults(null); }
+      }, 2500);
+    } finally {
+      scanInProgressRef.current = false;
+    }
+  }, [onPatientSelect, onClose]);
+
+  const handleBarcodeCaptureRef = useRef(handleBarcodeCapture);
+  handleBarcodeCaptureRef.current = handleBarcodeCapture;
+
+  // ── Barcode detection loop ──
+  const startBarcodeLoop = useCallback(() => {
+    if (barcodeLoopRef.current) return;
+    if (typeof window === 'undefined' || !('BarcodeDetector' in window)) {
+      console.log('[DeliveryCameraOverlay] No BarcodeDetector — manual capture only');
+      return;
+    }
+    try {
+      nativeDetectorRef.current = new window.BarcodeDetector({
+        formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e']
+      });
+    } catch {
+      console.warn('[DeliveryCameraOverlay] BarcodeDetector init failed');
+      return;
+    }
+    let lastDetectAt = 0;
+    barcodeLoopRef.current = setInterval(async () => {
+      if (!overlayActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) return;
+      if (scanInProgressRef.current) return;
+      const st = scanStateRef.current;
+      if (st !== 'idle' && st !== 'error') return;
+
+      const now = Date.now();
+      if (now - lastDetectAt < 150) return;
+      lastDetectAt = now;
+
+      try {
+        const barcodes = await nativeDetectorRef.current.detect(videoRef.current);
+        if (barcodes?.length > 0) {
+          const text = barcodes[0].rawValue || '';
+          if (text && (text !== lastBarcodeValueRef.current || now - lastBarcodeAtRef.current > 800)) {
+            lastBarcodeValueRef.current = text;
+            lastBarcodeAtRef.current = now;
+            setBarcodeDetected(true);
+            console.log('[DeliveryCameraOverlay] Barcode:', text, '→ auto-capture');
+            handleBarcodeCaptureRef.current();
+          }
+        } else {
+          if (scanStateRef.current === 'idle') setBarcodeDetected(false);
+        }
+      } catch {}
+    }, 120);
+    console.log('[DeliveryCameraOverlay] Barcode auto-capture loop started');
+  }, []);
+
+  const stopBarcodeLoop = useCallback(() => {
+    if (barcodeLoopRef.current) { clearInterval(barcodeLoopRef.current); barcodeLoopRef.current = null; }
+    nativeDetectorRef.current = null;
+    lastBarcodeValueRef.current = '';
+    setBarcodeDetected(false);
+  }, []);
+
+  // ── Burst capture: grab N frames, pick the sharpest (manual fallback) ──
   const handleBurstCapture = useCallback(async () => {
     if (scanInProgressRef.current || !videoRef.current || !canvasRef.current) return;
     if (scanState === 'scanning' || scanState === 'bursting') return;
@@ -222,12 +335,14 @@ export default function DeliveryCameraOverlay({
     setScanState('idle');
     setScanResults(null);
     setBlurWarning(false);
+    lastBarcodeValueRef.current = '';
   }, []);
 
   // ── Reset state when overlay opens; hide GuideAssistant while open ──
   useEffect(() => {
     if (!show) {
       overlayActiveRef.current = false;
+      stopBarcodeLoop();
       window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: false } }));
       return;
     }
@@ -237,7 +352,8 @@ export default function DeliveryCameraOverlay({
     setBlurWarning(false);
     listCameras().then(cams => setCameraCount(cams.length)).catch(() => {});
     window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: true } }));
-  }, [show]);
+    setTimeout(() => startBarcodeLoop(), 800);
+  }, [show, startBarcodeLoop, stopBarcodeLoop]);
 
   if (!show) return null;
 
@@ -301,14 +417,21 @@ export default function DeliveryCameraOverlay({
                 </div>
               )}
 
-              {/* Corner brackets */}
+              {/* Corner brackets — turn green when barcode detected */}
               {scanState === 'idle' && !blurWarning && (
                 <>
-                  <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-white/40 rounded-tl" />
-                  <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-white/40 rounded-tr" />
-                  <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-white/40 rounded-bl" />
-                  <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-white/40 rounded-br" />
+                  <div className={`absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 rounded-tl transition-colors duration-200 ${barcodeDetected ? 'border-emerald-400' : 'border-white/40'}`} />
+                  <div className={`absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 rounded-tr transition-colors duration-200 ${barcodeDetected ? 'border-emerald-400' : 'border-white/40'}`} />
+                  <div className={`absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 rounded-bl transition-colors duration-200 ${barcodeDetected ? 'border-emerald-400' : 'border-white/40'}`} />
+                  <div className={`absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 rounded-br transition-colors duration-200 ${barcodeDetected ? 'border-emerald-400' : 'border-white/40'}`} />
                 </>
+              )}
+              {/* Barcode detected badge */}
+              {barcodeDetected && scanState === 'idle' && (
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-emerald-500/30 backdrop-blur-sm px-3 py-1 rounded-full">
+                  <ScanLine className="w-4 h-4 text-emerald-300" />
+                  <span className="text-emerald-200 text-xs font-medium">Barcode found</span>
+                </div>
               )}
             </div>
           </div>
@@ -320,8 +443,9 @@ export default function DeliveryCameraOverlay({
              scanState === 'results' ? 'Select patient' :
              scanState === 'selected' ? '\u2713 Patient selected' :
              scanState === 'error' ? 'Scan failed' :
-             blurWarning ? 'Too blurry \u2014 try again' :
-             'Point at a prescription label & tap'}
+             blurWarning ? 'Too blurry — try again' :
+             barcodeDetected ? 'Barcode detected — capturing...' :
+             'Point at a prescription label'}
           </div>
 
           {/* Results panel (scrollable if needed) */}
