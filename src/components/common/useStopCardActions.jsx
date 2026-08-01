@@ -1117,10 +1117,25 @@ export default function useStopCardActions(params) {
           base44.entities.Patient.update(patient.id, { status: 'active' }).catch(() => null);
         }
 
-        await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
+        // CRITICAL: No setAndCenterNextDelivery — the optimistic update above already
+        // set isNextDelivery correctly on both the target and previous stop, wrote to
+        // IDB, and triggered updateDeliveriesLocally. Calling setAndCenterNextDelivery
+        // would re-compute the same flags, re-write IDB, and trigger a SECOND
+        // setDeliveries → React re-render. That second re-render clogs the main thread,
+        // delaying the engine's setTimeout(0) yield by 5-10s.
+        //
+        // CRITICAL: No deliveriesUpdated event — it fires 10 listeners
+        // (useLayoutEventHandlers merges freshDeliveries + IDB writes, StatsPanel
+        // reloads, DeliveryMap recalculates, etc). The updateDeliveriesLocally call
+        // at line 1085 already updated React state. The background optimization tail
+        // will dispatch deliveriesUpdated with the optimizer's freshDeliveries when
+        // it completes.
+        //
+        // CRITICAL: No refreshDeliveryStats event — stats will refresh when the
+        // optimizer returns and dispatches its own deliveriesUpdated event.
+        //
+        // Only dispatch centerStopCard (lightweight scroll, no state change).
         window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: startedChangedDeliveries } }));
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
         // Final step: Route optimization and polyline regeneration
         if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
