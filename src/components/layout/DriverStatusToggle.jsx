@@ -38,8 +38,10 @@ const buildUpdatePayload = (newStatus, currentLat, currentLng) => {
   if (newStatus === 'on_break') {
     return { driver_status: newStatus, location_tracking_enabled: true, location_updated_at: nowTimestamp, current_latitude: currentLat, current_longitude: currentLng };
   }
-  // off_duty
-  return { driver_status: newStatus, location_tracking_enabled: false, location_updated_at: null, current_latitude: null, current_longitude: null };
+  // off_duty — preserve last known coordinates so the driver can still see their
+  // own location marker. Only location_tracking_enabled is disabled; other users
+  // are gated by shouldShowMarker() checks on that flag + driver_status.
+  return { driver_status: newStatus, location_tracking_enabled: false, current_latitude: currentLat, current_longitude: currentLng };
 };
 
 // Use the locationTracker's getFreshPosition — it has a cached fallback
