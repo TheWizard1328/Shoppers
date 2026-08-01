@@ -249,43 +249,122 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   }, [addBarcode]);
 
   // Camera start/stop
-  const startCamera = useCallback(async () => {
-    if (disabled || isReaderActiveRef.current) return;
+  // Native BarcodeDetector refs
+  const nativeDetectorRef = useRef(null);
+  const nativeScanLoopRef = useRef(null);
+  const [cameraError, setCameraError] = useState(null);
+
+  const buildCameraConstraints = useCallback(async () => {
+    let selectedDeviceId = null;
     try {
-      setIsStartingCamera(true);
-      codeReaderRef.current = new BrowserMultiFormatReader();
-      isReaderActiveRef.current = true;
+      const inputs = await BrowserMultiFormatReader.listVideoInputDevices();
+      const back = inputs.find(d => /back|rear|environment/i.test(d.label));
+      selectedDeviceId = (back || inputs[inputs.length - 1])?.deviceId || null;
+    } catch {}
 
-      // Prefer rear camera with decent resolution for better decode accuracy
-      // Prefer rear camera explicitly when possible
-      let selectedDeviceId = null;
-      try {
-        const inputs = await BrowserMultiFormatReader.listVideoInputDevices();
-        const back = inputs.find(d => /back|rear|environment/i.test(d.label));
-        selectedDeviceId = (back || inputs[inputs.length - 1])?.deviceId || null;
-      } catch {}
-
-      const constraints = {
+    if (selectedDeviceId) {
+      return {
         video: {
-          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-          facingMode: { ideal: 'environment' },
-          width: { min: 1280, ideal: 1920 },
-          height: { min: 720, ideal: 1080 },
-          aspectRatio: { ideal: 16/9 },
-          frameRate: { ideal: 30, max: 60 }
+          deviceId: { exact: selectedDeviceId },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 }
         },
         audio: false
       };
+    }
+    return {
+      video: {
+        facingMode: { exact: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 30 }
+      },
+      audio: false
+    };
+  }, []);
 
-      // Bias decoder toward common pharma/shipping symbologies
+  const configureTrack = useCallback(() => {
+    try {
+      const stream = videoRef.current?.srcObject;
+      streamRef.current = stream || null;
+      const track = stream?.getVideoTracks?.()[0];
+      if (!track) return;
+      const caps = track.getCapabilities?.() || {};
+      if (caps.zoom) {
+        setCanZoom(true);
+        const target = Math.min(Math.max(2, caps.zoom.min || 1), caps.zoom.max || 1);
+        track.applyConstraints({ advanced: [{ zoom: target }] }).catch(() => {});
+        setZoom(target);
+      }
+      if (caps.torch) setHasTorch(true);
+      if (caps.focusMode?.includes?.('continuous')) {
+        track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+      }
+      if (caps.exposureMode?.includes?.('continuous')) {
+        track.applyConstraints({ advanced: [{ exposureMode: 'continuous' }] }).catch(() => {});
+      }
+    } catch {}
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    if (disabled || isReaderActiveRef.current) return;
+    setCameraError(null);
+    try {
+      setIsStartingCamera(true);
+      const constraints = await buildCameraConstraints();
+
+      // ── Try native BarcodeDetector first (5-10x faster) ──
+      const hasNativeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+      if (hasNativeDetector) {
+        try {
+          nativeDetectorRef.current = new window.BarcodeDetector({
+            formats: ['code_128', 'code_39']
+          });
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play().catch(() => {});
+          }
+          streamRef.current = stream;
+          isReaderActiveRef.current = true;
+          configureTrack();
+
+          let lastDetectAt = 0;
+          nativeScanLoopRef.current = setInterval(async () => {
+            if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) return;
+            const now = Date.now();
+            if (now - lastDetectAt < 100) return;
+            lastDetectAt = now;
+            try {
+              const barcodes = await nativeDetectorRef.current.detect(videoRef.current);
+              if (barcodes && barcodes.length > 0) {
+                const text = barcodes[0].rawValue || String(barcodes[0].value || '');
+                if (text) handleCameraDetected(text);
+              }
+            } catch {}
+          }, 100);
+
+          console.log('[BarcodeScanner] Using native BarcodeDetector');
+          return;
+        } catch (nativeErr) {
+          console.warn('[BarcodeScanner] Native BarcodeDetector failed, falling back to ZXing:', nativeErr?.message);
+          try { clearInterval(nativeScanLoopRef.current); } catch {}
+          try { streamRef.current?.getTracks?.().forEach(t => t.stop()); } catch {}
+          if (videoRef.current) try { videoRef.current.srcObject = null; } catch {}
+          nativeDetectorRef.current = null;
+        }
+      }
+
+      // ── ZXing fallback ──
+      console.log('[BarcodeScanner] Falling back to ZXing');
+      codeReaderRef.current = new BrowserMultiFormatReader();
+      isReaderActiveRef.current = true;
+
       try {
-        const { BarcodeFormat: BF, DecodeHintType: DHT } = { BarcodeFormat, DecodeHintType };
         const hints = new Map();
-        // Restrict to common pharmacy 1D formats for speed/accuracy
-        hints.set(DHT.POSSIBLE_FORMATS, [BF.CODE_128, BF.CODE_39]);
-        try { hints.set(DHT.TRY_HARDER, true); } catch {}
-        try { hints.set(DHT.ASSUME_GS1, true); } catch {}
-        try { hints.set(DHT.ALSO_INVERTED, true); } catch {}
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39]);
+        hints.set(DecodeHintType.ASSUME_GS1, true);
         codeReaderRef.current.setHints(hints);
       } catch {}
 
@@ -299,7 +378,10 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
               if (text) handleCameraDetected(text);
             }
           }
-        );
+        ).catch((zxingErr) => {
+          console.warn('[BarcodeScanner] ZXing decode failed:', zxingErr?.message);
+          setCameraError('Camera failed to start. Please try again.');
+        });
       } else {
         codeReaderRef.current.decodeFromVideoDevice(
           null,
@@ -310,46 +392,22 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
               if (text) handleCameraDetected(text);
             }
           }
-        );
+        ).catch(() => {});
       }
 
-      // capture stream ref once attached and configure focus/zoom/torch if supported
-      setTimeout(() => {
-        try {
-          const stream = videoRef.current?.srcObject;
-          streamRef.current = stream || null;
-          const track = stream?.getVideoTracks?.()[0];
-          if (!track) return;
-          const caps = track.getCapabilities?.() || {};
-          if (caps.zoom) {
-            setCanZoom(true);
-            const target = Math.min(Math.max(2, caps.zoom.min || 1), caps.zoom.max || 1);
-            track.applyConstraints({ advanced: [{ zoom: target }] }).catch(() => {});
-            setZoom(target);
-          }
-          if (caps.torch) {
-            setHasTorch(true);
-          }
-          if (caps.focusMode?.includes?.('continuous')) {
-            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
-          }
-          if (caps.exposureMode?.includes?.('continuous')) {
-            track.applyConstraints({ advanced: [{ exposureMode: 'continuous' }] }).catch(() => {});
-          }
-          if (caps.whiteBalanceMode?.includes?.('continuous')) {
-            track.applyConstraints({ advanced: [{ whiteBalanceMode: 'continuous' }] }).catch(() => {});
-          }
-        } catch {}
-      }, 300);
+      setTimeout(() => configureTrack(), 400);
     } catch (e) {
-      console.warn('Camera start failed', e);
-      // keep overlay open; user can close manually
+      console.warn('[BarcodeScanner] Camera start failed', e);
+      setCameraError(e?.message || 'Could not access camera');
     } finally {
       setIsStartingCamera(false);
     }
-  }, [disabled, handleCameraDetected]);
+  }, [disabled, handleCameraDetected, buildCameraConstraints, configureTrack]);
 
   const stopCameraReader = useCallback(() => {
+    try { clearInterval(nativeScanLoopRef.current); } catch {}
+    nativeScanLoopRef.current = null;
+    nativeDetectorRef.current = null;
     try { codeReaderRef.current?.reset?.(); } catch {}
     try {
       const s = streamRef.current || videoRef.current?.srcObject;
@@ -363,6 +421,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
     }
     streamRef.current = null;
     isReaderActiveRef.current = false;
+    setCameraError(null);
   }, []);
 
   useEffect(() => {
@@ -454,7 +513,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
           type="button"
           size="sm"
           variant="secondary"
-          className="h-9 px-3 flex-shrink-0 sm:hidden"
+          className="h-9 px-3 flex-shrink-0"
           onClick={() => setShowCamera(true)}
           disabled={disabled}
           title="Scan with camera"
@@ -514,7 +573,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
 
             {/* Status */}
             <div className="mt-2 text-center text-xs text-white/70">
-              {isStartingCamera ? 'Starting camera...' : (flashHit ? 'Captured!' : 'Point camera at a barcode • Tap to focus • Use Torch/Zoom if available')}
+              {cameraError ? <span className="text-red-400">{cameraError}</span> : isStartingCamera ? 'Starting camera...' : (flashHit ? 'Captured!' : 'Point camera at a barcode • Tap to focus • Use Torch/Zoom if available')}
             </div>
           </div>
         </div>

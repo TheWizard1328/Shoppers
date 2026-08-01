@@ -1,6 +1,6 @@
 import { base44 } from '@/api/base44Client';
 
-export const compressImage = (file, maxWidth = 1200, quality = 0.7) => new Promise((resolve, reject) => {
+export const compressImage = (file, maxWidth = 1600, quality = 0.85) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = (event) => {
     const img = new Image();
