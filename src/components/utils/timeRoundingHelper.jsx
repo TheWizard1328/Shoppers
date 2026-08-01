@@ -255,10 +255,13 @@ export const calculateRetroactiveStopTiming = async ({
     baseTime = new Date(roundedMs);
   }
 
-  const estimatedArrivalTime = new Date(baseTime.getTime() + 2 * 60000); // +2 min
+  // baseTime = when driver arrives at the stop (end of travel)
+  // actual_delivery_time = arrival + random 1-5 min (time spent at the door)
+  const randomDwellMinutes = Math.floor(Math.random() * 5) + 1;
+  const actualDeliveryTime = new Date(baseTime.getTime() + randomDwellMinutes * 60000);
   return {
-    actual_delivery_time: formatLocalTimestamp(baseTime),
-    arrival_time: formatLocalTimestamp(estimatedArrivalTime),
+    arrival_time: formatLocalTimestamp(baseTime),
+    actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
     travel_dist: Number.isFinite(travelDistanceKm) ? travelDistanceKm : undefined,
   };
 };
