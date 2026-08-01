@@ -9,6 +9,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 import BarcodeThumb from './BarcodeThumb';
+import { getMainCameraStream } from './useDeliveryCamera';
 import LargeBarcodePreview from './LargeBarcodePreview';
 
 const classifyBarcode = (value) => {
@@ -300,59 +301,6 @@ export default function SmartBarcodeScanner({
     } catch {}
   }, []);
 
-  // Build constraints that target the main (1x) rear camera, not the ultra-wide (0.6x)
-  // Strategy:
-  //   1. Open with facingMode:ideal (safe, never hard-rejects) to trigger permission prompt
-  //   2. Enumerate devices (labels only available AFTER permission grant)
-  //   3. Pick the main 1x camera: "back" label WITHOUT "wide"/"ultra"
-  //      On most Android phones: index 0 = ultra-wide, index 1 = main 1x
-  //   4. Re-open with exact deviceId for the 1x camera
-  const getMainCameraStream = useCallback(async () => {
-    // Step 1: safe open to get permission + a working stream
-    const safeStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-      audio: false
-    });
-
-    // Step 2: enumerate now that permission is granted
-    let targetDeviceId = null;
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cams = devices.filter(d => d.kind === 'videoinput');
-      // Priority 1: labelled "back" and NOT "wide" or "ultra" (main 1x rear)
-      const main1x = cams.find(d => /back|rear/i.test(d.label) && !/wide|ultra|tele/i.test(d.label));
-      // Priority 2: second camera (index 1) — on most phones this is the 1x
-      const byIndex = cams.length >= 2 ? cams[1] : null;
-      // Priority 3: any back camera
-      const anyBack = cams.find(d => /back|rear|environment/i.test(d.label));
-      targetDeviceId = (main1x || byIndex || anyBack)?.deviceId || null;
-      console.log('[SmartBarcodeScanner] Cameras:', cams.map(c => c.label), '→ selected:', (main1x || byIndex || anyBack)?.label);
-    } catch {}
-
-    // Step 3: if we found a better deviceId, re-open with exact deviceId
-    if (targetDeviceId) {
-      const currentId = safeStream.getVideoTracks()[0]?.getSettings?.()?.deviceId;
-      if (currentId !== targetDeviceId) {
-        try {
-          safeStream.getTracks().forEach(t => t.stop());
-          const betterStream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: targetDeviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-            audio: false
-          });
-          return betterStream;
-        } catch {
-          // exact deviceId failed — fall back to the already-open safeStream
-          // Re-open safe stream since we stopped it
-          return await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-            audio: false
-          });
-        }
-      }
-    }
-    return safeStream;
-  }, []);
-
   const startCamera = useCallback(async () => {
     if (disabled || isReaderActiveRef.current) return;
     setCameraError(null);
@@ -428,7 +376,7 @@ export default function SmartBarcodeScanner({
       setCameraError(e?.message || 'Could not access camera');
       setIsStartingCamera(false);
     }
-  }, [disabled, handleCameraDetected, configureTrack, getMainCameraStream]);
+  }, [disabled, handleCameraDetected, configureTrack]);
 
   const stopCameraReader = useCallback(() => {
     // Stop native scan loop
