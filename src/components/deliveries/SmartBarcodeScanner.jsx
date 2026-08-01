@@ -9,7 +9,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 import BarcodeThumb from './BarcodeThumb';
-import { openStream, listCameras, switchToNextCamera, getSavedCameraId, saveCameraId } from './useDeliveryCamera';
+import { cycleRearCamera, getSavedCameraId, listCameras } from './useDeliveryCamera';
 import LargeBarcodePreview from './LargeBarcodePreview';
 
 const classifyBarcode = (value) => {
@@ -413,32 +413,23 @@ export default function SmartBarcodeScanner({
   }, []);
 
   const switchCamera = useCallback(async () => {
-    const currentStream = streamRef.current || videoRef.current?.srcObject;
-    const currentId = currentStream?.getVideoTracks?.()?.[0]?.getSettings?.()?.deviceId;
+    if (isStartingCamera) return;
+    setIsStartingCamera(true);
     try {
-      const newStream = await switchToNextCamera(currentId);
-      if (!newStream) return; // only 1 camera or failed
-
-      // Stop old stream
-      try { currentStream?.getTracks?.().forEach(t => t.stop()); } catch {}
-      if (videoRef.current) {
-        videoRef.current.srcObject = newStream;
+      const result = await cycleRearCamera(videoRef.current);
+      if (result?.stream && videoRef.current) {
+        videoRef.current.srcObject = result.stream;
         try { await videoRef.current.play(); } catch {}
+        streamRef.current = result.stream;
+        configureTrack(result.stream);
+        if (result.label) setCameraLabel(result.label);
       }
-      streamRef.current = newStream;
-      configureTrack(newStream);
-
-      // Update label
-      try {
-        const cams = await listCameras();
-        const newId = newStream.getVideoTracks()[0]?.getSettings?.()?.deviceId;
-        const cam = cams.find(c => c.deviceId === newId);
-        setCameraLabel(cam?.label || 'Camera');
-      } catch {}
     } catch (e) {
       console.warn('[SmartBarcodeScanner] Switch camera failed:', e?.message);
+    } finally {
+      setIsStartingCamera(false);
     }
-  }, [configureTrack]);
+  }, [configureTrack, isStartingCamera]);
 
   const adjustZoom = (delta) => {
     const track = streamRef.current?.getVideoTracks?.()[0];

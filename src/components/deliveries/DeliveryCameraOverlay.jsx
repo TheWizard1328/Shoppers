@@ -2,7 +2,7 @@ import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Camera, SwitchCamera } from "lucide-react";
-import { listCameras, switchToNextCamera } from "./useDeliveryCamera";
+import { listCameras, cycleRearCamera } from "./useDeliveryCamera";
 
 export default function DeliveryCameraOverlay({
   show,
@@ -17,38 +17,28 @@ export default function DeliveryCameraOverlay({
   const [switching, setSwitching] = useState(false);
 
   const handleSwitch = useCallback(async () => {
-    if (switching || !videoRef.current) return;
+    if (switching || isScanning || !videoRef.current) return;
     setSwitching(true);
     try {
-      const currentStream = videoRef.current.srcObject;
-      const currentId = currentStream?.getVideoTracks?.()?.[0]?.getSettings?.()?.deviceId;
-      const newStream = await switchToNextCamera(currentId);
-      if (!newStream) {
-        setSwitching(false);
-        return;
+      const result = await cycleRearCamera(videoRef.current);
+      if (result?.stream && videoRef.current) {
+        videoRef.current.srcObject = result.stream;
+        try { await videoRef.current.play(); } catch {}
       }
-      // Stop old
-      try { currentStream?.getTracks?.().forEach(t => t.stop()); } catch {}
-      // Attach new
-      videoRef.current.srcObject = newStream;
-      try { await videoRef.current.play(); } catch {}
-
-      // Update camera count
       try {
         const cams = await listCameras();
-        setCameraCount(cams.filter(c => c.deviceId).length);
+        setCameraCount(cams.length);
       } catch {}
     } catch (e) {
       console.warn('[DeliveryCameraOverlay] Switch failed:', e?.message);
     } finally {
       setSwitching(false);
     }
-  }, [switching, videoRef]);
+  }, [switching, isScanning, videoRef]);
 
-  // Update camera count when overlay opens
   React.useEffect(() => {
     if (show) {
-      listCameras().then(cams => setCameraCount(cams.filter(c => c.deviceId).length)).catch(() => {});
+      listCameras().then(cams => setCameraCount(cams.length)).catch(() => {});
     }
   }, [show]);
 
@@ -76,7 +66,9 @@ export default function DeliveryCameraOverlay({
               title="Switch camera lens"
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
-              <SwitchCamera className="w-6 h-6" />
+              {switching
+                ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+                : <SwitchCamera className="w-6 h-6" />}
             </button>
           )}
 
