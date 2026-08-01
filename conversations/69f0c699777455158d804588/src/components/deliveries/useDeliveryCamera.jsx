@@ -1,80 +1,77 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescriptionScanHelpers';
 
-// ── Sharpness detection via luminance variance ──
-// Captures a small downsampled frame and computes Laplacian variance.
-// High variance = sharp/detail (text present). Low variance = blurry/blank.
-const computeSharpness = (video) => {
-  try {
-    const w = 160, h = 90;
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(video, 0, 0, w, h);
-    const imageData = ctx.getImageData(0, 0, w, h);
-    const pixels = imageData.data;
-
-    // Compute luminance for each pixel
-    const lum = new Float32Array(w * h);
-    for (let i = 0; i < w * h; i++) {
-      const r = pixels[i * 4];
-      const g = pixels[i * 4 + 1];
-      const b = pixels[i * 4 + 2];
-      lum[i] = 0.299 * r + 0.587 * g + 0.114 * b;
-    }
-
-    // Laplacian: |4*p - p_up - p_down - p_left - p_right|
-    let sumLaplacian = 0;
-    let count = 0;
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        const idx = y * w + x;
-        const lap = Math.abs(
-          4 * lum[idx] - lum[idx - 1] - lum[idx + 1] - lum[idx - w] - lum[idx + w]
-        );
-        sumLaplacian += lap;
-        count++;
-      }
-    }
-
-    return count > 0 ? sumLaplacian / count : 0;
-  } catch {
-    return 0;
-  }
-};
-
-// Build camera constraints optimized for prescription label capture
-const buildLabelCameraConstraints = async () => {
-  // Try to find the back camera by deviceId for reliability
-  let selectedDeviceId = null;
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videos = devices.filter(d => d.kind === 'videoinput');
-    const back = videos.find(d => /back|rear|environment/i.test(d.label));
-    selectedDeviceId = (back || videos[videos.length - 1])?.deviceId || null;
-  } catch {}
-
-  if (selectedDeviceId) {
-    return {
-      video: {
-        deviceId: { exact: selectedDeviceId },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 30 }
-      },
-      audio: false
-    };
-  }
-  return {
+// Get the main (1x) rear camera stream — avoids grabbing the ultra-wide (0.6x) lens.
+// Strategy:
+//   1. Open with facingMode:ideal (safe, never hard-rejects) to trigger permission prompt
+//   2. Enumerate devices AFTER permission is granted (labels only populated post-grant)
+//   3. Prefer a camera labelled "back"/"rear" WITHOUT "wide"/"ultra"/"tele" = main 1x sensor
+//      On most Android phones: index 0 = ultra-wide (0.6x), index 1 = main (1x)
+//   4. Re-open with exact deviceId if a better camera was found
+const getMainCameraStream = async () => {
+  // Step 1: safe open — facingMode:ideal never hard-rejects
+  const safeStream = await navigator.mediaDevices.getUserMedia({
     video: {
-      facingMode: { exact: 'environment' },
+      facingMode: { ideal: 'environment' },
       width: { ideal: 1920 },
       height: { ideal: 1080 },
       frameRate: { ideal: 30 }
     },
     audio: false
-  };
+  });
+
+  // Step 2: enumerate now that permission is granted
+  let targetDeviceId = null;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === 'videoinput');
+    // Best: back/rear camera that is NOT ultra-wide/tele
+    const main1x = cams.find(d => /back|rear/i.test(d.label) && !/wide|ultra|tele/i.test(d.label));
+    // Fallback: second camera by index (most Android phones: 0=ultra-wide, 1=main)
+    const byIndex = cams.length >= 2 ? cams[1] : null;
+    // Last resort: any back-facing camera
+    const anyBack = cams.find(d => /back|rear|environment/i.test(d.label));
+    const chosen = main1x || byIndex || anyBack;
+    targetDeviceId = chosen?.deviceId || null;
+    console.log('[useDeliveryCamera] Cameras:', cams.map(c => `${c.label}(${c.deviceId?.slice(0,8)})`));
+    console.log('[useDeliveryCamera] Selected:', chosen?.label || 'none');
+  } catch (e) {
+    console.warn('[useDeliveryCamera] enumerate failed:', e?.message);
+  }
+
+  // Step 3: re-open with exact deviceId if we found a better camera
+  if (targetDeviceId) {
+    const currentId = safeStream.getVideoTracks()[0]?.getSettings?.()?.deviceId;
+    if (currentId !== targetDeviceId) {
+      try {
+        safeStream.getTracks().forEach(t => t.stop());
+        const betterStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            deviceId: { exact: targetDeviceId },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 }
+          },
+          audio: false
+        });
+        return betterStream;
+      } catch (err) {
+        console.warn('[useDeliveryCamera] exact deviceId failed, re-opening safe stream:', err?.message);
+        // Re-open safe stream since we stopped it
+        return await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 }
+          },
+          audio: false
+        });
+      }
+    }
+  }
+
+  return safeStream;
 };
 
 export default function useDeliveryCamera({
@@ -91,54 +88,17 @@ export default function useDeliveryCamera({
   setExtractedData,
   setIsPatientFormOpen
 }) {
-  const autoCaptureTimerRef = useRef(null);
-  const sharpnessHistoryRef = useRef([]);
-  const bestFrameRef = useRef(null);
-  const isAutoCapturingRef = useRef(false);
-
   const startCamera = useCallback(async () => {
     try {
-      const constraints = await buildLabelCameraConstraints();
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await getMainCameraStream();
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {});
+        try { await videoRef.current.play(); } catch {}
         setIsCameraActive(true);
-
-        // Auto-capture loop: check sharpness every 400ms
-        // Auto-capture when 3 consecutive frames are sharp (stable + in focus)
-        sharpnessHistoryRef.current = [];
-        bestFrameRef.current = null;
-        isAutoCapturingRef.current = false;
-
-        autoCaptureTimerRef.current = setInterval(() => {
-          if (isAutoCapturingRef.current || !videoRef.current || videoRef.current.readyState < 2) return;
-
-          const sharpness = computeSharpness(videoRef.current);
-          const SHARP_THRESHOLD = 12; // empirically tuned for text labels
-          sharpnessHistoryRef.current.push(sharpness);
-          if (sharpnessHistoryRef.current.length > 5) sharpnessHistoryRef.current.shift();
-
-          // Track best frame
-          if (!bestFrameRef.current || sharpness > bestFrameRef.current.sharpness) {
-            bestFrameRef.current = { sharpness, time: Date.now() };
-          }
-
-          // Auto-capture: 3 consecutive sharp frames
-          const recent = sharpnessHistoryRef.current.slice(-3);
-          if (recent.length >= 3 && recent.every(s => s > SHARP_THRESHOLD)) {
-            console.log('[PrescriptionScan] Auto-capturing — sharpness:', recent);
-            isAutoCapturingRef.current = true;
-            clearInterval(autoCaptureTimerRef.current);
-            autoCaptureTimerRef.current = null;
-            // Call the capture handler directly
-            captureAndScan();
-          }
-        }, 400);
       }
     } catch (err) {
-      console.error('Error accessing camera:', err);
+      console.error('[useDeliveryCamera] Camera open failed:', err);
       setError('Could not access camera. Please check permissions.');
       setIsCameraActive(false);
       setShowCameraOverlay(false);
@@ -146,21 +106,14 @@ export default function useDeliveryCamera({
   }, [videoRef, setIsCameraActive, setError, setShowCameraOverlay]);
 
   const stopCamera = useCallback(() => {
-    if (autoCaptureTimerRef.current) {
-      clearInterval(autoCaptureTimerRef.current);
-      autoCaptureTimerRef.current = null;
-    }
     if (videoRef.current && videoRef.current.srcObject) {
       videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
-    isAutoCapturingRef.current = false;
-    sharpnessHistoryRef.current = [];
-    bestFrameRef.current = null;
   }, [videoRef, setIsCameraActive]);
 
-  const captureAndScan = useCallback(async () => {
+  const handleCameraCapture = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current) {
       setError('Camera not ready');
       return;
@@ -186,7 +139,7 @@ export default function useDeliveryCamera({
       const file = new File([blob], 'prescription_scan.jpg', { type: 'image/jpeg' });
 
       try {
-        // Use fileUrl mode — uploads once, skips the base64 double-upload in the backend
+        // fileUrl mode: upload once client-side, pass URL to backend (no base64 double-upload)
         const result = await scanPrescriptionLabel({ file, mode: 'fileUrl' });
         await handlePrescriptionScanResult({
           result,
@@ -198,14 +151,14 @@ export default function useDeliveryCamera({
           setIsPatientFormOpen
         });
       } catch (error) {
-        console.error('Error scanning prescription:', error);
+        console.error('[useDeliveryCamera] Scan failed:', error);
         setError(`Scan failed: ${error.message}`);
       } finally {
         setIsScanning(false);
         stopCamera();
         setShowCameraOverlay(false);
       }
-    }, 'image/jpeg', 0.85);
+    }, 'image/jpeg', 0.92);
   }, [
     videoRef,
     canvasRef,
@@ -220,9 +173,6 @@ export default function useDeliveryCamera({
     stopCamera,
     setShowCameraOverlay
   ]);
-
-  // Keep handleCameraCapture as an alias for backward compatibility (manual capture button)
-  const handleCameraCapture = captureAndScan;
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
