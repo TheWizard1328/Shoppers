@@ -31,7 +31,7 @@ import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/tra
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
 import { consolidateBreadcrumbSegment } from "@/functions/consolidateBreadcrumbSegment";
-import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
+
 
 const START_ACTION_NAME = 'start_delivery';
 
@@ -1319,6 +1319,7 @@ export default function useStopCardActions(params) {
     actedOnNextDelivery,
     shouldRecalculateEtas,
     skipCollapseCard = false,
+    etaBaseTime = null,   // ISO timestamp to use as ETA cascade base (for retro timing)
   }) => {
     // 1. Atomic IDB write — offline-first, no smart-refresh trigger.
     //    This is ESSENTIAL WRITE #1: status + actual_delivery_time.
@@ -1421,17 +1422,29 @@ export default function useStopCardActions(params) {
 
     // 6. ETA cascade — fire-and-forget so it never blocks the lock or races the flag
     if (actedOnNextDelivery && shouldRecalculateEtas && incompleteDeliveries.length > 0) {
-      const currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
+      // Use etaBaseTime (retro actual_delivery_time) when available, otherwise use current clock
+      let currentLocalTime;
+      if (etaBaseTime) {
+        // Parse the retro actual_delivery_time (YYYY-MM-DDTHH:MM:SS) to HH:MM
+        const parsedBase = parseLocalTimestamp(etaBaseTime);
+        currentLocalTime = parsedBase
+          ? `${String(parsedBase.getHours()).padStart(2, '0')}:${String(parsedBase.getMinutes()).padStart(2, '0')}`
+          : (getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString());
+      } else {
+        currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
+      }
       const [hrs, mins] = currentLocalTime.split(':').map(Number);
+      // Start from the actual completion time of the just-finished stop.
+      // For each remaining stop, add its own travel duration to arrive, then
+      // a 2-minute dwell before moving to the next stop.
       let currentEtaMinutes = hrs * 60 + mins;
-      const updatedRemainingWithEtas = incompleteDeliveries.map((stop, index) => {
-        if (index === 0) {
-          currentEtaMinutes = currentEtaMinutes + 5 + (stop.estimated_duration_minutes || 5);
-        } else {
-          currentEtaMinutes = currentEtaMinutes + (incompleteDeliveries[index - 1]?.estimated_duration_minutes || 5);
-        }
+      const updatedRemainingWithEtas = incompleteDeliveries.map((stop) => {
+        // ETA for this stop = base time + travel time to reach it
+        currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
         const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
         const newEtaMins = currentEtaMinutes % 60;
+        // Add 2-min dwell so the next stop's travel time starts after completion
+        currentEtaMinutes += 2;
         return { ...stop, delivery_time_eta: `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}` };
       });
 
@@ -1519,14 +1532,8 @@ export default function useStopCardActions(params) {
       }).catch(() => {})
     );
 
-    // 10. Re-sort stop orders — finished by actual_delivery_time, incomplete by ETA.
-    //     Fire-and-forget: IDB already has actual_delivery_time from step 1.
-    //     This is the ONLY place that re-sorts after a dashboard Complete/Fail/Cancel.
-    if (delivery?.driver_id && delivery?.delivery_date) {
-      recalculateAndUpdateStopOrders(delivery.driver_id, delivery.delivery_date).catch((err) => {
-        console.warn('[executeTerminalAction] stop order recalc failed:', err?.message || err);
-      });
-    }
+    // Stop order re-sorting intentionally omitted — completing/failing/cancelling a stop
+    // does not change the route order. Stop orders remain as-is; only isNextDelivery changes.
 
     return { nextStop, routeIsFinished, incompleteDeliveries };
   }, [
@@ -1633,26 +1640,6 @@ export default function useStopCardActions(params) {
 
         const fallbackTravelDist = retroTravelDist ?? resolveTravelDistFallback(delivery, null, sameRouteDeliveries);
 
-        // DEFERRED from step 7: now that completionActualTime is resolved, fire setDriverStatus
-        // with anchorTime so the segment end_time = this delivery's actual completion time
-        // (rounded to next 5-min mark by the backend). Without anchorTime, the backend
-        // re-queries deliveries — but the DB write hasn't committed yet, so it picks up
-        // a stale time (often from an earlier segment) instead of the current completion time.
-        if (routeIsFinished && driverStatusForEOD === 'on_duty') {
-          setDriverStatus({
-            newStatus: 'off_duty',
-            selectedDate: delivery?.delivery_date,
-            targetUserId: delivery?.driver_id,
-            anchorTime: completionActualTime,
-          }).catch((e) => console.warn('⚠️ Route-complete off_duty failed:', e?.message));
-          // Optimistic local UI update
-          if (driverAppUserForEOD?.id) {
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: [{ ...driverAppUserForEOD, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
-            }));
-          }
-        }
-
         const completionUpdate = {
           status: 'completed',
           actual_delivery_time: completionActualTime,
@@ -1668,7 +1655,12 @@ export default function useStopCardActions(params) {
         };
 
         const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
-        const shouldRecalculateCompletionEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionActualTime);
+        // Always recalculate ETAs when using retro timing — the stored ETAs were based on
+        // current time at the time they were set, which is wrong for past-day completions.
+        const _remainingCount = sameRouteDeliveries.filter(d => !['completed','failed','cancelled'].includes(d.status) && d.id !== delivery.id).length;
+        const shouldRecalculateCompletionEtas = useRetroactiveTiming
+          ? _remainingCount > 0
+          : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionActualTime));
 
         // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
         if (completionUpdate.actual_delivery_time && completionUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
@@ -1691,15 +1683,37 @@ export default function useStopCardActions(params) {
 
         // ── Terminal engine ──────────────────────────────────────────────────
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
-        await executeTerminalAction({
+        const terminalResult = await executeTerminalAction({
           status: 'completed',
           criticalUpdate: completionUpdate,
           pendingBreadcrumbsString,
           actedOnNextDelivery,
           shouldRecalculateEtas: shouldRecalculateCompletionEtas,
           skipCollapseCard: false,
+          etaBaseTime: useRetroactiveTiming ? completionActualTime : null,
         });
         // ────────────────────────────────────────────────────────────────────
+
+        // DEFERRED from executeTerminalAction step 7: now that completionActualTime is resolved,
+        // fire setDriverStatus with anchorTime so the segment end_time = this delivery's actual
+        // completion time. executeTerminalAction fires showRouteSummary/notifyDone immediately,
+        // but setDriverStatus needs anchorTime which is only known here.
+        const _routeIsFinished = terminalResult?.routeIsFinished ?? false;
+        const _driverAppUserForEOD = _routeIsFinished ? (appUsers || []).find((au) => au?.user_id === delivery.driver_id) : null;
+        const _driverStatusForEOD = _driverAppUserForEOD?.driver_status ?? currentUser?.driver_status;
+        if (_routeIsFinished && _driverStatusForEOD === 'on_duty') {
+          setDriverStatus({
+            newStatus: 'off_duty',
+            selectedDate: delivery?.delivery_date,
+            targetUserId: delivery?.driver_id,
+            anchorTime: completionActualTime,
+          }).catch((e) => console.warn('⚠️ Route-complete off_duty failed:', e?.message));
+          if (_driverAppUserForEOD?.id) {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [{ ..._driverAppUserForEOD, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
+            }));
+          }
+        }
 
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
@@ -1877,7 +1891,10 @@ export default function useStopCardActions(params) {
         };
 
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
-        const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, localTimeString);
+        const _failRemainingCount = allRouteDeliveries.filter(d => !['completed','failed','cancelled'].includes(d.status) && d.id !== delivery.id).length;
+        const shouldRecalculateFailureEtas = useRetroactiveTiming
+          ? _failRemainingCount > 0
+          : (delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, failActualTime));
 
         // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
         if (criticalUpdate.actual_delivery_time && criticalUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
@@ -1894,6 +1911,7 @@ export default function useStopCardActions(params) {
           actedOnNextDelivery,
           shouldRecalculateEtas: shouldRecalculateFailureEtas,
           skipCollapseCard: false,
+          etaBaseTime: useRetroactiveTiming ? failActualTime : null,
         });
         // ────────────────────────────────────────────────────────────────────
 

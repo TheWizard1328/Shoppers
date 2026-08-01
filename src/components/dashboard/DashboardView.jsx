@@ -112,6 +112,13 @@ function DashboardView({
       return next;
     });
   }, []);
+
+  // Clear all selections when bulk edit mode is turned off
+  useEffect(() => {
+    if (!showStopCardCheckboxes) {
+      setSelectedDeliveryIds({});
+    }
+  }, [showStopCardCheckboxes]);
   useEffect(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const hasDeliveriesForDate = Array.isArray(deliveries) && deliveries.some(d => d && d.delivery_date === dateStr);
