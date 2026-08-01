@@ -509,7 +509,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     return (allDeliveries || []).some((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date && !FINISHED_STATUSES.includes(item.status) && item.status !== 'pending');
   }, [allDeliveries, delivery]);
 
-  const shouldFade = isFinishedDelivery && routeHasIncompleteStops && !isSelected && !isHovered;
+  const shouldFade = !bulkSelectionEnabled && isFinishedDelivery && routeHasIncompleteStops && !isSelected && !isHovered;
   const isMobileCard = isMobileDevice();
   const isBulkSelected = !!selectedDeliveryIds?.[delivery?.id];
   const cardZIndex = isMobileCard
