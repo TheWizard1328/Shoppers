@@ -1243,8 +1243,9 @@ export default function useStopCardActions(params) {
               appUsers,
               source: 'start_button',
               bypassDriverStatus: true,
-              recalcTrackingNumbers: true,
-              recalcTrackingStoreId: delivery.store_id,
+              // NOTE: TR# recalculation is NOT done here — Start button only reorders
+              // stops and regenerates polylines. TR#s are only updated via Accept All
+              // and the Add To Route form Done button.
             }).catch((err) => { console.warn('⚠️ [Start bg] optimization failed:', err?.message || err); return null; });
 
             // Use freshDeliveries from the optimizer — it already wrote to IDB and
