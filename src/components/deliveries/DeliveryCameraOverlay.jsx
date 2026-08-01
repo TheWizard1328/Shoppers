@@ -1,17 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Camera, SwitchCamera, X, Check, User, Phone, MapPin, AlertCircle } from "lucide-react";
-import { listCameras, cycleRearCamera, getSavedCameraId } from "./useDeliveryCamera";
+import { Camera, SwitchCamera, X, Check, User, Phone, MapPin, AlertCircle, Zap } from "lucide-react";
+import { listCameras, cycleRearCamera } from "./useDeliveryCamera";
 import { scanPrescriptionLabel } from "./prescriptionScanHelpers";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 
-// Laplacian sharpness check — returns variance of Laplacian kernel
-// High variance = sharp/in-focus, low = blurry
+// ── Laplacian sharpness ──
 const calculateSharpness = (canvas, ctx) => {
   const w = canvas.width;
   const h = canvas.height;
-  // Downscale for speed — only need to detect blur, not full resolution
   const scale = Math.min(1, 240 / Math.max(w, h));
   const sw = Math.round(w * scale);
   const sh = Math.round(h * scale);
@@ -19,15 +16,13 @@ const calculateSharpness = (canvas, ctx) => {
   const data = imageData.data;
   const gray = new Float32Array(sw * sh);
   for (let i = 0; i < sw * sh; i++) {
-    const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
-    gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+    gray[i] = 0.299 * data[i*4] + 0.587 * data[i*4+1] + 0.114 * data[i*4+2];
   }
-  // Laplacian: [0,1,0; 1,-4,1; 0,1,0]
   let sum = 0, sumSq = 0, count = 0;
   for (let y = 1; y < sh - 1; y++) {
     for (let x = 1; x < sw - 1; x++) {
       const idx = y * sw + x;
-      const lap = -4 * gray[idx] + gray[idx - 1] + gray[idx + 1] + gray[idx - sw] + gray[idx + sw];
+      const lap = -4 * gray[idx] + gray[idx-1] + gray[idx+1] + gray[idx-sw] + gray[idx+sw];
       sum += lap;
       sumSq += lap * lap;
       count++;
@@ -35,13 +30,13 @@ const calculateSharpness = (canvas, ctx) => {
   }
   if (count === 0) return 0;
   const mean = sum / count;
-  const variance = (sumSq / count) - (mean * mean);
-  return variance;
+  return (sumSq / count) - (mean * mean);
 };
 
 const CONFIDENCE_THRESHOLD = 80;
-const SHARPNESS_THRESHOLD = 80; // Empirically tuned
-const AUTO_CAPTURE_COOLDOWN = 2500; // ms between auto-captures
+const BURST_COUNT = 5;
+const BURST_INTERVAL = 160; // ms between frames
+const MIN_SHARPNESS = 20;   // if best frame is below this, show "too blurry"
 
 export default function DeliveryCameraOverlay({
   show,
@@ -49,28 +44,25 @@ export default function DeliveryCameraOverlay({
   canvasRef,
   isScanning,
   error,
-  onCapture,        // legacy manual capture callback (unused in auto mode)
+  onCapture,
   onClose,
-  // New props for inline results
-  onPatientSelect,  // (patient, isExact) => void
-  onCreatePatient,  // (callback, patientData) => void
+  onPatientSelect,
+  onCreatePatient,
   stores,
 }) {
   const [cameraCount, setCameraCount] = useState(1);
   const [switching, setSwitching] = useState(false);
-  const [scanState, setScanState] = useState('idle'); // idle | scanning | results
-  const [scanResults, setScanResults] = useState(null); // { extractedData, exactMatches, matches }
-  const [sharpHint, setSharpHint] = useState(''); // "Hold steady..." | "Sharp!" | ""
-  const [lastCaptureTime, setLastCaptureTime] = useState(0);
+  const [scanState, setScanState] = useState('idle'); // idle | bursting | scanning | results | selected | error
+  const [scanResults, setScanResults] = useState(null);
+  const [blurWarning, setBlurWarning] = useState(false);
+  const [burstProgress, setBurstProgress] = useState(0);
 
-  const autoCaptureRef = useRef(true);
-  const sharpCheckTimerRef = useRef(null);
-  const scanInProgressRef = useRef(false);
   const overlayActiveRef = useRef(false);
+  const scanInProgressRef = useRef(false);
 
   // ── Camera switching ──
   const handleSwitch = useCallback(async () => {
-    if (switching || scanState === 'scanning' || !videoRef.current) return;
+    if (switching || scanState === 'scanning' || scanState === 'bursting' || !videoRef.current) return;
     setSwitching(true);
     try {
       const result = await cycleRearCamera(videoRef.current);
@@ -78,10 +70,7 @@ export default function DeliveryCameraOverlay({
         videoRef.current.srcObject = result.stream;
         try { await videoRef.current.play(); } catch {}
       }
-      try {
-        const cams = await listCameras();
-        setCameraCount(cams.length);
-      } catch {}
+      try { setCameraCount((await listCameras()).length); } catch {}
     } catch (e) {
       console.warn('[DeliveryCameraOverlay] Switch failed:', e?.message);
     } finally {
@@ -89,148 +78,129 @@ export default function DeliveryCameraOverlay({
     }
   }, [switching, scanState, videoRef]);
 
-  // ── Auto-capture loop ──
-  // Every 400ms, grab a frame, check sharpness. If sharp enough and cooldown elapsed, auto-capture.
-  useEffect(() => {
-    if (!show) {
-      overlayActiveRef.current = false;
-      if (sharpCheckTimerRef.current) {
-        clearInterval(sharpCheckTimerRef.current);
-        sharpCheckTimerRef.current = null;
+  // ── Burst capture: grab N frames, pick the sharpest ──
+  const handleBurstCapture = useCallback(async () => {
+    if (scanInProgressRef.current || !videoRef.current || !canvasRef.current) return;
+    if (scanState === 'scanning' || scanState === 'bursting') return;
+
+    scanInProgressRef.current = true;
+    setScanState('bursting');
+    setBlurWarning(false);
+    setBurstProgress(0);
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    // Use a temp canvas for sharpness checks (small, fast)
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+
+    let bestSharpness = -1;
+    let bestBlob = null;
+    let bestSharpThumb = null; // for debugging
+
+    for (let i = 0; i < BURST_COUNT; i++) {
+      if (!overlayActiveRef.current) break;
+
+      // Wait for next frame if possible
+      if (i > 0) await new Promise(r => setTimeout(r, BURST_INTERVAL));
+
+      if (!video.videoWidth || !video.videoHeight) continue;
+
+      // Draw to temp canvas for sharpness check
+      tempCanvas.width = video.videoWidth;
+      tempCanvas.height = video.videoHeight;
+      tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+      const sharpness = calculateSharpness(tempCanvas, tempCtx);
+      console.log(`[burst] frame ${i}: sharpness=${sharpness.toFixed(1)}`);
+
+      // Draw to main canvas and convert to blob
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      if (!blob) continue;
+
+      if (sharpness > bestSharpness) {
+        bestSharpness = sharpness;
+        bestBlob = blob;
       }
+
+      setBurstProgress(((i + 1) / BURST_COUNT) * 100);
+    }
+
+    if (!bestBlob) {
+      setScanState('error');
+      setScanResults({ error: 'Failed to capture image' });
+      scanInProgressRef.current = false;
       return;
     }
-    overlayActiveRef.current = true;
-    setScanState('idle');
-    setScanResults(null);
 
-    listCameras().then(cams => setCameraCount(cams.length)).catch(() => {});
+    // If the best frame is still too blurry, show warning and return to idle
+    if (bestSharpness < MIN_SHARPNESS) {
+      console.warn(`[burst] Best sharpness ${bestSharpness.toFixed(1)} below threshold ${MIN_SHARPNESS}`);
+      setScanState('idle');
+      setBlurWarning(true);
+      scanInProgressRef.current = false;
+      // Clear blur warning after 3s
+      setTimeout(() => { if (overlayActiveRef.current) setBlurWarning(false); }, 3000);
+      return;
+    }
 
-    // Start sharpness polling
-    sharpCheckTimerRef.current = setInterval(async () => {
-      if (!overlayActiveRef.current || !videoRef.current || !canvasRef.current) return;
-      if (scanState === 'scanning' || scanState === 'results') return;
-      if (scanInProgressRef.current) return;
-      if (switching) return;
-
-      const video = videoRef.current;
-      if (!video.videoWidth || !video.videoHeight) return;
-
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const sharpness = calculateSharpness(canvas, ctx);
-
-      if (sharpness >= SHARPNESS_THRESHOLD) {
-        setSharpHint('Sharp!');
-        // Auto-capture if cooldown elapsed
-        const now = Date.now();
-        if (now - lastCaptureTime > AUTO_CAPTURE_COOLDOWN && autoCaptureRef.current) {
-          autoCaptureRef.current = false;
-          setLastCaptureTime(now);
-          triggerScan();
-        }
-      } else if (sharpness > SHARPNESS_THRESHOLD * 0.4) {
-        setSharpHint('Hold steady...');
-      } else {
-        setSharpHint('');
-      }
-    }, 400);
-
-    return () => {
-      overlayActiveRef.current = false;
-      if (sharpCheckTimerRef.current) {
-        clearInterval(sharpCheckTimerRef.current);
-        sharpCheckTimerRef.current = null;
-      }
-    };
-  }, [show, scanState, switching, lastCaptureTime]);
-
-  // ── Trigger a scan from the current video frame ──
-  const triggerScan = useCallback(async () => {
-    if (scanInProgressRef.current || !videoRef.current || !canvasRef.current) return;
-    scanInProgressRef.current = true;
+    // Send the sharpest frame to the LLM
     setScanState('scanning');
-    setSharpHint('');
-
     try {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Create a file from the canvas
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-      if (!blob) throw new Error('Failed to capture image');
-      const file = new File([blob], 'prescription_scan.jpg', { type: 'image/jpeg' });
-
+      const file = new File([bestBlob], 'prescription_scan.jpg', { type: 'image/jpeg' });
       const result = await scanPrescriptionLabel({ file, mode: 'fileUrl' });
 
       if (result.error) throw new Error(result.error);
 
       setScanResults(result);
 
-      // If exactly one 80%+ match, auto-select and close
       const allMatches = [
         ...(result.exactMatches || []),
         ...(result.matches || [])
       ];
 
       if (allMatches.length === 1 && allMatches[0].matchScore >= CONFIDENCE_THRESHOLD) {
-        // Auto-select the single high-confidence match
         setScanState('selected');
         if (onPatientSelect) {
           await onPatientSelect(allMatches[0].patient, allMatches[0].matchScore === 100);
         }
-        // Close after a brief confirmation flash
-        setTimeout(() => {
-          handleClose();
-        }, 600);
-      } else if (allMatches.length > 0) {
-        // Multiple matches or low confidence — show results panel
-        setScanState('results');
+        setTimeout(() => handleClose(), 600);
       } else {
-        // No matches — show extracted data with option to create patient
         setScanState('results');
       }
     } catch (e) {
-      console.error('[DeliveryCameraOverlay] Auto-scan failed:', e?.message);
+      console.error('[DeliveryCameraOverlay] Scan failed:', e?.message);
       setScanState('error');
       setScanResults({ error: e?.message || 'Scan failed' });
-      // Reset to idle after 2s so user can retry
       setTimeout(() => {
         if (overlayActiveRef.current) {
           setScanState('idle');
           setScanResults(null);
-          autoCaptureRef.current = true;
         }
       }, 2500);
     } finally {
       scanInProgressRef.current = false;
     }
-  }, [onPatientSelect, onClose]);
+  }, [scanState, onPatientSelect, onClose]);
 
-  // ── Handle selecting a patient from results ──
+  // ── Patient selection from results ──
   const handleSelectPatient = useCallback(async (patient) => {
     setScanState('selected');
-    if (onPatientSelect) {
-      await onPatientSelect(patient, false);
-    }
+    if (onPatientSelect) await onPatientSelect(patient, false);
     setTimeout(() => handleClose(), 400);
   }, [onPatientSelect]);
 
-  // ── Handle creating a new patient from extracted data ──
+  // ── Create new patient ──
   const handleCreateNew = useCallback(() => {
     if (!scanResults?.extractedData || !onCreatePatient) return;
     const ed = scanResults.extractedData;
-    onCreatePatient((createdPatient) => {
-      handleClose();
-    }, {
+    onCreatePatient(() => handleClose(), {
       full_name: ed.patient_name,
       address: ed.street_address,
       phone: ed.phone_number,
@@ -241,26 +211,35 @@ export default function DeliveryCameraOverlay({
   // ── Close ──
   const handleClose = useCallback(() => {
     overlayActiveRef.current = false;
-    if (sharpCheckTimerRef.current) {
-      clearInterval(sharpCheckTimerRef.current);
-      sharpCheckTimerRef.current = null;
-    }
     setScanState('idle');
     setScanResults(null);
-    setSharpHint('');
-    autoCaptureRef.current = true;
+    setBlurWarning(false);
     onClose();
   }, [onClose]);
 
-  // ── Retake / re-scan ──
+  // ── Retake ──
   const handleRetake = useCallback(() => {
     setScanState('idle');
     setScanResults(null);
-    autoCaptureRef.current = true;
-    setLastCaptureTime(0); // allow immediate re-capture
+    setBlurWarning(false);
   }, []);
 
+  // ── Reset state when overlay opens ──
+  useEffect(() => {
+    if (!show) {
+      overlayActiveRef.current = false;
+      return;
+    }
+    overlayActiveRef.current = true;
+    setScanState('idle');
+    setScanResults(null);
+    setBlurWarning(false);
+    listCameras().then(cams => setCameraCount(cams.length)).catch(() => {});
+  }, [show]);
+
   if (!show) return null;
+
+  const showCaptureButton = scanState === 'idle' || scanState === 'error';
 
   return (
     <AnimatePresence>
@@ -270,14 +249,16 @@ export default function DeliveryCameraOverlay({
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[10030] bg-black flex flex-col items-center justify-start p-2 pt-3"
       >
-        {/* Top bar: close button */}
+        {/* Top bar */}
         <div className="w-full max-w-lg flex items-center justify-between mb-2">
           <div className="text-white/90 text-sm font-medium px-2">
-            {scanState === 'scanning' ? 'Scanning label...' :
+            {scanState === 'bursting' ? `Capturing... ${Math.round(burstProgress)}%` :
+             scanState === 'scanning' ? 'Scanning label...' :
              scanState === 'results' ? 'Select patient' :
              scanState === 'selected' ? '✓ Patient selected' :
-             scanState === 'error' ? 'Scan failed — retrying' :
-             'Point at a prescription label'}
+             scanState === 'error' ? 'Scan failed' :
+             blurWarning ? 'Too blurry — try again' :
+             'Point at a prescription label & tap'}
           </div>
           <button
             type="button"
@@ -289,15 +270,24 @@ export default function DeliveryCameraOverlay({
           </button>
         </div>
 
-        {/* Viewfinder — wide landscape, same width as stop cards */}
+        {/* Viewfinder — wide landscape */}
         <div className="relative w-full max-w-lg" style={{ aspectRatio: '16 / 7' }}>
-          <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 ${
+          <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
             scanState === 'selected' ? 'border-emerald-400' :
             scanState === 'scanning' ? 'border-blue-400' :
-            sharpHint === 'Sharp!' ? 'border-emerald-400/60' :
+            scanState === 'bursting' ? 'border-amber-400' :
+            blurWarning ? 'border-red-400/60' :
             'border-white/30'
           }`}>
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+            <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+            {/* Burst progress bar at top of viewfinder */}
+            {scanState === 'bursting' && (
+              <div className="absolute top-0 left-0 right-0 h-1 bg-black/40">
+                <div className="h-full bg-amber-400 transition-all duration-100" style={{ width: `${burstProgress}%` }} />
+              </div>
+            )}
 
             {/* Scanning overlay */}
             {scanState === 'scanning' && (
@@ -309,7 +299,7 @@ export default function DeliveryCameraOverlay({
               </div>
             )}
 
-            {/* Selected confirmation flash */}
+            {/* Selected flash */}
             {scanState === 'selected' && (
               <div className="absolute inset-0 bg-emerald-500/30 flex items-center justify-center">
                 <div className="flex items-center gap-2 text-white text-lg font-semibold">
@@ -318,33 +308,17 @@ export default function DeliveryCameraOverlay({
               </div>
             )}
 
-            {/* Sharpness hint badge — bottom left */}
-            {scanState === 'idle' && sharpHint && (
-              <div className={`absolute bottom-2 left-2 px-2.5 py-1 rounded-full text-xs font-medium ${
-                sharpHint === 'Sharp!' ? 'bg-emerald-500/70 text-white' : 'bg-white/20 text-white/80'
-              }`}>
-                {sharpHint === 'Sharp!' ? '✓ ' : ''}{sharpHint}
+            {/* Blur warning flash */}
+            {blurWarning && scanState === 'idle' && (
+              <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                <div className="flex items-center gap-2 text-white text-base font-medium">
+                  <AlertCircle className="w-6 h-6" /> Too blurry
+                </div>
               </div>
             )}
 
-            {/* Switch camera button — bottom right of viewfinder */}
-            {cameraCount > 1 && scanState !== 'scanning' && (
-              <button
-                type="button"
-                onClick={handleSwitch}
-                disabled={switching || scanState === 'scanning'}
-                className="absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full bg-white/25 backdrop-blur-sm w-11 h-11 text-white transition active:bg-white/40 disabled:opacity-50 touch-manipulation"
-                title="Switch camera lens"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                {switching
-                  ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
-                  : <SwitchCamera className="w-5 h-5" />}
-              </button>
-            )}
-
-            {/* Scanning frame guide — subtle corner brackets */}
-            {scanState === 'idle' && (
+            {/* Corner brackets */}
+            {scanState === 'idle' && !blurWarning && (
               <>
                 <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-white/40 rounded-tl" />
                 <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-white/40 rounded-tr" />
@@ -352,13 +326,43 @@ export default function DeliveryCameraOverlay({
                 <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-white/40 rounded-br" />
               </>
             )}
+
+            {/* Switch camera — bottom right */}
+            {cameraCount > 1 && (scanState === 'idle' || scanState === 'error') && (
+              <button
+                type="button"
+                onClick={handleSwitch}
+                disabled={switching}
+                className="absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full bg-white/25 backdrop-blur-sm w-11 h-11 text-white transition active:bg-white/40 disabled:opacity-50 touch-manipulation"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                {switching
+                  ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+                  : <SwitchCamera className="w-5 h-5" />}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Results panel — below the viewfinder */}
-        <div className="w-full max-w-lg flex-1 overflow-y-auto mt-2">
-          <canvas ref={canvasRef} style={{ display: 'none' }} />
+        {/* Capture button — big, center, below viewfinder */}
+        {showCaptureButton && (
+          <div className="mt-3 flex justify-center">
+            <button
+              type="button"
+              onClick={handleBurstCapture}
+              disabled={switching}
+              className="flex items-center justify-center rounded-full bg-white text-black w-16 h-16 shadow-lg transition active:scale-95 disabled:opacity-50 touch-manipulation"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              {blurWarning
+                ? <Camera className="w-7 h-7" />
+                : <Camera className="w-7 h-7" />}
+            </button>
+          </div>
+        )}
 
+        {/* Results panel */}
+        <div className="w-full max-w-lg flex-1 overflow-y-auto mt-2">
           {scanState === 'error' && scanResults?.error && (
             <div className="flex items-center gap-2 p-3 bg-red-500/20 border border-red-500/40 rounded-lg text-white text-sm">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -381,14 +385,13 @@ export default function DeliveryCameraOverlay({
   );
 }
 
-// ── Inline results panel ──
+// ── Results panel ──
 function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRetake }) {
   const { extractedData, exactMatches = [], matches = [] } = scanResults;
   const allMatches = [...exactMatches, ...matches];
 
   return (
     <div className="space-y-3">
-      {/* Extracted data summary */}
       {extractedData && (
         <div className="p-3 bg-white/10 rounded-lg border border-white/15">
           <div className="text-white/50 text-xs font-medium mb-1.5 uppercase tracking-wide">Scanned Label</div>
@@ -415,18 +418,17 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
         </div>
       )}
 
-      {/* Match candidates */}
       {allMatches.length > 0 ? (
         <>
           {allMatches.length === 1 && allMatches[0].matchScore < CONFIDENCE_THRESHOLD && (
             <div className="flex items-center gap-2 text-amber-300 text-sm px-1">
               <AlertCircle className="w-4 h-4" />
-              Low confidence match ({allMatches[0].matchScore}%). Confirm or create new.
+              Low confidence ({allMatches[0].matchScore}%). Confirm or create new.
             </div>
           )}
           {allMatches.length > 1 && (
             <div className="text-white/60 text-sm px-1">
-              {allMatches.length} potential matches found:
+              {allMatches.length} potential matches:
             </div>
           )}
           <div className="space-y-2">
@@ -443,9 +445,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                   <div className="flex items-start justify-between mb-1.5">
-                    <div className="font-medium text-white text-sm">
-                      {match.patient.full_name}
-                    </div>
+                    <div className="font-medium text-white text-sm">{match.patient.full_name}</div>
                     <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                       isExact ? 'bg-emerald-500/30 text-emerald-200' :
                       isHigh ? 'bg-blue-500/30 text-blue-200' :
@@ -469,9 +469,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
                     )}
                     {stores && match.patient.store_id && (() => {
                       const s = stores.find(s => s?.id === match.patient.store_id);
-                      return s ? (
-                        <div className="text-white/40">{s.name}</div>
-                      ) : null;
+                      return s ? <div className="text-white/40">{s.name}</div> : null;
                     })()}
                   </div>
                 </button>
@@ -480,12 +478,9 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
           </div>
         </>
       ) : (
-        <div className="text-white/50 text-sm px-1">
-          No matching patients found.
-        </div>
+        <div className="text-white/50 text-sm px-1">No matching patients found.</div>
       )}
 
-      {/* Create new patient button */}
       {extractedData?.patient_name && onCreateNew && (
         <button
           type="button"
@@ -498,7 +493,6 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
         </button>
       )}
 
-      {/* Retake button */}
       <button
         type="button"
         onClick={onRetake}
