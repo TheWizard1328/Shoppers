@@ -95,8 +95,16 @@ export default function GuideAssistant() {
     };
   }, []);
 
+  // Hide when camera overlay (label scanner or barcode scanner) is open
+  const [isCameraOverlayOpen, setIsCameraOverlayOpen] = React.useState(false);
+  useEffect(() => {
+    const handler = (e) => setIsCameraOverlayOpen(!!e?.detail?.open);
+    window.addEventListener('cameraOverlayChange', handler);
+    return () => window.removeEventListener('cameraOverlayChange', handler);
+  }, []);
+
   // FAB should be hidden when a stop card is expanded and no dialog is open
-  const hideFabForExpandedCard = (isStopCardExpanded && !isDialogOpen && !isOpen) || isBulkEditPanelOpen;
+  const hideFabForExpandedCard = (isStopCardExpanded && !isDialogOpen && !isOpen) || isBulkEditPanelOpen || isCameraOverlayOpen;
 
   // ── Dynamic bottom offset — tracks MapViewCycleFAB via getBoundingClientRect ────
   // Uses direct DOM measurement (viewport-accurate regardless of position context).

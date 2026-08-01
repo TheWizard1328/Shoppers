@@ -224,10 +224,11 @@ export default function DeliveryCameraOverlay({
     setBlurWarning(false);
   }, []);
 
-  // ── Reset state when overlay opens ──
+  // ── Reset state when overlay opens; hide GuideAssistant while open ──
   useEffect(() => {
     if (!show) {
       overlayActiveRef.current = false;
+      window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: false } }));
       return;
     }
     overlayActiveRef.current = true;
@@ -235,6 +236,7 @@ export default function DeliveryCameraOverlay({
     setScanResults(null);
     setBlurWarning(false);
     listCameras().then(cams => setCameraCount(cams.length)).catch(() => {});
+    window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: true } }));
   }, [show]);
 
   if (!show) return null;
@@ -251,7 +253,7 @@ export default function DeliveryCameraOverlay({
       >
         {/* Top bar */}
         <div className="w-full max-w-lg flex items-center justify-between mb-2">
-          <div className="text-white/90 text-sm font-medium px-2">
+          <div className="text-white text-sm font-medium px-2">
             {scanState === 'bursting' ? `Capturing... ${Math.round(burstProgress)}%` :
              scanState === 'scanning' ? 'Scanning label...' :
              scanState === 'results' ? 'Select patient' :
@@ -260,14 +262,7 @@ export default function DeliveryCameraOverlay({
              blurWarning ? 'Too blurry — try again' :
              'Point at a prescription label & tap'}
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="flex items-center justify-center rounded-full bg-white/15 backdrop-blur-sm w-9 h-9 text-white transition active:bg-white/30 touch-manipulation"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="w-9 h-9" />{/* close moved to bottom bar */}
         </div>
 
         {/* Viewfinder — wide landscape */}
@@ -327,26 +322,31 @@ export default function DeliveryCameraOverlay({
               </>
             )}
 
-            {/* Switch camera — bottom right */}
-            {cameraCount > 1 && (scanState === 'idle' || scanState === 'error') && (
+
+          </div>
+        </div>
+
+        {/* Bottom action bar — switch left | capture center | close right */}
+        <div className="w-full max-w-lg mt-3 flex items-center justify-between px-4">
+          {/* Left: switch camera (same size as capture btn, or placeholder) */}
+          <div className="w-16 h-16 flex items-center justify-center">
+            {cameraCount > 1 && (scanState === 'idle' || scanState === 'error') ? (
               <button
                 type="button"
                 onClick={handleSwitch}
                 disabled={switching}
-                className="absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full bg-white/25 backdrop-blur-sm w-11 h-11 text-white transition active:bg-white/40 disabled:opacity-50 touch-manipulation"
+                className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-16 h-16 text-white transition active:scale-95 disabled:opacity-50 touch-manipulation"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 {switching
-                  ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
-                  : <SwitchCamera className="w-5 h-5" />}
+                  ? <div className="animate-spin w-6 h-6 border-2 border-white border-t-transparent rounded-full" />
+                  : <SwitchCamera className="w-7 h-7" />}
               </button>
-            )}
+            ) : <div className="w-16 h-16" />}
           </div>
-        </div>
 
-        {/* Capture button — big, center, below viewfinder */}
-        {showCaptureButton && (
-          <div className="mt-3 flex justify-center">
+          {/* Center: capture */}
+          {showCaptureButton && (
             <button
               type="button"
               onClick={handleBurstCapture}
@@ -354,12 +354,21 @@ export default function DeliveryCameraOverlay({
               className="flex items-center justify-center rounded-full bg-white text-black w-16 h-16 shadow-lg transition active:scale-95 disabled:opacity-50 touch-manipulation"
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
-              {blurWarning
-                ? <Camera className="w-7 h-7" />
-                : <Camera className="w-7 h-7" />}
+              <Camera className="w-7 h-7" />
             </button>
-          </div>
-        )}
+          )}
+          {!showCaptureButton && <div className="w-16 h-16" />}
+
+          {/* Right: close */}
+          <button
+            type="button"
+            onClick={handleClose}
+            className="flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm w-16 h-16 text-white transition active:scale-95 touch-manipulation"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            <X className="w-7 h-7" />
+          </button>
+        </div>
 
         {/* Results panel */}
         <div className="w-full max-w-lg flex-1 overflow-y-auto mt-2">

@@ -460,6 +460,7 @@ export default function SmartBarcodeScanner({
   stopCameraReaderRef.current = stopCameraReader;
 
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: !!showCamera } }));
     if (showCamera) {
       startCameraRef.current();
     } else {
