@@ -17,16 +17,26 @@ const classifyBarcode = (value) => {
   const compact = normalized.replace(/^RX[#:\-]*/i, '');
 
   if (!compact) return 'receipt';
+  // Explicit RX prefix = always rx
   if (/^rx[#:\-\s]*/i.test(raw)) return 'rx';
 
+  // Pure numeric barcodes (most common from physical barcode scanners)
   if (/^\d+$/.test(compact)) {
+    // Shoppers Drug Mart / pharmacy receipt barcodes are typically 13-18 digits (UPC/EAN)
+    // Rx prescription barcodes are typically 20+ digits or start with 96
     if (/^96/.test(compact) && compact.length >= 30) return 'rx';
     if (/^99/.test(compact) && compact.length >= 20 && compact.length < 30) return 'receipt';
-    if (compact.length >= 30) return 'rx';
-    if (compact.length >= 20) return 'receipt';
+    // 8-13 digits = UPC/EAN = receipt barcode
+    if (compact.length >= 8 && compact.length <= 13) return 'receipt';
+    // 14-19 digits = could be either, default to receipt (shipping/tracking)
+    if (compact.length >= 14 && compact.length <= 19) return 'receipt';
+    // 20+ digits = rx barcode
+    if (compact.length >= 20) return 'rx';
+    // 4-7 digits = short code, likely rx
     if (compact.length >= 4) return 'rx';
   }
 
+  // Alphanumeric with no separators — likely rx prescription number
   if (/^[A-Za-z]{0,3}\d{4,12}$/.test(compact) && !/[-/.]/.test(compact)) return 'rx';
   if (/^[A-Za-z0-9]{4,12}$/.test(compact) && !/[\-/.]/.test(compact)) return 'rx';
   return 'receipt';
@@ -416,11 +426,23 @@ export default function SmartBarcodeScanner({
     setTorchOn(next);
   };
 
+  // Refs to hold the latest callbacks without triggering re-runs of the effect
+  const startCameraRef = useRef(startCamera);
+  const stopCameraReaderRef = useRef(stopCameraReader);
+  startCameraRef.current = startCamera;
+  stopCameraReaderRef.current = stopCameraReader;
+
   useEffect(() => {
-    if (showCamera) startCamera();else
-    stopCameraReader();
-    return () => stopCameraReader();
-  }, [showCamera, startCamera, stopCameraReader]);
+    if (showCamera) {
+      startCameraRef.current();
+    } else {
+      stopCameraReaderRef.current();
+    }
+    return () => {
+      if (!showCamera) stopCameraReaderRef.current();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCamera]);
 
   useEffect(() => {
     if (!isMobile || showCamera) return;
