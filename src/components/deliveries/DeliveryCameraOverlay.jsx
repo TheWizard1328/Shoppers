@@ -241,6 +241,8 @@ export default function DeliveryCameraOverlay({
 
   if (!show) return null;
 
+  const showCaptureButton = scanState === 'idle' || scanState === 'error';
+
   return (
     <AnimatePresence>
       <motion.div
