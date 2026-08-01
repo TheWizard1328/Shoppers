@@ -31,7 +31,7 @@ import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/tra
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
 import { consolidateBreadcrumbSegment } from "@/functions/consolidateBreadcrumbSegment";
-import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
+
 
 const START_ACTION_NAME = 'start_delivery';
 
@@ -1525,14 +1525,8 @@ export default function useStopCardActions(params) {
       }).catch(() => {})
     );
 
-    // 10. Re-sort stop orders — finished by actual_delivery_time, incomplete by ETA.
-    //     Fire-and-forget: IDB already has actual_delivery_time from step 1.
-    //     This is the ONLY place that re-sorts after a dashboard Complete/Fail/Cancel.
-    if (delivery?.driver_id && delivery?.delivery_date) {
-      recalculateAndUpdateStopOrders(delivery.driver_id, delivery.delivery_date).catch((err) => {
-        console.warn('[executeTerminalAction] stop order recalc failed:', err?.message || err);
-      });
-    }
+    // Stop order re-sorting intentionally omitted — completing/failing/cancelling a stop
+    // does not change the route order. Stop orders remain as-is; only isNextDelivery changes.
 
     return { nextStop, routeIsFinished, incompleteDeliveries };
   }, [
