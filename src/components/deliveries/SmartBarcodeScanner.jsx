@@ -592,7 +592,7 @@ export default function SmartBarcodeScanner({
         {/* ── Top: viewfinder + status hint + scanned list ── */}
         <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
           {/* Viewfinder — 50% shorter (16:4.5 instead of 16:9) */}
-          <div className="relative w-full" style={{ aspectRatio: '16 / 14' }}>
+          <div className="relative w-full" style={{ aspectRatio: '16 / 8' }}>
             <div className={`relative w-full h-full rounded-lg overflow-hidden border-2 transition-colors duration-200 ${
               flashHit ? 'border-emerald-400' : 'border-white/30'
             }`}>
