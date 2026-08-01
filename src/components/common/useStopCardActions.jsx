@@ -1312,6 +1312,7 @@ export default function useStopCardActions(params) {
     actedOnNextDelivery,
     shouldRecalculateEtas,
     skipCollapseCard = false,
+    etaBaseTime = null,   // ISO timestamp to use as ETA cascade base (for retro timing)
   }) => {
     // 1. Atomic IDB write — offline-first, no smart-refresh trigger.
     //    This is ESSENTIAL WRITE #1: status + actual_delivery_time.
@@ -1414,7 +1415,17 @@ export default function useStopCardActions(params) {
 
     // 6. ETA cascade — fire-and-forget so it never blocks the lock or races the flag
     if (actedOnNextDelivery && shouldRecalculateEtas && incompleteDeliveries.length > 0) {
-      const currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
+      // Use etaBaseTime (retro actual_delivery_time) when available, otherwise use current clock
+      let currentLocalTime;
+      if (etaBaseTime) {
+        // Parse the retro actual_delivery_time (YYYY-MM-DDTHH:MM:SS) to HH:MM
+        const parsedBase = parseLocalTimestamp(etaBaseTime);
+        currentLocalTime = parsedBase
+          ? `${String(parsedBase.getHours()).padStart(2, '0')}:${String(parsedBase.getMinutes()).padStart(2, '0')}`
+          : (getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString());
+      } else {
+        currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
+      }
       const [hrs, mins] = currentLocalTime.split(':').map(Number);
       let currentEtaMinutes = hrs * 60 + mins;
       const updatedRemainingWithEtas = incompleteDeliveries.map((stop, index) => {
@@ -1671,6 +1682,7 @@ export default function useStopCardActions(params) {
           actedOnNextDelivery,
           shouldRecalculateEtas: shouldRecalculateCompletionEtas,
           skipCollapseCard: false,
+          etaBaseTime: useRetroactiveTiming ? completionActualTime : null,
         });
         // ────────────────────────────────────────────────────────────────────
 
@@ -1871,7 +1883,7 @@ export default function useStopCardActions(params) {
         };
 
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
-        const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, localTimeString);
+        const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, failActualTime);
 
         // Fire-and-forget: only needed if the completion timestamp differs from the initial boundary call
         if (criticalUpdate.actual_delivery_time && criticalUpdate.actual_delivery_time !== (delivery.actual_delivery_time || delivery.arrival_time)) {
@@ -1888,6 +1900,7 @@ export default function useStopCardActions(params) {
           actedOnNextDelivery,
           shouldRecalculateEtas: shouldRecalculateFailureEtas,
           skipCollapseCard: false,
+          etaBaseTime: useRetroactiveTiming ? failActualTime : null,
         });
         // ────────────────────────────────────────────────────────────────────
 
