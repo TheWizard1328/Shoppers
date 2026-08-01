@@ -1983,10 +1983,13 @@ export default function DeliveryFormView({
       <PatientMatchPopup isOpen={showMatchPopup} onClose={() => {setShowMatchPopup(false);setScanMatches([]);setExtractedData(null);}} matches={scanMatches} onSelectPatient={handleSelectMatchedPatient} extractedData={extractedData} stores={stores} />
       }
 
-      {/* Camera Overlay */}
+      {/* Camera Overlay — auto-capture with inline results */}
       <DeliveryCameraOverlay
         show={showCameraOverlay} videoRef={videoRef} canvasRef={canvasRef}
-        isScanning={isScanning} error={error} onCapture={handleCameraCapture}
+        isScanning={isScanning} error={error}
+        onPatientSelect={handleSelectMatchedPatient}
+        onCreatePatient={onCreatePatient}
+        stores={stores}
         onClose={() => {stopCamera();setShowCameraOverlay(false);setIsScanning(false);}} />
       
 
