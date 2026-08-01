@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { newStatus, deviceId, selectedDate, targetUserId, previousStatus: clientPreviousStatus } = await req.json();
+    const { newStatus, deviceId, selectedDate, targetUserId, previousStatus: clientPreviousStatus, anchorTime: clientAnchorTime } = await req.json();
 
     if (!newStatus) {
       return Response.json({ error: 'Missing required field: newStatus' }, { status: 400 });
@@ -217,23 +217,34 @@ Deno.serve(async (req) => {
     }
 
     // Determine anchor time for activity segment boundaries:
-    // - off_duty: use actual_delivery_time of the last completed stop (so TOT ends at last delivery, not clock time)
-    // - on_duty (first segment of the day): use actual_delivery_time of the first completed stop if it predates now
+    // - off_duty: prefer clientAnchorTime (passed from completion flow with the exact
+    //   actual_delivery_time). Fall back to DB query only if not provided — the DB
+    //   query is unreliable because the completing delivery's actual_delivery_time
+    //   may not be committed yet when setDriverStatus fires.
+    // - on_duty (first segment of the day): use actual_delivery_time of the first completed stop
     // - all other cases: use current time
     let activityAnchorTime = null;
     const targetDate = selectedDate || getEdmDate();
 
     if (newStatus === 'off_duty' && previousStatus === 'on_duty') {
-      const todayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: subjectUserId,
-        delivery_date: targetDate
-      }).catch(() => []);
-      const completed = todayDeliveries
-        .filter((d) => d?.actual_delivery_time && !d.is_cycling_marker)
-        .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime());
-      if (completed.length > 0) {
-        activityAnchorTime = completed[0].actual_delivery_time;
-        console.log(`⏱️ [setDriverStatus] Using last delivery time as off_duty anchor: ${activityAnchorTime}`);
+      if (clientAnchorTime) {
+        // Client passed the exact completion time — use it directly (most accurate)
+        activityAnchorTime = clientAnchorTime;
+        console.log(`⏱️ [setDriverStatus] Using client-provided anchorTime for off_duty: ${activityAnchorTime}`);
+      } else {
+        // Fallback: query DB for last completed delivery time
+        // (less reliable — the just-completed delivery may not be written yet)
+        const todayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+          driver_id: subjectUserId,
+          delivery_date: targetDate
+        }).catch(() => []);
+        const completed = todayDeliveries
+          .filter((d) => d?.actual_delivery_time && !d.is_cycling_marker)
+          .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime());
+        if (completed.length > 0) {
+          activityAnchorTime = completed[0].actual_delivery_time;
+          console.log(`⏱️ [setDriverStatus] Using last delivery time as off_duty anchor (DB fallback): ${activityAnchorTime}`);
+        }
       }
     } else if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
       // Only anchor to delivery time if there are no existing open segments (first on_duty of day)

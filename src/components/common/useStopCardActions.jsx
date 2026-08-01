@@ -1454,33 +1454,16 @@ export default function useStopCardActions(params) {
     }
 
     // 7. Route finished — show EOD dialog, go off-duty, disable location sharing
+    // IMPORTANT: The actual setDriverStatus(off_duty) call is deferred to AFTER
+    // completionActualTime is resolved (below), so we can pass it as anchorTime.
+    // This prevents the backend from re-querying deliveries and picking up a stale
+    // or not-yet-written actual_delivery_time for the segment boundary.
+    const driverAppUserForEOD = routeIsFinished ? (appUsers || []).find((au) => au?.user_id === delivery.driver_id) : null;
+    const driverStatusForEOD = driverAppUserForEOD?.driver_status ?? currentUser?.driver_status;
     if (routeIsFinished) {
       fabControlEvents.notifyDoneButtonClicked();
 
-      // CRITICAL: Use setDriverStatus backend as the SOLE path for going off-duty.
-      // It handles DriverDailyActivity segment recording (with 5-min rounding),
-      // location sharing disable, isNextDelivery clearing, and WebSocket broadcast.
-      //
-      // DO NOT call base44.entities.AppUser.update() directly before setDriverStatus —
-      // that changes driver_status to 'off_duty' before the backend reads previousStatus,
-      // causing it to skip segment recording (sees previousStatus=off_duty, not on_duty).
-      const driverAppUser = (appUsers || []).find((au) => au?.user_id === delivery.driver_id);
-      const driverStatus = driverAppUser?.driver_status ?? currentUser?.driver_status;
-      if (driverStatus === 'on_duty') {
-        setDriverStatus({
-          newStatus: 'off_duty',
-          selectedDate: delivery?.delivery_date,
-          targetUserId: delivery?.driver_id,
-        }).catch((e) => console.warn('⚠️ Route-complete off_duty failed:', e?.message));
-        // Optimistic local UI update (fire-and-forget, non-blocking)
-        if (driverAppUser?.id) {
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: [{ ...driverAppUser, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
-          }));
-        }
-      }
-
-      // If the current logged-in user IS the completing driver, stop local tracking
+      // If the current logged-in user IS the completing driver, stop local tracking immediately
       if (currentUser?.id === delivery.driver_id) {
         try { locationTracker.stopTracking(); } catch {}
         if (onDriverStatusChange) onDriverStatusChange('off_duty');
@@ -1636,6 +1619,26 @@ export default function useStopCardActions(params) {
         }
 
         const fallbackTravelDist = retroTravelDist ?? resolveTravelDistFallback(delivery, null, sameRouteDeliveries);
+
+        // DEFERRED from step 7: now that completionActualTime is resolved, fire setDriverStatus
+        // with anchorTime so the segment end_time = this delivery's actual completion time
+        // (rounded to next 5-min mark by the backend). Without anchorTime, the backend
+        // re-queries deliveries — but the DB write hasn't committed yet, so it picks up
+        // a stale time (often from an earlier segment) instead of the current completion time.
+        if (routeIsFinished && driverStatusForEOD === 'on_duty') {
+          setDriverStatus({
+            newStatus: 'off_duty',
+            selectedDate: delivery?.delivery_date,
+            targetUserId: delivery?.driver_id,
+            anchorTime: completionActualTime,
+          }).catch((e) => console.warn('⚠️ Route-complete off_duty failed:', e?.message));
+          // Optimistic local UI update
+          if (driverAppUserForEOD?.id) {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [{ ...driverAppUserForEOD, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
+            }));
+          }
+        }
 
         const completionUpdate = {
           status: 'completed',
