@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Barcode, Minus, Sun, ZoomIn, X } from 'lucide-react';
+import { Camera, Barcode, Minus, Sun, ZoomIn, X, SwitchCamera } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
@@ -592,6 +592,18 @@ export default function SmartBarcodeScanner({
           <div className="relative w-screen mx-auto mt-[10vh] px-0">
             <div className={`relative mx-auto w-screen aspect-video border-2 ${flashHit ? 'border-emerald-400' : 'border-white/80'} rounded-md overflow-hidden bg-black/20`}>
               <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
+              {cameraCount > 1 && (
+                <button
+                  type="button"
+                  onClick={switchCamera}
+                  disabled={isStartingCamera}
+                  className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5 rounded-full bg-white/25 backdrop-blur-sm px-3 py-2 text-white text-sm font-medium transition active:bg-white/40 disabled:opacity-50 touch-manipulation"
+                  title="Switch camera lens"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  <SwitchCamera className="w-5 h-5" />
+                </button>
+              )}
             </div>
             <div className="mt-3 flex items-center justify-between text-white/90">
               <div className="flex items-center gap-2">
@@ -612,16 +624,9 @@ export default function SmartBarcodeScanner({
                   </Button>
               }
               </div>
-              <div className="flex items-center gap-2">
-                {cameraCount > 1 &&
-                <Button variant="secondary" size="sm" onClick={switchCamera} title="Switch camera lens">
-                  <Camera className="w-4 h-4 mr-1" /> Switch
-                </Button>
-                }
-                <Button variant="secondary" size="sm" onClick={() => {stopCameraReader();setShowCamera(false);}}>
-                  <X className="w-4 h-4 mr-1" /> Close
-                </Button>
-              </div>
+              <Button variant="secondary" size="sm" onClick={() => {stopCameraReader();setShowCamera(false);}}>
+                <X className="w-4 h-4 mr-1" /> Close
+              </Button>
             </div>
             <div className="mt-2 text-center text-xs text-white/70">
               {cameraError ? <span className="text-red-400">{cameraError}</span> : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Point camera at a barcode'}

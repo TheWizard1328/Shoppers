@@ -2,7 +2,7 @@ import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Camera, SwitchCamera } from "lucide-react";
-import { listCameras, switchToNextCamera, saveCameraId } from "./useDeliveryCamera";
+import { listCameras, switchToNextCamera } from "./useDeliveryCamera";
 
 export default function DeliveryCameraOverlay({
   show,
@@ -36,7 +36,7 @@ export default function DeliveryCameraOverlay({
       // Update camera count
       try {
         const cams = await listCameras();
-        setCameraCount(cams.length);
+        setCameraCount(cams.filter(c => c.deviceId).length);
       } catch {}
     } catch (e) {
       console.warn('[DeliveryCameraOverlay] Switch failed:', e?.message);
@@ -48,7 +48,7 @@ export default function DeliveryCameraOverlay({
   // Update camera count when overlay opens
   React.useEffect(() => {
     if (show) {
-      listCameras().then(cams => setCameraCount(cams.length)).catch(() => {});
+      listCameras().then(cams => setCameraCount(cams.filter(c => c.deviceId).length)).catch(() => {});
     }
   }, [show]);
 
@@ -66,17 +66,17 @@ export default function DeliveryCameraOverlay({
           <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain rounded-lg" />
           <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-          {/* Switch Camera button — top right */}
+          {/* Switch Camera button — bottom right of viewfinder, one-hand reachable */}
           {cameraCount > 1 && (
             <button
               type="button"
               onClick={handleSwitch}
               disabled={isScanning || switching}
-              className="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 text-white text-sm font-medium transition hover:bg-white/30 disabled:opacity-50"
+              className="absolute bottom-20 right-3 z-10 flex items-center justify-center rounded-full bg-white/25 backdrop-blur-sm w-12 h-12 text-white transition active:bg-white/40 disabled:opacity-50 touch-manipulation"
               title="Switch camera lens"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
-              <SwitchCamera className="w-4 h-4" />
-              {switching ? '...' : 'Switch'}
+              <SwitchCamera className="w-6 h-6" />
             </button>
           )}
 

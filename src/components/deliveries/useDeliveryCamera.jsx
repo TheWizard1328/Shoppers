@@ -49,13 +49,20 @@ const listCameras = async () => {
 // Cycle to the next camera and return the new stream
 const switchToNextCamera = async (currentDeviceId) => {
   const cams = await listCameras();
-  if (cams.length <= 1) return null; // can't switch
+  // Filter to cameras that actually have a deviceId
+  const validCams = cams.filter(c => c.deviceId);
+  if (validCams.length <= 1) {
+    console.warn('[camera] Cannot switch — only', validCams.length, 'cameras with deviceIds');
+    return null;
+  }
 
-  const currentIdx = cams.findIndex(c => c.deviceId === currentDeviceId);
-  // Try next index, wrap around
-  const nextIdx = (currentIdx + 1) % cams.length;
-  const nextCam = cams[nextIdx];
-  if (!nextCam?.deviceId) return null;
+  // Find current index (or default to -1 so next = 0)
+  let currentIdx = validCams.findIndex(c => c.deviceId === currentDeviceId);
+  if (currentIdx === -1) currentIdx = -1; // unknown — start from beginning
+
+  const nextIdx = (currentIdx + 1) % validCams.length;
+  const nextCam = validCams[nextIdx];
+  console.log('[camera] Switching from idx', currentIdx, 'to idx', nextIdx, ':', nextCam.label || nextCam.deviceId.slice(0, 8));
 
   saveCameraId(nextCam.deviceId);
   return openStream(nextCam.deviceId);
