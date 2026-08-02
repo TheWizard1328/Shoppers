@@ -93,6 +93,12 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       const oversizedRateChanged = newOversizedRate !== (parseFloat(driver.oversized_item_rate) || 0);
       const payCycleChanged = formData.pay_cycle_type !== (driver.pay_cycle_type || 'monthly');
 
+      // Backfill pay_cycle_type on any legacy history entries that are missing it
+      const normalizedHistory = formData.pay_rate_history.map(entry =>
+        entry.pay_cycle_type ? entry : { ...entry, pay_cycle_type: 'monthly' }
+      );
+      updates.pay_rate_history = normalizedHistory;
+
       if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged || payCycleChanged) {
         const today = format(new Date(), 'yyyy-MM-dd');
         const historyEntry = {
@@ -103,7 +109,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           oversized_item_rate: newOversizedRate,
           pay_cycle_type: formData.pay_cycle_type || 'monthly'
         };
-        updates.pay_rate_history = [...formData.pay_rate_history, historyEntry];
+        updates.pay_rate_history = [...normalizedHistory, historyEntry];
       }
 
       // Call parent onSave which handles the AppUser update
