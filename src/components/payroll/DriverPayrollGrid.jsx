@@ -210,6 +210,9 @@ export default function DriverPayrollGrid({
     // Determine which driver IDs to include
     const driverIdsToInclude = selectedDriverId === 'all' ? driversWithMatchingPayCycle : [selectedDriverId];
 
+    const appUserMap = new Map();
+    appUsers.forEach((au) => { if (au?.user_id) appUserMap.set(au.user_id, au); });
+
     const filtered = deliveries.filter((d) => {
       if (!d || !d.delivery_date) return false;
       const date = new Date(d.delivery_date + 'T00:00:00');
@@ -226,11 +229,24 @@ export default function DriverPayrollGrid({
       // Exclude bare pickups — keep patient deliveries, ISD/ISP inter-store, and after_hours_pickup
       const isInterStore = String(d.delivery_id || '').toUpperCase().startsWith('ISD-') || String(d.delivery_id || '').toUpperCase().startsWith('ISP-');
       if (!d.patient_id && !d.after_hours_pickup && !isInterStore) return false;
+
+      // Per-delivery pay cycle check: only include deliveries whose date falls
+      // under the currently selected pay cycle for that driver.
+      // This handles mid-period cycle changes (e.g. weekly effective Jul 31
+      // in a Jul 27–Aug 2 period — Jul 27-30 deliveries are still semimonthly).
+      if (payPeriod) {
+        const au = appUserMap.get(d.driver_id);
+        if (au) {
+          const deliveryCycle = getDriverCycleForDate(au, d.delivery_date);
+          if (deliveryCycle !== null && deliveryCycle !== payPeriod) return false;
+        }
+      }
+
       return true;
     });
 
     return filtered;
-  }, [deliveries, currentPeriod, selectedDriverId, driversWithMatchingPayCycle]);
+  }, [deliveries, currentPeriod, selectedDriverId, driversWithMatchingPayCycle, payPeriod, appUsers, getDriverCycleForDate]);
 
   // Get extra km limit for a driver
   const getDriverExtraKmLimit = (driverId) => {

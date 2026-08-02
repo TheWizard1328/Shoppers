@@ -179,8 +179,18 @@ export default function PayrollSummaryCard({
 
         const date = new Date(d.delivery_date + 'T00:00:00');
         const inPeriod = date >= currentPeriod.start && date <= currentPeriod.end;
+        if (!inPeriod) return false;
 
-        return inPeriod;
+        // Per-delivery cycle check: only include deliveries whose cycle on that date
+        // matches the current payPeriod. Handles mid-period cycle changes (e.g. a
+        // driver switching from semimonthly to weekly mid-week — pre-change days
+        // must stay in the old cycle's view, not bleed into the new one).
+        if (payPeriod) {
+          const deliveryCycle = getEffectiveRates(appUser, d.delivery_date).pay_cycle_type;
+          if (deliveryCycle && deliveryCycle !== payPeriod) return false;
+        }
+
+        return true;
       });
 
       const deliveryCount = periodDeliveries.length;
