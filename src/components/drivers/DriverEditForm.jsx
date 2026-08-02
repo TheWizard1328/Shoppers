@@ -418,9 +418,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                           {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                         </span>
                         {entry.pay_cycle_type && (
-                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 whitespace-nowrap">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#475569' }}>
                             {entry.pay_cycle_type === 'semimonthly' ? 'Semi-Mo' : entry.pay_cycle_type === 'biweekly' ? 'Bi-Wk' : entry.pay_cycle_type === 'weekly' ? 'Wkly' : entry.pay_cycle_type}
-                          </Badge>
+                          </span>
                         )}
                       </div>
                       <div className="text-slate-600 text-[10px]">
