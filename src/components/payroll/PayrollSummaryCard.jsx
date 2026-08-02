@@ -207,13 +207,14 @@ export default function PayrollSummaryCard({
         if (dist > dExtraKmLimit && dExtraKmRate > 0) {const ek = dist - dExtraKmLimit;totalExtraKm += ek;extraKmPay += ek * dExtraKmRate;}
       });
 
+      const oversizedDeliveries = periodDeliveries.filter((d) => d.oversized);
+      const oversizedCount = oversizedDeliveries.length;
       let oversizedPay;
       if (hasRateHistory) {
-        oversizedPay = periodDeliveries.filter((d) => d.oversized).reduce((sum, d) => {
+        oversizedPay = oversizedDeliveries.reduce((sum, d) => {
           return sum + getEffectiveRates(appUser, d.delivery_date).oversized_item_rate;
         }, 0);
       } else {
-        const oversizedCount = periodDeliveries.filter((d) => d.oversized).length;
         oversizedPay = oversizedCount * oversizedRate;
       }
       const payrollRecord = payrollRecords.find((r) => r.driver_id === driverId);
