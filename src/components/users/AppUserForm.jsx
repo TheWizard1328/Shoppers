@@ -26,7 +26,8 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
     sort_order: 0,
     home_latitude: null,
     home_longitude: null,
-    pay_rate_history: []
+    pay_rate_history: [],
+    pay_cycle_type: 'monthly'
   });
 
   useEffect(() => {
@@ -50,7 +51,8 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
         sort_order: appUser.sort_order || 0,
         home_latitude: appUser.home_latitude || null,
         home_longitude: appUser.home_longitude || null,
-        pay_rate_history: appUser.pay_rate_history || []
+        pay_rate_history: appUser.pay_rate_history || [],
+        pay_cycle_type: appUser.pay_cycle_type || 'monthly'
       });
     } else {
       // Reset form data when appUser is null (adding new user)
@@ -67,7 +69,8 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
         sort_order: 0,
         home_latitude: null,
         home_longitude: null,
-        pay_rate_history: []
+        pay_rate_history: [],
+        pay_cycle_type: 'monthly'
       });
     }
   }, [appUser]);
@@ -297,7 +300,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                           </span>
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 whitespace-nowrap font-medium">
                             {(() => {
-                              const c = entry.pay_cycle_type || 'monthly';
+                              const c = entry.pay_cycle_type || formData.pay_cycle_type || 'monthly';
                               return c === 'semimonthly' ? 'Semi-Mo' : c === 'biweekly' ? 'Bi-Wk' : c === 'weekly' ? 'Wkly' : c.charAt(0).toUpperCase() + c.slice(1);
                             })()}
                           </span>
