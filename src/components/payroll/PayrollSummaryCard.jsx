@@ -28,6 +28,43 @@ import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts } from '.
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
+/**
+ * Resolve the effective pay rates for a driver for a given period start date.
+ * Looks through pay_rate_history (sorted newest-first) and returns the entry
+ * whose effective_date <= periodStart. Falls back to current AppUser fields.
+ */
+const getEffectiveRates = (appUser, periodStart) => {
+  const history = Array.isArray(appUser?.pay_rate_history) ? appUser.pay_rate_history : [];
+  if (history.length > 0 && periodStart) {
+    const periodStartStr = periodStart instanceof Date
+      ? periodStart.toISOString().split('T')[0]
+      : String(periodStart);
+    // Sort descending so we pick the most-recent entry that is still <= periodStart
+    const sorted = [...history].sort((a, b) =>
+      new Date(b.effective_date) - new Date(a.effective_date)
+    );
+    const match = sorted.find((e) => e.effective_date <= periodStartStr);
+    if (match) {
+      return {
+        pay_rate_per_delivery: match.pay_rate_per_delivery ?? appUser?.pay_rate_per_delivery ?? 0,
+        extra_km_rate: match.extra_km_rate ?? appUser?.extra_km_rate ?? 0,
+        extra_km_limit: match.extra_km_limit ?? appUser?.extra_km_limit ?? 0,
+        oversized_item_rate: match.oversized_item_rate ?? appUser?.oversized_item_rate ?? 0,
+        gst_hst_enabled: match.gst_hst_enabled ?? appUser?.gst_hst_enabled ?? false,
+        pay_cycle_type: match.pay_cycle_type ?? appUser?.pay_cycle_type ?? 'monthly',
+      };
+    }
+  }
+  return {
+    pay_rate_per_delivery: appUser?.pay_rate_per_delivery ?? 0,
+    extra_km_rate: appUser?.extra_km_rate ?? 0,
+    extra_km_limit: appUser?.extra_km_limit ?? 0,
+    oversized_item_rate: appUser?.oversized_item_rate ?? 0,
+    gst_hst_enabled: appUser?.gst_hst_enabled ?? false,
+    pay_cycle_type: appUser?.pay_cycle_type ?? 'monthly',
+  };
+};
+
 const parsePaidAmount = (value, fallback = 0) => {
   if (value === '' || value == null) return fallback;
   const parsed = parseFloat(value);
@@ -88,10 +125,11 @@ export default function PayrollSummaryCard({
     return driversToCalc.map((driver) => {
       const driverId = driver.user_id || driver.id;
       const appUser = appUsers.find((au) => au && (au.user_id === driverId || au.id === driver.id)) || driver;
-      const payRate = appUser?.pay_rate_per_delivery || 0;
-      const extraKmRate = appUser?.extra_km_rate || 0;
-      const extraKmLimit = appUser?.extra_km_limit || 0;
-      const oversizedRate = appUser?.oversized_item_rate || 0;
+      const effectiveRates = getEffectiveRates(appUser, currentPeriod?.start);
+      const payRate = effectiveRates.pay_rate_per_delivery;
+      const extraKmRate = effectiveRates.extra_km_rate;
+      const extraKmLimit = effectiveRates.extra_km_limit;
+      const oversizedRate = effectiveRates.oversized_item_rate;
 
       const periodDeliveries = deliveries.filter((d) => {
         if (!d || !d.delivery_date || d.driver_id !== driverId) return false;
@@ -149,7 +187,7 @@ export default function PayrollSummaryCard({
       );
       const storeReturnCount = returnsCount;
       const totalPay = basePay + extraKmPay + oversizedPay;
-      const gstHstEnabled = appUser?.gst_hst_enabled || false;
+      const gstHstEnabled = effectiveRates.gst_hst_enabled;
       let taxAmount = 0,taxRate = 0,provinceCode = null;
       if (gstHstEnabled && cities) {
         const driverCity = appUser?.city_id ? cities.find((c) => c && c.id === appUser.city_id) : null;
