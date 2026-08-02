@@ -94,7 +94,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           pay_rate_per_delivery: driver.pay_rate_per_delivery || 0,
           extra_km_rate: driver.extra_km_rate || 0,
           extra_km_limit: driver.extra_km_limit || 0,
-          oversized_item_rate: driver.oversized_item_rate || 0
+          oversized_item_rate: driver.oversized_item_rate || 0,
+          pay_cycle_type: driver.pay_cycle_type || 'semimonthly'
         };
 
         // Update with NEW values from form (as numbers)
@@ -411,10 +412,17 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 {formData.pay_rate_history
                   .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))
                   .map((entry, idx) => (
-                    <div key={idx} className="text-xs p-2 bg-slate-50 rounded flex justify-between items-center">
-                      <span className="font-medium text-slate-700">
-                        {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
-                      </span>
+                    <div key={idx} className="text-xs p-2 bg-slate-50 rounded flex justify-between items-center gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-medium text-slate-700 whitespace-nowrap">
+                          {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
+                        </span>
+                        {entry.pay_cycle_type && (
+                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 whitespace-nowrap">
+                            {entry.pay_cycle_type === 'semimonthly' ? 'Semi-Mo' : entry.pay_cycle_type === 'biweekly' ? 'Bi-Wk' : entry.pay_cycle_type === 'weekly' ? 'Wkly' : entry.pay_cycle_type}
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-slate-600 text-[10px]">
                         ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km / OS: ${formatRate(entry.oversized_item_rate)}
                       </div>

@@ -291,9 +291,16 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                     .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))
                     .map((entry, idx) => (
                       <div key={idx} className="text-xs p-2 bg-slate-50 rounded flex justify-between items-center gap-2">
-                        <span className="font-medium text-slate-700">
-                          {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-medium text-slate-700 whitespace-nowrap">
+                            {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
+                          </span>
+                          {entry.pay_cycle_type && (
+                            <span className="text-[9px] px-1 py-0 rounded bg-slate-200 text-slate-600 whitespace-nowrap">
+                              {entry.pay_cycle_type === 'semimonthly' ? 'Semi-Mo' : entry.pay_cycle_type === 'biweekly' ? 'Bi-Wk' : entry.pay_cycle_type === 'weekly' ? 'Wkly' : entry.pay_cycle_type}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-slate-600 text-[10px] flex items-center gap-1.5">
                           <span>${(entry.pay_rate_per_delivery || 0).toFixed(2)}</span>
                           <span>/</span>
