@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -591,7 +592,7 @@ export default function SmartBarcodeScanner({
         </div>
       }
 
-      {showCamera &&
+      {showCamera && typeof document !== 'undefined' && createPortal(
       <div className="fixed inset-0 z-[10030] bg-black flex flex-col items-center justify-between"
         style={{ paddingTop: 'env(safe-area-inset-top, 12px)', paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
 
@@ -725,6 +726,7 @@ export default function SmartBarcodeScanner({
           </button>
         </div>
       </div>
+      , document.body)
       }
     </div>);
 

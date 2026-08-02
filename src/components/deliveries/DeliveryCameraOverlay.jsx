@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, SwitchCamera, X, Check, User, Phone, MapPin, AlertCircle, Zap, ScanLine } from "lucide-react";
 import { listCameras, cycleRearCamera } from "./useDeliveryCamera";
@@ -192,6 +193,45 @@ export default function DeliveryCameraOverlay({
     setBarcodeDetected(false);
   }, []);
 
+  // ── iOS fallback: sharpness-based auto-capture timer ──
+  // When BarcodeDetector is not available (iOS Safari), poll sharpness every 1.8s
+  // and auto-fire burst capture if image is sharp enough (user has the label in frame).
+  const iosAutoCaptureRef = useRef(null);
+  const handleBurstCaptureRef = useRef(null);
+
+  const startIosAutoCapture = useCallback(() => {
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) return; // Android handles via BarcodeDetector
+    if (iosAutoCaptureRef.current) return;
+    const IOS_SHARPNESS_THRESHOLD = 18; // minimum sharpness to trigger auto-capture
+    const IOS_POLL_INTERVAL = 1800;     // ms between auto-capture checks
+
+    iosAutoCaptureRef.current = setInterval(() => {
+      if (!overlayActiveRef.current || !videoRef.current || !canvasRef.current) return;
+      if (scanInProgressRef.current) return;
+      const st = scanStateRef.current;
+      if (st !== 'idle') return;
+      if (!videoRef.current.videoWidth || !videoRef.current.videoHeight) return;
+
+      // Quick sharpness check using a small canvas
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = videoRef.current.videoWidth;
+      tempCanvas.height = videoRef.current.videoHeight;
+      tempCtx.drawImage(videoRef.current, 0, 0, tempCanvas.width, tempCanvas.height);
+      const sharpness = calculateSharpness(tempCanvas, tempCtx);
+
+      if (sharpness >= IOS_SHARPNESS_THRESHOLD) {
+        console.log('[DeliveryCameraOverlay] iOS auto-capture triggered, sharpness:', sharpness.toFixed(1));
+        if (handleBurstCaptureRef.current) handleBurstCaptureRef.current();
+      }
+    }, IOS_POLL_INTERVAL);
+    console.log('[DeliveryCameraOverlay] iOS sharpness auto-capture loop started');
+  }, []);
+
+  const stopIosAutoCapture = useCallback(() => {
+    if (iosAutoCaptureRef.current) { clearInterval(iosAutoCaptureRef.current); iosAutoCaptureRef.current = null; }
+  }, []);
+
   // ── Burst capture: grab N frames, pick the sharpest (manual fallback) ──
   const handleBurstCapture = useCallback(async () => {
     if (scanInProgressRef.current || !videoRef.current || !canvasRef.current) return;
@@ -303,6 +343,9 @@ export default function DeliveryCameraOverlay({
     }
   }, [scanState, onPatientSelect, onClose]);
 
+  // Keep iOS auto-capture ref in sync with latest handleBurstCapture
+  handleBurstCaptureRef.current = handleBurstCapture;
+
   // ── Patient selection from results ──
   const handleSelectPatient = useCallback(async (patient) => {
     setScanState('selected');
@@ -344,6 +387,7 @@ export default function DeliveryCameraOverlay({
     if (!show) {
       overlayActiveRef.current = false;
       stopBarcodeLoop();
+      stopIosAutoCapture();
       window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: false } }));
       return;
     }
@@ -353,21 +397,21 @@ export default function DeliveryCameraOverlay({
     setBlurWarning(false);
     listCameras().then(cams => setCameraCount(cams.length)).catch(() => {});
     window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: true } }));
-    setTimeout(() => startBarcodeLoop(), 800);
-  }, [show, startBarcodeLoop, stopBarcodeLoop]);
+    setTimeout(() => { startBarcodeLoop(); startIosAutoCapture(); }, 1200);
+  }, [show, startBarcodeLoop, stopBarcodeLoop, startIosAutoCapture, stopIosAutoCapture]);
 
   if (!show) return null;
 
   const showCaptureButton = scanState === 'idle' || scanState === 'error';
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[10030] bg-black flex flex-col items-center justify-between"
-        style={{ paddingTop: "env(safe-area-inset-top, 12px)", paddingBottom: "env(safe-area-inset-bottom, 12px)" }}
+        style={{ paddingTop: "env(safe-area-inset-top, 12px)", paddingBottom: "0px" }}
       >
         {/* ── Top: viewfinder + status hint + results ── */}
         <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
@@ -446,7 +490,7 @@ export default function DeliveryCameraOverlay({
              scanState === 'error' ? 'Scan failed' :
              blurWarning ? 'Too blurry — try again' :
              barcodeDetected ? 'Barcode detected — capturing...' :
-             'Point at a prescription label and click'}
+             ('BarcodeDetector' in window ? 'Point at a prescription label and click' : 'Point at label — auto-captures when sharp')}
           </div>
 
           {/* Results panel (scrollable if needed) */}
@@ -469,7 +513,7 @@ export default function DeliveryCameraOverlay({
         </div>
 
         {/* ── Bottom: action bar pinned to bottom of screen ── */}
-        <div className="w-full max-w-lg flex items-center justify-between px-6 pb-3">
+        <div className="w-full max-w-lg flex items-center justify-between px-6" style={{ paddingBottom: "max(24px, env(safe-area-inset-bottom, 24px))" }}>
           {/* Left: switch camera — always visible, same size/shape as capture */}
           <button
             type="button"
@@ -508,7 +552,7 @@ export default function DeliveryCameraOverlay({
         </div>
       </motion.div>
     </AnimatePresence>
-  );
+  , document.body);
 }
 
 // ── Results panel ──
