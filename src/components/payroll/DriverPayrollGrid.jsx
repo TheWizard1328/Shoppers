@@ -138,52 +138,66 @@ export default function DriverPayrollGrid({
   // Sort stores by sort_order
   const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
-  // Returns the effective pay_cycle_type for a driver as of the given period start.
-  // History entries store the NEW cycle that became active on their effective_date.
-  // Find the most recent entry with effective_date ≤ periodStart → that's the active cycle.
-  // Example: [Aug 02 → weekly, Jan 19 → semimonthly], viewing Jul 16 → returns semimonthly.
-  const getDriverPayCycleForPeriod = useCallback((appUser, periodStart) => {
+  // Returns the effective pay_cycle_type for a driver as of a given DATE.
+  // PER-DELIVERY classification: each delivery is classified by the cycle that was
+  // active on that delivery's date, not by the period start date.
+  const getDriverCycleForDate = useCallback((appUser, date) => {
     if (!appUser) return null;
     const current = appUser.pay_cycle_type;
-    if (!periodStart) return current;
+    if (!date) return current;
 
     const history = appUser.pay_rate_history;
     if (!history || !Array.isArray(history) || history.length === 0) return current;
 
-    // Sort history newest → oldest
     const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
 
-    // Find most recent entry whose effective_date is on or before the period start.
-    // That entry's pay_cycle_type is what was active on that date.
     for (const entry of sorted) {
       const entryDate = new Date(entry.effective_date);
-      // Normalize to date-only for comparison
       entryDate.setHours(0, 0, 0, 0);
-      const compareDate = new Date(periodStart);
+      const compareDate = new Date(date);
       compareDate.setHours(0, 0, 0, 0);
       if (entryDate <= compareDate && entry.pay_cycle_type) {
         return entry.pay_cycle_type;
       }
     }
 
-    // Period start is before all history entries — current setting applies
-    // (no change had occurred yet when the history was first recorded)
-    return current;
+    // Date is before all history entries — use earliest history entry's cycle
+    const earliest = sorted[sorted.length - 1];
+    return (earliest && earliest.pay_cycle_type) || current;
   }, []);
 
-  // Get drivers with matching pay cycle — checks effective cycle for the viewed period
+  // Get drivers with matching pay cycle — PER-DELIVERY classification.
+  // A driver is included if ANY of their deliveries in the current period
+  // were classified under the currently selected cycle.
   const driversWithMatchingPayCycle = useMemo(() => {
     if (!appUsers || !payPeriod || !currentPeriod) return [];
 
     const periodStart = currentPeriod.start;
+    const periodEnd = currentPeriod.end;
+    const periodStartStr = periodStart instanceof Date ? periodStart.toISOString().split('T')[0] : String(periodStart);
+    const periodEndStr = periodEnd instanceof Date ? periodEnd.toISOString().split('T')[0] : String(periodEnd);
 
-    const matching = appUsers.filter((au) => {
-      const effectiveCycle = getDriverPayCycleForPeriod(au, periodStart);
-      return effectiveCycle === payPeriod;
+    const appUserMap = new Map();
+    appUsers.forEach((au) => {
+      if (au?.user_id) appUserMap.set(au.user_id, au);
     });
 
-    return matching.map((au) => au.user_id).filter(Boolean);
-  }, [appUsers, payPeriod, currentPeriod, getDriverPayCycleForPeriod]);
+    // Check each driver's deliveries in the period to see if any match the selected cycle
+    const matchingDriverIds = new Set();
+    if (deliveries && Array.isArray(deliveries)) {
+      deliveries.forEach((d) => {
+        if (!d?.driver_id || !d.delivery_date) return;
+        if (d.delivery_date < periodStartStr || d.delivery_date > periodEndStr) return;
+        const au = appUserMap.get(d.driver_id);
+        if (!au) return;
+        if (getDriverCycleForDate(au, d.delivery_date) === payPeriod) {
+          matchingDriverIds.add(d.driver_id);
+        }
+      });
+    }
+
+    return Array.from(matchingDriverIds).filter(Boolean);
+  }, [appUsers, payPeriod, currentPeriod, getDriverCycleForDate, deliveries]);
 
   // Filter deliveries for current period and driver
   // Exclude bare pickups (no patient_id) UNLESS it's an after_hours_pickup or ISD/ISP inter-store

@@ -29,21 +29,22 @@ import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts } from '.
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
 /**
- * Resolve the effective pay rates for a driver for a given period start date.
- * Looks through pay_rate_history (sorted newest-first) and returns the entry
- * whose effective_date <= periodStart. Falls back to current AppUser fields.
+ * Resolve the effective pay rates for a driver as of a given DATE.
+ * PER-DELIVERY classification: uses the delivery date (not period start) to determine
+ * which rate was active. If date is before all history entries, uses the earliest entry.
+ * Falls back to current AppUser fields if no history exists.
  */
-const getEffectiveRates = (appUser, periodStart) => {
+const getEffectiveRates = (appUser, date) => {
   const history = Array.isArray(appUser?.pay_rate_history) ? appUser.pay_rate_history : [];
-  if (history.length > 0 && periodStart) {
-    const periodStartStr = periodStart instanceof Date
-      ? periodStart.toISOString().split('T')[0]
-      : String(periodStart);
-    // Sort descending so we pick the most-recent entry that is still <= periodStart
+  if (history.length > 0 && date) {
+    const dateStr = date instanceof Date
+      ? date.toISOString().split('T')[0]
+      : String(date);
+    // Sort descending so we pick the most-recent entry that is still <= date
     const sorted = [...history].sort((a, b) =>
       new Date(b.effective_date) - new Date(a.effective_date)
     );
-    const match = sorted.find((e) => e.effective_date <= periodStartStr);
+    const match = sorted.find((e) => e.effective_date <= dateStr);
     if (match) {
       return {
         pay_rate_per_delivery: match.pay_rate_per_delivery ?? appUser?.pay_rate_per_delivery ?? 0,
@@ -52,6 +53,18 @@ const getEffectiveRates = (appUser, periodStart) => {
         oversized_item_rate: match.oversized_item_rate ?? appUser?.oversized_item_rate ?? 0,
         gst_hst_enabled: match.gst_hst_enabled ?? appUser?.gst_hst_enabled ?? false,
         pay_cycle_type: match.pay_cycle_type ?? appUser?.pay_cycle_type ?? 'monthly',
+      };
+    }
+    // Date is before all history entries — use earliest entry's rates
+    const earliest = sorted[sorted.length - 1];
+    if (earliest) {
+      return {
+        pay_rate_per_delivery: earliest.pay_rate_per_delivery ?? appUser?.pay_rate_per_delivery ?? 0,
+        extra_km_rate: earliest.extra_km_rate ?? appUser?.extra_km_rate ?? 0,
+        extra_km_limit: earliest.extra_km_limit ?? appUser?.extra_km_limit ?? 0,
+        oversized_item_rate: earliest.oversized_item_rate ?? appUser?.oversized_item_rate ?? 0,
+        gst_hst_enabled: earliest.gst_hst_enabled ?? appUser?.gst_hst_enabled ?? false,
+        pay_cycle_type: earliest.pay_cycle_type ?? appUser?.pay_cycle_type ?? 'monthly',
       };
     }
   }
@@ -125,11 +138,17 @@ export default function PayrollSummaryCard({
     return driversToCalc.map((driver) => {
       const driverId = driver.user_id || driver.id;
       const appUser = appUsers.find((au) => au && (au.user_id === driverId || au.id === driver.id)) || driver;
+      // Default rates for the period start date — used as fallback.
+      // Per-delivery rate lookup is done below when rate changes exist in history.
       const effectiveRates = getEffectiveRates(appUser, currentPeriod?.start);
       const payRate = effectiveRates.pay_rate_per_delivery;
       const extraKmRate = effectiveRates.extra_km_rate;
       const extraKmLimit = effectiveRates.extra_km_limit;
       const oversizedRate = effectiveRates.oversized_item_rate;
+
+      // Check if this driver has rate changes in their history — if so, we need
+      // per-delivery rate lookup instead of using the period-start rate for everything.
+      const hasRateHistory = Array.isArray(appUser?.pay_rate_history) && appUser.pay_rate_history.length > 0;
 
       const periodDeliveries = deliveries.filter((d) => {
         if (!d || !d.delivery_date || d.driver_id !== driverId) return false;
@@ -165,18 +184,38 @@ export default function PayrollSummaryCard({
       });
 
       const deliveryCount = periodDeliveries.length;
-      const basePay = deliveryCount * payRate;
+      // If driver has rate history, compute pay per-delivery using each delivery's date.
+      // Otherwise use the period-start rate for all deliveries (fast path).
+      let basePay;
+      if (hasRateHistory && periodDeliveries.length > 0) {
+        basePay = periodDeliveries.reduce((sum, d) => {
+          const r = getEffectiveRates(appUser, d.delivery_date);
+          return sum + r.pay_rate_per_delivery;
+        }, 0);
+      } else {
+        basePay = deliveryCount * payRate;
+      }
 
       let extraKmPay = 0,totalExtraKm = 0;
       periodDeliveries.forEach((d) => {
         if (d.no_charge) return;
+        const r = hasRateHistory ? getEffectiveRates(appUser, d.delivery_date) : effectiveRates;
+        const dExtraKmRate = r.extra_km_rate;
+        const dExtraKmLimit = r.extra_km_limit;
         let dist = d.paid_km_override ?? 0;
-        if (!dist && d.patient_id && patients) {dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0;}
-        if (dist > extraKmLimit && extraKmRate > 0) {const ek = dist - extraKmLimit;totalExtraKm += ek;extraKmPay += ek * extraKmRate;}
+        if (!dist && d.patient_id && patients) {dist = patients.find((p) => p && (p.id === d.patient_id)?.distance_from_store || 0;}
+        if (dist > dExtraKmLimit && dExtraKmRate > 0) {const ek = dist - dExtraKmLimit;totalExtraKm += ek;extraKmPay += ek * dExtraKmRate;}
       });
 
-      const oversizedCount = periodDeliveries.filter((d) => d.oversized).length;
-      const oversizedPay = oversizedCount * oversizedRate;
+      let oversizedPay;
+      if (hasRateHistory) {
+        oversizedPay = periodDeliveries.filter((d) => d.oversized).reduce((sum, d) => {
+          return sum + getEffectiveRates(appUser, d.delivery_date).oversized_item_rate;
+        }, 0);
+      } else {
+        const oversizedCount = periodDeliveries.filter((d) => d.oversized).length;
+        oversizedPay = oversizedCount * oversizedRate;
+      }
       const payrollRecord = payrollRecords.find((r) => r.driver_id === driverId);
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
       const afterHoursCount = periodDeliveries.filter((d) => d.after_hours_pickup).length;

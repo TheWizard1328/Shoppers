@@ -1123,7 +1123,7 @@ export default function DriverPayroll() {
 
 
   // Refine pay cycle when live data loads — ONLY on initial load, never override manual selection.
-  // Uses getDriverPayCycleForPeriod to respect pay_rate_history for the current period.
+  // Uses getDriverCycleForDate to respect pay_rate_history (per-delivery classification).
   useEffect(() => {
     if (!payrollData?.appUsers || hasLoadedInitialDataRef.current || isManualChangeRef.current) return;
 
@@ -1132,7 +1132,7 @@ export default function DriverPayroll() {
       const cycleCounts = {};
       payrollData.appUsers.forEach((au) => {
         if (au?.app_roles?.includes('driver')) {
-          const effective = getDriverPayCycleForPeriod(au, currentPeriod?.start);
+          const effective = getDriverCycleForDate(au, currentPeriod?.start);
           if (effective) cycleCounts[effective] = (cycleCounts[effective] || 0) + 1;
         }
       });
@@ -1147,7 +1147,7 @@ export default function DriverPayroll() {
       }
     } else if (isDriver && selectedDriverId !== 'all') {
       const driverAppUser = payrollData.appUsers.find((au) => au.user_id === selectedDriverId);
-      const effective = getDriverPayCycleForPeriod(driverAppUser, currentPeriod?.start);
+      const effective = getDriverCycleForDate(driverAppUser, currentPeriod?.start);
       if (effective && effective !== payPeriod) {
         setPayPeriod(effective);
         periodSelectionDoneWithRecordsRef.current = false;
