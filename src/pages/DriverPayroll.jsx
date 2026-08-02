@@ -244,36 +244,58 @@ const determinePreferredPayrollPeriodIndex = ({ periods, payrollRecords = [], se
 
 
 /**
- * Returns the effective pay_cycle_type for an AppUser as of a given period start date.
- * History entries store the NEW cycle that became active on effective_date.
- * To find the cycle for a given period: find the most recent history entry with
- * effective_date ≤ periodStart — that entry's pay_cycle_type was the active cycle then.
- * If periodStart is before all history entries, fall back to the current setting.
+ * Returns the effective pay_cycle_type for an AppUser as of a given DATE.
+ * Classification is per-delivery: each delivery is classified by the cycle that
+ * was active ON THAT DELIVERY'S DATE, not by the period start date.
+ * This means a driver who switched from semimonthly to weekly on Aug 1 will have
+ * their Jul 20 delivery show in semimonthly and their Aug 3 delivery show in weekly.
  *
- * Example: Sharuk has history [Aug 02 → weekly, Jan 19 → semimonthly].
- * Viewing Jul 16–31: Aug 02 > Jul 16 (skip), Jan 19 ≤ Jul 16 → return semimonthly ✓
+ * History entries store the NEW cycle that became active on effective_date.
+ * To find the cycle for a given date: find the most recent history entry with
+ * effective_date <= date — that entry's pay_cycle_type was the active cycle then.
+ * If date is before all history entries, fall back to the earliest history entry.
+ *
+ * Example: Sharuk has history [Aug 01 → weekly, Jan 19 → semimonthly].
+ * Delivery on Jul 20: Aug 01 > Jul 20 (skip), Jan 19 ≤ Jul 20 → return semimonthly ✓
+ * Delivery on Aug 03: Aug 01 ≤ Aug 03 → return weekly ✓
  */
-const getDriverPayCycleForPeriod = (appUser, periodStart) => {
+const getDriverCycleForDate = (appUser, date) => {
   if (!appUser) return null;
   const current = appUser.pay_cycle_type;
-  if (!periodStart) return current;
+  if (!date) return current;
   const history = appUser.pay_rate_history;
   if (!history || !Array.isArray(history) || history.length === 0) return current;
   // Sort newest → oldest
   const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-  // Find the most recent history entry whose effective_date is on or before periodStart.
-  // That entry's pay_cycle_type is what was active at that time.
+  // Find the most recent history entry whose effective_date is on or before the given date.
   for (const entry of sorted) {
     const entryDate = new Date(entry.effective_date);
     entryDate.setHours(0, 0, 0, 0);
-    const compareDate = new Date(periodStart);
+    const compareDate = new Date(date);
     compareDate.setHours(0, 0, 0, 0);
     if (entryDate <= compareDate && entry.pay_cycle_type) {
       return entry.pay_cycle_type;
     }
   }
-  // periodStart is before all history entries — use current setting
-  return current;
+  // Date is before all history entries — use the earliest history entry's cycle
+  // (that was the cycle before the first recorded change)
+  const earliest = sorted[sorted.length - 1];
+  return (earliest && earliest.pay_cycle_type) || current;
+};
+
+/**
+ * Build a per-driver cycle lookup map: driverId -> function(deliveryDate) => cycle.
+ * Used to classify individual deliveries by their own date, not the period start.
+ */
+const buildDeliveryCycleClassifier = (appUsers) => {
+  const map = new Map();
+  if (!appUsers) return map;
+  appUsers.forEach((au) => {
+    if (au?.user_id) {
+      map.set(au.user_id, (dateStr) => getDriverCycleForDate(au, dateStr));
+    }
+  });
+  return map;
 };
 
 export default function DriverPayroll() {
@@ -359,25 +381,34 @@ export default function DriverPayroll() {
     const cityStoreIds = new Set(filteredStores.map((s) => s.id));
     let filtered = deliveries.filter((d) => d && cityStoreIds.has(d.store_id));
 
-    // Filter by pay cycle using effective cycle from pay_rate_history
+    // Filter by pay cycle using PER-DELIVERY classification.
+    // Each delivery is classified by the driver's cycle on that delivery's date.
+    // A driver who switched cycles mid-period will have pre-change deliveries in the
+    // old cycle and post-change deliveries in the new cycle.
     if (payrollData?.appUsers && payPeriod) {
-      const matchingDriverIds = new Set();
+      const appUserMap = new Map();
       payrollData.appUsers.forEach((au) => {
-        if (getDriverPayCycleForPeriod(au, currentPeriod?.start) === payPeriod) {
-          matchingDriverIds.add(au.user_id);
-        }
+        if (au?.user_id) appUserMap.set(au.user_id, au);
       });
-      // Include drivers with payroll records in this period (covers inactive drivers)
+      // Also include drivers with payroll records in this period (covers inactive drivers without appUsers data)
+      const payrollDriverIds = new Set();
       if (currentPeriod && Array.isArray(payrollData?.payrollRecords)) {
         const periodStart = toLocalYMD(currentPeriod.start);
         const periodEnd = toLocalYMD(currentPeriod.end);
         payrollData.payrollRecords.forEach((r) => {
           if (r?.driver_id && r.pay_period_start === periodStart && r.pay_period_end === periodEnd) {
-            matchingDriverIds.add(r.driver_id);
+            payrollDriverIds.add(r.driver_id);
           }
         });
       }
-      filtered = filtered.filter((d) => matchingDriverIds.has(d.driver_id));
+      filtered = filtered.filter((d) => {
+        if (!d.driver_id) return false;
+        // If driver has payroll records in this period, include them even without AppUser match
+        if (payrollDriverIds.has(d.driver_id)) return true;
+        const au = appUserMap.get(d.driver_id);
+        if (!au) return false;
+        return getDriverCycleForDate(au, d.delivery_date) === payPeriod;
+      });
     }
 
     return filtered;
@@ -413,16 +444,29 @@ export default function DriverPayroll() {
       });
     }
 
+    // Build per-delivery cycle classification: a driver is included if ANY of their
+    // deliveries in this period were classified under the currently selected cycle.
+    const driversWithMatchingDeliveries = new Set();
+    if (periodStart && periodEnd && Array.isArray(payrollData?.deliveries)) {
+      payrollData.deliveries.forEach((d) => {
+        if (!d?.driver_id || !d.delivery_date) return;
+        if (d.delivery_date < periodStart || d.delivery_date > periodEnd) return;
+        const au = appUsersByDriverId.get(d.driver_id);
+        if (!au) return;
+        if (getDriverCycleForDate(au, d.delivery_date) === payPeriod) {
+          driversWithMatchingDeliveries.add(d.driver_id);
+        }
+      });
+    }
+
     return sortUsers(
       payrollData.drivers.
       filter((d) => {
         if (!d) return false;
         const driverId = d.user_id || d.id;
-        const au = appUsersByDriverId.get(driverId);
-        // For inactive drivers (no AppUser in map), include them if they have payroll records
-        const cycleMatches = !au || getDriverPayCycleForPeriod(au, currentPeriod?.start) === payPeriod;
-        if (!cycleMatches && !payrollDriverIds.has(driverId)) return false;
-        return driversWithDeliveriesInPeriod.has(driverId) || payrollDriverIds.has(driverId);
+        // Include if: has matching-cycle deliveries in period, OR has payroll records for this period.
+        // Status is NOT checked — inactive drivers with data are always shown.
+        return driversWithMatchingDeliveries.has(driverId) || payrollDriverIds.has(driverId);
       }).
       map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
@@ -432,13 +476,13 @@ export default function DriverPayroll() {
     if (!payrollData?.appUsers) return [];
     const cycles = new Set();
     payrollData.appUsers.forEach((au) => {
-      // Include current pay cycle type
-      if (au.pay_cycle_type) cycles.add(au.pay_cycle_type);
-      // Include historical cycle types so past periods remain accessible
-      if (Array.isArray(au.pay_rate_history)) {
-        au.pay_rate_history.forEach((h) => {
-          if (h.pay_cycle_type) cycles.add(h.pay_cycle_type);
-        });
+      if (au.app_roles && au.app_roles.includes('driver')) {
+        if (au.pay_cycle_type) cycles.add(au.pay_cycle_type);
+        if (Array.isArray(au.pay_rate_history)) {
+          au.pay_rate_history.forEach((h) => {
+            if (h.pay_cycle_type) cycles.add(h.pay_cycle_type);
+          });
+        }
       }
     });
     const order = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
@@ -483,17 +527,30 @@ export default function DriverPayroll() {
       });
     }
 
+    // Build per-delivery cycle classification: a driver is included if ANY of their
+    // deliveries in this period were classified under the currently selected cycle.
+    const driversWithMatchingDeliveries = new Set();
+    if (periodStart && periodEnd && Array.isArray(payrollData?.deliveries)) {
+      payrollData.deliveries.forEach((d) => {
+        if (!d?.driver_id || !d.delivery_date) return;
+        if (d.delivery_date < periodStart || d.delivery_date > periodEnd) return;
+        const au = appUsersByDriverId.get(d.driver_id);
+        if (!au) return;
+        if (getDriverCycleForDate(au, d.delivery_date) === payPeriod) {
+          driversWithMatchingDeliveries.add(d.driver_id);
+        }
+      });
+    }
+
     const result = sortUsers(
       payrollData.drivers.
       filter((d) => {
         if (!d) return false;
         const driverId = d.user_id || d.id;
-        const au = appUsersByDriverId.get(driverId);
-        // For inactive drivers (no AppUser in map), include them if they have payroll records
-        const effectiveCycle = au ? getDriverPayCycleForPeriod(au, currentPeriod?.start) : null;
-        const cycleMatches = !au || effectiveCycle === payPeriod;
-        if (!cycleMatches && !payrollDriverIds.has(driverId)) return false;
-        return driversWithDeliveriesInPeriod.has(driverId) || payrollDriverIds.has(driverId);
+        // Include if: has matching-cycle deliveries in period, OR has payroll records,
+        // OR is the currently selected driver (prevents dropdown mismatch during transitions).
+        // Status is NOT checked — inactive drivers with data are always shown.
+        return driversWithMatchingDeliveries.has(driverId) || payrollDriverIds.has(driverId) || driverId === selectedDriverId;
       }).
       map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
@@ -519,7 +576,7 @@ export default function DriverPayroll() {
     // Count drivers by CURRENT pay cycle type — these are the available cycle FILTERS,
     // not period-specific data. A driver who switched from semimonthly to weekly should
     // show "weekly" as an available button so admins can view their weekly periods.
-    // The effective-cycle filtering (via getDriverPayCycleForPeriod) happens later when
+    // The per-delivery classification (via getDriverCycleForDate) happens later when
     // filtering deliveries and building the driver grid for a specific period.
     const cycleCounts = {};
     filteredAppUsers.forEach((au) => {
@@ -581,30 +638,35 @@ export default function DriverPayroll() {
       filtered = filtered.filter((d) => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
     }
 
-    // Filter by pay cycle — use effective cycle for the viewed period, not current setting
+    // Filter by pay cycle using PER-DELIVERY classification.
+    // Each delivery is classified by the driver's cycle on that delivery's date.
     if (payrollData?.appUsers && payPeriod) {
-      const matchingDriverIds = new Set();
+      const appUserMap = new Map();
       payrollData.appUsers.forEach((au) => {
-        const effectiveCycle = getDriverPayCycleForPeriod(au, currentPeriod?.start);
-        if (effectiveCycle === payPeriod) {
-          matchingDriverIds.add(au.user_id);
-        }
+        if (au?.user_id) appUserMap.set(au.user_id, au);
       });
       // Also include drivers who have payroll records in this period (covers inactive drivers)
+      const payrollDriverIds = new Set();
       if (currentPeriod && Array.isArray(payrollData?.payrollRecords)) {
         const periodStart = toLocalYMD(currentPeriod.start);
         const periodEnd = toLocalYMD(currentPeriod.end);
         payrollData.payrollRecords.forEach((r) => {
           if (r?.driver_id && r.pay_period_start === periodStart && r.pay_period_end === periodEnd) {
-            matchingDriverIds.add(r.driver_id);
+            payrollDriverIds.add(r.driver_id);
           }
         });
       }
-      filtered = filtered.filter((d) => d && matchingDriverIds.has(d.driver_id));
+      filtered = filtered.filter((d) => {
+        if (!d || !d.driver_id) return false;
+        if (payrollDriverIds.has(d.driver_id)) return true;
+        const au = appUserMap.get(d.driver_id);
+        if (!au) return false;
+        return getDriverCycleForDate(au, d.delivery_date) === payPeriod;
+      });
     }
 
     return filtered;
-  }, [payrollData?.deliveries, payrollData?.appUsers, selectedCityId, filteredStores, currentPeriod, payPeriod]);
+  }, [payrollData?.deliveries, payrollData?.appUsers, selectedCityId, filteredStores, currentPeriod, payPeriod, payrollData?.payrollRecords]);
 
   const filteredPayrollRecords = useMemo(() => {
     if (!currentPeriod || !Array.isArray(payrollRecords)) return [];
@@ -614,12 +676,13 @@ export default function DriverPayroll() {
     const payCycleDriverIds = new Set(driversInPayCycle.map((driver) => driver.user_id || driver.id));
 
     // Build a map of driver_id -> effective pay cycle for the current period.
-    // Uses pay_rate_history so records match the driver's cycle AT THE TIME of the period.
+    // Uses the period start date to classify the driver's cycle for this period.
+    // (Payroll records are per-period, not per-delivery, so period-start classification is correct here.)
     const driverCycleMap = new Map();
     if (payrollData?.appUsers) {
       payrollData.appUsers.forEach((au) => {
         if (au?.user_id) {
-          const effective = getDriverPayCycleForPeriod(au, currentPeriod?.start);
+          const effective = getDriverCycleForDate(au, currentPeriod?.start);
           if (effective) driverCycleMap.set(au.user_id, effective);
         }
       });
