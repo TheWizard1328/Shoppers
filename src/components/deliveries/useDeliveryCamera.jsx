@@ -1,4 +1,45 @@
 import { useCallback, useEffect } from 'react';
+
+// ── Global camera stream cache ──
+// iOS Safari re-prompts for camera permission on every getUserMedia call
+// if no stream is active. Keeping a cached stream prevents this.
+// The stream is reused by both SmartBarcodeScanner and DeliveryCameraOverlay.
+let _cachedStream = null;
+let _cachedDeviceId = null;
+
+const getCachedStream = () => _cachedStream;
+const setCachedStream = (stream, deviceId) => {
+  // Stop old cached stream if different device
+  if (_cachedStream && _cachedStream !== stream) {
+    try { _cachedStream.getTracks().forEach(t => t.stop()); } catch {}
+  }
+  _cachedStream = stream;
+  _cachedDeviceId = deviceId || null;
+};
+
+const releaseCachedStream = () => {
+  if (_cachedStream) {
+    try { _cachedStream.getTracks().forEach(t => t.stop()); } catch {}
+  }
+  _cachedStream = null;
+  _cachedDeviceId = null;
+};
+
+// Check if a cached stream is still alive
+const isStreamAlive = (stream) => {
+  if (!stream) return false;
+  const tracks = stream.getTracks();
+  if (!tracks.length) return false;
+  return tracks[0].readyState === 'live';
+};
+
+// Detach stream from a video element without stopping the stream
+const detachStream = (videoEl) => {
+  if (videoEl && videoEl.srcObject) {
+    videoEl.srcObject = null;
+  }
+};
+
 import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescriptionScanHelpers';
 
 // ── Camera selection for PWA/Chrome ──
@@ -28,28 +69,40 @@ const listCameras = async () => {
 // Open a stream. If deviceId provided, try exact first, then ideal, then facingMode.
 // Does NOT clear saved ID on failure — that's handled by caller.
 const tryOpenStream = async (deviceId) => {
+  // Return cached stream if still alive and same device
+  if (isStreamAlive(_cachedStream) && (!_cachedDeviceId || _cachedDeviceId === deviceId)) {
+    console.log('[camera] Reusing cached stream');
+    return _cachedStream;
+  }
+  // Stop stale cache
+  if (_cachedStream && !isStreamAlive(_cachedStream)) {
+    releaseCachedStream();
+  }
+
+  let stream = null;
   if (deviceId) {
     try {
-      return await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
         audio: false
       });
     } catch {
-      // exact failed — try ideal (won't hard-reject, picks closest match)
       try {
-        return await navigator.mediaDevices.getUserMedia({
+        stream = await navigator.mediaDevices.getUserMedia({
           video: { deviceId: { ideal: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
           audio: false
         });
-      } catch {
-        // both failed — fall through to facingMode
-      }
+      } catch { /* fall through to facingMode */ }
     }
   }
-  return await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-    audio: false
-  });
+  if (!stream) {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+      audio: false
+    });
+  }
+  setCachedStream(stream, stream.getVideoTracks()[0]?.getSettings?.()?.deviceId);
+  return stream;
 };
 
 // Cycle to the next REAR camera.
@@ -117,7 +170,7 @@ const cycleRearCamera = async (videoEl) => {
   return { stream: fallback, deviceId: null, label: null, reopened: true };
 };
 
-export { openStream, listCameras, cycleRearCamera, getSavedCameraId, saveCameraId, SAVED_CAM_KEY };
+export { openStream, listCameras, cycleRearCamera, getSavedCameraId, saveCameraId, SAVED_CAM_KEY, getCachedStream, releaseCachedStream, isStreamAlive, detachStream };
 
 // Used by startCamera — tries saved deviceId first
 const openStream = async (deviceId) => {
@@ -157,9 +210,18 @@ export default function useDeliveryCamera({
   }, [videoRef, setIsCameraActive, setError, setShowCameraOverlay]);
 
   const stopCamera = useCallback(() => {
+    // Detach from video element but DON'T stop tracks — keeps cached stream alive
+    // so iOS doesn't re-prompt for camera permission next time
     if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
+      // Check if this is the cached stream — if so, just detach, don't stop
+      if (videoRef.current.srcObject === getCachedStream()) {
+        console.log('[camera] Detaching cached stream (keeping alive for reuse)');
+        detachStream(videoRef.current);
+      } else {
+        // Not the cached stream — safe to stop
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+        videoRef.current.srcObject = null;
+      }
     }
     setIsCameraActive(false);
   }, [videoRef, setIsCameraActive]);

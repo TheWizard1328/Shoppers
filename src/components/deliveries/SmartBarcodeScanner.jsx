@@ -10,7 +10,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 import BarcodeThumb from './BarcodeThumb';
-import { openStream, cycleRearCamera, getSavedCameraId, listCameras } from './useDeliveryCamera';
+import { openStream, cycleRearCamera, getSavedCameraId, listCameras, getCachedStream, isStreamAlive, detachStream } from './useDeliveryCamera';
 import LargeBarcodePreview from './LargeBarcodePreview';
 
 const classifyBarcode = (value) => {
@@ -136,6 +136,7 @@ export default function SmartBarcodeScanner({
   const codeReaderRef = useRef(null);
   const isReaderActiveRef = useRef(false);
   const streamRef = useRef(null);
+  const zxingCanvasRef = useRef(null);
   const scannerBufferRef = useRef('');
   const scannerLeadCharRef = useRef('');
   const scannerModeRef = useRef(false);
@@ -378,26 +379,49 @@ export default function SmartBarcodeScanner({
         }
       }
 
-      // ── ZXing fallback — stream is already in videoRef, pass it directly ──
-      console.log('[SmartBarcodeScanner] Using ZXing fallback');
+      // ── ZXing fallback — manual decode loop for faster iOS performance ──
+      console.log('[SmartBarcodeScanner] Using ZXing manual decode loop (iOS fallback)');
       codeReaderRef.current = new BrowserMultiFormatReader();
       try {
         const hints = new Map();
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39]);
-        hints.set(DecodeHintType.ASSUME_GS1, true);
+        // Only CODE_128 — the most common pharmacy barcode format
+        // Limiting formats dramatically speeds up ZXing on iOS
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]);
+        hints.set(DecodeHintType.ASSUME_GS1, false);
         codeReaderRef.current.setHints(hints);
       } catch {}
 
-      // Use decodeFromStream (stream already open) instead of decodeFromConstraints
-      codeReaderRef.current.decodeFromStream(stream, videoRef.current, (result, err) => {
-        if (result) {
-          const text = result.getText ? result.getText() : String(result?.text || '');
-          if (text) handleCameraDetected(text);
+      // Manual decode loop — faster than decodeFromStream's internal loop
+      // because we control the interval and avoid ZXing's overhead
+      let lastDecodeAt = 0;
+      nativeScanLoopRef.current = setInterval(async () => {
+        if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) return;
+        const now = Date.now();
+        if (now - lastDecodeAt < 200) return; // 5fps decode attempts — fast enough, low CPU
+        lastDecodeAt = now;
+        try {
+          // Use decodeFromCanvas — much faster than video element scanning
+          // because we can downscale the canvas for faster decode
+          if (!zxingCanvasRef.current) zxingCanvasRef.current = document.createElement('canvas');
+          const canvas = zxingCanvasRef.current;
+          const vw = videoRef.current.videoWidth;
+          const vh = videoRef.current.videoHeight;
+          if (!vw || !vh) return;
+          // Downscale to 640px wide for faster decode on iOS
+          const scale = Math.min(1, 640 / vw);
+          canvas.width = Math.round(vw * scale);
+          canvas.height = Math.round(vh * scale);
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+          const result = await codeReaderRef.current.decodeFromCanvas(canvas);
+          if (result) {
+            const text = result.getText ? result.getText() : String(result?.text || '');
+            if (text) handleCameraDetected(text);
+          }
+        } catch {
+          // No barcode found this frame — normal
         }
-      }).catch((zxingErr) => {
-        console.warn('[SmartBarcodeScanner] ZXing failed:', zxingErr?.message);
-        setCameraError('Camera failed to start. Please try again.');
-      });
+      }, 250); // check every 250ms, decode at 200ms throttle = fast detection
     } catch (e) {
       console.warn('[SmartBarcodeScanner] Camera start failed:', e);
       setCameraError(e?.message || 'Could not access camera');
@@ -410,15 +434,21 @@ export default function SmartBarcodeScanner({
     try { clearInterval(nativeScanLoopRef.current); } catch {}
     nativeScanLoopRef.current = null;
     nativeDetectorRef.current = null;
-    // Stop ZXing
-    try {codeReaderRef.current?.reset?.();} catch {}
+    // Stop ZXing reader
+    try { if (codeReaderRef.current) { codeReaderRef.current.stop?.(); codeReaderRef.current = null; } } catch {}
+    // Detach stream — keep cached stream alive so iOS doesn't re-prompt
     try {
       const stream = streamRef.current || videoRef.current?.srcObject;
-      if (stream?.getTracks) stream.getTracks().forEach((t) => {try {t.stop();} catch {}});
+      if (stream && stream === getCachedStream() && isStreamAlive(stream)) {
+        console.log('[SmartBarcodeScanner] Detaching cached stream (keeping alive)');
+        detachStream(videoRef.current);
+      } else if (stream?.getTracks) {
+        stream.getTracks().forEach((t) => {try {t.stop();} catch {}});
+        if (videoRef.current) { try {videoRef.current.srcObject = null;} catch {} }
+      }
     } catch {}
     if (videoRef.current) {
       try {videoRef.current.pause();} catch {}
-      try {videoRef.current.srcObject = null;} catch {}
     }
     streamRef.current = null;
     isReaderActiveRef.current = false;

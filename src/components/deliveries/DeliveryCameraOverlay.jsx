@@ -202,8 +202,8 @@ export default function DeliveryCameraOverlay({
   const startIosAutoCapture = useCallback(() => {
     if (typeof window !== 'undefined' && 'BarcodeDetector' in window) return; // Android handles via BarcodeDetector
     if (iosAutoCaptureRef.current) return;
-    const IOS_SHARPNESS_THRESHOLD = 18; // minimum sharpness to trigger auto-capture
-    const IOS_POLL_INTERVAL = 1800;     // ms between auto-capture checks
+    const IOS_SHARPNESS_THRESHOLD = 12; // minimum sharpness to trigger auto-capture
+    const IOS_POLL_INTERVAL = 600;      // ms between auto-capture checks
 
     iosAutoCaptureRef.current = setInterval(() => {
       if (!overlayActiveRef.current || !videoRef.current || !canvasRef.current) return;
@@ -397,7 +397,7 @@ export default function DeliveryCameraOverlay({
     setBlurWarning(false);
     listCameras().then(cams => setCameraCount(cams.length)).catch(() => {});
     window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: true } }));
-    setTimeout(() => { startBarcodeLoop(); startIosAutoCapture(); }, 1200);
+    setTimeout(() => { startBarcodeLoop(); startIosAutoCapture(); }, 300);
   }, [show, startBarcodeLoop, stopBarcodeLoop, startIosAutoCapture, stopIosAutoCapture]);
 
   if (!show) return null;
