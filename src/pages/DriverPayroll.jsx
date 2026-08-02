@@ -432,8 +432,13 @@ export default function DriverPayroll() {
     if (!payrollData?.appUsers) return [];
     const cycles = new Set();
     payrollData.appUsers.forEach((au) => {
-      if (au.pay_cycle_type) {
-        cycles.add(au.pay_cycle_type);
+      // Include current pay cycle type
+      if (au.pay_cycle_type) cycles.add(au.pay_cycle_type);
+      // Include historical cycle types so past periods remain accessible
+      if (Array.isArray(au.pay_rate_history)) {
+        au.pay_rate_history.forEach((h) => {
+          if (h.pay_cycle_type) cycles.add(h.pay_cycle_type);
+        });
       }
     });
     const order = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
@@ -511,12 +516,24 @@ export default function DriverPayroll() {
       return { cycles: ['weekly', 'biweekly', 'semimonthly', 'monthly'], mostCommon: 'monthly', disabled: false, cycleCounts: {} };
     }
 
-    // Count drivers by effective pay cycle for the current period (respects pay_rate_history)
+    // Count drivers by CURRENT pay cycle type — these are the available cycle FILTERS,
+    // not period-specific data. A driver who switched from semimonthly to weekly should
+    // show "weekly" as an available button so admins can view their weekly periods.
+    // The effective-cycle filtering (via getDriverPayCycleForPeriod) happens later when
+    // filtering deliveries and building the driver grid for a specific period.
     const cycleCounts = {};
     filteredAppUsers.forEach((au) => {
-      const effective = getDriverPayCycleForPeriod(au, currentPeriod?.start);
-      if (effective) {
-        cycleCounts[effective] = (cycleCounts[effective] || 0) + 1;
+      // Use current pay_cycle_type, but also include any historical cycle types
+      // so that past periods remain accessible via the filter buttons.
+      const current = au.pay_cycle_type;
+      if (current) cycleCounts[current] = (cycleCounts[current] || 0) + 1;
+      // Also include cycles from pay_rate_history so old cycle types stay visible
+      if (Array.isArray(au.pay_rate_history)) {
+        au.pay_rate_history.forEach((h) => {
+          if (h.pay_cycle_type && !cycleCounts[h.pay_cycle_type]) {
+            cycleCounts[h.pay_cycle_type] = 0; // count as 0 so the button appears
+          }
+        });
       }
     });
 
@@ -524,7 +541,7 @@ export default function DriverPayroll() {
     const order = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
     const sortedCycles = order.filter((c) => cycles.includes(c));
 
-    // Find most common cycle
+    // Find most common CURRENT cycle (count > 0 excludes historical-only cycles)
     let mostCommon = null;
     let maxCount = 0;
     Object.entries(cycleCounts).forEach(([cycle, count]) => {
