@@ -138,22 +138,26 @@ export default function DriverPayrollGrid({
   // Sort stores by sort_order
   const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
-  // Get drivers with matching pay cycle
+  // Resolve effective pay cycle for a driver based on period start date
+  const getEffectiveCycle = (appUser) => {
+    const history = Array.isArray(appUser?.pay_rate_history) ? appUser.pay_rate_history : [];
+    if (history.length > 0 && currentPeriod?.start) {
+      const periodStartStr = currentPeriod.start instanceof Date
+        ? currentPeriod.start.toISOString().split('T')[0]
+        : String(currentPeriod.start);
+      const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+      const match = sorted.find((e) => e.effective_date <= periodStartStr);
+      if (match?.pay_cycle_type) return match.pay_cycle_type;
+    }
+    return appUser?.pay_cycle_type;
+  };
+
+  // Get drivers with matching pay cycle (resolved from history for the selected period)
   const driversWithMatchingPayCycle = useMemo(() => {
     if (!appUsers || !payPeriod) return [];
-
-    const payCycleMap = {
-      'weekly': 'weekly',
-      'biweekly': 'biweekly',
-      'semimonthly': 'semimonthly',
-      'monthly': 'monthly'
-    };
-
-    const targetCycle = payCycleMap[payPeriod];
-    const matching = appUsers.filter((au) => au?.pay_cycle_type === targetCycle);
-
+    const matching = appUsers.filter((au) => getEffectiveCycle(au) === payPeriod);
     return matching.map((au) => au.user_id).filter(Boolean);
-  }, [appUsers, payPeriod]);
+  }, [appUsers, payPeriod, currentPeriod]);
 
   // Filter deliveries for current period and driver
   // Exclude bare pickups (no patient_id) UNLESS it's an after_hours_pickup or ISD/ISP inter-store
