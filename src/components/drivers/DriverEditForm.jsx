@@ -93,13 +93,17 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       const oversizedRateChanged = newOversizedRate !== (parseFloat(driver.oversized_item_rate) || 0);
       const payCycleChanged = formData.pay_cycle_type !== (driver.pay_cycle_type || 'monthly');
 
-      // Backfill pay_cycle_type on any legacy history entries that are missing it
-      const normalizedHistory = formData.pay_rate_history.map(entry =>
-        entry.pay_cycle_type ? entry : { ...entry, pay_cycle_type: 'monthly' }
-      );
+      // Backfill pay_cycle_type and gst_hst_enabled on any legacy history entries missing them
+      const normalizedHistory = formData.pay_rate_history.map(entry => ({
+        ...entry,
+        pay_cycle_type: entry.pay_cycle_type || 'monthly',
+        gst_hst_enabled: entry.gst_hst_enabled ?? false
+      }));
       updates.pay_rate_history = normalizedHistory;
 
-      if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged || payCycleChanged) {
+      const gstChanged = formData.gst_hst_enabled !== (driver.gst_hst_enabled || false);
+
+      if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged || payCycleChanged || gstChanged) {
         const today = format(new Date(), 'yyyy-MM-dd');
         const historyEntry = {
           effective_date: today,
@@ -107,7 +111,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           extra_km_rate: newKmRate,
           extra_km_limit: newKmLimit,
           oversized_item_rate: newOversizedRate,
-          pay_cycle_type: formData.pay_cycle_type || 'monthly'
+          pay_cycle_type: formData.pay_cycle_type || 'monthly',
+          gst_hst_enabled: formData.gst_hst_enabled || false
         };
         updates.pay_rate_history = [...normalizedHistory, historyEntry];
       }

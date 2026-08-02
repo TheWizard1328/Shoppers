@@ -93,10 +93,12 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
   const handleSubmit = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // Backfill pay_cycle_type on any legacy history entries missing it
-    const normalizedHistory = (formData.pay_rate_history || []).map(entry =>
-      entry.pay_cycle_type ? entry : { ...entry, pay_cycle_type: formData.pay_cycle_type || 'monthly' }
-    );
+    // Backfill pay_cycle_type and gst_hst_enabled on any legacy history entries missing them
+    const normalizedHistory = (formData.pay_rate_history || []).map(entry => ({
+      ...entry,
+      pay_cycle_type: entry.pay_cycle_type || formData.pay_cycle_type || 'monthly',
+      gst_hst_enabled: entry.gst_hst_enabled ?? false
+    }));
     const dataToSave = {
       ...formData,
       city_id: formData.city_ids?.[0] || '',

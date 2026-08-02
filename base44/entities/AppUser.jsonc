@@ -181,6 +181,20 @@
           "oversized_item_rate": {
             "type": "number",
             "description": "Extra pay for oversized items at this time"
+          },
+          "pay_cycle_type": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "biweekly",
+              "semimonthly",
+              "monthly"
+            ],
+            "description": "Pay cycle type at this time"
+          },
+          "gst_hst_enabled": {
+            "type": "boolean",
+            "description": "Whether GST/HST was enabled at this time"
           }
         },
         "required": [
