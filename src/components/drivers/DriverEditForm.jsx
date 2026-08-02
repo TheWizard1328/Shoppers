@@ -32,7 +32,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
     pay_cycle_type: driver.pay_cycle_type || 'monthly',
     deductions: driver.deductions || [],
     pay_rate_history: driver.pay_rate_history || [],
-    square_location_ids: driver.square_location_ids || []
+    square_location_ids: driver.square_location_ids || [],
+    effective_date: format(new Date(), 'yyyy-MM-dd')  // default to today, editable
   });
   const [isSaving, setIsSaving] = useState(false);
   const [newDeductionName, setNewDeductionName] = useState('');
@@ -93,10 +94,13 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       const oversizedRateChanged = newOversizedRate !== (parseFloat(driver.oversized_item_rate) || 0);
       const payCycleChanged = formData.pay_cycle_type !== (driver.pay_cycle_type || 'monthly');
 
-      // Backfill pay_cycle_type and gst_hst_enabled on any legacy history entries missing them
+      // Backfill pay_cycle_type on legacy history entries missing it.
+      // Use the driver's ORIGINAL pay_cycle_type (before this edit) as the default —
+      // NOT the new formData value, and NOT a hardcoded 'monthly'.
+      const originalCycleType = driver.pay_cycle_type || 'monthly';
       const normalizedHistory = formData.pay_rate_history.map(entry => ({
         ...entry,
-        pay_cycle_type: entry.pay_cycle_type || 'monthly',
+        pay_cycle_type: entry.pay_cycle_type || originalCycleType,
         gst_hst_enabled: entry.gst_hst_enabled ?? false
       }));
       updates.pay_rate_history = normalizedHistory;
@@ -104,9 +108,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       const gstChanged = formData.gst_hst_enabled !== (driver.gst_hst_enabled || false);
 
       if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged || payCycleChanged || gstChanged) {
-        const today = format(new Date(), 'yyyy-MM-dd');
         const historyEntry = {
-          effective_date: today,
+          effective_date: formData.effective_date,
           pay_rate_per_delivery: newPayRate,
           extra_km_rate: newKmRate,
           extra_km_limit: newKmLimit,
@@ -254,6 +257,29 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               </div>
             </div>
           </div>
+
+          {/* Effective Date for Rate/Cycle Changes */}
+          {(formData.pay_cycle_type !== (driver.pay_cycle_type || 'monthly') ||
+            parseFloat(formData.pay_rate_per_delivery) !== (parseFloat(driver.pay_rate_per_delivery) || 0) ||
+            parseFloat(formData.extra_km_rate) !== (parseFloat(driver.extra_km_rate) || 0) ||
+            parseFloat(formData.extra_km_limit) !== (parseFloat(driver.extra_km_limit) || 0) ||
+            parseFloat(formData.oversized_item_rate) !== (parseFloat(driver.oversized_item_rate) || 0) ||
+            formData.gst_hst_enabled !== (driver.gst_hst_enabled || false)) && (
+            <div>
+              <Label htmlFor="effective_date" className="text-sm font-medium mb-1.5 block flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" />
+                Effective Date for Changes
+              </Label>
+              <Input
+                id="effective_date"
+                type="date"
+                value={formData.effective_date}
+                onChange={(e) => setFormData(prev => ({ ...prev, effective_date: e.target.value }))}
+                className="w-full"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">Deliveries on or after this date use the new rates/cycle. Earlier deliveries keep the previous rates.</p>
+            </div>
+          )}
 
           {/* Oversized, Extra KM & KM Limit - Row 2 */}
           <div className="grid grid-cols-3 gap-3">

@@ -267,7 +267,9 @@ const getDriverCycleForDate = (appUser, date) => {
   if (!history || !Array.isArray(history) || history.length === 0) return current;
   // Sort newest → oldest
   const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+
   // Find the most recent history entry whose effective_date is on or before the given date.
+  // That entry's pay_cycle_type was the active cycle on that date.
   for (const entry of sorted) {
     const entryDate = new Date(entry.effective_date);
     entryDate.setHours(0, 0, 0, 0);
@@ -277,10 +279,18 @@ const getDriverCycleForDate = (appUser, date) => {
       return entry.pay_cycle_type;
     }
   }
-  // Date is before all history entries — use the earliest history entry's cycle
-  // (that was the cycle before the first recorded change)
-  const earliest = sorted[sorted.length - 1];
-  return (earliest && earliest.pay_cycle_type) || current;
+
+  // No entry with pay_cycle_type found on or before this date.
+  // Find the earliest entry that has a pay_cycle_type — that represents the
+  // cycle that was active BEFORE the first recorded change.
+  const earliestWithCycle = [...sorted].reverse().find((e) => e.pay_cycle_type);
+  if (earliestWithCycle) return earliestWithCycle.pay_cycle_type;
+
+  // Last resort: if NO history entry has pay_cycle_type at all,
+  // we cannot determine the historical cycle. Return null so callers
+  // can handle it (rather than blindly returning the current/new cycle
+  // which would misclassify all pre-change deliveries).
+  return null;
 };
 
 /**
