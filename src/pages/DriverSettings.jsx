@@ -226,15 +226,19 @@ export default function DriverSettings() {
       }
 
       // Update using the AppUser's actual ID
-      await base44.entities.AppUser.update(appUser.id, updates);
+      const savedRecord = await base44.entities.AppUser.update(appUser.id, updates);
+      const mergedRecord = { ...appUser, ...updates, ...(savedRecord || {}), id: appUser.id };
 
-      // Refresh data
-      const freshData = await base44.entities.AppUser.list(null, null, null, 'id,user_id,user_name,app_roles,status,driver_status,driver_id,driver_name,store_ids,city_id,city_ids,home_latitude,home_longitude,current_latitude,current_longitude,location_tracking_enabled,location_updated_at,preferred_travel_mode,sort_order,role,full_name,created_date,updated_date');
-      setFreshAppUsers(freshData || []);
+      // CRITICAL: Update local state immediately (optimistic merge) — avoids full refresh
+      // which would wipe pay data from all driver cards in memory.
+      setFreshAppUsers((prev) =>
+        prev.map((u) => (u?.id === appUser.id ? mergedRecord : u))
+      );
 
-      if (refreshData) {
-        await refreshData();
-      }
+      // Notify Layout to merge this single AppUser update without a full reload
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: { appUsers: [mergedRecord], mergeMode: 'merge' }
+      }));
 
       setEditingDriver(null);
     } catch (error) {

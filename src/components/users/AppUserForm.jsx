@@ -295,11 +295,12 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                           <span className="font-medium text-slate-700 whitespace-nowrap">
                             {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                           </span>
-                          {entry.pay_cycle_type && (
-                            <span className="text-[9px] px-1 py-0 rounded bg-slate-200 text-slate-600 whitespace-nowrap">
-                              {entry.pay_cycle_type === 'semimonthly' ? 'Semi-Mo' : entry.pay_cycle_type === 'biweekly' ? 'Bi-Wk' : entry.pay_cycle_type === 'weekly' ? 'Wkly' : entry.pay_cycle_type}
-                            </span>
-                          )}
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 whitespace-nowrap font-medium">
+                            {(() => {
+                              const c = entry.pay_cycle_type || 'monthly';
+                              return c === 'semimonthly' ? 'Semi-Mo' : c === 'biweekly' ? 'Bi-Wk' : c === 'weekly' ? 'Wkly' : c.charAt(0).toUpperCase() + c.slice(1);
+                            })()}
+                          </span>
                         </div>
                         <div className="text-slate-600 text-[10px] flex items-center gap-1.5">
                           <span>${(entry.pay_rate_per_delivery || 0).toFixed(2)}</span>

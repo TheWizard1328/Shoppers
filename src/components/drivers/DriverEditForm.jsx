@@ -73,7 +73,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       // Include Square location assignments
       updates.square_location_ids = formData.square_location_ids;
 
-      // Check if pay rates changed (compare as numbers)
+      // Check if pay rates or pay cycle changed
       const newPayRate = parseFloat(formData.pay_rate_per_delivery) || 0;
       const newKmRate = parseFloat(formData.extra_km_rate) || 0;
       const newKmLimit = parseFloat(formData.extra_km_limit) || 0;
@@ -83,33 +83,28 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       const kmRateChanged = newKmRate !== (parseFloat(driver.extra_km_rate) || 0);
       const kmLimitChanged = newKmLimit !== (parseFloat(driver.extra_km_limit) || 0);
       const oversizedRateChanged = newOversizedRate !== (parseFloat(driver.oversized_item_rate) || 0);
+      const payCycleChanged = formData.pay_cycle_type !== (driver.pay_cycle_type || 'monthly');
 
-      if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged) {
-        // Archive the OLD rates to history before updating with new values
+      // Always include pay rates in updates
+      updates.pay_rate_per_delivery = newPayRate;
+      updates.extra_km_rate = newKmRate;
+      updates.extra_km_limit = newKmLimit;
+      updates.oversized_item_rate = newOversizedRate;
+
+      if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged || payCycleChanged) {
+        // Archive the NEW rates as a history entry (effective from today)
         const today = format(new Date(), 'yyyy-MM-dd');
         
-        // Create history entry with the CURRENT (old) values before they get overwritten
         const historyEntry = {
           effective_date: today,
-          pay_rate_per_delivery: driver.pay_rate_per_delivery || 0,
-          extra_km_rate: driver.extra_km_rate || 0,
-          extra_km_limit: driver.extra_km_limit || 0,
-          oversized_item_rate: driver.oversized_item_rate || 0,
-          pay_cycle_type: driver.pay_cycle_type || 'semimonthly'
+          pay_rate_per_delivery: newPayRate,
+          extra_km_rate: newKmRate,
+          extra_km_limit: newKmLimit,
+          oversized_item_rate: newOversizedRate,
+          pay_cycle_type: formData.pay_cycle_type || 'monthly'
         };
 
-        // Update with NEW values from form (as numbers)
-        updates.pay_rate_per_delivery = newPayRate;
-        updates.extra_km_rate = newKmRate;
-        updates.extra_km_limit = newKmLimit;
-        updates.oversized_item_rate = newOversizedRate;
         updates.pay_rate_history = [...formData.pay_rate_history, historyEntry];
-      } else {
-        // Always include pay rates in updates to ensure they're saved
-        updates.pay_rate_per_delivery = newPayRate;
-        updates.extra_km_rate = newKmRate;
-        updates.extra_km_limit = newKmLimit;
-        updates.oversized_item_rate = newOversizedRate;
       }
 
       // Call parent onSave which handles the AppUser update
@@ -417,11 +412,12 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                         <span className="font-medium text-slate-700 whitespace-nowrap">
                           {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                         </span>
-                        {entry.pay_cycle_type && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#475569' }}>
-                            {entry.pay_cycle_type === 'semimonthly' ? 'Semi-Mo' : entry.pay_cycle_type === 'biweekly' ? 'Bi-Wk' : entry.pay_cycle_type === 'weekly' ? 'Wkly' : entry.pay_cycle_type}
-                          </span>
-                        )}
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#475569' }}>
+                          {(() => {
+                            const c = entry.pay_cycle_type || formData.pay_cycle_type || 'monthly';
+                            return c === 'semimonthly' ? 'Semi-Mo' : c === 'biweekly' ? 'Bi-Wk' : c === 'weekly' ? 'Wkly' : c.charAt(0).toUpperCase() + c.slice(1);
+                          })()}
+                        </span>
                       </div>
                       <div className="text-slate-600 text-[10px]">
                         ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km / OS: ${formatRate(entry.oversized_item_rate)}
