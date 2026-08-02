@@ -1510,18 +1510,20 @@ export default function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(data.taxAmount || 0)}</td>
                             </tr>
-                            <tr style={{ color: '#ef4444' }}>
+                            {(() => { const dedTotal = sumDeductionAmounts(edit.deductions || []); const isNegDed = dedTotal < 0; return (
+                            <tr style={{ color: isNegDed ? '#16a34a' : '#ef4444' }}>
                               <td className="text-left pr-2">
                                 {isAdmin ?
-                                    <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-red-600 hover:text-red-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
-                                    Deductions:
+                                    <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className={`${isNegDed ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'} cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle`}>
+                                    Add On's:
                                   </button> :
-                                    'Deductions:'
+                                    "Add On's:"
                                     }
                               </td>
-                              <td className="text-right pr-0.5">-$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(sumDeductionAmounts(edit.deductions || []))}</td>
+                              <td className="text-right pr-0.5">{isNegDed ? '+$' : '-$'}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(Math.abs(dedTotal))}</td>
                             </tr>
+                            ); })()}
                             <tr style={{ color: '#16a34a' }}>
                               <td className="text-left pr-2">
                                 {isAdmin ?
@@ -1614,10 +1616,12 @@ export default function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdTaxAmount ?? 0)}</td>
                             </tr>
-                            <tr style={{ color: '#ef4444' }}>
-                              <td className="text-right pr-0.5">-$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0)}</td>
+                            {(() => { const ytdDed = ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0; const isNegYtdDed = ytdDed < 0; return (
+                            <tr style={{ color: isNegYtdDed ? '#16a34a' : '#ef4444' }}>
+                              <td className="text-right pr-0.5">{isNegYtdDed ? '+$' : '-$'}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(Math.abs(ytdDed))}</td>
                             </tr>
+                            ); })()}
                             <tr style={{ color: '#16a34a' }}>
                               <td className="text-right pr-0.5">+$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0)}</td>
@@ -1827,12 +1831,12 @@ export default function PayrollSummaryCard({
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalTax.toFixed(2)}</td>
                                 </tr>
                               }
-                              {grandTotalDeductions > 0 &&
-                              <tr style={{ color: '#ef4444' }}>
-                                  <td className="text-left pr-2">Deductions:</td>
-                                  <td className="text-right pr-0.5">-$</td>
-                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalDeductions.toFixed(2)}</td>
-                                </tr>
+                              {grandTotalDeductions !== 0 &&
+                              <tr style={{ color: grandTotalDeductions < 0 ? '#16a34a' : '#ef4444' }}>
+                                 <td className="text-left pr-2">Add On's:</td>
+                                 <td className="text-right pr-0.5">{grandTotalDeductions < 0 ? '+$' : '-$'}</td>
+                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{Math.abs(grandTotalDeductions).toFixed(2)}</td>
+                               </tr>
                               }
                               <tr style={{ color: '#16a34a' }}>
                                 <td className="text-left pr-2">Bonus:</td>
@@ -1881,11 +1885,11 @@ export default function PayrollSummaryCard({
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalTax.toFixed(2)}</td>
                                 </tr>
                               }
-                              {ytdGrandTotalDeductions > 0 &&
-                              <tr style={{ color: '#ef4444' }}>
-                                  <td className="text-right pr-0.5">-$</td>
-                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalDeductions.toFixed(2)}</td>
-                                </tr>
+                              {ytdGrandTotalDeductions !== 0 &&
+                              <tr style={{ color: ytdGrandTotalDeductions < 0 ? '#16a34a' : '#ef4444' }}>
+                                 <td className="text-right pr-0.5">{ytdGrandTotalDeductions < 0 ? '+$' : '-$'}</td>
+                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{Math.abs(ytdGrandTotalDeductions).toFixed(2)}</td>
+                               </tr>
                               }
                               <tr style={{ color: '#16a34a' }}>
                                 <td className="text-right pr-0.5">+$</td>
@@ -1965,13 +1969,13 @@ export default function PayrollSummaryCard({
                     }
 
                     {/* Deductions */}
-                    {grandTotalDeductions > 0 &&
-                    <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
-                      <div className="text-left">Deductions:</div>
-                      <div className="text-right pr-0.5">-$</div>
-                      <div className="text-right font-semibold">{grandTotalDeductions.toFixed(2)}</div>
-                      <div className="text-right pr-0.5">-$</div>
-                      <div className="text-right font-semibold">{ytdGrandTotalDeductions.toFixed(2)}</div>
+                    {grandTotalDeductions !== 0 &&
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: grandTotalDeductions < 0 ? '#16a34a' : '#ef4444' }}>
+                      <div className="text-left">Add On's:</div>
+                      <div className="text-right pr-0.5">{grandTotalDeductions < 0 ? '+$' : '-$'}</div>
+                      <div className="text-right font-semibold">{Math.abs(grandTotalDeductions).toFixed(2)}</div>
+                      <div className="text-right pr-0.5">{ytdGrandTotalDeductions < 0 ? '+$' : '-$'}</div>
+                      <div className="text-right font-semibold">{Math.abs(ytdGrandTotalDeductions).toFixed(2)}</div>
                     </div>
                     }
 

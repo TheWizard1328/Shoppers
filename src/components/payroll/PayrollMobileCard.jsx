@@ -243,22 +243,28 @@ export default function PayrollMobileCard({
           }
 
           {/* Deductions (if any) */}
-          {(isAdmin || (data.deductions || data.total_deductions || data.totalDeductions || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) > 0) &&
-          <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
-            <div className="text-left">
-              {isAdmin && onDeductionsClick ?
-              <span onClick={() => onDeductionsClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium cursor-pointer">
-                  Deductions:
-                </span> :
-
-              'Deductions:'
-              }
+          {(isAdmin || periodDeductions !== 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) !== 0) &&
+          (() => {
+            const ytdDed = ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0;
+            const isNeg = periodDeductions < 0;
+            const isYtdNeg = ytdDed < 0;
+            return (
+            <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: isNeg ? '#16a34a' : '#ef4444' }}>
+              <div className="text-left">
+                {isAdmin && onDeductionsClick ?
+                <span onClick={() => onDeductionsClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium cursor-pointer">
+                    Add On's:
+                  </span> :
+                "Add On's:"
+                }
+              </div>
+              <div className="text-right pr-0.5">{isNeg ? '+$' : '-$'}</div>
+              <div className="text-right font-semibold">{Math.abs(periodDeductions).toFixed(2)}</div>
+              <div className="text-right pr-0.5" style={{ color: isYtdNeg ? '#16a34a' : '#ef4444' }}>{isYtdNeg ? '+$' : '-$'}</div>
+              <div className="text-right font-semibold" style={{ color: isYtdNeg ? '#16a34a' : '#ef4444' }}>{Math.abs(ytdDed).toFixed(2)}</div>
             </div>
-            <div className="text-right pr-0.5">-$</div>
-            <div className="text-right font-semibold">{periodDeductions.toFixed(2)}</div>
-            <div className="text-right pr-0.5">-$</div>
-            <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0).toFixed(2)}</div>
-          </div>
+            );
+          })()
           }
 
           {/* Bonus (if any) */}
