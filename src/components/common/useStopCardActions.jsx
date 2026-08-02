@@ -714,6 +714,20 @@ export default function useStopCardActions(params) {
       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       try { dispatchStopCardActionCollapse(); } catch (e) { console.warn('[AcceptAll] dispatchStopCardActionCollapse failed:', e?.message); }
       try { onClick?.(null); } catch (e) { console.warn('[AcceptAll] onClick failed:', e?.message); }
+
+      // ── Auto-trigger priority pull-to-sync 1s after Accept All fully completes ──
+      // All managers are resumed above and the final server sync is queued (2.5s).
+      // 1s later, fire a priority-only refresh (deliveries + patients for the
+      // selected date/city) so the Dashboard re-syncs without waiting for the next
+      // smart-refresh cycle. priorityOnly skips the secondary AppUsers/Cities/Companies
+      // sync so it stays scoped and fast.
+      setTimeout(() => {
+        try {
+          window.dispatchEvent(new CustomEvent('triggerPullToSync', {
+            detail: { silent: true, requestedAt: Date.now(), priorityOnly: true }
+          }));
+        } catch (e) { console.warn('[AcceptAll] auto pull-to-sync trigger failed:', e?.message); }
+      }, 1000);
     }
   }, [allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
 
