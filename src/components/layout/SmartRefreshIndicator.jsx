@@ -253,9 +253,11 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       globalFilters.invalidateRefreshCooldown();
     } catch (_) {}
 
-    // Trigger pull-to-sync (silent mode - no overlay)
+    // Trigger pull-to-sync (silent mode - no overlay, priority-only: skips
+    // the secondary AppUsers/Cities/Companies sync so the manual refresh stays
+    // scoped to deliveries + patients for the selected date+city).
     window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-      detail: { silent: true, requestedAt: Date.now() }
+      detail: { silent: true, requestedAt: Date.now(), priorityOnly: true }
     }));
 
     const requestedAt = Date.now();
@@ -273,12 +275,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       if (fallbackTimer) clearTimeout(fallbackTimer);
       window.removeEventListener('pullToSyncComplete', handleSyncComplete);
 
-      // Full patient sync to offline DB (store-by-store)
-      try {
-        const { performSlowStorePatientSync } = await import('../utils/offlineSync');
-        await performSlowStorePatientSync();
-      } catch (_) {}
-
+      // Manual refresh is priority-only — skip the slow store-by-store patient
+      // sync (that belongs to the swipe gesture, not the manual button) and
+      // just push the patients already synced in Phase 1 to the UI.
       // UI update from offline DB
       try {
         const { offlineDB } = await import('../utils/offlineDatabase');

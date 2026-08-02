@@ -675,10 +675,10 @@ export const forceSyncAll = async () => {
   }
 };
 
-export const manualSyncSelected = async (selectedDateStr, selectedCityId = null) => {
+export const manualSyncSelected = async (selectedDateStr, selectedCityId = null, priorityOnly = false) => {
   if (getSyncInProgress() || getSyncPaused()) return { skipped: true };
   setSyncInProgress(true);
-  notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
+  notifySyncStatus({ status: priorityOnly ? 'syncing' : 'force_syncing', entity: 'Starting...', progress: 0 });
 
   // We need stores to filter deliveries by city — fetch stores first (lightweight)
   let stores = [], cities = [], appUsers = [], companies = [];
@@ -735,6 +735,43 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
       companies: [],
     };
     window.dispatchEvent(new CustomEvent('manualSyncPriorityDataReady', { detail: priorityResult }));
+
+    // ── PRIORITY-ONLY EARLY RETURN ───────────────────────────────────────────
+    // Manual refresh via the spinner only needs Phase 1 (deliveries + patients
+    // for all drivers on the selected date+city). Skip the secondary AppUser /
+    // Cities / Companies sync so the manual refresh stays fast and scoped.
+    if (priorityOnly) {
+      const syncTime = new Date().toISOString();
+      const [offlinePatientsForStatus, offlineDeliveriesForStatus] = await Promise.all([
+        offlineDB.getAll(offlineDB.STORES.PATIENTS),
+        offlineDB.getAll(offlineDB.STORES.DELIVERIES)
+      ]);
+      await Promise.all([
+        offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
+        offlineDB.updateSyncStatus('Delivery', { recordCount: offlineDeliveriesForStatus.length, status: 'synced', lastSync: syncTime }),
+        offlineDB.updateSyncStatus('Patient', { recordCount: offlinePatientsForStatus.length, status: 'synced', lastSync: syncTime })
+      ]);
+      markPrioritySyncComplete(selectedDateStr);
+      notifySyncStatus({ status: 'complete', progress: 100 });
+      return {
+        success: true,
+        priority: true,
+        deliveries,
+        patients: freshPatients,
+        appUsers: [],
+        cities: [],
+        stores,
+        companies: [],
+        counts: {
+          deliveries: deliveries.length,
+          patients: totalPatients,
+          appUsers: 0,
+          cities: 0,
+          stores: stores.length,
+          companies: 0
+        }
+      };
+    }
 
     // ── PHASE 2 (SECONDARY): AppUsers, Cities, Companies in background ───────
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));

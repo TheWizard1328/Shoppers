@@ -73,16 +73,17 @@ export default function PullToSync({
   useEffect(() => {
     const handleTriggerSync = async (event) => {
       const silent = event.detail?.silent || false;
+      const priorityOnly = event.detail?.priorityOnly || false;
       if (isSyncing || (window.__dashboardSyncing && window.__activePullToSyncRunId)) return;
-      console.log(`🔄 [PullToSync] Sync triggered programmatically (silent: ${silent})`);
-      await performSync(silent);
+      console.log(`🔄 [PullToSync] Sync triggered programmatically (silent: ${silent}, priorityOnly: ${priorityOnly})`);
+      await performSync(silent, priorityOnly);
     };
 
     window.addEventListener('triggerPullToSync', handleTriggerSync);
     return () => window.removeEventListener('triggerPullToSync', handleTriggerSync);
   }, []);
 
-  const performSync = async (silent = false) => {
+  const performSync = async (silent = false, priorityOnly = false) => {
     const now = Date.now();
     if (isSyncing || (window.__dashboardSyncing && window.__activePullToSyncRunId)) return;
     if (now - lastSyncStartedAtRef.current < 3000) return;  // 3s cooldown — was 10s (too long, blocked rapid taps)
@@ -139,7 +140,7 @@ export default function PullToSync({
       };
       window.addEventListener('manualSyncPriorityDataReady', handlePriorityDataReady, { once: true });
 
-      const syncResult = await manualSyncSelected(selectedDateStr, currentCityId);
+      const syncResult = await manualSyncSelected(selectedDateStr, currentCityId, priorityOnly);
       // Remove priority listener in case it didn't fire (e.g. error path)
       window.removeEventListener('manualSyncPriorityDataReady', handlePriorityDataReady);
 
