@@ -203,7 +203,7 @@ export default function PayrollSummaryCard({
         const dExtraKmRate = r.extra_km_rate;
         const dExtraKmLimit = r.extra_km_limit;
         let dist = d.paid_km_override ?? 0;
-        if (!dist && d.patient_id && patients) {dist = patients.find((p) => p && (p.id === d.patient_id)?.distance_from_store || 0;}
+        if (!dist && d.patient_id && patients) {dist = patients.find((p) => p && p.id === d.patient_id)?.distance_from_store || 0;}
         if (dist > dExtraKmLimit && dExtraKmRate > 0) {const ek = dist - dExtraKmLimit;totalExtraKm += ek;extraKmPay += ek * dExtraKmRate;}
       });
 
@@ -252,15 +252,51 @@ export default function PayrollSummaryCard({
         return true;
       });
       const graphDeliveryCount = graphPayableDeliveries.length;
-      const graphBasePay = graphDeliveryCount * payRate;
-      const graphGrandTotal = graphBasePay + extraKmPay + oversizedPay;
+      // Compute graph pay from the graphPayableDeliveries subset with per-delivery rates
+      // (same logic as basePay/extraKmPay/oversizedPay above, but scoped to graph subset)
+      let graphBasePay, graphExtraKmPay = 0, graphOversizedPay = 0;
+      if (hasRateHistory && graphDeliveryCount > 0) {
+        graphBasePay = graphPayableDeliveries.reduce((sum, d) => {
+          return sum + getEffectiveRates(appUser, d.delivery_date).pay_rate_per_delivery;
+        }, 0);
+        graphPayableDeliveries.forEach((d) => {
+          if (d.no_charge) return;
+          const r = getEffectiveRates(appUser, d.delivery_date);
+          const dExtraKmRate = r.extra_km_rate;
+          const dExtraKmLimit = r.extra_km_limit;
+          let dist = d.paid_km_override ?? 0;
+          if (!dist && d.patient_id && patients) {
+            dist = patients.find((p) => p && (p.id === d.patient_id))?.distance_from_store || 0;
+          }
+          if (dist > dExtraKmLimit && dExtraKmRate > 0) {
+            graphExtraKmPay += (dist - dExtraKmLimit) * dExtraKmRate;
+          }
+        });
+        graphOversizedPay = graphPayableDeliveries.filter((d) => d.oversized).reduce((sum, d) => {
+          return sum + getEffectiveRates(appUser, d.delivery_date).oversized_item_rate;
+        }, 0);
+      } else {
+        graphBasePay = graphDeliveryCount * payRate;
+        graphPayableDeliveries.forEach((d) => {
+          if (d.no_charge) return;
+          let dist = d.paid_km_override ?? 0;
+          if (!dist && d.patient_id && patients) {
+            dist = patients.find((p) => p && (p.id === d.patient_id))?.distance_from_store || 0;
+          }
+          if (dist > extraKmLimit && extraKmRate > 0) {
+            graphExtraKmPay += (dist - extraKmLimit) * extraKmRate;
+          }
+        });
+        graphOversizedPay = graphPayableDeliveries.filter((d) => d.oversized).length * oversizedRate;
+      }
+      const graphGrandTotal = graphBasePay + graphExtraKmPay + graphOversizedPay;
       const graphTaxAmount = gstHstEnabled && taxRate > 0 ? graphGrandTotal * taxRate : 0;
       const graphGrossPay = graphGrandTotal > 0 ? graphGrandTotal + graphTaxAmount - totalDeductions : 0;
       const graphNetPay = graphGrandTotal + graphTaxAmount - totalDeductions;
 
       return {
         driver: { ...driver, id: driverId }, payRate, extraKmRate, extraKmLimit, oversizedRate,
-        totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphBasePay, totalExtraKm, totalExtraKmPay: extraKmPay,
+        totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphBasePay, graphExtraKmPay, graphOversizedPay, totalExtraKm, totalExtraKmPay: extraKmPay,
         oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, failedCount, returnsCount,
         storeReturnCount, grandTotal: graphGrandTotal, gstHstEnabled, taxRate, taxAmount: graphTaxAmount, provinceCode,
         deductions: totalDeductions, deductionsArray, grossPay: graphGrossPay, netPay: graphNetPay, appFeePercentage, storedPaidAmount
