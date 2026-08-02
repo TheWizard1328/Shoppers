@@ -138,17 +138,10 @@ export default function DriverPayrollGrid({
   // Sort stores by sort_order
   const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
-  // Resolve a driver's effective pay cycle for a given period start date,
-  // using pay_rate_history to handle mid-period cycle changes.
-  // History entries record when a NEW cycle took effect (they snapshot the OLD rates).
-  // The current pay_cycle_type is always the most recent setting.
-  // We walk history sorted newest→oldest: if the period start is BEFORE an entry's
-  // effective_date, that entry's pay_cycle_type was the cycle in effect at that time.
-  // Otherwise the current pay_cycle_type applies.
-  // History entries store the NEW cycle that became active on effective_date.
-  // To find the cycle for a given period start: find the most recent history entry
-  // with effective_date ≤ periodStart — that entry's pay_cycle_type was active then.
-  // If periodStart is before all history entries, fall back to current setting.
+  // Returns the effective pay_cycle_type for a driver as of the given period start.
+  // History entries store the NEW cycle that became active on their effective_date.
+  // Find the most recent entry with effective_date ≤ periodStart → that's the active cycle.
+  // Example: [Aug 02 → weekly, Jan 19 → semimonthly], viewing Jul 16 → returns semimonthly.
   const getDriverPayCycleForPeriod = useCallback((appUser, periodStart) => {
     if (!appUser) return null;
     const current = appUser.pay_cycle_type;

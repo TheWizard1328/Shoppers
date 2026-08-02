@@ -245,10 +245,13 @@ const determinePreferredPayrollPeriodIndex = ({ periods, payrollRecords = [], se
 
 /**
  * Returns the effective pay_cycle_type for an AppUser as of a given period start date.
- * When a driver's pay cycle changes, the OLD rates are archived to pay_rate_history with
- * an effective_date = the date the NEW cycle took effect. So if the period start is before
- * any history entry's effective_date, we use that entry's saved pay_cycle_type instead
- * of the current one.
+ * History entries store the NEW cycle that became active on effective_date.
+ * To find the cycle for a given period: find the most recent history entry with
+ * effective_date ≤ periodStart — that entry's pay_cycle_type was the active cycle then.
+ * If periodStart is before all history entries, fall back to the current setting.
+ *
+ * Example: Sharuk has history [Aug 02 → weekly, Jan 19 → semimonthly].
+ * Viewing Jul 16–31: Aug 02 > Jul 16 (skip), Jan 19 ≤ Jul 16 → return semimonthly ✓
  */
 const getDriverPayCycleForPeriod = (appUser, periodStart) => {
   if (!appUser) return null;
@@ -258,12 +261,18 @@ const getDriverPayCycleForPeriod = (appUser, periodStart) => {
   if (!history || !Array.isArray(history) || history.length === 0) return current;
   // Sort newest → oldest
   const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+  // Find the most recent history entry whose effective_date is on or before periodStart.
+  // That entry's pay_cycle_type is what was active at that time.
   for (const entry of sorted) {
     const entryDate = new Date(entry.effective_date);
-    if (periodStart < entryDate && entry.pay_cycle_type) {
+    entryDate.setHours(0, 0, 0, 0);
+    const compareDate = new Date(periodStart);
+    compareDate.setHours(0, 0, 0, 0);
+    if (entryDate <= compareDate && entry.pay_cycle_type) {
       return entry.pay_cycle_type;
     }
   }
+  // periodStart is before all history entries — use current setting
   return current;
 };
 

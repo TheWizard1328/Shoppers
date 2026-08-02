@@ -149,6 +149,7 @@ const DRIVER_FIELDS = [
   'city_ids',
   'sort_order',
   'pay_cycle_type',
+  'pay_rate_history',
   'pay_rate_per_delivery',
   'extra_km_rate',
   'extra_km_limit',
