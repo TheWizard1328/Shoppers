@@ -357,8 +357,31 @@ export default function DriverPayroll() {
   const allCityDeliveries = useMemo(() => {
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
     const cityStoreIds = new Set(filteredStores.map((s) => s.id));
-    return deliveries.filter((d) => d && cityStoreIds.has(d.store_id));
-  }, [payrollData?.deliveries, filteredStores]);
+    let filtered = deliveries.filter((d) => d && cityStoreIds.has(d.store_id));
+
+    // Filter by pay cycle using effective cycle from pay_rate_history
+    if (payrollData?.appUsers && payPeriod) {
+      const matchingDriverIds = new Set();
+      payrollData.appUsers.forEach((au) => {
+        if (getDriverPayCycleForPeriod(au, currentPeriod?.start) === payPeriod) {
+          matchingDriverIds.add(au.user_id);
+        }
+      });
+      // Include drivers with payroll records in this period (covers inactive drivers)
+      if (currentPeriod && Array.isArray(payrollData?.payrollRecords)) {
+        const periodStart = toLocalYMD(currentPeriod.start);
+        const periodEnd = toLocalYMD(currentPeriod.end);
+        payrollData.payrollRecords.forEach((r) => {
+          if (r?.driver_id && r.pay_period_start === periodStart && r.pay_period_end === periodEnd) {
+            matchingDriverIds.add(r.driver_id);
+          }
+        });
+      }
+      filtered = filtered.filter((d) => matchingDriverIds.has(d.driver_id));
+    }
+
+    return filtered;
+  }, [payrollData?.deliveries, payrollData?.appUsers, payrollData?.payrollRecords, filteredStores, payPeriod, currentPeriod]);
 
   const sortedDrivers = useMemo(() => {
     if (!payrollData?.drivers || !payrollData?.appUsers) return [];
@@ -397,7 +420,7 @@ export default function DriverPayroll() {
         const driverId = d.user_id || d.id;
         const au = appUsersByDriverId.get(driverId);
         // For inactive drivers (no AppUser in map), include them if they have payroll records
-        const cycleMatches = !au || au?.pay_cycle_type === payPeriod;
+        const cycleMatches = !au || getDriverPayCycleForPeriod(au, currentPeriod?.start) === payPeriod;
         if (!cycleMatches && !payrollDriverIds.has(driverId)) return false;
         return driversWithDeliveriesInPeriod.has(driverId) || payrollDriverIds.has(driverId);
       }).
@@ -488,11 +511,12 @@ export default function DriverPayroll() {
       return { cycles: ['weekly', 'biweekly', 'semimonthly', 'monthly'], mostCommon: 'monthly', disabled: false, cycleCounts: {} };
     }
 
-    // Count drivers by pay cycle type
+    // Count drivers by effective pay cycle for the current period (respects pay_rate_history)
     const cycleCounts = {};
     filteredAppUsers.forEach((au) => {
-      if (au.pay_cycle_type) {
-        cycleCounts[au.pay_cycle_type] = (cycleCounts[au.pay_cycle_type] || 0) + 1;
+      const effective = getDriverPayCycleForPeriod(au, currentPeriod?.start);
+      if (effective) {
+        cycleCounts[effective] = (cycleCounts[effective] || 0) + 1;
       }
     });
 
@@ -572,13 +596,14 @@ export default function DriverPayroll() {
     const periodEnd = toLocalYMD(currentPeriod.end);
     const payCycleDriverIds = new Set(driversInPayCycle.map((driver) => driver.user_id || driver.id));
 
-    // Build a map of driver_id -> pay_cycle_type from appUsers so we can match
-    // payroll records to the driver's ACTUAL pay cycle, not just the page-level payPeriod.
+    // Build a map of driver_id -> effective pay cycle for the current period.
+    // Uses pay_rate_history so records match the driver's cycle AT THE TIME of the period.
     const driverCycleMap = new Map();
     if (payrollData?.appUsers) {
       payrollData.appUsers.forEach((au) => {
-        if (au?.user_id && au?.pay_cycle_type) {
-          driverCycleMap.set(au.user_id, au.pay_cycle_type);
+        if (au?.user_id) {
+          const effective = getDriverPayCycleForPeriod(au, currentPeriod?.start);
+          if (effective) driverCycleMap.set(au.user_id, effective);
         }
       });
     }
@@ -1017,39 +1042,40 @@ export default function DriverPayroll() {
 
 
 
-  // Refine pay cycle when live data loads (if different from offline-based initial choice)
+  // Refine pay cycle when live data loads — ONLY on initial load, never override manual selection.
+  // Uses getDriverPayCycleForPeriod to respect pay_rate_history for the current period.
   useEffect(() => {
     if (!payrollData?.appUsers || hasLoadedInitialDataRef.current || isManualChangeRef.current) return;
 
-    let liveCycle = null;
-    if (isDriver && selectedDriverId !== 'all') {
+    // Initial determination only — pick the most common effective cycle among drivers
+    if (!isDriver && selectedDriverId === 'all') {
+      const cycleCounts = {};
+      payrollData.appUsers.forEach((au) => {
+        if (au?.app_roles?.includes('driver')) {
+          const effective = getDriverPayCycleForPeriod(au, currentPeriod?.start);
+          if (effective) cycleCounts[effective] = (cycleCounts[effective] || 0) + 1;
+        }
+      });
+      let bestCycle = null;
+      let maxCount = 0;
+      for (const [cycle, count] of Object.entries(cycleCounts)) {
+        if (count > maxCount) { maxCount = count; bestCycle = cycle; }
+      }
+      if (bestCycle && bestCycle !== payPeriod) {
+        setPayPeriod(bestCycle);
+        periodSelectionDoneWithRecordsRef.current = false;
+      }
+    } else if (isDriver && selectedDriverId !== 'all') {
       const driverAppUser = payrollData.appUsers.find((au) => au.user_id === selectedDriverId);
-      if (driverAppUser?.pay_cycle_type) liveCycle = driverAppUser.pay_cycle_type;
-    } else if (!isDriver && selectedDriverId === 'all' && payCycleInfo.mostCommon) {
-      liveCycle = payCycleInfo.mostCommon;
-    }
-
-    // Only update if live data disagrees with offline-based selection
-    if (liveCycle && liveCycle !== payPeriod) {
-      console.warn(`🔧 [DriverPayroll] Live pay cycle (${liveCycle}) differs from current (${payPeriod}), correcting`);
-      setPayPeriod(liveCycle);
-      // Reset period selection so it recalculates for new cycle
-      periodSelectionDoneWithRecordsRef.current = false;
-    } else if (!liveCycle && payPeriod === 'monthly') {
-      // Fallback: if live data couldn't determine a cycle and we're stuck on the
-      // 'monthly' default, check if ANY semimonthly drivers exist and switch
-      const hasSemiMonthly = payrollData.appUsers?.some((au) =>
-        au?.app_roles?.includes('driver') && au?.pay_cycle_type === 'semimonthly'
-      );
-      if (hasSemiMonthly) {
-        console.warn(`🔧 [DriverPayroll] Stuck on monthly default but semimonthly drivers exist, correcting`);
-        setPayPeriod('semimonthly');
+      const effective = getDriverPayCycleForPeriod(driverAppUser, currentPeriod?.start);
+      if (effective && effective !== payPeriod) {
+        setPayPeriod(effective);
         periodSelectionDoneWithRecordsRef.current = false;
       }
     }
 
     hasLoadedInitialDataRef.current = true;
-  }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon, payPeriod]);
+  }, [payrollData?.appUsers, selectedDriverId, isDriver, payCycleInfo.mostCommon, payPeriod, currentPeriod]);
 
   // Re-select period when live payroll records arrive (may override offline-based initial selection)
   const periodSelectionDoneWithRecordsRef = useRef(false);
@@ -1316,21 +1342,10 @@ export default function DriverPayroll() {
               <Select value={selectedDriverId} onValueChange={(v) => {
               isManualChangeRef.current = true;
 
-              // Batch all state updates in a single transition
+              // Only change the driver filter — keep the current pay cycle selection.
+              // The pay cycle is a global filter that should persist across driver changes.
               React.startTransition(() => {
                 setSelectedDriverId(v);
-                if (v === 'all') {
-                  // For admins viewing all drivers, select most common pay cycle
-                  if (payCycleInfo.mostCommon) {
-                    setPayPeriod(payCycleInfo.mostCommon);
-                  }
-                } else {
-                  // For individual driver selection, use their pay cycle
-                  const driverAppUser = payrollData?.appUsers?.find((au) => au.user_id === v);
-                  if (driverAppUser?.pay_cycle_type) {
-                    setPayPeriod(driverAppUser.pay_cycle_type);
-                  }
-                }
               });
 
               setTimeout(() => {isManualChangeRef.current = false;}, 200);

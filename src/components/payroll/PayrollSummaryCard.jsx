@@ -280,7 +280,7 @@ export default function PayrollSummaryCard({
             // monthly payroll records when the admin is viewing the monthly tab.
             // Also include company_id which was previously missing entirely.
             const driverAppUser = appUsers?.find((au) => au && (au.user_id === driverId || au.id === driverId));
-            const driverPayCycle = driverAppUser?.pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
+            const driverPayCycle = getEffectiveRates(driverAppUser, currentPeriod?.start).pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
             const driverCompanyId = driverAppUser?.company_id || driverData?.driver?.company_id || null;
 
             const recordData = { driver_id: driverId, company_id: driverCompanyId,
@@ -369,7 +369,7 @@ export default function PayrollSummaryCard({
         const saveAppFeeAmount = countBillableDeliveries(driverId) * (driverData.appFeePercentage || 0) / 100;
 
         const driverAppUser = appUsers?.find((au) => au && (au.user_id === driverId || au.id === driverId));
-        const driverPayCycle = driverAppUser?.pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
+        const driverPayCycle = getEffectiveRates(driverAppUser, currentPeriod?.start).pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
         const driverCompanyId = driverAppUser?.company_id || driverData?.driver?.company_id || null;
         const newRecordData = {
           driver_id: driverId,
@@ -538,7 +538,7 @@ export default function PayrollSummaryCard({
       const finalizedPaidAmount = parsePaidAmount(edit.paidAmount, finalizedNetPay);
       const finalizeDriverId = driverData.driver.id;
       const finalizeAppUser = appUsers?.find((au) => au && (au.user_id === finalizeDriverId || au.id === finalizeDriverId));
-      const finalizePayCycle = finalizeAppUser?.pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
+      const finalizePayCycle = getEffectiveRates(finalizeAppUser, currentPeriod?.start).pay_cycle_type || driverData?.driver?.pay_cycle_type || payPeriod;
       const finalizeCompanyId = finalizeAppUser?.company_id || driverData?.driver?.company_id || null;
       const payrollRecord = { driver_id: finalizeDriverId, company_id: finalizeCompanyId,
         city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
