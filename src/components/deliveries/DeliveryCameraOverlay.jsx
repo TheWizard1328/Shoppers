@@ -563,24 +563,24 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
   return (
     <div className="space-y-3">
       {extractedData && (
-        <div className="p-3 bg-white/10 rounded-lg border border-white/15">
-          <div className="text-white/50 text-xs font-medium mb-1.5 uppercase tracking-wide">Scanned Label</div>
+        <div className="p-3 bg-zinc-800/90 rounded-lg border border-zinc-600">
+          <div className="text-slate-300 text-xs font-medium mb-1.5 uppercase tracking-wide">Scanned Label</div>
           <div className="space-y-1 text-white text-sm">
             {extractedData.patient_name && (
               <div className="flex items-center gap-2">
-                <User className="w-3.5 h-3.5 text-white/40" />
+                <User className="w-3.5 h-3.5 text-slate-300" />
                 {extractedData.patient_name}
               </div>
             )}
             {extractedData.phone_number && (
               <div className="flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5 text-white/40" />
+                <Phone className="w-3.5 h-3.5 text-slate-300" />
                 {formatPhoneNumber(extractedData.phone_number)}
               </div>
             )}
             {extractedData.street_address && (
               <div className="flex items-center gap-2">
-                <MapPin className="w-3.5 h-3.5 text-white/40" />
+                <MapPin className="w-3.5 h-3.5 text-slate-300" />
                 {extractedData.street_address}
               </div>
             )}
@@ -597,7 +597,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
             </div>
           )}
           {allMatches.length > 1 && (
-            <div className="text-white/60 text-sm px-1">
+            <div className="text-slate-200 text-sm px-1">
               {allMatches.length} potential matches:
             </div>
           )}
@@ -611,7 +611,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
                   key={match.patient.id || i}
                   type="button"
                   onClick={() => onSelectPatient(match.patient)}
-                  className="w-full text-left p-3 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 hover:border-white/30 transition touch-manipulation"
+                  className="w-full text-left p-3 rounded-lg bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-600 hover:border-zinc-400 transition touch-manipulation"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                   <div className="flex items-start justify-between mb-1.5">
@@ -624,7 +624,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
                       {score}%
                     </div>
                   </div>
-                  <div className="space-y-0.5 text-white/60 text-xs">
+                  <div className="space-y-0.5 text-slate-300 text-xs">
                     {match.patient.phone && (
                       <div className="flex items-center gap-1.5">
                         <Phone className="w-3 h-3" />
@@ -639,7 +639,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
                     )}
                     {stores && match.patient.store_id && (() => {
                       const s = stores.find(s => s?.id === match.patient.store_id);
-                      return s ? <div className="text-white/40">{s.name}</div> : null;
+                      return s ? <div className="text-slate-400">{s.name}</div> : null;
                     })()}
                   </div>
                 </button>
@@ -648,7 +648,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
           </div>
         </>
       ) : (
-        <div className="text-white/70 text-sm px-1">No matching patients found.</div>
+        <div className="text-slate-200 text-sm px-1 font-medium">No matching patients found.</div>
       )}
 
       {extractedData?.patient_name && onCreateNew && (
@@ -666,7 +666,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
       <button
         type="button"
         onClick={onRetake}
-        className="w-full p-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-white/70 text-sm transition flex items-center justify-center gap-2 touch-manipulation"
+        className="w-full p-2.5 rounded-lg bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-600 text-slate-100 text-sm font-medium transition flex items-center justify-center gap-2 touch-manipulation"
         style={{ WebkitTapHighlightColor: 'transparent' }}
       >
         <Camera className="w-4 h-4" />
