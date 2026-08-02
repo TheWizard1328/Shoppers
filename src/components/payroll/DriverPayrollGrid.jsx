@@ -145,6 +145,10 @@ export default function DriverPayrollGrid({
   // We walk history sorted newest→oldest: if the period start is BEFORE an entry's
   // effective_date, that entry's pay_cycle_type was the cycle in effect at that time.
   // Otherwise the current pay_cycle_type applies.
+  // History entries store the NEW cycle that became active on effective_date.
+  // To find the cycle for a given period start: find the most recent history entry
+  // with effective_date ≤ periodStart — that entry's pay_cycle_type was active then.
+  // If periodStart is before all history entries, fall back to current setting.
   const getDriverPayCycleForPeriod = useCallback((appUser, periodStart) => {
     if (!appUser) return null;
     const current = appUser.pay_cycle_type;
@@ -153,20 +157,24 @@ export default function DriverPayrollGrid({
     const history = appUser.pay_rate_history;
     if (!history || !Array.isArray(history) || history.length === 0) return current;
 
-    // Sort history newest → oldest by effective_date
+    // Sort history newest → oldest
     const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
 
-    // Each history entry is "when the rates changed to X" — meaning pay_cycle_type in
-    // the entry was what was in effect BEFORE that change. So if periodStart < entry.effective_date,
-    // the period predates that change and we should use the entry's saved pay_cycle_type.
+    // Find most recent entry whose effective_date is on or before the period start.
+    // That entry's pay_cycle_type is what was active on that date.
     for (const entry of sorted) {
       const entryDate = new Date(entry.effective_date);
-      if (periodStart < entryDate && entry.pay_cycle_type) {
+      // Normalize to date-only for comparison
+      entryDate.setHours(0, 0, 0, 0);
+      const compareDate = new Date(periodStart);
+      compareDate.setHours(0, 0, 0, 0);
+      if (entryDate <= compareDate && entry.pay_cycle_type) {
         return entry.pay_cycle_type;
       }
     }
 
-    // Period start is on or after all history entries — current setting applies
+    // Period start is before all history entries — current setting applies
+    // (no change had occurred yet when the history was first recorded)
     return current;
   }, []);
 
