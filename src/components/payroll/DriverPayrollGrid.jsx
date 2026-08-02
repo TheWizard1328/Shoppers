@@ -138,26 +138,51 @@ export default function DriverPayrollGrid({
   // Sort stores by sort_order
   const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
-  // Resolve effective pay cycle for a driver based on period start date
-  const getEffectiveCycle = (appUser) => {
-    const history = Array.isArray(appUser?.pay_rate_history) ? appUser.pay_rate_history : [];
-    if (history.length > 0 && currentPeriod?.start) {
-      const periodStartStr = currentPeriod.start instanceof Date
-        ? currentPeriod.start.toISOString().split('T')[0]
-        : String(currentPeriod.start);
-      const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-      const match = sorted.find((e) => e.effective_date <= periodStartStr);
-      if (match?.pay_cycle_type) return match.pay_cycle_type;
-    }
-    return appUser?.pay_cycle_type;
-  };
+  // Resolve a driver's effective pay cycle for a given period start date,
+  // using pay_rate_history to handle mid-period cycle changes.
+  // History entries record when a NEW cycle took effect (they snapshot the OLD rates).
+  // The current pay_cycle_type is always the most recent setting.
+  // We walk history sorted newest→oldest: if the period start is BEFORE an entry's
+  // effective_date, that entry's pay_cycle_type was the cycle in effect at that time.
+  // Otherwise the current pay_cycle_type applies.
+  const getDriverPayCycleForPeriod = useCallback((appUser, periodStart) => {
+    if (!appUser) return null;
+    const current = appUser.pay_cycle_type;
+    if (!periodStart) return current;
 
-  // Get drivers with matching pay cycle (resolved from history for the selected period)
+    const history = appUser.pay_rate_history;
+    if (!history || !Array.isArray(history) || history.length === 0) return current;
+
+    // Sort history newest → oldest by effective_date
+    const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+
+    // Each history entry is "when the rates changed to X" — meaning pay_cycle_type in
+    // the entry was what was in effect BEFORE that change. So if periodStart < entry.effective_date,
+    // the period predates that change and we should use the entry's saved pay_cycle_type.
+    for (const entry of sorted) {
+      const entryDate = new Date(entry.effective_date);
+      if (periodStart < entryDate && entry.pay_cycle_type) {
+        return entry.pay_cycle_type;
+      }
+    }
+
+    // Period start is on or after all history entries — current setting applies
+    return current;
+  }, []);
+
+  // Get drivers with matching pay cycle — checks effective cycle for the viewed period
   const driversWithMatchingPayCycle = useMemo(() => {
-    if (!appUsers || !payPeriod) return [];
-    const matching = appUsers.filter((au) => getEffectiveCycle(au) === payPeriod);
+    if (!appUsers || !payPeriod || !currentPeriod) return [];
+
+    const periodStart = currentPeriod.start;
+
+    const matching = appUsers.filter((au) => {
+      const effectiveCycle = getDriverPayCycleForPeriod(au, periodStart);
+      return effectiveCycle === payPeriod;
+    });
+
     return matching.map((au) => au.user_id).filter(Boolean);
-  }, [appUsers, payPeriod, currentPeriod]);
+  }, [appUsers, payPeriod, currentPeriod, getDriverPayCycleForPeriod]);
 
   // Filter deliveries for current period and driver
   // Exclude bare pickups (no patient_id) UNLESS it's an after_hours_pickup or ISD/ISP inter-store

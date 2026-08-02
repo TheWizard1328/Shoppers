@@ -242,6 +242,31 @@ const determinePreferredPayrollPeriodIndex = ({ periods, payrollRecords = [], se
   return todayIdx;
 };
 
+
+/**
+ * Returns the effective pay_cycle_type for an AppUser as of a given period start date.
+ * When a driver's pay cycle changes, the OLD rates are archived to pay_rate_history with
+ * an effective_date = the date the NEW cycle took effect. So if the period start is before
+ * any history entry's effective_date, we use that entry's saved pay_cycle_type instead
+ * of the current one.
+ */
+const getDriverPayCycleForPeriod = (appUser, periodStart) => {
+  if (!appUser) return null;
+  const current = appUser.pay_cycle_type;
+  if (!periodStart) return current;
+  const history = appUser.pay_rate_history;
+  if (!history || !Array.isArray(history) || history.length === 0) return current;
+  // Sort newest → oldest
+  const sorted = [...history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+  for (const entry of sorted) {
+    const entryDate = new Date(entry.effective_date);
+    if (periodStart < entryDate && entry.pay_cycle_type) {
+      return entry.pay_cycle_type;
+    }
+  }
+  return current;
+};
+
 export default function DriverPayroll() {
   // CRITICAL: ALL hooks must be at the top, before any conditional logic
   const { currentUser } = useUser();
@@ -428,7 +453,8 @@ export default function DriverPayroll() {
         const driverId = d.user_id || d.id;
         const au = appUsersByDriverId.get(driverId);
         // For inactive drivers (no AppUser in map), include them if they have payroll records
-        const cycleMatches = !au || au?.pay_cycle_type === payPeriod;
+        const effectiveCycle = au ? getDriverPayCycleForPeriod(au, currentPeriod?.start) : null;
+        const cycleMatches = !au || effectiveCycle === payPeriod;
         if (!cycleMatches && !payrollDriverIds.has(driverId)) return false;
         return driversWithDeliveriesInPeriod.has(driverId) || payrollDriverIds.has(driverId);
       }).
@@ -505,11 +531,12 @@ export default function DriverPayroll() {
       filtered = filtered.filter((d) => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
     }
 
-    // Filter by pay cycle — include inactive drivers who have payroll records in this period
+    // Filter by pay cycle — use effective cycle for the viewed period, not current setting
     if (payrollData?.appUsers && payPeriod) {
       const matchingDriverIds = new Set();
       payrollData.appUsers.forEach((au) => {
-        if (au.pay_cycle_type === payPeriod) {
+        const effectiveCycle = getDriverPayCycleForPeriod(au, currentPeriod?.start);
+        if (effectiveCycle === payPeriod) {
           matchingDriverIds.add(au.user_id);
         }
       });
