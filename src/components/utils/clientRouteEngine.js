@@ -245,7 +245,7 @@ const getLatestFinishedDelivery = (deliveries) =>
 
 // ─── Coordinate resolution ───────────────────────────────────────────────────
 
-const getDeliveryCoords = (delivery, patientMap, storeMap, ispSourceMap = new Map()) => {
+const getDeliveryCoords = (delivery, patientMap, storeMap) => {
   if (!delivery) return null;
   if (delivery.is_cycling_marker) {
     const lat = Number(delivery.cycling_latitude);
@@ -253,46 +253,19 @@ const getDeliveryCoords = (delivery, patientMap, storeMap, ispSourceMap = new Ma
     if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) return { lat, lng };
     return null;
   }
-  // InterStore stops (ISP/ISD) — resolve true destination coords from ispSourceMap,
-  // which is populated from the InterStoreLocation in-memory cache.
-  // ISP: driver travels to _interstore_source_id; ISD: driver travels to _interstore_dest_id.
-  if (!delivery.patient_id) {
-    // ISP → source store coords; ISD → destination store coords.
-    // Both fields are always set on InterStore records, so we must check the
-    // delivery_id prefix to pick the correct one.
-    const _did = String(delivery.delivery_id || '').toUpperCase();
-    const isISD = _did.startsWith('ISD-');
-    const interstoreId = isISD
-      ? (delivery._interstore_dest_id || delivery._interstore_source_id)
-      : (delivery._interstore_source_id || delivery._interstore_dest_id);
-    if (interstoreId) {
-      const ispLoc = ispSourceMap.get(interstoreId);
-      const ispLat = Number(ispLoc?.store_latitude);
-      const ispLng = Number(ispLoc?.store_longitude);
-      if (Number.isFinite(ispLat) && Number.isFinite(ispLng) && ispLat !== 0 && ispLng !== 0) return { lat: ispLat, lng: ispLng };
-      // Fallback: try direct cache lookup by delivery_id
-      if (isInterStoreDelivery(delivery.delivery_id)) {
-        const loc = getInterStoreLocationSync(delivery.delivery_id);
-        const lat = Number(loc?.store_latitude);
-        const lng = Number(loc?.store_longitude);
-        if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) return { lat, lng };
-      }
-    }
+  // InterStore stops (ISP/ISD) — resolve coords directly from the delivery_id.
+  // The delivery_id encodes the phone number that identifies the InterStoreLocation.
+  // ISP-{ts}-{fromPhone}-{toPhone} → getInterStoreLocationSync looks up fromPhone (source)
+  // ISD-{ts}-{fromPhone}-{toPhone} → getInterStoreLocationSync looks up toPhone (destination)
+  if (!delivery.patient_id && isInterStoreDelivery(delivery.delivery_id)) {
+    const loc = getInterStoreLocationSync(delivery.delivery_id);
+    const lat = Number(loc?.store_latitude);
+    const lng = Number(loc?.store_longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) return { lat, lng };
   }
   if (delivery.patient_id) {
     const patient = patientMap.get(delivery.patient_id);
     if (patient?.latitude != null && patient?.longitude != null) return { lat: Number(patient.latitude), lng: Number(patient.longitude) };
-  }
-  // InterStore name-based fallback: when ispSourceMap and phone cache both miss,
-  // try to find the store by name. ISP uses source name, ISD uses dest name.
-  const _isISD = String(delivery.delivery_id || '').toUpperCase().startsWith('ISD-');
-  const _fbName = _isISD ? delivery._interstore_dest_name : delivery._interstore_source_name;
-  if (_fbName) {
-    for (const s of storeMap.values()) {
-      if (s?.name && s.name.toLowerCase().includes(_fbName.toLowerCase()) && s?.latitude != null && s?.longitude != null) {
-        return { lat: Number(s.latitude), lng: Number(s.longitude) };
-      }
-    }
   }
   const store = storeMap.get(delivery.store_id);
   if (store?.latitude != null && store?.longitude != null) return { lat: Number(store.latitude), lng: Number(store.longitude) };
@@ -555,55 +528,6 @@ export async function optimizeRouteClientSide({
 
   console.log(`[clientRouteEngine] ${source} — INPUT: ${allDeliveries.length} total deliveries → completed=${completedDeliveries.length}, active=${activeRouteDeliveries.length}, pending=${pendingRouteDeliveries.length}, optimizable=${optimizableDeliveries.length}`);
 
-  // Resolve InterStore (ISP/ISD) coordinates from the in-memory InterStoreLocation cache.
-  // The cache is populated during bootstrap sync and indexed by phone digits.
-  // Map: _interstore_source_id (ISP) or _interstore_dest_id (ISD) → { lat, lon }
-  // Import the entity-ID fallback lookup ONCE before the loop to avoid per-iteration dynamic imports.
-  let _getInterStoreLocationByEntityId = null;
-  try {
-    const mod = await import('./interStoreDisplayName');
-    _getInterStoreLocationByEntityId = mod.getInterStoreLocationByEntityId || null;
-  } catch { /* non-fatal */ }
-
-  const ispSourceMap = new Map();
-  for (const d of allDeliveries) {
-    if (d.patient_id) continue;
-    // ISP stops use _interstore_source_id; ISD stops use _interstore_dest_id.
-    // Both fields are always set on InterStore records, so check the delivery_id
-    // prefix to pick the correct ID for the routing destination.
-    const _did = String(d.delivery_id || '').toUpperCase();
-    const isISD = _did.startsWith('ISD-');
-    const isdId = d._interstore_dest_id;
-    const ispId = d._interstore_source_id;
-    const keyId = isISD ? (isdId || ispId) : (ispId || isdId);
-    if (!keyId) continue;
-    // 1. Try phone-based cache lookup via delivery_id (populated during bootstrap sync)
-    if (isInterStoreDelivery(d.delivery_id)) {
-      const loc = getInterStoreLocationSync(d.delivery_id);
-      if (loc) {
-        const lat = Number(loc.store_latitude);
-        const lon = Number(loc.store_longitude);
-        if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
-          ispSourceMap.set(keyId, { store_latitude: lat, store_longitude: lon });
-          continue; // found via cache — no need for fallback
-        }
-      }
-    }
-    // 2. Fallback: look up InterStoreLocation directly by entity ID stored on the delivery.
-    // getInterStoreLocationByEntityId is imported once outside the loop (see below).
-    if (_getInterStoreLocationByEntityId) {
-      try {
-        const loc = await _getInterStoreLocationByEntityId(keyId);
-        if (loc) {
-          const lat = Number(loc.store_latitude);
-          const lon = Number(loc.store_longitude);
-          if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
-            ispSourceMap.set(keyId, { store_latitude: lat, store_longitude: lon });
-          }
-        }
-      } catch { /* non-fatal */ }
-    }
-  }
 
   // Build pickup window lookup
   const pickupWindowByStopId = new Map(
@@ -614,7 +538,7 @@ export async function optimizeRouteClientSide({
 
   // Build optimization stops
   const stops = optimizableDeliveries.map(delivery => {
-    const coords = getDeliveryCoords(delivery, patientMap, storeMap, ispSourceMap);
+    const coords = getDeliveryCoords(delivery, patientMap, storeMap);
     const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
     let windowStart = getEffectiveWindowStart(delivery, patient);
     let windowEnd = getEffectiveWindowEnd(delivery, patient);
@@ -643,7 +567,7 @@ export async function optimizeRouteClientSide({
   if (_droppedStops > 0) {
     console.warn(`[clientRouteEngine] ${source} — ${_droppedStops} stops DROPPED (missing coords). storeMap size=${storeMap.size}, patientMap size=${patientMap.size}`);
     const dropped = optimizableDeliveries.filter(d => {
-      const c = getDeliveryCoords(d, patientMap, storeMap, ispSourceMap);
+      const c = getDeliveryCoords(d, patientMap, storeMap);
       return !c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng);
     });
     dropped.forEach(d => console.warn(`  └─ dropped delivery ${d.id} store_id=${d.store_id} patient_id=${d.patient_id || 'N/A'}`));
@@ -659,15 +583,15 @@ export async function optimizeRouteClientSide({
   // ── Determine current position (origin) ───────────────────────────────────
   const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
   const explicitNextDelivery = incompleteDeliveries.find(d => d?.isNextDelivery === true) || null;
-  const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap, ispSourceMap) : null;
-  const latestFinishedCoords = latestFinishedDelivery ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap, ispSourceMap) : null;
+  const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
+  const latestFinishedCoords = latestFinishedDelivery ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap) : null;
   const previousStopBeforeNext = explicitNextDelivery
     ? allDeliveries
         .filter(d => d?.id !== explicitNextDelivery.id)
         .filter(d => Number(d?.stop_order || 0) < Number(explicitNextDelivery?.stop_order || 0))
         .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null
     : null;
-  const previousStopCoords = previousStopBeforeNext ? getDeliveryCoords(previousStopBeforeNext, patientMap, storeMap, ispSourceMap) : null;
+  const previousStopCoords = previousStopBeforeNext ? getDeliveryCoords(previousStopBeforeNext, patientMap, storeMap) : null;
   const routeHasStarted = completedDeliveries.length > 0 || !!previousStopBeforeNext;
   const shouldLockExplicitNextStop = !!explicitNextDelivery;
 
@@ -1206,16 +1130,19 @@ export async function optimizeRouteClientSide({
   // AT destination), enforce this ordering constraint in the post-optimization pass.
   // Strategy: for each ISD, find its linked ISP. If ISD appears before ISP, swap them.
   {
+    // ISP/ISD ordering: ISD must come after its linked ISP.
+    // ISP delivery_id starts with "ISP-", ISD with "ISD-".
+    // ISD.puid === ISP.stop_id (driver must pick up before dropping off).
     const ispByStopId = new Map(
-      activeStops.filter(s => s._interstore_source_id && !s._interstore_dest_id).map(s => [s.stop_id, s])
+      activeStops.filter(s => String(s.delivery_id || '').startsWith('ISP')).map(s => [s.stop_id, s])
     );
     let swapped = false;
     do {
       swapped = false;
       for (let i = 0; i < activeStops.length; i++) {
         const stop = activeStops[i];
-        // ISD: has _interstore_dest_id and puid pointing to an ISP stop_id
-        if (stop._interstore_dest_id && stop.puid) {
+        // ISD: delivery_id starts with "ISD-" and puid points to an ISP stop_id
+        if (String(stop.delivery_id || '').startsWith('ISD') && stop.puid) {
           const linkedISP = ispByStopId.get(stop.puid);
           if (!linkedISP) continue;
           const ispIdx = activeStops.findIndex(s => s.id === linkedISP.id);
@@ -1266,7 +1193,7 @@ export async function optimizeRouteClientSide({
   // This prevents a newly-created ISP/ISD from being auto-assigned isNextDelivery=true
   // when it gets sorted to position 0 by the HERE optimizer.
   const firstNonInterStoreActive = activeStops.find(s => {
-    const isISP_ISD = !!(s._interstore_source_id || s._interstore_dest_id);
+    const isISP_ISD = isInterStoreDelivery(s.delivery_id);
     return !isISP_ISD;
   }) || null;
   const nextStopId = (explicitNextDelivery ? explicitNextDelivery.id : null)
@@ -1317,7 +1244,7 @@ export async function optimizeRouteClientSide({
     // Correct pickup status if somehow in_transit.
     // InterStore stops (ISP/ISD) have no patient_id but are NOT regular store pickups —
     // they use in_transit → completed transitions only. Never force them to en_route.
-    const isInterStoreStop = !!(stop._interstore_source_id || stop._interstore_dest_id);
+    const isInterStoreStop = isInterStoreDelivery(stop.delivery_id);
     const isPickupStop = !stop.patient_id && !stop.is_cycling_marker && !isInterStoreStop;
     const correctedStatus = isPickupStop && stop.status === 'in_transit' ? 'en_route' : undefined;
 
@@ -1479,7 +1406,7 @@ function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliv
 
   // For future routes: first non-ISP/ISD stop gets isNextDelivery=true.
   // ISP/ISD stops must never steal isNextDelivery from regular delivery stops.
-  const _futureFirstNonISPId = orderedStops.find(({ delivery: d }) => !(d._interstore_source_id || d._interstore_dest_id))?.delivery.id || orderedStops[0]?.delivery.id || null;
+  const _futureFirstNonISPId = orderedStops.find(({ delivery: d }) => !isInterStoreDelivery(d.delivery_id))?.delivery.id || orderedStops[0]?.delivery.id || null;
 
   const writeBatch = orderedStops.map(({ delivery, isPickup }, i) => {
     const newEta = etaMap.get(delivery.id);

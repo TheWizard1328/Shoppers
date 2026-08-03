@@ -6,7 +6,7 @@ import { offlineDB } from "@/components/utils/offlineDatabase";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { getOrFetchHereApiKey } from "@/components/utils/hereApiKeyStore";
-import { getInterStoreLocationSync, getInterStoreLocationByEntityId, isInterStoreDelivery } from "@/components/utils/interStoreDisplayName";
+import { getInterStoreLocationSync, isInterStoreDelivery } from "@/components/utils/interStoreDisplayName";
 import { Loader2, RotateCcw } from "lucide-react";
 
 // ─── HERE Flexible Polyline decode ──────────────────────────────────────────
@@ -127,33 +127,16 @@ async function resolveStopCoords(delivery, patientMap, storeMap) {
     return null;
   }
 
-  // InterStore stops (ISP/ISD) — resolve from InterStoreLocation cache.
-  // ISP -> _interstore_source_id (pickup FROM source); ISD -> _interstore_dest_id (dropoff AT dest).
+  // InterStore stops (ISP/ISD) — resolve coords directly from the delivery_id.
+  // The delivery_id encodes the phone number identifying the InterStoreLocation.
+  // getInterStoreLocationSync handles ISP vs ISD prefix automatically.
   if (!delivery.patient_id && isInterStoreDelivery(delivery.delivery_id)) {
-    const _did = String(delivery.delivery_id || "").toUpperCase();
-    const isISD = _did.startsWith("ISD-");
-    const interstoreId = isISD
-      ? (delivery._interstore_dest_id || delivery._interstore_source_id)
-      : (delivery._interstore_source_id || delivery._interstore_dest_id);
-    if (interstoreId) {
-      // 1. Try phone-based cache lookup via delivery_id
-      const loc = getInterStoreLocationSync(delivery.delivery_id);
-      if (loc) {
-        const lat = Number(loc.store_latitude);
-        const lng = Number(loc.store_longitude);
-        if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0))
-          return { latitude: lat, longitude: lng };
-      }
-      // 2. Fallback: look up InterStoreLocation by entity ID
-      try {
-        const locById = await getInterStoreLocationByEntityId(interstoreId);
-        if (locById) {
-          const lat = Number(locById.store_latitude);
-          const lng = Number(locById.store_longitude);
-          if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0))
-            return { latitude: lat, longitude: lng };
-        }
-      } catch { /* non-fatal */ }
+    const loc = getInterStoreLocationSync(delivery.delivery_id);
+    if (loc) {
+      const lat = Number(loc.store_latitude);
+      const lng = Number(loc.store_longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0))
+        return { latitude: lat, longitude: lng };
     }
   }
 
