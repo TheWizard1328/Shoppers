@@ -1,4 +1,4 @@
-import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoActive } from './idbCrypto';
+import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoActive, hasDegradedRecords, resetDecryptFailCounters } from './idbCrypto';
 /**
  * Offline Database Manager using IndexedDB
  * Stores Patient and Delivery entities locally for offline access
@@ -1302,6 +1302,8 @@ const pruneDeliveriesOlderThan60Days = async () => {
 
 export const offlineDB = {
   STORES,
+  hasDegradedRecords,
+  resetDecryptFailCounters,
   PHI_STORES,
   isPHIStore,
   openDatabase,

@@ -223,6 +223,10 @@ export const encryptRecord = async (record) => {
  * @param {object} record — The record from IDB (may be encrypted or plaintext)
  * @returns {Promise<object>} — The decrypted record, or the original
  */
+// Track decryption failures to throttle console spam
+let _decryptFailCount = 0;
+let _decryptFailLogged = 0;
+
 export const decryptRecord = async (record) => {
   if (!record || typeof record !== 'object') return record;
 
@@ -230,14 +234,18 @@ export const decryptRecord = async (record) => {
   if (!record.__encrypted) return record;
 
   if (!_isEncrypting || !_cryptoKey) {
-    // Encryption was on but key is gone — can't decrypt
-    console.warn('[IDB-Crypto] Encrypted record found but no key available');
-    return null;
+    // Encryption was on but key is gone — return degraded wrapper
+    // (has plaintext index fields for queries, just missing full PHI data)
+    _decryptFailCount++;
+    return { ...record, __data: undefined, __decryptFailed: true };
   }
 
   try {
     const encryptedBytes = record.__data;
-    if (!encryptedBytes || !(encryptedBytes instanceof Uint8Array)) return null;
+    if (!encryptedBytes || !(encryptedBytes instanceof Uint8Array)) {
+      // Data corrupted or wrong format — return degraded wrapper
+      return { ...record, __data: undefined, __decryptFailed: true };
+    }
 
     // Extract IV (first 12 bytes) and ciphertext (rest)
     const iv = encryptedBytes.slice(0, IV_LENGTH);
@@ -250,13 +258,23 @@ export const decryptRecord = async (record) => {
       ciphertext
     );
 
+    // Reset fail counter on success
+    _decryptFailCount = 0;
+
     // Deserialize
     const decoder = new TextDecoder();
     const json = decoder.decode(plaintextBuffer);
     return JSON.parse(json);
   } catch (error) {
-    console.error('[IDB-Crypto] Decrypt failed:', error);
-    return null;
+    _decryptFailCount++;
+    // Throttle console spam — log first 3, then every 50th
+    if (_decryptFailLogged < 3 || _decryptFailCount % 50 === 0) {
+      console.warn('[IDB-Crypto] Decrypt failed (count: ' + _decryptFailCount + ') — returning degraded record. Old key mismatch likely.');
+      _decryptFailLogged++;
+    }
+    // Return degraded wrapper instead of null — preserves index fields
+    // for queries. Server sync will overwrite with fresh data.
+    return { ...record, __data: undefined, __decryptFailed: true };
   }
 };
 
@@ -271,7 +289,26 @@ export const decryptRecords = async (records) => {
   if (!_isEncrypting) return records;
 
   const results = await Promise.all(records.map(r => decryptRecord(r)));
-  return results.filter(r => r !== null);
+  // Keep all records — degraded ones still have index fields for queries.
+  // Filter only actual nulls (corrupt/empty), not degraded wrappers.
+  return results.filter(r => r !== null && r !== undefined);
+};
+
+/**
+ * Check if any records in a set are degraded (failed decryption).
+ * Callers can use this to trigger a server re-sync.
+ */
+export const hasDegradedRecords = (records) => {
+  if (!records || !Array.isArray(records)) return false;
+  return records.some(r => r && r.__decryptFailed === true);
+};
+
+/**
+ * Reset the decrypt failure counters (call after a successful re-sync).
+ */
+export const resetDecryptFailCounters = () => {
+  _decryptFailCount = 0;
+  _decryptFailLogged = 0;
 };
 
 // ─── Migration ────────────────────────────────────────────────────────────
