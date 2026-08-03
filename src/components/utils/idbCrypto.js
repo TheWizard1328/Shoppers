@@ -17,6 +17,14 @@ const PBKDF2_ITERATIONS = 100000;  // ~50ms one-time cost on login
 const AES_KEY_LENGTH = 256;       // AES-256
 const IV_LENGTH = 12;             // 96-bit IV for AES-GCM
 const SALT_STORAGE_KEY = 'rxdeliver_idb_salt';
+// Stable, device-specific key material (random 32 bytes generated once and
+// stored in localStorage). The AES key is derived from THIS — NOT from the
+// auth token — because the auth token rotates on refresh/relogin and would
+// make every previously encrypted record undecryptable ("old key mismatch").
+const KEY_MATERIAL_STORAGE_KEY = 'rxdeliver_idb_key_material';
+// One-time cleanup flag: after switching from token-derived to stable-derived
+// keys, old records encrypted under the (now-discarded) token key are purged.
+const STABLE_KEY_MIGRATED_FLAG = 'rxdeliver_idb_stable_key_migrated';
 
 // Index fields to preserve as plaintext on the encrypted wrapper.
 // These are the IDB index fields for each PHI store — they're needed for
@@ -60,25 +68,44 @@ const getOrCreateSalt = () => {
   return saltArr;
 };
 
+// ─── Stable Key Material ──────────────────────────────────────────────────
+
+/**
+ * Get or create stable, device-specific key material (a random 32-byte secret
+ * stored in localStorage). This is the foundation of the AES key — it never
+ * changes on this device, so records encrypted today stay decryptable tomorrow.
+ * The auth token is deliberately NOT used here because it rotates and would
+ * orphan previously encrypted records.
+ */
+const getOrCreateKeyMaterial = () => {
+  let material = localStorage.getItem(KEY_MATERIAL_STORAGE_KEY);
+  if (!material) {
+    const materialBytes = crypto.getRandomValues(new Uint8Array(32));
+    material = Array.from(materialBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem(KEY_MATERIAL_STORAGE_KEY, material);
+  }
+  return material;
+};
+
 // ─── Key Derivation ──────────────────────────────────────────────────────
 
 /**
- * Derive the AES-GCM key from the user's auth token + device salt.
- * Called once on login. The key stays in memory for the session.
+ * Derive the AES-GCM key from stable key material + device salt.
+ * Called once on login. The key stays in memory for the session and is
+ * identical across sessions on the same device/browser, so previously
+ * encrypted records remain decryptable.
  *
- * @param {string} authToken — The user's auth token (base44_access_token)
  * @returns {Promise<CryptoKey>}
  */
-const deriveKey = async (authToken) => {
-  if (!authToken) throw new Error('[IDB-Crypto] No auth token provided for key derivation');
-
+const deriveKey = async () => {
   const salt = getOrCreateSalt();
+  const material = getOrCreateKeyMaterial();
 
-  // Convert token to key material via PBKDF2
+  // Convert stable material to key material via PBKDF2
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(authToken),
+    encoder.encode(material),
     { name: 'PBKDF2' },
     false,
     ['deriveKey']
@@ -111,21 +138,29 @@ const deriveKey = async (authToken) => {
  */
 export const initEncryption = async (authToken) => {
   try {
-    if (!authToken) {
-      console.warn('[IDB-Crypto] No auth token — encryption disabled');
-      _isEncrypting = false;
-      _isInitialized = true;
-      return false;
-    }
-
-    // Check if we already have a key for this token version
-    const keyVersion = localStorage.getItem(KEY_VERSION_KEY);
-    _cryptoKey = await deriveKey(authToken);
+    // Derive the AES key from STABLE material (not the rotating auth token).
+    // authToken is accepted for backward-compatible callers but ignored.
+    _cryptoKey = await deriveKey();
     _isEncrypting = true;
     _isInitialized = true;
-    localStorage.setItem(KEY_VERSION_KEY, '1');
 
-    console.log('[IDB-Crypto] Encryption initialized — AES-256-GCM active');
+    // One-time purge of records encrypted under the OLD (token-derived) key.
+    // These can never be decrypted with the new stable key, so clear them out
+    // once so the next server sync repopulates fresh, correctly-encrypted data.
+    const migrated = localStorage.getItem(STABLE_KEY_MIGRATED_FLAG);
+    if (!migrated) {
+      try {
+        const purged = await purgeOldKeyRecords();
+        if (purged > 0) {
+          console.log('[IDB-Crypto] One-time purge: removed ' + purged + ' old-key records');
+        }
+      } catch (e) {
+        // non-fatal — retry on next init if it failed
+      }
+      localStorage.setItem(STABLE_KEY_MIGRATED_FLAG, '1');
+    }
+
+    console.log('[IDB-Crypto] Encryption initialized — AES-256-GCM active (stable key)');
     return true;
   } catch (error) {
     console.error('[IDB-Crypto] Failed to initialize encryption:', error);
@@ -366,6 +401,28 @@ const openDbForPurge = async (storeName) => {
     req.onsuccess = () => { _purgeDb = req.result; resolve(_purgeDb); };
     req.onerror = () => resolve(null);
   });
+};
+
+/**
+ * One-time cleanup helper: delete every encrypted record across all PHI stores.
+ * Called on the first init after switching from token-derived to stable keys.
+ * Records encrypted under the old token-key are undecryptable with the new key,
+ * so we remove them; the next server sync re-populates the stores with data
+ * encrypted under the stable key.
+ *
+ * @returns {Promise<number>} — total records removed
+ */
+const purgeOldKeyRecords = async () => {
+  const PHI_STORES = Object.keys(INDEX_FIELDS);
+  let total = 0;
+  for (const storeName of PHI_STORES) {
+    try {
+      total += await purgeUndecryptableRecords(storeName, null);
+    } catch {
+      // store may not exist or be locked — skip
+    }
+  }
+  return total;
 };
 
 // ─── Migration ────────────────────────────────────────────────────────────
