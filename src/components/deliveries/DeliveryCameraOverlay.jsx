@@ -608,7 +608,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
       {allMatches.length > 0 ? (
         <>
           {allMatches.length === 1 && allMatches[0].matchScore < CONFIDENCE_THRESHOLD && (
-            <div className="flex items-center gap-2 text-white text-sm font-bold px-3 bg-amber-700 border-2 border-amber-400 rounded-lg py-2.5">
+            <div className="flex items-center gap-2 text-black text-sm font-bold px-3 bg-amber-400 border-2 border-amber-200 rounded-lg py-2.5 shadow-lg">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               Low confidence ({allMatches[0].matchScore}%). Confirm or create new.
             </div>
@@ -665,7 +665,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
           </div>
         </>
       ) : (
-        <div className="text-white text-sm px-1 font-semibold bg-zinc-900 border-2 border-zinc-500 rounded-lg py-2.5 text-center">No matching patients found.</div>
+        <div className="text-black text-sm px-1 font-bold bg-amber-400 border-2 border-amber-200 rounded-lg py-2.5 text-center shadow-lg">No matching patients found.</div>
       )}
 
       {extractedData?.patient_name && onCreateNew && (
