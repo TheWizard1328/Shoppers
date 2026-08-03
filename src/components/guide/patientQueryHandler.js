@@ -218,6 +218,25 @@ export function getLastDeliveryInfo(patientId, deliveries) {
   return { date: dateStr, codAmount, codType };
 }
 
+// ── COD payment totals count across all completed deliveries ──
+
+export function getCodTotals(patientId, deliveries) {
+  if (!deliveries || deliveries.length === 0 || !patientId) return null;
+  const counts = { totalCount: 0, Cash: 0, Debit: 0, Credit: 0, Check: 0, Other: 0 };
+  for (const d of deliveries) {
+    if (!d || (d.patient_id !== patientId && d.patient_id?.$oid !== patientId)) continue;
+    if (d.status !== 'completed') continue;
+    if (!Array.isArray(d.cod_payments) || d.cod_payments.length === 0) continue;
+    for (const pmt of d.cod_payments) {
+      if (!pmt || !pmt.type) continue;
+      const type = counts[pmt.type] !== undefined ? pmt.type : 'Other';
+      counts[type]++;
+      counts.totalCount++;
+    }
+  }
+  return counts;
+}
+
 // ── Recommended actions ──────────────────────────────────────────────
 
 export function getRecommendedActions(patient, delivery) {
@@ -343,9 +362,19 @@ export function buildPatientResponse({ patient, delivery, stats, store, cityAdmi
   if (store?.name) infoLines.push(`🏪 Store: ${store.name}`);
   if (infoLines.length > 0) lines.push(infoLines.join('\n'));
 
-  lines.push('\n**Delivery History:**');
-  lines.push(`Total: ${stats.total} | ✅ Completed: ${stats.completed} | ↩️ Returned: ${stats.returned} | ❌ Failed: ${stats.failed}`);
+  lines.push('\n**Delivery History:** Total: ' + stats.total);
+  lines.push(`✅ Completed: ${stats.completed} | ❌ Failed: ${stats.failed} | ↩️ Returned: ${stats.returned}`);
   lines.push(`Completion rate: ${stats.completionRate}%`);
+
+  // COD payment counts across all completed deliveries
+  const codCounts = getCodTotals(patient.id || patient._id, deliveries);
+  if (codCounts && codCounts.totalCount > 0) {
+    const parts = [];
+    for (const type of ['Cash', 'Debit', 'Credit', 'Check', 'Other']) {
+      if (codCounts[type]) parts.push(`${type}: ${codCounts[type]}`);
+    }
+    lines.push(`\n💵 COD's: ${parts.join(' | ')}`);
+  }
 
   // Last completed delivery — date + COD amount + collection type
   const lastInfo = getLastDeliveryInfo(patient.id || patient._id, deliveries);
