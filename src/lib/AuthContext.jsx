@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import { initEncryption, destroyKey } from '@/components/utils/idbCrypto';
 
 const AuthContext = createContext();
 
@@ -97,6 +98,12 @@ export const AuthProvider = ({ children }) => {
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
+
+      // Initialize IDB encryption with the auth token
+      const token = appParams.token || localStorage.getItem('base44_access_token');
+      if (token) {
+        initEncryption(token).catch((e) => console.error('[Auth] IDB encryption init failed:', e));
+      }
     } catch (error) {
       console.error('User auth check failed:', error);
       setIsLoadingAuth(false);
@@ -115,6 +122,9 @@ export const AuthProvider = ({ children }) => {
   const logout = (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
+    
+    // Destroy the encryption key — IDB data becomes unreadable
+    destroyKey();
     
     if (shouldRedirect) {
       // Use the SDK's logout method which handles token cleanup and redirect

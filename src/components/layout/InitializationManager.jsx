@@ -5,6 +5,8 @@ import { getDeviceType, getDeviceIdentifier } from '../utils/userSettingsManager
 import { performAtomicDeviceCheck } from '../utils/atomicDeviceCheck';
 import { requestThrottler } from '../utils/requestThrottler';
 import { getBootstrapManifest } from '@/functions/getBootstrapManifest';
+import { initEncryption } from '@/components/utils/idbCrypto';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 
 /**
  * CRITICAL: Handles the unified initialization flow
@@ -67,6 +69,36 @@ export const useInitialization = ({
       // STEP 4: User is authenticated and device is registered - safe to proceed
       setCurrentUser(fetchedUser);
       setHasAccess(true);
+
+      // STEP 4.5: Initialize IDB encryption and migrate existing plaintext records
+      try {
+        const token = localStorage.getItem('base44_access_token');
+        if (token) {
+          await initEncryption(token);
+
+          // Migrate existing plaintext records to encrypted form
+          const { STORES, PHI_STORES } = offlineDB;
+          const phiStores = Array.from(PHI_STORES);
+          for (const storeName of phiStores) {
+            try {
+              const allRecords = await offlineDB.getAll(storeName);
+              if (allRecords.length > 0 && !allRecords[0]?.__encrypted) {
+                console.log(`[InitManager] Migrating ${allRecords.length} records in ${storeName} to encrypted form...`);
+                // The encryptRecord call is automatic via save/bulkSave now that encryption is active,
+                // but we need to explicitly re-encrypt: read (decrypted), clear, re-write (encrypted)
+                // Since getAll now decrypts, we get plaintext records back. Clear + bulkSave will encrypt them.
+                await offlineDB.clearStore(storeName);
+                await offlineDB.bulkSave(storeName, allRecords);
+                console.log(`[InitManager] Migrated ${storeName}: ${allRecords.length} records encrypted`);
+              }
+            } catch (migrateErr) {
+              console.warn(`[InitManager] Migration failed for ${storeName}:`, migrateErr?.message);
+            }
+          }
+        }
+      } catch (encErr) {
+        console.warn('[InitManager] IDB encryption init failed:', encErr?.message);
+      }
 
       // STEP 5: Dispatch initialization complete event with manifest data
       // The main layout component will handle loading app data from here

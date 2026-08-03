@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogIn, Mail, Lock, Loader2, CheckCircle } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import { initEncryption } from "@/components/utils/idbCrypto";
 import GoogleIcon from "@/components/GoogleIcon";
 
 
@@ -23,6 +24,11 @@ export default function Login() {
     setLoading(true);
     try {
       await base44.auth.loginViaEmailPassword(email, password);
+      // Initialize IDB encryption with the new auth token
+      const token = localStorage.getItem('base44_access_token');
+      if (token) {
+        await initEncryption(token);
+      }
       setSuccess(true);
       setTimeout(() => { window.location.href = "/"; }, 1500);
     } catch (err) {

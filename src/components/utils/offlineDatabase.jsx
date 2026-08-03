@@ -1,3 +1,4 @@
+import { encryptRecord, decryptRecord, decryptRecords, isEncrypting as isCryptoActive } from './idbCrypto';
 /**
  * Offline Database Manager using IndexedDB
  * Stores Patient and Delivery entities locally for offline access
@@ -34,6 +35,19 @@ const STORES = {
   STAT_HOLIDAYS: 'stat_holidays',         // statutory holidays for date lookups
   DRIVER_DAILY_ACTIVITY: 'driver_daily_activity' // v20: driver on-duty activity segments
 };
+
+// PHI-bearing stores — these get encrypted at rest via AES-GCM
+const PHI_STORES = new Set([
+  STORES.PATIENTS,
+  STORES.DELIVERIES,
+  STORES.APP_USERS,
+  STORES.PAYROLL,
+  STORES.SQUARE_TRANSACTIONS,
+  STORES.RX_TEMP_LOGS,
+]);
+
+const isPHIStore = (storeName) => PHI_STORES.has(storeName);
+
 
 let dbInstance = null;
 let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
@@ -305,13 +319,16 @@ const save = async (storeName, record) => {
   }
 
   try {
+    // Encrypt PHI records before storing
+    const recordToStore = isPHIStore(storeName) ? await encryptRecord(record) : record;
+
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
     const keyPath = store.keyPath;
-    const normalizedRecord = keyPath && typeof keyPath === 'string' && (record[keyPath] === undefined || record[keyPath] === null || record[keyPath] === '')
-      ? { ...record, [keyPath]: record.id || `${storeName}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` }
-      : record;
+    const normalizedRecord = keyPath && typeof keyPath === 'string' && (recordToStore[keyPath] === undefined || recordToStore[keyPath] === null || recordToStore[keyPath] === '')
+      ? { ...recordToStore, [keyPath]: record.id || `${storeName}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` }
+      : recordToStore;
 
     return new Promise((resolve, reject) => {
       const request = store.put(normalizedRecord);
@@ -332,6 +349,13 @@ const bulkSave = async (storeName, records) => {
     return { success: true, count: 0 };
   }
 
+  // Encrypt PHI records before storing (batch encrypt for efficiency)
+  const isPHI = isPHIStore(storeName);
+  let recordsToProcess = records;
+  if (isPHI && isCryptoActive()) {
+    recordsToProcess = await Promise.all(records.map(r => encryptRecord(r)));
+  }
+
   // CRITICAL: Deduplicate by ID BEFORE saving.
   // Fall back to square_catalog_object_id or square_transaction_id for records that
   // come directly from the Square API and don't yet have a Base44 entity id.
@@ -342,7 +366,7 @@ const bulkSave = async (storeName, records) => {
     null;
 
   const uniqueRecords = new Map();
-  records.forEach(record => {
+  recordsToProcess.forEach(record => {
     const key = resolveKey(record);
     if (key) {
       uniqueRecords.set(key, record);
@@ -393,7 +417,14 @@ const getAll = async (storeName) => {
 
     return new Promise((resolve, reject) => {
       const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = async () => {
+        const results = request.result;
+        if (isPHIStore(storeName)) {
+          resolve(await decryptRecords(results));
+        } else {
+          resolve(results);
+        }
+      };
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
@@ -413,7 +444,14 @@ const getByIndex = async (storeName, indexName, value) => {
 
     return new Promise((resolve, reject) => {
       const request = index.getAll(value);
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = async () => {
+        const results = request.result;
+        if (isPHIStore(storeName)) {
+          resolve(await decryptRecords(results));
+        } else {
+          resolve(results);
+        }
+      };
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
@@ -433,7 +471,14 @@ const getByCompoundIndex = async (storeName, indexName, values) => {
 
     return new Promise((resolve, reject) => {
       const request = index.getAll(values);
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = async () => {
+        const results = request.result;
+        if (isPHIStore(storeName)) {
+          resolve(await decryptRecords(results));
+        } else {
+          resolve(results);
+        }
+      };
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
@@ -462,17 +507,17 @@ const getDeliveriesSortedByDate = async (limit = null) => {
       const results = [];
       const request = index.openCursor(null, 'prev'); // 'prev' for descending order
 
-      request.onsuccess = (event) => {
+      request.onsuccess = async (event) => {
         const cursor = event.target.result;
         if (cursor) {
           results.push(cursor.value);
           if (limit && results.length >= limit) {
-            resolve(results);
+            resolve(await decryptRecords(results));
             return;
           }
           cursor.continue();
         } else {
-          resolve(results);
+          resolve(await decryptRecords(results));
         }
       };
       request.onerror = () => reject(request.error);
@@ -534,6 +579,13 @@ const replaceAllRecords = async (storeName, records = []) => {
 
 const replaceRecordsByIndex = async (storeName, indexName, indexValue, records = []) => {
   try {
+    // Encrypt PHI records before storing
+    const isPHI = isPHIStore(storeName);
+    let recordsToProcess = records || [];
+    if (isPHI && isCryptoActive()) {
+      recordsToProcess = await Promise.all(recordsToProcess.map(r => encryptRecord(r)));
+    }
+
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
@@ -554,8 +606,10 @@ const replaceRecordsByIndex = async (storeName, indexName, indexValue, records =
     });
 
     const uniqueRecords = new Map();
-    (records || []).forEach((record) => {
-      if (record?.id) uniqueRecords.set(record.id, record);
+    recordsToProcess.forEach((record) => {
+      // Use the original record's id (before encryption) for dedup
+      const recordId = record?.__encrypted ? records.find(r => r && r.id === record.id)?.id || record.id : record?.id;
+      if (recordId) uniqueRecords.set(recordId, record);
     });
 
     const deduplicatedRecords = Array.from(uniqueRecords.values());
@@ -824,7 +878,14 @@ const getById = async (storeName, recordId) => {
 
     return new Promise((resolve, reject) => {
       const request = store.get(recordId);
-      request.onsuccess = () => resolve(request.result || null);
+      request.onsuccess = async () => {
+        const result = request.result || null;
+        if (result && isPHIStore(storeName)) {
+          resolve(await decryptRecord(result));
+        } else {
+          resolve(result);
+        }
+      };
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
@@ -1237,6 +1298,8 @@ const pruneDeliveriesOlderThan60Days = async () => {
 
 export const offlineDB = {
   STORES,
+  PHI_STORES,
+  isPHIStore,
   openDatabase,
   save,
   bulkSave,
