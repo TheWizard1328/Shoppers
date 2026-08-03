@@ -605,14 +605,18 @@ const replaceRecordsByIndex = async (storeName, indexName, indexValue, records =
       request.onerror = () => reject(request.error);
     });
 
-    const uniqueRecords = new Map();
-    recordsToProcess.forEach((record) => {
-      // Use the original record's id (before encryption) for dedup
-      const recordId = record?.__encrypted ? records.find(r => r && r.id === record.id)?.id || record.id : record?.id;
-      if (recordId) uniqueRecords.set(recordId, record);
+    // Dedup by ID using original records, then map to processed (encrypted) records
+    const uniqueOriginals = new Map();
+    (records || []).forEach((record) => {
+      if (record?.id) uniqueOriginals.set(record.id, record);
     });
-
-    const deduplicatedRecords = Array.from(uniqueRecords.values());
+    // Build a map of id -> encrypted record
+    const encryptedMap = new Map();
+    recordsToProcess.forEach((record, idx) => {
+      const origId = (records || [])[idx]?.id || record?.id;
+      if (origId) encryptedMap.set(origId, record);
+    });
+    const deduplicatedRecords = Array.from(uniqueOriginals.keys()).map(id => encryptedMap.get(id)).filter(Boolean);
     for (const record of deduplicatedRecords) {
       await new Promise((resolve, reject) => {
         const putRequest = store.put(record);
