@@ -1254,10 +1254,10 @@ export default function DeliveriesPage() {
     return sortedAndFilteredDates.map((date) => {
       const deliveriesOnDate = groupedDeliveries[date] || [];
       const total = deliveriesOnDate.length;
-      const failedByStatus = deliveriesOnDate.filter((d) => d.status === 'failed').length;
-      const isReturnDelivery = (d) => (d.delivery_notes || '').toLowerCase().includes('return') || ((patientMap.get(d.patient_id)?.address) || '').toLowerCase().includes('rtn');
-      const completed = deliveriesOnDate.filter((d) => (d.after_hours_pickup === true && ['completed','cancelled'].includes(d.status)) || (d.status === 'completed' && !isReturnDelivery(d) && !d.after_hours_pickup)).length;
-      const returned = deliveriesOnDate.filter((d) => isReturnDelivery(d)).length;
+      const isReturnDelivery = (d) => (d.delivery_notes || '').toLowerCase().includes('return') || ((patientMap.get(d.patient_id)?.address) || '').toLowerCase().includes('rtn'), isCountable = (d) => (d.patient_id && d.patient_id !== '') || d.after_hours_pickup === true;
+      const failedByStatus = deliveriesOnDate.filter((d) => isCountable(d) && d.status === 'failed').length;
+      const completed = deliveriesOnDate.filter((d) => isCountable(d) && ((d.after_hours_pickup === true && ['completed','cancelled'].includes(d.status)) || (d.status === 'completed' && !isReturnDelivery(d) && !d.after_hours_pickup))).length;
+      const returned = deliveriesOnDate.filter((d) => isCountable(d) && isReturnDelivery(d)).length;
 
       const dateObj = new Date(date.replace(/-/g, '/'));
       let displayLabel;

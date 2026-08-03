@@ -48,9 +48,7 @@ export default function DateListPanel({
         return notesReturn || addressReturn;
       };
 
-      const deliveriesOnly = isDispatcher
-        ? dateDeliveries.filter((d) => d.patient_id && d.patient_id !== '')
-        : dateDeliveries;
+      const deliveriesOnly = dateDeliveries.filter((d) => (d.patient_id && d.patient_id !== '') || d.after_hours_pickup === true);
       const total = deliveriesOnly.length;
 
       const completed = deliveriesOnly.filter((d) => {
