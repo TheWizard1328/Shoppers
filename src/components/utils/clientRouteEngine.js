@@ -257,7 +257,14 @@ const getDeliveryCoords = (delivery, patientMap, storeMap, ispSourceMap = new Ma
   // which is populated from the InterStoreLocation in-memory cache.
   // ISP: driver travels to _interstore_source_id; ISD: driver travels to _interstore_dest_id.
   if (!delivery.patient_id) {
-    const interstoreId = delivery._interstore_source_id || delivery._interstore_dest_id;
+    // ISP → source store coords; ISD → destination store coords.
+    // Both fields are always set on InterStore records, so we must check the
+    // delivery_id prefix to pick the correct one.
+    const _did = String(delivery.delivery_id || '').toUpperCase();
+    const isISD = _did.startsWith('ISD-');
+    const interstoreId = isISD
+      ? (delivery._interstore_dest_id || delivery._interstore_source_id)
+      : (delivery._interstore_source_id || delivery._interstore_dest_id);
     if (interstoreId) {
       const ispLoc = ispSourceMap.get(interstoreId);
       const ispLat = Number(ispLoc?.store_latitude);
@@ -276,17 +283,14 @@ const getDeliveryCoords = (delivery, patientMap, storeMap, ispSourceMap = new Ma
     const patient = patientMap.get(delivery.patient_id);
     if (patient?.latitude != null && patient?.longitude != null) return { lat: Number(patient.latitude), lng: Number(patient.longitude) };
   }
-  // InterStore fallback: ISP should use the SOURCE (From) store, not the destination (To) store.
-  // The delivery.store_id for ISP points to the destination store — wrong for routing.
-  // ISD correctly uses destination store. Resolve source store by name match as fallback.
-  if (delivery._interstore_source_id && !delivery._interstore_dest_id) {
-    // ISP — try to find the source store by name from storeMap values.
-    const srcName = delivery._interstore_source_name;
-    if (srcName) {
-      for (const s of storeMap.values()) {
-        if (s?.name && s.name.toLowerCase().includes(srcName.toLowerCase()) && s?.latitude != null && s?.longitude != null) {
-          return { lat: Number(s.latitude), lng: Number(s.longitude) };
-        }
+  // InterStore name-based fallback: when ispSourceMap and phone cache both miss,
+  // try to find the store by name. ISP uses source name, ISD uses dest name.
+  const _isISD = String(delivery.delivery_id || '').toUpperCase().startsWith('ISD-');
+  const _fbName = _isISD ? delivery._interstore_dest_name : delivery._interstore_source_name;
+  if (_fbName) {
+    for (const s of storeMap.values()) {
+      if (s?.name && s.name.toLowerCase().includes(_fbName.toLowerCase()) && s?.latitude != null && s?.longitude != null) {
+        return { lat: Number(s.latitude), lng: Number(s.longitude) };
       }
     }
   }
@@ -564,10 +568,14 @@ export async function optimizeRouteClientSide({
   const ispSourceMap = new Map();
   for (const d of allDeliveries) {
     if (d.patient_id) continue;
-    // ISP stops use _interstore_source_id; ISD stops use _interstore_dest_id
+    // ISP stops use _interstore_source_id; ISD stops use _interstore_dest_id.
+    // Both fields are always set on InterStore records, so check the delivery_id
+    // prefix to pick the correct ID for the routing destination.
+    const _did = String(d.delivery_id || '').toUpperCase();
+    const isISD = _did.startsWith('ISD-');
     const isdId = d._interstore_dest_id;
     const ispId = d._interstore_source_id;
-    const keyId = ispId || isdId;
+    const keyId = isISD ? (isdId || ispId) : (ispId || isdId);
     if (!keyId) continue;
     // 1. Try phone-based cache lookup via delivery_id (populated during bootstrap sync)
     if (isInterStoreDelivery(d.delivery_id)) {
