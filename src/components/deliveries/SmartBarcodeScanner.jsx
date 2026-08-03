@@ -379,41 +379,42 @@ export default function SmartBarcodeScanner({
         }
       }
 
-      // ── ZXing fallback — manual decode loop for faster iOS performance ──
-      console.log('[SmartBarcodeScanner] Using ZXing manual decode loop (iOS fallback)');
+      // ── ZXing fallback — recursive setTimeout for tighter iOS performance ──
+      console.log('[SmartBarcodeScanner] Using ZXing recursive decode loop (iOS fallback)');
       codeReaderRef.current = new BrowserMultiFormatReader();
       try {
         const hints = new Map();
-        // Only CODE_128 — the most common pharmacy barcode format
-        // Limiting formats dramatically speeds up ZXing on iOS
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]);
+        // CODE_128 + CODE_39 — the two most common pharmacy barcode formats
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39]);
         hints.set(DecodeHintType.ASSUME_GS1, false);
+        // PURE_FORMATS only — skip mixed-format detection (faster)
+        hints.set(DecodeHintType.PURE_FORMATS, true);
         codeReaderRef.current.setHints(hints);
       } catch {}
 
-      // Manual decode loop — faster than decodeFromStream's internal loop
-      // because we control the interval and avoid ZXing's overhead
-      let lastDecodeAt = 0;
-      nativeScanLoopRef.current = setInterval(async () => {
-        if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) return;
-        const now = Date.now();
-        if (now - lastDecodeAt < 200) return; // 5fps decode attempts — fast enough, low CPU
-        lastDecodeAt = now;
+      // Recursive setTimeout — avoids setInterval pile-up when decodeFromCanvas
+      // takes longer than the interval (common on iOS).
+      // Uses 120ms gap between decode attempts (~8fps) for reliable detection.
+      if (!zxingCanvasRef.current) zxingCanvasRef.current = document.createElement('canvas');
+      const zxingCanvas = zxingCanvasRef.current;
+      const zxingCtx = zxingCanvas.getContext('2d', { willReadFrequently: true });
+
+      const decodeLoop = async () => {
+        if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) {
+          if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 120);
+          return;
+        }
         try {
-          // Use decodeFromCanvas — much faster than video element scanning
-          // because we can downscale the canvas for faster decode
-          if (!zxingCanvasRef.current) zxingCanvasRef.current = document.createElement('canvas');
-          const canvas = zxingCanvasRef.current;
           const vw = videoRef.current.videoWidth;
           const vh = videoRef.current.videoHeight;
-          if (!vw || !vh) return;
-          // Downscale to 640px wide for faster decode on iOS
-          const scale = Math.min(1, 640 / vw);
-          canvas.width = Math.round(vw * scale);
-          canvas.height = Math.round(vh * scale);
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-          const result = await codeReaderRef.current.decodeFromCanvas(canvas);
+          if (!vw || !vh) { nativeScanLoopRef.current = setTimeout(decodeLoop, 120); return; }
+          // Downscale to 480px wide — smaller = faster decode on iOS
+          // while still preserving enough detail for CODE_128 barcodes
+          const scale = Math.min(1, 480 / vw);
+          zxingCanvas.width = Math.round(vw * scale);
+          zxingCanvas.height = Math.round(vh * scale);
+          zxingCtx.drawImage(videoRef.current, 0, 0, zxingCanvas.width, zxingCanvas.height);
+          const result = await codeReaderRef.current.decodeFromCanvas(zxingCanvas);
           if (result) {
             const text = result.getText ? result.getText() : String(result?.text || '');
             if (text) handleCameraDetected(text);
@@ -421,7 +422,10 @@ export default function SmartBarcodeScanner({
         } catch {
           // No barcode found this frame — normal
         }
-      }, 250); // check every 250ms, decode at 200ms throttle = fast detection
+        // Schedule next decode — recursive setTimeout prevents pile-up
+        if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 120);
+      };
+      decodeLoop();
     } catch (e) {
       console.warn('[SmartBarcodeScanner] Camera start failed:', e);
       setCameraError(e?.message || 'Could not access camera');
@@ -430,7 +434,8 @@ export default function SmartBarcodeScanner({
   }, [disabled, handleCameraDetected, configureTrack]);
 
   const stopCameraReader = useCallback(() => {
-    // Stop native scan loop
+    // Stop scan loop (handles both setInterval and setTimeout)
+    try { clearTimeout(nativeScanLoopRef.current); } catch {}
     try { clearInterval(nativeScanLoopRef.current); } catch {}
     nativeScanLoopRef.current = null;
     nativeDetectorRef.current = null;

@@ -161,6 +161,9 @@ const cycleRearCamera = async (videoEl) => {
     // Found a rear camera!
     console.log('[camera] Switched to rear camera idx', tryIdx, ':', cam.label || cam.deviceId.slice(0, 8), 'facing:', facingMode);
     saveCameraId(cam.deviceId);
+    // Update the global cache so the new stream is reused next time
+    // (prevents iOS from re-prompting for camera permission)
+    setCachedStream(stream, cam.deviceId);
     return { stream, deviceId: cam.deviceId, label: cam.label, reopened: false };
   }
 
@@ -169,6 +172,21 @@ const cycleRearCamera = async (videoEl) => {
   const fallback = await tryOpenStream(null);
   return { stream: fallback, deviceId: null, label: null, reopened: true };
 };
+
+// Visibility listener — iOS kills camera streams when backgrounded.
+// On return to foreground, check if the cached stream died and release it
+// so the next openStream call creates a fresh one (without re-prompting if
+// permission was already granted).
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (_cachedStream && !isStreamAlive(_cachedStream)) {
+        console.log('[camera] Cached stream died while backgrounded — releasing');
+        releaseCachedStream();
+      }
+    }
+  });
+}
 
 export { openStream, listCameras, cycleRearCamera, getSavedCameraId, saveCameraId, SAVED_CAM_KEY, getCachedStream, releaseCachedStream, isStreamAlive, detachStream };
 
