@@ -608,7 +608,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
       {allMatches.length > 0 ? (
         <>
           {allMatches.length === 1 && allMatches[0].matchScore < CONFIDENCE_THRESHOLD && (
-            <div className="flex items-center gap-2 text-amber-300 text-sm font-semibold px-1 bg-amber-950/60 rounded-lg py-2">
+            <div className="flex items-center gap-2 text-white text-sm font-bold px-3 bg-amber-700 border-2 border-amber-400 rounded-lg py-2.5">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               Low confidence ({allMatches[0].matchScore}%). Confirm or create new.
             </div>
