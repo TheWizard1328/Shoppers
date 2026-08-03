@@ -1254,16 +1254,10 @@ export default function DeliveriesPage() {
     return sortedAndFilteredDates.map((date) => {
       const deliveriesOnDate = groupedDeliveries[date] || [];
       const total = deliveriesOnDate.length;
-      const done = deliveriesOnDate.filter((d) => ['completed', 'in_transit', 'en_route'].includes(d.status)).length;
-      const returnedByStatus = deliveriesOnDate.filter((d) => d.status === 'returned').length;
       const failedByStatus = deliveriesOnDate.filter((d) => d.status === 'failed').length;
-
-      const returned = deliveriesOnDate.filter((d) => {
-        const patient = patientMap.get(d.patient_id);
-        const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
-        const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-        return notesReturn || addressReturn;
-      }).length;
+      const isReturnDelivery = (d) => (d.delivery_notes || '').toLowerCase().includes('return') || ((patientMap.get(d.patient_id)?.address) || '').toLowerCase().includes('rtn');
+      const completed = deliveriesOnDate.filter((d) => (d.after_hours_pickup === true && ['completed','cancelled'].includes(d.status)) || (d.status === 'completed' && !isReturnDelivery(d) && !d.after_hours_pickup)).length;
+      const returned = deliveriesOnDate.filter((d) => isReturnDelivery(d)).length;
 
       const dateObj = new Date(date.replace(/-/g, '/'));
       let displayLabel;
@@ -1275,7 +1269,7 @@ export default function DeliveriesPage() {
         displayLabel = format(dateObj, 'EEE MMM d');
       }
 
-      return { date, total, done, failed: failedByStatus, returned, displayLabel, actualDeliveries: deliveriesOnDate.length };
+      return { date, total, completed, failed: failedByStatus, returned, displayLabel, actualDeliveries: deliveriesOnDate.length };
     });
   }, [filteredDatesByMonth, groupedDeliveries, effectivePatients, selectedYear, selectedMonth, refreshKey]);
 
