@@ -311,6 +311,63 @@ export const resetDecryptFailCounters = () => {
   _decryptFailLogged = 0;
 };
 
+/**
+ * Purge undecryptable records from a store.
+ * Returns the count of purged records. The next server sync will repopulate
+ * with fresh data encrypted under the current key.
+ */
+export const purgeUndecryptableRecords = async (storeName, clearStoreFn) => {
+  let purgedCount = 0;
+  try {
+    const db = await openDbForPurge(storeName);
+    if (!db) return 0;
+    const tx = db.transaction([storeName], 'readwrite');
+    const store = tx.objectStore(storeName);
+    const allReq = store.getAll();
+    const allRecords = await new Promise((resolve) => {
+      allReq.onsuccess = () => resolve(allReq.result || []);
+      allReq.onerror = () => resolve([]);
+    });
+    for (const rec of allRecords) {
+      if (rec?.__encrypted) {
+        // Try decrypt — if it fails, delete the record
+        try {
+          const encryptedBytes = rec.__data;
+          if (!encryptedBytes || !(encryptedBytes instanceof Uint8Array)) {
+            store.delete(rec.id);
+            purgedCount++;
+            continue;
+          }
+          const iv = encryptedBytes.slice(0, IV_LENGTH);
+          const ciphertext = encryptedBytes.slice(IV_LENGTH);
+          await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, _cryptoKey, ciphertext);
+        } catch {
+          store.delete(rec.id);
+          purgedCount++;
+        }
+      }
+    }
+    await new Promise((resolve) => { tx.oncomplete = () => resolve(); tx.onerror = () => resolve(); });
+    if (purgedCount > 0) {
+      console.log(`[IDB-Crypto] Purged ${purgedCount} undecryptable records from ${storeName}`);
+    }
+  } catch (e) {
+    // non-fatal
+  }
+  return purgedCount;
+};
+
+// Minimal IDB open for purge (avoids circular dependency with offlineDatabase)
+let _purgeDb = null;
+const openDbForPurge = async (storeName) => {
+  if (_purgeDb) return _purgeDb;
+  return new Promise((resolve) => {
+    const req = indexedDB.open('rxdeliver_persistent_offline_v2');
+    req.onsuccess = () => { _purgeDb = req.result; resolve(_purgeDb); };
+    req.onerror = () => resolve(null);
+  });
+};
+
 // ─── Migration ────────────────────────────────────────────────────────────
 
 /**

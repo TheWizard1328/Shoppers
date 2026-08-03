@@ -5,7 +5,7 @@ import { getDeviceType, getDeviceIdentifier } from '../utils/userSettingsManager
 import { performAtomicDeviceCheck } from '../utils/atomicDeviceCheck';
 import { requestThrottler } from '../utils/requestThrottler';
 import { getBootstrapManifest } from '@/functions/getBootstrapManifest';
-import { initEncryption } from '@/components/utils/idbCrypto';
+import { initEncryption, purgeUndecryptableRecords, resetDecryptFailCounters } from '@/components/utils/idbCrypto';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
 /**
@@ -75,6 +75,23 @@ export const useInitialization = ({
         const token = localStorage.getItem('base44_access_token');
         if (token) {
           await initEncryption(token);
+
+          // PURGE: Remove records encrypted with an old key (previous session token).
+          // They are undecryptable with the current key. Server sync will repopulate.
+          try {
+            const { STORES, PHI_STORES } = offlineDB;
+            let totalPurged = 0;
+            for (const storeName of Array.from(PHI_STORES)) {
+              const purged = await purgeUndecryptableRecords(storeName);
+              totalPurged += purged;
+            }
+            if (totalPurged > 0) {
+              console.log(`[InitManager] Purged ${totalPurged} undecryptable IDB records — server sync will repopulate`);
+              resetDecryptFailCounters();
+            }
+          } catch (purgeErr) {
+            console.warn('[InitManager] IDB purge failed:', purgeErr?.message);
+          }
 
           // Migrate existing plaintext records to encrypted form
           const { STORES, PHI_STORES } = offlineDB;
