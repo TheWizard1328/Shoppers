@@ -190,6 +190,34 @@ export function getPatientDeliveryStats(patientId, deliveries) {
   return stats;
 }
 
+// ── Last completed delivery info (date + COD amount + collection type) ──
+
+export function getLastDeliveryInfo(patientId, deliveries) {
+  if (!deliveries || deliveries.length === 0 || !patientId) return null;
+  const patientDeliveries = deliveries
+    .filter(d => d && (d.patient_id === patientId || d.patient_id?.$oid === patientId) && d.status === 'completed')
+    .sort((a, b) => {
+      const aTime = a.actual_delivery_time || a.delivery_date || '';
+      const bTime = b.actual_delivery_time || b.delivery_date || '';
+      return bTime.localeCompare(aTime);
+    });
+  if (patientDeliveries.length === 0) return null;
+  const last = patientDeliveries[0];
+  const dateStr = last.actual_delivery_time
+    ? new Date(last.actual_delivery_time).toLocaleDateString('en-CA')
+    : last.delivery_date || null;
+  let codAmount = null;
+  let codType = null;
+  if (last.cod_total_amount_required && last.cod_total_amount_required > 0) {
+    codAmount = last.cod_total_amount_required;
+    if (Array.isArray(last.cod_payments) && last.cod_payments.length > 0) {
+      // Take the most recent payment entry
+      codType = last.cod_payments[last.cod_payments.length - 1]?.type || null;
+    }
+  }
+  return { date: dateStr, codAmount, codType };
+}
+
 // ── Recommended actions ──────────────────────────────────────────────
 
 export function getRecommendedActions(patient, delivery) {
@@ -295,7 +323,7 @@ export function getNoAnswerAdvice(patient, delivery, store, cityAdmins) {
 
 // ── Full response builder ────────────────────────────────────────────
 
-export function buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice }) {
+export function buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice, deliveries }) {
   if (!patient) {
     return "I couldn't find a patient matching that name. Could you double-check the spelling? You can also type **'info'** to look up the patient for your current delivery.";
   }
@@ -318,6 +346,19 @@ export function buildPatientResponse({ patient, delivery, stats, store, cityAdmi
   lines.push('\n**Delivery History:**');
   lines.push(`Total: ${stats.total} | ✅ Completed: ${stats.completed} | ↩️ Returned: ${stats.returned} | ❌ Failed: ${stats.failed}`);
   lines.push(`Completion rate: ${stats.completionRate}%`);
+
+  // Last completed delivery — date + COD amount + collection type
+  const lastInfo = getLastDeliveryInfo(patient.id || patient._id, deliveries);
+  if (lastInfo) {
+    lines.push('\n**Last Delivery:**');
+    if (lastInfo.date) lines.push(`📅 Date: ${lastInfo.date}`);
+    if (lastInfo.codAmount != null) {
+      const typeStr = lastInfo.codType ? ` (${lastInfo.codType})` : '';
+      lines.push(`💵 COD: $${lastInfo.codAmount.toFixed(2)}${typeStr}`);
+    } else {
+      lines.push('💵 COD: None collected');
+    }
+  }
 
   if (delivery) {
     lines.push('\n**Current Delivery:**');
