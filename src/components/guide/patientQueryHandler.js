@@ -318,7 +318,7 @@ export function getNoAnswerAdvice(patient, delivery, store, cityAdmins) {
   }
 
   // Allowlist — only these city admins appear in the no-answer advice
-  const ALLOWED_ADMINS = ['Robert T', 'Riyaz'];
+  const ALLOWED_ADMINS = ['Robert T', 'Riyaz J'];
   const visibleAdmins = (cityAdmins || []).filter(a => {
     if (!a || !a.user_name) return false;
     return ALLOWED_ADMINS.some(name =>
