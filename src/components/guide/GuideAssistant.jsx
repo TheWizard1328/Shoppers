@@ -406,8 +406,9 @@ export default function GuideAssistant() {
   }, [activeFlow, addBotMessage]);
 
   // ── Patient pool scoped to role (must be before handleAction) ─────
-  // Memoized so handlePatientQuery deps are stable across renders.
-  const getAllowedPatients = useMemo(() => {
+  // Wrapped in useCallback so it's callable as getAllowedPatients() (matches
+  // all call sites) while keeping deps stable across renders.
+  const getAllowedPatients = useCallback(() => {
     if (!appPatients || !currentUser) return [];
     const userRole = isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver';
     if (userRole === 'admin') return appPatients;
