@@ -290,6 +290,7 @@ export default function SmartBarcodeScanner({
   // Native BarcodeDetector + ZXing fallback
   const nativeDetectorRef = useRef(null);
   const nativeScanLoopRef = useRef(null);
+  const zxingEdgeRef = useRef(null);
   const [cameraError, setCameraError] = useState(null);
 
   const configureTrack = useCallback((stream) => {
@@ -379,41 +380,91 @@ export default function SmartBarcodeScanner({
         }
       }
 
-      // ── ZXing fallback — recursive setTimeout for tighter iOS performance ──
-      console.log('[SmartBarcodeScanner] Using ZXing recursive decode loop (iOS fallback)');
+      // ── ZXing fallback — strip-cropped decode + edge-density pre-check ──
+      // On iOS (no native BarcodeDetector), we crop the decode canvas to a
+      // horizontal strip (~15% of frame height) aligned with the on-screen
+      // laser bar. This reduces pixels for ZXing by ~85% vs full-frame.
+      // A fast edge-density check skips decode entirely when no barcode-like
+      // patterns are present in the strip (saves CPU on blank walls, etc).
+      console.log('[SmartBarcodeScanner] Using ZXing strip-crop + edge-density (iOS fallback)');
       codeReaderRef.current = new BrowserMultiFormatReader();
       try {
         const hints = new Map();
-        // CODE_128 + CODE_39 — the two most common pharmacy barcode formats
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39]);
         hints.set(DecodeHintType.ASSUME_GS1, false);
-        // PURE_FORMATS only — skip mixed-format detection (faster)
         hints.set(DecodeHintType.PURE_FORMATS, true);
         codeReaderRef.current.setHints(hints);
       } catch {}
 
-      // Recursive setTimeout — avoids setInterval pile-up when decodeFromCanvas
-      // takes longer than the interval (common on iOS).
-      // Uses 120ms gap between decode attempts (~8fps) for reliable detection.
       if (!zxingCanvasRef.current) zxingCanvasRef.current = document.createElement('canvas');
+      // Pre-allocate a tiny canvas for the edge-density check (1px-per-column sampled)
+      if (!zxingEdgeRef.current) zxingEdgeRef.current = document.createElement('canvas');
       const zxingCanvas = zxingCanvasRef.current;
       const zxingCtx = zxingCanvas.getContext('2d', { willReadFrequently: true });
+      const edgeCanvas = zxingEdgeRef.current;
+      const edgeCtx = edgeCanvas.getContext('2d', { willReadFrequently: true });
+
+      // Edge-density check: sample 1px-wide vertical strip from the crop zone,
+      // count sharp horizontal transitions (barcode bars = high transition count).
+      // Returns true if the strip looks like it contains a barcode.
+      const hasBarcodeEdgeDensity = (fullCtx, vw, vh) => {
+        // Crop zone: center 60% width, center 15% height
+        const cropW = Math.round(vw * 0.6);
+        const cropH = Math.round(vh * 0.15);
+        const cropX = Math.round((vw - cropW) / 2);
+        const cropY = Math.round((vh - cropH) / 2);
+        // Sample at 1px per ~4px for speed — 120px wide sample
+        const sampleW = Math.min(120, Math.round(cropW / 4));
+        const sampleH = 1;
+        edgeCanvas.width = sampleW;
+        edgeCanvas.height = sampleH;
+        edgeCtx.drawImage(videoRef.current, cropX, cropY + Math.round(cropH / 2), cropW, 4, 0, 0, sampleW, sampleH);
+        try {
+          const pix = edgeCtx.getImageData(0, 0, sampleW, sampleH).data;
+          let transitions = 0;
+          let prevLum = -1;
+          for (let i = 0; i < pix.length; i += 4) {
+            const lum = (pix[i] * 0.299 + pix[i+1] * 0.587 + pix[i+2] * 0.114) | 0;
+            if (prevLum >= 0 && Math.abs(lum - prevLum) > 40) transitions++;
+            prevLum = lum;
+          }
+          // Barcodes typically have 15+ transitions in this sample width
+          // (CODE_128 minimum: 6 bars + 6 spaces = 12 edges minimum)
+          return transitions >= 8;
+        } catch {
+          return true; // If getImageData fails (tainted canvas etc.), proceed to decode
+        }
+      };
 
       const decodeLoop = async () => {
         if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) {
-          if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 120);
+          if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 100);
           return;
         }
         try {
           const vw = videoRef.current.videoWidth;
           const vh = videoRef.current.videoHeight;
-          if (!vw || !vh) { nativeScanLoopRef.current = setTimeout(decodeLoop, 120); return; }
-          // Downscale to 480px wide — smaller = faster decode on iOS
-          // while still preserving enough detail for CODE_128 barcodes
-          const scale = Math.min(1, 480 / vw);
-          zxingCanvas.width = Math.round(vw * scale);
-          zxingCanvas.height = Math.round(vh * scale);
-          zxingCtx.drawImage(videoRef.current, 0, 0, zxingCanvas.width, zxingCanvas.height);
+          if (!vw || !vh) { nativeScanLoopRef.current = setTimeout(decodeLoop, 100); return; }
+
+          // Step 1: Quick edge-density pre-check (~0.5ms)
+          // Skip full ZXing decode if no barcode-like patterns in the strip
+          if (!hasBarcodeEdgeDensity(zxingCtx, vw, vh)) {
+            if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 100);
+            return;
+          }
+
+          // Step 2: Crop to the alignment strip (center 60% × 15% of frame)
+          // Downscale to max 480px wide for ZXing decode
+          const cropW = Math.round(vw * 0.6);
+          const cropH = Math.round(vh * 0.15);
+          const cropX = Math.round((vw - cropW) / 2);
+          const cropY = Math.round((vh - cropH) / 2);
+          const scale = Math.min(1, 480 / cropW);
+          zxingCanvas.width = Math.round(cropW * scale);
+          zxingCanvas.height = Math.round(cropH * scale);
+          zxingCtx.drawImage(videoRef.current, cropX, cropY, cropW, cropH, 0, 0, zxingCanvas.width, zxingCanvas.height);
+
+          // Step 3: Attempt ZXing decode on the small strip
           const result = await codeReaderRef.current.decodeFromCanvas(zxingCanvas);
           if (result) {
             const text = result.getText ? result.getText() : String(result?.text || '');
@@ -422,8 +473,7 @@ export default function SmartBarcodeScanner({
         } catch {
           // No barcode found this frame — normal
         }
-        // Schedule next decode — recursive setTimeout prevents pile-up
-        if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 120);
+        if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 100);
       };
       decodeLoop();
     } catch (e) {
@@ -630,6 +680,12 @@ export default function SmartBarcodeScanner({
       {showCamera && typeof document !== 'undefined' && createPortal(
       <div className="fixed inset-0 z-[1000000] bg-black flex flex-col items-center justify-between"
         style={{ paddingTop: 'env(safe-area-inset-top, 12px)', paddingBottom: 'max(40px, env(safe-area-inset-bottom, 34px))' }}>
+        <style>{`
+          @keyframes barcodeScan {
+            0%, 100% { transform: translateY(-50%); opacity: 0.3; }
+            50% { transform: translateY(50%); opacity: 1; }
+          }
+        `}</style>
 
         {/* ── Top: viewfinder + status hint + scanned list ── */}
         <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
@@ -654,9 +710,28 @@ export default function SmartBarcodeScanner({
                 </div>
               )}
 
-              {/* Corner brackets */}
+              {/* Alignment laser bar — horizontal strip for barcode aiming */}
               {!flashHit && !cameraError && (
                 <>
+                  {/* Crop zone outline — center 60% × 15% */}
+                  <div
+                    className="absolute left-[20%] right-[20%] border-2 border-white/50 rounded-md pointer-events-none"
+                    style={{ top: '42.5%', height: '15%' }}
+                  />
+                  {/* Laser line — animated scan line inside the crop zone */}
+                  <div
+                    className="absolute left-[20%] right-[20%] pointer-events-none overflow-hidden"
+                    style={{ top: '42.5%', height: '15%' }}
+                  >
+                    <div
+                      className="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_2px_rgba(239,68,68,0.6)]"
+                      style={{
+                        animation: 'barcodeScan 1.8s ease-in-out infinite',
+                        top: '50%',
+                      }}
+                    />
+                  </div>
+                  {/* Corner brackets */}
                   <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-white/40 rounded-tl" />
                   <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-white/40 rounded-tr" />
                   <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-white/40 rounded-bl" />
@@ -668,7 +743,7 @@ export default function SmartBarcodeScanner({
 
           {/* Status hint — centered white text */}
           <div className="text-white text-sm font-medium text-center px-4">
-            {cameraError ? '' : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Point camera at a barcode'}
+            {cameraError ? '' : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Align barcode with the red line'}
           </div>
 
           {/* Scanned barcodes list — shows each barcode scanned during this session */}
