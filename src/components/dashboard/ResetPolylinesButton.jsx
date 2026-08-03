@@ -6,6 +6,7 @@ import { offlineDB } from "@/components/utils/offlineDatabase";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { getOrFetchHereApiKey } from "@/components/utils/hereApiKeyStore";
+import { getInterStoreLocationSync, getInterStoreLocationByEntityId, isInterStoreDelivery } from "@/components/utils/interStoreDisplayName";
 import { Loader2, RotateCcw } from "lucide-react";
 
 // ─── HERE Flexible Polyline decode ──────────────────────────────────────────
@@ -114,7 +115,7 @@ async function callHereMultiStop(points, transportMode, hereApiKey) {
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 /** Resolve the destination coords for a delivery record. */
-function resolveStopCoords(delivery, patientMap, storeMap) {
+async function resolveStopCoords(delivery, patientMap, storeMap) {
   if (!delivery) return null;
 
   // Cycling markers carry their own GPS fields
@@ -124,6 +125,36 @@ function resolveStopCoords(delivery, patientMap, storeMap) {
     if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0)
       return { latitude: lat, longitude: lng };
     return null;
+  }
+
+  // InterStore stops (ISP/ISD) — resolve from InterStoreLocation cache.
+  // ISP -> _interstore_source_id (pickup FROM source); ISD -> _interstore_dest_id (dropoff AT dest).
+  if (!delivery.patient_id && isInterStoreDelivery(delivery.delivery_id)) {
+    const _did = String(delivery.delivery_id || "").toUpperCase();
+    const isISD = _did.startsWith("ISD-");
+    const interstoreId = isISD
+      ? (delivery._interstore_dest_id || delivery._interstore_source_id)
+      : (delivery._interstore_source_id || delivery._interstore_dest_id);
+    if (interstoreId) {
+      // 1. Try phone-based cache lookup via delivery_id
+      const loc = getInterStoreLocationSync(delivery.delivery_id);
+      if (loc) {
+        const lat = Number(loc.store_latitude);
+        const lng = Number(loc.store_longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0))
+          return { latitude: lat, longitude: lng };
+      }
+      // 2. Fallback: look up InterStoreLocation by entity ID
+      try {
+        const locById = await getInterStoreLocationByEntityId(interstoreId);
+        if (locById) {
+          const lat = Number(locById.store_latitude);
+          const lng = Number(locById.store_longitude);
+          if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0))
+            return { latitude: lat, longitude: lng };
+        }
+      } catch { /* non-fatal */ }
+    }
   }
 
   // Patient stop
@@ -272,10 +303,10 @@ export default function ResetPolylinesButton({
         ? { lat: homePosition.latitude, lon: homePosition.longitude }
         : null;
 
-      const stopPoints = sorted.map(d => {
-        const c = resolveStopCoords(d, patientMap, storeMap);
+      const stopPoints = (await Promise.all(sorted.map(async d => {
+        const c = await resolveStopCoords(d, patientMap, storeMap);
         return c ? { lat: c.latitude, lon: c.longitude, deliveryId: d.id } : null;
-      }).filter(Boolean);
+      }))).filter(Boolean);
 
       // Prepend origin if we have it; we need at least 2 points to route
       const allPoints = originPoint ? [originPoint, ...stopPoints] : stopPoints;
@@ -333,10 +364,10 @@ export default function ResetPolylinesButton({
         console.log(`[ResetPolylinesButton] Pass 2 — cycling loop: ${loopStops.length} stops → 1 HERE call`);
 
         // Build waypoints for this loop: stop[0] → stop[1] → ... → stop[N-1]
-        const loopPoints = loopStops.map(d => {
-          const c = resolveStopCoords(d, patientMap, storeMap);
+        const loopPoints = (await Promise.all(loopStops.map(async d => {
+          const c = await resolveStopCoords(d, patientMap, storeMap);
           return c ? { lat: c.latitude, lon: c.longitude, deliveryId: d.id } : null;
-        }).filter(Boolean);
+        }))).filter(Boolean);
 
         if (loopPoints.length < 2) continue;
 
