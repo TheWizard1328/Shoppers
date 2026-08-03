@@ -715,12 +715,12 @@ export default function SmartBarcodeScanner({
                 <>
                   {/* Crop zone outline — center 60% × 15% */}
                   <div
-                    className="absolute left-[20%] right-[20%] border-2 border-white/50 rounded-md pointer-events-none"
+                    className="absolute left-0 right-0 border-2 border-white/50 rounded-md pointer-events-none"
                     style={{ top: '42.5%', height: '15%' }}
                   />
                   {/* Laser line — animated scan line inside the crop zone */}
                   <div
-                    className="absolute left-[20%] right-[20%] pointer-events-none overflow-hidden"
+                    className="absolute left-0 right-0 pointer-events-none overflow-hidden"
                     style={{ top: '42.5%', height: '15%' }}
                   >
                     <div
