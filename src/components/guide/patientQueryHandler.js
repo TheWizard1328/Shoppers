@@ -156,10 +156,9 @@ export function findCurrentDeliveryPatient(currentUser, deliveries, patients, se
       return { routeComplete: true };
     }
 
-    // Find the next active delivery
-    const nextDelivery =
-      activeDeliveries.find(d => d.isNextDelivery === true) ||
-      activeDeliveries.sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999))[0];
+    // STRICT: only return the delivery flagged as isNextDelivery (the current
+    // active stop). If none is flagged, there is no "current" patient to show.
+    const nextDelivery = activeDeliveries.find(d => d.isNextDelivery === true);
     if (!nextDelivery) return null;
 
     const patient = patients?.find(p => p?.id === nextDelivery.patient_id || p?.patient_id === nextDelivery.patient_id);
