@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, X, Send, ChevronRight, RotateCcw, Lightbulb, Navigation } from 'lucide-react';
+import { Sparkles, X, Send, ChevronRight, RotateCcw, Lightbulb, Navigation, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { isAppOwner, userHasRole, getPrimaryRole } from '@/components/utils/userRoles';
 import { QUICK_ACTIONS, FLOWS, PAGE_TIPS, PAGE_CONTEXT, matchIntent } from './guideFlows';
@@ -68,6 +68,7 @@ export default function GuideAssistant() {
   const [activeFlow, setActiveFlow] = useState(null);
   const [currentStepId, setCurrentStepId] = useState(null);
   const [showQuickActions, setShowQuickActions] = useState(true);
+  const [isQuickActionsCollapsed, setIsQuickActionsCollapsed] = useState(false);
   const [showTips, setShowTips] = useState(false);
   const [pageTipIndex, setPageTipIndex] = useState(0);
   const scrollRef = useRef(null);
@@ -406,8 +407,9 @@ export default function GuideAssistant() {
   }, [activeFlow, addBotMessage]);
 
   // ── Patient pool scoped to role (must be before handleAction) ─────
-  // Memoized so handlePatientQuery deps are stable across renders.
-  const getAllowedPatients = useMemo(() => {
+  // Wrapped in useCallback so it's callable as getAllowedPatients() (matches
+  // all call sites) while keeping deps stable across renders.
+  const getAllowedPatients = useCallback(() => {
     if (!appPatients || !currentUser) return [];
     const userRole = isAppOwner(currentUser) ? 'admin' : getPrimaryRole(currentUser) || 'driver';
     if (userRole === 'admin') return appPatients;
@@ -559,7 +561,7 @@ export default function GuideAssistant() {
     const stats = getPatientDeliveryStats(patient.id, appDeliveries);
 
     // Build the response
-    const response = buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice });
+    const response = buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice, deliveries: appDeliveries });
     addBotMessage(response, []);
     setShowQuickActions(true);
   }, [currentUser, appDeliveries, appPatients, appStores, appDrivers, addBotMessage, setShowQuickActions, getAllowedPatients]);
@@ -661,6 +663,7 @@ export default function GuideAssistant() {
     addUserMessage(text);
     setInputValue('');
     setShowQuickActions(false);
+    setIsQuickActionsCollapsed(true);
 
     // ── Check for patient query FIRST (before generic intent matching) ──
     const patientQuery = detectPatientQuery(text);
@@ -700,6 +703,7 @@ export default function GuideAssistant() {
             store,
             cityAdmins,
             includeAdvice: true,
+            deliveries: appDeliveries,
           });
           addBotMessage(response, []);
           setShowQuickActions(true);
@@ -747,6 +751,7 @@ export default function GuideAssistant() {
 
   // ── Handle quick action click ───────────────────────────────────
   const handleQuickAction = useCallback((actionId) => {
+    setIsQuickActionsCollapsed(true);
     // Patient info quick action — triggers current delivery patient lookup
     if (actionId === 'patient_info') {
       addUserMessage('Patient Info');
@@ -814,6 +819,7 @@ export default function GuideAssistant() {
     setActiveFlow(null);
     setCurrentStepId(null);
     setShowQuickActions(true);
+    setIsQuickActionsCollapsed(false);
     setShowTips(false);
     try { localStorage.removeItem(CONVERSATION_KEY); } catch { /* ignore */ }
     addBotMessage("Conversation cleared. How can I help you?", []);
@@ -958,7 +964,7 @@ export default function GuideAssistant() {
                 ))}
               </div>
 
-              {/* Quick Actions */}
+              {/* Quick Actions — collapsible / minimizable */}
               {showQuickActions && (
                 <div
                   className="px-3 py-2"
@@ -967,29 +973,45 @@ export default function GuideAssistant() {
                     backgroundColor: 'var(--bg-white)',
                   }}
                 >
-                  <div className="flex flex-wrap gap-1.5">
-                    {visibleQuickActions.map((action) => (
-                      <button
-                        key={action.id}
-                        onClick={() => handleQuickAction(action.id)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
-                        style={{
-                          backgroundColor: 'var(--bg-slate-100)',
-                          color: 'var(--text-slate-700)',
-                          border: '1px solid var(--border-slate-200)',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.backgroundColor = 'var(--bg-slate-200)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.backgroundColor = 'var(--bg-slate-100)';
-                        }}
-                      >
-                        <span className="text-xs">{action.icon}</span>
-                        {action.label}
-                      </button>
-                    ))}
+                  {/* Collapse toggle header */}
+                  <div
+                    className="flex items-center justify-between mb-1 cursor-pointer select-none"
+                    onClick={() => setIsQuickActionsCollapsed(prev => !prev)}
+                  >
+                    <span className="text-xs font-semibold" style={{ color: 'var(--text-slate-500)' }}>
+                      Quick Actions
+                    </span>
+                    {isQuickActionsCollapsed ? (
+                      <ChevronDown className="w-3.5 h-3.5" style={{ color: 'var(--text-slate-500)' }} />
+                    ) : (
+                      <ChevronUp className="w-3.5 h-3.5" style={{ color: 'var(--text-slate-500)' }} />
+                    )}
                   </div>
+                  {!isQuickActionsCollapsed && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {visibleQuickActions.map((action) => (
+                        <button
+                          key={action.id}
+                          onClick={() => handleQuickAction(action.id)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors"
+                          style={{
+                            backgroundColor: 'var(--bg-slate-100)',
+                            color: 'var(--text-slate-700)',
+                            border: '1px solid var(--border-slate-200)',
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-slate-200)';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-slate-100)';
+                          }}
+                        >
+                          <span className="text-xs">{action.icon}</span>
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

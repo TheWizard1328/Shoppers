@@ -190,6 +190,53 @@ export function getPatientDeliveryStats(patientId, deliveries) {
   return stats;
 }
 
+// ── Last completed delivery info (date + COD amount + collection type) ──
+
+export function getLastDeliveryInfo(patientId, deliveries) {
+  if (!deliveries || deliveries.length === 0 || !patientId) return null;
+  const patientDeliveries = deliveries
+    .filter(d => d && (d.patient_id === patientId || d.patient_id?.$oid === patientId) && d.status === 'completed')
+    .sort((a, b) => {
+      const aTime = a.actual_delivery_time || a.delivery_date || '';
+      const bTime = b.actual_delivery_time || b.delivery_date || '';
+      return bTime.localeCompare(aTime);
+    });
+  if (patientDeliveries.length === 0) return null;
+  const last = patientDeliveries[0];
+  const dateStr = last.actual_delivery_time
+    ? new Date(last.actual_delivery_time).toLocaleDateString('en-CA')
+    : last.delivery_date || null;
+  let codAmount = null;
+  let codType = null;
+  if (last.cod_total_amount_required && last.cod_total_amount_required > 0) {
+    codAmount = last.cod_total_amount_required;
+    if (Array.isArray(last.cod_payments) && last.cod_payments.length > 0) {
+      // Take the most recent payment entry
+      codType = last.cod_payments[last.cod_payments.length - 1]?.type || null;
+    }
+  }
+  return { date: dateStr, codAmount, codType };
+}
+
+// ── COD payment totals count across all completed deliveries ──
+
+export function getCodTotals(patientId, deliveries) {
+  if (!deliveries || deliveries.length === 0 || !patientId) return null;
+  const counts = { totalCount: 0, Cash: 0, Debit: 0, Credit: 0, Check: 0, Other: 0 };
+  for (const d of deliveries) {
+    if (!d || (d.patient_id !== patientId && d.patient_id?.$oid !== patientId)) continue;
+    if (d.status !== 'completed') continue;
+    if (!Array.isArray(d.cod_payments) || d.cod_payments.length === 0) continue;
+    for (const pmt of d.cod_payments) {
+      if (!pmt || !pmt.type) continue;
+      const type = counts[pmt.type] !== undefined ? pmt.type : 'Other';
+      counts[type]++;
+      counts.totalCount++;
+    }
+  }
+  return counts;
+}
+
 // ── Recommended actions ──────────────────────────────────────────────
 
 export function getRecommendedActions(patient, delivery) {
@@ -271,9 +318,17 @@ export function getNoAnswerAdvice(patient, delivery, store, cityAdmins) {
     lines.push(`\n5. **Contact ${store.name}** — they may have alternate contact information for this patient.`);
   }
 
-  if (cityAdmins && cityAdmins.length > 0) {
+  // Allowlist — only these city admins appear in the no-answer advice
+  const ALLOWED_ADMINS = ['Robert T', 'Riyaz'];
+  const visibleAdmins = (cityAdmins || []).filter(a => {
+    if (!a || !a.user_name) return false;
+    return ALLOWED_ADMINS.some(name =>
+      a.user_name === name || a.user_name.startsWith(name + ' ') || a.user_name.includes(name)
+    );
+  });
+  if (visibleAdmins.length > 0) {
     lines.push("\n6. **Contact a city admin** — if the patient can't be reached and the store is unavailable:");
-    for (const admin of cityAdmins.slice(0, 2)) {
+    for (const admin of visibleAdmins.slice(0, 2)) {
       const phone = admin.phone || admin.ETrans_Email || '';
       lines.push(`   👤 ${admin.user_name || 'Admin'}${phone ? ` — ${phone}` : ''}`);
     }
@@ -295,7 +350,7 @@ export function getNoAnswerAdvice(patient, delivery, store, cityAdmins) {
 
 // ── Full response builder ────────────────────────────────────────────
 
-export function buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice }) {
+export function buildPatientResponse({ patient, delivery, stats, store, cityAdmins, includeAdvice, deliveries }) {
   if (!patient) {
     return "I couldn't find a patient matching that name. Could you double-check the spelling? You can also type **'info'** to look up the patient for your current delivery.";
   }
@@ -315,9 +370,32 @@ export function buildPatientResponse({ patient, delivery, stats, store, cityAdmi
   if (store?.name) infoLines.push(`🏪 Store: ${store.name}`);
   if (infoLines.length > 0) lines.push(infoLines.join('\n'));
 
-  lines.push('\n**Delivery History:**');
-  lines.push(`Total: ${stats.total} | ✅ Completed: ${stats.completed} | ↩️ Returned: ${stats.returned} | ❌ Failed: ${stats.failed}`);
+  lines.push('\n**Delivery History:** Total: ' + stats.total);
+  lines.push(`✅ Completed: ${stats.completed} | ❌ Failed: ${stats.failed} | ↩️ Returned: ${stats.returned}`);
   lines.push(`Completion rate: ${stats.completionRate}%`);
+
+  // COD payment counts across all completed deliveries
+  const codCounts = getCodTotals(patient.id || patient._id, deliveries);
+  if (codCounts && codCounts.totalCount > 0) {
+    const parts = [];
+    for (const type of ['Cash', 'Debit', 'Credit', 'Check', 'Other']) {
+      if (codCounts[type]) parts.push(`${type}: ${codCounts[type]}`);
+    }
+    lines.push(`\n💵 COD's: ${parts.join(' | ')}`);
+  }
+
+  // Last completed delivery — date + COD amount + collection type
+  const lastInfo = getLastDeliveryInfo(patient.id || patient._id, deliveries);
+  if (lastInfo) {
+    lines.push('\n**Last Delivery:**');
+    if (lastInfo.date) lines.push(`📅 Date: ${lastInfo.date}`);
+    if (lastInfo.codAmount != null) {
+      const typeStr = lastInfo.codType ? ` (${lastInfo.codType})` : '';
+      lines.push(`💵 COD: $${lastInfo.codAmount.toFixed(2)}${typeStr}`);
+    } else {
+      lines.push('💵 COD: None collected');
+    }
+  }
 
   if (delivery) {
     lines.push('\n**Current Delivery:**');
