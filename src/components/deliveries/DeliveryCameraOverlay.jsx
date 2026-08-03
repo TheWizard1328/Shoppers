@@ -512,7 +512,7 @@ export default function DeliveryCameraOverlay({
 
           {/* Results panel (scrollable if needed) */}
           {scanState === 'error' && scanResults?.error && (
-            <div className="flex items-center gap-2 p-3 bg-red-500/20 border border-red-500/40 rounded-lg text-white text-sm w-full">
+            <div className="flex items-center gap-2 p-3 bg-red-700 border-2 border-red-400 rounded-lg text-white text-sm font-semibold w-full">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               {scanResults.error}
             </div>
@@ -580,25 +580,25 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
   return (
     <div className="space-y-3">
       {extractedData && (
-        <div className="p-3 bg-zinc-800/90 rounded-lg border border-zinc-600">
-          <div className="text-slate-300 text-xs font-medium mb-1.5 uppercase tracking-wide">Scanned Label</div>
-          <div className="space-y-1 text-white text-sm">
+        <div className="p-3 bg-zinc-900 rounded-lg border-2 border-zinc-500">
+          <div className="text-zinc-400 text-xs font-bold mb-1.5 uppercase tracking-wide">Scanned Label</div>
+          <div className="space-y-1.5 text-white text-sm font-medium">
             {extractedData.patient_name && (
               <div className="flex items-center gap-2">
-                <User className="w-3.5 h-3.5 text-slate-300" />
-                {extractedData.patient_name}
+                <User className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                <span>{extractedData.patient_name}</span>
               </div>
             )}
             {extractedData.phone_number && (
               <div className="flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5 text-slate-300" />
-                {formatPhoneNumber(extractedData.phone_number)}
+                <Phone className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                <span>{formatPhoneNumber(extractedData.phone_number)}</span>
               </div>
             )}
             {extractedData.street_address && (
               <div className="flex items-center gap-2">
-                <MapPin className="w-3.5 h-3.5 text-slate-300" />
-                {extractedData.street_address}
+                <MapPin className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                <span>{extractedData.street_address}</span>
               </div>
             )}
           </div>
@@ -608,13 +608,13 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
       {allMatches.length > 0 ? (
         <>
           {allMatches.length === 1 && allMatches[0].matchScore < CONFIDENCE_THRESHOLD && (
-            <div className="flex items-center gap-2 text-amber-300 text-sm px-1">
-              <AlertCircle className="w-4 h-4" />
+            <div className="flex items-center gap-2 text-amber-300 text-sm font-semibold px-1 bg-amber-950/60 rounded-lg py-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
               Low confidence ({allMatches[0].matchScore}%). Confirm or create new.
             </div>
           )}
           {allMatches.length > 1 && (
-            <div className="text-slate-200 text-sm px-1">
+            <div className="text-white text-sm font-semibold px-1">
               {allMatches.length} potential matches:
             </div>
           )}
@@ -628,35 +628,35 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
                   key={match.patient.id || i}
                   type="button"
                   onClick={() => onSelectPatient(match.patient)}
-                  className="w-full text-left p-3 rounded-lg bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-600 hover:border-zinc-400 transition touch-manipulation"
+                  className="w-full text-left p-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border-2 border-zinc-500 hover:border-zinc-300 transition touch-manipulation"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                   <div className="flex items-start justify-between mb-1.5">
-                    <div className="font-medium text-white text-sm">{match.patient.full_name}</div>
-                    <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      isExact ? 'bg-emerald-500/30 text-emerald-200' :
-                      isHigh ? 'bg-blue-500/30 text-blue-200' :
-                      'bg-amber-500/30 text-amber-200'
+                    <div className="font-semibold text-white text-sm">{match.patient.full_name}</div>
+                    <div className={`text-xs font-bold px-2 py-0.5 rounded-full text-white ${
+                      isExact ? 'bg-emerald-600' :
+                      isHigh ? 'bg-blue-600' :
+                      'bg-amber-600'
                     }`}>
                       {score}%
                     </div>
                   </div>
-                  <div className="space-y-0.5 text-slate-300 text-xs">
+                  <div className="space-y-0.5 text-zinc-300 text-xs font-medium">
                     {match.patient.phone && (
                       <div className="flex items-center gap-1.5">
-                        <Phone className="w-3 h-3" />
-                        {formatPhoneNumber(match.patient.phone)}
+                        <Phone className="w-3 h-3 flex-shrink-0" />
+                        <span>{formatPhoneNumber(match.patient.phone)}</span>
                       </div>
                     )}
                     {match.patient.address && (
                       <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3 h-3" />
-                        {match.patient.address}
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        <span>{match.patient.address}</span>
                       </div>
                     )}
                     {stores && match.patient.store_id && (() => {
                       const s = stores.find(s => s?.id === match.patient.store_id);
-                      return s ? <div className="text-slate-400">{s.name}</div> : null;
+                      return s ? <div className="text-zinc-400">{s.name}</div> : null;
                     })()}
                   </div>
                 </button>
@@ -665,14 +665,14 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
           </div>
         </>
       ) : (
-        <div className="text-slate-200 text-sm px-1 font-medium">No matching patients found.</div>
+        <div className="text-white text-sm px-1 font-semibold bg-zinc-900 border-2 border-zinc-500 rounded-lg py-2.5 text-center">No matching patients found.</div>
       )}
 
       {extractedData?.patient_name && onCreateNew && (
         <button
           type="button"
           onClick={onCreateNew}
-          className="w-full p-3 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 text-blue-200 text-sm font-medium transition flex items-center justify-center gap-2 touch-manipulation"
+          className="w-full p-3 rounded-lg bg-blue-600 hover:bg-blue-700 border-2 border-blue-400 text-white text-sm font-bold transition flex items-center justify-center gap-2 touch-manipulation"
           style={{ WebkitTapHighlightColor: 'transparent' }}
         >
           <User className="w-4 h-4" />
@@ -683,7 +683,7 @@ function ResultsPanel({ scanResults, stores, onSelectPatient, onCreateNew, onRet
       <button
         type="button"
         onClick={onRetake}
-        className="w-full p-2.5 rounded-lg bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-600 text-slate-100 text-sm font-medium transition flex items-center justify-center gap-2 touch-manipulation"
+        className="w-full p-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border-2 border-zinc-500 text-white text-sm font-bold transition flex items-center justify-center gap-2 touch-manipulation"
         style={{ WebkitTapHighlightColor: 'transparent' }}
       >
         <Camera className="w-4 h-4" />
