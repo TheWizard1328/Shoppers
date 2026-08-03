@@ -605,12 +605,12 @@ export default function DeliveriesPage() {
 
     } catch (error) {
       console.error('[Deliveries] Error loading data:', error);
-      if (isMounted.current) {
-        setAllDeliveries([]);
-        setAllPatients([]);
-        setStores([]);
-        setAllUsers([]);
-        setCities([]);
+      // CRITICAL: Never wipe existing data on a failed refresh — previously this
+      // caught every transient error (token refresh, rate-limit, network blip)
+      // ~15–20s after load and erased all date cards, forcing a page reload.
+      // Only wipe on the very first load when there's nothing to preserve.
+      if (isMounted.current && !initialLoadDone.current) {
+        setAllDeliveries([]); setAllPatients([]); setStores([]); setAllUsers([]); setCities([]);
       }
     } finally {
       if (isMounted.current) {
