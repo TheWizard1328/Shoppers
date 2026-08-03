@@ -751,6 +751,7 @@ export default function GuideAssistant() {
 
   // ── Handle quick action click ───────────────────────────────────
   const handleQuickAction = useCallback((actionId) => {
+    setIsQuickActionsCollapsed(true);
     // Patient info quick action — triggers current delivery patient lookup
     if (actionId === 'patient_info') {
       addUserMessage('Patient Info');
