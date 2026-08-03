@@ -611,7 +611,7 @@ export default function SmartBarcodeScanner({
 
       {selectedBarcode &&
       <div
-        className="fixed inset-0 z-[10029] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+        className="fixed inset-0 z-[1000000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
         onClick={() => setSelectedBarcode(null)}>
           <div
           className="relative w-full max-w-3xl rounded-xl border bg-card p-4 shadow-2xl"
@@ -623,8 +623,8 @@ export default function SmartBarcodeScanner({
       }
 
       {showCamera && typeof document !== 'undefined' && createPortal(
-      <div className="fixed inset-0 z-[10030] bg-black flex flex-col items-center justify-between"
-        style={{ paddingTop: 'env(safe-area-inset-top, 12px)', paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
+      <div className="fixed inset-0 z-[1000000] bg-black flex flex-col items-center justify-between"
+        style={{ paddingTop: 'env(safe-area-inset-top, 12px)', paddingBottom: 'max(40px, env(safe-area-inset-bottom, 34px))' }}>
 
         {/* ── Top: viewfinder + status hint + scanned list ── */}
         <div className="w-full max-w-lg flex flex-col items-center px-2 pt-2 gap-2">
@@ -686,7 +686,7 @@ export default function SmartBarcodeScanner({
         </div>
 
         {/* ── Bottom: all buttons pinned to bottom ── */}
-        <div className="w-full max-w-lg flex items-center justify-between px-6 pb-3 gap-2">
+        <div className="w-full max-w-lg flex items-center justify-between px-6 pb-4 gap-2">
           {/* Left: switch camera */}
           <div className="w-16 h-16 flex items-center justify-center">
             {cameraCount > 1 ? (

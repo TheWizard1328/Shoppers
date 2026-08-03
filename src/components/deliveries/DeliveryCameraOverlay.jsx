@@ -202,30 +202,45 @@ export default function DeliveryCameraOverlay({
   const startIosAutoCapture = useCallback(() => {
     if (typeof window !== 'undefined' && 'BarcodeDetector' in window) return; // Android handles via BarcodeDetector
     if (iosAutoCaptureRef.current) return;
-    const IOS_SHARPNESS_THRESHOLD = 12; // minimum sharpness to trigger auto-capture
-    const IOS_POLL_INTERVAL = 600;      // ms between auto-capture checks
+    const IOS_SHARPNESS_THRESHOLD = 8;  // lowered from 12 — iPhone cameras need a lower bar
+    const IOS_POLL_INTERVAL = 500;      // ms between auto-capture checks (was 600)
+    let consecutiveSharpFrames = 0;     // require 2 consecutive sharp frames to avoid false triggers
+    let lastSharpness = 0;
 
     iosAutoCaptureRef.current = setInterval(() => {
       if (!overlayActiveRef.current || !videoRef.current || !canvasRef.current) return;
       if (scanInProgressRef.current) return;
       const st = scanStateRef.current;
-      if (st !== 'idle') return;
+      if (st !== 'idle' && st !== 'error') return;
       if (!videoRef.current.videoWidth || !videoRef.current.videoHeight) return;
 
-      // Quick sharpness check using a small canvas
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCanvas.width = videoRef.current.videoWidth;
-      tempCanvas.height = videoRef.current.videoHeight;
-      tempCtx.drawImage(videoRef.current, 0, 0, tempCanvas.width, tempCanvas.height);
-      const sharpness = calculateSharpness(tempCanvas, tempCtx);
+      try {
+        // Quick sharpness check using a small canvas
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = videoRef.current.videoWidth;
+        tempCanvas.height = videoRef.current.videoHeight;
+        tempCtx.drawImage(videoRef.current, 0, 0, tempCanvas.width, tempCanvas.height);
+        const sharpness = calculateSharpness(tempCanvas, tempCtx);
+        lastSharpness = sharpness;
 
-      if (sharpness >= IOS_SHARPNESS_THRESHOLD) {
-        console.log('[DeliveryCameraOverlay] iOS auto-capture triggered, sharpness:', sharpness.toFixed(1));
-        if (handleBurstCaptureRef.current) handleBurstCaptureRef.current();
+        if (sharpness >= IOS_SHARPNESS_THRESHOLD) {
+          consecutiveSharpFrames++;
+          // After 2 consecutive sharp frames, trigger capture (avoids motion blur false positives)
+          if (consecutiveSharpFrames >= 2) {
+            console.log('[DeliveryCameraOverlay] iOS auto-capture triggered, sharpness:', sharpness.toFixed(1), 'consecutive:', consecutiveSharpFrames);
+            consecutiveSharpFrames = 0;
+            if (handleBurstCaptureRef.current) handleBurstCaptureRef.current();
+          }
+        } else {
+          consecutiveSharpFrames = 0;
+        }
+      } catch (e) {
+        // Canvas taint or other iOS quirk — silently skip this frame
+        console.warn('[DeliveryCameraOverlay] iOS sharpness check failed:', e?.message);
       }
     }, IOS_POLL_INTERVAL);
-    console.log('[DeliveryCameraOverlay] iOS sharpness auto-capture loop started');
+    console.log('[DeliveryCameraOverlay] iOS sharpness auto-capture loop started (threshold:', IOS_SHARPNESS_THRESHOLD + ')');
   }, []);
 
   const stopIosAutoCapture = useCallback(() => {
@@ -235,7 +250,9 @@ export default function DeliveryCameraOverlay({
   // ── Burst capture: grab N frames, pick the sharpest (manual fallback) ──
   const handleBurstCapture = useCallback(async () => {
     if (scanInProgressRef.current || !videoRef.current || !canvasRef.current) return;
-    if (scanState === 'scanning' || scanState === 'bursting') return;
+    // Use ref instead of stale closure value — iOS auto-capture calls this via ref
+    const currentState = scanStateRef.current;
+    if (currentState === 'scanning' || currentState === 'bursting') return;
 
     scanInProgressRef.current = true;
     setScanState('bursting');
@@ -341,7 +358,7 @@ export default function DeliveryCameraOverlay({
     } finally {
       scanInProgressRef.current = false;
     }
-  }, [scanState, onPatientSelect, onClose]);
+  }, [onPatientSelect, onClose]);
 
   // Keep iOS auto-capture ref in sync with latest handleBurstCapture
   handleBurstCaptureRef.current = handleBurstCapture;
@@ -410,7 +427,7 @@ export default function DeliveryCameraOverlay({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[10030] bg-black flex flex-col items-center justify-between"
+        className="fixed inset-0 z-[1000000] bg-black flex flex-col items-center justify-between"
         style={{ paddingTop: "env(safe-area-inset-top, 12px)", paddingBottom: "0px" }}
       >
         {/* ── Top: viewfinder + status hint + results ── */}
@@ -490,7 +507,7 @@ export default function DeliveryCameraOverlay({
              scanState === 'error' ? 'Scan failed' :
              blurWarning ? 'Too blurry — try again' :
              barcodeDetected ? 'Barcode detected — capturing...' :
-             ('BarcodeDetector' in window ? 'Point at a prescription label and click' : 'Point at label — auto-captures when sharp')}
+             ('BarcodeDetector' in window ? 'Point at a prescription label and click' : 'Point at label — auto-captures when sharp (or tap the camera button)')}
           </div>
 
           {/* Results panel (scrollable if needed) */}
@@ -513,7 +530,7 @@ export default function DeliveryCameraOverlay({
         </div>
 
         {/* ── Bottom: action bar pinned to bottom of screen ── */}
-        <div className="w-full max-w-lg flex items-center justify-between px-6" style={{ paddingBottom: "max(24px, env(safe-area-inset-bottom, 24px))" }}>
+        <div className="w-full max-w-lg flex items-center justify-between px-6" style={{ paddingBottom: "max(40px, env(safe-area-inset-bottom, 34px))" }}>
           {/* Left: switch camera — always visible, same size/shape as capture */}
           <button
             type="button"
