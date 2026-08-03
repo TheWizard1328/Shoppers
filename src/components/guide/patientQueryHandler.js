@@ -318,9 +318,11 @@ export function getNoAnswerAdvice(patient, delivery, store, cityAdmins) {
     lines.push(`\n5. **Contact ${store.name}** — they may have alternate contact information for this patient.`);
   }
 
-  if (cityAdmins && cityAdmins.length > 0) {
+  const EXCLUDED_ADMINS = ['The Wizard'];
+  const visibleAdmins = (cityAdmins || []).filter(a => a && !EXCLUDED_ADMINS.includes(a.user_name));
+  if (visibleAdmins.length > 0) {
     lines.push("\n6. **Contact a city admin** — if the patient can't be reached and the store is unavailable:");
-    for (const admin of cityAdmins.slice(0, 2)) {
+    for (const admin of visibleAdmins.slice(0, 2)) {
       const phone = admin.phone || admin.ETrans_Email || '';
       lines.push(`   👤 ${admin.user_name || 'Admin'}${phone ? ` — ${phone}` : ''}`);
     }
