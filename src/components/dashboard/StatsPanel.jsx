@@ -270,7 +270,7 @@ export default function StatsPanel({
         </div>
       }
       <div ref={statsCardRef} className="flex flex-col items-start gap-1 relative"
-      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile ? `${Math.round(window.innerWidth * 0.95)}px` : `${StatsCardMinWidth}px`, minWidth: isMobile ? undefined : `${StatsCardMinWidth}px`, maxWidth: isMobile ? undefined : `${StatsCardMinWidth}px` }}
+      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile ? `${Math.min(Math.round(window.innerWidth * 0.95), 370)}px` : `${StatsCardMinWidth}px`, minWidth: isMobile ? undefined : `${StatsCardMinWidth}px`, maxWidth: isMobile ? undefined : `${StatsCardMinWidth}px` }}
       onMouseEnter={() => handleStatsPanelInteraction(true)}
       onMouseLeave={() => handleStatsPanelInteraction(false)}>
 
