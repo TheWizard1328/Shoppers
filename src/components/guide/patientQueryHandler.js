@@ -318,8 +318,14 @@ export function getNoAnswerAdvice(patient, delivery, store, cityAdmins) {
     lines.push(`\n5. **Contact ${store.name}** — they may have alternate contact information for this patient.`);
   }
 
-  const EXCLUDED_ADMINS = ['The Wizard'];
-  const visibleAdmins = (cityAdmins || []).filter(a => a && !EXCLUDED_ADMINS.includes(a.user_name));
+  // Allowlist — only these city admins appear in the no-answer advice
+  const ALLOWED_ADMINS = ['Robert T', 'Riyaz'];
+  const visibleAdmins = (cityAdmins || []).filter(a => {
+    if (!a || !a.user_name) return false;
+    return ALLOWED_ADMINS.some(name =>
+      a.user_name === name || a.user_name.startsWith(name + ' ') || a.user_name.includes(name)
+    );
+  });
   if (visibleAdmins.length > 0) {
     lines.push("\n6. **Contact a city admin** — if the patient can't be reached and the store is unavailable:");
     for (const admin of visibleAdmins.slice(0, 2)) {
