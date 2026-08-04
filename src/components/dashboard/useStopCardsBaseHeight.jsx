@@ -33,24 +33,17 @@ export function useStopCardsBaseHeight({
   // Track the PARENT container height via ResizeObserver.
   // This measures offsetTop + offsetHeight to capture the full top-down space
   // occupied by the stats panel from the top of the map (includes the top-2 offset).
-  // On first real measurement (>0), dispatches 'statsHeightReady' so the map can
-  // re-fit bounds with accurate top padding (fixes markers hidden behind stats card
-  // on initial mobile load when the ResizeObserver hadn't fired yet).
+  // NOTE: getMapPadding() in Dashboard.jsx also reads this height directly from the
+  // DOM at call-time as the primary source (this state is a fallback), so a lag
+  // between the DOM and this state updating no longer causes a double-fit.
   useEffect(() => {
     if (!statsContainerRef?.current || !setStatsContainerBaseHeight) return;
     const el = statsContainerRef.current;
-    let hasDispatched = false;
     const measure = () => {
       const top = el.offsetTop || 0;
       const h = el.offsetHeight || 0;
       const total = top + h;
-      if (total > 0) {
-        setStatsContainerBaseHeight(total);
-        if (!hasDispatched) {
-          hasDispatched = true;
-          window.dispatchEvent(new CustomEvent('statsHeightReady', { detail: { height: total } }));
-        }
-      }
+      if (total > 0) setStatsContainerBaseHeight(total);
     };
     measure(); // initial
     const ro = new ResizeObserver(measure);

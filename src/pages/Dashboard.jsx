@@ -512,7 +512,26 @@ function Dashboard() {
     enabled: isDriver && isMobile && isPrimaryDevice,
   });
 
-  const getMapPadding = useCallback((isImmersiveModeOn = false) => buildMapPadding({ isMobile, isImmersiveModeOn, statsCardHeight: statsContainerBaseHeight || statsCardBaseHeight, stopCardsBaseHeight }), [isMobile, stopCardsBaseHeight, statsCardBaseHeight, statsContainerBaseHeight]);
+  // CRITICAL: Read live DOM heights at call-time rather than trusting only the
+  // React state set by the ResizeObserver in useStopCardsBaseHeight. The state
+  // update is async and can lag behind the DOM by one or more render cycles —
+  // if getMapPadding() is called (e.g. the very first fitBounds on page load)
+  // before that state has caught up, it silently uses a stale/default height,
+  // producing a visibly different (looser) padding than a moment later once
+  // the state updates and something re-triggers the fit. Reading the DOM
+  // directly here means the FIRST call already gets the real height.
+  const getMapPadding = useCallback((isImmersiveModeOn = false) => {
+    const liveStatsHeight = statsContainerRef.current
+      ? (statsContainerRef.current.offsetTop || 0) + (statsContainerRef.current.offsetHeight || 0)
+      : 0;
+    const liveStopCardsHeight = horizontalStopCardsRef.current?.offsetHeight || 0;
+    return buildMapPadding({
+      isMobile,
+      isImmersiveModeOn,
+      statsCardHeight: liveStatsHeight || statsContainerBaseHeight || statsCardBaseHeight,
+      stopCardsBaseHeight: liveStopCardsHeight || stopCardsBaseHeight,
+    });
+  }, [isMobile, stopCardsBaseHeight, statsCardBaseHeight, statsContainerBaseHeight]);
   const handleCardInteraction = useCallback((show) => { if (fadeTimeoutRef.current) { clearTimeout(fadeTimeoutRef.current); fadeTimeoutRef.current = null; } setAreCardsVisible(show); if (show && !isExpanded && !isRouteComplete) fadeTimeoutRef.current = setTimeout(() => setAreCardsVisible(false), 3000); }, [isExpanded, isRouteComplete]);
   const handleStatsPanelInteraction = useCallback((isHovering) => { if (!isMobile) return; if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } if (isHovering || isExpanded) setStatsPanelOpacity(1); else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
   useEffect(() => { if (!isMobile) { setStatsPanelOpacity(1); return; } if (isExpanded) { setStatsPanelOpacity(1); if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } } else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
@@ -524,24 +543,6 @@ function Dashboard() {
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });
   useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId, setMapViewPhase, setIsMapViewLocked, mapUserUnlockedRef });
   useStopCardsBaseHeight({ horizontalStopCardsRef, selectedCardId, deliveriesWithStopOrder, stopCardsBaseHeight, setStopCardsBaseHeight, statsCardRef, setStatsCardBaseHeight, statsContainerRef, setStatsContainerBaseHeight });
-
-  // Re-trigger map fitBounds when the stats container height is first measured
-  // by the ResizeObserver. On initial mobile load, the first fitBounds fires
-  // before the observer has measured the real stats card height (falls back to
-  // 75px default), causing markers to be hidden behind the stats card. This
-  // listener fires once when the real height lands, bumping mapViewTrigger to
-  // re-run the positioning effect with accurate top padding.
-  useEffect(() => {
-    const handler = () => {
-      // Only re-trigger if we're in Phase 1 (initial city/driver view) — don't
-      // disrupt Phase 2/3 GPS-follow or user manual zoom.
-      if (mapViewPhaseRef.current <= 1) {
-        setMapViewTrigger((p) => p + 1);
-      }
-    };
-    window.addEventListener('statsHeightReady', handler);
-    return () => window.removeEventListener('statsHeightReady', handler);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Expose stop cards height as CSS variable for GuideAssistant positioning
   useEffect(() => {

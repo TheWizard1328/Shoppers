@@ -114,15 +114,19 @@ export const roundCompletionTime = (timeISO) => {
  */
 export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, stopCardsBaseHeight }) => {
   // Always-present UI chrome pinned at the bottom of the map in NORMAL mode
-  // (bulk select, API counter, temp badge, reoptimize FAB, cycle FAB).
-  const EXTRA_ITEMS_HEIGHT = 80;
+  // (API counter, temp badge, reoptimize FAB, cycle FAB) sits ON TOP of the
+  // stop cards row. On mobile this also has to clear the fixed bottom nav bar
+  // (~64-88px), so it needs a bigger baseline than desktop, which has no
+  // bottom nav (sidebar instead) — its FABs only need their own ~40px height
+  // plus a little breathing room above the stop card row.
+  const EXTRA_ITEMS_HEIGHT = isMobile ? 80 : 50;
   // Immersive mode: stop cards + reoptimize button hide, leaving only temp badge + cycle FAB.
   const IMMERSIVE_ITEMS_HEIGHT = 50;
   // Baseline breathing room for top/sides when no UI obstructions are present.
   const BASE_PADDING = 25;
 
   // Bottom padding:
-  //   Normal mode   — extra items (80px) + stop cards stack underneath
+  //   Normal mode   — extra items + stop cards stack underneath
   //   Immersive mode — only temp badge + FAB remain (50px)
   const bottomPadding = isImmersiveModeOn
     ? IMMERSIVE_ITEMS_HEIGHT
