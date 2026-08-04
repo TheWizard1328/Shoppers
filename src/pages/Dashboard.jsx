@@ -521,6 +521,31 @@ function Dashboard() {
 
   useEffect(() => { immersiveHiddenRef.current = immersiveHidden; }, [immersiveHidden]);
 
+  // Re-fit the map bounds whenever immersive mode activates or deactivates.
+  // The padding changes significantly between modes (stats card + stop cards
+  // appear/disappear), so markers would otherwise be off-center or hidden
+  // behind UI that just slid in/out. We clear mapUserUnlockedRef so the
+  // mapViewTrigger effect doesn't bail — this is an intentional programmatic
+  // re-fit, not a passive one that should respect a prior manual pan/zoom.
+  // The ref-sync effect above runs first (same commit cycle), so
+  // immersiveHiddenRef.current is already updated by the time the trigger
+  // effect reads it for padding calculation.
+  const prevImmersiveForFitRef = useRef(immersiveHidden);
+  useEffect(() => {
+    if (prevImmersiveForFitRef.current === immersiveHidden) return;
+    prevImmersiveForFitRef.current = immersiveHidden;
+    // Don't re-fit if there's no map phase yet (initial mount).
+    if (mapViewPhaseRef.current === 0) return;
+    mapUserUnlockedRef.current = false;
+    lastProgrammaticMapMoveRef.current = Date.now();
+    window._lastProgrammaticMapMove = Date.now();
+    // Small delay so the CSS transition on the UI elements (stats card /
+    // stop cards sliding out/in) has time to update the DOM heights that
+    // getMapPadding reads via offsetHeight.
+    const t = setTimeout(() => setMapViewTrigger((p) => p + 1), 350);
+    return () => clearTimeout(t);
+  }, [immersiveHidden]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // CRITICAL: Read live DOM heights at call-time rather than trusting only the
   // React state set by the ResizeObserver in useStopCardsBaseHeight. The state
   // update is async and can lag behind the DOM by one or more render cycles —
