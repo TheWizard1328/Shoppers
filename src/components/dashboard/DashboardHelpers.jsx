@@ -119,7 +119,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   // (~64-88px), so it needs a bigger baseline than desktop, which has no
   // bottom nav (sidebar instead) — its FABs only need their own ~40px height
   // plus a little breathing room above the stop card row.
-  const EXTRA_ITEMS_HEIGHT = 80;
+  const EXTRA_ITEMS_HEIGHT = isMobile ? 80 : 50;
   // Immersive mode: stop cards + reoptimize button hide, leaving only temp badge + cycle FAB.
   const IMMERSIVE_ITEMS_HEIGHT = 50;
   // Baseline breathing room for top/sides when no UI obstructions are present.
