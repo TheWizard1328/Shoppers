@@ -101,8 +101,12 @@ export const roundCompletionTime = (timeISO) => {
  * Calculates stable map padding for fit-bounds calls.
  *
  * Three padding regions:
- *   TOP    — mobile: stats card container height (measured via ResizeObserver);
- *            desktop/immersive: BASE_PADDING (25px)
+ *   TOP    — mobile normal:     stats card container height (measured via ResizeObserver);
+ *            mobile immersive:  ImmersiveMapTopOverlay banner height (~80px) — that
+ *                                banner does NOT hide in immersive mode, unlike the
+ *                                full stats card, so top padding must clear it or
+ *                                markers render underneath it;
+ *            desktop:           BASE_PADDING (25px)
  *   BOTTOM — normal: EXTRA_ITEMS + stop cards height;
  *            immersive: IMMERSIVE_ITEMS (50px) — only temp badge + FAB remain
  *   SIDES  — BASE_PADDING (25px) on all platforms
@@ -124,6 +128,12 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   const IMMERSIVE_ITEMS_HEIGHT = 50;
   // Baseline breathing room for top/sides when no UI obstructions are present.
   const BASE_PADDING = 25;
+  // Immersive mode does NOT hide everything at the top — ImmersiveMapTopOverlay
+  // (the compact "#stop / name / ETA" banner) stays pinned ~8px from the top and
+  // is roughly 64px tall itself (two badge rows + padding), so its bottom edge
+  // sits around ~72px down. Without this, fit-bounds/pan targets used only
+  // BASE_PADDING (~35px), placing markers directly underneath the banner.
+  const IMMERSIVE_TOP_BANNER_HEIGHT = 88;
 
   // Bottom padding:
   //   Normal mode   — extra items + stop cards stack underneath
@@ -137,11 +147,13 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
 
   // Top padding:
   //   Mobile normal    — stats card container height (includes driver legend)
-  //   Mobile immersive — BASE_PADDING (stats panel + legend are hidden)
+  //   Mobile immersive — IMMERSIVE_TOP_BANNER_HEIGHT (clears ImmersiveMapTopOverlay banner)
   //   Desktop          — BASE_PADDING
   let topPadding;
   if (isMobile && !isImmersiveModeOn) {
     topPadding = Math.max(statsCardHeight || 75, BASE_PADDING) + 10;
+  } else if (isMobile && isImmersiveModeOn) {
+    topPadding = IMMERSIVE_TOP_BANNER_HEIGHT;
   } else {
     topPadding = BASE_PADDING + 10;
   }
