@@ -175,15 +175,13 @@ export default function StatsPanel({
     };
 
     loadLegendDeliveries();
-    window.addEventListener('smartRefreshComplete', loadLegendDeliveries);
-    window.addEventListener('deliveriesUpdated', loadLegendDeliveries);
-    window.addEventListener('deliveriesImported', loadLegendDeliveries);
+    // Consolidated: all 3 events trigger the same handler — single add/remove batch
+    const legendEvents = ['smartRefreshComplete', 'deliveriesUpdated', 'deliveriesImported'];
+    legendEvents.forEach(evt => window.addEventListener(evt, loadLegendDeliveries));
 
     return () => {
       active = false;
-      window.removeEventListener('smartRefreshComplete', loadLegendDeliveries);
-      window.removeEventListener('deliveriesUpdated', loadLegendDeliveries);
-      window.removeEventListener('deliveriesImported', loadLegendDeliveries);
+      legendEvents.forEach(evt => window.removeEventListener(evt, loadLegendDeliveries));
     };
   }, [selectedDateStr, stores, deliveries]);
 

@@ -352,13 +352,22 @@ function Dashboard() {
       return [];
     }
 
-    // Build a lightweight fingerprint of only sort-relevant fields.
-    // Joining with '|' is fast — no JSON.stringify overhead on full objects.
-    const sortKey = filteredDeliveries
-      .map(d => d
-        ? `${d.id}:${d.driver_id}:${d.status}:${d.stop_order}:${d.actual_delivery_time}:${d.delivery_time_eta}:${d.delivery_time_start}:${d.is_cycling_marker ? 1 : 0}`
-        : 'null')
-      .join('|');
+    // Lightweight numeric hash of sort-relevant fields — avoids building a large
+    // concatenated string on every memo recompute (O(n) string alloc + join).
+    // Uses a simple djb2-style hash over the field values.
+    let sortKey = 5381;
+    for (let i = 0; i < filteredDeliveries.length; i++) {
+      const d = filteredDeliveries[i];
+      if (!d) { sortKey = ((sortKey << 5) + sortKey) ^ 0; continue; }
+      sortKey = ((sortKey << 5) + sortKey) ^ (d.id?.length || 0);
+      sortKey = ((sortKey << 5) + sortKey) ^ (d.status?.charCodeAt(0) || 0);
+      sortKey = ((sortKey << 5) + sortKey) ^ (Number(d.stop_order) || 0);
+      sortKey = ((sortKey << 5) + sortKey) ^ (d.actual_delivery_time?.length || 0);
+      sortKey = ((sortKey << 5) + sortKey) ^ (d.delivery_time_eta?.length || 0);
+      sortKey = ((sortKey << 5) + sortKey) ^ (d.delivery_time_start?.length || 0);
+      sortKey = ((sortKey << 5) + sortKey) ^ (d.is_cycling_marker ? 1 : 0);
+    }
+    sortKey = String(sortKey);
 
     if (sortKey === _dwsoSortKeyRef.current) {
       // Sort order hasn't changed, but the delivery objects themselves may have
@@ -468,13 +477,20 @@ function Dashboard() {
   }, [filteredDeliveries, patients, isDispatcher, currentUserStoreIds, isAdmin]);
 
   const isDateFinished = useMemo(() => { const tod = startOfDay(new Date()); const sel = startOfDay(selectedDate); if (sel >= tod) return false; return filteredDeliveries.length > 0 && filteredDeliveries.every((d) => d && ['completed','failed','cancelled'].includes(d.status)); }, [selectedDate, filteredDeliveries]);
-  const isRouteComplete = useMemo(() => { if (!filteredDeliveries || filteredDeliveries.length === 0) return false; const pds = filteredDeliveries.filter((d) => d && d.patient_id); const isRtn = (d) => (patients.find((p) => p && p.id === d.patient_id)?.address || '').toUpperCase().includes('(RTN)'); return pds.length > 0 && pds.every((d) => ['completed','failed','cancelled'].includes(d.status) || isRtn(d)); }, [filteredDeliveries, patients]);
+  // O(1) patient lookup Map — replaces patients.find() in hot paths (isRouteComplete, nextStop, nextStopCoordinates)
+  const patientById = useMemo(() => {
+    const map = new Map();
+    if (patients) for (const p of patients) if (p && p.id) map.set(p.id, p);
+    return map;
+  }, [patients]);
+
+  const isRouteComplete = useMemo(() => { if (!filteredDeliveries || filteredDeliveries.length === 0) return false; const pds = filteredDeliveries.filter((d) => d && d.patient_id); const isRtn = (d) => (patientById.get(d.patient_id)?.address || '').toUpperCase().includes('(RTN)'); return pds.length > 0 && pds.every((d) => ['completed','failed','cancelled'].includes(d.status) || isRtn(d)); }, [filteredDeliveries, patientById]);
   // activeDriverIdsOnDate and driversList are declared above filteredDeliveries
   const isDriverDropdownDisabled = useMemo(() => !currentUser || userHasRole(currentUser,'admin') ? false : userHasRole(currentUser,'dispatcher') ? false : !!userHasRole(currentUser,'driver'), [currentUserRoles]);
   const statsCardPositioning = useMemo(() => { const snapshotOffset = isSnapshotModeActive ? 'left-24' : 'left-2'; return (screenWidth / cardWidth) < 2 ? 'absolute top-2 left-1/2 -translate-x-1/2' : `absolute top-2 ${snapshotOffset}`; }, [screenWidth, cardWidth, isSnapshotModeActive]);
   const isStatsCardCentered = useMemo(() => (screenWidth / cardWidth) < 2, [screenWidth, cardWidth]);
   const nextStop = useMemo(() => { if (!isDriver || !currentUser || !filteredDeliveries || filteredDeliveries.length === 0) return null; if (isRouteComplete) return null; const next = filteredDeliveries.find((d) => d && d.isNextDelivery === true && d.driver_id === currentUser.id && d.status !== 'pending' && !['completed','failed','cancelled'].includes(d.status)); if (next) return next; const unf = filteredDeliveries.filter((d) => d && d.driver_id === currentUser.id && !['completed','failed','cancelled','pending'].includes(d.status)); if (!unf.length) return null; return [...unf].sort((a, b) => a.stop_order && b.stop_order ? a.stop_order - b.stop_order : (a.delivery_time_start || '').localeCompare(b.delivery_time_start || ''))[0]; }, [isDriver, filteredDeliveries, currentUserId, isRouteComplete]);
-  const nextStopCoordinates = useMemo(() => { if (!nextStop) return null; if (nextStop.is_cycling_marker && nextStop.cycling_latitude && nextStop.cycling_longitude) return { lat: nextStop.cycling_latitude, lon: nextStop.cycling_longitude }; if (nextStop.patient_id) { const p = patients.find((p) => p && p.id === nextStop.patient_id); if (p?.latitude && p?.longitude) return { lat: p.latitude, lon: p.longitude }; } else if (isInterStoreDelivery(nextStop.delivery_id)) { const isl = getInterStoreLocationSync(nextStop.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } else if (nextStop.store_id) { const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } return null; }, [nextStop, patients, stores]);
+  const nextStopCoordinates = useMemo(() => { if (!nextStop) return null; if (nextStop.is_cycling_marker && nextStop.cycling_latitude && nextStop.cycling_longitude) return { lat: nextStop.cycling_latitude, lon: nextStop.cycling_longitude }; if (nextStop.patient_id) { const p = patientById.get(nextStop.patient_id); if (p?.latitude && p?.longitude) return { lat: p.latitude, lon: p.longitude }; } else if (isInterStoreDelivery(nextStop.delivery_id)) { const isl = getInterStoreLocationSync(nextStop.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } else if (nextStop.store_id) { const s = stores.find((s) => s && s.id === nextStop.store_id); if (s?.latitude && s?.longitude) return { lat: s.latitude, lon: s.longitude }; } return null; }, [nextStop, patientById, stores]);
   useEffect(() => { nextStopCoordinatesRef.current = nextStopCoordinates; }, [nextStopCoordinates]);
 
   const {
@@ -513,35 +529,59 @@ function Dashboard() {
     return () => { document.documentElement.style.removeProperty('--stop-cards-height'); };
   }, [stopCardsBaseHeight]);
 
+  // Refs mirror state for the 60s interval — prevents interval teardown on every WS update
+  const _intervalDeliveriesRef = useRef(deliveries);
+  const _intervalPatientsRef = useRef(patients);
+  const _intervalStoresRef = useRef(stores);
+  const _intervalCitiesRef = useRef(cities);
+  const _intervalAppUsersRef = useRef(appUsers);
+  const _intervalDriversRef = useRef(drivers);
+  const _intervalShowAllDriverMarkersRef = useRef(showAllDriverMarkers);
+  const _intervalShowFormsRef = useRef({ showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant });
+  const _intervalSelectedDateRef = useRef(selectedDate);
+  useEffect(() => {
+    _intervalDeliveriesRef.current = deliveries;
+    _intervalPatientsRef.current = patients;
+    _intervalStoresRef.current = stores;
+    _intervalCitiesRef.current = cities;
+    _intervalAppUsersRef.current = appUsers;
+    _intervalDriversRef.current = drivers;
+    _intervalShowAllDriverMarkersRef.current = showAllDriverMarkers;
+    _intervalShowFormsRef.current = { showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant };
+    _intervalSelectedDateRef.current = selectedDate;
+  });
+
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !isFiltersReady) return;
     smartRefreshManager.setCurrentUser(currentUser);
     const runPeriodicSmartRefresh = async () => {
-      if (smartRefreshManager.isPaused() || !hasTriggeredPrioritySyncRef.current || showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant) return;
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');if (selectedDateStr !== getEdmDate()) return;const filters = { deliveryFilter: { delivery_date: selectedDateStr } };
+      const { showDeliveryForm: _sdf, showPatientForm: _spf, showOptimizationSettings: _sos, showAIAssistant: _sai } = _intervalShowFormsRef.current;
+      if (smartRefreshManager.isPaused() || !hasTriggeredPrioritySyncRef.current || _sdf || _spf || _sos || _sai) return;
+      const selectedDateStr = format(_intervalSelectedDateRef.current, 'yyyy-MM-dd');if (selectedDateStr !== getEdmDate()) return;const filters = { deliveryFilter: { delivery_date: selectedDateStr } };
       try {
-        const updates = await smartRefreshManager.performSmartRefresh({ deliveries, patients, stores, cities, appUsers, drivers }, filters, false, showAllDriverMarkers, 'Dashboard', selectedDate);
+        const updates = await smartRefreshManager.performSmartRefresh({ deliveries: _intervalDeliveriesRef.current, patients: _intervalPatientsRef.current, stores: _intervalStoresRef.current, cities: _intervalCitiesRef.current, appUsers: _intervalAppUsersRef.current, drivers: _intervalDriversRef.current }, filters, false, _intervalShowAllDriverMarkersRef.current, 'Dashboard', _intervalSelectedDateRef.current);
         if (Array.isArray(updates?.deliveries) && updates.deliveries.length > 0 && updateDeliveriesLocally) updateDeliveriesLocally(updates.deliveries, true);
         const appUsersToProcess = updates?.appUsers?.length ? updates.appUsers : appUsers;
-        if (appUsersToProcess?.length) driverLocationPoller.processLocationData(currentUser, updates?.deliveries || deliveries, drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
+        if (appUsersToProcess?.length) driverLocationPoller.processLocationData(currentUser, updates?.deliveries || _intervalDeliveriesRef.current, _intervalDriversRef.current, _intervalStoresRef.current, appUsersToProcess, _intervalSelectedDateRef.current, true, 'Dashboard', _intervalShowAllDriverMarkersRef.current);
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) return;
         console.warn('⚠️ [Periodic Refresh] Error:', error.message);
       }
     };
-    const initialDelay = setTimeout(() => {if (format(selectedDate, 'yyyy-MM-dd') !== getEdmDate()) return;runPeriodicSmartRefresh();if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();}, 90000);
+    const initialDelay = setTimeout(() => {if (format(_intervalSelectedDateRef.current, 'yyyy-MM-dd') !== getEdmDate()) return;runPeriodicSmartRefresh();if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();}, 90000);
     const interval = setInterval(async () => {
       runPeriodicSmartRefresh();
       if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();
-      if (showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant) return;
-      const ds = format(selectedDate, 'yyyy-MM-dd');
+      const { showDeliveryForm: _sdf2, showPatientForm: _spf2, showOptimizationSettings: _sos2, showAIAssistant: _sai2 } = _intervalShowFormsRef.current;
+      if (_sdf2 || _spf2 || _sos2 || _sai2) return;
+      const ds = format(_intervalSelectedDateRef.current, 'yyyy-MM-dd');
       if (ds !== getEdmDate()) return;
       const m = await offlineDB.getSyncMetadata('Delivery'),t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
-      const active = deliveries.some((d) => d && d.delivery_date === ds && !['completed', 'failed', 'cancelled'].includes(d.status));
+      const active = _intervalDeliveriesRef.current.some((d) => d && d.delivery_date === ds && !['completed', 'failed', 'cancelled'].includes(d.status));
       if (!t || Date.now() - t >= (active ? 60000 : 300000)) window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'today_active_routes' : 'today_completed_routes' } }));
     }, 60000);
     return () => {clearTimeout(initialDelay);clearInterval(interval);};
-  }, [isDataLoaded, currentUser?.id, isFiltersReady, deliveries, patients, stores, cities, appUsers, drivers, selectedDate, showAllDriverMarkers, showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant]);
+  }, [isDataLoaded, currentUser?.id, isFiltersReady]);
 
   // driverLocationsUpdated — merge appUser location data and run the poller.
   // Map re-panning for phase 2/3 is exclusively owned by useDriverLocationSync

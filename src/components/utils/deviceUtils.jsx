@@ -111,12 +111,17 @@ export const getUserAgentInfo = () => {
 };
 
 /**
- * Simple check if current device is mobile
- * @returns {boolean} - true if mobile device
+ * Simple check if current device is mobile — memoized at module level.
+ * getUserAgentInfo() runs UA parsing + matchMedia on every call, which is
+ * expensive when invoked per-StopCard-render (20+ calls per render cycle).
+ * The device type never changes during a session, so we cache it once.
  */
+let _cachedIsMobile = null;
 export const isMobileDevice = () => {
+  if (_cachedIsMobile !== null) return _cachedIsMobile;
   const { deviceType } = getUserAgentInfo();
-  return deviceType === 'Mobile';
+  _cachedIsMobile = deviceType === 'Mobile';
+  return _cachedIsMobile;
 };
 
 export const canAutoFocusFormFields = () => {

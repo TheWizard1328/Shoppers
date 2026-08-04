@@ -1,5 +1,4 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
-import { motion } from 'framer-motion';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import useStopCardActions from "./useStopCardActions";
@@ -48,6 +47,27 @@ import { runTerminalDeliverySideEffects, triggerSquareCodUpsert } from '../utils
 import { getActiveDeliveryAction, runWithDeliveryActionLock, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
+// CSS transition replacement for Framer Motion on StopCard mount/unmount
+// Avoids per-card rAF animation loops (Framer Motion runs JS rAF per animated element)
+let _stopCardStyleInjected = false;
+function _injectStopCardStyle() {
+  if (_stopCardStyleInjected) return;
+  _stopCardStyleInjected = true;
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes stopCardEnter {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .stop-card-enter {
+      animation: stopCardEnter 0.3s ease-out forwards;
+    }
+  `;
+  document.head.appendChild(style);
+}
+if (typeof document !== 'undefined') _injectStopCardStyle();
+
+
 
 const START_ACTION_NAME = 'start_delivery';
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
@@ -216,7 +236,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     }
   }, [delivery?.status, delivery?.id]);
 
+  // PERF: Only the isNextDelivery card (and the selected/expanded card) subscribes
+  // to GPS/location events. Previously EVERY card subscribed, causing 20+ simultaneous
+  // setRangeRefreshTick re-renders on every GPS tick. Non-active cards don't need
+  // live distance — the route is already optimized and the order is set.
   useEffect(() => {
+    if (!isNextDelivery && !isSelected) return;
     const refreshRangeCheck = (e) => {
       // On driverLocationsUpdated, capture the freshest coordinates for the current user
       if (e?.type === 'driverLocationsUpdated') {
@@ -245,7 +270,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       window.removeEventListener('driverLocationFocusRefresh', refreshRangeCheck);
       window.removeEventListener('driverLocationsUpdated', refreshRangeCheck);
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, isNextDelivery, isSelected]);
 
   const patient = useMemo(() => {
     if (!delivery?.patient_id || !patients || patients.length === 0) return null;
@@ -798,14 +823,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   };
 
   return (
-    <motion.div
+    <div
       id={`stop-card-${delivery.id}`}
       data-driver-id={delivery.driver_id}
       data-is-condensed={shouldFade && !isExpanded && !isHovered}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className={`w-full cursor-pointer transition-all ${showCenteredIncompleteCollapsed ? 'self-start' : ''} ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
+      className={`w-full cursor-pointer transition-all stop-card-enter ${showCenteredIncompleteCollapsed ? 'self-start' : ''} ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
       style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: cardZIndex, isolation: isExpanded ? 'isolate' : 'auto' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
@@ -1285,6 +1307,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           
         </CardContent>
       </Card>
-    </motion.div>);
+    </div>);
 
 }
