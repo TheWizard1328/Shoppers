@@ -143,7 +143,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   if (isMobile && !isImmersiveModeOn) {
     topPadding = Math.max(statsCardHeight || 75, BASE_PADDING);
   } else {
-    topPadding = BASE_PADDING;
+    topPadding = 0; //BASE_PADDING;
   }
 
   return {
