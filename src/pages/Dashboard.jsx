@@ -520,7 +520,7 @@ function Dashboard() {
   useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, selectedDate, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({ currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally });
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });
-  useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId });
+  useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId, setMapViewPhase, setIsMapViewLocked });
   useStopCardsBaseHeight({ horizontalStopCardsRef, selectedCardId, deliveriesWithStopOrder, stopCardsBaseHeight, setStopCardsBaseHeight, statsCardRef, setStatsCardBaseHeight });
 
   // Expose stop cards height as CSS variable for GuideAssistant positioning

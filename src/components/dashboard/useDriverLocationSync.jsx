@@ -54,6 +54,8 @@ export default function useDriverLocationSync({
   pendingPhaseRef,
   driverLocationRef,
   selectedDriverId,
+  setMapViewPhase,
+  setIsMapViewLocked,
 }) {
 
   // ── Stable refs for live data ─────────────────────────────────────────────
@@ -465,9 +467,10 @@ export default function useDriverLocationSync({
     if (dist == null) return;
 
     // Within 100m → auto-enter Phase 2
-    if (dist <= 100) {
+    // NOTE: calculateDistance returns kilometers, so 0.1 km = 100 m
+    if (dist <= 0.1) {
       lastProximitySnapTimeRef.current = now;
-      console.log(`🎯 [useDriverLocationSync] Proximity snap: ${Math.round(dist)}m from next stop → Phase 2`);
+      console.log(`🎯 [useDriverLocationSync] Proximity snap: ${Math.round(dist * 1000)}m from next stop → Phase 2`);
 
       mapViewPhaseRef.current = 2;
       isMapViewLockedRef.current = true;
@@ -475,6 +478,9 @@ export default function useDriverLocationSync({
       lastProgrammaticMapMoveRef.current = now;
       window._lastProgrammaticMapMove = now;
       lastMapTriggerTimeRef.current = now;
+      // Sync React state so the FAB visual matches the internal refs
+      setMapViewPhase(2);
+      setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
     }
   }
