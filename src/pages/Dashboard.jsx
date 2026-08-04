@@ -2537,7 +2537,7 @@ function Dashboard() {
     showQuickAdjustments, showEndOfDayStats, endOfDayDriver, skippedStopsDialogData,
     routeNotification, performanceStats, deliveryStats, liveDistance, liveTimeOnDuty,
     isLoadingPayrollStats, preferredTravelMode, dailyPolylineCount,
-    nextStop, nextStopCoordinates, renderSequence, statsCardRef, stopCardsContainerRef,
+    nextStop, nextStopCoordinates, renderSequence, statsCardRef, statsContainerRef, stopCardsContainerRef,
     horizontalStopCardsRef, mapLockTimeoutRef, mapLockExpiresAtRef, mapViewPhaseRef,
     isMapViewLockedRef, pendingPhaseRef, lastProgrammaticMapMoveRef, isCalendarOpen,
     calendarMonth, isPrimaryDevice, showRouteSummary, summaryDriver, snapshotData,
