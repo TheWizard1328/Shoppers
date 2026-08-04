@@ -68,7 +68,10 @@ export default function MapSection({
       // and permanently break the auto phase-follow until the driver explicitly taps the FAB.
       // Instead: just publish the visual unlock signal so the FAB grays out briefly, but do NOT
       // set mapUserUnlockedRef. The map will resume auto-follow on the next GPS tick naturally.
-      fabControlEvents.publish({ type: 'FAB_MAP_UNLOCKED_BY_USER_INTERACTION' });
+      // CRITICAL: isVisualOnly=true tells the FAB this is NOT a real unlock — just a momentary
+      // zoom gesture. The FAB should auto-clear its gray-out after ~1.5s (or the next GPS tick
+      // re-fit, whichever comes first) instead of staying gray forever.
+      fabControlEvents.publish({ type: 'FAB_MAP_UNLOCKED_BY_USER_INTERACTION', isVisualOnly: true });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onImmersiveMapTap, isDispatcher, isAdmin, isDriver, handleMapViewCycle, immersiveHidden]);
