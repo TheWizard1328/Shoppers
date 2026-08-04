@@ -163,6 +163,8 @@ export function useFabControlEventHandler({
     const unsubscribe = fabControlEvents.subscribe((event) => {
       switch (event.type) {
         case 'REACTIVATE_FAB': {
+          // Explicit re-activation — clear any lingering free-pan flag so the refit isn't skipped.
+          if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
           const ph = mapViewPhaseRef.current;
           if (ph < 2 && event.reason !== 'map_double_tap') break;
           if (ph === 1) {
@@ -193,6 +195,7 @@ export function useFabControlEventHandler({
           break;
         }
         case 'BREAK_START': {
+          if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
           phaseBeforeBreakRef.current = event.previousPhase || mapViewPhaseRef.current;
           clearTimer();
           setFabPhase(1, false);
@@ -201,6 +204,7 @@ export function useFabControlEventHandler({
           break;
         }
         case 'BREAK_END': {
+          if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
           const restore = event.phaseToRestore || 1;
           clearTimer();
           phaseBeforeBreakRef.current = null;
@@ -209,6 +213,7 @@ export function useFabControlEventHandler({
         }
         case 'DONE_BUTTON_CLICKED':
         case 'DONE_RESET_TO_PHASE_ONE': {
+          if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
           clearTimer();
           setFabPhase(1, true);
           armTimer(event.duration || 3000);
@@ -244,6 +249,7 @@ export function useFabControlEventHandler({
           break;
         }
         case 'DRIVER_SELECTION_CHANGED': {
+          if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
           clearTimer();
           setFabPhase(1, true);
           armTimer(2000);
@@ -252,6 +258,7 @@ export function useFabControlEventHandler({
         case 'NAVIGATE_BUTTON_TAPPED': {
           // Navigate button tapped: if currently in phase 2, re-lock it and force map reposition
           if (mapViewPhaseRef.current === 2) {
+            if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
             clearTimer();
             isMapViewLockedRef.current = true;
             setIsMapViewLocked(true);
@@ -274,6 +281,7 @@ export function useFabControlEventHandler({
         case 'REACTIVATE_PHASE_TWO_IF_AVAILABLE': {
           // Re-lock FAB into phase 2 (called after navigate button tap)
           if (mapViewPhaseRef.current === 2) {
+            if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
             clearTimer();
             isMapViewLockedRef.current = true;
             setIsMapViewLocked(true);
@@ -289,6 +297,7 @@ export function useFabControlEventHandler({
           // Only act if we're in phase 2 or 3 — phase 1 is always unlocked anyway.
           const phaseOnExit = mapViewPhaseRef.current;
           if (phaseOnExit === 2 || phaseOnExit === 3) {
+            if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
             clearTimer();
             isMapViewLockedRef.current = true;
             setIsMapViewLocked(true);

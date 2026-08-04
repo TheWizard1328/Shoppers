@@ -56,6 +56,7 @@ export default function useDriverLocationSync({
   selectedDriverId,
   setMapViewPhase,
   setIsMapViewLocked,
+  mapUserUnlockedRef,
 }) {
 
   // ── Stable refs for live data ─────────────────────────────────────────────
@@ -475,6 +476,10 @@ export default function useDriverLocationSync({
       mapViewPhaseRef.current = 2;
       isMapViewLockedRef.current = true;
       pendingPhaseRef.current = 2;
+      // Proximity snap is an intentional override of free-pan mode (driver
+      // physically arrived at the stop) — clear the manual-pan flag so the
+      // Dashboard mapViewTrigger effect doesn't skip this legitimate re-fit.
+      if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
       lastProgrammaticMapMoveRef.current = now;
       window._lastProgrammaticMapMove = now;
       lastMapTriggerTimeRef.current = now;

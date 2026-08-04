@@ -522,7 +522,7 @@ function Dashboard() {
   useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, selectedDate, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({ currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally });
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });
-  useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId, setMapViewPhase, setIsMapViewLocked });
+  useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId, setMapViewPhase, setIsMapViewLocked, mapUserUnlockedRef });
   useStopCardsBaseHeight({ horizontalStopCardsRef, selectedCardId, deliveriesWithStopOrder, stopCardsBaseHeight, setStopCardsBaseHeight, statsCardRef, setStatsCardBaseHeight, statsContainerRef, setStatsContainerBaseHeight });
 
   // Re-trigger map fitBounds when the stats container height is first measured
@@ -905,6 +905,17 @@ function Dashboard() {
 
     // Update last applied trigger FIRST
     lastAppliedTriggerRef.current = mapViewTrigger;
+
+    // BUG FIX: Respect manual pan/zoom. mapUserUnlockedRef is set to true whenever
+    // the user manually drags/pinches the map (see USER_MAP_INTERACTION handler),
+    // but until now nothing here actually checked it — every passive trigger (GPS
+    // ticks, WS driver-location updates, the phase-2/3 watchdog) still forced a
+    // fitBounds call, silently snapping the view back seconds after a manual zoom.
+    // All legitimate re-fits (FAB tap via goPhase, DONE/BREAK_END, Accept All
+    // re-lock, proximity snap) already clear mapUserUnlockedRef.current = false
+    // before bumping mapViewTrigger, so this guard only blocks the passive
+    // background triggers that shouldn't override a manual pan/zoom.
+    if (mapUserUnlockedRef.current) return;
 
     // CRITICAL: Only skip phase 2 (driver+next-stop) if not a driver or no location.
     // Phase 3 CAN run for dispatchers (shows incomplete stops for their stores).
