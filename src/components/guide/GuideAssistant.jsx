@@ -74,6 +74,18 @@ export default function GuideAssistant() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
+  // ── Track Dashboard selected driver/date so Patient Info reflects the
+  //    currently-selected route instead of always assuming "today".
+  const [dashboardCtx, setDashboardCtx] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    return window.__currentDashboardContext || null;
+  });
+  useEffect(() => {
+    const handler = (e) => setDashboardCtx(e?.detail || window.__currentDashboardContext || null);
+    window.addEventListener('dashboardContextChanged', handler);
+    return () => window.removeEventListener('dashboardContextChanged', handler);
+  }, []);
+
   // ── Track stop card expansion and dialog open state ──────────────────────────
   // Hide the FAB when a stop card is expanded but no dialog/form is open.
   useEffect(() => {
@@ -274,21 +286,46 @@ export default function GuideAssistant() {
 
 
 
+  // ── Determine whether there is a current isNextDelivery for the active scope ──
+  // Patient Info quick action only makes sense when a next delivery is flagged.
+  const hasActiveNextDelivery = useMemo(() => {
+    if (!appDeliveries || !currentUser) return false;
+    const roles = currentUser.app_roles || [];
+    const isAdmin = roles.includes('admin');
+    const isDispatcher = roles.includes('dispatcher') && !isAdmin;
+    const isDriver = !isAdmin && !isDispatcher;
+    const contextDriverId = dashboardCtx?.driverId || null;
+    const contextDate = dashboardCtx?.deliveryDate || todayStr;
+
+    const effectiveDriverId = contextDriverId && contextDriverId !== 'all'
+      ? contextDriverId
+      : isDriver ? currentUser?.id : null;
+
+    return appDeliveries.some(d =>
+      d && d.delivery_date === contextDate &&
+      d.patient_id &&
+      d.isNextDelivery === true &&
+      !['completed', 'returned', 'cancelled', 'failed'].includes(d.status) &&
+      (effectiveDriverId ? d.driver_id === effectiveDriverId : true)
+    );
+  }, [appDeliveries, currentUser, dashboardCtx, todayStr]);
+
   // ── Role-filtered quick actions ──────────────────────────────────
   const visibleQuickActions = useMemo(() => {
-    if (userRole === 'driver') {
-      return QUICK_ACTIONS.filter(a =>
-        ['start_route', 'collect_cod', 'upload_docs', 'manage_schedule', 'patient_info', 'getting_started'].includes(a.id)
-      );
-    }
-    if (userRole === 'dispatcher') {
-      return QUICK_ACTIONS.filter(a =>
-        ['create_delivery', 'create_patient', 'patient_info', 'getting_started'].includes(a.id)
-      );
-    }
-    // Admin sees all
-    return QUICK_ACTIONS;
-  }, [userRole]);
+    // Hide Patient Info when there's no current isNextDelivery for the active scope
+    const ids = ((role) => {
+      if (role === 'driver') {
+        return ['start_route', 'collect_cod', 'upload_docs', 'manage_schedule', 'patient_info', 'getting_started'];
+      }
+      if (role === 'dispatcher') {
+        return ['create_delivery', 'create_patient', 'patient_info', 'getting_started'];
+      }
+      return QUICK_ACTIONS.map(a => a.id); // Admin sees all
+    })(userRole);
+
+    const filtered = ids.filter(id => id !== 'patient_info' || hasActiveNextDelivery);
+    return QUICK_ACTIONS.filter(a => filtered.includes(a.id));
+  }, [userRole, hasActiveNextDelivery]);
 
   // ── Show pulse animation for new users ───────────────────────────
   const [showPulse, setShowPulse] = useState(!hasSeenIntro);
@@ -449,12 +486,13 @@ export default function GuideAssistant() {
     let includeAdvice = false;
 
     if (queryResult.type === 'current') {
-      // Read the active driver context from Dashboard (selectedDriverId + date)
+      // Read the active driver + selected date context from Dashboard
       const dashCtx = typeof window !== 'undefined' ? window.__currentDashboardContext : null;
       const contextDriverId = dashCtx?.driverId || null;
+      const contextDate = dashCtx?.deliveryDate || todayStr;
 
-      // Current delivery patient
-      const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr, contextDriverId);
+      // Current delivery patient (the isNextDelivery for the selected route/date)
+      const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, contextDate, contextDriverId);
       if (!result) {
         addBotMessage(
           "You don't have an active delivery right now. Once you start a route, type **'info'** to get patient details for your next stop.",
@@ -684,7 +722,7 @@ export default function GuideAssistant() {
             return;
           }
           const dashCtx2 = typeof window !== 'undefined' ? window.__currentDashboardContext : null;
-          const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, todayStr, dashCtx2?.driverId || null);
+          const result = findCurrentDeliveryPatient(currentUser, appDeliveries, appPatients, dashCtx2?.deliveryDate || todayStr, dashCtx2?.driverId || null);
           if (!result || result.routeComplete) {
             addBotMessage(result?.routeComplete ? "✅ Route complete — no active delivery to troubleshoot." : "You don't have an active delivery right now to troubleshoot.", []);
             setShowQuickActions(true);

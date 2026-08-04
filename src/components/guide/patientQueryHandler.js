@@ -156,10 +156,9 @@ export function findCurrentDeliveryPatient(currentUser, deliveries, patients, se
       return { routeComplete: true };
     }
 
-    // Find the next active delivery
-    const nextDelivery =
-      activeDeliveries.find(d => d.isNextDelivery === true) ||
-      activeDeliveries.sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999))[0];
+    // STRICT: only return the delivery flagged as isNextDelivery (the current
+    // active stop). If none is flagged, there is no "current" patient to show.
+    const nextDelivery = activeDeliveries.find(d => d.isNextDelivery === true);
     if (!nextDelivery) return null;
 
     const patient = patients?.find(p => p?.id === nextDelivery.patient_id || p?.patient_id === nextDelivery.patient_id);
@@ -319,7 +318,7 @@ export function getNoAnswerAdvice(patient, delivery, store, cityAdmins) {
   }
 
   // Allowlist — only these city admins appear in the no-answer advice
-  const ALLOWED_ADMINS = ['Robert T', 'Riyaz'];
+  const ALLOWED_ADMINS = ['Robert T', 'Riyaz J'];
   const visibleAdmins = (cityAdmins || []).filter(a => {
     if (!a || !a.user_name) return false;
     return ALLOWED_ADMINS.some(name =>
@@ -339,12 +338,12 @@ export function getNoAnswerAdvice(patient, delivery, store, cityAdmins) {
   if (delivery?.fridge_item) {
     lines.push("\n7. **Do NOT leave this delivery unattended** — it's a fridge item and must maintain cold chain. If no one is available after all attempts, return it to the store.");
   } else if (!patient?.mailbox_ok) {
-    lines.push("\n7. **If no one is available** after all attempts, mark the delivery as 'No Answer' and return the items to the store. Do not leave unattended unless mailbox drop is approved.");
+    lines.push("\n7. **If no one is available** after all attempts, mark the delivery as 'Failed' and return the items to the store. Do not leave unattended unless mailbox drop is approved.");
   } else {
-    lines.push("\n7. **If still no answer** after all steps, mark as 'No Answer' in the app.");
+    lines.push("\n7. **If still no answer** after all steps, mark as 'Failed' in the app.");
   }
 
-  lines.push("\n_Remember: attempt at least 2 contact methods before marking as no-answer._");
+  lines.push("\n_Remember: attempt at least 2 contact methods before marking as 'Failed''._");
   return lines.join('\n');
 }
 

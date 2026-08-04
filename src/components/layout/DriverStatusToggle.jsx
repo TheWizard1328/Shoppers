@@ -30,18 +30,22 @@ const getEdmontonDateString = (value = Date.now()) => {
 
 const getTodayStr = () => getEdmontonDateString();
 
-const buildUpdatePayload = (newStatus, currentLat, currentLng) => {
+const buildUpdatePayload = (newStatus, currentLat, currentLng, includeLocation) => {
   const nowTimestamp = new Date().toISOString();
   if (newStatus === 'on_duty') {
-    return { driver_status: newStatus, location_tracking_enabled: true, location_updated_at: nowTimestamp, current_latitude: currentLat, current_longitude: currentLng };
+    // Only stamp the DB coordinates when the toggle originates from the driver's
+    // own primary device — admin/dispatcher toggles must NOT relocate the marker.
+    const base = { driver_status: newStatus, location_tracking_enabled: true };
+    return includeLocation
+      ? { ...base, location_updated_at: nowTimestamp, current_latitude: currentLat, current_longitude: currentLng }
+      : base;
   }
   if (newStatus === 'on_break') {
-    return { driver_status: newStatus, location_tracking_enabled: true, location_updated_at: nowTimestamp, current_latitude: currentLat, current_longitude: currentLng };
+    // Keep tracking enabled but do NOT write coordinates on a break toggle.
+    return { driver_status: newStatus, location_tracking_enabled: true };
   }
-  // off_duty — preserve last known coordinates so the driver can still see their
-  // own location marker. Only location_tracking_enabled is disabled; other users
-  // are gated by shouldShowMarker() checks on that flag + driver_status.
-  return { driver_status: newStatus, location_tracking_enabled: false, current_latitude: currentLat, current_longitude: currentLng };
+  // off_duty — stop tracking. Leave existing coordinates untouched in the DB.
+  return { driver_status: newStatus, location_tracking_enabled: false };
 };
 
 // Use the locationTracker's getFreshPosition — it has a cached fallback
@@ -250,14 +254,16 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       smartRefreshManager.registerPendingAppUserUpdate(appUserId, 'driver_status');
       smartRefreshManager.pause();
 
-      // Get fresh GPS for on_duty / on_break
+      // Only fetch + persist GPS when going on_duty from the driver's own (primary)
+      // device. Off-break / off-duty / admin toggles never relocate the DB marker.
+      const shouldUpdateLocation = newStatus === 'on_duty' && isOwnUser;
       let gps = { lat: effectiveUser?.current_latitude, lng: effectiveUser?.current_longitude };
-      if (newStatus === 'on_duty' || newStatus === 'on_break') {
+      if (shouldUpdateLocation) {
         const freshGps = await getFreshGPS(8000);
         if (freshGps) gps = freshGps;
       }
 
-      updatePayload = buildUpdatePayload(newStatus, gps.lat, gps.lng);
+      updatePayload = buildUpdatePayload(newStatus, gps.lat, gps.lng, shouldUpdateLocation);
 
       if (newStatus === 'on_duty') {
         try { localStorage.setItem('rxdeliver_show_routes', 'true'); } catch (_) {}
