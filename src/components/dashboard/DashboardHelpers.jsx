@@ -118,7 +118,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   const rawBottomPadding = isImmersiveModeOn
     ? immersivePadding
     : cardsArePresent
-      ? stopCardsHeight + (bottomNavHeight || 0) + paddingBuffer
+      ? stopCardsHeight + (bottomNavHeight || 0) + paddingBuffer * 2
       : (bottomNavHeight || 0) + paddingBuffer;
 
   const bottomPadding = rawBottomPadding;
