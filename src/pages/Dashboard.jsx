@@ -525,6 +525,24 @@ function Dashboard() {
   useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId, setMapViewPhase, setIsMapViewLocked });
   useStopCardsBaseHeight({ horizontalStopCardsRef, selectedCardId, deliveriesWithStopOrder, stopCardsBaseHeight, setStopCardsBaseHeight, statsCardRef, setStatsCardBaseHeight, statsContainerRef, setStatsContainerBaseHeight });
 
+  // Re-trigger map fitBounds when the stats container height is first measured
+  // by the ResizeObserver. On initial mobile load, the first fitBounds fires
+  // before the observer has measured the real stats card height (falls back to
+  // 75px default), causing markers to be hidden behind the stats card. This
+  // listener fires once when the real height lands, bumping mapViewTrigger to
+  // re-run the positioning effect with accurate top padding.
+  useEffect(() => {
+    const handler = () => {
+      // Only re-trigger if we're in Phase 1 (initial city/driver view) — don't
+      // disrupt Phase 2/3 GPS-follow or user manual zoom.
+      if (mapViewPhaseRef.current <= 1) {
+        setMapViewTrigger((p) => p + 1);
+      }
+    };
+    window.addEventListener('statsHeightReady', handler);
+    return () => window.removeEventListener('statsHeightReady', handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Expose stop cards height as CSS variable for GuideAssistant positioning
   useEffect(() => {
     document.documentElement.style.setProperty('--stop-cards-height', `${stopCardsBaseHeight || 0}px`);

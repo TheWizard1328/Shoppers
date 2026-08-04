@@ -99,27 +99,37 @@ export const roundCompletionTime = (timeISO) => {
 
 /**
  * Calculates stable map padding for fit-bounds calls.
- * On mobile, enforces a minimum bottom padding of 160px to prevent the map
- * from bouncing when stopCardsBaseHeight is transiently 0 (e.g. cards
- * remeasuring right after a stop is completed in phase 2).
+ *
+ * Three padding regions:
+ *   TOP    — mobile: stats card container height (measured via ResizeObserver);
+ *            desktop/immersive: BASE_PADDING (25px)
+ *   BOTTOM — normal: EXTRA_ITEMS + stop cards height;
+ *            immersive: IMMERSIVE_ITEMS (50px) — only temp badge + FAB remain
+ *   SIDES  — BASE_PADDING (25px) on all platforms
+ *
+ * The 80px EXTRA_ITEMS_HEIGHT accounts for always-present bottom UI chrome
+ * (bulk-select bar, temp badge, FABs, reoptimize button) in normal mode.
+ * In immersive mode, stop cards + reoptimize button hide, leaving only the
+ * temp badge + cycle FAB (~50px), so we use a smaller immersive baseline.
  */
 export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, stopCardsBaseHeight }) => {
-  // Always-present UI chrome pinned at the bottom of the map (bulk select,
-  // API counter, temp badge, FABs) — visible in both normal and immersive mode.
+  // Always-present UI chrome pinned at the bottom of the map in NORMAL mode
+  // (bulk select, API counter, temp badge, reoptimize FAB, cycle FAB).
   const EXTRA_ITEMS_HEIGHT = 80;
+  // Immersive mode: stop cards + reoptimize button hide, leaving only temp badge + cycle FAB.
+  const IMMERSIVE_ITEMS_HEIGHT = 50;
   // Baseline breathing room for top/sides when no UI obstructions are present.
   const BASE_PADDING = 25;
 
   // Bottom padding:
-  //   Extra items (80px) are always pinned at the bottom — they never hide.
-  //   Stop cards stack underneath them when visible (normal mode).
-  //   Immersive mode hides stop cards but the extra items stay.
+  //   Normal mode   — extra items (80px) + stop cards stack underneath
+  //   Immersive mode — only temp badge + FAB remain (50px)
   const bottomPadding = isImmersiveModeOn
-    ? EXTRA_ITEMS_HEIGHT
+    ? IMMERSIVE_ITEMS_HEIGHT
     : EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
 
   // Top padding:
-  //   Mobile normal   — stats card container height (includes driver legend)
+  //   Mobile normal    — stats card container height (includes driver legend)
   //   Mobile immersive — BASE_PADDING (stats panel + legend are hidden)
   //   Desktop          — BASE_PADDING
   let topPadding;
@@ -137,6 +147,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
     _debug: {
       isImmersiveModeOn,
       EXTRA_ITEMS_HEIGHT,
+      IMMERSIVE_ITEMS_HEIGHT,
       statsCardHeight,
       stopCardsBaseHeight,
       topPadding,
