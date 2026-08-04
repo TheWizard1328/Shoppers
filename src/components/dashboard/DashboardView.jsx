@@ -31,7 +31,7 @@ function DashboardView({
   showRoutes, setShowRoutes, showAllDriverMarkers, setShowAllDriverMarkers,
   showBreadcrumbs, setShowBreadcrumbs, breadcrumbsData, setBreadcrumbsData,
   highlightedCardId, retractClustersRef, googleApiKey, renderSequence, setRenderSequence,
-  stopCardsBaseHeight, statsCardBaseHeight, statsCardRef, statsContainerRef, cardsReadyForFAB,
+  stopCardsBaseHeight, statsCardBaseHeight, statsContainerBaseHeight, statsCardRef, statsContainerRef, cardsReadyForFAB,
   mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef,
   // FAB
   handleMapViewCycle, mapViewTrigger, setMapViewTrigger, getMapPadding,
@@ -393,6 +393,7 @@ function DashboardView({
           handleCardInteraction={handleCardInteraction} areCardsVisible={areCardsVisible}
           handleMapViewCycle={handleMapViewCycle} isStatsCardCentered={isStatsCardCentered}
           dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded}
+          statsContainerBaseHeight={statsContainerBaseHeight}
           realTimeETAEnabled={realTimeETAEnabled}
           showDeliveryForm={showDeliveryForm} showPatientForm={showPatientForm} showOptimizationSettings={showOptimizationSettings}
           immersiveHidden={immersiveHidden}

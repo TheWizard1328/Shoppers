@@ -2560,7 +2560,7 @@ function Dashboard() {
     shouldFitBounds, mapViewPhase, mapViewTrigger, isMapViewLocked, mapStyle, mapMode, setMapMode,
     showRoutes: _effectiveShowRoutes, showBreadcrumbs, showAllDriverMarkers, breadcrumbsData, driverLocation, allDriverLocations,
     currentToNextPolyline, driverRoutes, selectedCardId, highlightedCardId, isExpanded,
-    areCardsVisible, statsPanelOpacity, stopCardsBaseHeight, statsCardBaseHeight, cardsReadyForFAB, isReoptimizing,
+    areCardsVisible, statsPanelOpacity, stopCardsBaseHeight, statsCardBaseHeight, statsContainerBaseHeight, cardsReadyForFAB, isReoptimizing,
     optimizationMessage, showDeliveryForm, editingDelivery, showPatientForm, editingPatient,
     patientFormMode, setPatientFormMode, patientFormCallback, setPatientFormCallback,
     showOptimizationSettings, showAIAssistant, isAIEnabled, hasUnreadAIAlerts,

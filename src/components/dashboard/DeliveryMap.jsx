@@ -182,6 +182,7 @@ function DeliveryMap({
   mapViewPhase = 1,
   isMapViewLocked = false,
   topOverlayHeight = 0,
+  statsContainerBaseHeight = 0,
   immersiveHidden = false,
   mapStyle = "explore"
 }) {
@@ -218,12 +219,17 @@ function DeliveryMap({
   // immersive mode zeros it out (areStopCardsVisible → false → stopCardsHeight prop → 0)
   const stableCrosshairHeightRef = useRef(stopCardsHeight > 0 ? stopCardsHeight : 75);
   if (stopCardsHeight > 0) stableCrosshairHeightRef.current = stopCardsHeight;
-  // Stable BASE (non-expanded) stats card height — latches the stats panel's
-  // collapsed height and is frozen whenever the stats card is expanded, so the
-  // crosshair (and map padding) never shifts when the user expands the stats card.
+  // Stable BASE (non-expanded) stats container height. On mobile the map's
+  // fit-bounds padding (getMapPadding) uses the stats CONTAINER's full height
+  // (offsetTop + offsetHeight — includes the panel's top offset within the
+  // dashboard), NOT just the inner card's height. Mirror that here by
+  // preferring statsContainerBaseHeight over topOverlayHeight (inner card only),
+  // and freeze the value whenever the stats card is expanded so the crosshair
+  // never shifts on expand.
   const stableBaseStatsHeightRef = useRef(0);
-  if (!immersiveHidden && !isStatsCardExpanded && topOverlayHeight > 0) {
-    stableBaseStatsHeightRef.current = topOverlayHeight;
+  const stableStatsSource = statsContainerBaseHeight > 0 ? statsContainerBaseHeight : topOverlayHeight;
+  if (!immersiveHidden && !isStatsCardExpanded && stableStatsSource > 0) {
+    stableBaseStatsHeightRef.current = stableStatsSource;
   }
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
@@ -1270,7 +1276,7 @@ function DeliveryMap({
       statsCardHeight: stableBaseStatsHeightRef.current,
       stopCardsBaseHeight: stableCrosshairHeightRef.current,
     }),
-    [isMobile, immersiveHidden, topOverlayHeight, stopCardsHeight, isStatsCardExpanded]
+    [isMobile, immersiveHidden, topOverlayHeight, stopCardsHeight, isStatsCardExpanded, statsContainerBaseHeight]
   );
 
   return (

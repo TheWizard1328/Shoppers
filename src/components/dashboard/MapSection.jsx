@@ -22,7 +22,7 @@ export default function MapSection({
   setDriverRoutes, renderSequence, setRenderSequence,
   stopCardsBaseHeight, handleMarkerClick, handleCardInteraction,
   areCardsVisible, handleMapViewCycle, isStatsCardCentered,
-  dailyPolylineCount, isExpanded,
+  dailyPolylineCount, isExpanded, statsContainerBaseHeight = 0,
   polylineResetKey,
   realTimeETAEnabled, showDeliveryForm, showPatientForm, showOptimizationSettings,
   preferredTravelMode, onTravelModeChange,
@@ -162,6 +162,7 @@ export default function MapSection({
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
           topOverlayHeight={!immersiveHidden ? topOverlayHeight : 0}
+          statsContainerBaseHeight={statsContainerBaseHeight}
           isStatsCardExpanded={isExpanded}
           mapStyle={mapStyle}
           preferredTravelMode={preferredTravelMode}
