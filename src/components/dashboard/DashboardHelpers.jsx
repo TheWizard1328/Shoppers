@@ -103,68 +103,42 @@ export const roundCompletionTime = (timeISO) => {
  * from bouncing when stopCardsBaseHeight is transiently 0 (e.g. cards
  * remeasuring right after a stop is completed in phase 2).
  */
-export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, statsCardBaseHeight, stopCardsBaseHeight, bottomNavHeight }) => {
-  const paddingBuffer = 60;
-  // In immersive mode (UI hidden) the map gets 80px breathing room on both axes
-  // so markers never sit flush against the screen edge.
-  const immersivePadding = 80;
-  const stopCardsHeight = isImmersiveModeOn ? paddingBuffer : (stopCardsBaseHeight || paddingBuffer);
-  const cardsArePresent = stopCardsHeight > 0;
+export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, stopCardsBaseHeight }) => {
+  // Always-present UI chrome pinned at the bottom of the map (bulk select,
+  // API counter, temp badge, FABs) — visible in both normal and immersive mode.
+  const EXTRA_ITEMS_HEIGHT = 80;
+  // Baseline breathing room for top/sides when no UI obstructions are present.
+  const BASE_PADDING = 25;
 
-  // Bottom padding rules (both desktop and mobile):
-  //   Immersive — fixed 80px (no stop cards, no bottom nav obstruction)
-  //   Cards present  — stop cards height + bottom nav + 10px breathing room
-  //   Cards absent   — bottom nav + 10px (nav bar still overlaps the bottom edge)
-  const rawBottomPadding = isImmersiveModeOn
-    ? immersivePadding
-    : cardsArePresent
-      ? stopCardsHeight + (bottomNavHeight || 0) + paddingBuffer
-      : (bottomNavHeight || 0) + paddingBuffer;
+  // Bottom padding:
+  //   Extra items (80px) are always pinned at the bottom — they never hide.
+  //   Stop cards stack underneath them when visible (normal mode).
+  //   Immersive mode hides stop cards but the extra items stay.
+  const bottomPadding = isImmersiveModeOn
+    ? EXTRA_ITEMS_HEIGHT
+    : EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
 
-  const bottomPadding = rawBottomPadding;
-
-  // Top padding rules:
-  //   Immersive — fixed 80px (stats panel is hidden)
-  //   Mobile    — full stats panel container height + breathing room (min 25px)
-  //   Desktop   — paddingBuffer
+  // Top padding:
+  //   Mobile normal   — stats card container height (includes driver legend)
+  //   Mobile immersive — BASE_PADDING (stats panel + legend are hidden)
+  //   Desktop          — BASE_PADDING
   let topPadding;
   if (isImmersiveModeOn) {
-    topPadding = immersivePadding;
+    topPadding = BASE_PADDING;
   } else if (isMobile) {
-    const mobileHeaderHeight = 0; //56; // fixed MobileHeader height
-    const legendBarHeight = 0; //36;    // collapsed driver legend bar below stats card
-    const rawStatsHeight = statsCardHeight || statsCardBaseHeight || 75;
-    // Full obstruction = mobile header + stats card + legend bar + breathing room
-    const fullObstructionHeight = rawStatsHeight + paddingBuffer / 2 + mobileHeaderHeight + legendBarHeight;
-    // Never drop below 25px on mobile — guards against transient 0 heights
-    topPadding = Math.max(fullObstructionHeight, 25);
-
-    console.log(`[Imercive Check] rawStatsHeight: ${rawStatsHeight}`);
-    console.log(`[Imercive Check] fullObstructionHeight: ${fullObstructionHeight}`);
+    topPadding = Math.max(statsCardHeight || 75, BASE_PADDING);
   } else {
-    topPadding = paddingBuffer;
+    topPadding = BASE_PADDING;
   }
 
-  console.log(`[Imercive Check] isImmersiveModeOn: ${isImmersiveModeOn}`);
-  console.log(`[Imercive Check] paddingBuffer: ${paddingBuffer}`);
-  console.log(`[Imercive Check] immersivePadding: ${immersivePadding}`);
-  console.log(`[Imercive Check] stopCardsHeight: ${stopCardsHeight}`);
-  console.log(`[Imercive Check] cardsArePresent: ${cardsArePresent}`);
-  console.log(`[Imercive Check] rawBottomPadding: ${rawBottomPadding}`);
-
-  console.log(`[Imercive Check] topPadding: ${topPadding}`);
-  console.log(`[Imercive Check] bottomPadding: ${bottomPadding}`);
-
   return {
-    paddingTopLeft:     [25,   topPadding],
-    paddingBottomRight: [25,   bottomPadding],
+    paddingTopLeft:     [BASE_PADDING, topPadding],
+    paddingBottomRight: [BASE_PADDING, bottomPadding],
     _debug: {
       isImmersiveModeOn,
-      paddingBuffer,
-      immersivePadding,
-      stopCardsHeight,
-      cardsArePresent,
-      rawBottomPadding,
+      EXTRA_ITEMS_HEIGHT,
+      statsCardHeight,
+      stopCardsBaseHeight,
       topPadding,
       bottomPadding,
     },

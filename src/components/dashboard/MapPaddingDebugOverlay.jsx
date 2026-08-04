@@ -23,11 +23,9 @@ export default function MapPaddingDebugOverlay({ currentUser, isMobile, debugVal
 
   const {
     isImmersiveModeOn,
-    paddingBuffer,
-    immersivePadding,
-    stopCardsHeight,
-    cardsArePresent,
-    rawBottomPadding,
+    EXTRA_ITEMS_HEIGHT,
+    statsCardHeight,
+    stopCardsBaseHeight,
     topPadding,
     bottomPadding,
   } = debugValues;
@@ -35,10 +33,9 @@ export default function MapPaddingDebugOverlay({ currentUser, isMobile, debugVal
   const fmt = (v) => v === undefined || v === null ? '–' : String(v);
 
   const rows = [
-    ['isImmersiveModeOn', fmt(isImmersiveModeOn), 'cardsArePresent',  fmt(cardsArePresent)],
-    ['paddingBuffer',     fmt(paddingBuffer),      'rawBottomPadding', fmt(rawBottomPadding)],
-    ['immersivePadding',  fmt(immersivePadding),   'topPadding',       fmt(topPadding)],
-    ['stopCardsHeight',   fmt(stopCardsHeight),    'bottomPadding',    fmt(bottomPadding)],
+    ['isImmersiveModeOn', fmt(isImmersiveModeOn), 'EXTRA_ITEMS_HEIGHT', fmt(EXTRA_ITEMS_HEIGHT)],
+    ['statsCardHeight',   fmt(statsCardHeight),  'stopCardsBaseHeight', fmt(stopCardsBaseHeight)],
+    ['topPadding',        fmt(topPadding),       'bottomPadding',     fmt(bottomPadding)],
   ];
 
   // When immersive: slide up to ~70px (just below ImmersiveMapTopOverlay card)
