@@ -25,6 +25,7 @@ import { userHasRole } from "../utils/userRoles";
 import { sortUsers } from "../utils/sorting";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
 import MapCrosshair from "./MapCrosshair";
+import { buildMapPadding } from "./DashboardHelpers";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
 import HereTileUsageTracker from "./HereTileUsageTracker";
@@ -181,6 +182,7 @@ function DeliveryMap({
   mapViewPhase = 1,
   isMapViewLocked = false,
   topOverlayHeight = 0,
+  statsContainerBaseHeight = 0,
   immersiveHidden = false,
   mapStyle = "explore"
 }) {
@@ -217,6 +219,18 @@ function DeliveryMap({
   // immersive mode zeros it out (areStopCardsVisible → false → stopCardsHeight prop → 0)
   const stableCrosshairHeightRef = useRef(stopCardsHeight > 0 ? stopCardsHeight : 75);
   if (stopCardsHeight > 0) stableCrosshairHeightRef.current = stopCardsHeight;
+  // Stable BASE (non-expanded) stats container height. On mobile the map's
+  // fit-bounds padding (getMapPadding) uses the stats CONTAINER's full height
+  // (offsetTop + offsetHeight — includes the panel's top offset within the
+  // dashboard), NOT just the inner card's height. Mirror that here by
+  // preferring statsContainerBaseHeight over topOverlayHeight (inner card only),
+  // and freeze the value whenever the stats card is expanded so the crosshair
+  // never shifts on expand.
+  const stableBaseStatsHeightRef = useRef(0);
+  const stableStatsSource = statsContainerBaseHeight > 0 ? statsContainerBaseHeight : topOverlayHeight;
+  if (!immersiveHidden && !isStatsCardExpanded && stableStatsSource > 0) {
+    stableBaseStatsHeightRef.current = stableStatsSource;
+  }
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
   const prevDriverLocationMarkersRef = useRef([]);
@@ -1250,6 +1264,21 @@ function DeliveryMap({
       onMapInteraction?.();
   }, [currentZoom, fannedLocationKey, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPositionWrapperWrapper, map, onMarkerClick, onMapInteraction, pickupMarkers, isMobile, panToMarkerOffset, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight]);
 
+  // Crosshair sits at the center of the SAME padded region the map uses for
+  // fit-bounds (buildMapPadding). Both inputs are stable BASE heights (frozen
+  // while the stats card or a stop card is expanded), so the crosshair never
+  // shifts on expand — it only follows the real layout, immersive & platform
+  // (mobile vs desktop) rules for the stats card container.
+  const crosshairPadding = useMemo(
+    () => buildMapPadding({
+      isMobile,
+      isImmersiveModeOn: immersiveHidden,
+      statsCardHeight: stableBaseStatsHeightRef.current,
+      stopCardsBaseHeight: stableCrosshairHeightRef.current,
+    }),
+    [isMobile, immersiveHidden, topOverlayHeight, stopCardsHeight, isStatsCardExpanded, statsContainerBaseHeight]
+  );
+
   return (
     <div className="absolute inset-0">
       <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} />
@@ -1420,7 +1449,10 @@ function DeliveryMap({
         {mapReady && showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} />}
       </MapContainer>
 
-      <MapCrosshair stopCardsHeight={stableCrosshairHeightRef.current} statsCardHeight={isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} immersiveHidden={immersiveHidden} />
+      <MapCrosshair
+        topPadding={crosshairPadding.topPadding}
+        bottomPadding={crosshairPadding.bottomPadding}
+      />
     </div>
   );
 }
