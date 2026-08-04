@@ -231,6 +231,13 @@ function Dashboard() {
   const isPrimaryDeviceRef = useRef(false);
   const pendingPhaseRef = useRef(1);
   const isMapViewLockedRef = useRef(false);
+  // CRITICAL: Ref mirror of immersiveHidden state — the mapViewTrigger effect below
+  // only depends on [mapViewTrigger] and reads other live values via refs (same
+  // pattern as mapViewPhaseRef, driverLocationRef, etc.) to avoid a stale closure.
+  // Without this, toggling immersive mode without a fresh trigger firing at the
+  // same moment would leave fitBounds computing padding as if the stats card and
+  // stop cards were still visible, reserving unnecessary space around markers.
+  const immersiveHiddenRef = useRef(false);
   const lastProgrammaticMapMoveRef = useRef(0);
   const [mapViewTrigger, setMapViewTrigger] = useState(0);
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -511,6 +518,8 @@ function Dashboard() {
     // isAdmin must NOT be a disqualifier — admin-drivers must still get immersive mode.
     enabled: isDriver && isMobile && isPrimaryDevice,
   });
+
+  useEffect(() => { immersiveHiddenRef.current = immersiveHidden; }, [immersiveHidden]);
 
   // CRITICAL: Read live DOM heights at call-time rather than trusting only the
   // React state set by the ResizeObserver in useStopCardsBaseHeight. The state
@@ -1189,7 +1198,7 @@ function Dashboard() {
             [closestCity.latitude - latOffset, closestCity.longitude - lonOffset],
             [closestCity.latitude + latOffset, closestCity.longitude + lonOffset]];
 
-            const padding = getMapPadding(false);
+            const padding = getMapPadding(immersiveHiddenRef.current);
             setShouldFitBounds({
               bounds,
               options: {
@@ -1209,7 +1218,7 @@ function Dashboard() {
           const spanKm = getBoundsSpanKm(allCoordinates);
           const phase1MaxZoom = Math.min(18, getPhaseBoundsMaxZoom(spanKm) + (!isMobile ? 0.7 : 0));
 
-          const padding = getMapPadding(false);
+          const padding = getMapPadding(immersiveHiddenRef.current);
 
           setShouldFitBounds({
             bounds: allCoordinates,
@@ -1257,7 +1266,7 @@ function Dashboard() {
             }
           });
           if (phase2DispatcherCoords.length > 0) {
-            const padding = getMapPadding(false);
+            const padding = getMapPadding(immersiveHiddenRef.current);
             setShouldFitBounds({ bounds: phase2DispatcherCoords, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
             setMapCenter(null);
             setMapZoom(null);
@@ -1271,7 +1280,7 @@ function Dashboard() {
           const _p2TgtId2 = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : (isDriver ? currentUser?.id : null); const _selectedDateStr2 = format(selectedDateRef.current, 'yyyy-MM-dd'); const _ns = _p2TgtId2 ? deliveriesRef.current.find((d) => d && d.delivery_date === _selectedDateStr2 && d.driver_id === _p2TgtId2 && d.isNextDelivery === true && d.status !== 'pending') : null;
           const _nc = _ns?.patient_id ? (() => { const p = patientsRef.current.find((x) => x && x.id === _ns.patient_id); return p?.latitude && p?.longitude ? { lat: p.latitude, lon: p.longitude } : null; })() : _ns && isInterStoreDelivery(_ns.delivery_id) ? (() => { const isl = getInterStoreLocationSync(_ns.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })() : _ns?.store_id ? (() => { const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })() : (selectedDriverId === currentUser?.id || !_p2TgtId2 ? nextStopCoordinatesRef.current : null);
           const bounds = [[fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude], ...(_nc?.lat && _nc?.lon ? [[_nc.lat, _nc.lon]] : [])];
-          setShouldFitBounds({ bounds, options: { ...getMapPadding(false), maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
+          setShouldFitBounds({ bounds, options: { ...getMapPadding(immersiveHiddenRef.current), maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
           setMapCenter(null); setMapZoom(null);
         } } // end if (!_phase2Handled)
         break; } // end case 2
@@ -1366,7 +1375,7 @@ function Dashboard() {
 
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
         if (allCoordinatesPhase3.length > 0) {
-          const padding = getMapPadding(false);
+          const padding = getMapPadding(immersiveHiddenRef.current);
 
           const spanKm = getBoundsSpanKm(allCoordinatesPhase3);
           const phase3MaxZoom = getPhaseBoundsMaxZoom(spanKm, 12.0);
@@ -1984,7 +1993,7 @@ function Dashboard() {
 
           }, 350);
         } else {
-          const padding = getMapPadding(false),appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
+          const padding = getMapPadding(immersiveHiddenRef.current),appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
           if (delivery.patient_id) {
             const patient = patients.find((p) => p.id === delivery.patient_id);
             if (patient?.latitude && patient?.longitude) bounds.push([patient.latitude, patient.longitude]);
