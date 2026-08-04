@@ -144,21 +144,16 @@ function DashboardView({
       initialFabRetriggeredRef.current = true;
       setTimeout(() => {
         // CRITICAL: Do NOT call setMapViewPhase here — respect the saved/current phase
-        // Only re-trigger the map view to recalculate bounds with the new data
-        setIsMapViewLocked(true);
+        // CRITICAL: Do NOT lock the FAB here. The re-trigger's purpose is to reposition
+        // the map with correct padding after data arrives — NOT to engage a FAB lock.
+        // Setting setIsMapViewLocked(true) + mapLockExpiresAtRef here creates a visual/
+        // functional desync: the FAB's isTemporarilyDeactivated state (from the 500ms
+        // DATA_READY timeout) keeps the FAB visually gray, but the internal lock state
+        // treats it as locked. Clicking the FAB then advances to Phase 3 instead of
+        // re-locking Phase 1.
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger(prev => prev + 1);
-        const lockDuration = 3000;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-          }
-        }, lockDuration);
       }, 500);
     }
   }, [deliveries, patients, stores, selectedDate, deliveriesWithStopOrder, renderSequence.fabPhaseReady]);
