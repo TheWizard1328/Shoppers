@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react';
  * Never updates the height while a card is expanded — uses a ref to check
  * selectedCardId synchronously inside async timers to avoid stale closures.
  *
- * Also tracks statsCardRef height via ResizeObserver when provided.
+ * Also tracks statsCardRef and statsContainerRef heights via ResizeObserver.
  */
 export function useStopCardsBaseHeight({
   horizontalStopCardsRef,
@@ -15,8 +15,10 @@ export function useStopCardsBaseHeight({
   setStopCardsBaseHeight,
   statsCardRef = null,
   setStatsCardBaseHeight = null,
+  statsContainerRef = null,
+  setStatsContainerBaseHeight = null,
 }) {
-  // Track stats card height via ResizeObserver
+  // Track stats card content height via ResizeObserver (card + legend, excludes top offset)
   useEffect(() => {
     if (!statsCardRef?.current || !setStatsCardBaseHeight) return;
     const el = statsCardRef.current;
@@ -24,6 +26,24 @@ export function useStopCardsBaseHeight({
       const h = el.offsetHeight;
       if (h > 0) setStatsCardBaseHeight(h);
     });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track the PARENT container height via ResizeObserver.
+  // This measures offsetTop + offsetHeight to capture the full top-down space
+  // occupied by the stats panel from the top of the map (includes the top-2 offset).
+  useEffect(() => {
+    if (!statsContainerRef?.current || !setStatsContainerBaseHeight) return;
+    const el = statsContainerRef.current;
+    const measure = () => {
+      const top = el.offsetTop || 0;
+      const h = el.offsetHeight || 0;
+      const total = top + h;
+      if (total > 0) setStatsContainerBaseHeight(total);
+    };
+    measure(); // initial
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

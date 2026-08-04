@@ -142,6 +142,7 @@ function Dashboard() {
   const statsPanelFadeTimeoutRef = useRef(null);
   const fadeTimeoutRef = useRef(null);
   const statsCardRef = useRef(null);
+  const statsContainerRef = useRef(null);
   const [isMapViewLocked, setIsMapViewLocked] = useState(false);
   const retractClustersRef = useRef(null);
   const [showRouteSummary, setShowRouteSummary] = useState(false);
@@ -210,6 +211,7 @@ function Dashboard() {
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUserRoles]);
   const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0);
   const [statsCardBaseHeight, setStatsCardBaseHeight] = useState(0);
+  const [statsContainerBaseHeight, setStatsContainerBaseHeight] = useState(0);
   const phaseBeforeBreakRef = useRef(null);
   const initialFabPhaseAppliedRef = useRef(null);
   const [routeNotification, setRouteNotification] = useState(null);
@@ -510,7 +512,7 @@ function Dashboard() {
     enabled: isDriver && isMobile && isPrimaryDevice,
   });
 
-  const getMapPadding = useCallback((isImmersiveModeOn = false) => buildMapPadding({ isMobile, isImmersiveModeOn, statsCardHeight: statsCardBaseHeight, stopCardsBaseHeight }), [isMobile, stopCardsBaseHeight, statsCardBaseHeight]);
+  const getMapPadding = useCallback((isImmersiveModeOn = false) => buildMapPadding({ isMobile, isImmersiveModeOn, statsCardHeight: statsContainerBaseHeight || statsCardBaseHeight, stopCardsBaseHeight }), [isMobile, stopCardsBaseHeight, statsCardBaseHeight, statsContainerBaseHeight]);
   const handleCardInteraction = useCallback((show) => { if (fadeTimeoutRef.current) { clearTimeout(fadeTimeoutRef.current); fadeTimeoutRef.current = null; } setAreCardsVisible(show); if (show && !isExpanded && !isRouteComplete) fadeTimeoutRef.current = setTimeout(() => setAreCardsVisible(false), 3000); }, [isExpanded, isRouteComplete]);
   const handleStatsPanelInteraction = useCallback((isHovering) => { if (!isMobile) return; if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } if (isHovering || isExpanded) setStatsPanelOpacity(1); else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
   useEffect(() => { if (!isMobile) { setStatsPanelOpacity(1); return; } if (isExpanded) { setStatsPanelOpacity(1); if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } } else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
@@ -521,7 +523,7 @@ function Dashboard() {
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({ currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally });
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });
   useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId, setMapViewPhase, setIsMapViewLocked });
-  useStopCardsBaseHeight({ horizontalStopCardsRef, selectedCardId, deliveriesWithStopOrder, stopCardsBaseHeight, setStopCardsBaseHeight, statsCardRef, setStatsCardBaseHeight });
+  useStopCardsBaseHeight({ horizontalStopCardsRef, selectedCardId, deliveriesWithStopOrder, stopCardsBaseHeight, setStopCardsBaseHeight, statsCardRef, setStatsCardBaseHeight, statsContainerRef, setStatsContainerBaseHeight });
 
   // Expose stop cards height as CSS variable for GuideAssistant positioning
   useEffect(() => {

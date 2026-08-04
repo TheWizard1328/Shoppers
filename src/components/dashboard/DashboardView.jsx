@@ -31,7 +31,7 @@ function DashboardView({
   showRoutes, setShowRoutes, showAllDriverMarkers, setShowAllDriverMarkers,
   showBreadcrumbs, setShowBreadcrumbs, breadcrumbsData, setBreadcrumbsData,
   highlightedCardId, retractClustersRef, googleApiKey, renderSequence, setRenderSequence,
-  stopCardsBaseHeight, statsCardBaseHeight, statsCardRef, cardsReadyForFAB,
+  stopCardsBaseHeight, statsCardBaseHeight, statsCardRef, statsContainerRef, cardsReadyForFAB,
   mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef,
   // FAB
   handleMapViewCycle, mapViewTrigger, setMapViewTrigger, getMapPadding,
@@ -355,7 +355,7 @@ function DashboardView({
           showAllDriverMarkers={showAllDriverMarkers} setShowAllDriverMarkers={setShowAllDriverMarkers}
           showBreadcrumbs={showBreadcrumbs} setShowBreadcrumbs={setShowBreadcrumbs} setBreadcrumbsData={setBreadcrumbsData}
           showRoutes={showRoutes} setShowRoutes={setShowRoutes} driverRoutes={driverRoutes}
-          statsCardRef={statsCardRef} retractClustersRef={retractClustersRef}
+          statsCardRef={statsCardRef} statsContainerRef={statsContainerRef} retractClustersRef={retractClustersRef}
           mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef} lastProgrammaticMapMoveRef={lastProgrammaticMapMoveRef}
           setMapViewPhase={setMapViewPhase} setIsMapViewLocked={setIsMapViewLocked} setMapViewTrigger={setMapViewTrigger}
           preferredTravelMode={preferredTravelMode} onTravelModeChange={onTravelModeChange}
