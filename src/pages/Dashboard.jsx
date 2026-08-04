@@ -537,12 +537,21 @@ function Dashboard() {
     // Don't re-fit if there's no map phase yet (initial mount).
     if (mapViewPhaseRef.current === 0) return;
     mapUserUnlockedRef.current = false;
-    lastProgrammaticMapMoveRef.current = Date.now();
-    window._lastProgrammaticMapMove = Date.now();
-    // Small delay so the CSS transition on the UI elements (stats card /
-    // stop cards sliding out/in) has time to update the DOM heights that
-    // getMapPadding reads via offsetHeight.
-    const t = setTimeout(() => setMapViewTrigger((p) => p + 1), 350);
+    // BUG FIX: Do NOT stamp _lastProgrammaticMapMove here — the actual map move
+    // (setMapViewTrigger below) doesn't happen until 350ms later, and Leaflet's
+    // fitBounds animation fires moveend ~900ms after THAT. Stamping now meant the
+    // stableOnMapInteraction guard in MapSection.jsx (`timeSinceProgrammaticMove
+    // < 1200`) could see 350+900=1250ms elapsed — just over the threshold — and
+    // misclassify this programmatic re-fit as a real user pan/zoom, incorrectly
+    // unlocking the map (mapUserUnlockedRef=true, isMapViewLocked=false) and
+    // graying out the FAB even though the phase is still supposed to be locked.
+    // The stamp must happen right before the actual trigger fires, same as every
+    // other call site in this file (goPhase, REACTIVATE_FAB, etc.).
+    const t = setTimeout(() => {
+      lastProgrammaticMapMoveRef.current = Date.now();
+      window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger((p) => p + 1);
+    }, 350);
     return () => clearTimeout(t);
   }, [immersiveHidden]); // eslint-disable-line react-hooks/exhaustive-deps
 

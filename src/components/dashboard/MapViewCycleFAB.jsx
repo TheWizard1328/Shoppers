@@ -50,6 +50,29 @@ export default function MapViewCycleFAB({
     }
   }, [currentPhase]);
 
+  // SELF-HEALING SAFETY NET: several code paths intentionally publish
+  // FAB_MAP_UNLOCKED_BY_USER_INTERACTION as a "visual flash only" signal without
+  // actually unlocking the map (e.g. double-tap zoom in MapSection.jsx, or the
+  // Navigate button's temp-unlock/re-lock cycle in useFabControlEventHandler.jsx).
+  // Those paths never publish a matching "clear the gray-out" event once the map
+  // re-locks — REACTIVATE_FAB/DATA_READY/IMMERSIVE_MODE_TOGGLED are the only
+  // events this component listens for to un-gray, and none of those fire from
+  // e.g. REACTIVATE_PHASE_TWO_IF_AVAILABLE. Result: the FAB gets stuck gray
+  // ("looks unlocked") forever even though isMapViewLocked (the real state) is
+  // true again — exactly the "phase 2 but FAB doesn't look locked" bug.
+  // Fix: tie the visual state back to the authoritative `isLocked` prop — the
+  // instant the map is confirmed locked again, clear any stale gray override.
+  useEffect(() => {
+    if (isLocked && isTemporarilyDeactivated) {
+      setIsTemporarilyDeactivated(false);
+      if (deactivateTimeoutRef.current) {
+        clearTimeout(deactivateTimeoutRef.current);
+        deactivateTimeoutRef.current = null;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLocked]);
+
   useEffect(() => {
     window.__fabFlashUpdate = flashUpdate;
     window.__currentMapViewPhase = currentPhase;
