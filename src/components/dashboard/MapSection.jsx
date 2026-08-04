@@ -162,6 +162,7 @@ export default function MapSection({
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
           topOverlayHeight={!immersiveHidden ? topOverlayHeight : 0}
+          isStatsCardExpanded={isExpanded}
           mapStyle={mapStyle}
           preferredTravelMode={preferredTravelMode}
           onTravelModeChange={onTravelModeChange}
