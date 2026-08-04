@@ -116,28 +116,12 @@ export default function MapViewCycleFAB({
         return;
       }
 
-      // User manually panned/zoomed the map → immediately show the FAB as unlocked
+      // User manually panned/zoomed/double-tapped the map → immediately show the FAB as
+      // unlocked. This is a REAL unlock — mapUserUnlockedRef is set true by
+      // notifyUserMapInteraction(), so the map stays in free-pan mode until the driver
+      // explicitly taps the FAB to re-lock. Stay gray until re-locked via REACTIVATE_FAB,
+      // REACTIVATE_PHASE_TWO_IF_AVAILABLE, or the self-healing isLocked effect below.
       if (event?.type === 'FAB_MAP_UNLOCKED_BY_USER_INTERACTION') {
-        // CRITICAL: Double-tap zoom in phase 2/3 passes isVisualOnly=true — the map is
-        // NOT actually unlocking (mapUserUnlockedRef stays false, isMapViewLocked stays
-        // true). The gray-out should be a brief 1.5s flash, not permanent. Without this,
-        // the FAB gets stuck gray forever after a double-tap zoom: the map re-locks on the
-        // next GPS tick but nothing clears isTemporarilyDeactivated, so the FAB looks
-        // unlocked while the map is actually locked. Tapping it then cycles the phase
-        // (advances to phase 3 or 1) instead of re-locking, because handleMapViewCycle
-        // sees isCurrentlyLocked=true (the real state) and treats the tap as a cycle.
-        const isVisualOnly = event?.isVisualOnly === true;
-        if (isVisualOnly && (currentPhase === 2 || currentPhase === 3)) {
-          setIsTemporarilyDeactivated(true);
-          if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
-          deactivateTimeoutRef.current = setTimeout(() => {
-            setIsTemporarilyDeactivated(false);
-          }, 1500);
-          return;
-        }
-        // Real unlock (user dragged/pinched, or Navigate button temp-unlock) — stay gray
-        // until the map is explicitly re-locked (REACTIVATE_FAB, REACTIVATE_PHASE_TWO_IF_AVAILABLE,
-        // or the self-healing isLocked effect below).
         setIsTemporarilyDeactivated(true);
         if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
         return;

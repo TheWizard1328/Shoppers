@@ -63,15 +63,11 @@ export default function MapSection({
     if ((isDispatcher || isAdmin) && !isDriver) { handleMapViewCycle?.(); return; }
     if (!immersiveHidden) {
       window.dispatchEvent(new CustomEvent('mapDoubleTapZoom', { detail: { delta: 0.5 } }));
-      // CRITICAL: For drivers, double-tap is a momentary zoom gesture — NOT a "free roam" intent.
-      // We do NOT call notifyUserMapInteraction() here because that would set mapUserUnlockedRef=true
-      // and permanently break the auto phase-follow until the driver explicitly taps the FAB.
-      // Instead: just publish the visual unlock signal so the FAB grays out briefly, but do NOT
-      // set mapUserUnlockedRef. The map will resume auto-follow on the next GPS tick naturally.
-      // CRITICAL: isVisualOnly=true tells the FAB this is NOT a real unlock — just a momentary
-      // zoom gesture. The FAB should auto-clear its gray-out after ~1.5s (or the next GPS tick
-      // re-fit, whichever comes first) instead of staying gray forever.
-      fabControlEvents.publish({ type: 'FAB_MAP_UNLOCKED_BY_USER_INTERACTION', isVisualOnly: true });
+      // Double-tap zoom is treated the same as a manual drag/pinch — it unlocks the FAB,
+      // sets free-pan mode (mapUserUnlockedRef=true), and stays unlocked until the driver
+      // explicitly taps the FAB to re-lock. This matches the user's expectation: any
+      // manual map interaction (drag, pinch, or double-tap zoom) enters free-pan mode.
+      fabControlEvents.notifyUserMapInteraction();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onImmersiveMapTap, isDispatcher, isAdmin, isDriver, handleMapViewCycle, immersiveHidden]);
