@@ -131,8 +131,8 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   if (isImmersiveModeOn) {
     topPadding = immersivePadding;
   } else if (isMobile) {
-    const mobileHeaderHeight = 0; //56; // fixed MobileHeader height
-    const legendBarHeight = 0; //36;    // collapsed driver legend bar below stats card
+    const mobileHeaderHeight = 56; // fixed MobileHeader height
+    const legendBarHeight = 36;    // collapsed driver legend bar below stats card
     const rawStatsHeight = statsCardHeight || statsCardBaseHeight || 75;
     // Full obstruction = mobile header + stats card + legend bar + breathing room
     const fullObstructionHeight = rawStatsHeight + paddingBuffer / 2 + mobileHeaderHeight + legendBarHeight;
