@@ -1551,6 +1551,30 @@ export default function SquareManagement() {
     return sigs;
   }, [allTransactions]);
 
+  // Resolve the Square catalog item linked to a delivery — by delivery_id first,
+  // then by amount + location + patient-name fallback.
+  const findLinkedCatalogItem = useCallback((delivery, resolvedLocationId = null) => {
+    if (!delivery) return null;
+    const direct = lookupIndexes.catalogByDeliveryId.get(delivery.id);
+    if (direct) return direct;
+    const deliveryAmountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
+    const patient = lookupIndexes.resolvePatient(delivery);
+    const patientName = patient?.full_name || '';
+    const store = lookupIndexes.storeById.get(delivery.store_id);
+    const formattedDeliveryName = formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patientName);
+    return (catalogItems || []).find((ci) => {
+      const ciAmountCents = Math.round(Number(ci?.price_dollars || ci?.amount || 0) * 100);
+      if (ciAmountCents !== deliveryAmountCents) return false;
+      if (ci?.location_id && resolvedLocationId && resolvedLocationId !== '--' && ci.location_id !== resolvedLocationId) return false;
+      const ciName = String(ci?.name || ci?.item_name || '');
+      if (!ciName) return false;
+      if (ciName === formattedDeliveryName) return true;
+      if (patientName && ciName.toLowerCase().includes(patientName.toLowerCase())) return true;
+      if (patientName && patientNamesMatch(patientName, ciName)) return true;
+      return false;
+    }) || null;
+  }, [lookupIndexes, catalogItems, formatItemNameForDisplay]);
+
   const reconciliationRows = useMemo(() => {
     const rows = (deliveries || []).
     filter((delivery) => {
@@ -1577,6 +1601,9 @@ export default function SquareManagement() {
 
       // Exclude deliveries with Debit/Credit payments — treated as manually collected (no Square needed)
       if (isManualCardOverride(delivery)) return false;
+
+      // Exclude deliveries that already have a catalog item in Square (present in the Catalog tab)
+      if (findLinkedCatalogItem(delivery, resolvedLocationId)) return false;
 
       // Exclude if directly matched by delivery_id in any transaction
       if (transactionMatchedDeliveryIds.has(delivery.id)) return false;
@@ -1625,25 +1652,7 @@ export default function SquareManagement() {
       const crossStoreStore = crossStoreConfig ? getStoreForConfig(crossStoreConfig) : null;
       const crossStoreName = crossStoreStore?.name || crossStoreConfig?.name || crossStoreTx?.location_id || null;
 
-      // Match catalog item by delivery_id first; fall back to amount + location + formatted name
-      const formattedDeliveryName = formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patient?.full_name);
-      const deliveryAmountCentsForCatalog = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
-      // O(1) lookup: try direct match by delivery_id first
-      let linkedCatalogItem = lookupIndexes.catalogByDeliveryId.get(delivery.id);
-      // Fallback: scan only if no direct match
-      if (!linkedCatalogItem) {
-        linkedCatalogItem = (catalogItems || []).find((ci) => {
-          const ciAmountCents = Math.round(Number(ci?.price_dollars || ci?.amount || 0) * 100);
-          if (ciAmountCents !== deliveryAmountCentsForCatalog) return false;
-          if (ci?.location_id && resolvedLocationId !== '--' && ci.location_id !== resolvedLocationId) return false;
-          const ciName = String(ci?.name || ci?.item_name || '');
-          if (!ciName) return false;
-          if (ciName === formattedDeliveryName) return true;
-          if (patientName && ciName.toLowerCase().includes(patientName.toLowerCase())) return true;
-          if (patientName && patientNamesMatch(patientName, ciName)) return true;
-          return false;
-        }) || null;
-      }
+      const linkedCatalogItem = findLinkedCatalogItem(delivery, resolvedLocationId);
       const catalogObjectId = linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || null;
 
       // Find any matching transaction (same-location or cross-store) for the Transaction ID column
@@ -1696,7 +1705,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, lookupIndexes, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, lookupIndexes, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId, findLinkedCatalogItem]);
 
   reconciliationRowsRef.current = reconciliationRows;
   filteredCatalogRowsRef.current = filteredCatalogRows;
