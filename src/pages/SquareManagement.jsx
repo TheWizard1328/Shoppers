@@ -533,10 +533,109 @@ export default function SquareManagement() {
   }, [appDataStores]);
 
   // Keep patients in sync without triggering the heavy lookup-data sync effect
+  // Merge (not replace) so the role-neutral patient loader below survives —
+  // appDataPatients is role-scoped (the dashboard fetches only the user's
+  // city's patients), but reconciliation matching uses fuzzy patient-name
+  // matching that requires the FULL list to behave identically for admins
+  // and drivers.
   useEffect(() => {
     const nextPatients = (appDataPatients || []).filter(Boolean);
-    if (nextPatients.length > 0) setPatients(nextPatients);
+    if (nextPatients.length > 0) {
+      setPatients((prev) => {
+        const map = new Map();
+        (prev || []).forEach((p) => { if (p?.id) map.set(p.id, p); });
+        nextPatients.forEach((p) => { if (p?.id) map.set(p.id, p); });
+        return Array.from(map.values());
+      });
+    }
   }, [appDataPatients]);
+
+  // ── Role-neutral patient loader ───────────────────────────────────────
+  // The Square sync (squareGetCodData2) is role-neutral at the backend (uses
+  // serviceRole), but the reconciliation matching on this page falls back to
+  // fuzzy patient-name + amount + location matching when a transaction has
+  // no direct delivery_id link yet. That fallback relies on the local
+  // `patients` state. Without this loader, drivers see only their city's
+  // patients → fallback silently fails → collected deliveries stay as
+  // "New Catalog Items" for drivers but get filtered out for admins who
+  // have the full patient list. Patient entity has empty RLS, so every
+  // authenticated user reads the full list — paginated here for safety.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const pageSize = 1000;
+        let skip = 0;
+        const all = [];
+        while (true) {
+          const page = await base44.entities.Patient.list('-updated_date', pageSize, skip);
+          if (!page?.length) break;
+          all.push(...page.filter(Boolean));
+          if (page.length < pageSize) break;
+          skip += pageSize;
+        }
+        if (mounted && all.length > 0) {
+          setPatients((prev) => {
+            const map = new Map();
+            (prev || []).forEach((p) => { if (p?.id) map.set(p.id, p); });
+            all.forEach((p) => { if (p?.id) map.set(p.id, p); });
+            return Array.from(map.values());
+          });
+        }
+      } catch (err) {
+        console.warn('[SquareManagement] Failed to load full patient list:', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // ── Role-neutral SquareTransaction loader ─────────────────────────────
+  // The Square COD sync (`squareGetCodData2`) returns matched transactions,
+  // but only the ones corresponding to live Square orders inside the lookback
+  // window — every other SquareTransaction record the company ever persisted
+  // (manually recorded, collected-cleanup marked, imported, etc.) is left
+  // out. The local IDB gets cleared-and-rewritten from that filtered slice,
+  // so drivers whose collected deliveries were collected outside that
+  // window never see the transaction that already matched them — those
+  // deliveries look unmatched and show up as bogus "New Catalog Items".
+  // Load EVERY SquareTransaction record directly (entity has empty RLS, so
+  // every authenticated user reads the same set) and merge it into the
+  // local state so transaction-driven reconciliation filters work
+  // identically for admins and drivers.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const pageSize = 1000;
+        let skip = 0;
+        const all = [];
+        while (true) {
+          const page = await base44.entities.SquareTransaction.list('-updated_date', pageSize, skip);
+          if (!page?.length) break;
+          all.push(...page.filter(Boolean));
+          if (page.length < pageSize) break;
+          skip += pageSize;
+        }
+        if (mounted && all.length > 0) {
+          setAllTransactions((prev) => {
+            const map = new Map();
+            (prev || []).forEach((t) => { if (t?.id) map.set(t.id, t); });
+            all.forEach((t) => { if (t?.id) map.set(t.id, t); });
+            return Array.from(map.values());
+          });
+          setSoldCatalogItems((prev) => {
+            const map = new Map();
+            (prev || []).forEach((t) => { if (t?.id) map.set(t.id, t); });
+            all.filter((t) => ['completed', 'refunded'].includes(t?.status)).forEach((t) => { if (t?.id) map.set(t.id, t); });
+            return Array.from(map.values());
+          });
+        }
+      } catch (err) {
+        console.warn('[SquareManagement] Failed to load full SquareTransaction list:', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Always sync lookup data whenever appData changes (no early-return guard on stores length)
   useEffect(() => {
@@ -1100,24 +1199,33 @@ export default function SquareManagement() {
     };
   }, [patients, stores, allTransactions, catalogItems, deliveries, locationConfigs]);
 
+  const selectedDriverUserIds = useMemo(() => {
+    if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+      const selectedDriver = drivers.find((driver) => driver?.id === selectedDriverFilter);
+      const result = new Set(selectedDriver?.user_id ? [selectedDriver.user_id] : []);
+      selectedDriverUserIdsRef.current = result;
+      return result;
+    }
+    const result = new Set((drivers || []).map((driver) => driver?.user_id).filter(Boolean));
+    selectedDriverUserIdsRef.current = result;
+    return result;
+  }, [drivers, selectedDriverFilter]);
+
   const filteredCatalogItems = useMemo(() => {
     if (!currentUser) return [];
-    const userIsAppOwner = isAppOwner(currentUser);
     let items = [];
-    if (userIsAppOwner) {
-      if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-        const driver = drivers.find((d) => d.id === selectedDriverFilter);
-        const driverLocationIds = driver?.square_location_ids || [];
-        const squareLocationIds = locationConfigs.filter((c) => driverLocationIds.includes(c.id)).map((c) => c.square_location_id);
-        items = catalogItems.filter((item) => squareLocationIds.includes(item.location_id));
+    if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+      // Filter by the driver assigned to the linked delivery (not by Square location)
+      if (selectedDriverUserIds.size === 0) {
+        items = [];
       } else {
-        items = catalogItems;
+        items = catalogItems.filter((item) => {
+          const linkedDelivery = item.delivery_id ? deliveries.find((d) => d?.id === item.delivery_id) : null;
+          return linkedDelivery?.driver_id && selectedDriverUserIds.has(linkedDelivery.driver_id);
+        });
       }
     } else {
-      const driverRecord = drivers.find((d) => d.user_id === currentUser.id);
-      const driverLocationIds = driverRecord?.square_location_ids || [];
-      const squareLocationIds = locationConfigs.filter((c) => driverLocationIds.includes(c.id)).map((c) => c.square_location_id);
-      items = catalogItems.filter((item) => squareLocationIds.includes(item.location_id));
+      items = catalogItems;
     }
 
     const { settledTxCatalogIds, settledTxDeliveryIds, deliveryById } = lookupIndexes;
@@ -1148,19 +1256,7 @@ export default function SquareManagement() {
       const bStoreName = bStore?.name || bConfig?.name || '';
       return aStoreName.localeCompare(bStoreName);
     });
-  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, lookupIndexes]);
-
-  const selectedDriverUserIds = useMemo(() => {
-    if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-      const selectedDriver = drivers.find((driver) => driver?.id === selectedDriverFilter);
-      const result = new Set(selectedDriver?.user_id ? [selectedDriver.user_id] : []);
-      selectedDriverUserIdsRef.current = result;
-      return result;
-    }
-    const result = new Set((drivers || []).map((driver) => driver?.user_id).filter(Boolean));
-    selectedDriverUserIdsRef.current = result;
-    return result;
-  }, [drivers, selectedDriverFilter]);
+  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, lookupIndexes, selectedDriverUserIds]);
 
   const lookbackStart = useMemo(() => {
     const date = new Date();
@@ -1224,18 +1320,6 @@ export default function SquareManagement() {
     map((lc) => lc?.square_location_id).
     filter(Boolean)
   ), [locationConfigs, visibleSquareLocationConfigIds]);
-
-  const driverScopedLocationIds = useMemo(() => {
-    if (currentUser && isAppOwner(currentUser)) {
-      if (!selectedDriverFilter || selectedDriverFilter === 'all') return null;
-      const selectedDriver = drivers.find((driver) => driver?.id === selectedDriverFilter);
-      const configIds = new Set((selectedDriver?.square_location_ids || []).filter(Boolean));
-      return new Set(locationConfigs.filter((config) => configIds.has(config?.id)).map((config) => config?.square_location_id).filter(Boolean));
-    }
-    const configIds = new Set((currentAppUser?.square_location_ids || []).filter(Boolean));
-    if (configIds.size === 0) return null;
-    return new Set(locationConfigs.filter((config) => configIds.has(config?.id)).map((config) => config?.square_location_id).filter(Boolean));
-  }, [currentUser, currentAppUser, drivers, selectedDriverFilter, locationConfigs]);
 
   // Resolve the driver color (same palette as dashboard) for a given driver_id or driver user_id
   const getDriverColorForId = useCallback((driverId) => {
@@ -1378,6 +1462,12 @@ export default function SquareManagement() {
         if (!matchedConfig?.id || !visibleSquareLocationConfigIds.has(matchedConfig.id)) return false;
       }
 
+      // Filter by the store the matched delivery is actually assigned to (not Square Location ID)
+      if (selectedStoreFilter && selectedStoreFilter !== 'all') {
+        const matchedDelivery = matchedDeliveryForFilter || findMatchingDeliveryForTransaction(transaction, transaction.store_id || null);
+        if (!matchedDelivery || matchedDelivery.store_id !== selectedStoreFilter) return false;
+      }
+
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
         if (selectedDriverUserIds.size === 0) return false;
         const matchedDriverId = transaction.driver_id || matchedDeliveryForFilter?.driver_id || null;
@@ -1461,23 +1551,28 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [allTransactions, lookbackStart, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction, visibleSquareLocationConfigIds, getDriverColorForId]);
+  }, [allTransactions, lookbackStart, visibleLocationIds, selectedStoreFilter, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction, visibleSquareLocationConfigIds, getDriverColorForId]);
 
   const filteredCatalogRows = useMemo(() => {
     const rows = (catalogItems || []).
     filter((item) => {
-      if (driverScopedLocationIds && item.location_id && !driverScopedLocationIds.has(item.location_id)) return false;
-      if (visibleLocationIds.size > 0 && item.location_id && !visibleLocationIds.has(item.location_id)) return false;
-      const store = stores.find((candidateStore) => candidateStore?.id === item.store_id) ||
-      getStoreForConfig(locationConfigs.find((c) => c?.square_location_id === item.location_id)) ||
-      null;
-      const storeConfig = getConfigForStore(store);
-      if (!storeConfig?.id || !visibleSquareLocationConfigIds.has(storeConfig.id)) return false;
-      // Exclude catalog items linked to pending or future-dated deliveries
+      // Resolve the linked delivery first so we can filter by the store it's actually assigned to
       const linkedDelivery = item.delivery_id ? deliveries.find((d) => d?.id === item.delivery_id) : null;
+      // Filter by the store the delivery is assigned to (not the Square Location ID)
+      if (selectedStoreFilter && selectedStoreFilter !== 'all') {
+        if (!linkedDelivery || linkedDelivery.store_id !== selectedStoreFilter) return false;
+      } else if (visibleStoreIds.size > 0 && linkedDelivery?.store_id && !visibleStoreIds.has(linkedDelivery.store_id)) {
+        return false;
+      }
       if (linkedDelivery?.status === 'pending') return false;
       // Exclude if the linked delivery was paid by Debit/Credit (manual override — no Square transaction needed)
       if (linkedDelivery && isManualCardOverride(linkedDelivery)) return false;
+      // Filter by the driver assigned to the linked delivery (not by Square location)
+      if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+        if (selectedDriverUserIds.size === 0) return false;
+        const deliveryDriverId = linkedDelivery?.driver_id || null;
+        if (!deliveryDriverId || !selectedDriverUserIds.has(deliveryDriverId)) return false;
+      }
       const itemDate = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
       if (itemDate && itemDate > todayDateString) return false;
       return true;
@@ -1559,7 +1654,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, lookupIndexes, getDriverColorForId]);
+  }, [catalogItems, locationConfigs, stores, visibleLocationIds, visibleStoreIds, selectedStoreFilter, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, lookupIndexes, getDriverColorForId, selectedDriverFilter, selectedDriverUserIds]);
 
   // Build a fast set of delivery IDs that are already matched in the Transactions tab
   const transactionMatchedDeliveryIds = useMemo(() => {
@@ -1586,6 +1681,30 @@ export default function SquareManagement() {
     return sigs;
   }, [allTransactions]);
 
+  // Resolve the Square catalog item linked to a delivery — by delivery_id first,
+  // then by amount + location + patient-name fallback.
+  const findLinkedCatalogItem = useCallback((delivery, resolvedLocationId = null) => {
+    if (!delivery) return null;
+    const direct = lookupIndexes.catalogByDeliveryId.get(delivery.id);
+    if (direct) return direct;
+    const deliveryAmountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
+    const patient = lookupIndexes.resolvePatient(delivery);
+    const patientName = patient?.full_name || '';
+    const store = lookupIndexes.storeById.get(delivery.store_id);
+    const formattedDeliveryName = formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patientName);
+    return (catalogItems || []).find((ci) => {
+      const ciAmountCents = Math.round(Number(ci?.price_dollars || ci?.amount || 0) * 100);
+      if (ciAmountCents !== deliveryAmountCents) return false;
+      if (ci?.location_id && resolvedLocationId && resolvedLocationId !== '--' && ci.location_id !== resolvedLocationId) return false;
+      const ciName = String(ci?.name || ci?.item_name || '');
+      if (!ciName) return false;
+      if (ciName === formattedDeliveryName) return true;
+      if (patientName && ciName.toLowerCase().includes(patientName.toLowerCase())) return true;
+      if (patientName && patientNamesMatch(patientName, ciName)) return true;
+      return false;
+    }) || null;
+  }, [lookupIndexes, catalogItems, formatItemNameForDisplay]);
+
   const reconciliationRows = useMemo(() => {
     const rows = (deliveries || []).
     filter((delivery) => {
@@ -1595,9 +1714,14 @@ export default function SquareManagement() {
       if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
       if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
 
-      const store = stores.find((candidateStore) => candidateStore?.id === delivery.store_id);
-      const storeConfig = getConfigForStore(store);
-      if (!storeConfig?.id || !visibleSquareLocationConfigIds.has(storeConfig.id)) return false;
+      // Filter by the store the delivery is actually assigned to (not Square Location ID)
+      const deliveryStore = stores.find((candidateStore) => candidateStore?.id === delivery.store_id);
+      const storeConfig = getConfigForStore(deliveryStore);
+      if (selectedStoreFilter && selectedStoreFilter !== 'all') {
+        if (delivery.store_id !== selectedStoreFilter) return false;
+      } else {
+        if (!storeConfig?.id || !visibleSquareLocationConfigIds.has(storeConfig.id)) return false;
+      }
 
       const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
       if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
@@ -1612,6 +1736,9 @@ export default function SquareManagement() {
 
       // Exclude deliveries with Debit/Credit payments — treated as manually collected (no Square needed)
       if (isManualCardOverride(delivery)) return false;
+
+      // Exclude deliveries that already have a catalog item in Square (present in the Catalog tab)
+      if (findLinkedCatalogItem(delivery, resolvedLocationId)) return false;
 
       // Exclude if directly matched by delivery_id in any transaction
       if (transactionMatchedDeliveryIds.has(delivery.id)) return false;
@@ -1660,25 +1787,7 @@ export default function SquareManagement() {
       const crossStoreStore = crossStoreConfig ? getStoreForConfig(crossStoreConfig) : null;
       const crossStoreName = crossStoreStore?.name || crossStoreConfig?.name || crossStoreTx?.location_id || null;
 
-      // Match catalog item by delivery_id first; fall back to amount + location + formatted name
-      const formattedDeliveryName = formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patient?.full_name);
-      const deliveryAmountCentsForCatalog = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
-      // O(1) lookup: try direct match by delivery_id first
-      let linkedCatalogItem = lookupIndexes.catalogByDeliveryId.get(delivery.id);
-      // Fallback: scan only if no direct match
-      if (!linkedCatalogItem) {
-        linkedCatalogItem = (catalogItems || []).find((ci) => {
-          const ciAmountCents = Math.round(Number(ci?.price_dollars || ci?.amount || 0) * 100);
-          if (ciAmountCents !== deliveryAmountCentsForCatalog) return false;
-          if (ci?.location_id && resolvedLocationId !== '--' && ci.location_id !== resolvedLocationId) return false;
-          const ciName = String(ci?.name || ci?.item_name || '');
-          if (!ciName) return false;
-          if (ciName === formattedDeliveryName) return true;
-          if (patientName && ciName.toLowerCase().includes(patientName.toLowerCase())) return true;
-          if (patientName && patientNamesMatch(patientName, ciName)) return true;
-          return false;
-        }) || null;
-      }
+      const linkedCatalogItem = findLinkedCatalogItem(delivery, resolvedLocationId);
       const catalogObjectId = linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || null;
 
       // Find any matching transaction (same-location or cross-store) for the Transaction ID column
@@ -1731,7 +1840,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, lookupIndexes, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, selectedStoreFilter, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, lookupIndexes, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId, findLinkedCatalogItem]);
 
   reconciliationRowsRef.current = reconciliationRows;
   filteredCatalogRowsRef.current = filteredCatalogRows;
@@ -1878,7 +1987,7 @@ export default function SquareManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              {currentUser && isAppOwner(currentUser) &&
+              {currentUser && !isDriverView &&
               <div className="flex-1 min-w-0">
                 <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
                   <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
@@ -1932,7 +2041,7 @@ export default function SquareManagement() {
           </div>
 
           {/* R2-C1: 4 stat cards (catalog view only) */}
-          {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && (() => {
+          {activeView === 'catalog' && currentUser && (() => {
             const catalogDeliveryIdsForStats = new Set(filteredCatalogRows.map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
             const newCatalogItems = reconciliationRows.filter((r) => {
               if (r.catalogId && r.catalogId !== '--') return false;
@@ -2009,7 +2118,7 @@ export default function SquareManagement() {
           })()}
 
           {/* R2-C2: Store location cards (catalog view only) */}
-          {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
+          {activeView === 'catalog' && currentUser && locationConfigs.length > 0 &&
           <div className="flex-1 min-w-0 self-start">
             <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -2218,15 +2327,15 @@ export default function SquareManagement() {
               return !catalogDeliveryIds.has(deliveryId); // exclude if already in catalog tab
             });
           })()}
-          headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
+          headerActions={(!isDriverView && currentUser) ? (
           <Button
             onClick={updateCatalog}
             disabled={isLoading || isUpdatingCatalog || isSyncing}
             className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
               <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
-            </Button> :
-          undefined} />
+            </Button>
+          ) : undefined} />
 
         }
 

@@ -391,6 +391,12 @@ async function handleGetCodData(base44, payload={}) {
   console.log('[squareGetCodData2] Transaction records built (DB writes skipped), elapsed:', Date.now() - t0);
 
   // ── 4) Build catalog records from live Square catalog ───────────────
+  // Role-neutral: link catalog items to deliveries by name+amount+location
+  // even when no Square transaction has been recorded yet. Without this, the
+  // catalog item's delivery_id stays null, and the frontend's reconciliation
+  // fallback falls back to fuzzy patient-name matching against the locally
+  // scoped patients state — admins see all patients, drivers see their
+  // city's subset, so the same catalog item links for admin but not driver.
   const catalogRecords = (liveCatalogItems || []).reduce((acc, item) => {
     const ac = getCatalogItemAmountCents(item);
     const itemName = item?.item_data?.name || '';
@@ -403,7 +409,23 @@ async function handleGetCodData(base44, payload={}) {
     );
     const rl = mt?.location_id && lids.includes(mt.location_id) ? mt.location_id : lids.find((l) => storesByLocationId.has(l)) || lids[0];
     const store = resolveStoreForItem(itemName, rl, storesByLocationId);
-    acc.push({ id: item?.id, square_catalog_object_id: item?.id, square_catalog_version: item?.version || null, item_name: itemName, description: item?.item_data?.description || '', amount: ac / 100, amount_cents: ac, delivery_id: mt?.delivery_id || null, delivery_date: toIsoDate(itemName), patient_id: mt?.patient_id || null, store_id: mt?.store_id || store?.id || null, location_id: rl, status: 'active' });
+    let deliveryId = mt?.delivery_id || null;
+    let patientId = mt?.patient_id || null;
+    let storeId = mt?.store_id || null;
+    if (!deliveryId) {
+      // No matching transaction yet — try matching the catalog item to a
+      // delivery by name + amount + location. Reads only service-role data
+      // that is already loaded, so the result is identical for every user
+      // regardless of role-scoped offline caches.
+      const matchedDelivery = matchDeliveryForItem({ item_name: itemName, note: '', amount_cents: ac, location_id: rl, payment_date: null, order_created_at: null }, store);
+      if (matchedDelivery) {
+        deliveryId = matchedDelivery.id;
+        const matchedPatient = patientsById.get(matchedDelivery.patient_id);
+        patientId = matchedPatient?.id || matchedDelivery.patient_id || null;
+        storeId = matchedDelivery.store_id || null;
+      }
+    }
+    acc.push({ id: item?.id, square_catalog_object_id: item?.id, square_catalog_version: item?.version || null, item_name: itemName, description: item?.item_data?.description || '', amount: ac / 100, amount_cents: ac, delivery_id: deliveryId, delivery_date: toIsoDate(itemName), patient_id: patientId, store_id: storeId || store?.id || null, location_id: rl, status: 'active' });
     return acc;
   }, []);
 
