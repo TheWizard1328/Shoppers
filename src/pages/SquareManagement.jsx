@@ -1853,7 +1853,7 @@ export default function SquareManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              {currentUser && isAppOwner(currentUser) &&
+              {currentUser &&
               <div className="flex-1 min-w-0">
                 <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
                   <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
@@ -1907,7 +1907,7 @@ export default function SquareManagement() {
           </div>
 
           {/* R2-C1: 4 stat cards (catalog view only) */}
-          {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && (() => {
+          {activeView === 'catalog' && currentUser && (() => {
             const catalogDeliveryIdsForStats = new Set(filteredCatalogRows.map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
             const newCatalogItems = reconciliationRows.filter((r) => {
               if (r.catalogId && r.catalogId !== '--') return false;
@@ -1984,7 +1984,7 @@ export default function SquareManagement() {
           })()}
 
           {/* R2-C2: Store location cards (catalog view only) */}
-          {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
+          {activeView === 'catalog' && currentUser && locationConfigs.length > 0 &&
           <div className="flex-1 min-w-0 self-start">
             <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -2193,15 +2193,15 @@ export default function SquareManagement() {
               return !catalogDeliveryIds.has(deliveryId); // exclude if already in catalog tab
             });
           })()}
-          headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
+          headerActions={(!isDriverView && currentUser) ? (
           <Button
             onClick={updateCatalog}
             disabled={isLoading || isUpdatingCatalog || isSyncing}
             className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
               <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
-            </Button> :
-          undefined} />
+            </Button>
+          ) : undefined} />
 
         }
 
