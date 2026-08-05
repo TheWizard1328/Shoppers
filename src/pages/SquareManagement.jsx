@@ -1065,6 +1065,18 @@ export default function SquareManagement() {
     };
   }, [patients, stores, allTransactions, catalogItems, deliveries, locationConfigs]);
 
+  const selectedDriverUserIds = useMemo(() => {
+    if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+      const selectedDriver = drivers.find((driver) => driver?.id === selectedDriverFilter);
+      const result = new Set(selectedDriver?.user_id ? [selectedDriver.user_id] : []);
+      selectedDriverUserIdsRef.current = result;
+      return result;
+    }
+    const result = new Set((drivers || []).map((driver) => driver?.user_id).filter(Boolean));
+    selectedDriverUserIdsRef.current = result;
+    return result;
+  }, [drivers, selectedDriverFilter]);
+
   const filteredCatalogItems = useMemo(() => {
     if (!currentUser) return [];
     let items = [];
@@ -1111,18 +1123,6 @@ export default function SquareManagement() {
       return aStoreName.localeCompare(bStoreName);
     });
   }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, lookupIndexes, selectedDriverUserIds]);
-
-  const selectedDriverUserIds = useMemo(() => {
-    if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-      const selectedDriver = drivers.find((driver) => driver?.id === selectedDriverFilter);
-      const result = new Set(selectedDriver?.user_id ? [selectedDriver.user_id] : []);
-      selectedDriverUserIdsRef.current = result;
-      return result;
-    }
-    const result = new Set((drivers || []).map((driver) => driver?.user_id).filter(Boolean));
-    selectedDriverUserIdsRef.current = result;
-    return result;
-  }, [drivers, selectedDriverFilter]);
 
   const lookbackStart = useMemo(() => {
     const date = new Date();
