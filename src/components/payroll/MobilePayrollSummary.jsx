@@ -21,12 +21,12 @@ export default function MobilePayrollSummary({ periodLabel, totalNetPay, totalDe
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">Net Pay</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-tight">Net Pay</div>
             <div className="text-base font-semibold leading-tight">{money}</div>
           </div>
           <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
           <div className="text-right">
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">Deliveries</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-tight">Deliveries</div>
             <div className="text-base font-semibold leading-tight">{deliveries}</div>
           </div>
         </div>

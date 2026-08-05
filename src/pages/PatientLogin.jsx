@@ -120,24 +120,24 @@ export default function PatientLogin() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-900 mb-4">
             <HeartPulse className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Patient Portal</h1>
-          <p className="text-slate-500 mt-1 text-sm">Track your pharmacy deliveries</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Patient Portal</h1>
+          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 text-sm">Track your pharmacy deliveries</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
 
           {/* ── Main login form ── */}
           <>
-              <h2 className="text-lg font-semibold text-slate-800 mb-1">Sign in to your portal</h2>
-              <p className="text-sm text-slate-500 mb-6">Enter your phone number to get started.</p>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1">Sign in to your portal</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-6">Enter your phone number to get started.</p>
 
               {success && (
-                <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex items-center gap-2">
+                <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 text-green-700 text-sm flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 shrink-0" />
                   Verified! Loading your portal...
                 </div>
               )}
-              {error && <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
+              {error && <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 text-red-700 text-sm">{error}</div>}
 
               <form onSubmit={handleSubmit} className="space-y-4">
 
@@ -145,11 +145,11 @@ export default function PatientLogin() {
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
                     <Input id="phone" type="tel" placeholder="e.g. 780-555-1234" value={phone}
                       onChange={(e) => setPhone(e.target.value)} className="pl-10 h-12" required autoFocus />
                     {lookingUp && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 animate-spin" />
                     )}
                   </div>
                 </div>
@@ -173,14 +173,14 @@ export default function PatientLogin() {
                           <option key={m.id} value={m.id}>{m.full_name}</option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 pointer-events-none" />
                     </div>
                   </div>
                 )}
 
                 {/* Single match — show selected name as read-only confirmation */}
                 {phoneMatches.length === 1 && selectedPatient && (
-                  <div className="px-4 py-3 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700 flex items-center gap-2">
+                  <div className="px-4 py-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
                     Found: <span className="font-semibold">{selectedPatient.full_name}</span>
                   </div>
@@ -188,20 +188,20 @@ export default function PatientLogin() {
 
                 {/* 3) Email — replaces "Full Name"; disabled until phone valid + patient selected */}
                 <div className="space-y-2">
-                  <Label htmlFor="email" className={!emailEnabled ? 'text-slate-400' : ''}>
+                  <Label htmlFor="email" className={!emailEnabled ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' : ''}>
                     Email Address
                     {!emailEnabled && <span className="ml-1 text-xs font-normal">(enter phone first)</span>}
                     {emailEnabled && !selectedPatient?.has_email && <span className="ml-1 text-xs font-normal text-blue-600">(you'll set this on first login)</span>}
                   </Label>
                   <div className="relative">
-                    <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${emailEnabled ? 'text-slate-400' : 'text-slate-300'}`} />
+                    <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${emailEnabled ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' : 'text-slate-300'}`} />
                     <Input
                       id="email"
                       type="email"
                       placeholder={emailEnabled ? 'you@example.com' : 'Enter phone number first'}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className={`pl-10 h-12 ${!emailEnabled ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : ''}`}
+                      className={`pl-10 h-12 ${!emailEnabled ? 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400 cursor-not-allowed' : ''}`}
                       disabled={!emailEnabled}
                       required={emailEnabled && selectedPatient?.has_email}
                     />
@@ -218,14 +218,14 @@ export default function PatientLogin() {
               </form>
           </>
 
-          <p className="mt-6 text-center text-xs text-slate-400">
+          <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
             Having trouble? Contact your pharmacy for assistance.
           </p>
         </div>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
+        <p className="text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-6">
           Staff?{' '}
-          <a href="/login" className="text-slate-600 hover:underline font-medium">Staff Login →</a>
+          <a href="/login" className="text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:underline font-medium">Staff Login →</a>
         </p>
       </div>
       <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />

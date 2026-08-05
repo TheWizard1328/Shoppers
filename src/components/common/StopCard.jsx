@@ -862,7 +862,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           <div className="flex items-start">
             {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) &&
             <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
-                <GripVertical className="w-5 h-5 text-slate-400 hover:text-slate-600" />
+                <GripVertical className="w-5 h-5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" />
               </div>
             }
             <StopCardHeader

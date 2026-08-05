@@ -1388,7 +1388,7 @@ function DeliveryMap({
             <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
               <div className="min-w-[150px]">
                 <div className="font-semibold text-xs">Your Location</div>
-                {currentDriverMarker.timestamp && <div className="text-[11px] text-gray-600">Updated: {format(new Date(currentDriverMarker.timestamp), "HH:mm:ss")}</div>}
+                {currentDriverMarker.timestamp && <div className="text-[11px] text-gray-600 dark:text-slate-400 dark:text-slate-500">Updated: {format(new Date(currentDriverMarker.timestamp), "HH:mm:ss")}</div>}
               </div>
             </Popup>
           </Marker>

@@ -6,7 +6,7 @@ function ProjectedDeliveryList({ deliveries, stopOrderMap }) {
     <div className="mt-3">
       <div className="max-h-48 overflow-y-auto border rounded-lg">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-sm z-10">
+          <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800/80 backdrop-blur-sm z-10">
             <tr>
               <th className="text-left font-medium p-2 w-10">#</th>
               <th className="text-left font-medium p-2">TR#</th>
@@ -14,7 +14,7 @@ function ProjectedDeliveryList({ deliveries, stopOrderMap }) {
               <th className="text-right font-medium p-2">Dist</th>
             </tr>
           </thead>
-          <tbody className="bg-white">
+          <tbody className="bg-white dark:bg-slate-900">
             {deliveries.map((delivery) => {
               const stopNumber = stopOrderMap[delivery.id];
               const trackingNumber = delivery.tracking_number || "";
@@ -40,7 +40,7 @@ export function ProjectedPickupCard({ pickup, stopOrder, stopOrderMap }) {
 
   return (
     <div className="w-80 flex-shrink-0">
-      <div className="w-full overflow-hidden shadow-lg border border-slate-200 rounded-lg bg-white">
+      <div className="w-full overflow-hidden shadow-lg border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900">
         <div className="p-4 flex flex-col gap-2">
           <div className="flex items-start gap-3">
             <div
@@ -51,10 +51,10 @@ export function ProjectedPickupCard({ pickup, stopOrder, stopOrderMap }) {
             </div>
             <div className="flex-grow min-w-0">
               <div className="flex justify-between items-start">
-                <h3 className="font-bold text-slate-800 text-sm truncate">{pickup.full_name}</h3>
+                <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{pickup.full_name}</h3>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 border border-yellow-200">PROJECTED</span>
               </div>
-              <div className="text-xs text-slate-600 mt-1 space-y-0.5">
+              <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1 space-y-0.5">
                 <p>ETA: {pickup.delivery_time_start}</p>
                 <p className="truncate">{pickup.delivery_address}</p>
                 {pickup.phone && <p>{formatPhoneNumber(pickup.phone)}</p>}

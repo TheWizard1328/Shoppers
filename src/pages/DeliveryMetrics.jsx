@@ -1156,7 +1156,7 @@ export default function DeliveryMetrics() {
                         return (
                           <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-6 mt-2 text-xs">
                             <div className="flex flex-col items-center gap-1">
-                              <span className="font-semibold text-slate-600">Current:</span>
+                              <span className="font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Current:</span>
                               <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
                                 {currentItems.map((item, index) => (
                                   <span key={index} className="flex items-center gap-1">
@@ -1168,7 +1168,7 @@ export default function DeliveryMetrics() {
                             </div>
                             {prevItems.length > 0 && (
                               <div className="flex flex-col items-center gap-1">
-                                <span className="font-semibold text-slate-400">Previous:</span>
+                                <span className="font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400">Previous:</span>
                                 <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
                                   {prevItems.map((item, index) => (
                                     <span key={index} className="flex items-center gap-1">

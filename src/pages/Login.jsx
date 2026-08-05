@@ -102,7 +102,7 @@ export default function Login() {
       </div>
 
       {success && (
-        <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex items-center gap-2">
+        <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 text-green-700 text-sm flex items-center gap-2">
           <CheckCircle className="w-4 h-4 shrink-0" />
           Login successful! Redirecting you to the RxDeliver Dashboard...
         </div>

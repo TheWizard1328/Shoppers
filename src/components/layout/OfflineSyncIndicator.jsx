@@ -216,7 +216,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
     if (isSyncing) return 'text-blue-500';
     if (syncStatus.status === 'error') return 'text-red-500';
     if (syncStatus.status === 'synced' || syncStatus.status === 'complete') return 'text-green-500';
-    return 'text-slate-500';
+    return 'text-slate-500 dark:text-slate-400 dark:text-slate-500';
   };
 
   const getStatusTooltip = () => {
@@ -299,7 +299,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
       <button
         ref={triggerRef}
         onClick={handleToggle}
-        className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50">
+        className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">
         <div className="flex items-center gap-2">
           {getStatusIcon()}
           <div>
@@ -317,7 +317,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
             </div>
           </div>
         </div>
-        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />}
       </button>
 
       <AnimatePresence>
@@ -426,7 +426,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                   }
 
                   {stats.pendingMutations > 0 &&
-                    <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
+                    <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200">
                       <span className="text-amber-700 font-medium">Pending sync:</span>
                       <span className="font-bold text-amber-900">{stats.pendingMutations}</span>
                     </div>
@@ -434,7 +434,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                 </div>
 
                 {isSyncing &&
-                  <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
+                  <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 dark:bg-blue-950 border border-blue-200">
                     <div className="flex justify-between text-blue-700">
                       <span className="font-medium">
                         {getEntityIcon(syncStatus.entity)} {syncStatus.entity || 'Loading'}

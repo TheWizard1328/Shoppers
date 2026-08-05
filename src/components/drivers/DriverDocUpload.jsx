@@ -157,7 +157,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Shield className="w-5 h-5 text-blue-600" />
-          <h3 className="font-semibold text-slate-900">
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100">
             {isOwnProfile ? 'My Documents' : `Documents — ${driver?.full_name || 'Driver'}`}
           </h3>
         </div>
@@ -170,7 +170,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
 
       {/* Upload section — drivers can upload their own, admins can upload for anyone */}
       {canUpload && (
-        <Card className="border-dashed border-2 border-slate-300">
+        <Card className="border-dashed border-2 border-slate-300 dark:border-slate-600">
           <CardContent className="p-4 space-y-3">
             <div className="flex flex-wrap gap-2">
               {DOC_TYPES.map((type) => (
@@ -180,7 +180,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     selectedType === type.value
                       ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-200'
                   }`}
                 >
                   {type.label}
@@ -189,12 +189,12 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
             </div>
 
             <div>
-              <label className="text-xs text-slate-500 font-medium">Document Expiry Date (optional)</label>
+              <label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">Document Expiry Date (optional)</label>
               <input
                 type="date"
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm"
               />
             </div>
 
@@ -248,7 +248,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
 
       {/* Error / Success messages */}
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg p-3">
+        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 rounded-lg p-3">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>
@@ -262,9 +262,9 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
 
       {/* Document list */}
       {loading ? (
-        <div className="text-center py-4 text-sm text-slate-500">Loading documents...</div>
+        <div className="text-center py-4 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Loading documents...</div>
       ) : documents.length === 0 ? (
-        <div className="text-center py-8 text-sm text-slate-500">
+        <div className="text-center py-8 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
           No documents uploaded yet.
         </div>
       ) : (
@@ -272,15 +272,15 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
           {documents.map((doc) => (
             <Card key={doc.id} className="hover:shadow-sm transition-shadow">
               <CardContent className="p-3 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950 flex items-center justify-center flex-shrink-0">
                   <FileText className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm text-slate-900 capitalize">
+                  <p className="font-medium text-sm text-slate-900 dark:text-slate-100 capitalize">
                     {doc.document_type?.replace(/_/g, ' ')}
                   </p>
                   <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                       {new Date(doc.uploaded_at || doc.created_date).toLocaleDateString()}
                     </span>
                     {doc.document_expiry_date && (
@@ -289,7 +289,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
                       </Badge>
                     )}
                     {doc.uploaded_by_name && (
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
                         by {doc.uploaded_by_name}
                       </span>
                     )}
@@ -300,7 +300,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
                     onClick={() => handleDelete(doc.id)}
                     variant="ghost"
                     size="sm"
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -312,7 +312,7 @@ export default function DriverDocUpload({ driver, currentUser, onUploaded, onClo
       )}
 
       {!canUpload && (
-        <p className="text-xs text-slate-400 text-center">
+        <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 text-center">
           Only the driver or an admin can upload documents.
         </p>
       )}

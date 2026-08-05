@@ -167,7 +167,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
         const arrowClasses = 'border-t border-r';
         return (
           <div
-            className="absolute bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 p-4 opacity-100"
+            className="absolute bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-4 opacity-100"
             style={{ top, left, width: bubbleWidth, zIndex: 3 }}
           >
             <div className="text-sm font-medium">Add deliveries here</div>
@@ -176,7 +176,7 @@ export default function SpotlightOverlay({ targetRef, text, visible, onClose, du
             </p>
             {/* Arrow pointing to target */}
             <div
-              className={`absolute w-3 h-3 bg-white rotate-45 ${arrowClasses}`}
+              className={`absolute w-3 h-3 bg-white dark:bg-slate-900 rotate-45 ${arrowClasses}`}
               style={{
                 top: arrowTop,
                 right: arrowRight,

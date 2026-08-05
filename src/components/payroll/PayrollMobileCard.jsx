@@ -116,14 +116,14 @@ export default function PayrollMobileCard({
   const eTransEmail = driverAppUser?.ETrans_Email || data.driver?.ETrans_Email || null;
 
   return (
-    <div className="bg-white px-2 rounded-lg space-y-3 dark:bg-slate-800/50 w-full max-w-full overflow-hidden">
+    <div className="bg-white dark:bg-slate-900 px-2 rounded-lg space-y-3 dark:bg-slate-800/50 w-full max-w-full overflow-hidden">
       {/* Driver Name Header */}
       <div className="flex items-center justify-between">
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
             {data.driver.user_name || data.driver.full_name}
             {eTransEmail &&
-              <span className="text-xs font-normal text-slate-500 ml-1">(E-Trans: {eTransEmail})</span>
+              <span className="text-xs font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500 ml-1">(E-Trans: {eTransEmail})</span>
             }
             {showBadge &&
             <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500"
@@ -337,7 +337,7 @@ export default function PayrollMobileCard({
                       setPayrollRecord((prev) => prev ? { ...prev, paid_amount: nextPaidAmount } : prev);
                     }
                   }}
-                  className="h-7 w-full min-w-0 rounded border border-slate-300 bg-white px-1 text-right font-semibold text-slate-900"
+                  className="h-7 w-full min-w-0 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-1 text-right font-semibold text-slate-900 dark:text-slate-100"
                 />
               ) : (
                 paidAmountValue.toFixed(2)
@@ -360,7 +360,7 @@ export default function PayrollMobileCard({
                 className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
                 placeholder={payrollRecordId ? "Private notes (admins only)" : "Notes unavailable (no record yet)"} />
               
-                {isSavingAdmin && <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Saving...</div>}
+                {isSavingAdmin && <div className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Saving...</div>}
               </div>
             }
             <div>
@@ -373,7 +373,7 @@ export default function PayrollMobileCard({
                 className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
                 placeholder={payrollRecordId ? "Visible to driver + admins" : "Notes unavailable (no record yet)"} />
               
-              {isSavingDriver && <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Saving...</div>}
+              {isSavingDriver && <div className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Saving...</div>}
             </div>
           </div>
         </div>

@@ -64,7 +64,7 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
             <AlertTriangle className="w-5 h-5 text-orange-500" />
             Data Conflict Detected
             {conflicts.length > 1 && (
-              <span className="text-sm font-normal text-slate-500">
+              <span className="text-sm font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 ({currentIndex + 1} of {conflicts.length})
               </span>
             )}
@@ -72,19 +72,19 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
         </DialogHeader>
         
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
             This record was modified both offline and online. Choose which version to keep:
           </p>
           
           <div className="grid grid-cols-2 gap-4">
             {/* Your Changes (Client) */}
-            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/50">
+            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50 dark:bg-blue-950/50">
               <div className="flex items-center gap-2 mb-3">
                 <Smartphone className="w-4 h-4 text-blue-600" />
                 <h3 className="font-semibold text-blue-900">Your Changes</h3>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-slate-600">
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                   <Clock className="w-3 h-3" />
                   <span>{conflict.timestamp ? format(new Date(conflict.timestamp), 'MMM dd, HH:mm:ss') : format(new Date(conflict.action?.timestamp), 'MMM dd, HH:mm:ss')}</span>
                 </div>
@@ -98,7 +98,7 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
                 <h3 className="font-semibold text-emerald-900">Server Version</h3>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-slate-600">
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                   <Clock className="w-3 h-3" />
                   <span>
                     {conflict.serverData?.updated_date 
@@ -112,22 +112,22 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
           
           {/* Changed Fields Comparison */}
           {changedFields.length > 0 && (
-            <div className="border border-slate-200 rounded-lg p-4 bg-white">
-              <h4 className="font-semibold text-slate-900 mb-3">Changed Fields:</h4>
+            <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-900">
+              <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">Changed Fields:</h4>
               <div className="space-y-3">
                 {changedFields.map((change, idx) => (
                   <div key={idx} className="border-b border-slate-100 last:border-0 pb-2 last:pb-0">
-                    <div className="font-medium text-sm text-slate-700 mb-1">
+                    <div className="font-medium text-sm text-slate-700 dark:text-slate-300 mb-1">
                       {change.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-blue-50 rounded px-2 py-1">
+                      <div className="bg-blue-50 dark:bg-blue-950 rounded px-2 py-1">
                         <div className="text-blue-600 font-medium mb-0.5">Your Value:</div>
-                        <div className="text-slate-700 break-words">{formatValue(change.clientValue)}</div>
+                        <div className="text-slate-700 dark:text-slate-300 break-words">{formatValue(change.clientValue)}</div>
                       </div>
                       <div className="bg-emerald-50 rounded px-2 py-1">
                         <div className="text-emerald-600 font-medium mb-0.5">Server Value:</div>
-                        <div className="text-slate-700 break-words">{formatValue(change.serverValue)}</div>
+                        <div className="text-slate-700 dark:text-slate-300 break-words">{formatValue(change.serverValue)}</div>
                       </div>
                     </div>
                   </div>

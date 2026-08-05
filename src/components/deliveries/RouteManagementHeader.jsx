@@ -141,21 +141,21 @@ export default function RouteManagementHeader({
       </div>
       <div className="flex items-center gap-3">
         <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input placeholder="Search patient, address, Rx details, tracking..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="pl-10 w-full bg-slate-100 border-slate-300" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+          <Input placeholder="Search patient, address, Rx details, tracking..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="pl-10 w-full bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" />
         </div>
         <Select value={driverFilter} onValueChange={handleDriverChange} disabled={(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin'))}>
-          <SelectTrigger className={`w-[140px] bg-white border-slate-300 ${(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) ? 'opacity-60 cursor-not-allowed' : ''}`}><SelectValue placeholder="Select driver" /></SelectTrigger>
+          <SelectTrigger className={`w-[140px] bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 ${(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) ? 'opacity-60 cursor-not-allowed' : ''}`}><SelectValue placeholder="Select driver" /></SelectTrigger>
           <SelectContent><SelectItem value="all">All Drivers</SelectItem>{driverFilterOptions.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.label}</SelectItem>)}</SelectContent>
         </Select>
         {!userHasRole(currentUser, 'dispatcher') &&
         <Select value={storeFilter} onValueChange={handleStoreChange}>
-            <SelectTrigger className="w-[160px] bg-white border-slate-300 text-slate-900 font-medium"><SelectValue placeholder="Store" /></SelectTrigger>
+            <SelectTrigger className="w-[160px] bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-medium"><SelectValue placeholder="Store" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All Stores</SelectItem>{routeScopedStoreOptions.map((store) => <SelectItem key={store.id} value={store.id}>{store.label}</SelectItem>)}</SelectContent>
           </Select>
         }
         <Select value={statusFilter} onValueChange={handleStatusChange}>
-          <SelectTrigger className="w-36 bg-white border-slate-300 text-slate-900 font-medium"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="w-36 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-medium"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent><SelectItem value="all">All Status</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem><SelectItem value="picked_up">Picked Up</SelectItem><SelectItem value="in_transit">In Transit</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="failed">Failed</SelectItem><SelectItem value="returned">Returned</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent>
         </Select>
       </div>

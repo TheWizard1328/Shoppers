@@ -7,7 +7,7 @@ export const getStatusBadge = (status) => {
     pending: { color: 'bg-amber-100 text-amber-800', icon: Clock },
     completed: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
     failed: { color: 'bg-red-100 text-red-800', icon: XCircle },
-    cancelled: { color: 'bg-slate-100 text-slate-800', icon: XCircle },
+    cancelled: { color: 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200', icon: XCircle },
     refunded: { color: 'bg-purple-100 text-purple-800', icon: RefreshCw }
   };
   const cfg = config[status] || config.pending;
@@ -26,7 +26,7 @@ export const getTypeBadge = (type) => {
     collection: 'bg-emerald-100 text-emerald-800',
     refund: 'bg-purple-100 text-purple-800'
   };
-  return <Badge className={config[type] || 'bg-slate-100'}>{type}</Badge>;
+  return <Badge className={config[type] || 'bg-slate-100 dark:bg-slate-800'}>{type}</Badge>;
 };
 
 export const getPaymentMethodBadge = (method) => {
@@ -37,7 +37,7 @@ export const getPaymentMethodBadge = (method) => {
   
   // Parse card type from credit card methods (e.g., "credit_visa", "credit_mastercard")
   let displayMethod = normalizedMethod;
-  let className = 'bg-slate-100 text-slate-800';
+  let className = 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200';
   
   if (normalizedMethod.startsWith('cash')) {
     displayMethod = 'Cash';

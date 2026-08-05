@@ -31,15 +31,15 @@ export default function BarcodeOverlay({ value, onClose, isRx = false }) {
       aria-label="Barcode preview"
     >
       <div className="max-w-[95vw] w-full sm:max-w-2xl">
-        <div className="rounded-xl border p-4 bg-white">
+        <div className="rounded-xl border p-4 bg-white dark:bg-slate-900">
           <div className="flex flex-col items-center gap-3 select-none">
             <svg ref={svgRef} className="w-full h-[200px]" aria-hidden="true" />
             {isRx ? (
-              <p className="text-sm font-mono font-semibold text-slate-800">{barcodeValue}</p>
+              <p className="text-sm font-mono font-semibold text-slate-800 dark:text-slate-200">{barcodeValue}</p>
             ) : (
-              <p className="text-xs text-slate-700 break-all">{value}</p>
+              <p className="text-xs text-slate-700 dark:text-slate-300 break-all">{value}</p>
             )}
-            <p className="text-[11px] text-slate-500">Tap anywhere to close</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">Tap anywhere to close</p>
           </div>
         </div>
       </div>

@@ -122,7 +122,7 @@ export default function DeliveryFormStaged({
           return (
             <div
               key={staged._tempId}
-              className={`flex p-2 rounded border-2 border-emerald-300 text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`}
+              className={`flex p-2 rounded border-2 border-emerald-300 text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}
               style={{
                 backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
               }}
@@ -234,7 +234,7 @@ export default function DeliveryFormStaged({
           return (
             <div
               key={staged._tempId}
-              className={`flex p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`}
+              className={`flex p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}
               style={{
                 backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
               }}
@@ -368,7 +368,7 @@ export default function DeliveryFormStaged({
 
             <div className="flex-1 min-w-0 flex flex-col gap-[1px] leading-none">
               <div className="flex items-center gap-1.5 min-h-0">
-                <span className="font-medium truncate flex-1 min-w-0 text-slate-900 leading-none">{projected.patient_name}</span>
+                <span className="font-medium truncate flex-1 min-w-0 text-slate-900 dark:text-slate-100 leading-none">{projected.patient_name}</span>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {projectedStore?.abbreviation && shouldShowStoreBadges(currentUser) &&
                   <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
@@ -379,7 +379,7 @@ export default function DeliveryFormStaged({
                 </div>
               </div>
               <div className="flex items-center gap-1 min-h-0">
-                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px] leading-none">
+                <div className="truncate flex-1 min-w-0 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-[10px] leading-none">
                   {projectedAddress}
                   {projectedUnitNumber ? ` #${projectedUnitNumber}` : ''}
                 </div>
@@ -392,7 +392,7 @@ export default function DeliveryFormStaged({
                   
                 </div>
               </div>
-              <div className="text-slate-600 text-[10px] truncate pr-1 leading-none min-h-0">
+              <div className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-[10px] truncate pr-1 leading-none min-h-0">
                 {projectedRecurrence}
               </div>
             </div>
@@ -417,14 +417,14 @@ export default function DeliveryFormStaged({
       })}
 
       {isLoadingPredictions &&
-      <div className="p-4 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+      <div className="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs flex items-center justify-center gap-2">
           <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></div>
           Refreshing projections...
         </div>
       }
 
       {!isLoadingPredictions && sortedStagedDeliveries.length === 0 && sortedProjectedDeliveries.length === 0 &&
-      <div className="p-4 text-center text-slate-400 text-xs">
+      <div className="p-4 text-center text-slate-400 dark:text-slate-500 dark:text-slate-400 text-xs">
           No deliveries staged yet
         </div>
       }

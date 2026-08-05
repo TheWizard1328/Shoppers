@@ -263,7 +263,7 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
     return null;
   };
 
-  return (<Dialog open={true} onOpenChange={onCancel}><DialogContent><DialogHeader><DialogTitle>Import AM/PM Designations</DialogTitle><DialogDescription>Upload a CSV file to update delivery AM/PM designations.</DialogDescription></DialogHeader><div className="space-y-4"><Input type="file" accept=".csv" onChange={handleFileUpload} disabled={loading} /><div className="text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3"><p className="font-semibold mb-1">CSV Format:</p><ul className="list-disc list-inside space-y-1"><li>Column 1: Stop ID (SID) or Tracking Number (TR#)</li><li>Column 2: AM/PM indicator (1 = AM, 2 = PM)</li><li>First row is treated as header and will be skipped</li></ul></div><p className="text-sm text-slate-600">{status || "Select a CSV file to begin import."}</p>{loading && <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-500" />}</div><DialogFooter><Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button><Button onClick={handleImport} disabled={loading || !csvFile}>{loading ? 'Importing...' : 'Import AM/PM Data'}</Button></DialogFooter></DialogContent></Dialog>);
+  return (<Dialog open={true} onOpenChange={onCancel}><DialogContent><DialogHeader><DialogTitle>Import AM/PM Designations</DialogTitle><DialogDescription>Upload a CSV file to update delivery AM/PM designations.</DialogDescription></DialogHeader><div className="space-y-4"><Input type="file" accept=".csv" onChange={handleFileUpload} disabled={loading} /><div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg p-3"><p className="font-semibold mb-1">CSV Format:</p><ul className="list-disc list-inside space-y-1"><li>Column 1: Stop ID (SID) or Tracking Number (TR#)</li><li>Column 2: AM/PM indicator (1 = AM, 2 = PM)</li><li>First row is treated as header and will be skipped</li></ul></div><p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">{status || "Select a CSV file to begin import."}</p>{loading && <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-500" />}</div><DialogFooter><Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button><Button onClick={handleImport} disabled={loading || !csvFile}>{loading ? 'Importing...' : 'Import AM/PM Data'}</Button></DialogFooter></DialogContent></Dialog>);
 };
 
 // COLUMN_CONFIGS and useColumnVisibility moved to AdminDataTables.jsx
@@ -1711,7 +1711,7 @@ export default function AdminUtilities() {
             {dataLoading && activeDataTab !== 'deliveries' || dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length ?
             <div className="flex justify-center items-center h-60">
                 <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
-                <span className="ml-3 text-lg text-slate-600">Loading data...</span>
+                <span className="ml-3 text-lg text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading data...</span>
               </div> :
 
             <div className="space-y-6">
@@ -1955,11 +1955,11 @@ export default function AdminUtilities() {
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
               {bulkDelete.processed} / {bulkDelete.total} processed
               {bulkDelete.currentLabel ? ` • Last: ${bulkDelete.currentLabel}` : ""}
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
               Current delay: {Math.round(bulkDelete.currentDelay)} ms • Retrying: {bulkDelete.retryQueue}
             </div>
             <Progress value={bulkDelete.total ? bulkDelete.processed / bulkDelete.total * 100 : 0} />

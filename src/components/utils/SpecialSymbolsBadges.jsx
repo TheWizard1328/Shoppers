@@ -113,8 +113,8 @@ export default function SpecialSymbolsBadges({
   // Use different base styles for card size vs others
   const isCardSize = size === 'card';
   const badgeBaseClass = isCardSize
-    ? `bg-amber-400 !text-slate-900 mt-1 ${config.badge} font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-amber-500/80 inline-flex items-center ${config.gap} shadow-sm border border-amber-500/30`
-    : `bg-amber-400 !text-slate-900 mt-1 px-1.5 py-0 text-[10px] font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-primary/80 h-4 inline-flex items-center gap-0.5 shadow-sm border border-amber-500/30`;
+    ? `bg-amber-400 !text-slate-900 dark:text-slate-100 mt-1 ${config.badge} font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-amber-500/80 inline-flex items-center ${config.gap} shadow-sm border border-amber-500/30`
+    : `bg-amber-400 !text-slate-900 dark:text-slate-100 mt-1 px-1.5 py-0 text-[10px] font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-primary/80 h-4 inline-flex items-center gap-0.5 shadow-sm border border-amber-500/30`;
 
   return (
     <div className="inline-flex items-center gap-1">

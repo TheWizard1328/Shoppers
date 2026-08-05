@@ -243,14 +243,14 @@ export default function EndOfDayStatsDialog({
           {/* Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-              <Package className="w-5 h-5 mx-auto mb-1 text-slate-600" />
+              <Package className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
               <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.total}</div>
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Stops</div>
             </div>
 
             {stats.timeOnDuty && (
               <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                <Clock className="w-5 h-5 mx-auto mb-1 text-slate-600" />
+                <Clock className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
                 <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.timeOnDuty}</div>
                 <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Time on Duty</div>
               </div>
@@ -263,12 +263,12 @@ export default function EndOfDayStatsDialog({
                 <>
                   <div className="flex justify-center items-baseline gap-1.5">
                     <span className="text-2xl font-bold text-emerald-700">{stats.completed}</span>
-                    <span className="text-base font-semibold text-slate-400">/</span>
+                    <span className="text-base font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400">/</span>
                     <span className="text-2xl font-bold text-amber-600">{stats.pending}</span>
                   </div>
                   <div className="flex justify-center gap-2 mt-0.5">
                     <span className="text-xs text-emerald-600">Done</span>
-                    <span className="text-xs text-slate-400">/</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">/</span>
                     <span className="text-xs text-amber-600">Pending</span>
                   </div>
                 </>
@@ -291,7 +291,7 @@ export default function EndOfDayStatsDialog({
 
             {/* Distance — single card, shows Total + Remaining when incomplete */}
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-              <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600" />
+              <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
               {stats.estimatedDistance != null ? (
                 // Not started — show full est. total
                 <>
@@ -303,12 +303,12 @@ export default function EndOfDayStatsDialog({
                 <>
                   <div className="flex justify-center items-baseline gap-1.5">
                     <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance}</span>
-                    <span className="text-xs font-semibold text-slate-400">+{stats.remainingDistance}</span>
+                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400">+{stats.remainingDistance}</span>
                     <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>km</span>
                   </div>
                   <div className="flex justify-center gap-2 mt-0.5">
                     <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Done</span>
-                    <span className="text-xs text-slate-400">/</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">/</span>
                     <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Est. Rem.</span>
                   </div>
                 </>
@@ -334,7 +334,7 @@ export default function EndOfDayStatsDialog({
             </div>
 
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-              <Camera className="w-5 h-5 mx-auto mb-1 text-slate-600" />
+              <Camera className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
               <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveriesWithPOD} / {stats.successfulDeliveries}</div>
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Proof of Delivery</div>
             </div>

@@ -20,8 +20,8 @@ export default function PatientMatchPopup({ isOpen, onClose, matches, onSelectPa
         </DialogHeader>
 
         {extractedData && (
-          <Card className="p-4 bg-slate-50 border-slate-200 mb-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-2">Scanned Data:</h3>
+          <Card className="p-4 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 mb-4">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Scanned Data:</h3>
             <div className="space-y-1 text-sm">
               <div><span className="font-medium">Name:</span> {extractedData.patient_name}</div>
               <div><span className="font-medium">Address:</span> {extractedData.street_address}</div>
@@ -37,16 +37,16 @@ export default function PatientMatchPopup({ isOpen, onClose, matches, onSelectPa
           {matches.map((match, index) => (
             <Card 
               key={match.patient.id}
-              className="p-4 hover:bg-slate-50 cursor-pointer transition-all border-2 hover:border-slate-300"
+              className="p-4 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 cursor-pointer transition-all border-2 hover:border-slate-300 dark:border-slate-600"
               onClick={() => onSelectPatient(match.patient)}
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-lg text-slate-900">
+                  <h3 className="font-semibold text-lg text-slate-900 dark:text-slate-100">
                     {match.patient.full_name}
                   </h3>
                   {match.patient.patient_id && (
-                    <p className="text-sm text-slate-500">ID: {match.patient.patient_id}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">ID: {match.patient.patient_id}</p>
                   )}
                 </div>
                 <div className="flex flex-col gap-1.5 items-end">
@@ -76,21 +76,21 @@ export default function PatientMatchPopup({ isOpen, onClose, matches, onSelectPa
 
               <div className="space-y-2 text-sm">
                 <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
+                  <MapPin className="w-4 h-4 text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5 flex-shrink-0" />
                   <div>
                     <div>{match.patient.address}</div>
                     {match.patient.unit_number && (
-                      <div className="text-slate-600">Unit: {match.patient.unit_number}</div>
+                      <div className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Unit: {match.patient.unit_number}</div>
                     )}
                   </div>
                 </div>
 
                 {match.patient.phone && (
                   <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-slate-500" />
+                    <Phone className="w-4 h-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
                     <a 
                       href={`tel:${match.patient.phone}`}
-                      className="text-slate-700 hover:text-slate-900"
+                      className="text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:text-slate-100"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {formatPhoneNumber(match.patient.phone)}

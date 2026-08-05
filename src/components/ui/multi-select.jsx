@@ -85,7 +85,7 @@ export const MultiSelect = React.forwardRef((props, ref) => {
               return (
                 <Badge
                   key={option.value}
-                  variant="secondary" className="inline-flex items-center rounded-md border px-1.0 text-xs font-semibold transition-colors border-transparent mr-1 bg-slate-100 text-slate-800 hover:bg-slate-200">
+                  variant="secondary" className="inline-flex items-center rounded-md border px-1.0 text-xs font-semibold transition-colors border-transparent mr-1 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200">
 
                   
                                         {option.label || 'Unknown'}
@@ -109,7 +109,7 @@ export const MultiSelect = React.forwardRef((props, ref) => {
 
             }) :
 
-            <span className="text-slate-500">{placeholder}</span>
+            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{placeholder}</span>
             }
                     </div>
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />

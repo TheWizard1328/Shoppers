@@ -70,7 +70,7 @@ function DeliveryCard({
 
   if (!delivery || (!patient && !isPickup)) {
     return (
-      <Card className="border-red-200 bg-red-50 w-full">
+      <Card className="border-red-200 bg-red-50 dark:bg-red-950 w-full">
         <CardContent className="p-4">
           <div className="flex items-center gap-2 text-red-600">
             <span className="text-sm">Missing delivery or patient data</span>
@@ -83,7 +83,7 @@ function DeliveryCard({
   const getStatusBadge = (status) => {
     // THIS FUNCTION IS NO LONGER USED FOR PROJECTED CARDS
     const statusInfo = statusConfig[status];
-    let color = statusInfo?.color || 'bg-slate-100 text-slate-800';
+    let color = statusInfo?.color || 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200';
     let label = statusInfo?.label || status?.toUpperCase() || 'UNKNOWN';
 
     // Special handling for pickup completion
@@ -198,9 +198,9 @@ function DeliveryCard({
 
     return (
       <div className="flex items-center gap-1 text-xs">
-        <Clock className="w-3 h-3 flex-shrink-0 text-slate-600" />
-        <span className="font-medium text-slate-700">ETA:</span>
-        <span className="text-slate-600">{time}</span>
+        <Clock className="w-3 h-3 flex-shrink-0 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
+        <span className="font-medium text-slate-700 dark:text-slate-300">ETA:</span>
+        <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">{time}</span>
       </div>
     );
   };
@@ -250,7 +250,7 @@ function DeliveryCard({
       className="h-full w-full"
     >
       <Card
-        className={`relative flex flex-col h-full w-full min-w-0 overflow-hidden transition-all duration-300 shadow-md ${isCompleted ? 'bg-slate-50' : 'bg-white'} ${patient?.status === 'inactive' ? 'opacity-60' : ''} ${cardBorderClass}`}
+        className={`relative flex flex-col h-full w-full min-w-0 overflow-hidden transition-all duration-300 shadow-md ${isCompleted ? 'bg-slate-50 dark:bg-slate-800' : 'bg-white dark:bg-slate-900'} ${patient?.status === 'inactive' ? 'opacity-60' : ''} ${cardBorderClass}`}
         style={cardStyle}
         onClick={isProjected && isPickup ? () => setIsProjectedExpanded(!isProjectedExpanded) : undefined}
       >
@@ -264,7 +264,7 @@ function DeliveryCard({
               >
                 {stopOrder || '?'}
               </div>
-              <h3 className="font-semibold text-slate-900 text-sm truncate leading-tight min-w-0 flex-1">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate leading-tight min-w-0 flex-1">
                 {displayName}
               </h3>
             </div>
@@ -274,7 +274,7 @@ function DeliveryCard({
               {canBeDragged && (
                 <div
                   {...dragHandleProps}
-                  className="cursor-grab hover:cursor-grabbing p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="cursor-grab hover:cursor-grabbing p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
                   title="Drag to reorder"
                 >
                   <GripVertical className="w-4 h-4" />
@@ -284,7 +284,7 @@ function DeliveryCard({
               {/* Status Badge and TR# */}
               <div className="flex flex-col items-end gap-1">
                 {isProjected ? (
-                  <Badge className="bg-gray-200 text-gray-800 text-xs font-medium px-2 py-1 rounded-md">
+                  <Badge className="bg-gray-200 text-gray-800 dark:text-slate-200 text-xs font-medium px-2 py-1 rounded-md">
                     PROJECTED
                   </Badge>
                 ) : isPickup ? (
@@ -325,19 +325,19 @@ function DeliveryCard({
           )}
 
           <div className="space-y-1 mb-1 min-w-0">
-            <div className="flex items-center gap-2 text-xs text-slate-600 min-w-0">
+            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 min-w-0">
               <MapPin className="w-3 h-3 flex-shrink-0" />
               <span className="truncate min-w-0 flex-1">{displayAddress}</span>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-slate-600">
+            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
               <Phone className="w-3 h-3 flex-shrink-0" />
               <span className="truncate">{displayPhone}</span>
             </div>
 
             {/* New patient display section added from outline, adjusted for existing redaction logic and context */}
             {patient && !isPickup && (
-              <div className="text-xs text-slate-600 space-y-1 mt-2 border-t pt-2 border-slate-100">
+              <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-1 mt-2 border-t pt-2 border-slate-100">
                 <div className="flex items-center gap-2">
                   <User className="w-3 h-3" />
                   <span className="font-medium">{displayName}</span> {/* Using existing redacted displayName */}
@@ -357,8 +357,8 @@ function DeliveryCard({
 
             {/* Driver Name Display */}
             <div className="flex items-center gap-1.5 text-xs">
-              <Truck className="w-3 h-3 text-slate-500" />
-              <span className="text-slate-600 font-medium">
+              <Truck className="w-3 h-3 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+              <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium">
                 {delivery.driver_name ? delivery.driver_name.split(' ')[0] : 'Unassigned'}
               </span>
             </div>
@@ -423,7 +423,7 @@ function DeliveryCard({
 
             {/* Display COD info for completed deliveries */}
             {!isProjected && isCompleted && delivery.cod_payment_type && delivery.cod_payment_type !== 'No Payment' && (
-              <div className="text-right text-xs font-semibold text-slate-700 pr-1">
+              <div className="text-right text-xs font-semibold text-slate-700 dark:text-slate-300 pr-1">
                 {delivery.cod_payment_type}: ${delivery.cod_amount || '0.00'}
               </div>
             )}
@@ -443,16 +443,16 @@ function DeliveryCard({
                     exit={{ opacity: 0, y: -10 }}
                     className="mt-2"
                   >
-                    <h4 className="text-xs font-medium text-slate-600 mb-2">Projected Deliveries ({delivery.projected_deliveries.length})</h4>
-                    <div className="max-h-48 overflow-y-auto bg-slate-50 rounded border">
+                    <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Projected Deliveries ({delivery.projected_deliveries.length})</h4>
+                    <div className="max-h-48 overflow-y-auto bg-slate-50 dark:bg-slate-800 rounded border">
                       {delivery.projected_deliveries.length === 0 ? (
-                        <div className="p-3 text-xs text-slate-500 text-center">
+                        <div className="p-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">
                           No deliveries projected for this store
                         </div>
                       ) : (
                         <div className="text-xs">
                           {/* Header */}
-                          <div className="grid grid-cols-12 gap-1 p-2 bg-slate-100 border-b border-slate-200 font-medium text-slate-700">
+                          <div className="grid grid-cols-12 gap-1 p-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-700 dark:text-slate-300">
                             <div className="col-span-1">#</div>
                             <div className="col-span-3">TR#</div>
                             <div className="col-span-5">Patient</div>
@@ -460,17 +460,17 @@ function DeliveryCard({
                           </div>
                           {/* Delivery Rows */}
                           {delivery.projected_deliveries.map((projectedDelivery, index) => (
-                            <div key={projectedDelivery.id} className={`grid grid-cols-12 gap-1 p-2 border-b border-slate-100 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                              <div className="col-span-1 font-medium text-slate-900">
+                            <div key={projectedDelivery.id} className={`grid grid-cols-12 gap-1 p-2 border-b border-slate-100 ${index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800'}`}>
+                              <div className="col-span-1 font-medium text-slate-900 dark:text-slate-100">
                                 {projectedDelivery.stop_order}
                               </div>
-                              <div className="col-span-3 font-mono text-slate-700">
+                              <div className="col-span-3 font-mono text-slate-700 dark:text-slate-300">
                                 {projectedDelivery.tracking_number}
                               </div>
-                              <div className="col-span-5 text-slate-900 truncate" title={projectedDelivery.patient_name}>
+                              <div className="col-span-5 text-slate-900 dark:text-slate-100 truncate" title={projectedDelivery.patient_name}>
                                 {projectedDelivery.patient_name}
                               </div>
-                              <div className="col-span-3 text-slate-600">
+                              <div className="col-span-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                                 {projectedDelivery.patient_distance ? `${projectedDelivery.patient_distance.toFixed(1)}km` : 'N/A'}
                               </div>
                             </div>
@@ -486,25 +486,25 @@ function DeliveryCard({
             // Regular notes section for non-projected cards
             <div className="mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0" onClick={(e) => e.stopPropagation()}>
               <div className="flex flex-col min-w-0">
-                <h4 className="text-xs font-medium text-slate-600 mb-1">Patient Notes</h4>
+                <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1">Patient Notes</h4>
                 <Textarea
                   value={localPatientNotes}
                   onChange={(e) => setLocalPatientNotes(e.target.value)}
                   onFocus={() => setEditingPatientNotes(true)}
                   onBlur={handlePatientNotesBlur}
                   placeholder="No patient notes"
-                  className="text-xs resize-none border-slate-200 h-16 w-full min-w-0"
+                  className="text-xs resize-none border-slate-200 dark:border-slate-700 h-16 w-full min-w-0"
                   disabled={!canEditDelivery}
                 />
               </div>
               <div className="flex flex-col min-w-0">
-                <h4 className="text-xs font-medium text-slate-600 mb-1">Driver Notes</h4>
+                <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1">Driver Notes</h4>
                 <Textarea
                   value={localDriverNotes}
                   onChange={(e) => setLocalDriverNotes(e.target.value)}
                   onBlur={handleDriverNotesBlur}
                   placeholder="Add driver notes..."
-                  className="text-xs resize-none border-slate-200 h-16 w-full min-w-0"
+                  className="text-xs resize-none border-slate-200 dark:border-slate-700 h-16 w-full min-w-0"
                   disabled={!canEditDelivery}
                 />
               </div>

@@ -125,7 +125,7 @@ export default function DeliveryPatientSearch({
                   {storeAbbr && showBadge &&
                 <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>{storeAbbr}</Badge>
                 }
-                  {ampm && <Badge className="bg-slate-200 text-slate-700 text-[10px] px-1.5 py-0 h-4">{ampm.toUpperCase()}</Badge>}
+                  {ampm && <Badge className="bg-slate-200 text-slate-700 dark:text-slate-300 text-[10px] px-1.5 py-0 h-4">{ampm.toUpperCase()}</Badge>}
                 </>);
 
           })()}
@@ -136,7 +136,7 @@ export default function DeliveryPatientSearch({
 
       <div className="relative flex gap-2 items-end flex-nowrap">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 z-10" />
           <Input
             ref={patientSearchInputRef}
             autoFocus
@@ -177,7 +177,7 @@ export default function DeliveryPatientSearch({
         }
 
           {visiblePatients.length === 0 ?
-        <div className="p-4 text-center text-slate-500 text-sm">
+        <div className="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm">
               No patients found
               {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
           <Button

@@ -29,7 +29,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-slate-500">Click a month name in the monthly grid to view day-by-day breakdown</p>
+          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Click a month name in the monthly grid to view day-by-day breakdown</p>
         </CardContent>
       </Card>
     );
@@ -49,7 +49,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-slate-500">No data available for {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</p>
+          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">No data available for {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</p>
         </CardContent>
       </Card>
     );
@@ -115,8 +115,8 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
         <div className="w-full overflow-x-auto overflow-y-visible">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b bg-slate-50">
-                <th className="text-left px-1.5 py-0.5 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10 min-w-[35px] border-r border-slate-300">Day</th>
+              <tr className="border-b bg-slate-50 dark:bg-slate-800">
+                <th className="text-left px-1.5 py-0.5 font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 sticky left-0 bg-slate-50 dark:bg-slate-800 z-10 min-w-[35px] border-r border-slate-300 dark:border-slate-600">Day</th>
                 {stores.map(store => (
                   <th
                     key={store.storeId || store.id}
@@ -127,7 +127,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                     {store.abbreviation}
                   </th>
                 ))}
-                <th className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-slate-300 min-w-[45px]">Tot</th>
+                <th className="text-center px-1 py-0.5 font-bold text-slate-900 dark:text-slate-100 border-l-2 border-slate-300 dark:border-slate-600 min-w-[45px]">Tot</th>
               </tr>
             </thead>
             <tbody>
@@ -135,8 +135,8 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                 const dayTotal = getDayTotal(day, viewMode);
                 const weekend = isWeekend(day);
                 return (
-                  <tr key={day} className={`border-b hover:bg-slate-50 ${weekend ? 'bg-slate-100' : ''}`}>
-                    <td className={`px-1.5 py-0.5 font-medium sticky left-0 border-r border-slate-300 z-10 text-slate-700 ${weekend ? 'bg-slate-100' : 'bg-white'}`}>
+                  <tr key={day} className={`border-b hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 ${weekend ? 'bg-slate-100' : ''}`}>
+                    <td className={`px-1.5 py-0.5 font-medium sticky left-0 border-r border-slate-300 dark:border-slate-600 z-10 text-slate-700 dark:text-slate-300 ${weekend ? 'bg-slate-100 dark:bg-slate-800' : 'bg-white dark:bg-slate-900'}`}>
                       <div className="flex items-center justify-center gap-0.5">
                         <span>{day}</span>
                         <button
@@ -162,7 +162,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                         </td>
                       );
                     })}
-                    <td className="text-center px-1 py-0.5 font-semibold text-slate-900 border-l-2 border-slate-300 tabular-nums">
+                    <td className="text-center px-1 py-0.5 font-semibold text-slate-900 dark:text-slate-100 border-l-2 border-slate-300 dark:border-slate-600 tabular-nums">
                       {dayTotal > 0 ? formatGridValue(dayTotal) : ''}
                     </td>
                   </tr>
@@ -170,8 +170,8 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
               })}
 
               {/* Totals Row */}
-              <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
-                <td className="px-1.5 py-0.5 text-slate-700 sticky left-0 bg-slate-100 z-10 border-r border-slate-300">Tot</td>
+              <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 font-semibold">
+                <td className="px-1.5 py-0.5 text-slate-700 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 border-r border-slate-300 dark:border-slate-600">Tot</td>
                 {stores.map(store => {
                   const total = getStoreTotal(store, viewMode);
                   return (
@@ -184,24 +184,24 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                     </td>
                   );
                 })}
-                <td className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-slate-300 tabular-nums">
+                <td className="text-center px-1 py-0.5 font-bold text-slate-900 dark:text-slate-100 border-l-2 border-slate-300 dark:border-slate-600 tabular-nums">
                   {grandTotal > 0 ? formatGridValue(grandTotal) : ''}
                 </td>
               </tr>
 
               {/* Average Row */}
-              <tr className="bg-slate-50">
-                <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10 border-r border-slate-300">Avg</td>
+              <tr className="bg-slate-50 dark:bg-slate-800">
+                <td className="px-1.5 py-0.5 text-slate-600 dark:text-slate-400 dark:text-slate-500 sticky left-0 bg-slate-50 dark:bg-slate-800 z-10 border-r border-slate-300 dark:border-slate-600">Avg</td>
                 {stores.map(store => {
                    const total = getStoreTotal(store, viewMode);
                    const avg = total > 0 ? formatGridValue(total / daysInMonth) : '';
                    return (
-                     <td key={store.storeId || store.id} className="text-center px-1 py-0.5 tabular-nums text-slate-600">
+                     <td key={store.storeId || store.id} className="text-center px-1 py-0.5 tabular-nums text-slate-600 dark:text-slate-400 dark:text-slate-500">
                        {avg}
                      </td>
                    );
                  })}
-                 <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-slate-300 tabular-nums">
+                 <td className="text-center px-1 py-0.5 font-semibold text-slate-700 dark:text-slate-300 border-l-2 border-slate-300 dark:border-slate-600 tabular-nums">
                    {grandTotal > 0 ? formatGridValue(grandTotal / daysInMonth) : ''}
                 </td>
               </tr>

@@ -42,7 +42,7 @@ const AddDeliveryButton = forwardRef(function AddDeliveryButton(
           </TooltipTrigger>
           <TooltipContent side="bottom" align="center" className="relative z-[1000]">
             <div className="text-xs">{isInactiveDriver ? 'You cannot add deliveries as an inactive driver.' : 'Start here to add new stop locations to your driver(s).'}</div>
-            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-white border-l border-t border-slate-200" />
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-white dark:bg-slate-900 border-l border-t border-slate-200 dark:border-slate-700" />
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

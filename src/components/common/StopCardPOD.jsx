@@ -127,15 +127,15 @@ export default function StopCardPOD({
           style={{ background: 'rgba(0,0,0,0.75)', zIndex: 999999, pointerEvents: 'auto' }}
           onClick={() => setViewingImageUrl(null)}>
           <div
-            className="relative bg-white rounded-xl shadow-2xl p-4 max-w-[95vw] max-h-[90vh] flex flex-col items-center"
+            className="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-4 max-w-[95vw] max-h-[90vh] flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setViewingImageUrl(null)}
-              className="absolute -top-3 -right-3 bg-white border-2 border-slate-300 hover:bg-red-50 hover:border-red-400 text-slate-700 hover:text-red-600 rounded-full w-9 h-9 flex items-center justify-center shadow-lg transition-colors z-10">
+              className="absolute -top-3 -right-3 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950 hover:border-red-400 text-slate-700 dark:text-slate-300 hover:text-red-600 rounded-full w-9 h-9 flex items-center justify-center shadow-lg transition-colors z-10">
               <X className="w-5 h-5" />
             </button>
             <img src={viewingImageUrl} alt="Proof of delivery" className="max-w-full max-h-[75vh] object-contain rounded-lg" style={{ background: 'white' }} />
-            <p className="mt-3 text-sm text-slate-500 font-medium">Tap outside to close</p>
+            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">Tap outside to close</p>
           </div>
         </div>,
         document.body
@@ -174,12 +174,12 @@ export default function StopCardPOD({
                 }}
                 size="sm"
                 variant="outline"
-                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${deliveryHasSignature ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : showSavedSignatureHint ? 'bg-yellow-100 border-yellow-400 hover:bg-yellow-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
+                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${deliveryHasSignature ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : showSavedSignatureHint ? 'bg-yellow-100 border-yellow-400 hover:bg-yellow-200' : 'bg-slate-100 dark:bg-slate-800 border-slate-400 hover:bg-slate-200'}`}
               >
                 {delivery.status === 'completed' && delivery.signature_image_url ? (
                   <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
                 ) : (
-                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasSignature ? 'text-emerald-700' : showSavedSignatureHint ? 'text-yellow-700' : 'text-slate-600'}`} />
+                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasSignature ? 'text-emerald-700' : showSavedSignatureHint ? 'text-yellow-700' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`} />
                 )}
               </Button>
               {!deliveryHasSignature && showSavedSignatureHint && patientSavedSignatureUrl && (
@@ -205,7 +205,7 @@ export default function StopCardPOD({
                   }}
                   size="sm"
                   variant="outline"
-                  className="h-10 md:h-8 w-6 p-0 bg-red-50 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none"
+                  className="h-10 md:h-8 w-6 p-0 bg-red-50 dark:bg-red-950 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none"
                 >
                   <X className="w-3 h-3 text-red-500" />
                 </Button>
@@ -227,12 +227,12 @@ export default function StopCardPOD({
                 }}
                 size="sm"
                 variant="outline"
-                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${deliveryHasPhotos ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
+                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${deliveryHasPhotos ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 dark:bg-slate-800 border-slate-400 hover:bg-slate-200'}`}
               >
                 {delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0 ? (
                   <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
                 ) : (
-                  <Camera className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasPhotos ? 'text-emerald-700' : 'text-slate-600'}`} />
+                  <Camera className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasPhotos ? 'text-emerald-700' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`} />
                 )}
               </Button>
               {deliveryHasPhotos && delivery.status !== 'completed' && (
@@ -244,7 +244,7 @@ export default function StopCardPOD({
                   }}
                   size="sm"
                   variant="outline"
-                  className="h-10 md:h-8 w-6 p-0 bg-red-50 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none"
+                  className="h-10 md:h-8 w-6 p-0 bg-red-50 dark:bg-red-950 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none"
                 >
                   <X className="w-3 h-3 text-red-500" />
                 </Button>

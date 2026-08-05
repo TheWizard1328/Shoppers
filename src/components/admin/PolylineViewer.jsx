@@ -1207,7 +1207,7 @@ export default function PolylineViewer({ users = [] }) {
       <div
         key={item.id}
         className={`p-3 border-b transition-colors cursor-pointer ${
-          isFocused ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-slate-50'
+          isFocused ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-l-blue-500' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'
         }`}
       >
         <div className="flex items-start gap-2">
@@ -1252,16 +1252,16 @@ export default function PolylineViewer({ users = [] }) {
                   {isBreadcrumb ? '🛤 BC' : '🗺 Poly'}
                 </Badge>
               </div>
-              <div className="text-xs text-slate-600 space-y-0.5">
+              <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-0.5">
                 <div className="flex items-center justify-between gap-2">
                   <span>📅 {item.delivery_date ? format(new Date(item.delivery_date + 'T00:00:00'), 'MMM d, yyyy') : '—'}</span>
-                  {isBreadcrumb && item.stop_order != null && <span className="text-slate-500">Stop #{item.stop_order} · {item.point_count || 0} pts</span>}
-                  {!isBreadcrumb && item.stop_order != null && <span className="text-slate-500">Stop #{item.stop_order}</span>}
+                  {isBreadcrumb && item.stop_order != null && <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Stop #{item.stop_order} · {item.point_count || 0} pts</span>}
+                  {!isBreadcrumb && item.stop_order != null && <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Stop #{item.stop_order}</span>}
                 </div>
                 {!isBreadcrumb && (item.estimated_distance_km || item.estimated_duration_minutes) && (
                   <div className="flex items-center justify-between gap-2">
                     <span>🕒 {item.estimated_duration_minutes?.toFixed(0) || '?'} min</span>
-                    <span className="text-slate-500">📏 {item.estimated_distance_km?.toFixed(2) || '?'} km</span>
+                    <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">📏 {item.estimated_distance_km?.toFixed(2) || '?'} km</span>
                   </div>
                 )}
                 {isBreadcrumb && (() => {
@@ -1274,7 +1274,7 @@ export default function PolylineViewer({ users = [] }) {
                     <>
                       <div className="flex items-center justify-between gap-1">
                         <span>{activeMode ? `${activeMode === 'cycling' ? '🚲' : activeMode === 'pedestrian' ? '🚶' : '🚗'} ${activeMode}` : ''}</span>
-                        <span className="text-slate-500">📏 {distStr}</span>
+                        <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">📏 {distStr}</span>
                       </div>
                       {isFocused && (
                         <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-100" onClick={e => e.stopPropagation()}>
@@ -1287,7 +1287,7 @@ export default function PolylineViewer({ users = [] }) {
                             <button
                               title={`Undo last removal (${undoStack.length} steps)`}
                               onClick={e => { e.stopPropagation(); handleUndo(); }}
-                              className="p-1 rounded hover:bg-slate-200 text-slate-600 transition-colors"
+                              className="p-1 rounded hover:bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500 transition-colors"
                             >
                               <Undo2 className="w-3.5 h-3.5" />
                             </button>
@@ -1433,7 +1433,7 @@ export default function PolylineViewer({ users = [] }) {
       <div
         key={key}
         className={`p-3 border-b transition-colors cursor-pointer ${
-          isFocused ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-slate-50'
+          isFocused ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-l-blue-500' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'
         }`}
       >
         <div onClick={handleClick}>
@@ -1448,10 +1448,10 @@ export default function PolylineViewer({ users = [] }) {
               )}
             </div>
           </div>
-          <div className="text-xs text-slate-600 space-y-0.5">
+          <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-0.5">
             <div className="flex items-center justify-between gap-2">
               <span>📅 {delivery_date ? format(new Date(delivery_date + 'T00:00:00'), 'MMM d, yyyy') : '—'}</span>
-              {stop_order != null && <span className="text-slate-500">Stop #{stop_order}</span>}
+              {stop_order != null && <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Stop #{stop_order}</span>}
             </div>
             {hasPoly && delivery && (delivery.estimated_distance_km || delivery.estimated_duration_minutes) && (
               <div className="flex items-center justify-between gap-2 text-blue-700">
@@ -1475,7 +1475,7 @@ export default function PolylineViewer({ users = [] }) {
               <span className="text-xs text-orange-700 font-medium mr-1">{cleanedPoints.length} pts</span>
             )}
             {isEditingCrumb && undoStack.length > 0 && (
-              <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 text-slate-600 transition-colors">
+              <button title={`Undo (${undoStack.length} steps)`} onClick={e => { e.stopPropagation(); handleUndo(); }} className="p-1 rounded hover:bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500 transition-colors">
                 <Undo2 className="w-3.5 h-3.5" />
               </button>
             )}
@@ -1533,7 +1533,7 @@ export default function PolylineViewer({ users = [] }) {
   const renderControls = () => (
     <div className="space-y-3">
       {/* View mode */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+      <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
         {VIEW_MODES.map(m => (
           <Button
             key={m.id}
@@ -1548,7 +1548,7 @@ export default function PolylineViewer({ users = [] }) {
         ))}
       </div>
       {/* Data source */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+      <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
         <Button variant={dataSource === 'online' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('online')} className="flex-1 h-8">Online</Button>
         <Button variant={dataSource === 'offline' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('offline')} className="flex-1 h-8">Offline</Button>
       </div>
@@ -1562,9 +1562,9 @@ export default function PolylineViewer({ users = [] }) {
       </Select>
       {/* Date range filter */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-500 font-medium">From date</label>
+        <label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">From date</label>
         <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-full" />
-        <label className="text-xs text-slate-500 font-medium">To date</label>
+        <label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">To date</label>
         <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-full" />
       </div>
       {(driverFilter !== 'all' || dateFrom || dateTo) && (
@@ -1612,7 +1612,7 @@ export default function PolylineViewer({ users = [] }) {
 
         {/* Progress */}
         {(isDeleting) && opProgress.total > 0 && (
-          <div className="flex items-center gap-2 p-3 bg-slate-50 border rounded text-sm text-slate-700">
+          <div className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 border rounded text-sm text-slate-700 dark:text-slate-300">
             <Loader2 className="w-4 h-4 animate-spin" />
             {opProgress.label} {opProgress.processed}/{opProgress.total}
           </div>
@@ -1621,7 +1621,7 @@ export default function PolylineViewer({ users = [] }) {
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-            <span className="ml-3 text-slate-600">Loading route data…</span>
+            <span className="ml-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading route data…</span>
           </div>
         ) : (
           <div className="flex flex-col gap-3 flex-1 min-h-0">
@@ -1664,7 +1664,7 @@ export default function PolylineViewer({ users = [] }) {
             {/* Desktop controls */}
             <div className="hidden md:flex gap-3 items-start flex-wrap">
               {/* View mode */}
-              <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+              <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
                 {VIEW_MODES.map(m => (
                   <Button key={m.id} variant={viewMode === m.id ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode(m.id)} className="h-8 text-xs gap-1">
                     {m.id === 'combined' && <Layers className="w-3 h-3" />}
@@ -1673,7 +1673,7 @@ export default function PolylineViewer({ users = [] }) {
                 ))}
               </div>
               {/* Data source */}
-              <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+              <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
                 <Button variant={dataSource === 'online' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('online')} className="h-8">Online</Button>
                 <Button variant={dataSource === 'offline' ? 'default' : 'ghost'} size="sm" onClick={() => setDataSource('offline')} className="h-8">Offline</Button>
               </div>
@@ -1687,9 +1687,9 @@ export default function PolylineViewer({ users = [] }) {
               </Select>
               {/* Date range filter */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500 whitespace-nowrap">From</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">From</span>
                 <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" />
-                <span className="text-xs text-slate-500 whitespace-nowrap">To</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">To</span>
                 <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" />
               </div>
               {(driverFilter !== 'all' || dateFrom || dateTo) && (
@@ -1699,7 +1699,7 @@ export default function PolylineViewer({ users = [] }) {
 
             {/* Brush pick mode banner */}
             {isBrushPickMode && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950 border border-amber-300 rounded-lg text-sm text-amber-800">
                 <Brush className="w-4 h-4 flex-shrink-0" />
                 <span><strong>Brush active</strong> — click any dot on the route to remove that dot and all consecutive points within 25 m of it. Click the Brush button again to exit.</span>
               </div>
@@ -1709,13 +1709,13 @@ export default function PolylineViewer({ users = [] }) {
             <div className="flex flex-col md:flex-row gap-3 flex-1 min-h-0">
               {/* List — desktop only */}
               <div className="hidden md:flex md:w-72 xl:w-80 flex-col border rounded-lg overflow-hidden flex-shrink-0 min-h-0">
-                <div className="bg-slate-100 px-3 py-2 border-b flex items-center gap-2 flex-shrink-0">
+                <div className="bg-slate-100 dark:bg-slate-800 px-3 py-2 border-b flex items-center gap-2 flex-shrink-0">
                   <Checkbox
                     checked={isAllSelected}
                     onCheckedChange={handleSelectAll}
                     className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
                   />
-                  <span className="font-semibold text-sm text-slate-700 truncate">
+                  <span className="font-semibold text-sm text-slate-700 dark:text-slate-300 truncate">
                     {viewMode === 'combined'
                       ? `${combinedStopGroups.length} stop${combinedStopGroups.length !== 1 ? 's' : ''}`
                       : `${unsavedItems.length} record${unsavedItems.length !== 1 ? 's' : ''}`}
@@ -1734,19 +1734,19 @@ export default function PolylineViewer({ users = [] }) {
                 <div className="flex-1 overflow-y-auto" onScroll={handleListScroll} ref={listRef}>
                   {viewMode === 'combined' ? (
                     combinedStopGroups.length === 0
-                      ? <div className="p-6 text-center text-slate-400 text-sm">No records found</div>
+                      ? <div className="p-6 text-center text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm">No records found</div>
                       : combinedStopGroups.slice(0, visibleCount).map(g => renderCombinedStopCard(g))
                   ) : (
                     activeItems.length === 0
-                      ? <div className="p-6 text-center text-slate-400 text-sm">No records found</div>
+                      ? <div className="p-6 text-center text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm">No records found</div>
                       : activeItems.slice(0, visibleCount).map(item => renderListItem(item))
                   )}
                   {viewMode === 'combined'
                     ? visibleCount < combinedStopGroups.length && (
-                        <div className="p-3 text-center text-xs text-slate-400">Scroll for more ({combinedStopGroups.length - visibleCount} remaining)</div>
+                        <div className="p-3 text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Scroll for more ({combinedStopGroups.length - visibleCount} remaining)</div>
                       )
                     : visibleCount < activeItems.length && (
-                        <div className="p-3 text-center text-xs text-slate-400">Scroll for more ({activeItems.length - visibleCount} remaining)</div>
+                        <div className="p-3 text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Scroll for more ({activeItems.length - visibleCount} remaining)</div>
                       )
                   }
                 </div>
@@ -1898,7 +1898,7 @@ export default function PolylineViewer({ users = [] }) {
                     />
                   </MapContainer>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center bg-slate-50 text-slate-400 gap-2">
+                  <div className="h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400 gap-2">
                     <MapPin className="w-10 h-10 opacity-30" />
                     <p className="text-sm">
                       {activeItems.length === 0
@@ -1906,7 +1906,7 @@ export default function PolylineViewer({ users = [] }) {
                         : 'Click a record in the list, or check multiple records to compare on the map.'}
                     </p>
                     {viewMode === 'combined' && (
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                         Combined mode shows Delivery Polylines (solid) + GPS Breadcrumbs (dashed)
                       </p>
                     )}
@@ -1917,7 +1917,7 @@ export default function PolylineViewer({ users = [] }) {
 
             {/* Legend */}
             {viewMode === 'combined' && (
-              <div className="hidden md:flex items-center gap-4 text-xs text-slate-500 px-1">
+              <div className="hidden md:flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 px-1">
                 <div className="flex items-center gap-1.5">
                   <div className="w-8 h-1 bg-blue-600 rounded" />
                   <span>Delivery Polyline (HERE API)</span>

@@ -53,7 +53,7 @@ export default function StopCardConfirmDialogs({
             </h3>
 
             <div className="space-y-3 mb-6">
-              <p className="text-slate-700">
+              <p className="text-slate-700 dark:text-slate-300">
                 Are you sure you want to delete this {deleteLabel}?
               </p>
 
@@ -83,7 +83,7 @@ export default function StopCardConfirmDialogs({
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold text-amber-900">Transfer to another pickup (optional):</Label>
                     <Select value={selectedTransferPickupId} onValueChange={(value) => setSelectedTransferPickupId(value)}>
-                      <SelectTrigger className="h-8 text-sm bg-white">
+                      <SelectTrigger className="h-8 text-sm bg-white dark:bg-slate-900">
                         <SelectValue placeholder="Select pickup location" />
                       </SelectTrigger>
                       <SelectContent className="z-[999999]">

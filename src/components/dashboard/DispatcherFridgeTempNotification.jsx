@@ -152,7 +152,7 @@ export default function DispatcherFridgeTempNotification({ currentUser, deliveri
                 variant="ghost"
                 size="icon"
                 onClick={handleDismiss}
-                className="h-8 w-8 text-white hover:bg-white/20 flex-shrink-0"
+                className="h-8 w-8 text-white hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/20 flex-shrink-0"
               >
                 <X className="w-4 h-4" />
               </Button>

@@ -143,7 +143,7 @@ export default function AppUsers() {
   };
 
   const getStatusBadgeColor = (status) => {
-    return status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800';
+    return status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200';
   };
 
   const getUserStatusIndicator = (user) => {
@@ -162,7 +162,7 @@ export default function AppUsers() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-800 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p>Loading users...</p>
@@ -172,15 +172,15 @@ export default function AppUsers() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-slate-50">
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-800">
       {/* Fixed Header */}
       <div className="flex-shrink-0 p-6 pb-0">
         <div className="max-w-7xl mx-auto space-y-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
               <SmartRefreshIndicator inline={true} />
-              <h1 className="text-3xl font-bold text-slate-900">App Users</h1>
-              <p className="text-slate-600 mt-1">Manage application-specific user data and roles</p>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">App Users</h1>
+              <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">Manage application-specific user data and roles</p>
             </div>
             <Button onClick={() => { setEditingAppUser(null); setShowForm(true); }} className="bg-emerald-500 hover:bg-emerald-600">
               <Plus className="w-4 h-4 mr-2" />
@@ -192,7 +192,7 @@ export default function AppUsers() {
             <CardHeader className="pb-3">
               <div className="flex items-center gap-4">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
                   <Input
                     placeholder="Search by name or email..."
                     value={searchQuery}
@@ -209,15 +209,15 @@ export default function AppUsers() {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-white border-b">
+                  <thead className="bg-white dark:bg-slate-900 border-b">
                     <tr>
-                      <th className="text-left p-3 font-semibold text-slate-700">User Name</th>
-                      <th className="text-left p-3 font-semibold text-slate-700">Full Name</th>
-                      <th className="text-left p-3 font-semibold text-slate-700">Email</th>
-                      <th className="text-left p-3 font-semibold text-slate-700">App Roles</th>
-                      <th className="text-left p-3 font-semibold text-slate-700">Status</th>
-                      <th className="text-left p-3 font-semibold text-slate-700">Phone</th>
-                      <th className="text-right p-3 font-semibold text-slate-700">Actions</th>
+                      <th className="text-left p-3 font-semibold text-slate-700 dark:text-slate-300">User Name</th>
+                      <th className="text-left p-3 font-semibold text-slate-700 dark:text-slate-300">Full Name</th>
+                      <th className="text-left p-3 font-semibold text-slate-700 dark:text-slate-300">Email</th>
+                      <th className="text-left p-3 font-semibold text-slate-700 dark:text-slate-300">App Roles</th>
+                      <th className="text-left p-3 font-semibold text-slate-700 dark:text-slate-300">Status</th>
+                      <th className="text-left p-3 font-semibold text-slate-700 dark:text-slate-300">Phone</th>
+                      <th className="text-right p-3 font-semibold text-slate-700 dark:text-slate-300">Actions</th>
                     </tr>
                   </thead>
                 </table>
@@ -238,7 +238,7 @@ export default function AppUsers() {
                     {filteredUsers.map(user => (
                       <tr 
                         key={user.id} 
-                        className="border-b hover:bg-slate-50 cursor-pointer transition-colors"
+                        className="border-b hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 cursor-pointer transition-colors"
                         onClick={() => handleEdit(user)}
                       >
                         <td className="p-3 font-medium">
@@ -250,8 +250,8 @@ export default function AppUsers() {
                             {getDriverDisplayName(user)}
                           </div>
                         </td>
-                        <td className="p-3 text-slate-600">{user.full_name}</td>
-                        <td className="p-3 text-slate-600">{user.email}</td>
+                        <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{user.full_name}</td>
+                        <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{user.email}</td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
                             {(user.app_roles || []).map(role => (
@@ -276,7 +276,7 @@ export default function AppUsers() {
                               {formatPhoneNumber(user.phone)}
                             </a>
                           ) : (
-                            <span className="text-slate-400">—</span>
+                            <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">—</span>
                           )}
                         </td>
                         {/* End of Modified Phone column */}

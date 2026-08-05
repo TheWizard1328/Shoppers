@@ -91,8 +91,8 @@ export default function MobileHeader({
             onClick={handleBackButtonClick}
             aria-label="Go back"
             disabled={!canGoBack}
-            className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent touch-manipulation flex-shrink-0">
-            <ArrowLeft className="w-6 h-6 text-slate-700" />
+            className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent touch-manipulation flex-shrink-0">
+            <ArrowLeft className="w-6 h-6 text-slate-700 dark:text-slate-300" />
           </button>
 
           {/* Logo with message badge */}
@@ -129,7 +129,7 @@ export default function MobileHeader({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation" aria-label="Open header menu">
-                  <MoreVertical className="w-5 h-5 text-slate-500" />
+                  <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
                 </Button>
               </DropdownMenuTrigger>
               <SettingsMenu
@@ -152,7 +152,7 @@ export default function MobileHeader({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation" aria-label="Open header menu">
-                  <MoreVertical className="w-5 h-5 text-slate-500" />
+                  <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
                 </Button>
               </DropdownMenuTrigger>
               <SettingsMenu
@@ -181,9 +181,9 @@ export default function MobileHeader({
               type="button"
               onClick={onInviteQRClick}
               aria-label="Generate invite QR code"
-              className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 touch-manipulation"
+              className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 touch-manipulation"
               title="Generate Invite QR Code">
-              <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
+              <QrCode className="w-6 h-6 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300" />
             </button>
           </div>
         )}
@@ -197,9 +197,9 @@ export default function MobileHeader({
                 type="button"
                 onClick={onInviteQRClick}
                 aria-label="Generate invite QR code"
-                className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 touch-manipulation"
+                className="h-11 w-11 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 touch-manipulation"
                 title="Generate Invite QR Code">
-                <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
+                <QrCode className="w-6 h-6 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300" />
               </button>
             )}
             <BatteryIndicator vertical={true} />

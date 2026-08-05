@@ -50,7 +50,7 @@ const renderStopOrderValue = (log) => {
   const includesHome = stopType === 'home' || stopOrders === 'home' || (Array.isArray(stopOrders) && stopOrders.some((value) => String(value).toLowerCase() === 'home'));
 
   if (includesHome) {
-    return <Home className="w-4 h-4 text-slate-600" />;
+    return <Home className="w-4 h-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />;
   }
 
   if (Array.isArray(stopOrders) && stopOrders.length > 0) {
@@ -453,8 +453,8 @@ export default function GoogleAPILogViewer() {
       <CardHeader className="px-6 py-3 flex flex-col space-y-1.5 shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <CardTitle className="text-2xl font-bold text-slate-900">Maps API Usage Log</CardTitle>
-            <p className="text-sm text-slate-600 mt-1">
+            <CardTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100">Maps API Usage Log</CardTitle>
+            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">
               Real-time monitoring of Google and HERE API usage totals
             </p>
           </div>
@@ -472,7 +472,7 @@ export default function GoogleAPILogViewer() {
             </Button>
             <div className="hidden md:flex items-end gap-2 flex-wrap">
               <div className="min-w-[170px]">
-                <label className="text-xs font-medium text-slate-600 mb-1 block">Date Range</label>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">Date Range</label>
                 <Select value={dateFilter} onValueChange={setDateFilter}>
                   <SelectTrigger>
                     <SelectValue />
@@ -488,7 +488,7 @@ export default function GoogleAPILogViewer() {
                 </Select>
               </div>
               <div className="min-w-[180px]">
-                <label className="text-xs font-medium text-slate-600 mb-1 block">API Type</label>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">API Type</label>
                 <Select value={apiTypeFilter} onValueChange={setApiTypeFilter}>
                   <SelectTrigger>
                     <SelectValue />
@@ -508,7 +508,7 @@ export default function GoogleAPILogViewer() {
                     </Select>
                     </div>
                     <div className="min-w-[180px]">
-                    <label className="text-xs font-medium text-slate-600 mb-1 block">User</label>
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">User</label>
                 <Select value={userFilter || 'all'} onValueChange={(v) => setUserFilter(v === 'all' ? '' : v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="All Users" />
@@ -553,7 +553,7 @@ export default function GoogleAPILogViewer() {
             <div
               key={idx}
               className={`flex items-center gap-3 p-3 rounded-lg ${
-              alert.severity === 'error' ? 'bg-red-50 border border-red-200' : 'bg-amber-50 border border-amber-200'}`
+              alert.severity === 'error' ? 'bg-red-50 dark:bg-red-950 border border-red-200' : 'bg-amber-50 dark:bg-amber-950 border border-amber-200'}`
               }>
               
                 <AlertTriangle className={`w-5 h-5 ${alert.severity === 'error' ? 'text-red-600' : 'text-amber-600'}`} />
@@ -567,16 +567,16 @@ export default function GoogleAPILogViewer() {
         
         {/* Filters Panel */}
         {showFilters &&
-          <div className="mb-6 p-4 bg-slate-50 rounded-lg border">
+          <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-900">Filters</h3>
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-slate-600">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100">Filters</h3>
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                 <X className="w-4 h-4" /> Clear All
               </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="text-xs font-medium text-slate-600 mb-1 block">Date Range</label>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">Date Range</label>
                 <Select value={dateFilter} onValueChange={setDateFilter}>
                   <SelectTrigger>
                     <SelectValue />
@@ -595,7 +595,7 @@ export default function GoogleAPILogViewer() {
               {dateFilter === 'custom' &&
               <>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 mb-1 block">Start Date</label>
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">Start Date</label>
                     <Input
                     type="date"
                     value={customDateStart}
@@ -603,7 +603,7 @@ export default function GoogleAPILogViewer() {
                   
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-600 mb-1 block">End Date</label>
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">End Date</label>
                     <Input
                     type="date"
                     value={customDateEnd}
@@ -614,7 +614,7 @@ export default function GoogleAPILogViewer() {
               }
               
               <div>
-                <label className="text-xs font-medium text-slate-600 mb-1 block">API Type</label>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">API Type</label>
                 <Select value={apiTypeFilter} onValueChange={setApiTypeFilter}>
                   <SelectTrigger>
                     <SelectValue />
@@ -635,7 +635,7 @@ export default function GoogleAPILogViewer() {
                     </div>
 
                     <div>
-                    <label className="text-xs font-medium text-slate-600 mb-1 block">User</label>
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">User</label>
                 <Select value={userFilter || 'all'} onValueChange={(v) => setUserFilter(v === 'all' ? '' : v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="All Users" />
@@ -654,21 +654,21 @@ export default function GoogleAPILogViewer() {
         
         {/* Key Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-slate-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1">
               <TrendingUp className="w-4 h-4" />
               Total Calls
             </div>
-            <div className="text-2xl font-bold text-slate-900">{stats.total}</div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.total}</div>
           </div>
-          <div className="bg-blue-50 rounded-lg p-4">
+          <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4">
             <div className="flex items-center gap-2 text-sm text-blue-600 mb-1">
               <Clock className="w-4 h-4" />
               {getDateRangeSummaryLabel(dateFilter)}
             </div>
             <div className="text-2xl font-bold text-blue-900">{sumApiLogCalls(filteredLogs)}</div>
           </div>
-          <div className="bg-green-50 rounded-lg p-4">
+          <div className="bg-green-50 dark:bg-green-950 rounded-lg p-4">
             <div className="text-sm text-green-600 mb-1">Filtered Calls</div>
             <div className="text-2xl font-bold text-green-900">{sumApiLogCalls(filteredLogs)}</div>
           </div>
@@ -686,8 +686,8 @@ export default function GoogleAPILogViewer() {
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Hourly Call Volume */}
-          <div className="bg-white border rounded-lg p-4">
-            <h3 className="font-semibold text-slate-900 mb-4">
+          <div className="bg-white dark:bg-slate-900 border rounded-lg p-4">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">
               {dateFilter === 'hourly' ? 'Last Hour Call Volume' :
                 dateFilter === 'today' ? 'Today\'s Call Volume' :
                 dateFilter === 'yesterday' ? 'Yesterday\'s Call Volume (00:00-23:59)' :
@@ -821,7 +821,7 @@ export default function GoogleAPILogViewer() {
                 );
               };
               return (
-                <div className="mt-2 space-y-1 text-xs text-slate-600">
+                <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
                   {row1.length > 0 && <div className="flex flex-wrap gap-x-4 gap-y-1">{row1.map(renderItem)}</div>}
                   {row2.length > 0 && <div className="flex flex-wrap gap-x-4 gap-y-1">{row2.map(renderItem)}</div>}
                 </div>
@@ -831,8 +831,8 @@ export default function GoogleAPILogViewer() {
           </div>
           
           {/* API Type Distribution */}
-          <div className="bg-white border rounded-lg p-4">
-            <h3 className="font-semibold text-slate-900 mb-4">Calls by API Type</h3>
+          <div className="bg-white dark:bg-slate-900 border rounded-lg p-4">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">Calls by API Type</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={apiTypeChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -850,7 +850,7 @@ export default function GoogleAPILogViewer() {
         {/* API Type Breakdown */}
         <div className="flex flex-wrap gap-2 mb-6">
           {apiTypeChartData.map(({ name, value }) =>
-            <Badge key={name} className={`${apiTypeColors[name] || 'bg-gray-100 text-gray-800'} px-3 py-1`}>
+            <Badge key={name} className={`${apiTypeColors[name] || 'bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200'} px-3 py-1`}>
               {name}: {value}
             </Badge>
             )}
@@ -858,27 +858,27 @@ export default function GoogleAPILogViewer() {
 
         {/* Logs Table */}
         {isLoading ?
-          <div className="text-center py-8 text-slate-500">
+          <div className="text-center py-8 text-slate-500 dark:text-slate-400 dark:text-slate-500">
             <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
             Loading logs...
           </div> :
           filteredLogs.length === 0 ?
-          <div className="text-center py-8 text-slate-500">
+          <div className="text-center py-8 text-slate-500 dark:text-slate-400 dark:text-slate-500">
             {logs.length === 0 ? 'No API calls logged yet.' : 'No logs match the current filters.'}
           </div> :
 
           <div className="border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-slate-50 sticky top-0">
+                <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
                   <tr>
-                    <th className="text-left p-3 text-sm font-semibold text-slate-700">Timestamp</th>
-                    <th className="text-left p-3 text-sm font-semibold text-slate-700">API Type</th>
-                    <th className="text-left p-3 text-sm font-semibold text-slate-700">Purpose</th>
-                    <th className="text-left p-3 text-sm font-semibold text-slate-700">Function</th>
-                    <th className="text-left p-3 text-sm font-semibold text-slate-700">User</th>
-                    <th className="text-left p-3 text-sm font-semibold text-slate-700">Stop Order</th>
-                    <th className="text-left p-3 text-sm font-semibold text-slate-700">Details</th>
+                    <th className="text-left p-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Timestamp</th>
+                    <th className="text-left p-3 text-sm font-semibold text-slate-700 dark:text-slate-300">API Type</th>
+                    <th className="text-left p-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Purpose</th>
+                    <th className="text-left p-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Function</th>
+                    <th className="text-left p-3 text-sm font-semibold text-slate-700 dark:text-slate-300">User</th>
+                    <th className="text-left p-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Stop Order</th>
+                    <th className="text-left p-3 text-sm font-semibold text-slate-700 dark:text-slate-300">Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -887,31 +887,31 @@ export default function GoogleAPILogViewer() {
                     const provider = getApiLogProvider(log);
                     const Icon = apiTypeIcons[displayType] || MapPin;
                     return (
-                      <tr key={log.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                        <td className="p-3 text-sm text-slate-700">
+                      <tr key={log.id} className={index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800'}>
+                        <td className="p-3 text-sm text-slate-700 dark:text-slate-300">
                           {format(new Date(log.timestamp), 'MMM dd, yyyy HH:mm:ss')}
                         </td>
                         <td className="p-3">
-                          <Badge className={`${apiTypeColors[displayType] || 'bg-gray-100 text-gray-800'} gap-1`}>
+                          <Badge className={`${apiTypeColors[displayType] || 'bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200'} gap-1`}>
                             <Icon className="w-3 h-3" />
                             {displayType}
                           </Badge>
                         </td>
-                        <td className="p-3 text-sm text-slate-700 max-w-xs truncate" title={log.purpose}>
+                        <td className="p-3 text-sm text-slate-700 dark:text-slate-300 max-w-xs truncate" title={log.purpose}>
                           {log.purpose}
                         </td>
-                        <td className="p-3 text-xs text-slate-500 font-mono">
+                        <td className="p-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">
                           {log.function_name}
                         </td>
-                        <td className="p-3 text-sm text-slate-700">
+                        <td className="p-3 text-sm text-slate-700 dark:text-slate-300">
                           {renderUserName(log)}
                         </td>
-                        <td className="p-3 text-sm text-slate-700">
+                        <td className="p-3 text-sm text-slate-700 dark:text-slate-300">
                           <div className="flex items-center gap-2">
                             {renderStopOrderValue(log)}
                           </div>
                         </td>
-                        <td className="p-3 text-xs text-slate-600">
+                        <td className="p-3 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
                           <div>Provider: {provider === 'here' ? 'HERE' : 'Google'}</div>
                           <div>Calls: {getApiLogCallCount(log)}{typeof log.metadata?.stops_count === 'number' ? ` Stops: ${log.metadata.stops_count}` : ''}</div>
                         </td>
@@ -925,7 +925,7 @@ export default function GoogleAPILogViewer() {
           }
 
           {filteredLogs.length > 0 &&
-          <div className="text-sm text-slate-500 text-center pb-1">
+          <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center pb-1">
               Showing {filteredLogs.length} log entries totaling {sumApiLogCalls(filteredLogs)} API calls
             </div>
           }

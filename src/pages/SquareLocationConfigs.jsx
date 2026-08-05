@@ -205,8 +205,8 @@ export default function SquareLocationConfigs() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Square Location Configs</h1>
-          <p className="text-slate-500 mt-1">Manage Square Location IDs for COD processing</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Square Location Configs</h1>
+          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Manage Square Location IDs for COD processing</p>
         </div>
         <Button onClick={() => handleOpenDialog()} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
           <Plus className="w-4 h-4" />
@@ -218,8 +218,8 @@ export default function SquareLocationConfigs() {
         <Card>
           <CardContent className="p-8 text-center">
             <CreditCard className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 mb-2">No Square Locations Configured</h3>
-            <p className="text-slate-500 mb-4">Add your first Square Location ID to start processing COD payments.</p>
+            <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">No Square Locations Configured</h3>
+            <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">Add your first Square Location ID to start processing COD payments.</p>
             <Button onClick={() => handleOpenDialog()} className="gap-2">
               <Plus className="w-4 h-4" />
               Add Location
@@ -246,7 +246,7 @@ export default function SquareLocationConfigs() {
                       </div>
                       <div>
                         <CardTitle className="text-lg">{config.name}</CardTitle>
-                        <code className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block">
+                        <code className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded mt-1 inline-block">
                           {config.square_location_id}
                         </code>
                       </div>
@@ -258,22 +258,22 @@ export default function SquareLocationConfigs() {
                       <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(config)}>
                         <Pencil className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(config)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(config)} className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  {config.notes && <p className="text-sm text-slate-600 mb-3">{config.notes}</p>}
+                  {config.notes && <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-3">{config.notes}</p>}
                   <div className="flex flex-wrap items-center gap-2 text-sm mb-2">
-                    <span className="text-slate-500">Stores:</span>
+                    <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Stores:</span>
                     {linkedStores.length > 0 ? (
                       [...linkedStores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)).map((s) => (
                         <Badge key={s.id} className="text-xs text-white border-0" style={{ backgroundColor: s.color || '#64748b' }}>{s.name}</Badge>
                       ))
                     ) : (
-                      <span className="text-slate-400 italic">No stores linked</span>
+                      <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 italic">No stores linked</span>
                     )}
                   </div>
                   {(() => {
@@ -281,8 +281,8 @@ export default function SquareLocationConfigs() {
                     const label = formatDriverNames(drivers);
                     return label ? (
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="text-slate-500">{drivers.length === 1 ? 'Driver:' : 'Drivers:'}</span>
-                        <span className="text-slate-700">{label}</span>
+                        <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{drivers.length === 1 ? 'Driver:' : 'Drivers:'}</span>
+                        <span className="text-slate-700 dark:text-slate-300">{label}</span>
                       </div>
                     ) : null;
                   })()}
@@ -327,10 +327,10 @@ export default function SquareLocationConfigs() {
               <Label>Stores</Label>
               <div className="border rounded-md max-h-44 overflow-y-auto p-2 space-y-1">
                 {sortedStores.length === 0 && (
-                  <p className="text-sm text-slate-400 italic px-1">No stores available</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 dark:text-slate-400 italic px-1">No stores available</p>
                 )}
                 {sortedStores.map((store) => (
-                  <label key={store.id} className="flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-slate-50">
+                  <label key={store.id} className="flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">
                     <Checkbox
                       checked={formData.selectedStoreIds.includes(store.id)}
                       onCheckedChange={() => toggleStoreId(store.id)} />
@@ -343,7 +343,7 @@ export default function SquareLocationConfigs() {
                 ))}
               </div>
               {formData.selectedStoreIds.length > 0 && (
-                <p className="text-xs text-slate-500">{formData.selectedStoreIds.length} store{formData.selectedStoreIds.length > 1 ? "s" : ""} selected</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{formData.selectedStoreIds.length} store{formData.selectedStoreIds.length > 1 ? "s" : ""} selected</p>
               )}
             </div>
 

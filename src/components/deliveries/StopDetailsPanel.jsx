@@ -60,7 +60,7 @@ const statusConfig = {
   failed: { color: 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700', label: 'Failed', icon: XCircle },
   cancelled: { color: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800/60 dark:text-slate-200 dark:border-slate-600', label: 'Cancelled', icon: XCircle },
   returned: { color: 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700', label: 'Returned', icon: RotateCcw },
-  projected: { color: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/60 dark:text-gray-200 dark:border-gray-600', label: 'Projected', icon: Clock }
+  projected: { color: 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 dark:bg-gray-800/60 dark:text-gray-200 dark:border-gray-600', label: 'Projected', icon: Clock }
 };
 
 export default function StopDetailsPanel({
@@ -805,7 +805,7 @@ export default function StopDetailsPanel({
                         <div className="relative">
                           <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                           {showDesktopClearButtons && deliveryTimeStart &&
-                      <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
+                      <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
                               <X className="w-4 h-4" />
                             </button>
                       }
@@ -818,7 +818,7 @@ export default function StopDetailsPanel({
                         <div className="relative">
                           <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                           {showDesktopClearButtons && deliveryTimeEnd &&
-                      <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
+                      <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
                               <X className="w-4 h-4" />
                             </button>
                       }
@@ -836,7 +836,7 @@ export default function StopDetailsPanel({
                         <div className="relative">
                         <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                         {showDesktopClearButtons && completionTime &&
-                      <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
+                      <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
                             <X className="w-4 h-4" />
                           </button>
                       }
@@ -1028,7 +1028,7 @@ export default function StopDetailsPanel({
                     style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
                     onClick={() => setBarcodePreview({ value: val, isRx: true })}>
                     <BarcodeThumb value={val} isRx={true} />
-                    <p className="mt-1 text-[11px] text-center text-slate-500 font-mono font-semibold">{String(val).slice(0, 8)}</p>
+                    <p className="mt-1 text-[11px] text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono font-semibold">{String(val).slice(0, 8)}</p>
                   </div>
                   )}
                 </div>

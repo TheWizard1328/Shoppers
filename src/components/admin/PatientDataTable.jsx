@@ -82,7 +82,7 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
   };
 
   const SortIcon = ({ field }) => {
-    if (sortField !== field) return <ArrowUpDown className="w-4 h-4 text-slate-400" />;
+    if (sortField !== field) return <ArrowUpDown className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />;
     return sortDirection === "asc" 
       ? <ArrowUp className="w-4 h-4 text-emerald-600" />
       : <ArrowDown className="w-4 h-4 text-emerald-600" />;
@@ -99,7 +99,7 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="md:col-span-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
             <Input
               placeholder="Search by name, ID, address, phone..."
               value={searchTerm}
@@ -137,114 +137,114 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
       </div>
 
       {/* Results count */}
-      <div className="text-sm text-slate-600">
+      <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
         Showing {paginatedPatients.length} of {filteredAndSortedPatients.length} patients
         {searchTerm && ` (filtered from ${patients.length} total)`}
       </div>
 
       {/* Table */}
-      <div className="border rounded-lg overflow-hidden bg-white">
+      <div className="border rounded-lg overflow-hidden bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-50 border-b">
+            <thead className="bg-slate-50 dark:bg-slate-800 border-b">
               <tr>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("patient_id")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     PID <SortIcon field="patient_id" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("full_name")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Name <SortIcon field="full_name" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("address")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Address <SortIcon field="address" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("phone")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Phone <SortIcon field="phone" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("store_id")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Store <SortIcon field="store_id" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("last_delivery_date")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Last Delivery <SortIcon field="last_delivery_date" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("status")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Status <SortIcon field="status" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("last_login_date")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Portal Login <SortIcon field="last_login_date" />
                   </button>
                 </th>
-                <th className="text-right p-3 font-medium text-slate-700">Actions</th>
+                <th className="text-right p-3 font-medium text-slate-700 dark:text-slate-300">Actions</th>
               </tr>
             </thead>
             <tbody>
               {paginatedPatients.map(patient => (
-                <tr key={patient.id} className="border-b hover:bg-slate-50">
+                <tr key={patient.id} className="border-b hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">
                   <td className="p-3 font-mono text-sm">{patient.patient_id || "—"}</td>
                   <td className="p-3 font-medium">{patient.full_name}</td>
-                  <td className="p-3 text-slate-600 text-sm">
+                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
                     {patient.address}
                     {patient.unit_number && ` ${patient.unit_number}`}
                   </td>
-                  <td className="p-3 text-slate-600 text-sm">{patient.phone || "—"}</td>
-                  <td className="p-3 text-slate-600 text-sm">{getStoreName(patient.store_id)}</td>
-                  <td className="p-3 text-slate-600 text-sm">
+                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">{patient.phone || "—"}</td>
+                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">{getStoreName(patient.store_id)}</td>
+                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
                     {patient.last_delivery_date 
                       ? format(new Date(patient.last_delivery_date), 'MMM d, yyyy')
                       : "—"
                     }
                   </td>
                   <td className="p-3">
-                    <Badge className={patient.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-800"}>
+                    <Badge className={patient.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200"}>
                       {patient.status || "active"}
                     </Badge>
                   </td>
-                  <td className="p-3 text-slate-600 text-sm">
+                  <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
                     {patient.last_login_date ? (
                       <div>
                         <div>{format(new Date(patient.last_login_date), 'MMM d, yyyy')}</div>
-                        <div className="text-xs text-slate-400">{patient.portal_login_count ?? 0} login{(patient.portal_login_count ?? 0) !== 1 ? 's' : ''}</div>
+                        <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">{patient.portal_login_count ?? 0} login{(patient.portal_login_count ?? 0) !== 1 ? 's' : ''}</div>
                       </div>
                     ) : (
-                      <span className="text-slate-400">Never</span>
+                      <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">Never</span>
                     )}
                   </td>
                   <td className="p-3">
@@ -272,7 +272,7 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-slate-600">
+          <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
             Page {currentPage} of {totalPages}
           </div>
           <div className="flex gap-2">

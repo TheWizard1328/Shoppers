@@ -651,7 +651,7 @@ export default function Documents() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-slate-200 dark:border-slate-700 border-t-slate-800 rounded-full animate-spin" />
       </div>);
 
   }
@@ -664,7 +664,7 @@ export default function Documents() {
           <div className="flex items-center gap-2">
             <Shield className="w-6 h-6 text-blue-600" />
             <h1 className="text-xl font-bold">Documents</h1>
-            <Badge className="ml-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-0">
+            <Badge className="ml-2 bg-slate-100 dark:bg-slate-800 dark:bg-slate-700 text-slate-700 dark:text-slate-300 dark:text-slate-200 border-0">
               {documents.length} files
             </Badge>
           </div>
@@ -682,7 +682,7 @@ export default function Documents() {
         <div className="space-y-4">
           {/* Incoming access requests (driver approves/denies) — hidden for admins since they see the full admin panel */}
           {myPendingRequests.length > 0 && !isAdmin &&
-          <Card className="border-amber-200 bg-amber-50">
+          <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-600" />
@@ -706,7 +706,7 @@ export default function Documents() {
                         <CheckCircle className="w-3.5 h-3.5" /> Approve
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => handleDeny(req.id)} disabled={actionLoading === req.id}
-                  className="text-red-600 border-red-200 hover:bg-red-50 gap-1.5 h-8">
+                  className="text-red-600 border-red-200 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950 gap-1.5 h-8">
                         <XCircle className="w-3.5 h-3.5" /> Deny
                       </Button>
                     </div>
@@ -781,7 +781,7 @@ export default function Documents() {
                        </p>
                        <span
                           onClick={() => !uploadingForDriver && document.getElementById(`file-input-${key}`)?.click()}
-                          className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex-shrink-0">
+                          className="cursor-pointer text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 dark:bg-slate-700 text-slate-700 dark:text-slate-300 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex-shrink-0">
                          {existingDoc ? 'Replace' : 'Upload'}
                        </span>
                      </div>
@@ -791,7 +791,7 @@ export default function Documents() {
               })}
               {uploadingForDriver &&
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-4 h-4 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-slate-200 dark:border-slate-700 border-t-slate-800 rounded-full animate-spin" />
                   Uploading...
                 </div>
               }
@@ -814,7 +814,7 @@ export default function Documents() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {allPendingRequests.map((req) =>
-              <div key={req.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg bg-amber-50/50">
+              <div key={req.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg bg-amber-50 dark:bg-amber-950/50">
                     <div className="min-w-0">
                       <p className="font-medium text-sm">
                         {req.requester_name} → {req.driver_name}
@@ -829,7 +829,7 @@ export default function Documents() {
                         <CheckCircle className="w-3.5 h-3.5" /> Approve
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => handleDeny(req.id)} disabled={actionLoading === req.id}
-                  className="text-red-600 border-red-200 hover:bg-red-50 gap-1.5 h-8">
+                  className="text-red-600 border-red-200 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950 gap-1.5 h-8">
                         <XCircle className="w-3.5 h-3.5" /> Deny
                       </Button>
                     </div>
@@ -1033,17 +1033,17 @@ export default function Documents() {
                       isDisabled
                         ? 'opacity-40 cursor-not-allowed'
                         : isSelected
-                          ? 'bg-blue-50 border border-blue-200 cursor-pointer'
+                          ? 'bg-blue-50 dark:bg-blue-950 border border-blue-200 cursor-pointer'
                           : 'hover:bg-muted cursor-pointer'
                     }`}
                     onClick={() => !isDisabled && toggleDriver(driver.id)}>
                         <Checkbox checked={isSelected} disabled={isDisabled} onCheckedChange={() => {}} />
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                           <p className="text-sm font-medium flex-1 min-w-0 truncate">{getDriverDisplayName(driver)}</p>
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium w-20 text-center flex-shrink-0 ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium w-20 text-center flex-shrink-0 ${hasLicense ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400'}`}>
                             {hasLicense ? '✓ License' : '✗ License'}
                           </span>
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium text-center flex-shrink-0 w-40 ${hasBg ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium text-center flex-shrink-0 w-40 ${hasBg ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400'}`}>
                             {hasBg ? '✓ Background Check' : '✗ Background Check'}
                           </span>
                         </div>
@@ -1137,7 +1137,7 @@ export default function Documents() {
               })}
               {uploadingContract &&
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-4 h-4 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-slate-200 dark:border-slate-700 border-t-slate-800 rounded-full animate-spin" />
                   Uploading contract...
                 </div>
               }

@@ -36,7 +36,7 @@ export default function SkippedStopsDialog({ isOpen, skippedStops, onClose }) {
       case 'pickup_no_coords':
         return 'bg-blue-100 text-blue-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200';
     }
   };
 
@@ -59,24 +59,24 @@ export default function SkippedStopsDialog({ isOpen, skippedStops, onClose }) {
             {skippedStops.map((stop, index) => (
               <div
                 key={stop.deliveryId}
-                className="border rounded-lg p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
+                className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <MapPin className="w-4 h-4 text-slate-400" />
-                      <span className="font-semibold text-slate-900">
+                      <MapPin className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
                         {stop.patientName || 'Unknown Patient'}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-600 mb-2">
+                    <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">
                       {stop.address}
                     </p>
                     <div className="flex items-center gap-2">
                       <Badge className={getReasonColor(stop.reason)} variant="secondary">
                         {getReasonLabel(stop.reason)}
                       </Badge>
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                         ID: {stop.deliveryId}
                       </span>
                     </div>

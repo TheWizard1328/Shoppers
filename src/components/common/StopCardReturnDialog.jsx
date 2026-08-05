@@ -38,7 +38,7 @@ export default function StopCardReturnDialog({
         </h3>
 
         <div className="space-y-3 mb-6 text-sm">
-          <p className="text-slate-600">A new return delivery will be created with the following details:</p>
+          <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500">A new return delivery will be created with the following details:</p>
           <div className="rounded-lg p-3 space-y-2" style={{ background: 'var(--bg-slate-50)' }}>
             <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Return To: {returnPatient.full_name}</span></div>
             <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address: {returnPatient.address || store?.address || 'N/A'}</span></div>

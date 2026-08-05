@@ -110,7 +110,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
               <div className="flex items-center gap-2 mt-1">
                 <Badge className={`text-xs py-0.5 ${dutyStatus.color}`}>{dutyStatus.label}</Badge>
                 {driver.app_roles?.includes('dispatcher') && (
-                  <Badge className="bg-red-50 text-red-700 border border-red-100 text-xs py-0.5">Dispatcher</Badge>
+                  <Badge className="bg-red-50 dark:bg-red-950 text-red-700 border border-red-100 text-xs py-0.5">Dispatcher</Badge>
                 )}
               </div>
             </div>
@@ -122,7 +122,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
           {(isOwnProfile || isAdmin) && !showUpload && (
             <Button
               onClick={() => setShowUpload(true)}
-              className="w-full flex items-center justify-center gap-2 bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 py-2.5 rounded-lg font-medium"
+              className="w-full flex items-center justify-center gap-2 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 py-2.5 rounded-lg font-medium"
             >
               <Upload className="w-4 h-4" />
               {isOwnProfile ? 'Upload My Documents' : 'Upload Documents'}
@@ -136,7 +136,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
           {/* Dispatcher: doc type checklist + request button */}
           {isDispatcher && !requestStatus && (
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Select Documents to Request</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">Select Documents to Request</p>
               <div className="space-y-2">
                 {DOC_TYPES.map((type) => (
                   <label
@@ -147,7 +147,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
                     <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
                       selectedDocTypes.includes(type.value)
                         ? 'bg-blue-600 border-blue-600'
-                        : 'border-slate-300 group-hover:border-blue-400'
+                        : 'border-slate-300 dark:border-slate-600 group-hover:border-blue-400'
                     }`}>
                       {selectedDocTypes.includes(type.value) && (
                         <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none">
@@ -155,14 +155,14 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
                         </svg>
                       )}
                     </div>
-                    <span className="text-sm text-slate-700">{type.label}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{type.label}</span>
                   </label>
                 ))}
               </div>
               <Button
                 onClick={handleRequestDocs}
                 disabled={requesting || selectedDocTypes.length === 0}
-                className="w-full flex items-center justify-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 py-2.5 rounded-lg font-medium disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 bg-blue-50 dark:bg-blue-950 text-blue-700 hover:bg-blue-100 border border-blue-200 py-2.5 rounded-lg font-medium disabled:opacity-50"
               >
                 <FileText className="w-4 h-4" />
                 {requesting ? 'Sending...' : 'Request Documents'}
@@ -172,7 +172,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
 
           {/* Request status feedback */}
           {requestStatus === 'pending' && (
-            <div className="flex items-start gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg p-3">
+            <div className="flex items-start gap-2 text-sm text-blue-600 bg-blue-50 dark:bg-blue-950 rounded-lg p-3">
               <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium">Request sent to admin</p>
@@ -181,7 +181,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
             </div>
           )}
           {requestStatus === 'error' && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 rounded-lg p-3">
+            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 rounded-lg p-3">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium">Request failed</p>
@@ -195,13 +195,13 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
             <div className="space-y-1">
               <Button
                 onClick={handleViewDocs}
-                className="w-full flex items-center justify-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 py-2.5 rounded-lg font-medium"
+                className="w-full flex items-center justify-center gap-2 bg-blue-50 dark:bg-blue-950 text-blue-700 hover:bg-blue-100 border border-blue-200 py-2.5 rounded-lg font-medium"
               >
                 <FileText className="w-4 h-4" />
                 View Documents
                 <ArrowRight className="w-4 h-4" />
               </Button>
-              <p className="text-center text-xs text-slate-400 italic">Admins have direct access</p>
+              <p className="text-center text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 italic">Admins have direct access</p>
             </div>
           )}
 
@@ -209,7 +209,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
           {isOwnProfile && !showUpload && (
             <Button
               onClick={handleViewDocs}
-              className="w-full flex items-center justify-center gap-2 bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 py-2.5 rounded-lg font-medium"
+              className="w-full flex items-center justify-center gap-2 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 py-2.5 rounded-lg font-medium"
             >
               <Shield className="w-4 h-4" />
               View My Documents

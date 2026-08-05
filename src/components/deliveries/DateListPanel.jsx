@@ -184,7 +184,7 @@ export default function DateListPanel({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 hover:text-red-600 hover:bg-red-50"
+                      className="h-6 w-6 p-0 hover:text-red-600 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
                       style={{ color: 'var(--text-slate-400)' }}
                       onClick={async (e) => {
                         e.stopPropagation();

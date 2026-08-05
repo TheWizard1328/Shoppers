@@ -126,17 +126,17 @@ export default function RouteMapView({
         exit={{ opacity: 0, scale: 0.95 }}
         className="w-full h-full max-w-6xl max-h-[90vh] flex flex-col"
       >
-        <Card className="bg-white border-slate-200 shadow-xl flex flex-col h-full overflow-hidden">
-          <CardHeader className="flex-shrink-0 border-b border-slate-200 p-4">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-xl flex flex-col h-full overflow-hidden">
+          <CardHeader className="flex-shrink-0 border-b border-slate-200 dark:border-slate-700 p-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-bold text-slate-900">
+              <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
                 Route Map - {dateString}
               </CardTitle>
               <Button variant="ghost" size="icon" onClick={onClose}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <p className="text-slate-600 mt-1">
+            <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">
               {mapData.markers.length} stops • {mapData.storesToShow.length} stores
             </p>
           </CardHeader>
@@ -166,7 +166,7 @@ export default function RouteMapView({
                 />
               </MapContainer>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500">
+              <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 <div className="text-center">
                   <p className="text-lg font-medium">No stops to display</p>
                   <p className="text-sm">No deliveries or pickups found for this route.</p>

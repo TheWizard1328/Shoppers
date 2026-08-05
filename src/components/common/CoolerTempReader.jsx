@@ -72,7 +72,7 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
   const skip = useCallback(() => onDone?.(), [onDone]);
 
   const tempColor = (t) => {
-    if (t == null) return 'text-slate-700';
+    if (t == null) return 'text-slate-700 dark:text-slate-300';
     return (t < TEMP_MIN_C || t > TEMP_MAX_C) ? 'text-red-600' : 'text-emerald-600';
   };
 
@@ -102,17 +102,17 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
   // ─────────────────────────────────────────────────────────────────────────
   return createPortal(
     <div className="fixed inset-0 z-[9500] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
+      <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-2">
             <Thermometer className="w-5 h-5 text-cyan-600" />
-            <span className="font-semibold text-slate-800">Cooler Temp</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Cooler Temp</span>
           </div>
           <div className="flex items-center gap-3">
             {statusBadge()}
-            <button onClick={skip} className="text-slate-400 hover:text-slate-600">
+            <button onClick={skip} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -123,8 +123,8 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
           {/* ── Non-primary device — manual entry only ── */}
           {status === 'non-primary' && !showManual && (
             <div className="space-y-3">
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600 flex items-start gap-2">
-                <Bluetooth className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 flex items-start gap-2">
+                <Bluetooth className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-0.5 shrink-0" />
                 <span>Bluetooth sensor not available on this device. Enter temperature manually.</span>
               </div>
               <button onClick={() => setShowManual(true)}
@@ -137,10 +137,10 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
           {/* ── First-time pair ── */}
           {status === 'idle' && !hasReading && !showManual && (
             <div className="space-y-4">
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-center space-y-2">
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 text-center space-y-2">
                 <Bluetooth className="w-10 h-10 text-cyan-400 mx-auto" />
-                <p className="text-sm text-slate-700 font-medium">Connect your Inkbird sensor</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">Connect your Inkbird sensor</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   One time only — it connects automatically every delivery after this.
                 </p>
               </div>
@@ -148,7 +148,7 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
                 <Bluetooth className="w-4 h-4 mr-2" /> Connect Sensor
               </Button>
               <button onClick={() => setShowManual(true)}
-                className="w-full text-center text-xs text-slate-400 hover:text-slate-600">
+                className="w-full text-center text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300">
                 Enter temperature manually instead
               </button>
             </div>
@@ -158,9 +158,9 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
           {(status === 'waiting-gesture' || isActive) && !hasReading && !showManual && (
             <div className="flex flex-col items-center gap-3 py-6">
               <BluetoothSearching className="w-10 h-10 text-cyan-400 animate-pulse" />
-              <p className="text-slate-500 text-sm text-center">Reading cooler temperature…</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm text-center">Reading cooler temperature…</p>
               <button onClick={() => setShowManual(true)}
-                className="text-xs text-slate-400 hover:text-slate-600 mt-1">
+                className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 mt-1">
                 Enter manually
               </button>
             </div>
@@ -169,13 +169,13 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
           {/* ── Confirm BLE reading ── */}
           {showConfirm && (
             <div className="space-y-4">
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-center space-y-1">
-                <p className="text-xs text-slate-500 uppercase tracking-wide">Cooler temperature</p>
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 text-center space-y-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">Cooler temperature</p>
                 <p className={`text-5xl font-bold ${tempColor(reading.tempC)}`}>
                   {reading.tempC}°C
                 </p>
                 {reading.humidity != null && (
-                  <p className="text-sm text-slate-500">Humidity: {reading.humidity}%</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Humidity: {reading.humidity}%</p>
                 )}
                 {(reading.tempC < TEMP_MIN_C || reading.tempC > TEMP_MAX_C) && (
                   <div className="flex items-center justify-center gap-1 text-red-500 text-xs mt-1">
@@ -201,7 +201,7 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
           {showManual && (
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">
+                <label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1 block">
                   Enter cooler temperature (°C)
                 </label>
                 <Input
@@ -239,7 +239,7 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
           {/* ── Error ── */}
           {status === 'error' && !hasReading && !showManual && (
             <div className="space-y-3">
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-amber-700 text-xs flex items-start gap-2">
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 p-3 text-amber-700 text-xs flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 Could not read sensor. Enter manually or reconnect.
               </div>
@@ -256,7 +256,7 @@ export default function CoolerTempReader({ delivery, currentUser, onDone, action
           {/* Skip */}
           {!isSaving && (
             <button onClick={skip}
-              className="w-full text-center text-xs text-slate-400 hover:text-slate-600 pt-1">
+              className="w-full text-center text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 pt-1">
               Skip temperature log
             </button>
           )}

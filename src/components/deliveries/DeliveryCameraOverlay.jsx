@@ -550,7 +550,7 @@ export default function DeliveryCameraOverlay({
               type="button"
               onClick={handleBurstCapture}
               disabled={switching}
-              className="flex items-center justify-center rounded-full bg-white text-black w-16 h-16 shadow-lg transition active:scale-95 disabled:opacity-50 touch-manipulation"
+              className="flex items-center justify-center rounded-full bg-white dark:bg-slate-900 text-black w-16 h-16 shadow-lg transition active:scale-95 disabled:opacity-50 touch-manipulation"
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <Camera className="w-7 h-7" />

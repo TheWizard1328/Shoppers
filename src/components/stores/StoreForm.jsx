@@ -531,7 +531,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                   checked={formData.pays_app_fees || false}
                   onCheckedChange={(checked) => setFormData({ ...formData, pays_app_fees: checked })} />
                 
-                                <Label htmlFor="pays_app_fees" className={`text-sm font-medium ${formData.pays_app_fees ? 'text-green-600' : 'text-slate-500'}`}>
+                                <Label htmlFor="pays_app_fees" className={`text-sm font-medium ${formData.pays_app_fees ? 'text-green-600' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
                                     {formData.pays_app_fees ? 'Currently Paying Fees' : 'Not Paying Fees'}
                                 </Label>
                             </div>
@@ -540,12 +540,12 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         {/* App Fee History List */}
                         {formData.app_fee_history && formData.app_fee_history.length > 0 &&
             <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                                <p className="text-xs font-semibold text-slate-600 mb-2">Fee Payment History:</p>
+                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Fee Payment History:</p>
                                 {formData.app_fee_history.
               slice().
               sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date)).
               map((entry, idx) =>
-              <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <div key={idx} className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded border" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
                                             <div className="flex items-center gap-3">
                                                 <Input
                     type="date"
@@ -574,7 +574,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                                                     </SelectContent>
                                                 </Select>
                                                 {entry.changed_by &&
-                  <span className="text-xs text-slate-500">by {entry.changed_by}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">by {entry.changed_by}</span>
                   }
                                             </div>
                                             <Button

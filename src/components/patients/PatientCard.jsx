@@ -261,7 +261,7 @@ export default function PatientCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 hover:text-slate-600"
+              className="h-8 w-8 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300"
               style={{ color: 'var(--text-slate-400)' }}
               onClick={handleEdit}
               title="Edit Patient">
@@ -325,7 +325,7 @@ export default function PatientCard({
               else label = loginDate.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
               return (
                 <Badge
-                  className={`text-xs ${isRecent ? 'bg-green-100 text-green-800 border-green-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                  className={`text-xs ${isRecent ? 'bg-green-100 text-green-800 border-green-300' : 'bg-blue-50 dark:bg-blue-950 text-blue-700 border-blue-200'}`}
                   variant="outline">
                   <LogIn className="w-3 h-3 mr-1" />
                   {label}
@@ -334,7 +334,7 @@ export default function PatientCard({
             null
             }
             {(patient.portal_login_count > 0) &&
-            <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-300">
+            <Badge variant="outline" className="text-xs bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-600">
                 <Hash className="w-3 h-3 mr-1" />
                 {patient.portal_login_count} login{patient.portal_login_count !== 1 ? 's' : ''}
               </Badge>

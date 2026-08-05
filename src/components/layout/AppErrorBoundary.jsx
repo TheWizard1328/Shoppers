@@ -100,25 +100,25 @@ export default class AppErrorBoundary extends React.Component {
     };
 
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-800 p-4">
         <div className="text-center max-w-2xl mx-auto">
-          <h1 className="text-xl font-semibold text-slate-900 mb-2">Something went wrong</h1>
-          <p className="text-slate-600 mb-4">An error occurred while loading the app.</p>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">Something went wrong</h1>
+          <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-4">An error occurred while loading the app.</p>
 
           {showErrorDetails && (
-            <div className="text-left mb-4 p-4 bg-red-50 rounded-lg border-2 border-red-300">
+            <div className="text-left mb-4 p-4 bg-red-50 dark:bg-red-950 rounded-lg border-2 border-red-300">
               <div className="flex justify-between items-center mb-3">
                 <div className="font-bold text-red-900 text-lg">Error Details:</div>
                 <Button onClick={handleCopyError} variant="outline" size="sm" className="text-red-700 border-red-300 hover:bg-red-100">
                   Copy Error
                 </Button>
               </div>
-              <div className="mb-2 p-2 bg-white rounded border border-red-200">
+              <div className="mb-2 p-2 bg-white dark:bg-slate-900 rounded border border-red-200">
                 <div className="font-semibold text-red-900 text-sm mb-1">Message:</div>
                 <div className="text-sm text-red-800 break-words">{errorToShow.message || 'Unknown error'}</div>
               </div>
               {errorToShow.stack && (
-                <div className="p-2 bg-white rounded border border-red-200">
+                <div className="p-2 bg-white dark:bg-slate-900 rounded border border-red-200">
                   <div className="font-semibold text-red-900 text-sm mb-1">Stack Trace:</div>
                   <pre className="text-xs text-red-800 overflow-auto max-h-40 whitespace-pre-wrap break-words">{errorToShow.stack}</pre>
                 </div>

@@ -99,12 +99,12 @@ export default function QuickStats({ currentUser }) {
       {/* Active Deliveries */}
       <div>
         <div 
-          className="flex items-center justify-between text-sm cursor-pointer hover:bg-slate-50 p-2"
+          className="flex items-center justify-between text-sm cursor-pointer hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 p-2"
           onClick={() => toggleExpanded('activeDeliveries')}
         >
           <div className="flex items-center gap-2">
             <Package className="w-4 h-4 text-emerald-600" />
-            <span className="text-slate-600 font-medium">Active Deliveries</span>
+            <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium">Active Deliveries</span>
           </div>
           <div className="flex items-center gap-1">
             <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
@@ -119,14 +119,14 @@ export default function QuickStats({ currentUser }) {
             {activeDeliveriesByDriver.length > 0 ? (
               activeDeliveriesByDriver.map(driver => (
                 <div key={driver.name} className="flex justify-between text-xs">
-                  <span className="text-slate-600 truncate">{driver.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 truncate">{driver.name}</span>
                   <Badge variant="outline" className="text-xs">
                     {driver.count}
                   </Badge>
                 </div>
               ))
             ) : (
-              <div className="text-xs text-slate-500">No active deliveries</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">No active deliveries</div>
             )}
           </div>
         )}
@@ -136,12 +136,12 @@ export default function QuickStats({ currentUser }) {
       {currentUser && currentUser.id && (currentUser?.role === 'admin' || (currentUser?.app_roles && currentUser.app_roles.includes('dispatcher'))) && (
         <div>
           <div 
-            className="flex items-center justify-between text-sm cursor-pointer hover:bg-slate-50 p-2 rounded-lg"
+            className="flex items-center justify-between text-sm cursor-pointer hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 p-2 rounded-lg"
             onClick={() => toggleExpanded('totalPatients')}
           >
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-blue-600" />
-              <span className="text-slate-600 font-medium">Total Patients</span>
+              <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium">Total Patients</span>
             </div>
             <div className="flex items-center gap-1">
               <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
@@ -155,7 +155,7 @@ export default function QuickStats({ currentUser }) {
             <div className="ml-6 mt-2 space-y-1">
               {patientsByStore.map(store => (
                 <div key={store.name} className="flex justify-between text-xs">
-                  <span className="text-slate-600 truncate">{store.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 truncate">{store.name}</span>
                   <Badge variant="outline" className="text-xs">
                     {store.count}
                   </Badge>
@@ -169,12 +169,12 @@ export default function QuickStats({ currentUser }) {
       {/* Active Routes */}
       <div>
         <div 
-          className="flex items-center justify-between text-sm cursor-pointer hover:bg-slate-50 p-2 rounded-lg"
+          className="flex items-center justify-between text-sm cursor-pointer hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 p-2 rounded-lg"
           onClick={() => toggleExpanded('activeRoutes')}
         >
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-purple-600" />
-            <span className="text-slate-600 font-medium">Active Routes</span>
+            <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium">Active Routes</span>
           </div>
           <div className="flex items-center gap-1">
             <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
@@ -189,7 +189,7 @@ export default function QuickStats({ currentUser }) {
             {activeRoutesByDriver.length > 0 ? (
               activeRoutesByDriver.map(driver => (
                 <div key={driver.name} className="space-y-1">
-                  <div className="text-xs font-medium text-slate-700 truncate">{driver.name}</div>
+                  <div className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{driver.name}</div>
                   <div className="flex gap-1">
                     <Badge className="bg-green-100 text-green-800 text-xs">
                       {driver.completed}
@@ -204,7 +204,7 @@ export default function QuickStats({ currentUser }) {
                 </div>
               ))
             ) : (
-              <div className="text-xs text-slate-500">No active routes today</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">No active routes today</div>
             )}
           </div>
         )}

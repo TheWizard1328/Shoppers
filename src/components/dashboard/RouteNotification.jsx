@@ -38,7 +38,7 @@ export default function RouteNotification({ notification, onDismiss, onNavigate,
       case 'route_updated':
         return <MapPin className="w-5 h-5 text-amber-500" />;
       default:
-        return <MapPin className="w-5 h-5 text-slate-500" />;
+        return <MapPin className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />;
     }
   };
   
@@ -48,11 +48,11 @@ export default function RouteNotification({ notification, onDismiss, onNavigate,
         return 'bg-emerald-50 border-emerald-200';
       case 'route_optimized':
       case 'next_stop':
-        return 'bg-blue-50 border-blue-200';
+        return 'bg-blue-50 dark:bg-blue-950 border-blue-200';
       case 'route_updated':
-        return 'bg-amber-50 border-amber-200';
+        return 'bg-amber-50 dark:bg-amber-950 border-amber-200';
       default:
-        return 'bg-white border-slate-200';
+        return 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700';
     }
   };
   
@@ -72,16 +72,16 @@ export default function RouteNotification({ notification, onDismiss, onNavigate,
               </div>
               
               <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-slate-900 text-sm">
+                <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
                   {notification.title}
                 </h4>
-                <p className="text-sm text-slate-600 mt-0.5">
+                <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-0.5">
                   {notification.message}
                 </p>
                 
                 {notification.aiSuggestion && (
-                  <div className="mt-2 p-2 bg-white/50 rounded-lg border border-slate-200">
-                    <p className="text-xs text-slate-600 flex items-start gap-1">
+                  <div className="mt-2 p-2 bg-white/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 flex items-start gap-1">
                       <span className="text-purple-500">💡</span>
                       {notification.aiSuggestion}
                     </p>

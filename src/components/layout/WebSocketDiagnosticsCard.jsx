@@ -172,7 +172,7 @@ export default function WebSocketDiagnosticsCard() {
 
   return (
     <Card 
-      className="fixed top-3 right-4 w-80 p-3 bg-blue-50 border-blue-200 text-blue-950 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100"
+      className="fixed top-3 right-4 w-80 p-3 bg-blue-50 dark:bg-blue-950 border-blue-200 text-blue-950 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
@@ -194,7 +194,7 @@ export default function WebSocketDiagnosticsCard() {
         </div>
         <button
           onClick={() => setEvent(null)}
-          className="text-blue-400 hover:text-blue-600 flex-shrink-0 dark:text-slate-400 dark:hover:text-slate-200"
+          className="text-blue-400 hover:text-blue-600 flex-shrink-0 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-200"
         >
           <X className="w-4 h-4" />
         </button>

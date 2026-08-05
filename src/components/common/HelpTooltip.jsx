@@ -33,7 +33,7 @@ export default function HelpTooltip({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className={`inline-flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors ${className}`}
+            className={`inline-flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 transition-colors ${className}`}
             onClick={(e) => e.stopPropagation()}
           >
             <HelpCircle className={sizeClasses[size]} />

@@ -119,7 +119,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
               </div>
               <button
                 onClick={handleDismiss}
-                className="p-1 hover:bg-white/20 rounded-full transition-colors"
+                className="p-1 hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/20 rounded-full transition-colors"
               >
                 <X className="w-4 h-4 text-white" />
               </button>

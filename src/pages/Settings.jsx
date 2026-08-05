@@ -67,7 +67,7 @@ export function ProfilePanel({ currentUser, onClose }) {
       <div className="space-y-1">
         <Label htmlFor="email">Email</Label>
         <Input id="email" value={currentUser?.email || ''} disabled className="opacity-60 cursor-not-allowed" />
-        <p className="text-xs text-slate-400">Email cannot be changed here.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Email cannot be changed here.</p>
       </div>
       <div className="space-y-1">
         <Label htmlFor="phone">Phone Number</Label>
@@ -77,7 +77,7 @@ export function ProfilePanel({ currentUser, onClose }) {
       <div className="space-y-1">
         <Label htmlFor="eTransEmail">e-Transfer Email</Label>
         <Input id="eTransEmail" value={eTransEmail} onChange={(e) => setETransEmail(e.target.value)} placeholder="your@email.com" type="email" />
-        <p className="text-xs text-slate-400">Used for Interac e-Transfer payroll payments.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Used for Interac e-Transfer payroll payments.</p>
       </div>
       )}
       <Button onClick={handleSave} disabled={saving} className="w-full gap-2 mt-2">
@@ -154,7 +154,7 @@ function NotificationsPanel({ currentUser, settings }) {
     <div className="divide-y divide-slate-100 p-1">
       {/* Browser permission status banner */}
       {permissionDenied && (
-        <div className="flex items-start gap-2 py-3 px-3 mb-1 bg-red-50 rounded-lg border border-red-200">
+        <div className="flex items-start gap-2 py-3 px-3 mb-1 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200">
           <ShieldAlert className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-red-700">
             Notifications are blocked by your browser. Go to your browser's site settings and allow notifications for this site, then re-open this panel.
@@ -171,7 +171,7 @@ function NotificationsPanel({ currentUser, settings }) {
           </p>
         </div>
         {subscribing
-          ? <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+          ? <Loader2 className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500 dark:text-slate-400" />
           : <Switch
               checked={notificationsEnabled && browserPermission === 'granted'}
               disabled={permissionDenied}
@@ -231,7 +231,7 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
         <p className="text-sm font-medium mb-3" style={{ color: 'var(--text-slate-900)' }}>Theme</p>
         <div className="grid grid-cols-3 gap-2">
           <button onClick={() => handleTheme('light')}
-            className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium ${theme === 'light' ? 'border-blue-500' : 'border-slate-200 hover:border-slate-300'}`}
+            className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium ${theme === 'light' ? 'border-blue-500' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600'}`}
             style={{ background: '#ffffff' }}>
             <Sun className="w-5 h-5" style={{ color: '#374151' }} />
             <span style={{ color: '#374151' }}>Light</span>
@@ -245,7 +245,7 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
             {theme === 'dark' && <Check className="w-3 h-3" style={{ color: '#4ade80' }} />}
           </button>
           <button onClick={() => handleTheme('auto')}
-            className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium overflow-hidden ${theme === 'auto' ? 'border-blue-500' : 'border-slate-200 hover:border-slate-300'}`}
+            className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium overflow-hidden ${theme === 'auto' ? 'border-blue-500' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600'}`}
             style={{ background: 'transparent' }}>
             <div className="absolute inset-0 left-0 w-1/2" style={{ background: '#ffffff' }} />
             <div className="absolute inset-0 left-1/2 w-1/2" style={{ background: '#0f172a' }} />
@@ -262,7 +262,7 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
         <div className="grid grid-cols-2 gap-2">
           {['kilometers', 'miles'].map((val) => (
             <button key={val} onClick={() => handleUnits(val)}
-              className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium capitalize ${units === val ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
+              className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium capitalize ${units === val ? 'border-slate-900 bg-slate-50 dark:bg-slate-800' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600'}`}>
               <Ruler className="w-4 h-4" style={{ color: 'var(--text-slate-700)' }} />
               <span style={{ color: 'var(--text-slate-700)' }}>{val}</span>
               {units === val && <Check className="w-3 h-3 text-green-600" />}
@@ -410,13 +410,13 @@ export default function Settings() {
                       key={i}
                       onClick={item.onClick}
                       disabled={item.disabled}
-                      className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors text-left select-none ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 active:bg-slate-100'}`}
+                      className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors text-left select-none ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 active:bg-slate-100'}`}
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.label}</p>
                         {item.description && <p className="text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>{item.description}</p>}
                       </div>
-                      {!item.disabled && <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />}
+                      {!item.disabled && <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 flex-shrink-0 ml-2" />}
                     </button>
                   );
                 })}

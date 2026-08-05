@@ -24,7 +24,7 @@ const TimeField = React.forwardRef(function TimeField({ value, onChange, onClear
       <button
         type="button"
         onClick={onClear}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 hover:text-slate-900"
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100"
         aria-label="Clear time">
         
           <X className="w-4 h-4" />

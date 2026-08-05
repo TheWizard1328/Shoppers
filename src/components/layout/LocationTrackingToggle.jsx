@@ -303,14 +303,14 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   return (
     <div className="flex items-center gap-2">
       <div className="flex flex-col">
-        <Label htmlFor="location-toggle" className="text-xs font-medium text-slate-700 leading-tight">
+        <Label htmlFor="location-toggle" className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-tight">
           Share Location
         </Label>
-        <Label htmlFor="location-toggle" className="text-[10px] text-slate-500 leading-tight">
+        <Label htmlFor="location-toggle" className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-tight">
           With Other Drivers
         </Label>
         {permissionStatus && (
-          <span className="text-[10px] text-slate-500 leading-tight">{permissionStatus}</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-tight">{permissionStatus}</span>
         )}
         {isCapacitorNativeApp() && getCapacitorPlatform() === 'android' && locationSharingEnabled && (
           <span className="text-[10px] text-emerald-600 leading-tight">Background GPS active on Android</span>

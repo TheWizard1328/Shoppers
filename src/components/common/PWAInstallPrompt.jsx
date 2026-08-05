@@ -58,15 +58,15 @@ export default function PWAInstallPrompt({ storageKey = 'pwa_install_dismissed' 
           exit={{ y: 100, opacity: 0 }}
           className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[10000]"
         >
-          <div className="bg-white rounded-xl shadow-2xl border-2 border-emerald-500 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border-2 border-emerald-500 p-4">
             <div className="flex items-start gap-3">
               <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <Smartphone className="w-6 h-6 text-emerald-600" />
               </div>
               
               <div className="flex-1">
-                <h4 className="font-semibold text-slate-900 mb-1">Install RxDeliver</h4>
-                <p className="text-sm text-slate-600 mb-3">
+                <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Install RxDeliver</h4>
+                <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-3">
                   Add to your home screen for faster access and offline support
                 </p>
                 

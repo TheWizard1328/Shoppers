@@ -69,7 +69,7 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
         className={`cursor-pointer transition-all duration-200 ${
           selected
             ? 'border-emerald-500 bg-emerald-50 shadow-md'
-            : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:border-slate-600 hover:shadow-sm'
         }`}
         onClick={() => onSelect(patient)}
       >
@@ -78,15 +78,15 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl flex items-center justify-center">
-                <User className="w-6 h-6 text-slate-600" />
+                <User className="w-6 h-6 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-slate-900">
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-100">
                     {patient.full_name}
                   </h3>
                   {deliveryStats?.lastDeliveryDate && (
-                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                    <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950 text-blue-700 border-blue-200">
                       Last: {(() => {
                         try {
                           const date = new Date(deliveryStats.lastDeliveryDate.replace(/-/g, '/'));
@@ -102,7 +102,7 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
                   )}
                 </div>
                 <p
-                  className="text-sm text-slate-600 cursor-pointer underline hover:text-blue-600"
+                  className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 cursor-pointer underline hover:text-blue-600"
                   onClick={(e) => {
                     e.stopPropagation();
                     handlePhoneClick(patient.phone);
@@ -119,7 +119,7 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
                 e.stopPropagation();
                 onEdit(patient);
               }}
-              className="hover:bg-slate-100"
+              className="hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700"
             >
               <Edit className="w-4 h-4" />
             </Button>
@@ -130,7 +130,7 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
             {/* Left Column - Main Info */}
             <div className="space-y-3">
               {patient.address && (
-                <div className="flex items-start gap-2 text-sm text-slate-600">
+                <div className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
                   <MapPin className="w-4 h-4 mt-0.5" />
                   <span
                     className="leading-relaxed cursor-pointer underline hover:text-blue-600"
@@ -164,8 +164,8 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-slate-500" />
-                  <span className="font-medium text-slate-900 text-sm">Notes</span>
+                  <FileText className="w-4 h-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+                  <span className="font-medium text-slate-900 dark:text-slate-100 text-sm">Notes</span>
                 </div>
                 {!isEditingNotes && (
                   <Button
@@ -175,7 +175,7 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
                       e.stopPropagation();
                       setIsEditingNotes(true);
                     }}
-                    className="text-xs hover:bg-slate-100"
+                    className="text-xs hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700"
                   >
                     <Edit className="w-3 h-3" />
                   </Button>
@@ -214,7 +214,7 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
                   </div>
                 </div>
               ) : (
-                <p className="text-slate-600 text-sm leading-relaxed min-h-[60px]">
+                <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm leading-relaxed min-h-[60px]">
                   {patient.notes || 'No notes added'}
                 </p>
               )}
@@ -242,7 +242,7 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
             <div className="flex items-center gap-4 text-sm flex-wrap">
               <div className="flex items-center gap-1">
                 <Package className="w-4 h-4 text-emerald-600" />
-                <span className="text-slate-600">{deliveryStats?.totalDeliveries || 0} total</span>
+                <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">{deliveryStats?.totalDeliveries || 0} total</span>
               </div>
               {activeDeliveries > 0 && (
                 <Badge className="bg-blue-100 text-blue-800">
@@ -250,7 +250,7 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
                 </Badge>
               )}
               {/* Day breakdown */}
-              <div className="flex items-center gap-1 text-xs text-slate-500">
+              <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 <span>M:{dayBreakdown.M}</span>
                 <span>T:{dayBreakdown.T}</span>
                 <span>W:{dayBreakdown.W}</span>
@@ -276,7 +276,7 @@ export default function PatientCard({ patient, deliveries, onSelect, onEdit, sel
             </div>
 
             {/* Patient ID in bottom right */}
-            <p className="text-xs text-slate-500 font-mono">
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">
               ID: {patient.patient_id}
             </p>
           </div>

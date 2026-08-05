@@ -344,7 +344,7 @@ export default function ConnectionRecoveryBanner() {
                 size="sm"
                 variant="outline"
                 onClick={handleRetry}
-                className="h-7 px-3 bg-white/20 border-white/30 text-white hover:bg-white/30"
+                className="h-7 px-3 bg-white/20 border-white/30 text-white hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/30"
               >
                 <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                 Retry Now
@@ -354,7 +354,7 @@ export default function ConnectionRecoveryBanner() {
             {status !== 'recovering' && (
               <button
                 onClick={handleDismiss}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
+                className="p-1 hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/20 rounded transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>

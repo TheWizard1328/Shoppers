@@ -73,20 +73,20 @@ function EntityMultiSelect({ field, value, onChange, stores, drivers }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="h-8 text-xs border rounded-md px-2 bg-white text-left min-w-[140px] max-w-[200px] truncate flex items-center justify-between gap-1 hover:border-blue-400"
+        className="h-8 text-xs border rounded-md px-2 bg-white dark:bg-slate-900 text-left min-w-[140px] max-w-[200px] truncate flex items-center justify-between gap-1 hover:border-blue-400"
       >
         <span className="truncate">
           {selectedLabels.length === 0 ? 'Select…' : selectedLabels.join(', ')}
         </span>
-        <span className="text-slate-400">▾</span>
+        <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">▾</span>
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 bg-white border rounded-lg shadow-lg p-2 space-y-1 max-h-52 overflow-y-auto min-w-[180px]">
+        <div className="absolute z-50 mt-1 bg-white dark:bg-slate-900 border rounded-lg shadow-lg p-2 space-y-1 max-h-52 overflow-y-auto min-w-[180px]">
           {options.length === 0 && (
-            <p className="text-xs text-slate-400 px-1">No options loaded</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 px-1">No options loaded</p>
           )}
           {options.map((opt) => (
-            <label key={opt.id} className="flex items-center gap-2 cursor-pointer px-1 py-0.5 hover:bg-slate-50 rounded">
+            <label key={opt.id} className="flex items-center gap-2 cursor-pointer px-1 py-0.5 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 rounded">
               <input
                 type="checkbox"
                 checked={selectedIds.includes(opt.id)}
@@ -117,7 +117,7 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-xs text-slate-400 w-4">{index === 0 ? 'IF' : 'AND'}</span>
+      <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 w-4">{index === 0 ? 'IF' : 'AND'}</span>
       <Select value={condition.field} onValueChange={handleFieldChange}>
         <SelectTrigger className="h-8 text-xs w-36">
           <SelectValue placeholder="Field" />
@@ -152,7 +152,7 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
           />
         )
       )}
-      <Button size="sm" variant="ghost" onClick={() => onRemove(index)} className="h-8 w-8 p-0 text-slate-400 hover:text-red-500">
+      <Button size="sm" variant="ghost" onClick={() => onRemove(index)} className="h-8 w-8 p-0 text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-red-500">
         <Trash2 className="w-3 h-3" />
       </Button>
     </div>
@@ -235,7 +235,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
     <div className="space-y-3">
       <Card className="mb-3">
         <CardContent className="pb-2 p-3 pt-2 my-6">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
             Define <strong>when</strong> each notification fires and <strong>who</strong> receives it.
             No conditions = always fires. Multiple conditions = ALL must pass (AND logic).
           </p>
@@ -258,38 +258,38 @@ export default function NotificationRulesPanel({ records, setRecords }) {
 
         return (
           <div key={eventName} onClick={() => openEditor(eventName)}
-            className="border border-slate-200 rounded-xl bg-white hover:border-blue-300 cursor-pointer transition-colors overflow-hidden"
+            className="border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 hover:border-blue-300 cursor-pointer transition-colors overflow-hidden"
             style={{ borderLeft: `4px solid ${borderColor}` }}>
             <div className="px-4 py-3 flex gap-3">
               {/* Left: main content */}
               <div className="flex-1 min-w-0">
                 {/* Label */}
                 <div className="mb-2">
-                  <span className="font-bold text-slate-900 text-base">{label}</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 text-base">{label}</span>
                 </div>
 
                 {/* Recipients */}
                 <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                  <span className="text-sm text-slate-700 mr-0.5">Recipients:</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300 mr-0.5">Recipients:</span>
                   {recipients.length > 0 ?
                     recipients.map((r) =>
                       <span key={r} className="text-sm px-3 py-0.5 rounded-full bg-blue-500 text-white font-medium">
                         {RECIPIENT_OPTIONS.find((o) => o.value === r)?.label.replace(/^[^\s]+ /, '') || r}
                       </span>
                     ) :
-                    <span className="text-sm text-slate-400 italic">No recipients set</span>
+                    <span className="text-sm text-slate-400 dark:text-slate-500 dark:text-slate-400 italic">No recipients set</span>
                   }
                 </div>
 
                 {/* Conditions summary */}
                 {conditions.length === 0 ?
-                  <p className="text-sm text-slate-500 font-mono">✓ Always fires</p> :
+                  <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">✓ Always fires</p> :
                   <div className="space-y-0.5">
                     {conditions.map((c, i) =>
-                      <p key={i} className="text-sm text-slate-700 font-mono">
-                        <span className="text-slate-400">{i === 0 ? 'IF ' : 'AND '}</span>
+                      <p key={i} className="text-sm text-slate-700 dark:text-slate-300 font-mono">
+                        <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">{i === 0 ? 'IF ' : 'AND '}</span>
                         {FIELD_OPTIONS.find((f) => f.value === c.field)?.label || c.field}
-                        <span className="text-slate-400"> {c.operator.replace(/_/g, ' ')} </span>
+                        <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400"> {c.operator.replace(/_/g, ' ')} </span>
                         {c.value ? <span>{resolveValueLabels(c.field, c.value, stores, drivers)}</span> : null}
                       </p>
                     )}
@@ -313,7 +313,7 @@ export default function NotificationRulesPanel({ records, setRecords }) {
                       setRecords((prev) => { const next = { ...prev }; delete next[eventName]; return next; });
                     } catch { alert('Failed to delete'); }
                   }}
-                  className="text-sm px-4 h-8 text-slate-700 border-slate-300 hover:text-red-600 hover:border-red-300">
+                  className="text-sm px-4 h-8 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:text-red-600 hover:border-red-300">
                   Delete
                 </Button>
               </div>
@@ -333,13 +333,13 @@ export default function NotificationRulesPanel({ records, setRecords }) {
           <div className="space-y-5 py-2">
             {/* Recipients */}
             <div>
-              <Label className="text-xs text-slate-600 mb-2 block">Who receives this notification</Label>
+              <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2 block">Who receives this notification</Label>
               <div className="space-y-2">
                 {RECIPIENT_OPTIONS.map((opt) =>
                   <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={draftRecipients.includes(opt.value)}
                       onChange={() => toggleRecipient(opt.value)}
-                      className="w-4 h-4 rounded border-slate-300" />
+                      className="w-4 h-4 rounded border-slate-300 dark:border-slate-600" />
                     <span className="text-sm">{opt.label}</span>
                   </label>
                 )}
@@ -349,14 +349,14 @@ export default function NotificationRulesPanel({ records, setRecords }) {
             {/* Conditions */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <Label className="text-xs text-slate-600">Trigger Conditions (ALL must pass)</Label>
+                <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">Trigger Conditions (ALL must pass)</Label>
                 <Button size="sm" variant="outline" onClick={addCondition} className="gap-1 text-xs h-7">
                   <Plus className="w-3 h-3" /> Add Condition
                 </Button>
               </div>
               {draftConditions.length === 0 ?
-                <p className="text-xs text-green-600 bg-green-50 rounded p-2">✓ No conditions — this notification always fires when the event occurs.</p> :
-                <div className="space-y-2 bg-slate-50 rounded p-3">
+                <p className="text-xs text-green-600 bg-green-50 dark:bg-green-950 rounded p-2">✓ No conditions — this notification always fires when the event occurs.</p> :
+                <div className="space-y-2 bg-slate-50 dark:bg-slate-800 rounded p-3">
                   {draftConditions.map((cond, i) =>
                     <ConditionRow key={i} condition={cond} index={i}
                       onChange={updateCondition} onRemove={removeCondition}

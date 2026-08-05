@@ -6,7 +6,7 @@ export default function MapModeControl({ mapMode, onMapModeChange, disabled = fa
   if (disabled) return null;
 
   return (
-    <div className="absolute top-4 right-4 z-[1000] bg-white rounded-lg shadow-lg p-2 flex gap-2">
+    <div className="absolute top-4 right-4 z-[1000] bg-white dark:bg-slate-900 rounded-lg shadow-lg p-2 flex gap-2">
       <Button
         variant={mapMode === 'auto-follow' ? 'default' : 'outline'}
         size="sm"

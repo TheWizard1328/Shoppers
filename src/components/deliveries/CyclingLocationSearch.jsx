@@ -148,7 +148,7 @@ export default function CyclingLocationSearch({
         </div>
       ) : (
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 pointer-events-none" />
           <Input
             ref={inputRef}
             type="text"
@@ -166,22 +166,22 @@ export default function CyclingLocationSearch({
               style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
             >
               {isLoading ? (
-                <div className="px-3 py-2 text-xs text-slate-500">Searching…</div>
+                <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Searching…</div>
               ) : results.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-slate-400">No saved locations found</div>
+                <div className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">No saved locations found</div>
               ) : (
                 results.map((loc) => (
                   <button
                     key={loc.id}
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); handleSelect(loc); }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 border-b last:border-b-0"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 flex items-center gap-2 border-b last:border-b-0"
                     style={{ borderColor: 'var(--border-slate-100)' }}
                   >
                     <MapPin className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                     <span className="flex-1 truncate font-medium">{loc.name}</span>
                     {loc.usage_count > 0 && (
-                      <span className="text-xs text-slate-400 flex-shrink-0">×{loc.usage_count}</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 flex-shrink-0">×{loc.usage_count}</span>
                     )}
                   </button>
                 ))

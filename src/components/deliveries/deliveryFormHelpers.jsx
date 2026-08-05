@@ -66,7 +66,7 @@ export function renderDeliveryIdentifiersSection({
               disabled={isSaving} />
             
               {pidInputValue !== originalPidRef.current &&
-            <button type="button" onClick={() => {setPidInputValue(originalPidRef.current);setPidLookupStatus(null);}} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <button type="button" onClick={() => {setPidInputValue(originalPidRef.current);setPidLookupStatus(null);}} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300">
                   <X className="w-3 h-3" />
                 </button>
             }

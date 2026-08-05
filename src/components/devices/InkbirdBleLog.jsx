@@ -92,7 +92,7 @@ export default function InkbirdBleLog() {
             <Bluetooth className="w-4 h-4 text-blue-500" />
             Inkbird BLE Diagnostics
             {logs.length > 0 && (
-              <Badge className="bg-slate-200 text-slate-700 text-xs">{logs.length}</Badge>
+              <Badge className="bg-slate-200 text-slate-700 dark:text-slate-300 text-xs">{logs.length}</Badge>
             )}
             {expanded ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
           </CardTitle>
@@ -144,7 +144,7 @@ export default function InkbirdBleLog() {
               {logs.map((entry, i) => (
                 <div
                   key={i}
-                  className="flex flex-col gap-0.5 p-2 rounded-md border cursor-pointer hover:bg-slate-50"
+                  className="flex flex-col gap-0.5 p-2 rounded-md border cursor-pointer hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800"
                   style={{ borderColor: 'var(--border-slate-100)' }}
                   onClick={() => setExpandedEntry(expandedEntry === i ? null : i)}
                 >
@@ -152,13 +152,13 @@ export default function InkbirdBleLog() {
                     <span className="text-xs font-mono" style={{ color: 'var(--text-slate-400)', minWidth: '54px' }}>
                       {formatTs(entry.ts)}
                     </span>
-                    <Badge className={`text-xs ${LEVEL_STYLES[entry.level] || 'bg-slate-100 text-slate-700'}`}>
+                    <Badge className={`text-xs ${LEVEL_STYLES[entry.level] || 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
                       {entry.level}
                     </Badge>
                     <span className="text-xs flex-1" style={{ color: 'var(--text-slate-800)' }}>{entry.message}</span>
                   </div>
                   {expandedEntry === i && entry.detail && (
-                    <pre className="text-xs mt-1 p-2 rounded bg-slate-100 overflow-x-auto whitespace-pre-wrap break-all" style={{ color: 'var(--text-slate-700)' }}>
+                    <pre className="text-xs mt-1 p-2 rounded bg-slate-100 dark:bg-slate-800 overflow-x-auto whitespace-pre-wrap break-all" style={{ color: 'var(--text-slate-700 dark:text-slate-300)' }}>
                       {entry.detail}
                     </pre>
                   )}

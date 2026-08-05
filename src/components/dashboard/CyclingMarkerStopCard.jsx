@@ -241,7 +241,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
                   onTouchStart={(e) => e.stopPropagation()}
                   onCheckedChange={(checked) => onBulkSelectionChange?.(delivery.id, !!checked)}
                   aria-label="Select cycling marker"
-                  className="h-5 w-5 border-white bg-white/90 data-[state=checked]:bg-white data-[state=checked]:text-slate-900"
+                  className="h-5 w-5 border-white bg-white/90 data-[state=checked]:bg-white dark:bg-slate-900 data-[state=checked]:text-slate-900 dark:text-slate-100"
                 />
               </div>
             )}
@@ -407,7 +407,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
             <button
             onClick={() => {setMenuOpen(false);onEdit?.(delivery);}}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-slate-50"
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800"
             style={{ color: '#1e293b', background: 'none', border: 'none', cursor: 'pointer' }}>
             
               <Pencil size={13} color="#64748b" />
@@ -416,7 +416,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
 
             <button
             onClick={() => {setMenuOpen(false);onDelete?.(delivery.id);}}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-red-50"
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-medium hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
             style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>
             
               <Trash2 size={13} />

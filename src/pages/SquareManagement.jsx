@@ -1408,7 +1408,7 @@ export default function SquareManagement() {
         actions: hasMatch ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
         delivery.status === 'pending' ?
-        <Button variant="secondary" size="sm" className="border border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400">Pending Pickup</Button> :
+        <Button variant="secondary" size="sm" className="border border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:text-slate-500">Pending Pickup</Button> :
         <Button variant="secondary" size="sm" className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300 leading-tight h-auto py-1 text-center whitespace-normal"><span>Not<br />Collected</span></Button>
       };
     });
@@ -1989,7 +1989,7 @@ export default function SquareManagement() {
               </div>
               {currentUser && !isDriverView &&
               <div className="flex-1 min-w-0">
-                <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+                <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
                   <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
                   {isSyncing ? 'Syncing...' : 'Sync'}
                 </Button>
@@ -2070,9 +2070,9 @@ export default function SquareManagement() {
                 {/* Total Amount = Catalog + New - Collected */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
-                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Total Amount</div>
-                    <div className="text-xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Total Amount</div>
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
                       {collectedPct > 0 && <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />}
                       {catalogPct > 0 && <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />}
@@ -2083,9 +2083,9 @@ export default function SquareManagement() {
                 {/* Collected */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
-                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Total Collected</div>
-                    <div className="text-xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${collectedAmount.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{collectedRows.length} item{collectedRows.length !== 1 ? 's' : ''}</div>
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Total Collected</div>
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${collectedAmount.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{collectedRows.length} item{collectedRows.length !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />
                     </div>
@@ -2094,9 +2094,9 @@ export default function SquareManagement() {
                 {/* Catalog Items */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
-                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Catalog Items</div>
-                    <div className="text-xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${catalogTotal.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{catalogOnlyItemCount} item{catalogOnlyItemCount !== 1 ? 's' : ''}</div>
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Catalog Items</div>
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${catalogTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{catalogOnlyItemCount} item{catalogOnlyItemCount !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />
                     </div>
@@ -2105,9 +2105,9 @@ export default function SquareManagement() {
                 {/* New Items */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
-                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">New Items</div>
-                    <div className="text-xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${newCatalogTotal.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{newCatalogItems.length} item{newCatalogItems.length !== 1 ? 's' : ''}</div>
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">New Items</div>
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${newCatalogTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{newCatalogItems.length} item{newCatalogItems.length !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />
                     </div>
@@ -2120,7 +2120,7 @@ export default function SquareManagement() {
           {/* R2-C2: Store location cards (catalog view only) */}
           {activeView === 'catalog' && currentUser && locationConfigs.length > 0 &&
           <div className="flex-1 min-w-0 self-start">
-            <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
+            <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-100 dark:text-slate-50">By Store</h2>
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {(() => {
                 const storeCardMap = new Map();
@@ -2186,61 +2186,61 @@ export default function SquareManagement() {
         <div className="grid grid-cols-10 gap-2">
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Locations</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Locations</div>
               <div className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">{new Set(reconciliationRows.map((r) => r.locationId).filter(Boolean)).size}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Transactions</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Transactions</div>
               <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{filteredTransactionRows.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Collected $</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Collected $</div>
               <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">${filteredTransactionRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Cash</div>
-              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Cash}</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Cash</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Cash}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Debit</div>
-              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Debit}</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Debit</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Debit}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Credit</div>
-              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Credit}</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Credit</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Credit}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">COD Deliveries</div>
-              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{codDeliveriesCount}</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">COD Deliveries</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">{codDeliveriesCount}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Unmatched</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Unmatched</div>
               <div className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">{reconciliationRows.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Unmatched $</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Unmatched $</div>
               <div className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">${reconciliationRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-orange-200 dark:border-orange-800">
             <CardContent className="p-3 flex items-center justify-between gap-1">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Cross-Store</div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Cross-Store</div>
               <div className="text-base font-bold text-orange-600 dark:text-orange-400 tabular-nums">{reconciliationRows.filter((r) => r.crossStoreAlert).length}</div>
             </CardContent>
           </Card>
@@ -2259,10 +2259,10 @@ export default function SquareManagement() {
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
                 <span className="font-semibold">Last Cleanup</span>
-                <span className="text-slate-600 dark:text-slate-400">Processed: {lastCleanup.processed}</span>
-                <span className="text-slate-600 dark:text-slate-400">Deleted OK: {lastCleanup.counts['delete']?.ok || 0}</span>
-                <span className="text-slate-600 dark:text-slate-400">Upserted OK: {lastCleanup.counts['upsert']?.ok || 0}</span>
-                <span className="ml-auto text-xs flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Processed: {lastCleanup.processed}</span>
+                <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Deleted OK: {lastCleanup.counts['delete']?.ok || 0}</span>
+                <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Upserted OK: {lastCleanup.counts['upsert']?.ok || 0}</span>
+                <span className="ml-auto text-xs flex items-center gap-1 text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   <Clock className="w-3 h-3" />
                   {new Date(lastCleanup.finishedAt || lastCleanup.startedAt).toLocaleString()}
                 </span>
@@ -2275,7 +2275,7 @@ export default function SquareManagement() {
 
       <div className="md:flex-1 md:min-h-0 flex flex-col">
         {error &&
-        <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800">
+        <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base bg-red-50 dark:bg-red-950 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800">
             Error: {error}
           </div>
         }
@@ -2295,7 +2295,7 @@ export default function SquareManagement() {
               <Button
               onClick={updateCatalog}
               disabled={isLoading || isUpdatingCatalog || isSyncing || reconciliationRows.length === 0}
-              className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              className="h-9 gap-1.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
                 <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
@@ -2331,7 +2331,7 @@ export default function SquareManagement() {
           <Button
             onClick={updateCatalog}
             disabled={isLoading || isUpdatingCatalog || isSyncing}
-            className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            className="h-9 gap-1.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
               <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
             </Button>

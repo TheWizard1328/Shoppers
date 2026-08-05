@@ -41,13 +41,13 @@ export default function SyncStatusIndicator() {
   }
   
   const icon = !isOnline ? (
-    <CloudOff className="w-4 h-4 text-slate-500" />
+    <CloudOff className="w-4 h-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
   ) : syncStatus.isSyncing ? (
     <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
   ) : syncStatus.hasConflicts ? (
     <AlertCircle className="w-4 h-4 text-orange-500" />
   ) : (
-    <Cloud className="w-4 h-4 text-slate-500" />
+    <Cloud className="w-4 h-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
   );
   
   const statusText = !isOnline ? 'Offline' : 
@@ -59,9 +59,9 @@ export default function SyncStatusIndicator() {
   return (
     <Popover open={showDetails} onOpenChange={setShowDetails}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 transition-colors">
+        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 transition-colors">
           {icon}
-          <span className="text-xs font-medium text-slate-700">{statusText}</span>
+          <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{statusText}</span>
           {syncStatus.pendingCount > 0 && (
             <span className="bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
               {syncStatus.pendingCount}
@@ -72,27 +72,27 @@ export default function SyncStatusIndicator() {
       <PopoverContent className="w-80 z-[10001]" align="start">
         <div className="space-y-3">
           <div>
-            <h4 className="font-semibold text-slate-900 mb-2">Sync Status</h4>
+            <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">Sync Status</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-600">Connection:</span>
+                <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Connection:</span>
                 <span className={`font-medium ${isOnline ? 'text-green-600' : 'text-red-600'}`}>
                   {isOnline ? 'Online' : 'Offline'}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-600">Pending Actions:</span>
-                <span className="font-medium text-slate-900">{syncStatus.pendingCount}</span>
+                <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Pending Actions:</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">{syncStatus.pendingCount}</span>
               </div>
               {syncStatus.retryCount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Retry Attempts:</span>
+                  <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Retry Attempts:</span>
                   <span className="font-medium text-orange-600">{syncStatus.retryCount}/5</span>
                 </div>
               )}
               {syncStatus.hasConflicts && (
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Conflicts:</span>
+                  <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Conflicts:</span>
                   <span className="font-medium text-orange-600">Requires attention</span>
                 </div>
               )}
@@ -111,7 +111,7 @@ export default function SyncStatusIndicator() {
           )}
           
           {!isOnline && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
               Changes will sync automatically when connection is restored.
             </p>
           )}

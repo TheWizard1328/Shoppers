@@ -259,8 +259,8 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
   return (
     <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[500px] lg:max-h-[500px] overflow-hidden">
       <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 shrink-0">
-        <p className="text-slate-500 text-xs">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
-        <p className="text-slate-500 text-xs">Green highlights show the top store value for that month, and yellow highlights show values above that store’s average for the month.</p>
+        <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
+        <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">Green highlights show the top store value for that month, and yellow highlights show values above that store’s average for the month.</p>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             {metricsViewMode === 'deliveries' ?
@@ -327,9 +327,9 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
       <CardContent className="p-0 flex-1 overflow-hidden">
         <div className="min-h-0 h-full overflow-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-slate-50">
-              <tr className="border-b bg-slate-50">
-                <th className="text-left px-1.5 py-0.5 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Mon</th>
+            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800">
+              <tr className="border-b bg-slate-50 dark:bg-slate-800">
+                <th className="text-left px-1.5 py-0.5 font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 sticky left-0 bg-slate-50 dark:bg-slate-800 z-10">Mon</th>
                 {stores.map((store) =>
                 <th
                   key={store.abbreviation}
@@ -340,7 +340,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                     {store.abbreviation}
                   </th>
                 )}
-                <th className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[45px]">Tot</th>
+                <th className="text-center px-1 py-0.5 font-bold text-slate-900 dark:text-slate-100 border-l-2 border-purple-300 min-w-[45px]">Tot</th>
               </tr>
             </thead>
             <tbody>
@@ -350,9 +350,9 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                 const isMonthSelected = selectedMonth === month;
                 const { maxValue, averagesByStore } = getMonthHighlightData(month);
                 return (
-                  <tr key={month} className={`border-b hover:bg-slate-50 ${isMonthSelected ? 'bg-emerald-50' : ''}`}>
+                  <tr key={month} className={`border-b hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 ${isMonthSelected ? 'bg-emerald-50' : ''}`}>
                     <td
-                      className="px-1.5 py-0.5 font-medium sticky left-0 bg-white z-10 cursor-pointer hover:bg-emerald-100"
+                      className="px-1.5 py-0.5 font-medium sticky left-0 bg-white dark:bg-slate-900 z-10 cursor-pointer hover:bg-emerald-100"
                       style={{ color: isMonthSelected ? '#059669' : '#475569', backgroundColor: isMonthSelected ? '#d1fae5' : 'white' }}
                       onClick={() => {
                         // Allow filtering even if month total is 0/blank
@@ -395,15 +395,15 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                         </td>);
 
                     })}
-                    <td className="text-center px-1 py-0.5 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                    <td className="text-center px-1 py-0.5 font-semibold text-slate-900 dark:text-slate-100 border-l-2 border-purple-300 tabular-nums">
                       {monthTotal === 0 ? '' : formatValue(monthTotal)}
                     </td>
                   </tr>);
 
               })}
               {/* Totals Row */}
-              <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
-                <td className="px-1.5 py-0.5 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
+              <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 font-semibold">
+                <td className="px-1.5 py-0.5 text-slate-700 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">Tot</td>
                 {stores.map((store) =>
                 <td
                   key={store.abbreviation}
@@ -413,25 +413,25 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                     {formatValue(totals[store.abbreviation])}
                   </td>
                 )}
-                <td className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                <td className="text-center px-1 py-0.5 font-bold text-slate-900 dark:text-slate-100 border-l-2 border-purple-300 tabular-nums">
                   {formatValue(grandTotal)}
                 </td>
               </tr>
               {/* Average Row - uses completed months only, matching the totals shown above */}
-              <tr className="bg-slate-50">
-                <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
+              <tr className="bg-slate-50 dark:bg-slate-800">
+                <td className="px-1.5 py-0.5 text-slate-600 dark:text-slate-400 dark:text-slate-500 sticky left-0 bg-slate-50 dark:bg-slate-800 z-10">AVG</td>
                 {stores.map((store) => {
                   const avg = calculateCompletedMonthsAverage(store);
                   return (
                     <td
                       key={store.abbreviation}
-                      className="text-center px-1 py-0.5 tabular-nums text-slate-600">
+                      className="text-center px-1 py-0.5 tabular-nums text-slate-600 dark:text-slate-400 dark:text-slate-500">
 
                       {avg > 0 ? formatValue(Math.round(avg)) : ''}
                     </td>);
 
                 })}
-                <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
+                <td className="text-center px-1 py-0.5 font-semibold text-slate-700 dark:text-slate-300 border-l-2 border-purple-300 tabular-nums">
                   {(() => {
                     const completedMonthsCount = getCompletedMonthsCount();
                     const totalAvg = completedMonthsCount > 0 ? completedGrandTotal / completedMonthsCount : 0;
@@ -441,8 +441,8 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
               </tr>
               {/* Percentage Row (only for fees view) */}
               {viewMode === 'fees' && grandTotal > 0 &&
-              <tr className="bg-slate-50 border-t">
-                  <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">%</td>
+              <tr className="bg-slate-50 dark:bg-slate-800 border-t">
+                  <td className="px-1.5 py-0.5 text-slate-600 dark:text-slate-400 dark:text-slate-500 sticky left-0 bg-slate-50 dark:bg-slate-800 z-10">%</td>
                   {stores.map((store) => {
                   const pct = grandTotal > 0 ?
                   totals[store.abbreviation] / grandTotal * 100 :
@@ -450,13 +450,13 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                   return (
                     <td
                       key={store.abbreviation}
-                      className="text-center px-1 py-0.5 tabular-nums text-slate-500">
+                      className="text-center px-1 py-0.5 tabular-nums text-slate-500 dark:text-slate-400 dark:text-slate-500">
 
                         {pct > 0 ? `${pct.toFixed(0)}%` : ''}
                       </td>);
 
                 })}
-                  <td className="text-center px-1 py-0.5 text-slate-500 border-l-2 border-purple-300">100%</td>
+                  <td className="text-center px-1 py-0.5 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-l-2 border-purple-300">100%</td>
                 </tr>
               }
             </tbody>

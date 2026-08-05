@@ -110,7 +110,7 @@ export default function SettingsMenu({
       {currentUser?.app_roles?.includes('admin') || currentUser?.app_roles?.includes('dispatcher') || currentUser?.app_roles?.includes('driver') ? (
         <>
           <DropdownMenuLabel 
-            className="px-2 font-semibold uppercase tracking-wider text-slate-500" 
+            className="px-2 font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500" 
             style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}
           >
             Display

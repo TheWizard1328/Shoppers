@@ -212,7 +212,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
 
   return (
     <Card className="w-full max-w-2xl">
-      <CardHeader className="border-b border-slate-200">
+      <CardHeader className="border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-emerald-600" />
@@ -242,7 +242,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
       <CardContent className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
         {/* Timing Settings */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
             <Clock className="w-4 h-4" />
             Timing Parameters
           </h3>
@@ -261,7 +261,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 onChange={(e) => handleSettingChange('defaultTravelTimeMinutes', parseInt(e.target.value) || 5)}
                 className="h-9" />
 
-              <p className="text-xs text-slate-500">Time between each stop</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Time between each stop</p>
             </div>
 
             <div className="space-y-2">
@@ -277,16 +277,16 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 onChange={(e) => handleSettingChange('defaultStopTimeMinutes', parseInt(e.target.value) || 5)}
                 className="h-9" />
 
-              <p className="text-xs text-slate-500">Time spent at each delivery</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Time spent at each delivery</p>
             </div>
           </div>
         </div>
 
-        <div className="border-t border-slate-200"></div>
+        <div className="border-t border-slate-200 dark:border-slate-700"></div>
 
         {/* Driver Home Location */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
             <MapPin className="w-4 h-4" />
             Driver Home Location
           </h3>
@@ -296,7 +296,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
               <Label htmlFor="useDriverHome" className="text-sm">
                 Include home in route calculation
               </Label>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 Route will start/end at driver home if set
               </p>
             </div>
@@ -352,7 +352,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
               </Button>
 
               {currentUser?.home_latitude && currentUser?.home_longitude &&
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-2">
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-md p-2">
                   <p className="text-xs text-blue-700">
                     <strong>Saved in Profile:</strong> {currentUser.home_latitude.toFixed(6)}, {currentUser.home_longitude.toFixed(6)}
                   </p>
@@ -362,11 +362,11 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
           }
         </div>
 
-        <div className="border-t border-slate-200"></div>
+        <div className="border-t border-slate-200 dark:border-slate-700"></div>
 
         {/* Optimization Preferences */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
             <Truck className="w-4 h-4" />
             Optimization Preferences
           </h3>
@@ -377,7 +377,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 <Label htmlFor="prioritizePickups" className="text-sm">
                   Always prioritize store pickups first
                 </Label>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   Pickups scheduled before deliveries
                 </p>
               </div>
@@ -393,7 +393,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 <Label htmlFor="respectTimeWindows" className="text-sm">
                   Respect delivery time windows
                 </Label>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   Schedule within patient time windows
                 </p>
               </div>
@@ -409,7 +409,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                 <Label htmlFor="minimizeBacktracking" className="text-sm">
                   Minimize backtracking
                 </Label>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   Optimize for shortest total distance
                 </p>
               </div>
@@ -422,11 +422,11 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
           </div>
         </div>
 
-        <div className="border-t border-slate-200"></div>
+        <div className="border-t border-slate-200 dark:border-slate-700"></div>
 
         {/* GPS Breadcrumbs Tracking */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
             <MapPin className="w-4 h-4" />
             GPS Breadcrumbs Tracking
           </h3>
@@ -436,7 +436,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
               <Label htmlFor="breadcrumbsEnabled" className="text-sm">
                 Enable GPS breadcrumb tracking
               </Label>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 {isPrimaryDevice ? 
                   'Record GPS location every 15 seconds during deliveries' :
                   'Only available on primary tracking device'
@@ -461,7 +461,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
           </div>
           
           {!isPrimaryDevice && !isLoadingBreadcrumbsSettings &&
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-2">
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-md p-2">
               <p className="text-xs text-blue-700">
                 This device is not set as the primary tracker. Set it as primary in Device Settings to enable breadcrumb tracking.
               </p>
@@ -472,10 +472,10 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
         {/* Real-Time Tracking Settings - Admin Only */}
         {currentUser && userHasRole(currentUser, 'admin') &&
         <>
-            <div className="border-t border-slate-200"></div>
+            <div className="border-t border-slate-200 dark:border-slate-700"></div>
 
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                 <Navigation className="w-4 h-4" />
                 Real-Time Tracking Settings
                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Admin Only</span>
@@ -486,7 +486,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                   <Label htmlFor="enableRouteDeviationDetection" className="text-sm">
                     Enable route deviation detection
                   </Label>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     Auto-recalculate route when driver strays too far
                   </p>
                 </div>
@@ -499,7 +499,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
 
               {settings.enableRouteDeviationDetection &&
             <div className="space-y-4 pl-4 border-l-2 border-blue-200">
-                  <div className="bg-amber-50 border border-amber-200 rounded-md p-2 flex items-start gap-2">
+                  <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 rounded-md p-2 flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                     <p className="text-xs text-amber-800">
                       Route recalculation uses Google Maps API and incurs costs. Cooldown period prevents excessive API calls.
@@ -521,7 +521,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                     onChange={(e) => handleSettingChange('routeDeviationThresholdMeters', parseInt(e.target.value) || 200)}
                     className="h-9" />
 
-                      <p className="text-xs text-slate-500">Distance before re-routing</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Distance before re-routing</p>
                     </div>
 
                     <div className="space-y-2">
@@ -537,7 +537,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                     onChange={(e) => handleSettingChange('routeDeviationCooldownMinutes', parseInt(e.target.value) || 5)}
                     className="h-9" />
 
-                      <p className="text-xs text-slate-500">Min time between re-routes</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Min time between re-routes</p>
                     </div>
                   </div>
                 </div>
@@ -560,7 +560,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                   onChange={(e) => handleSettingChange('locationUpdateIntervalSeconds', parseInt(e.target.value) || 30)}
                   className="h-9" />
 
-                  <p className="text-xs text-slate-500">How often to update location</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">How often to update location</p>
                 </div>
 
                 <div className="space-y-2">
@@ -577,7 +577,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
                   onChange={(e) => handleSettingChange('minMovementDistanceMeters', parseInt(e.target.value) || 50)}
                   className="h-9" />
 
-                  <p className="text-xs text-slate-500">Min distance to trigger update</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Min distance to trigger update</p>
                 </div>
               </div>
             </div>
@@ -585,7 +585,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
         }
 
         {hasUnsavedChanges &&
-        <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 rounded-md p-3">
             <p className="text-sm text-amber-800">
               You have unsaved changes. Click Save to apply these settings to future route optimizations.
             </p>

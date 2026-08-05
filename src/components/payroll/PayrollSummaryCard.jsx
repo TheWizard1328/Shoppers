@@ -1168,7 +1168,7 @@ export default function PayrollSummaryCard({
                 <label className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>Current Deductions:</label>
                 <div className="mt-2 space-y-1">
                   {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) =>
-                  <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 rounded">
+                  <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded">
                       <span>{ded.name}</span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">-${ded.amount.toFixed(2)}</span>
@@ -1196,7 +1196,7 @@ export default function PayrollSummaryCard({
                     </div>
                   )}
                   {!driverEdits[deductionOverlayDriverId]?.deductions?.length &&
-                  <p className="text-xs text-slate-500">No deductions</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">No deductions</p>
                   }
                 </div>
               </div>
@@ -1296,7 +1296,7 @@ export default function PayrollSummaryCard({
                     step="0.01" />
 
                  </div>
-                 <p className="text-xs text-slate-500 mt-2">Enter the bonus amount to add to this driver's payroll for {currentPeriod?.label}.</p>
+                 <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-2">Enter the bonus amount to add to this driver's payroll for {currentPeriod?.label}.</p>
                </div>
              </div>
 
@@ -1450,7 +1450,7 @@ export default function PayrollSummaryCard({
                   <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                     {data.driver.user_name || data.driver.full_name}
                     {eTransEmail ? (
-                      <span className="text-xs font-normal text-slate-500 ml-1">(E-Trans: {eTransEmail})</span>
+                      <span className="text-xs font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500 ml-1">(E-Trans: {eTransEmail})</span>
                     ) : isDriver && data.driver.id === currentUser?.id ? (
                       <span className="text-xs font-normal text-amber-600 ml-1">(No e-Transfer email set)</span>
                     ) : null}

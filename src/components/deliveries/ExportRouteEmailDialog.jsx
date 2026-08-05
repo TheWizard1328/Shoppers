@@ -291,7 +291,7 @@ export default function ExportRouteEmailDialog({
                 Start Date
               </label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 pointer-events-none" />
                 <input
                   type="date"
                   value={startDate}
@@ -312,7 +312,7 @@ export default function ExportRouteEmailDialog({
                 End Date
               </label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 pointer-events-none" />
                 <input
                   type="date"
                   value={endDate}
@@ -346,7 +346,7 @@ export default function ExportRouteEmailDialog({
           </div>
 
           {isRange && !isExporting && (
-            <p className={`text-xs -mt-1 ${rangeTooBig ? 'text-red-500 font-medium' : 'text-slate-500'}`}>
+            <p className={`text-xs -mt-1 ${rangeTooBig ? 'text-red-500 font-medium' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
               {rangeTooBig
                 ? `⚠️ ${dayCount} days selected — maximum is 31. Please shorten the range.`
                 : `Exporting ${dayCount} days — stores with deliveries in any day of this range will appear below.`}
@@ -358,7 +358,7 @@ export default function ExportRouteEmailDialog({
                 <span className="text-xs text-blue-600 font-medium">
                   {exportProgress < 100 ? `Generating PDF… ${exportProgress}%` : '✓ Done!'}
                 </span>
-                <span className="text-xs text-slate-400">{dayCount} day{dayCount !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">{dayCount} day{dayCount !== 1 ? 's' : ''}</span>
               </div>
               <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-slate-200, #e2e8f0)' }}>
                 <div
@@ -376,7 +376,7 @@ export default function ExportRouteEmailDialog({
           {isAppOwner(currentUser) && (
             <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: 'var(--border-blue-200)', background: 'var(--bg-blue-50, #eff6ff)' }}>
               <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                Preview / Testing Email <span className="text-xs font-normal text-slate-400">(App Owner only — always receives a copy)</span>
+                Preview / Testing Email <span className="text-xs font-normal text-slate-400 dark:text-slate-500 dark:text-slate-400">(App Owner only — always receives a copy)</span>
               </p>
               <Input
                 type="email"
@@ -394,10 +394,10 @@ export default function ExportRouteEmailDialog({
         <div className="overflow-y-auto flex-1 pr-1">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+              <Loader2 className="w-6 h-6 animate-spin text-slate-400 dark:text-slate-500 dark:text-slate-400" />
             </div>
           ) : stores.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center py-4">
               No stores with deliveries found for the selected date{isRange ? ' range' : ''}.
             </p>
           ) : (
@@ -408,7 +408,7 @@ export default function ExportRouteEmailDialog({
                   <div>
                     <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{store.name}</p>
                     {driverNamesByStore[store.id]?.length > 0 && (
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                         Driver{driverNamesByStore[store.id].length > 1 ? 's' : ''}: {driverNamesByStore[store.id].join(', ')}
                       </p>
                     )}
@@ -453,7 +453,7 @@ export default function ExportRouteEmailDialog({
         <div className="flex-shrink-0 pt-2 border-t flex items-center justify-between gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
           {/* Left: Rx Type label + # / barcode segmented toggle */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">Rx Type:</span>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500">Rx Type:</span>
           <div className="flex-shrink-0 flex rounded-md border overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
             <button
               type="button"

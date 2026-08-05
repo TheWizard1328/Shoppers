@@ -28,10 +28,10 @@ export default function LargeBarcodePreview({ value, onClose, isRx = false }) {
       <div className="flex items-center justify-between">
         <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Selected Barcode</Label>
       </div>
-      <div className="rounded-md border bg-white dark:bg-slate-800 dark:border-slate-700 p-3">
+      <div className="rounded-md border bg-white dark:bg-slate-900 dark:bg-slate-800 dark:border-slate-700 p-3">
         <svg ref={svgRef} className="w-full h-44" aria-label="Selected barcode" />
         {isRx && (
-          <p className="text-center text-sm font-mono font-semibold text-slate-800 dark:text-slate-100 mt-1">
+          <p className="text-center text-sm font-mono font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 mt-1">
             {barcodeValue}
           </p>
         )}

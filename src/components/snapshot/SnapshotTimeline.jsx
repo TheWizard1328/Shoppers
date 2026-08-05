@@ -77,7 +77,7 @@ export default function SnapshotTimeline({
             variant="ghost" 
             size="sm" 
             onClick={onClose}
-            className="text-white hover:bg-white/20 h-8 w-8 p-0 mb-2"
+            className="text-white hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/20 h-8 w-8 p-0 mb-2"
           >
             <X className="w-4 h-4" />
           </Button>
@@ -98,7 +98,7 @@ export default function SnapshotTimeline({
           variant="ghost" 
           size="sm" 
           onClick={onClose}
-          className="text-white hover:bg-white/20 h-8 w-8 p-0 mb-2"
+          className="text-white hover:bg-white dark:bg-slate-900 dark:hover:bg-slate-800/20 h-8 w-8 p-0 mb-2"
         >
           <X className="w-4 h-4" />
         </Button>
@@ -122,7 +122,7 @@ export default function SnapshotTimeline({
           <div className="text-sm font-bold">
             {format(new Date(currentSnapshot.timestamp), 'h:mm')}
           </div>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
             {selectedIndex + 1}/{snapshots.length}
           </div>
         </div>

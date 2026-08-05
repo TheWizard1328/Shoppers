@@ -172,7 +172,7 @@ export default function RouteManagementContent({
 
   if (!deliveries || deliveries.length === 0) {
     return (
-      <div className="text-center py-12 text-slate-500 col-span-full">
+      <div className="text-center py-12 text-slate-500 dark:text-slate-400 dark:text-slate-500 col-span-full">
         <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
         <p className="text-lg font-medium">No deliveries for this date</p>
       </div>);

@@ -416,7 +416,7 @@ export default function InkbirdRawDiagnostic() {
   // ── Derived display ───────────────────────────────────────────────────────
   const isActive  = ['connecting','reading','polling'].includes(status);
   const latestTemp = temp;
-  const tempColor = latestTemp == null ? 'text-slate-400' :
+  const tempColor = latestTemp == null ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' :
     latestTemp < 2 || latestTemp > 8 ? 'text-red-600' : 'text-emerald-600';
 
   return (
@@ -430,7 +430,7 @@ export default function InkbirdRawDiagnostic() {
               <span className="text-xs font-normal text-emerald-600 flex items-center gap-1.5">
                 · <strong>{paired}</strong>
                 <button onClick={forgetDevice}
-                  className="text-slate-400 hover:text-red-500 underline text-xs" title="Forget device">
+                  className="text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-red-500 underline text-xs" title="Forget device">
                   Forget
                 </button>
               </span>
@@ -464,11 +464,11 @@ export default function InkbirdRawDiagnostic() {
 
             {/* Live temp readout */}
             <div className={`rounded-2xl border p-5 text-center space-y-1 ${
-              latestTemp == null ? 'border-slate-200 bg-slate-50' :
-              latestTemp < 2 || latestTemp > 8 ? 'border-red-200 bg-red-50' :
+              latestTemp == null ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800' :
+              latestTemp < 2 || latestTemp > 8 ? 'border-red-200 bg-red-50 dark:bg-red-950' :
               'border-emerald-200 bg-emerald-50'
             }`}>
-              <p className="text-xs text-slate-500 uppercase tracking-wide">Live Temperature</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">Live Temperature</p>
               <p className={`text-6xl font-bold tabular-nums ${tempColor}`}>
                 {latestTemp !== null ? `${latestTemp}°C` : '—'}
               </p>
@@ -486,7 +486,7 @@ export default function InkbirdRawDiagnostic() {
                 </div>
               )}
               {history.length > 1 && (
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
                   min {Math.min(...history.map(h=>h.temp))}°C · max {Math.max(...history.map(h=>h.temp))}°C
                   · {history.length} readings
                 </p>
@@ -495,12 +495,12 @@ export default function InkbirdRawDiagnostic() {
 
             {/* Status / error */}
             {!hasBluetooth && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800 text-sm">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 p-3 text-amber-800 text-sm">
                 ⚠️ Web Bluetooth not available. Use Chrome or Edge on Android/desktop.
               </div>
             )}
             {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-700 text-sm flex items-start gap-2">
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 p-3 text-red-700 text-sm flex items-start gap-2">
                 <span>❌ {error}</span>
                 {!isActive && (
                   <Button size="sm" variant="outline" className="ml-auto shrink-0 h-7 text-xs" onClick={start}>
@@ -512,15 +512,15 @@ export default function InkbirdRawDiagnostic() {
 
             {/* Characteristics */}
             {charList.length > 0 && (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-semibold text-slate-500 mb-2">Characteristics</p>
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2">Characteristics</p>
                 <div className="space-y-1">
                   {charList.map(cp => {
                     const short = cp.uuid.slice(4,8).toUpperCase();
                     const isTemp = short === 'FFF2' || short === 'FFF6';
                     return (
                       <div key={cp.uuid} className="flex items-center gap-2 text-xs">
-                        <code className={`w-10 shrink-0 font-mono font-bold ${isTemp ? 'text-cyan-600' : 'text-slate-500'}`}>
+                        <code className={`w-10 shrink-0 font-mono font-bold ${isTemp ? 'text-cyan-600' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
                           {short}{isTemp ? ' 🌡' : ''}
                         </code>
                         <div className="flex gap-1 flex-wrap">
@@ -528,7 +528,7 @@ export default function InkbirdRawDiagnostic() {
                             <Badge key={p} variant="outline" className={`text-xs px-1 py-0 ${
                               p === 'notify' || p === 'indicate'
                                 ? 'border-cyan-400 text-cyan-700 bg-cyan-50'
-                                : 'border-slate-300 text-slate-500'
+                                : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 dark:text-slate-500'
                             }`}>{p}</Badge>
                           ))}
                         </div>
@@ -541,7 +541,7 @@ export default function InkbirdRawDiagnostic() {
 
             {/* Log */}
             {log.length > 0 && (
-              <div className="rounded-lg border border-slate-200 bg-slate-900 p-3 font-mono text-xs max-h-52 overflow-y-auto space-y-0.5">
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-900 p-3 font-mono text-xs max-h-52 overflow-y-auto space-y-0.5">
                 {log.map((l, i) => (
                   <div key={i} className={`leading-5 ${
                     l.includes('✗') || l.includes('⚠️') ? 'text-red-400' :
@@ -560,24 +560,24 @@ export default function InkbirdRawDiagnostic() {
           {/* ── Right: raw packets ── */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-slate-500">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 Raw Packets {packets.length > 0 ? `(${packets.length})` : ''}
               </p>
               {packets.length > 0 && (
                 <button onClick={() => { setPackets([]); packetsRef.current = []; }}
-                  className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
+                  className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 flex items-center gap-1">
                   <Trash2 className="w-3 h-3" /> Clear
                 </button>
               )}
             </div>
 
             {packets.length === 0 && !isActive && (
-              <div className="text-slate-400 text-sm text-center py-8">
+              <div className="text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm text-center py-8">
                 No data yet — connect the sensor above.
               </div>
             )}
             {packets.length === 0 && isActive && (
-              <div className="text-slate-400 text-sm text-center py-8 animate-pulse">
+              <div className="text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm text-center py-8 animate-pulse">
                 Waiting for first reading…
               </div>
             )}
@@ -585,11 +585,11 @@ export default function InkbirdRawDiagnostic() {
             <div className="max-h-[520px] overflow-y-auto space-y-1.5">
               {packets.map(pkt => (
                 <div key={pkt.id} className={`rounded-lg border p-2.5 text-xs space-y-1 ${
-                  pkt.temp != null ? 'border-cyan-200 bg-cyan-50/50' : 'border-slate-200 bg-slate-50'
+                  pkt.temp != null ? 'border-cyan-200 bg-cyan-50/50' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
                 }`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-slate-500">{pkt.ts}</span>
+                      <span className="font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{pkt.ts}</span>
                       {pkt.temp != null && (
                         <span className={`text-base font-bold ${
                           pkt.temp < 2 || pkt.temp > 8 ? 'text-red-600' : 'text-cyan-700'
@@ -600,21 +600,21 @@ export default function InkbirdRawDiagnostic() {
                       <Badge variant="outline" className={`text-xs px-1 py-0 ${
                         pkt.type === 'notify' ? 'border-cyan-400 text-cyan-700 bg-cyan-50' :
                         pkt.type === 'poll'   ? 'border-violet-400 text-violet-700 bg-violet-50' :
-                        'border-slate-300 text-slate-500 bg-slate-50'
+                        'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800'
                       }`}>{pkt.type?.toUpperCase()}</Badge>
                       <Badge variant="outline" className={`text-xs px-1 py-0 ${
                         pkt.uuid?.slice(4,8).toUpperCase() === 'FFF2'
                           ? 'border-cyan-400 text-cyan-700'
-                          : 'border-slate-300 text-slate-500'
+                          : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 dark:text-slate-500'
                       }`}>{pkt.uuid?.slice(4,8).toUpperCase()}</Badge>
                     </div>
                   </div>
-                  <code className="text-slate-600 break-all block text-[11px]">{pkt.hex}</code>
+                  <code className="text-slate-600 dark:text-slate-400 dark:text-slate-500 break-all block text-[11px]">{pkt.hex}</code>
                   {pkt.temp == null && pkt.allTemps?.slice(0, 4).map((t, i) => (
                     <Badge key={i} variant="outline" className={`text-xs px-1 py-0 mr-1 ${
                       t.val > 0 && t.val < 40
                         ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
-                        : 'border-slate-200 text-slate-500'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 dark:text-slate-500'
                     }`}>{t.val}°C [{t.label}@{t.offset}]</Badge>
                   ))}
                 </div>

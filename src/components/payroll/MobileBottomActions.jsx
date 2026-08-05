@@ -4,7 +4,7 @@ import { Share2, RefreshCw, ListChecks } from "lucide-react";
 
 export default function MobileBottomActions({ onSummary, onShare, onRefresh, refreshing, capturing }) {
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-20 w-full max-w-full bg-white/95 backdrop-blur border-t border-slate-200 overflow-hidden">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-20 w-full max-w-full bg-white/95 backdrop-blur border-t border-slate-200 dark:border-slate-700 overflow-hidden">
       <div className="w-full max-w-full px-2 py-2 grid grid-cols-3 gap-2">
         <Button size="sm" variant="outline" onClick={onSummary} className="w-full min-w-0 px-2">
           <ListChecks className="h-4 w-4 shrink-0" />

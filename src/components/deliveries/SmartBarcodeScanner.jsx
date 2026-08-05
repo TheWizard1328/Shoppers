@@ -68,7 +68,7 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, s
             <div className={`flex gap-1 ${singleVisible ? 'w-max px-[74px]' : values.length === 1 ? 'justify-center' : 'w-max'}`}>
               {values.map((val, idx) =>
             <div
-              key={`${title}-${idx}-${val}`} className={`relative w-[95px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 ${singleVisible ? 'snap-center' : ''}`}
+              key={`${title}-${idx}-${val}`} className={`relative w-[95px] flex-shrink-0 rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700 ${singleVisible ? 'snap-center' : ''}`}
               style={{ scrollSnapStop: singleVisible ? 'always' : 'normal' }}
 
               onClick={() => onSelectBarcode(val)}
@@ -627,7 +627,7 @@ export default function SmartBarcodeScanner({
           type="button"
           size="sm"
           variant="outline"
-          className="h-9 px-3 flex-shrink-0 bg-white text-slate-900 border-slate-300 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
+          className="h-9 px-3 flex-shrink-0 bg-white dark:bg-slate-900 text-slate-900 border-slate-300 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
           onClick={() => setShowCamera(true)}
           disabled={disabled}
           title="Scan with camera">

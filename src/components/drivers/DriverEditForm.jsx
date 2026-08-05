@@ -277,7 +277,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 onChange={(e) => setFormData(prev => ({ ...prev, effective_date: e.target.value }))}
                 className="w-full"
               />
-              <p className="text-[11px] text-slate-500 mt-1">Deliveries on or after this date use the new rates/cycle. Earlier deliveries keep the previous rates.</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Deliveries on or after this date use the new rates/cycle. Earlier deliveries keep the previous rates.</p>
             </div>
           )}
 
@@ -335,7 +335,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           {/* Square Card Locations */}
           {squareLocations.length > 0 && (
             <div className="pt-2 border-t">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 block flex items-center gap-1">
                 <CreditCard className="w-3 h-3" />
                 Square Card Locations
               </Label>
@@ -356,7 +356,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
 
           {/* Deductions Section */}
           <div className="pt-2 border-t">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-1">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 block flex items-center gap-1">
               <DollarSign className="w-3 h-3" />
               Recurring Deductions
             </Label>
@@ -365,14 +365,14 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
             {formData.deductions.length > 0 && (
               <div className="space-y-1 mb-3">
                 {formData.deductions.map((deduction, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 rounded">
-                    <span className="flex-1 text-sm text-slate-700">{deduction.name}</span>
-                    <span className="text-sm font-medium text-slate-900">${deduction.amount.toFixed(2)}</span>
+                  <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded">
+                    <span className="flex-1 text-sm text-slate-700 dark:text-slate-300">{deduction.name}</span>
+                    <span className="text-sm font-medium text-slate-900 dark:text-slate-100">${deduction.amount.toFixed(2)}</span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
                       onClick={() => {
                         setFormData(prev => ({
                           ...prev,
@@ -435,7 +435,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           {/* Pay Rate History */}
           {formData.pay_rate_history && formData.pay_rate_history.length > 0 && (
             <div className="pt-2 border-t">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 block flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
                 Rate History
               </Label>
@@ -443,9 +443,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 {formData.pay_rate_history
                   .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))
                   .map((entry, idx) => (
-                    <div key={idx} className="text-xs p-2 bg-slate-50 rounded flex justify-between items-center gap-1">
+                    <div key={idx} className="text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded flex justify-between items-center gap-1">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-medium text-slate-700 whitespace-nowrap">
+                        <span className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                           {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                         </span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#475569' }}>
@@ -455,14 +455,14 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                           })()}
                         </span>
                       </div>
-                      <div className="text-slate-600 text-[10px]">
+                      <div className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-[10px]">
                         ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km / OS: ${formatRate(entry.oversized_item_rate)}
                       </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();

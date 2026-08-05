@@ -11,7 +11,7 @@ const STATUS_STYLES = {
 };
 
 function StatusBadge({ status }) {
-  const style = STATUS_STYLES[status] || { label: status, bg: 'bg-slate-200', text: 'text-slate-700' };
+  const style = STATUS_STYLES[status] || { label: status, bg: 'bg-slate-200', text: 'text-slate-700 dark:text-slate-300' };
   return (
     <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-sm font-semibold ${style.bg} ${style.text}`}>
       {style.label}
@@ -38,7 +38,7 @@ export default function ModeSelectionDialog({
   const panelContent = (
     <>
       {/* Header */}
-      <div className="px-6 pt-6 pb-4 border-b border-slate-200" style={{ borderColor: 'var(--border-slate-200)' }}>
+      <div className="px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700" style={{ borderColor: 'var(--border-slate-200)' }}>
         <h2 className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
           Select Stops for Cycling Mode
         </h2>
@@ -57,7 +57,7 @@ export default function ModeSelectionDialog({
           return (
             <label
               key={stop.id}
-              className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 transition-colors"
             >
               {/* Name */}
               <span className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)', flex: '1 1 0', minWidth: 0 }}>
@@ -83,7 +83,7 @@ export default function ModeSelectionDialog({
               <Checkbox
                 checked={checked}
                 onCheckedChange={() => onToggleStop(stop.id)}
-                className="h-5 w-5 shrink-0 rounded-md border-2 border-slate-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                className="h-5 w-5 shrink-0 rounded-md border-2 border-slate-300 dark:border-slate-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
               />
             </label>
           );

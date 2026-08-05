@@ -160,34 +160,34 @@ export default function AuthDiagnostics() {
                 
                 <div className="flex-1 min-w-0">
                   <h4 className="font-semibold text-sm">{test.name}</h4>
-                  <p className="text-sm text-slate-600 mt-1">{test.message}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">{test.message}</p>
                   
                   {test.error && (
-                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                    <div className="mt-2 p-2 bg-red-50 dark:bg-red-950 border border-red-200 rounded text-xs text-red-700">
                       <strong>Error:</strong> {test.error}
                     </div>
                   )}
                   
                   {test.data && typeof test.data === 'object' && (
                     <details className="mt-2">
-                      <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">
+                      <summary className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 cursor-pointer hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-300">
                         View details
                       </summary>
-                      <pre className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded text-xs overflow-auto max-h-40">
+                      <pre className="mt-2 p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs overflow-auto max-h-40">
                         {JSON.stringify(test.data, null, 2)}
                       </pre>
                     </details>
                   )}
                   
                   {test.data && typeof test.data === 'string' && (
-                    <p className="mt-1 text-xs text-slate-500">{test.data}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{test.data}</p>
                   )}
                 </div>
               </div>
             </div>
           ))}
 
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded">
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded">
             <h4 className="font-semibold text-sm text-blue-900 mb-2">Summary</h4>
             <p className="text-sm text-blue-700">
               Successful: {diagnostics?.tests.filter(t => t.status === 'success').length} / {diagnostics?.tests.length}

@@ -41,7 +41,7 @@ export default function DashboardDriverLegend({
             <button
               key={route.driverId}
               type="button"
-              className={`flex items-center gap-1.0 px-1 py-0.5 rounded transition-colors hover:bg-slate-100 ${isSelected ? 'underline underline-offset-2 font-semibold' : ''}`}
+              className={`flex items-center gap-1.0 px-1 py-0.5 rounded transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 ${isSelected ? 'underline underline-offset-2 font-semibold' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
                 if (handleDriverChange) {

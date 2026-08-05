@@ -207,7 +207,7 @@ export default function ExpandedStatsControls({
 
       {isStatsCardCentered && (
         <>
-          <div className="border-t border-slate-200 mt-2 pt-2"></div>
+          <div className="border-t border-slate-200 dark:border-slate-700 mt-2 pt-2"></div>
           <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
         </>
       )}

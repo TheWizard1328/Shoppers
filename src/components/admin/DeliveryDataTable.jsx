@@ -111,7 +111,7 @@ export default function DeliveryDataTable({ deliveries, patients, stores, driver
   };
 
   const SortIcon = ({ field }) => {
-    if (sortField !== field) return <ArrowUpDown className="w-4 h-4 text-slate-400" />;
+    if (sortField !== field) return <ArrowUpDown className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />;
     return sortDirection === "asc" 
       ? <ArrowUp className="w-4 h-4 text-emerald-600" />
       : <ArrowDown className="w-4 h-4 text-emerald-600" />;
@@ -140,7 +140,7 @@ export default function DeliveryDataTable({ deliveries, patients, stores, driver
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="md:col-span-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
             <Input
               placeholder="Search by patient, store, driver, tracking#..."
               value={searchTerm}
@@ -193,7 +193,7 @@ export default function DeliveryDataTable({ deliveries, patients, stores, driver
       </div>
 
       {/* Results count */}
-      <div className="text-sm text-slate-600">
+      <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
         Showing {paginatedDeliveries.length} of {filteredAndSortedDeliveries.length} deliveries
         {(searchTerm || statusFilter !== "all" || driverFilter !== "all" || dateFilter) && 
           ` (filtered from ${deliveries.length} total)`
@@ -201,70 +201,70 @@ export default function DeliveryDataTable({ deliveries, patients, stores, driver
       </div>
 
       {/* Table */}
-      <div className="border rounded-lg overflow-hidden bg-white">
+      <div className="border rounded-lg overflow-hidden bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-50 border-b">
+            <thead className="bg-slate-50 dark:bg-slate-800 border-b">
               <tr>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("delivery_date")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Date <SortIcon field="delivery_date" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("tracking_number")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     TR# <SortIcon field="tracking_number" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("patient_id")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Patient <SortIcon field="patient_id" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("store_id")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Store <SortIcon field="store_id" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("driver_name")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Driver <SortIcon field="driver_name" />
                   </button>
                 </th>
-                <th className="text-left p-3 font-medium text-slate-700">
+                <th className="text-left p-3 font-medium text-slate-700 dark:text-slate-300">
                   <button
                     onClick={() => handleSort("status")}
-                    className="flex items-center gap-2 hover:text-slate-900"
+                    className="flex items-center gap-2 hover:text-slate-900 dark:text-slate-100"
                   >
                     Status <SortIcon field="status" />
                   </button>
                 </th>
-                <th className="text-right p-3 font-medium text-slate-700">Actions</th>
+                <th className="text-right p-3 font-medium text-slate-700 dark:text-slate-300">Actions</th>
               </tr>
             </thead>
             <tbody>
               {paginatedDeliveries.map(delivery => (
-                <tr key={delivery.id} className="border-b hover:bg-slate-50">
+                <tr key={delivery.id} className="border-b hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">
                   <td className="p-3 text-sm">
                     <div className="space-y-1">
                       <div>{format(new Date(delivery.delivery_date + 'T00:00:00Z'), 'MMM d, yyyy')}</div>
                       {delivery.actual_delivery_time && (
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                           {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
                         </div>
                       )}
@@ -272,10 +272,10 @@ export default function DeliveryDataTable({ deliveries, patients, stores, driver
                   </td>
                   <td className="p-3 font-mono text-sm">{delivery.tracking_number || "—"}</td>
                   <td className="p-3 text-sm">{getPatientName(delivery.patient_id)}</td>
-                  <td className="p-3 text-sm text-slate-600">{getStoreName(delivery.store_id)}</td>
-                  <td className="p-3 text-sm text-slate-600">{delivery.driver_name || "Unassigned"}</td>
+                  <td className="p-3 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">{getStoreName(delivery.store_id)}</td>
+                  <td className="p-3 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">{delivery.driver_name || "Unassigned"}</td>
                   <td className="p-3">
-                    <Badge className={statusConfig[delivery.status]?.color || "bg-slate-100 text-slate-800"}>
+                    <Badge className={statusConfig[delivery.status]?.color || "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200"}>
                       {statusConfig[delivery.status]?.label || delivery.status}
                     </Badge>
                   </td>
@@ -304,7 +304,7 @@ export default function DeliveryDataTable({ deliveries, patients, stores, driver
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-slate-600">
+          <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
             Page {currentPage} of {totalPages}
           </div>
           <div className="flex gap-2">

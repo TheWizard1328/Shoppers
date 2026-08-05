@@ -439,7 +439,7 @@ export default function StatsPanel({
                     title={currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'Inactive drivers cannot add deliveries' : hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
                 <Plus className="w-4 h-4" />
                 {isDemoModeActive && !hasRateLimitError &&
-                    <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white text-[8px] font-bold leading-none text-blue-600">
+                    <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white dark:bg-slate-900 text-[8px] font-bold leading-none text-blue-600">
                     D
                   </span>
                     }
@@ -601,7 +601,7 @@ export default function StatsPanel({
                         'bg-emerald-600 hover:bg-emerald-700' :
                         showRoutes ?
                         'bg-blue-600 hover:bg-blue-700' :
-                        'text-slate-700'}`
+                        'text-slate-700 dark:text-slate-300'}`
                         }
                         style={!showRoutes && !showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -641,7 +641,7 @@ export default function StatsPanel({
               </div>
 
               {isDriver && !isDispatcher && <>
-                <div className="pt-1 border-t border-slate-200"></div>
+                <div className="pt-1 border-t border-slate-200 dark:border-slate-700"></div>
                 <div className="flex items-center gap-1">
                   <LocationTrackingToggle user={currentUser} onUserUpdate={async () => {await refreshUser();}} />
                   {isDriver && <>
@@ -675,7 +675,7 @@ export default function StatsPanel({
               </>}
 
               {showMapStyleOptions && <>
-                <div className="pt-1 border-t border-slate-200"></div>
+                <div className="pt-1 border-t border-slate-200 dark:border-slate-700"></div>
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" onClick={() => setMapStyle('explore')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'explore' ? '#16a34a' : 'var(--bg-white)', borderColor: mapStyle === 'explore' ? '#16a34a' : 'var(--border-slate-300)', color: mapStyle === 'explore' ? '#ffffff' : 'var(--text-slate-900)' }}>
                     <span className="text-xs">Explore</span>
@@ -690,7 +690,7 @@ export default function StatsPanel({
               </>}
 
               {(isStatsCardCentered || isMobile) && <>
-                <div className="border-t border-slate-200 mt-2 pt-2"></div>
+                <div className="border-t border-slate-200 dark:border-slate-700 mt-2 pt-2"></div>
                 <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
               </>}
             </motion.div>}
@@ -704,7 +704,7 @@ export default function StatsPanel({
               {legendData.map((route) =>
                 <button
                   key={route.driverId}
-                  type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 transition-colors px-0.5 py-0 h-[20px]    ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
+                  type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors px-0.5 py-0 h-[20px]    ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     // Toggle: clicking the already-selected driver switches back to "All Drivers"

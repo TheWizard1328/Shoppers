@@ -64,7 +64,7 @@ export function DocViewerModal({
         <div className="flex-1 overflow-hidden relative">
           {docLoading ? (
             <div className="flex items-center justify-center h-full">
-              <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 border-slate-200 dark:border-slate-700 border-t-slate-800 rounded-full animate-spin" />
             </div>
           ) : docUrl ? (
             <div className="relative w-full h-full">
@@ -175,7 +175,7 @@ export function DocCropModal({
               e.currentTarget.setPointerCapture(e.pointerId);
             }}>
             {[['0%', '0%', '-4px', '-4px'], ['100%', '0%', '-4px', 'auto'], ['0%', '100%', 'auto', '-4px'], ['100%', '100%', 'auto', 'auto']].map(([l, t, mt, ml], i) => (
-              <div key={i} className="absolute w-4 h-4 bg-white border border-gray-400 rounded-sm"
+              <div key={i} className="absolute w-4 h-4 bg-white dark:bg-slate-900 border border-gray-400 rounded-sm"
                 style={{ left: l, top: t, marginTop: mt === 'auto' ? undefined : mt, marginLeft: ml === 'auto' ? undefined : ml, transform: 'translate(-50%, -50%)', cursor: 'se-resize', touchAction: 'none' }}
                 onPointerDown={(e) => { e.stopPropagation(); setCropDrag({ type: 'resize' }); e.currentTarget.setPointerCapture(e.pointerId); }} />
             ))}

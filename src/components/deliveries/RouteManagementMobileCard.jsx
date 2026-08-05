@@ -147,12 +147,12 @@ export default function RouteManagementMobileCard({
           onClick={() => setViewingImageUrl(null)}
         >
           <div
-            className="relative bg-white rounded-xl shadow-2xl p-4 max-w-[95vw] max-h-[90vh] flex flex-col items-center"
+            className="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-4 max-w-[95vw] max-h-[90vh] flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setViewingImageUrl(null)}
-              className="absolute -top-3 -right-3 bg-white border-2 border-slate-300 rounded-full w-9 h-9 flex items-center justify-center shadow-lg"
+              className="absolute -top-3 -right-3 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-full w-9 h-9 flex items-center justify-center shadow-lg"
             >
               ✕
             </button>
@@ -190,7 +190,7 @@ export default function RouteManagementMobileCard({
               </Badge>
               {trLabel && (
                 <>
-                  <span className="text-slate-400 text-xs">•</span>
+                  <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 text-xs">•</span>
                   <span className="text-xs font-semibold" style={{ color: "var(--text-slate-600)" }}>
                     {trLabel}
                   </span>
@@ -315,7 +315,7 @@ export default function RouteManagementMobileCard({
                       `https://barcodeapi.org/api/128/${encodeURIComponent(firstBarcode)}`
                     );
                   }}
-                  className="flex items-center gap-1 text-xs text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 bg-slate-50 hover:bg-slate-100"
+                  className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700"
                   title="View barcode"
                 >
                   <Eye className="w-3 h-3" />

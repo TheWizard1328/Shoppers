@@ -31,9 +31,9 @@ function BarcodeDisplay({ value, onDelete }) {
   }, [value]);
 
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg border bg-white" style={{ borderColor: 'var(--border-slate-200)' }}>
+    <div className="flex items-center gap-2 p-2 rounded-lg border bg-white dark:bg-slate-900" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
       <div className="flex-1 min-w-0">
-        <div className="w-full h-20 flex items-center justify-center bg-slate-50 border rounded">
+        <div className="w-full h-20 flex items-center justify-center bg-slate-50 dark:bg-slate-800 border rounded">
           <svg ref={svgRef} className="w-full h-16" aria-label="Scannable barcode" />
         </div>
       </div>
@@ -41,7 +41,7 @@ function BarcodeDisplay({ value, onDelete }) {
         type="button"
         variant="ghost"
         size="sm"
-        className="h-7 w-7 p-0 flex-shrink-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+        className="h-7 w-7 p-0 flex-shrink-0 text-red-400 hover:text-red-600 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
         onClick={onDelete}
         title="Remove barcode"
       >
@@ -474,7 +474,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
         </Button>
       </div>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
         Use a hand scanner or tap the camera icon to scan with the device camera.
       </p>
 
@@ -538,7 +538,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
             {barcodeValues.map((val, idx) => (
               <div
                 key={idx}
-                className="relative rounded-lg border bg-white dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700"
+                className="relative rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700"
                 style={{ borderColor: 'var(--border-slate-200)' }}
                 onClick={() => onSelectBarcode(val)}
                 title={val}

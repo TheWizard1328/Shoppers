@@ -294,7 +294,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                     }
                   }}
                   placeholder="e.g., My iPhone 15 Pro"
-                  className="placeholder:text-slate-500"
+                  className="placeholder:text-slate-500 dark:text-slate-400 dark:text-slate-500"
                   style={{ 
                     background: 'var(--bg-white)', 
                     borderColor: 'var(--border-slate-300)',

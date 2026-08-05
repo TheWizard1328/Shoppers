@@ -27,7 +27,7 @@ export default function DriverRouteControls({
 
   return (
     <>
-      <div className="border-t border-slate-200"></div>
+      <div className="border-t border-slate-200 dark:border-slate-700"></div>
       <div className="py-1 flex items-center gap-2">
         <LocationTrackingToggle
           user={currentUser}

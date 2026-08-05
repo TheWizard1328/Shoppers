@@ -266,7 +266,7 @@ export default function StopCardHeader({
 
     return !isAfterHours && !hasExtraPay ?
       <div className="text-emerald-600 pt-1 text-xs font-bold">{payDisplay}</div> :
-      <Badge variant="secondary" className="inline-flex items-center border transition-colors text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
+      <Badge variant="secondary" className="inline-flex items-center border transition-colors text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800 dark:text-slate-200">
         {payDisplay}
       </Badge>;
   }, [showDriverPay, driverAppUser, delivery, patient]);
@@ -296,7 +296,7 @@ export default function StopCardHeader({
                 onTouchStart={(event) => event.stopPropagation()}
                 onCheckedChange={(checked) => onSelectionChange?.(delivery.id, !!checked)}
                 aria-label="Select stop"
-                className="h-5 w-5 border-white bg-white/90 data-[state=checked]:bg-white data-[state=checked]:text-slate-900"
+                className="h-5 w-5 border-white bg-white/90 data-[state=checked]:bg-white dark:bg-slate-900 data-[state=checked]:text-slate-900 dark:text-slate-100"
               />
             </div>
           )}

@@ -40,15 +40,15 @@ export default function PushNotificationPrompt({ userId }) {
           transition={{ type: 'spring', damping: 20, stiffness: 300 }}
           className="fixed bottom-20 left-4 right-4 md:left-auto md:right-6 md:bottom-6 md:w-96 z-[10001]"
         >
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-5">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <Bell className="w-6 h-6 text-emerald-600" />
               </div>
 
               <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-slate-900 mb-1">Enable Notifications</h4>
-                <p className="text-sm text-slate-500 mb-4">
+                <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Enable Notifications</h4>
+                <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">
                   Get instant alerts for new chat messages and delivery updates — even when the app is closed.
                 </p>
 
@@ -72,7 +72,7 @@ export default function PushNotificationPrompt({ userId }) {
 
               <button
                 onClick={handleDismiss}
-                className="text-slate-400 hover:text-slate-600 flex-shrink-0 mt-0.5"
+                className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 flex-shrink-0 mt-0.5"
                 aria-label="Dismiss"
               >
                 <X className="w-4 h-4" />

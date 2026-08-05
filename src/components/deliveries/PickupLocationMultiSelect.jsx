@@ -151,10 +151,10 @@ export default function PickupLocationMultiSelect({
                     key={store.id}
                     type="button"
                     onClick={() => toggleStore(store)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 transition-colors text-left"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 transition-colors text-left"
                     style={{ color: 'var(--text-slate-900)' }}
                   >
-                    <div className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors ${isChecked ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300 bg-white'}`}>
+                    <div className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors ${isChecked ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'}`}>
                       {isChecked && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
                     </div>
                     <span>{label}</span>

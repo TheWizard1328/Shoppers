@@ -185,7 +185,7 @@ export default function AutoRouteOptimizer({
         className="flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border"
         style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
       >
-        <Zap className={`w-4 h-4 ${autoOptimizeEnabled ? 'text-emerald-600' : 'text-slate-400'}`} />
+        <Zap className={`w-4 h-4 ${autoOptimizeEnabled ? 'text-emerald-600' : 'text-slate-400 dark:text-slate-500 dark:text-slate-400'}`} />
         <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
           Auto-Optimize
         </span>
@@ -196,7 +196,7 @@ export default function AutoRouteOptimizer({
           }`}
         >
           <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+            className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-slate-900 transition-transform ${
               autoOptimizeEnabled ? 'translate-x-5' : 'translate-x-0.5'
             }`}
           />
@@ -217,15 +217,15 @@ export default function AutoRouteOptimizer({
               {isOptimizing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-                  <span className="text-xs font-medium text-slate-700">Optimizing...</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Optimizing...</span>
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4 text-emerald-600" />
                   <div className="flex flex-col">
-                    <span className="text-xs font-medium text-slate-700">Route Optimized</span>
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Route Optimized</span>
                     {lastOptimized && (
-                      <span className="text-[10px] text-slate-500">{getTimeSinceOptimization()}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{getTimeSinceOptimization()}</span>
                     )}
                   </div>
                 </>
@@ -233,7 +233,7 @@ export default function AutoRouteOptimizer({
             </div>
 
             {optimizationCount > 0 && (
-              <div className="mt-1 text-[10px] text-slate-500 text-center">
+              <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">
                 {optimizationCount} optimization{optimizationCount !== 1 ? 's' : ''} today
               </div>
             )}

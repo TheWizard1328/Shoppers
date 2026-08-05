@@ -43,7 +43,7 @@ export default function DriverNotesInline({
 
           placeholder="Private notes (admins only)" />
         
-          {savingAdmin && <div className="text-[10px] text-slate-500 mt-1">Saving...</div>}
+          {savingAdmin && <div className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Saving...</div>}
         </div>
       }
 
@@ -57,7 +57,7 @@ export default function DriverNotesInline({
 
           placeholder="Visible to driver + admins" />
         
-        {savingDriver && <div className="text-[10px] text-slate-500 mt-1">Saving...</div>}
+        {savingDriver && <div className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Saving...</div>}
       </div>
     </div>);
 

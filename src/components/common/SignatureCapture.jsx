@@ -171,7 +171,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
         >
           <div>
             {isSaving && (
-              <span className="text-sm text-slate-500 flex items-center gap-1">
+              <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> Saving...
               </span>
             )}

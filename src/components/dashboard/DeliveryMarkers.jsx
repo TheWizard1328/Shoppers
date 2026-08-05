@@ -386,7 +386,7 @@ function DeliveryMarkers({
                                 return (
                                   <div
                                     key={`stop-${driverId}-${storeId}-${m.id}-${m.stop_order || 'na'}`}
-                                    className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1 cursor-pointer rounded hover:bg-slate-50"
+                                    className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1 cursor-pointer rounded hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800"
                                     onClick={() => {
                                       document.querySelectorAll('.leaflet-popup').forEach((p) => p.remove());
                                       document.getElementById(`stop-card-${m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });

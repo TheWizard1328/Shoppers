@@ -40,7 +40,7 @@ export default function PatientViewOverlay() {
 
   return (
     <div
-      className="fixed inset-0 z-[99999] bg-slate-100 overflow-hidden"
+      className="fixed inset-0 z-[99999] bg-slate-100 dark:bg-slate-800 overflow-hidden"
       style={{ isolation: 'isolate' }}
     >
       {/* Exit button — forced light styling so it's always visible regardless of dark mode */}

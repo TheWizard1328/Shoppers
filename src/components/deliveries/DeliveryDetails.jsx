@@ -36,10 +36,10 @@ const safeFormatDate = (dateString, formatString) => {
 export default function DeliveryDetails({ delivery, patient, store, statusConfig }) {
   if (!delivery) {
     return (
-      <Card className="bg-white border-slate-200 shadow-sm">
+      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm">
         <CardContent className="p-8 text-center">
           <Package className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <p className="text-slate-500">Select a delivery to view details</p>
+          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Select a delivery to view details</p>
         </CardContent>
       </Card>
     );
@@ -52,7 +52,7 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
       case 'urgent': return 'bg-red-100 text-red-800';
       case 'high': return 'bg-orange-100 text-orange-800';
       case 'normal': return 'bg-blue-100 text-blue-800';
-      case 'low': return 'bg-gray-100 text-gray-800';
+      case 'low': return 'bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200';
       default: return 'bg-blue-100 text-blue-800';
     }
   };
@@ -192,7 +192,7 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
             {/* NEW: COD Information Display */}
             {hasCOD && (
               <div className={`flex items-start gap-3 text-sm p-3 rounded-lg border ${
-                isCODComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+                isCODComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 dark:bg-amber-950 border-amber-200'
               }`}>
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 ${
                   isCODComplete ? 'bg-emerald-100' : 'bg-amber-100'

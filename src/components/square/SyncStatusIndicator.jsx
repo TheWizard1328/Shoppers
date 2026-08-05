@@ -14,7 +14,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
       return {
         icon: <Loader2 className="w-4 h-4 animate-spin" />,
         color: "text-blue-600",
-        bgColor: "bg-blue-50",
+        bgColor: "bg-blue-50 dark:bg-blue-950",
         borderColor: "border-blue-200",
         text: "Syncing..."
       };
@@ -24,7 +24,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
       return {
         icon: <AlertCircle className="w-4 h-4" />,
         color: "text-red-600",
-        bgColor: "bg-red-50",
+        bgColor: "bg-red-50 dark:bg-red-950",
         borderColor: "border-red-200",
         text: "Sync Error"
       };
@@ -34,7 +34,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
       return {
         icon: <CheckCircle className="w-4 h-4" />,
         color: "text-green-600",
-        bgColor: "bg-green-50",
+        bgColor: "bg-green-50 dark:bg-green-950",
         borderColor: "border-green-200",
         text: "Synced"
       };
@@ -42,9 +42,9 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
 
     return {
       icon: <Clock className="w-4 h-4" />,
-      color: "text-gray-600",
-      bgColor: "bg-gray-50",
-      borderColor: "border-gray-200",
+      color: "text-gray-600 dark:text-slate-400 dark:text-slate-500",
+      bgColor: "bg-gray-50 dark:bg-slate-800",
+      borderColor: "border-gray-200 dark:border-slate-700",
       text: "Never Synced"
     };
   };

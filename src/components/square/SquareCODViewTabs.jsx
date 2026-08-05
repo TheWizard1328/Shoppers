@@ -23,7 +23,7 @@ export default function SquareCODViewTabs({ activeView, onChange }) {
             onClick={() => onChange(tab.id)}
             className="gap-2 text-sm"
           >
-            <span className={`h-2 w-2 rounded-full ${isActive ? "bg-white" : "bg-slate-400"}`} />
+            <span className={`h-2 w-2 rounded-full ${isActive ? "bg-white dark:bg-slate-900" : "bg-slate-400"}`} />
             {tab.label}
           </Button>
         );

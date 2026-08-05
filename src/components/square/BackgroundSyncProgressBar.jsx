@@ -21,9 +21,9 @@ export default function BackgroundSyncProgressBar({ progress }) {
 
   return (
     <div className={`rounded-lg border p-3 transition-all duration-300 ${
-      isComplete ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' :
-      isError ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' :
-      'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+      isComplete ? 'bg-green-50 dark:bg-green-950 dark:bg-green-900/20 border-green-200 dark:border-green-800' :
+      isError ? 'bg-red-50 dark:bg-red-950 dark:bg-red-900/20 border-red-200 dark:border-red-800' :
+      'bg-blue-50 dark:bg-blue-950 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
     }`}>
       <div className="flex items-center gap-2 mb-2">
         {isComplete ? (

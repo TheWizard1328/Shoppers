@@ -367,8 +367,8 @@ export default function DriverPayrollGrid({
                   <Table className="w-5 h-5" />
                   {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                 </CardTitle>
-                <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
-                  <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors disabled:opacity-50" title="Refresh data">
+                  <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300'}`} />
                 </button>
               </div>
 
@@ -421,8 +421,8 @@ export default function DriverPayrollGrid({
                   <Table className="w-5 h-5" />
                   {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                 </CardTitle>
-                <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
-                  <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors disabled:opacity-50" title="Refresh data">
+                  <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300'}`} />
                 </button>
               </div>
 
@@ -471,8 +471,8 @@ export default function DriverPayrollGrid({
                 <CardTitle className="flex items-center gap-2 text-base justify-start text-left flex-1" style={{ color: 'var(--text-slate-900)' }}>
                   <Table className="w-5 h-5 flex-shrink-0" />
                   <span className="truncate">{viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store</span>
-                  <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50 flex-shrink-0" title="Refresh data">
-                    <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                  <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 flex-shrink-0" title="Refresh data">
+                    <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300'}`} />
                   </button>
                 </CardTitle>
                 <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0 ml-auto" style={{ background: 'var(--bg-slate-100)' }}>
@@ -517,7 +517,7 @@ export default function DriverPayrollGrid({
           <table className="w-full text-[11px]" style={{ lineHeight: '1.4' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                <th className="text-center px-1 md:px-2 py-1 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-top" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
+                <th className="text-center px-1 md:px-2 py-1 font-medium sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 align-top" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
                 {sortedStores.map((store) =>
                 <th
                   key={store.id}
@@ -546,7 +546,7 @@ export default function DriverPayrollGrid({
                     style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-100)' : 'transparent' }}>
                     
                     <td
-                      className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-top"
+                      className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 align-top"
                       style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}>
                       
                       <div className="flex items-center justify-center gap-0.5">
@@ -594,7 +594,7 @@ export default function DriverPayrollGrid({
               })}
               {/* Totals Row */}
               <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-slate-300)', background: 'var(--bg-slate-100)' }}>
-                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 align-top" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 align-top" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
                 {sortedStores.map((store) => {
                   const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const displayValueMobile = viewMode === 'extraKm' ?
@@ -621,7 +621,7 @@ export default function DriverPayrollGrid({
               </tr>
               {/* Average Per Active Day Row */}
               <tr className="font-medium" style={{ background: 'var(--bg-slate-50)' }}>
-                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-50)' }}>AVG</td>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-50)' }}>AVG</td>
                 {sortedStores.map((store) => {
                   const storeTotal = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const activeDays = periodDays.filter((day) => {
@@ -665,7 +665,7 @@ export default function DriverPayrollGrid({
               </tr>
               {/* Projected Total Row */}
               <tr className="font-medium" style={{ background: 'var(--bg-slate-50)' }}>
-                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-50)' }}>Proj</td>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-50)' }}>Proj</td>
                 {sortedStores.map((store) => {
                   const storeTotal = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const activeDays = periodDays.filter((day) => {

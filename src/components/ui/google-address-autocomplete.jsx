@@ -345,7 +345,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       />
       {isLoading && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10">
-          <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
+          <div className="w-4 h-4 border-2 border-slate-300 dark:border-slate-600 border-t-slate-600 rounded-full animate-spin"></div>
         </div>
       )}
       

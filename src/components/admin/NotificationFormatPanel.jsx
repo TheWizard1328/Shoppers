@@ -153,12 +153,12 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
     <div className="space-y-3">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-slate-600">Template Variables</CardTitle>
+          <CardTitle className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Template Variables</CardTitle>
         </CardHeader>
         <CardContent className="px-3 py-2">
           <div className="flex flex-wrap gap-2 text-xs">
             {TEMPLATE_VARIABLES.map((v) =>
-            <code key={v} className="bg-slate-100 px-2 py-1 rounded text-slate-700">{v}</code>
+            <code key={v} className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-700 dark:text-slate-300">{v}</code>
             )}
           </div>
         </CardContent>
@@ -184,23 +184,23 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
 
           return (
             <div key={eventName} onClick={() => handleCardClick(eventName)}
-              className="border border-slate-200 rounded-xl bg-white hover:border-blue-300 cursor-pointer transition-colors overflow-hidden"
+              className="border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 hover:border-blue-300 cursor-pointer transition-colors overflow-hidden"
               style={{ borderLeft: `4px solid ${borderColor}` }}>
               <div className="px-4 py-3 flex gap-3">
                 {/* Left: label + preview + toggles */}
                 <div className="flex-1 min-w-0">
                   <div className="mb-2">
-                    <span className="font-bold text-slate-900 text-base">{label}</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 text-base">{label}</span>
                   </div>
-                  <p className="text-sm text-slate-700 font-mono mb-3 truncate">"{buildSampleMessage(template)}"</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 font-mono mb-3 truncate">"{buildSampleMessage(template)}"</p>
                   <div className="flex items-center gap-5" onClick={(e) => e.stopPropagation()}>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <Switch checked={enabled} onCheckedChange={() => handleToggle(eventName, 'enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
-                      <span className="text-sm text-slate-700">On/Off</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300">On/Off</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <Switch checked={inApp} onCheckedChange={() => handleToggle(eventName, 'in_app_enabled')} disabled={!!isSaving} onClick={(e) => e.stopPropagation()} />
-                      <span className="text-sm text-slate-700">In-App</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300">In-App</span>
                     </label>
                   </div>
                 </div>
@@ -212,7 +212,7 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" variant="outline" disabled={isTestingThis}
                       onClick={(e) => { e.stopPropagation(); sendTestMessage(eventName); }}
-                      className={`text-sm px-4 h-8 ${testOk ? 'border-green-500 text-green-600' : 'text-slate-700 border-slate-300'}`}>
+                      className={`text-sm px-4 h-8 ${testOk ? 'border-green-500 text-green-600' : 'text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600'}`}>
                       {isTestingThis ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : testOk ? <CheckCircle className="w-3 h-3 mr-1" /> : null}
                       {testOk ? 'Sent!' : 'Test'}
                     </Button>
@@ -228,7 +228,7 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
                           setRecords((prev) => { const next = { ...prev }; delete next[eventName]; return next; });
                         } catch { alert('Failed to delete template'); } finally { setIsSaving(null); }
                       }}
-                      className="text-sm px-4 h-8 text-slate-700 border-slate-300 hover:text-red-600 hover:border-red-300">
+                      className="text-sm px-4 h-8 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:text-red-600 hover:border-red-300">
                       Delete
                     </Button>
                   </div>
@@ -247,23 +247,23 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
           {editDraft &&
           <div className="space-y-4 py-2">
               <div>
-                <Label className="text-xs text-slate-600 mb-1 block">Title / Label</Label>
+                <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">Title / Label</Label>
                 <Input value={editDraft.label} onChange={(e) => setEditDraft((d) => ({ ...d, label: e.target.value }))} className="text-sm" />
               </div>
               <div>
-                <Label className="text-xs text-slate-600 mb-1 block">Message Template</Label>
+                <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">Message Template</Label>
                 <Textarea ref={textareaRef} value={editDraft.message_template}
               onChange={(e) => setEditDraft((d) => ({ ...d, message_template: e.target.value }))}
               rows={4} className="text-sm" />
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {TEMPLATE_VARIABLES.map((v) =>
                 <button key={v} type="button" onClick={() => insertVariable(v)}
-                className="bg-slate-100 hover:bg-blue-100 hover:text-blue-700 text-slate-600 text-xs px-2 py-0.5 rounded border border-slate-200 hover:border-blue-300 transition-colors cursor-pointer font-mono">
+                className="bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 hover:text-blue-700 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 hover:border-blue-300 transition-colors cursor-pointer font-mono">
                       {v}
                     </button>
                 )}
                 </div>
-                <p className="text-xs text-slate-400 mt-2">Preview: <em>"{buildSampleMessage(editDraft.message_template)}"</em></p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-2">Preview: <em>"{buildSampleMessage(editDraft.message_template)}"</em></p>
               </div>
               <div className="flex flex-wrap gap-6">
                 <div className="flex items-center gap-2">
@@ -279,12 +279,12 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
           }
           <DialogFooter className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={handleReset} disabled={!!isSaving} className="text-slate-400 hover:text-orange-500 gap-1">
+              <Button size="sm" variant="ghost" onClick={handleReset} disabled={!!isSaving} className="text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-orange-500 gap-1">
                 <RotateCcw className="w-3 h-3" /> Reset
               </Button>
               <Button size="sm" variant="outline" disabled={!!isTesting}
               onClick={() => sendTestMessage(editingEvent, editDraft?.message_template)}
-              className={`gap-1 ${testSuccess === editingEvent ? 'border-green-500 text-green-600' : 'text-slate-600'}`}>
+              className={`gap-1 ${testSuccess === editingEvent ? 'border-green-500 text-green-600' : 'text-slate-600 dark:text-slate-400 dark:text-slate-500'}`}>
                 {isTesting === editingEvent ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccess === editingEvent ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
                 {testSuccess === editingEvent ? 'Sent!' : 'Test'}
               </Button>

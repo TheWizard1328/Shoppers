@@ -31,7 +31,7 @@ export default function RestartConfirmDialog({ open, onClose, onConfirm, deliver
         <div className="space-y-3 py-1">
           {/* Name + special symbols */}
           <div className="flex items-start justify-between gap-2">
-            <p className="font-semibold text-slate-900 text-sm leading-tight">{name}</p>
+            <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm leading-tight">{name}</p>
             <SpecialSymbolsBadges
               delivery={delivery}
               patient={patient}
@@ -41,25 +41,25 @@ export default function RestartConfirmDialog({ open, onClose, onConfirm, deliver
           </div>
 
           {address && (
-            <div className="text-xs text-slate-600">
-              <span className="font-medium text-slate-700">Address: </span>{address}
+            <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
+              <span className="font-medium text-slate-700 dark:text-slate-300">Address: </span>{address}
             </div>
           )}
 
           {phone && (
-            <div className="text-xs text-slate-600">
-              <span className="font-medium text-slate-700">Phone: </span>
+            <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
+              <span className="font-medium text-slate-700 dark:text-slate-300">Phone: </span>
               <a href={`tel:${phone}`} className="text-blue-600 underline">{phone}</a>
             </div>
           )}
 
           {notes && (
-            <div className="text-xs text-slate-600 bg-slate-50 rounded p-2 border border-slate-200">
-              <span className="font-medium text-slate-700">Notes: </span>{notes}
+            <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 rounded p-2 border border-slate-200 dark:border-slate-700">
+              <span className="font-medium text-slate-700 dark:text-slate-300">Notes: </span>{notes}
             </div>
           )}
 
-          <p className="text-xs text-slate-500 pt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 pt-1">
             This will move the delivery back to <strong>In Transit</strong> and place it as the next stop.
           </p>
         </div>

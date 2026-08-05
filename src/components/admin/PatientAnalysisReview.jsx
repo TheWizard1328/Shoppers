@@ -110,7 +110,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
   const getStatusBadge = (status) => {
     if (status === 'pending_review') return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Pending Review</Badge>;
     if (status === 'applied') return <Badge className="bg-green-100 text-green-800 border-green-200">Applied</Badge>;
-    if (status === 'dismissed') return <Badge className="bg-slate-100 text-slate-600 border-slate-200">Dismissed</Badge>;
+    if (status === 'dismissed') return <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700">Dismissed</Badge>;
     return null;
   };
 
@@ -286,7 +286,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
                       <span className="font-medium text-sm" style={{ color: 'var(--text-slate-900)' }}>
                         {p.pattern_label}
                       </span>
-                      <Badge className={`text-xs ${i === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                      <Badge className={`text-xs ${i === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500'}`}>
                         {p.confidence}% confidence
                       </Badge>
                       {i === 0 && <Badge className="text-xs bg-blue-100 text-blue-800">Top match</Badge>}
@@ -310,7 +310,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
               <Button variant="outline" onClick={() => setSelectedResult(null)}>Cancel</Button>
               <Button
                 variant="outline"
-                className="text-red-600 border-red-200 hover:bg-red-50"
+                className="text-red-600 border-red-200 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
                 onClick={() => handleDismiss(selectedResult)}
                 disabled={applyingId === selectedResult.id}
               >

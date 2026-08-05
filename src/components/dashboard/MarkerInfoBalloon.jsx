@@ -6,7 +6,7 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 const getStatusColor = (status) => {
   const statusColors = {
-    pending: 'text-slate-600 bg-slate-100',
+    pending: 'text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800',
     'Ready For Pickup': 'text-amber-700 bg-amber-100',
     in_transit: 'text-blue-700 bg-blue-100',
     completed: 'text-emerald-700 bg-emerald-100',
@@ -14,7 +14,7 @@ const getStatusColor = (status) => {
     cancelled: 'text-red-700 bg-red-100',
     returned: 'text-orange-700 bg-orange-100'
   };
-  return statusColors[status] || 'text-slate-600 bg-slate-100';
+  return statusColors[status] || 'text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800';
 };
 
 const getTimeColor = (status) => {
@@ -71,7 +71,7 @@ export default function MarkerInfoBalloon({
 
   return (
     <div
-      className={`${wrapperClass}${onClick ? ' cursor-pointer hover:bg-slate-50 px-1 -mx-1 rounded' : ''}`}
+      className={`${wrapperClass}${onClick ? ' cursor-pointer hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 px-1 -mx-1 rounded' : ''}`}
       onClick={onClick}
     >
       {/* Row 1: Driver name */}

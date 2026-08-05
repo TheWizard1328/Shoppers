@@ -111,7 +111,7 @@ export const PatientDataTable = ({
 
   const getSortIcon = (col) => sortColumn === col
     ? <ArrowUpDown className="w-4 h-4 inline ml-1 transform rotate-180" />
-    : <ArrowUpDown className="w-4 h-4 inline ml-1 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
+    : <ArrowUpDown className="w-4 h-4 inline ml-1 text-slate-400 dark:text-slate-500 dark:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
 
   const handleSelectAll = (checked) => setSelectedPatients(checked ? new Set(filteredPatients.map((p) => p.id)) : new Set());
   const handleSelectPatient = (id, checked) => setSelectedPatients((prev) => { const s = new Set(prev); checked ? s.add(id) : s.delete(id); return s; });
@@ -235,7 +235,7 @@ export const PatientDataTable = ({
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading patients...</td></tr>
+                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading patients...</td></tr>
                 : filteredPatients.length > 0 ? filteredPatients.map((patient) => {
                     const isDupNA = detectDuplicates.nameAndAddress.has(patient.id);
                     const isDupAddr = detectDuplicates.address.has(patient.id);
@@ -247,13 +247,13 @@ export const PatientDataTable = ({
                         <td className="p-3"><Checkbox checked={selectedPatients.has(patient.id)} onCheckedChange={(c) => handleSelectPatient(patient.id, c)} /></td>
                         {visibleColumns.includes('id') && <td className="p-3 font-mono text-xs select-all" style={{ color: 'var(--text-slate-700)' }}>{patient.id}</td>}
                         {visibleColumns.includes('full_name') && <td className={`p-3 ${isDupNA ? 'bg-orange-50' : ''}`} style={textPrimary}>{patient.full_name}{isDupNA && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
-                        {visibleColumns.includes('patient_id') && <td className={`p-3 font-mono text-xs ${isDupPid ? 'bg-yellow-50' : ''}`} style={textPrimary}>{patient.patient_id || '-'}{isDupPid && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
-                        {visibleColumns.includes('phone') && <td className={`p-3 ${isDupPhone ? 'bg-yellow-50' : ''}`} style={textPrimary}>{patient.phone}{isDupPhone && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
-                        {visibleColumns.includes('address') && <td className={`p-3 ${isDupNA ? 'bg-orange-50' : isDupAddr ? 'bg-yellow-50' : ''}`} style={textPrimary}>{patient.address}{isDupNA && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
+                        {visibleColumns.includes('patient_id') && <td className={`p-3 font-mono text-xs ${isDupPid ? 'bg-yellow-50 dark:bg-yellow-950' : ''}`} style={textPrimary}>{patient.patient_id || '-'}{isDupPid && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
+                        {visibleColumns.includes('phone') && <td className={`p-3 ${isDupPhone ? 'bg-yellow-50 dark:bg-yellow-950' : ''}`} style={textPrimary}>{patient.phone}{isDupPhone && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
+                        {visibleColumns.includes('address') && <td className={`p-3 ${isDupNA ? 'bg-orange-50' : isDupAddr ? 'bg-yellow-50 dark:bg-yellow-950' : ''}`} style={textPrimary}>{patient.address}{isDupNA && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
                         {visibleColumns.includes('unit') && <td className="p-3 text-xs" style={textPrimary}>{patient.unit_number || '-'}</td>}
                         {visibleColumns.includes('store') && <td className="p-3">{patientStore ? <div className="flex flex-col"><span className="font-medium" style={textPrimary}>{patientStore.name}</span><span className="text-xs font-mono select-all" style={{ color: 'var(--text-slate-500)' }}>{patient.id}</span></div> : <span style={{ color: 'var(--text-slate-400)' }}>Unassigned</span>}</td>}
                         {visibleColumns.includes('last_delivery_date') && <td className="p-3 text-sm" style={textPrimary}>{patient.last_delivery_date ? (() => { const d = parseFlexibleDate(patient.last_delivery_date); return d && !isNaN(d.getTime()) ? format(d, 'MMM d, yyyy') : <span className="text-amber-600 text-xs">{patient.last_delivery_date}</span>; })() : <span style={{ color: 'var(--text-slate-400)' }}>Never</span>}</td>}
-                        {visibleColumns.includes('actions') && <td className="p-3 text-right"><div className="flex justify-end gap-2"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(patient)}><Edit className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onDelete(patient)}><Trash2 className="w-4 h-4" /></Button></div></td>}
+                        {visibleColumns.includes('actions') && <td className="p-3 text-right"><div className="flex justify-end gap-2"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(patient)}><Edit className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950" onClick={() => onDelete(patient)}><Trash2 className="w-4 h-4" /></Button></div></td>}
                       </tr>
                     );
                   })
@@ -311,7 +311,7 @@ export const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isL
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading stores...</td></tr>
+                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading stores...</td></tr>
                 : stores.length > 0 ? stores.map((store) => (
                     <tr key={store.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <td className="p-2"><Checkbox checked={selectedStores.has(store.id)} onCheckedChange={(c) => handleSelectStore(store.id, c)} /></td>
@@ -382,7 +382,7 @@ export const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoa
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading app users...</td></tr>
+                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading app users...</td></tr>
                 : users.length > 0 ? users.map((user) => (
                     <tr key={user.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <td className="p-2"><Checkbox checked={selectedUsers.has(user.id)} onCheckedChange={(c) => handleSelectUser(user.id, c)} /></td>
@@ -451,7 +451,7 @@ export const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLo
                 </tr>
               </thead>
               <tbody>
-                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading cities...</td></tr>
+                {isLoadingData ? <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading cities...</td></tr>
                 : cities.length > 0 ? cities.map((city) => (
                     <tr key={city.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <td className="p-2"><Checkbox checked={selectedCities.has(city.id)} onCheckedChange={(c) => handleSelectCity(city.id, c)} /></td>

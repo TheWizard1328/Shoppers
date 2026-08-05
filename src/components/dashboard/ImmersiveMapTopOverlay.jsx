@@ -75,7 +75,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
   return (
     <div className="absolute left-2 right-2 z-[800] pointer-events-none" style={{ top: `${Math.max(8, topOffset + 8)}px` }}>
       <div className="rounded-2xl border border-white/60 bg-transparent px-2.5 py-1.5 shadow-md backdrop-blur-md dark:border-slate-800/70 dark:bg-transparent">
-        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-slate-900 dark:text-white">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-slate-900 dark:text-slate-100 dark:text-white">
           <Badge
             variant="secondary"
             className="h-6 min-w-[2.25rem] justify-center rounded-full border-0 px-2 py-0 text-xs font-bold text-white"
@@ -84,7 +84,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             {formatStopOrder(delivery?.display_stop_order || delivery?.stop_order)}
           </Badge>
 
-          <div className="min-w-0 truncate text-center text-sm font-semibold text-slate-900 dark:text-white">
+          <div className="min-w-0 truncate text-center text-sm font-semibold text-slate-900 dark:text-slate-100 dark:text-white">
             {finalDisplayName}
           </div>
 
@@ -97,7 +97,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
           </Badge>
         </div>
 
-        <div className="mt-1 grid grid-cols-[auto_1fr_auto] items-center gap-2 text-slate-800 dark:text-white">
+        <div className="mt-1 grid grid-cols-[auto_1fr_auto] items-center gap-2 text-slate-800 dark:text-slate-200 dark:text-white">
           <div className="flex items-center gap-1.5 overflow-hidden">
             {batchTracking && (
               <Badge
@@ -113,7 +113,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             </div>
           </div>
 
-          <div className="min-w-0 truncate text-center text-xs font-medium text-slate-800 dark:text-white">
+          <div className="min-w-0 truncate text-center text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-white">
             {resolvedAddress}
           </div>
 

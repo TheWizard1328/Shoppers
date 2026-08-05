@@ -14,7 +14,7 @@ export default function DeviceSettings() {
         <div>
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800 mb-3"
+            className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 dark:text-slate-200 mb-3"
           >
             <ChevronLeft className="w-4 h-4" /> Back
           </button>

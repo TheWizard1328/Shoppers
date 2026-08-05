@@ -103,9 +103,9 @@ const statusConfig = {
   in_transit: { color: 'bg-purple-100 text-purple-800', label: 'In Transit' },
   completed: { color: 'bg-emerald-100 text-emerald-800', label: 'Completed' },
   failed: { color: 'bg-red-100 text-red-800', label: 'Failed' },
-  cancelled: { color: 'bg-slate-100 text-slate-800', label: 'Cancelled' },
+  cancelled: { color: 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200', label: 'Cancelled' },
   returned: { color: 'bg-orange-100 text-orange-800', label: 'Returned' },
-  projected: { color: 'bg-gray-100 text-gray-700', label: 'Projected' }
+  projected: { color: 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300', label: 'Projected' }
 };
 
 export default function DeliveriesPage() {
@@ -2687,7 +2687,7 @@ export default function DeliveriesPage() {
     if (driverStatus === 'on_break') return 'bg-orange-400 text-white border-orange-400';
     if (driverStatus === 'online') return 'bg-emerald-500 text-white border-emerald-500';
     if (driverStatus === 'off_duty') return 'bg-red-500 text-white border-red-500';
-    return 'bg-white text-slate-600 border-slate-300';
+    return 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-600';
   }, [freshAppUsers]);
 
   const handleDriverCardClick = useCallback((driver) => {
@@ -2795,7 +2795,7 @@ export default function DeliveriesPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center text-xl text-slate-700">
+      <div className="flex h-full items-center justify-center text-xl text-slate-700 dark:text-slate-300">
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p>Loading deliveries...</p>
@@ -2809,10 +2809,10 @@ export default function DeliveriesPage() {
 
   if (!hasAccess && !isLoading) {
     return (
-      <div className="flex h-full items-center justify-center text-xl text-slate-700 bg-slate-50">
-        <div className="text-center p-6 bg-white rounded-lg shadow-md">
+      <div className="flex h-full items-center justify-center text-xl text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800">
+        <div className="text-center p-6 bg-white dark:bg-slate-900 rounded-lg shadow-md">
           <h2 className="text-2xl font-bold text-red-600 mb-4">Access Denied</h2>
-          <p className="text-base text-slate-600 mb-6">
+          <p className="text-base text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-6">
             You do not have permission to view this page. Please contact your administrator.
           </p>
           <Button onClick={() => navigate('/')} className="bg-emerald-600 hover:bg-emerald-700">
@@ -3121,7 +3121,7 @@ export default function DeliveriesPage() {
                       setSelectedCityId(value);
                       updateUrl({ city: value });
                     }}>
-                          <SelectTrigger className="w-[140px] bg-white border-slate-300">
+                          <SelectTrigger className="w-[140px] bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                             <SelectValue placeholder="Select City" />
                           </SelectTrigger>
                           <SelectContent>
@@ -3144,7 +3144,7 @@ export default function DeliveriesPage() {
                       }
                       navigate(`${location.pathname}?${params.toString()}`, { replace: true });
                     }}>
-                        <SelectTrigger className="w-[140px] bg-white border-slate-300">
+                        <SelectTrigger className="w-[140px] bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

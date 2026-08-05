@@ -142,7 +142,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
             <div className="font-medium">Only log selected users</div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-700">Drivers</div>
+                <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Drivers</div>
                 <MultiSelect
                   options={driverOptions}
                   value={selectedDriverUsers}
@@ -156,7 +156,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 
               </div>
               <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-700">Stores</div>
+                <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Stores</div>
                 <MultiSelect
                   options={storeOptions}
                   value={selectedStoreUsers}
@@ -170,7 +170,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 
               </div>
             </div>
-            <div className="text-xs text-slate-500">If nobody is selected, logging applies to all users except excluded ones.</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">If nobody is selected, logging applies to all users except excluded ones.</div>
           </div>
         </CardContent>
       </Card>
@@ -213,7 +213,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
 
           <div className="max-h-[600px] overflow-auto rounded border">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white border-b">
+              <thead className="sticky top-0 bg-white dark:bg-slate-900 border-b">
                 <tr>
                   <th className="p-2 text-left">Time</th>
                   <th className="p-2 text-left">Level</th>

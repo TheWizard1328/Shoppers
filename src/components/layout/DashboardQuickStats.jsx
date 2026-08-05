@@ -147,7 +147,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
   const StatItem = ({ icon: Icon, label, value, colorClass, superscript }) =>
   <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
-          <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500'}`} />
+          <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`} />
           <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>{label}</span>
         </div>
         <Badge variant="secondary" className="items-center bg-secondary text-secondary-foreground inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[65px] rounded-[10px]" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
@@ -178,7 +178,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
 
   if (hasError && !stats) {
     return (
-      <div className="px-3 py-2 text-sm text-slate-500">
+      <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
         Unable to load stats
       </div>);
 
@@ -202,7 +202,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         </h4>
         <div className="space-y-1">
           {!userHasRole(currentUser, 'driver') && <StatItem icon={Truck} label="Active Drivers" value={stats.today.activeDrivers} colorClass="text-blue-600" />}
-          <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} superscript={stats.today.inTransitInterStore} colorClass="text-slate-600" />
+          <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} superscript={stats.today.inTransitInterStore} colorClass="text-slate-600 dark:text-slate-400 dark:text-slate-500" />
           <StatItem icon={CheckCircle} label="Completed" value={stats.today.completed} superscript={stats.today.completedInterStore} colorClass="text-green-600" />
           {(stats.today.failed > 0 || stats.today.returns > 0) &&
           <StatItem

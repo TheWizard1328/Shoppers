@@ -258,10 +258,10 @@ export default function SecureDocViewer() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-800">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm text-slate-600">Verifying access...</p>
+          <div className="w-8 h-8 border-4 border-slate-200 dark:border-slate-700 border-t-slate-800 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Verifying access...</p>
         </div>
       </div>
     );
@@ -269,12 +269,12 @@ export default function SecureDocViewer() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-800 p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-6 text-center">
             <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-slate-900 mb-2">Access Denied</h2>
-            <p className="text-sm text-slate-600 mb-4">{error}</p>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Access Denied</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-4">{error}</p>
             <Button onClick={() => navigate(-1)} variant="outline" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               Go Back
@@ -286,9 +286,9 @@ export default function SecureDocViewer() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 overflow-y-auto" ref={containerRef}>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-800 overflow-y-auto" ref={containerRef}>
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+      <div className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button onClick={() => navigate(-1)} variant="ghost" size="sm" className="gap-2">
@@ -297,7 +297,7 @@ export default function SecureDocViewer() {
             </Button>
             <div className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-blue-600" />
-              <span className="font-semibold text-slate-900">Secure Documents</span>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">Secure Documents</span>
             </div>
           </div>
           {timeRemaining && (
@@ -313,32 +313,32 @@ export default function SecureDocViewer() {
         {/* Document list */}
         {!viewingDoc && (
           <div className="space-y-3">
-            <p className="text-sm text-slate-600 mb-4">
+            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-4">
               {documents.length} document{documents.length !== 1 ? 's' : ''} available.
               Access expires in <span className="font-semibold text-amber-700">{timeRemaining || '—'}</span> or at midnight, whichever comes first.
             </p>
             {documents.map((doc) => (
               <Card key={doc.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleViewDoc(doc)}>
                 <CardContent className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950 flex items-center justify-center flex-shrink-0">
                     <FileText className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-900 capitalize">
+                    <p className="font-medium text-slate-900 dark:text-slate-100 capitalize">
                       {doc.document_type?.replace(/_/g, ' ')}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                       Uploaded {new Date(doc.uploaded_at || doc.created_date).toLocaleDateString()}
                       {doc.document_expiry_date && ` • Expires ${new Date(doc.document_expiry_date).toLocaleDateString()}`}
                     </p>
                   </div>
-                  <Eye className="w-5 h-5 text-slate-400" />
+                  <Eye className="w-5 h-5 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
                 </CardContent>
               </Card>
             ))}
             {documents.length === 0 && (
               <Card>
-                <CardContent className="py-8 text-center text-slate-500">
+                <CardContent className="py-8 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   No documents uploaded for this driver.
                 </CardContent>
               </Card>
@@ -361,7 +361,7 @@ export default function SecureDocViewer() {
 
             {docLoading && (
               <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                <div className="w-8 h-8 border-4 border-slate-200 dark:border-slate-700 border-t-slate-800 rounded-full animate-spin" />
               </div>
             )}
 

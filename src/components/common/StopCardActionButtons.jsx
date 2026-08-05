@@ -305,7 +305,7 @@ export default function StopCardActionButtons(props) {
               onTouchStart={(e) => { e.stopPropagation(); }}
               onClick={(e) => { e.stopPropagation(); if (!hasValidSquareLocation) return; handleSquareButtonTap(e); }}
               style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
-              className={`inline-flex items-center justify-center rounded-md border transition-colors flex-shrink-0 relative z-30 min-h-11 min-w-11 h-10 md:h-8 w-10 md:w-8 pointer-events-auto ${hasValidSquareLocation ? 'border-slate-400 bg-slate-100 hover:bg-slate-200' : 'border-slate-300 bg-slate-50 opacity-40 cursor-not-allowed'}`}
+              className={`inline-flex items-center justify-center rounded-md border transition-colors flex-shrink-0 relative z-30 min-h-11 min-w-11 h-10 md:h-8 w-10 md:w-8 pointer-events-auto ${hasValidSquareLocation ? 'border-slate-400 bg-slate-100 hover:bg-slate-200' : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 opacity-40 cursor-not-allowed'}`}
               title={hasValidSquareLocation ? 'Collect COD with Square POS' : 'No Square location configured for this store'}>
               <img
                 src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/cc4cb3e37_Screenshot_20260605_155930_OneUIHome.png"

@@ -26,14 +26,14 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b bg-slate-50">
+        <div className="flex items-center gap-3 px-5 py-4 border-b bg-slate-50 dark:bg-slate-800">
           <Magnet className="w-5 h-5 text-cyan-600 flex-shrink-0" />
           <div>
-            <h2 className="font-semibold text-slate-900 text-base">Route Gap Analysis</h2>
-            <p className="text-xs text-slate-500">Gaps &gt; {gap_threshold_m}m flagged for surgical snapping</p>
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100 text-base">Route Gap Analysis</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Gaps &gt; {gap_threshold_m}m flagged for surgical snapping</p>
           </div>
         </div>
 
@@ -47,21 +47,21 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
         {/* Body */}
         <div className="px-5 py-4 max-h-64 overflow-y-auto space-y-2">
           {!hasGaps ? (
-            <div className="flex items-center gap-2 text-green-700 bg-green-50 rounded-lg p-3 text-sm">
+            <div className="flex items-center gap-2 text-green-700 bg-green-50 dark:bg-green-950 rounded-lg p-3 text-sm">
               <CheckCircle className="w-4 h-4 flex-shrink-0" />
               No gaps found — the master timeline is already clean!
             </div>
           ) : (
             <>
-              <p className="text-xs text-slate-500 mb-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">
                 {snap_zones} consolidated snap zone{snap_zones !== 1 ? 's' : ''} detected.
                 Dense sections between zones are preserved untouched.
               </p>
               {zone_details.map((z) => (
-                <div key={z.zone_index} className="flex items-start gap-2.5 p-2.5 bg-amber-50 border border-amber-100 rounded-lg text-xs">
+                <div key={z.zone_index} className="flex items-start gap-2.5 p-2.5 bg-amber-50 dark:bg-amber-950 border border-amber-100 rounded-lg text-xs">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-slate-800">
+                    <div className="font-medium text-slate-800 dark:text-slate-200">
                       Zone {z.zone_index} — {z.gaps_in_zone} gap{z.gaps_in_zone !== 1 ? 's' : ''}
                     </div>
                     {(z.stop_before != null || z.stop_after != null) && (
@@ -70,7 +70,7 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
                         Stop #{z.stop_before ?? '?'} → Stop #{z.stop_after ?? '?'}
                       </div>
                     )}
-                    <div className="text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    <div className="text-slate-500 dark:text-slate-400 dark:text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                       <span>Pts #{z.start_idx}–#{z.end_idx} ({z.points_in_zone} total)</span>
                       <span>Largest gap: {z.max_gap_m.toLocaleString()}m</span>
                       <span>Total missing: {(z.total_gap_distance_m / 1000).toFixed(2)}km</span>
@@ -87,7 +87,7 @@ export default function SnapAnalysisDialog({ analysis, onConfirm, onCancel, isSn
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 px-5 py-4 border-t bg-slate-50">
+        <div className="flex gap-2 px-5 py-4 border-t bg-slate-50 dark:bg-slate-800">
           <Button
             variant="outline"
             size="sm"
@@ -123,9 +123,9 @@ function Stat({ label, value, accent }) {
     green: 'text-green-600',
   };
   return (
-    <div className="bg-white flex flex-col items-center justify-center py-3 px-2 text-center">
-      <span className={`text-xl font-bold ${colorMap[accent] || 'text-slate-800'}`}>{value}</span>
-      <span className="text-xs text-slate-500 mt-0.5">{label}</span>
+    <div className="bg-white dark:bg-slate-900 flex flex-col items-center justify-center py-3 px-2 text-center">
+      <span className={`text-xl font-bold ${colorMap[accent] || 'text-slate-800 dark:text-slate-200'}`}>{value}</span>
+      <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</span>
     </div>
   );
 }

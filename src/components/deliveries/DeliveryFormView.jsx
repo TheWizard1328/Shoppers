@@ -72,7 +72,7 @@ const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = 
             className={`h-6 w-12 rounded-full border transition-all flex items-center justify-center ${
             isActive ?
             'bg-emerald-600 border-emerald-600 text-white' :
-            'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'}`
+            'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700'}`
             }>
             <Icon className="w-4 h-4" />
           </button>);
@@ -824,7 +824,7 @@ export default function DeliveryFormView({
                         type="button"
                         onClick={() => setFormData((prev) => ({ ...prev, delivery_notes: label, is_cycling_marker: true }))}
                         disabled={isSaving}
-                        className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-all ${isSelected ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
+                        className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-all ${isSelected ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}>
                           {label}
                         </button>);
 
@@ -874,14 +874,14 @@ export default function DeliveryFormView({
                     onCheckedChange={setSaveToLibrary}
                     disabled={isSaving} />
                   
-                      <Label htmlFor="save_to_library" className="text-sm text-slate-600 cursor-pointer">
+                      <Label htmlFor="save_to_library" className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 cursor-pointer">
                         Save this location for other drivers
                       </Label>
                     </div>
                 }
                   {saveToLibrary && !selectedCyclingLocation &&
                 <div className="space-y-1">
-                      <Label className="text-xs font-medium text-slate-600">Location Name *</Label>
+                      <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500">Location Name *</Label>
                       <Input
                     type="text"
                     value={formData._cycling_location_name || ''}
@@ -897,13 +897,13 @@ export default function DeliveryFormView({
                 <div className="flex gap-3">
                   <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                      Latitude {coordsLocked && <span className="text-xs font-normal text-slate-400 ml-1">(locked)</span>}
+                      Latitude {coordsLocked && <span className="text-xs font-normal text-slate-400 dark:text-slate-500 dark:text-slate-400 ml-1">(locked)</span>}
                     </Label>
                     <Input type="number" step="any" value={formData.cycling_latitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_latitude: e.target.value === '' ? null : parseFloat(parseFloat(e.target.value).toFixed(7)) }))} placeholder="e.g. 53.5461" disabled={isSaving || coordsLocked} className="h-9" />
                   </div>
                   <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                      Longitude {coordsLocked && <span className="text-xs font-normal text-slate-400 ml-1">(locked)</span>}
+                      Longitude {coordsLocked && <span className="text-xs font-normal text-slate-400 dark:text-slate-500 dark:text-slate-400 ml-1">(locked)</span>}
                     </Label>
                     <Input type="number" step="any" value={formData.cycling_longitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_longitude: e.target.value === '' ? null : parseFloat(parseFloat(e.target.value).toFixed(7)) }))} placeholder="e.g. -113.4938" disabled={isSaving || coordsLocked} className="h-9" />
                   </div>
@@ -992,7 +992,7 @@ export default function DeliveryFormView({
                             <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                           </div>
 
-                          <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                             <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                             const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1042,7 +1042,7 @@ export default function DeliveryFormView({
                           <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                         </div>
 
-                        <div className={`min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className={`min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50 dark:bg-red-950' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                           <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
@@ -1187,7 +1187,7 @@ export default function DeliveryFormView({
                                 </div>
                                 {formData.cod_total_amount_required >= 0 &&
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm">$</span>
                                     <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} onKeyDown={(e) => {if (e.key === 'Tab') {e.preventDefault();barcodeInputRef.current?.focus();}}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
                                   </div>
                                 }
@@ -1221,7 +1221,7 @@ export default function DeliveryFormView({
                                     {delivery && selectedPatient && handleNewAddressPatient && (() => {
                                     const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                     return isLocked ?
-                                    <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
+                                    <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
                                          Change Address
                                        </span> :
 
@@ -1238,7 +1238,7 @@ export default function DeliveryFormView({
 
                                   })()}
                                   </div>
-                                  <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
+                                  <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white dark:bg-slate-900 h-9 text-sm" />
                                 </div>
 
                                 <div className="flex-[35] space-y-1">
@@ -1347,7 +1347,7 @@ export default function DeliveryFormView({
                                     setFormData((prev) => ({ ...prev, delivery_notes: newNotes, ...(autoMode ? { transport_mode: autoMode, finished_leg_transport_mode: autoMode } : {}) }));
                                   }}
                                   disabled={isSaving}
-                                  className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-all ${isSelected ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
+                                  className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-all ${isSelected ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800'}`}>
                                     {label}
                                   </button>);
 
@@ -1357,13 +1357,13 @@ export default function DeliveryFormView({
                           <div className="flex gap-3">
                             <div className="flex-1 space-y-1">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                                Latitude {!isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-slate-400 ml-1">(locked)</span> : isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-emerald-600 ml-1">(updates shared library)</span> : null}
+                                Latitude {!isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-slate-400 dark:text-slate-500 dark:text-slate-400 ml-1">(locked)</span> : isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-emerald-600 ml-1">(updates shared library)</span> : null}
                               </Label>
                               <Input type="number" step="any" value={formData.cycling_latitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_latitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. 53.5461" disabled={isSaving || !isAdmin && !!delivery?.cycling_location_id} className="h-9" />
                             </div>
                             <div className="flex-1 space-y-1">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                                Longitude {!isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-slate-400 ml-1">(locked)</span> : isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-emerald-600 ml-1">(updates shared library)</span> : null}
+                                Longitude {!isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-slate-400 dark:text-slate-500 dark:text-slate-400 ml-1">(locked)</span> : isAdmin && delivery?.cycling_location_id ? <span className="text-xs font-normal text-emerald-600 ml-1">(updates shared library)</span> : null}
                               </Label>
                               <Input type="number" step="any" value={formData.cycling_longitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_longitude: e.target.value === '' ? null : parseFloat(e.target.value) }))} placeholder="e.g. -113.4938" disabled={isSaving || !isAdmin && !!delivery?.cycling_location_id} className="h-9" />
                             </div>
@@ -1442,7 +1442,7 @@ export default function DeliveryFormView({
                                   {delivery && selectedPatient && handleNewAddressPatient && (() => {
                                   const isLocked = ['completed', 'failed', 'cancelled'].includes(formData.status);
                                   return isLocked ?
-                                  <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none opacity-60">
+                                  <span className="absolute right-0 top-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed select-none opacity-60">
                                         Change Address
                                       </span> :
 
@@ -1459,7 +1459,7 @@ export default function DeliveryFormView({
 
                                 })()}
                                 </div>
-                                <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
+                                <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white dark:bg-slate-900 h-9 text-sm" />
                               </div>
 
                               <div className="flex-[35] space-y-1">
@@ -1957,9 +1957,9 @@ export default function DeliveryFormView({
         <>
           <div className="fixed inset-0 z-[10030]" onClick={() => { setShowBuzzerInput(false); setBuzzerValue(''); }} />
           <div
-            className="fixed z-[10031] bg-white rounded-lg shadow-xl border border-slate-200 p-3 w-52"
+            className="fixed z-[10031] bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-3 w-52"
             style={{ top: buzzerAnchorRect.bottom + 6, left: Math.min(buzzerAnchorRect.right - 208, window.innerWidth - 216) }}>
-            <p className="text-xs font-semibold text-slate-600 mb-2">Enter Buzzer #</p>
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Enter Buzzer #</p>
             <Input
               ref={buzzerInputRef}
               value={buzzerValue}
@@ -1971,7 +1971,7 @@ export default function DeliveryFormView({
               placeholder="e.g. 223"
               className="h-8 text-sm mb-2" />
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => { setShowBuzzerInput(false); setBuzzerValue(''); }} className="h-7 px-3 text-xs rounded border border-slate-300 text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={() => { setShowBuzzerInput(false); setBuzzerValue(''); }} className="h-7 px-3 text-xs rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">Cancel</button>
               <button type="button" onClick={handleBuzzerConfirm} className="h-7 px-3 text-xs rounded bg-blue-600 text-white hover:bg-blue-700">OK</button>
             </div>
           </div>

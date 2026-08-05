@@ -128,7 +128,7 @@ export default function StoreInvoices() {
   };
 
   const statusColors = {
-    draft: 'bg-slate-100 text-slate-800',
+    draft: 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200',
     pending_approval: 'bg-yellow-100 text-yellow-800',
     approved: 'bg-green-100 text-green-800',
     sent: 'bg-blue-100 text-blue-800',
@@ -150,12 +150,12 @@ export default function StoreInvoices() {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
-          <FileText className="w-8 h-8 text-slate-700" />
+          <FileText className="w-8 h-8 text-slate-700 dark:text-slate-300" />
           <div>
             <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
               Store Invoices
             </h1>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
               Generate, review, and manage store fee invoices
             </p>
           </div>
@@ -219,23 +219,23 @@ export default function StoreInvoices() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-6">
-              <div className="text-sm text-slate-600 mb-2">Draft Invoices</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Draft Invoices</div>
               <div className="text-2xl font-bold mb-1">{draftInvoices.length}</div>
-              <div className="text-sm text-slate-500">${totalDraft.toFixed(2)}</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">${totalDraft.toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="text-sm text-slate-600 mb-2">Approved & Pending</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Approved & Pending</div>
               <div className="text-2xl font-bold mb-1">{approvedInvoices.length}</div>
-              <div className="text-sm text-slate-500">${totalApproved.toFixed(2)}</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">${totalApproved.toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="text-sm text-slate-600 mb-2">Sent Invoices</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Sent Invoices</div>
               <div className="text-2xl font-bold mb-1">{sentInvoices.length}</div>
-              <div className="text-sm text-slate-500">${totalSent.toFixed(2)}</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">${totalSent.toFixed(2)}</div>
             </CardContent>
           </Card>
         </div>
@@ -260,7 +260,7 @@ export default function StoreInvoices() {
             <TabsContent value="draft" className="space-y-4">
               {draftInvoices.length === 0 ? (
                 <Card>
-                  <CardContent className="py-8 text-center text-slate-500">
+                  <CardContent className="py-8 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     No draft invoices for this period
                   </CardContent>
                 </Card>
@@ -284,7 +284,7 @@ export default function StoreInvoices() {
             <TabsContent value="approved" className="space-y-4">
               {approvedInvoices.length === 0 ? (
                 <Card>
-                  <CardContent className="py-8 text-center text-slate-500">
+                  <CardContent className="py-8 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     No approved invoices for this period
                   </CardContent>
                 </Card>
@@ -300,8 +300,8 @@ export default function StoreInvoices() {
                               {invoice.status}
                             </Badge>
                           </div>
-                          <div className="text-sm text-slate-600">{invoice.store_name}</div>
-                          <div className="text-sm text-slate-500">
+                          <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">{invoice.store_name}</div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                             {invoice.total_billable_deliveries} deliveries × ${invoice.app_fee_per_delivery.toFixed(2)}
                           </div>
                         </div>
@@ -327,7 +327,7 @@ export default function StoreInvoices() {
             <TabsContent value="sent" className="space-y-4">
               {sentInvoices.length === 0 ? (
                 <Card>
-                  <CardContent className="py-8 text-center text-slate-500">
+                  <CardContent className="py-8 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     No sent invoices for this period
                   </CardContent>
                 </Card>
@@ -343,8 +343,8 @@ export default function StoreInvoices() {
                               {invoice.status}
                             </Badge>
                           </div>
-                          <div className="text-sm text-slate-600">{invoice.store_name}</div>
-                          <div className="text-sm text-slate-500">
+                          <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">{invoice.store_name}</div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                             Sent: {format(new Date(invoice.sent_at), 'MMM dd, yyyy')}
                           </div>
                         </div>
@@ -388,8 +388,8 @@ function InvoiceCard({
                 {invoice.status}
               </Badge>
             </div>
-            <div className="text-sm text-slate-600">{invoice.store_name}</div>
-            <div className="text-sm text-slate-500">
+            <div className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">{invoice.store_name}</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
               {invoice.total_billable_deliveries} deliveries × ${invoice.app_fee_per_delivery.toFixed(2)}
             </div>
           </div>
@@ -402,15 +402,15 @@ function InvoiceCard({
           <div className="mt-6 pt-6 border-t space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-slate-600">Subtotal:</span>
+                <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Subtotal:</span>
                 <div className="font-semibold">${invoice.subtotal.toFixed(2)}</div>
               </div>
               <div>
-                <span className="text-slate-600">Taxes:</span>
+                <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Taxes:</span>
                 <div className="font-semibold">${invoice.taxes.toFixed(2)}</div>
               </div>
               <div className="col-span-2">
-                <span className="text-slate-600">Billing Period:</span>
+                <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Billing Period:</span>
                 <div className="font-semibold">
                   {format(new Date(invoice.billing_start_date), 'MMM dd, yyyy')} - {format(new Date(invoice.billing_end_date), 'MMM dd, yyyy')}
                 </div>

@@ -74,7 +74,7 @@ const DeliveryRow = memo(({
     <div
       onClick={handleRowClick}
       className={`flex h-full flex-col rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
-      isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'} ${
+      isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60'} ${
       isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
       style={{ borderColor: 'var(--border-slate-200)' }}>
       
@@ -89,8 +89,8 @@ const DeliveryRow = memo(({
         <div className="grid grid-cols-[1fr_auto] gap-x-3">
           {/* Row 1 Left: Stop/TR */}
           <div className="flex items-center gap-2 min-w-0">
-            <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
-            <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
+            <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700 dark:text-slate-300'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
+            <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{delivery.tracking_number || '—'}</span>
           </div>
 
           {/* Row 1 Right: Store + Status */}
@@ -117,7 +117,7 @@ const DeliveryRow = memo(({
           </div>
 
           {/* Row 2 Right: Time centered under status */}
-          <div className="mt-1 flex justify-center text-xs text-slate-600 dark:text-slate-300">
+          <div className="mt-1 flex justify-center text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:text-slate-300">
             {getTimeDisplay(delivery)}
           </div>
         </div>
@@ -126,7 +126,7 @@ const DeliveryRow = memo(({
         <div className="mt-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             {!isPickup && finalDisplayAddress &&
-              <span className="text-xs text-slate-500 truncate">{finalDisplayAddress}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{finalDisplayAddress}</span>
               }
             {(patient?.unit_number || delivery.unit_number) &&
               <Badge variant="secondary" className="text-xs px-2 py-0.5" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
@@ -142,7 +142,7 @@ const DeliveryRow = memo(({
             {delivery.signature_image_url ?
               <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} /> :
 
-              <span className="text-slate-400 text-sm">—</span>
+              <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm">—</span>
               }
             {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ?
               <div className="flex -space-x-2">
@@ -150,26 +150,26 @@ const DeliveryRow = memo(({
                 <img key={i} src={url} alt={`POD ${i + 1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white" />
                 )}
                 {delivery.proof_photo_urls.length > 2 &&
-                <div className="w-7 h-7 rounded-md bg-slate-200 text-slate-700 text-xs flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 2}</div>
+                <div className="w-7 h-7 rounded-md bg-slate-200 text-slate-700 dark:text-slate-300 text-xs flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 2}</div>
                 }
               </div> :
 
-              <span className="text-slate-400 text-sm">—</span>
+              <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm">—</span>
               }
             {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 &&
               <div className="flex items-center gap-1">
-                <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div className="w-10 h-6 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
                   <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={24} className="w-full h-6" />
                 </div>
-                <span className="text-xs text-slate-600">x{delivery.receipt_barcode_values.length}</span>
+                <span className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">x{delivery.receipt_barcode_values.length}</span>
               </div>
               }
             {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 &&
               <div className="flex items-center gap-1">
-                <div className="w-10 h-6 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div className="w-10 h-6 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
                   <BarcodeThumb value={delivery.barcode_values[0]} height={24} className="w-full h-6" />
                 </div>
-                <span className="text-xs text-slate-600">x{delivery.barcode_values.length}</span>
+                <span className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">x{delivery.barcode_values.length}</span>
               </div>
               }
           </div>
@@ -180,7 +180,7 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick} className="py-2 grid min-w-max grid-cols-[120px_100px_100px_200px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+      onClick={handleRowClick} className="py-2 grid min-w-max grid-cols-[120px_100px_100px_200px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60"
 
       style={{ borderColor: 'var(--border-slate-200)' }}>
       
@@ -191,8 +191,8 @@ const DeliveryRow = memo(({
       }
         <div className="flex items-center justify-center">
           <div className="flex flex-col leading-tight">
-            <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
-            <span className="font-mono text-[11px] text-slate-500">{delivery.tracking_number || '—'}</span>
+            <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700 dark:text-slate-300'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
+            <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{delivery.tracking_number || '—'}</span>
           </div>
         </div>
 
@@ -219,19 +219,19 @@ const DeliveryRow = memo(({
               {finalDisplayName}
             </span>
             {!isPickup && finalDisplayAddress &&
-          <span className="text-xs text-slate-500 truncate">{finalDisplayAddress}</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{finalDisplayAddress}</span>
           }
           </div>
         </div>
 
         {/* Notes column */}
-        <div className="flex min-w-0 items-start py-1 text-xs text-slate-700 overflow-hidden">
+        <div className="flex min-w-0 items-start py-1 text-xs text-slate-700 dark:text-slate-300 overflow-hidden">
           <div className="min-w-0 w-full space-y-1 overflow-hidden leading-4">
             {patient?.notes &&
-          <div className="w-full truncate"><span className="text-slate-500">P:</span> {patient.notes}</div>
+          <div className="w-full truncate"><span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">P:</span> {patient.notes}</div>
           }
             {delivery?.delivery_notes &&
-          <div className="w-full truncate"><span className="text-slate-500">D:</span> {delivery.delivery_notes}</div>
+          <div className="w-full truncate"><span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">D:</span> {delivery.delivery_notes}</div>
           }
           </div>
         </div>
@@ -243,13 +243,13 @@ const DeliveryRow = memo(({
           className="flex items-center gap-1 cursor-zoom-in"
           onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'barcode', value: delivery.receipt_barcode_values[0], title: 'Receipt Barcode' });}}>
           
-              <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <div className="w-[72px] h-7 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
                 <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={28} className="w-full h-7" />
               </div>
-              <span className="text-[11px] text-slate-600">x{delivery.receipt_barcode_values.length}</span>
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 dark:text-slate-500">x{delivery.receipt_barcode_values.length}</span>
             </button> :
 
-        <div className="w-[82px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        <div className="w-[82px] h-7 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
         }
         </div>
 
@@ -260,13 +260,13 @@ const DeliveryRow = memo(({
           className="flex items-center gap-1 cursor-zoom-in"
           onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'barcode', value: delivery.barcode_values[0], title: 'Rx Barcode' });}}>
           
-              <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <div className="w-[72px] h-7 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
                 <BarcodeThumb value={delivery.barcode_values[0]} height={28} className="w-full h-7" />
               </div>
-              <span className="text-[11px] text-slate-600">x{delivery.barcode_values.length}</span>
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 dark:text-slate-500">x{delivery.barcode_values.length}</span>
             </button> :
 
-        <div className="w-[82px] h-18 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        <div className="w-[82px] h-18 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
         }
         </div>
 
@@ -280,7 +280,7 @@ const DeliveryRow = memo(({
           style={{ borderColor: 'var(--border-slate-200)' }}
           onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' });}} /> :
 
-        <div className="w-20 h-7 rounded-sm border flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        <div className="w-20 h-7 rounded-sm border flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
         }
         </div>
 
@@ -299,7 +299,7 @@ const DeliveryRow = memo(({
           )}
               {delivery.proof_photo_urls.length > 3 &&
           <div
-            className="w-8 h-8 rounded-md bg-slate-200 text-slate-700 text-[11px] flex items-center justify-center ring-2 ring-white cursor-zoom-in"
+            className="w-8 h-8 rounded-md bg-slate-200 text-slate-700 dark:text-slate-300 text-[11px] flex items-center justify-center ring-2 ring-white cursor-zoom-in"
             onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'image', src: delivery.proof_photo_urls[2], title: 'Photo' });}}>
             
                   +{delivery.proof_photo_urls.length - 3}
@@ -307,7 +307,7 @@ const DeliveryRow = memo(({
           }
             </div> :
 
-        <div className="w-20 h-7 rounded-md border flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        <div className="w-20 h-7 rounded-md border flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
         }
         </div>
 
@@ -393,7 +393,7 @@ const DeliveryListView = ({
   const getCODDisplay = useCallback((delivery) => {
     const requiredAmount = Number(delivery?.cod_total_amount_required || 0);
     if (requiredAmount <= 0) {
-      return <span className="text-slate-400">—</span>;
+      return <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">—</span>;
     }
 
     const payments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
@@ -415,7 +415,7 @@ const DeliveryListView = ({
       <div className="flex flex-col items-center">
         <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{requiredAmount.toFixed(2)}</span>
         {isFailed
-          ? <span className="text-xs text-slate-500 dark:text-slate-400">Cancelled</span>
+          ? <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Cancelled</span>
           : <span className="text-xs text-amber-600 dark:text-amber-300">Pending collection</span>
         }
       </div>);
@@ -458,7 +458,7 @@ const DeliveryListView = ({
               <span className="font-medium">{actualLabel || arrivalLabel}</span>
             </div>
             {minutesOnSite !== null &&
-            <span className="text-[11px] text-slate-500">{minutesOnSite} min</span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{minutesOnSite} min</span>
             }
           </div>);
       }
@@ -474,7 +474,7 @@ const DeliveryListView = ({
 
     }
 
-    return <span className="text-slate-400">—</span>;
+    return <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400">—</span>;
   }, []);
 
   const handleSelect = useCallback((deliveryId) => {
@@ -635,7 +635,7 @@ const DeliveryListView = ({
           onScroll={syncBodyScroll}
           className="flex-1 min-h-0 min-w-0 h-full w-full max-h-full max-w-full overflow-x-auto overflow-y-hidden">
           {deliveries.length === 0 ?
-          <div className="flex items-center justify-center h-32 text-slate-500">
+          <div className="flex items-center justify-center h-32 text-slate-500 dark:text-slate-400 dark:text-slate-500">
               No deliveries found
             </div> :
           listViewportHeight > 0 && listViewportWidth > 0 ?
@@ -650,7 +650,7 @@ const DeliveryListView = ({
                 {renderVirtualRow}
               </List>
             </div> :
-          <div className="flex items-center justify-center h-32 text-slate-500">
+          <div className="flex items-center justify-center h-32 text-slate-500 dark:text-slate-400 dark:text-slate-500">
               Loading deliveries...
             </div>
           }
@@ -682,7 +682,7 @@ const DeliveryListView = ({
               <img src={mediaPreview.src} alt={mediaPreview.title || 'Preview'} className="max-w-[85vw] max-h-[80vh] object-contain" />
               }
                   {mediaPreview.type === 'barcode' &&
-              <div className="bg-white p-4 rounded-md border" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-md border" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
                       <BarcodeThumb value={mediaPreview.value} height={120} className="w-[360px] h-28" />
                     </div>
               }

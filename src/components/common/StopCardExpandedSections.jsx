@@ -162,23 +162,23 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
           <div className="text-base rounded px-2 py-1.5 space-y-1" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
               {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) &&
             <div className="flex flex-wrap gap-1">
-                  {patient.mailbox_ok && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 border-blue-200 text-blue-700">Mailbox OK</Badge>}
-                  {patient.call_upon_arrival && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-amber-50 border-amber-200 text-amber-700">Call on Arrival</Badge>}
-                  {patient.dont_ring_bell && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 border-red-200 text-red-700">Don't Ring Bell</Badge>}
+                  {patient.mailbox_ok && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 dark:bg-blue-950 border-blue-200 text-blue-700">Mailbox OK</Badge>}
+                  {patient.call_upon_arrival && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-amber-50 dark:bg-amber-950 border-amber-200 text-amber-700">Call on Arrival</Badge>}
+                  {patient.dont_ring_bell && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 dark:bg-red-950 border-red-200 text-red-700">Don't Ring Bell</Badge>}
                   {patient.back_door && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-purple-50 border-purple-200 text-purple-700">Back Door</Badge>}
                 </div>
             }
               {delivery && (delivery.fridge_item || delivery.oversized || delivery.after_hours_pickup || delivery.no_charge || delivery.signature_needed) &&
             <div className="flex flex-wrap gap-1">
-                  {delivery.signature_needed && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 border-red-200 text-red-700">Signature Required</Badge>}
+                  {delivery.signature_needed && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 dark:bg-red-950 border-red-200 text-red-700">Signature Required</Badge>}
                   {delivery.fridge_item && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-cyan-50 border-cyan-200 text-cyan-700">Refrigerated</Badge>}
                   {delivery.oversized && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-orange-50 border-orange-200 text-orange-700">Oversized</Badge>}
                   {delivery.after_hours_pickup && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-indigo-50 border-indigo-200 text-indigo-700">After Hours</Badge>}
-                  {delivery.no_charge && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-gray-50 border-gray-200 text-gray-700">No Charge</Badge>}
+                  {delivery.no_charge && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300">No Charge</Badge>}
                 </div>
             }
               {patient.recurring &&
-            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">
+            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 dark:bg-green-950 border-green-200 text-green-700">
                   {(() => {
                 if (patient.recurring_daily) return 'Daily';
                 if (patient.recurring_monthly) return 'Monthly';
@@ -293,7 +293,7 @@ export function StopCardNotesSection({ lastDeliveryBadgeDate, notesInput, setNot
       <div className="flex items-center justify-between gap-2">
         <Label className="text-base font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
         {lastDeliveryBadgeDate &&
-        <Badge variant="outline" className="text-[11px] px-2 py-1 h-auto bg-slate-50 border-slate-300 text-slate-700 font-semibold whitespace-nowrap">
+        <Badge variant="outline" className="text-[11px] px-2 py-1 h-auto bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold whitespace-nowrap">
             LD: {format(parseISO(`${lastDeliveryBadgeDate}T00:00:00`), 'MMM dd, yy')}
           </Badge>
         }

@@ -474,7 +474,7 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold truncate">{rule.rule_label}</span>
             <Badge variant="outline" className="text-xs shrink-0">{eventLabel}</Badge>
-            {rule.shadow_mode && <Badge variant="outline" className="text-xs shrink-0 bg-amber-50 border-amber-300 text-amber-700"><Eye className="w-2.5 h-2.5 mr-1" />Shadow</Badge>}
+            {rule.shadow_mode && <Badge variant="outline" className="text-xs shrink-0 bg-amber-50 dark:bg-amber-950 border-amber-300 text-amber-700"><Eye className="w-2.5 h-2.5 mr-1" />Shadow</Badge>}
             {rule.cooldown_seconds > 0 && <Badge variant="outline" className="text-xs shrink-0"><Clock className="w-2.5 h-2.5 mr-1" />{rule.cooldown_seconds}s</Badge>}
             <Badge variant="outline" className="text-xs shrink-0">#{rule.priority || 10}</Badge>
           </div>

@@ -52,7 +52,7 @@ export default function DeviceSelectionModal({
           <div>
             <label className="block text-sm font-medium mb-3">Detected Device Type</label>
             <div className="flex items-center gap-3 p-4 rounded-lg border" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-              <div className="text-slate-600">
+              <div className="text-slate-600 dark:text-slate-400 dark:text-slate-500">
                 {getDeviceIcon(selectedType)}
               </div>
               <div>

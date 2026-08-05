@@ -243,7 +243,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
   const isOutOfRange   = tempValue < (_ftdMin - _ftdBuffer) || tempValue > (_ftdMax + _ftdBuffer);
   const isWarningRange = !isOutOfRange && (tempValue < _ftdMin || tempValue > _ftdMax);
   const tempColor = isOutOfRange ? 'text-red-600' : isWarningRange ? 'text-yellow-600' : 'text-emerald-600';
-  const bgColor = isOutOfRange ? 'bg-red-50 border-red-300' : 'bg-cyan-50 border-cyan-300';
+  const bgColor = isOutOfRange ? 'bg-red-50 dark:bg-red-950 border-red-300' : 'bg-cyan-50 border-cyan-300';
 
   if (!isDriver || activeFridgeDeliveries.length === 0) return null;
 
@@ -265,19 +265,19 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
               <div className="flex items-center gap-2">
                 <Thermometer className="w-5 h-5 text-cyan-600 flex-shrink-0" />
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm leading-tight">Cooler Temperature Check</h4>
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight">Cooler Temperature Check</h4>
                   {lastReading ? (
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
                       Last: <span className="font-semibold">{lastReading.temperature_celsius}°C</span> at {formatLocalTime(lastReading.timestamp)}
                     </p>
                   ) : (
-                    <p className="text-xs text-slate-500 mt-0.5">No reading recorded yet today</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">No reading recorded yet today</p>
                   )}
                 </div>
               </div>
               <button
                 onClick={handleDismiss}
-                className="text-slate-400 hover:text-slate-600 flex-shrink-0 p-1"
+                className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 flex-shrink-0 p-1"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -286,28 +286,28 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
             <div className="flex items-center justify-center gap-4 mb-3">
               <button
                 onClick={() => handleStepChange(-0.5)}
-                className="w-12 h-12 rounded-full bg-white border-2 border-slate-200 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
+                className="w-12 h-12 rounded-full bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
               >
-                <ChevronDown className="w-6 h-6 text-slate-600" />
+                <ChevronDown className="w-6 h-6 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
               </button>
 
               <div className="text-center">
                 <div className={`text-4xl font-bold tabular-nums ${tempColor}`}>
                   {tempValue}°C
                 </div>
-                <div className="text-xs text-slate-500 mt-0.5">Target: {_ftdMin}–{_ftdMax}°C</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Target: {_ftdMin}–{_ftdMax}°C</div>
               </div>
 
               <button
                 onClick={() => handleStepChange(0.5)}
-                className="w-12 h-12 rounded-full bg-white border-2 border-slate-200 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
+                className="w-12 h-12 rounded-full bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
               >
-                <ChevronUp className="w-6 h-6 text-slate-600" />
+                <ChevronUp className="w-6 h-6 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
               </button>
             </div>
 
             <div className="flex items-center gap-2 mb-3">
-              <label className="text-xs text-slate-500 whitespace-nowrap">Manual entry:</label>
+              <label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">Manual entry:</label>
               <Input
                 type="number"
                 step="0.5"
@@ -316,7 +316,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
                 placeholder={String(tempValue)}
                 className="h-9 text-sm text-center"
               />
-              <span className="text-xs text-slate-500">°C</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">°C</span>
             </div>
 
             {isOutOfRange && (
@@ -326,7 +326,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
               </div>
             )}
 
-            <div className="text-xs text-slate-500 mb-3">
+            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-3">
               {activeFridgeDeliveries.length} fridge item{activeFridgeDeliveries.length !== 1 ? 's' : ''} in transit
             </div>
 

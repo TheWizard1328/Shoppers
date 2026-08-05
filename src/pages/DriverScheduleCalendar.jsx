@@ -268,9 +268,9 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
             </span> :
       <span title="Click to unlock and edit this slot" style={{ cursor: 'pointer', lineHeight: 0 }}
       onClick={(e) => {e.stopPropagation();onToggleSlotLock(lockKey);}}>
-              <Lock className="w-3 h-3 text-slate-400 hover:text-orange-500" />
+              <Lock className="w-3 h-3 text-slate-400 dark:text-slate-500 dark:text-slate-400 hover:text-orange-500" />
             </span> :
-      <Lock className="w-3 h-3 text-slate-400" />
+      <Lock className="w-3 h-3 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
       }
       </span>
     </div> :
@@ -306,7 +306,7 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
         {slotDeliveries.filter((d) => d.status === 'completed').length}/{totalDeliveries}
       </span>
       <span className="inline-flex items-center justify-center w-[14px]">
-        <ChevronDown className={`w-3 h-3 ${canDriverEdit ? 'text-slate-400' : 'invisible'}`} />
+        <ChevronDown className={`w-3 h-3 ${canDriverEdit ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' : 'invisible'}`} />
       </span>
     </div>;
 
@@ -957,7 +957,7 @@ export default function DriverScheduleCalendar() {
               <div
                 key={dateStr}
                 ref={today ? todayRef : null}
-                className={`rounded-xl border flex flex-col ${today ? 'border-blue-500 shadow-lg ring-2 ring-blue-200' : past ? 'border-slate-200 opacity-55' : 'border-green-300'}`}
+                className={`rounded-xl border flex flex-col ${today ? 'border-blue-500 shadow-lg ring-2 ring-blue-200' : past ? 'border-slate-200 dark:border-slate-700 opacity-55' : 'border-green-300'}`}
                 style={{ background: 'var(--bg-white)', minHeight: 90, transition: 'opacity 200ms ease' }}>
 
                 <div className={`rounded-t-xl flex items-center px-5`}

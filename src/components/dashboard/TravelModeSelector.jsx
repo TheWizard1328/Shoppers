@@ -16,7 +16,7 @@ export default function TravelModeSelector({ currentUser, appUsers = [], value, 
 
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-white/90 px-3 py-2 shadow-sm">
-      <Label className="text-xs font-semibold text-slate-600">Mode</Label>
+      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500">Mode</Label>
       <Select value={value} onValueChange={handleValueChange}>
         <SelectTrigger className="h-9 w-[140px] border-0 bg-transparent px-0 shadow-none focus:ring-0">
           <SelectValue placeholder="Travel mode" />

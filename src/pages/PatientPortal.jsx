@@ -145,12 +145,12 @@ function decodePolyline(encoded) {
 }
 
 const STATUS_CONFIG = {
-  completed: { label: 'Delivered',  color: 'text-green-700 bg-green-50 border-green-200',  Icon: CheckCircle },
-  failed:    { label: 'Attempted',  color: 'text-red-700 bg-red-50 border-red-200',         Icon: X },
-  cancelled: { label: 'Cancelled',  color: 'text-slate-600 bg-slate-50 border-slate-200',   Icon: X },
-  in_transit:{ label: 'In Transit', color: 'text-blue-700 bg-blue-50 border-blue-200',      Icon: Truck },
-  en_route:  { label: 'En Route',   color: 'text-blue-700 bg-blue-50 border-blue-200',      Icon: Truck },
-  pending:   { label: 'Scheduled',  color: 'text-amber-700 bg-amber-50 border-amber-200',   Icon: Clock },
+  completed: { label: 'Delivered',  color: 'text-green-700 bg-green-50 dark:bg-green-950 border-green-200',  Icon: CheckCircle },
+  failed:    { label: 'Attempted',  color: 'text-red-700 bg-red-50 dark:bg-red-950 border-red-200',         Icon: X },
+  cancelled: { label: 'Cancelled',  color: 'text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700',   Icon: X },
+  in_transit:{ label: 'In Transit', color: 'text-blue-700 bg-blue-50 dark:bg-blue-950 border-blue-200',      Icon: Truck },
+  en_route:  { label: 'En Route',   color: 'text-blue-700 bg-blue-50 dark:bg-blue-950 border-blue-200',      Icon: Truck },
+  pending:   { label: 'Scheduled',  color: 'text-amber-700 bg-amber-50 dark:bg-amber-950 border-amber-200',   Icon: Clock },
 };
 
 export default function PatientPortal() {
@@ -502,7 +502,7 @@ export default function PatientPortal() {
   const showLiveTracking = isAfter930am && driverStatus === 'on_duty';
 
   return (
-    <div className="flex h-screen bg-slate-100 overflow-hidden">
+    <div className="flex h-screen bg-slate-100 dark:bg-slate-800 overflow-hidden">
       <PatientPortalGuard />
       <PWAInstallPrompt storageKey="patient_pwa_install_dismissed" />
 
@@ -520,18 +520,18 @@ export default function PatientPortal() {
       <div className="flex-1 flex flex-col md:ml-72 overflow-hidden">
 
         {/* Top Bar */}
-        <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 flex-shrink-0 z-10">
+        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3 flex-shrink-0 z-10">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="md:hidden w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center"
+            className="md:hidden w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
           >
-            <Menu className="w-5 h-5 text-slate-600" />
+            <Menu className="w-5 h-5 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
           </button>
           <div className="flex items-center gap-2">
-            <HeartPulse className="w-5 h-5 text-slate-700 hidden md:block" />
+            <HeartPulse className="w-5 h-5 text-slate-700 dark:text-slate-300 hidden md:block" />
             <div>
-              <h1 className="text-sm font-bold text-slate-900">My Deliveries</h1>
-              <p className="text-xs text-slate-400">{format(new Date(), 'EEEE, MMMM d')}</p>
+              <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100">My Deliveries</h1>
+              <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">{format(new Date(), 'EEEE, MMMM d')}</p>
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -544,10 +544,10 @@ export default function PatientPortal() {
             )}
             <button
               onClick={loadData}
-              className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+              className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 transition-colors"
               title="Refresh"
             >
-              <RefreshCw className="w-4 h-4 text-slate-500" />
+              <RefreshCw className="w-4 h-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
             </button>
           </div>
         </div>
@@ -555,20 +555,20 @@ export default function PatientPortal() {
         {/* Today's Status Card */}
         <div className="px-4 pt-4 pb-2 flex-shrink-0">
           {loading ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-4 animate-pulse">
-              <div className="h-4 bg-slate-100 rounded w-1/3 mb-2" />
-              <div className="h-6 bg-slate-100 rounded w-2/3" />
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4 animate-pulse">
+              <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-1/3 mb-2" />
+              <div className="h-6 bg-slate-100 dark:bg-slate-800 rounded w-2/3" />
             </div>
           ) : todayDelivery ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Today's Delivery</p>
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Today's Delivery</p>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-800">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                     {storeMap[todayDelivery.store_id]?.name || 'Pharmacy'}
                   </p>
                   {todayDelivery.delivery_time_start && (
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
                       Window: {todayDelivery.delivery_time_start}
                       {todayDelivery.delivery_time_end ? ` – ${todayDelivery.delivery_time_end}` : ''}
                     </p>
@@ -598,13 +598,13 @@ export default function PatientPortal() {
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
-                <Package className="w-5 h-5 text-slate-400" />
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <Package className="w-5 h-5 text-slate-400 dark:text-slate-500 dark:text-slate-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-700">No delivery scheduled today</p>
-                <p className="text-xs text-slate-400">Check your delivery history in the sidebar.</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No delivery scheduled today</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">Check your delivery history in the sidebar.</p>
               </div>
             </div>
           )}
@@ -614,12 +614,12 @@ export default function PatientPortal() {
         <div className="flex-1 px-4 pb-4 overflow-hidden relative">
           {showLiveTracking && driverLocation && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
-              <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-slate-500 border-slate-200'}`}>
+              <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700'}`}>
                 {trackingMode ? '📍 Tracking driver' : 'Double-tap map to track driver'}
               </div>
             </div>
           )}
-          <div className="h-full rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+          <div className="h-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
             <MapContainer
               center={defaultCenter}
               zoom={13}

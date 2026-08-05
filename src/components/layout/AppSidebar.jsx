@@ -188,7 +188,7 @@ export default function AppSidebar({
         {sidebarOpen &&
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-2 rounded-lg transition-colors hover:bg-slate-100">
+                className="p-2 rounded-lg transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700">
             <X className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
           </button>
               }
@@ -230,7 +230,7 @@ export default function AppSidebar({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <MoreVertical className="w-4 h-4 text-slate-500" />
+                      <MoreVertical className="w-4 h-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
                     </Button>
                   </DropdownMenuTrigger>
                   <SettingsMenu

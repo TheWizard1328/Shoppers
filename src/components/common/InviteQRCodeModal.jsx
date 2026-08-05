@@ -196,7 +196,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
                     {stores
                       .filter((s) => currentUser.store_ids?.includes(s.id))
                       .map((store) => (
-                        <div key={store.id} className="text-sm p-2 bg-slate-50 rounded">
+                        <div key={store.id} className="text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded">
                           {store.name}
                         </div>
                       ))}
@@ -222,7 +222,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
           </div>
         ) : (
           <div className="space-y-4 flex flex-col items-center">
-            <div className="p-4 bg-white rounded-lg border">
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-lg border">
               <img 
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(qrUrl)}`}
                 alt="Invite QR Code"
@@ -230,7 +230,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
               />
             </div>
 
-            <p className="text-xs text-slate-500 text-center">
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">
               {selectedRole === 'patient'
                 ? <>Scan to open the <span className="font-semibold">Patient Portal</span> login page.</>
                 : isExistingUserOnly && selectedRole === 'driver'
@@ -266,7 +266,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
                   setQrUrl(null);
                   setInviteUrl(null);
                 }}
-                className="w-full bg-slate-200 text-slate-900 hover:bg-slate-300"
+                className="w-full bg-slate-200 text-slate-900 dark:text-slate-100 hover:bg-slate-300"
               >
                 Generate Another
               </Button>

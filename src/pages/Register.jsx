@@ -98,7 +98,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-800 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center pb-2">
           <div className="flex justify-center mb-4">
@@ -106,7 +106,7 @@ export default function Register() {
               <QrCode className="w-8 h-8 text-emerald-600" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-slate-900">
+          <CardTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             RxDeliver Invite
           </CardTitle>
         </CardHeader>
@@ -115,7 +115,7 @@ export default function Register() {
           {status === 'loading' && (
             <div className="py-8">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mx-auto mb-3" />
-              <p className="text-slate-600">Validating your invitation...</p>
+              <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Validating your invitation...</p>
             </div>
           )}
 
@@ -135,7 +135,7 @@ export default function Register() {
 
               {currentUser ? (
                 <>
-                  <p className="text-slate-600 text-sm">
+                  <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
                     Logged in as <strong>{currentUser.full_name || currentUser.email}</strong>
                   </p>
                   <Button
@@ -147,7 +147,7 @@ export default function Register() {
                 </>
               ) : (
                 <>
-                  <p className="text-slate-600 text-sm">
+                  <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
                     Sign in or create an account to accept this invitation and access RxDeliver.
                   </p>
                   <Button
@@ -156,7 +156,7 @@ export default function Register() {
                   >
                     Sign In / Create Account
                   </Button>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
                     You'll be redirected back here after signing in.
                   </p>
                 </>
@@ -167,8 +167,8 @@ export default function Register() {
           {status === 'expired' && (
             <div className="py-4">
               <AlertCircle className="w-10 h-10 text-orange-500 mx-auto mb-3" />
-              <h3 className="font-semibold text-slate-900 mb-2">Invitation Expired</h3>
-              <p className="text-slate-600 text-sm">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">Invitation Expired</h3>
+              <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
                 This invitation link has expired. Please ask an admin to generate a new QR code.
               </p>
             </div>
@@ -176,9 +176,9 @@ export default function Register() {
 
           {status === 'already_used' && (
             <div className="py-4">
-              <CheckCircle className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-              <h3 className="font-semibold text-slate-900 mb-2">Already Used</h3>
-              <p className="text-slate-600 text-sm">
+              <CheckCircle className="w-10 h-10 text-slate-400 dark:text-slate-500 dark:text-slate-400 mx-auto mb-3" />
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">Already Used</h3>
+              <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
                 This invitation has already been used. If you need access, please contact an admin.
               </p>
               <Button
@@ -194,8 +194,8 @@ export default function Register() {
           {status === 'invalid' && (
             <div className="py-4">
               <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
-              <h3 className="font-semibold text-slate-900 mb-2">Invalid Invitation</h3>
-              <p className="text-slate-600 text-sm">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">Invalid Invitation</h3>
+              <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
                 This invitation link is invalid or could not be found. Please ask an admin for a new invite.
               </p>
             </div>

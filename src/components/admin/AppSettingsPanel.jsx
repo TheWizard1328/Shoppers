@@ -71,11 +71,11 @@ const IntervalSlider = ({ id, label, value, onChange, min, max, step, priority }
   };
 
   return (
-    <div className="space-y-2 p-3 bg-slate-50 rounded-lg">
+    <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
       <div className="flex items-center justify-between">
-        <Label htmlFor={id} className="font-medium text-slate-700">{label}</Label>
+        <Label htmlFor={id} className="font-medium text-slate-700 dark:text-slate-300">{label}</Label>
         <div className="flex items-center gap-2">
-          <Badge className={priorityColors[priority] || 'bg-slate-100 text-slate-800'}>
+          <Badge className={priorityColors[priority] || 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200'}>
             {priority}
           </Badge>
           <Badge variant="outline" className="font-mono">
@@ -101,7 +101,7 @@ const IntervalSlider = ({ id, label, value, onChange, min, max, step, priority }
           min={min / 1000}
           max={max / 1000}
         />
-        <span className="text-xs text-slate-500 w-4">sec</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 w-4">sec</span>
       </div>
     </div>
   );
@@ -500,7 +500,7 @@ export default function AppSettingsPanel() {
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
-          <span className="text-slate-600">Loading settings...</span>
+          <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading settings...</span>
         </CardContent>
       </Card>
     );
@@ -509,7 +509,7 @@ export default function AppSettingsPanel() {
   return (
     <div className="space-y-4 md:space-y-6 h-full min-h-0 overflow-y-auto pb-2 md:pb-0">
       <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-5 gap-6">
-        <Card className={`transition-colors ${activeTopSection === 'version' && topSectionSaved ? 'border-green-500 bg-green-50/40' : activeTopSection === 'version' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
+        <Card className={`transition-colors ${activeTopSection === 'version' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'version' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
@@ -556,7 +556,7 @@ export default function AppSettingsPanel() {
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-mono font-bold text-slate-900">
+              <div className="text-2xl font-mono font-bold text-slate-900 dark:text-slate-100">
                 v{appVersion.major}.{appVersion.minor}.{appVersion.build}
               </div>
               <Button 
@@ -571,7 +571,7 @@ export default function AppSettingsPanel() {
           </CardContent>
         </Card>
 
-        <Card className={`${!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''} ${activeTopSection === 'refresh' && topSectionSaved ? 'border-green-500 bg-green-50/40' : activeTopSection === 'refresh' && isTopSectionSaving ? 'border-emerald-300' : ''}`.trim()}>
+        <Card className={`${!smartRefreshEnabled ? 'border-red-300 bg-red-50 dark:bg-red-950' : ''} ${activeTopSection === 'refresh' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'refresh' && isTopSectionSaving ? 'border-emerald-300' : ''}`.trim()}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Power className={`w-5 h-5 ${smartRefreshEnabled ? 'text-emerald-500' : 'text-red-500'}`} />
@@ -582,10 +582,10 @@ export default function AppSettingsPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+          <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-lg border">
             <div>
-              <Label className="font-medium text-slate-900">Enable Smart Refresh</Label>
-              <p className="text-sm text-slate-500">
+              <Label className="font-medium text-slate-900 dark:text-slate-100">Enable Smart Refresh</Label>
+              <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 {smartRefreshEnabled 
                   ? 'Data will automatically refresh in the background' 
                   : 'All automatic refreshing is disabled - data will only update on page reload'}
@@ -634,7 +634,7 @@ export default function AppSettingsPanel() {
         </CardContent>
       </Card>
 
-        <Card className={`transition-colors ${activeTopSection === 'apiKeys' && topSectionSaved ? 'border-green-500 bg-green-50/40' : activeTopSection === 'apiKeys' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
+        <Card className={`transition-colors ${activeTopSection === 'apiKeys' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'apiKeys' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MapPinned className="w-5 h-5" />
@@ -659,15 +659,15 @@ export default function AppSettingsPanel() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="rounded-lg border bg-slate-50 p-3 text-xs text-slate-600 flex items-start gap-2">
-                <KeyRound className="w-4 h-4 mt-0.5 text-slate-500" />
+              <div className="rounded-lg border bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 flex items-start gap-2">
+                <KeyRound className="w-4 h-4 mt-0.5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
                 <span>The dropdown reads from the <code className="mx-1 rounded bg-slate-200 px-1 py-0.5">available_api_keys</code> app setting, so updating that list will update what appears here.</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className={`transition-colors ${activeTopSection === 'adminSettings' && topSectionSaved ? 'border-green-500 bg-green-50/40' : activeTopSection === 'adminSettings' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
+        <Card className={`transition-colors ${activeTopSection === 'adminSettings' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'adminSettings' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
@@ -684,7 +684,7 @@ export default function AppSettingsPanel() {
                   App Fees (Cost per Delivery)
                 </Label>
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-700 font-medium">$</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">$</span>
                   <Input
                     id="app_fees"
                     type="number"
@@ -704,9 +704,9 @@ export default function AppSettingsPanel() {
                     placeholder="0.00"
                     className="w-32"
                   />
-                  <span className="text-sm text-slate-500">per finished delivery</span>
+                  <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">per finished delivery</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
                   This fee will be used to calculate monthly charges for stores that are marked as paying app fees.
                 </p>
               </div>
@@ -723,7 +723,7 @@ export default function AppSettingsPanel() {
                   placeholder="sq0idp-..."
                   className="font-mono text-sm"
                 />
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
                   Required for the Square POS button on stop cards. Find this in your Square Developer Dashboard.
                 </p>
               </div>
@@ -732,7 +732,7 @@ export default function AppSettingsPanel() {
         </Card>
 
         {/* Fridge Temperature Range Settings */}
-        <Card className={`transition-colors ${fridgeTempSaved ? 'border-green-500 bg-green-50/40' : isSavingFridgeTemp ? 'border-emerald-300' : ''}`}>
+        <Card className={`transition-colors ${fridgeTempSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : isSavingFridgeTemp ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Thermometer className="w-5 h-5 text-cyan-600" />
@@ -759,7 +759,7 @@ export default function AppSettingsPanel() {
                   step={0.5}
                   className="w-full"
                 />
-                <div className="flex justify-between text-xs text-slate-400 mt-1">
+                <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">
                   <span>-10°C</span>
                   <span>25°C</span>
                 </div>
@@ -775,11 +775,11 @@ export default function AppSettingsPanel() {
                     onChange={(e) => setFridgeTempSettings(p => ({ ...p, danger_buffer: parseFloat(e.target.value) || 0 }))}
                     className="w-24 font-mono"
                   />
-                  <span className="text-xs text-slate-500">warning ± safe zone</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">warning ± safe zone</span>
                 </div>
               </div>
             </div>
-            <div className="rounded-lg bg-slate-50 border p-3 text-xs text-slate-600 space-y-1">
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 border p-3 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-1">
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-cyan-500 inline-block" /> Safe: {fridgeTempSettings.safe_min}°C – {fridgeTempSettings.safe_max}°C</div>
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" /> Warning: {+(fridgeTempSettings.safe_min - fridgeTempSettings.danger_buffer).toFixed(1)}°C – {fridgeTempSettings.safe_min}°C &amp; {fridgeTempSettings.safe_max}°C – {+(fridgeTempSettings.safe_max + fridgeTempSettings.danger_buffer).toFixed(1)}°C</div>
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Out of range: below {+(fridgeTempSettings.safe_min - fridgeTempSettings.danger_buffer).toFixed(1)}°C or above {+(fridgeTempSettings.safe_max + fridgeTempSettings.danger_buffer).toFixed(1)}°C</div>
@@ -812,17 +812,17 @@ export default function AppSettingsPanel() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center gap-4 text-sm">
-            <span className="font-medium text-slate-700">Priority:</span>
+            <span className="font-medium text-slate-700 dark:text-slate-300">Priority:</span>
             <Badge className="bg-red-100 text-red-800">high</Badge>
-            <span className="text-slate-500">= Real-time critical</span>
+            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">= Real-time critical</span>
             <Badge className="bg-yellow-100 text-yellow-800">medium</Badge>
-            <span className="text-slate-500">= Important</span>
+            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">= Important</span>
             <Badge className="bg-green-100 text-green-800">low</Badge>
-            <span className="text-slate-500">= Background</span>
+            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">= Background</span>
           </div>
 
           <div className="space-y-3">
-            <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-red-500" />
               High Priority (Real-time Map Updates)
             </h3>
@@ -871,7 +871,7 @@ export default function AppSettingsPanel() {
           </div>
 
           <div className="space-y-3">
-            <h3 className="font-semibold text-slate-900">Medium Priority</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Medium Priority</h3>
             <div className="grid gap-3">
               <IntervalSlider
                 id="todayPatients"
@@ -897,7 +897,7 @@ export default function AppSettingsPanel() {
           </div>
 
           <div className="space-y-3">
-            <h3 className="font-semibold text-slate-900">Low Priority (Background)</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Low Priority (Background)</h3>
             <div className="grid gap-3">
               <IntervalSlider
                 id="patients"
@@ -933,7 +933,7 @@ export default function AppSettingsPanel() {
           </div>
 
           <div className="space-y-3">
-            <h3 className="font-semibold text-slate-900">System (Layout)</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">System (Layout)</h3>
             <div className="grid gap-3">
               <IntervalSlider
                 id="unifiedRefreshTick"
@@ -995,8 +995,8 @@ export default function AppSettingsPanel() {
               const timeSince = lastTime ? Math.round((Date.now() - lastTime) / 1000) : null;
               
               return (
-                <div key={key} className="p-3 bg-slate-50 rounded-lg">
-                  <div className="text-xs text-slate-500 mb-1">{INTERVAL_LABELS[key] || key}</div>
+                <div key={key} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">{INTERVAL_LABELS[key] || key}</div>
                   <div className="font-mono text-sm">
                     {timeSince !== null ? `${timeSince}s ago` : 'Never'}
                   </div>

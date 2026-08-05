@@ -79,7 +79,7 @@ export default function MessageRulesManager() {
   };
 
   if (isLoading) {
-    return <div className="flex items-center gap-2 p-6 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" />Loading notification rules...</div>;
+    return <div className="flex items-center gap-2 p-6 text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="w-4 h-4 animate-spin" />Loading notification rules...</div>;
   }
 
   return (
@@ -95,8 +95,8 @@ export default function MessageRulesManager() {
         {/* LEFT: Message Formats */}
         <div>
           <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">Message Formats</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Edit the template and channels for each notification type.</p>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Message Formats</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Edit the template and channels for each notification type.</p>
           </div>
           <NotificationFormatPanel records={records} setRecords={setRecords} currentUser={currentUser} />
         </div>
@@ -104,8 +104,8 @@ export default function MessageRulesManager() {
         {/* RIGHT: Rules (When to Send) */}
         <div>
           <div className="mb-3">
-            <h3 className="font-semibold text-slate-900">Trigger Rules</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Control who receives each notification and set optional conditions.</p>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Trigger Rules</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Control who receives each notification and set optional conditions.</p>
           </div>
           <NotificationRulesPanel records={records} setRecords={setRecords} />
         </div>
@@ -118,17 +118,17 @@ export default function MessageRulesManager() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label className="text-xs text-slate-600 mb-1 block">Event Key (internal identifier)</Label>
+              <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">Event Key (internal identifier)</Label>
               <Input
                 value={newEventName}
                 onChange={(e) => setNewEventName(e.target.value)}
                 placeholder="e.g. admin_broadcast"
                 className="text-sm"
               />
-              <p className="text-xs text-slate-400 mt-1">Lowercase, underscores only. Must be unique.</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">Lowercase, underscores only. Must be unique.</p>
             </div>
             <div>
-              <Label className="text-xs text-slate-600 mb-1 block">Display Label</Label>
+              <Label className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-1 block">Display Label</Label>
               <Input
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}

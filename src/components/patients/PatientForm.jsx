@@ -850,7 +850,7 @@ export default function PatientForm({
   };
 
   const isPIDValid = formData.patient_id ? validateId(formData.patient_id, 5) : null;
-  const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50';
+  const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50 dark:bg-red-950';
   const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
   const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
   const mobileFormInsetStyle = isMobile ? {
@@ -1071,9 +1071,9 @@ export default function PatientForm({
                     <>
                       <div className="fixed inset-0 z-[10050]" onClick={() => setShowBuzzerInput(false)} />
                       <div
-                        className="fixed z-[10051] bg-white border border-slate-200 rounded-xl shadow-xl p-3 w-52"
+                        className="fixed z-[10051] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-3 w-52"
                         style={{ top: buzzerAnchorRect.bottom + 6, left: Math.min(buzzerAnchorRect.left, window.innerWidth - 216) }}>
-                        <p className="text-xs font-semibold text-slate-700 mb-2">Buzzer #</p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Buzzer #</p>
                         <input
                           ref={buzzerInputRef}
                           type="text"
@@ -1081,9 +1081,9 @@ export default function PatientForm({
                           onChange={(e) => setBuzzerValue(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') handleBuzzerConfirm(); if (e.key === 'Escape') setShowBuzzerInput(false); }}
                           placeholder="e.g. 223"
-                          className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm mb-2 outline-none focus:ring-2 focus:ring-blue-500" />
+                          className="w-full border border-slate-300 dark:border-slate-600 rounded-md px-2 py-1.5 text-sm mb-2 outline-none focus:ring-2 focus:ring-blue-500" />
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => setShowBuzzerInput(false)} className="flex-1 text-xs py-1.5 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50">Cancel</button>
+                          <button type="button" onClick={() => setShowBuzzerInput(false)} className="flex-1 text-xs py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">Cancel</button>
                           <button type="button" onClick={handleBuzzerConfirm} className="flex-1 text-xs py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700">OK</button>
                         </div>
                       </div>

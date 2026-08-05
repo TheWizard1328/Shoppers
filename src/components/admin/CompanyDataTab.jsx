@@ -92,21 +92,21 @@ export default function CompanyDataTab() {
     { key: 'appUsers', label: 'App Users', Icon: Users, color: 'text-purple-600' },
     { key: 'deliveries', label: 'Deliveries', Icon: Package, color: 'text-orange-600' },
     { key: 'payrolls', label: 'Payrolls', Icon: DollarSign, color: 'text-yellow-600' },
-    { key: 'interStores', label: 'ISP Locations', Icon: Building2, color: 'text-slate-600' },
+    { key: 'interStores', label: 'ISP Locations', Icon: Building2, color: 'text-slate-600 dark:text-slate-400 dark:text-slate-500' },
   ];
 
   if (loading) {
     return (
       <div className="flex justify-center items-center h-40">
         <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-        <span className="ml-3 text-slate-600">Loading company data...</span>
+        <span className="ml-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading company data...</span>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-slate-500 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+      <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg px-3 py-2">
         Records with a blank <code className="font-mono text-xs bg-blue-100 px-1 rounded">company_id</code> are counted under <strong>RGistics (default)</strong>. As you add more companies and assign records, their counts will appear here.
       </div>
 
@@ -116,11 +116,11 @@ export default function CompanyDataTab() {
           <Card key={row.id} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
-                <Building2 className="w-5 h-5 text-slate-500" />
+                <Building2 className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
                 {row.name}
                 {row.isDefault && <Badge variant="secondary" className="text-xs">Default</Badge>}
                 {row.isOrphaned && <Badge variant="destructive" className="text-xs">Orphaned ID</Badge>}
-                <span className="ml-auto text-sm font-normal text-slate-500">{total.toLocaleString()} total records</span>
+                <span className="ml-auto text-sm font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500">{total.toLocaleString()} total records</span>
               </CardTitle>
               {row.company && (
                 <CardDescription style={{ color: 'var(--text-slate-500)' }}>

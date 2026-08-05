@@ -146,7 +146,7 @@ export default function DriverRouteHeader({
               <StatBox
                 value={driverOverviewStats.totalStops}
                 label="Total Stops"
-                valueClass="text-slate-800"
+                valueClass="text-slate-800 dark:text-slate-200"
                 onMeasure={handleStatMeasure}
                 fixedWidth={statCardBaseWidth || undefined}
               />

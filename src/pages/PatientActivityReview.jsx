@@ -17,7 +17,7 @@ const RESULT_TYPE_LABELS = {
 const STATUS_COLORS = {
   pending_review: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   applied: 'bg-green-100 text-green-800 border-green-200',
-  dismissed: 'bg-slate-100 text-slate-500 border-slate-200'
+  dismissed: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700'
 };
 
 const RESULT_TYPE_COLORS = {
@@ -49,12 +49,12 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
   };
 
   return (
-    <Card className={`border ${isPending ? 'border-yellow-200 bg-yellow-50/30' : 'border-slate-200 bg-white'} transition-all`}>
+    <Card className={`border ${isPending ? 'border-yellow-200 bg-yellow-50 dark:bg-yellow-950/30' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'} transition-all`}>
       <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-slate-800 truncate">{result.patient_name}</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{result.patient_name}</span>
               <Badge className={`text-xs border ${RESULT_TYPE_COLORS[result.result_type]}`}>
                 {RESULT_TYPE_LABELS[result.result_type]}
               </Badge>
@@ -62,14 +62,14 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
                 {result.status === 'pending_review' ? 'Pending Review' : result.status === 'applied' ? 'Applied' : 'Dismissed'}
               </Badge>
             </div>
-            <div className="text-xs text-slate-500 mt-1 flex gap-3 flex-wrap">
+            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 flex gap-3 flex-wrap">
               <span>{store?.name || result.store_name}</span>
               <span>Analyzed: {result.analysis_date}</span>
               {result.last_delivery_date && <span>Last delivery: {result.last_delivery_date}</span>}
               <span>{result.total_deliveries_analyzed} deliveries analyzed</span>
             </div>
           </div>
-          <button onClick={() => setExpanded(v => !v)} className="text-slate-400 hover:text-slate-600 p-1">
+          <button onClick={() => setExpanded(v => !v)} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300 p-1">
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         </div>
@@ -78,7 +78,7 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
       {expanded && (
         <CardContent className="pt-0 px-4 pb-4">
           {result.result_type === 'inactivity_flagged' && (
-            <div className="text-sm text-red-700 bg-red-50 rounded-md p-3 mt-2">
+            <div className="text-sm text-red-700 bg-red-50 dark:bg-red-950 rounded-md p-3 mt-2">
               Patient marked <strong>inactive</strong> — no completed deliveries in the past 6 months.
             </div>
           )}
@@ -91,20 +91,20 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
                 </p>
               )}
               {result.applied_pattern && (
-                <p className="text-xs text-green-700 bg-green-50 rounded p-2">
+                <p className="text-xs text-green-700 bg-green-50 dark:bg-green-950 rounded p-2">
                   Applied pattern: <strong>{result.applied_pattern}</strong>
                 </p>
               )}
               <div className="space-y-2">
                 {(result.suggested_patterns || []).map((pattern, idx) => (
-                  <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm text-slate-800">{pattern.pattern_label}</span>
-                        <span className="text-xs text-slate-500">Confidence: {pattern.confidence}%</span>
+                        <span className="font-medium text-sm text-slate-800 dark:text-slate-200">{pattern.pattern_label}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Confidence: {pattern.confidence}%</span>
                         {idx === 0 && <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200">Best Match</Badge>}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">{pattern.supporting_data}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{pattern.supporting_data}</p>
                     </div>
                     {isPending && (
                       <Button
@@ -112,7 +112,7 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
                         variant="outline"
                         disabled={loading}
                         onClick={() => handleApply(pattern)}
-                        className="shrink-0 text-xs h-7 border-blue-300 text-blue-700 hover:bg-blue-50"
+                        className="shrink-0 text-xs h-7 border-blue-300 text-blue-700 hover:bg-blue-50 dark:bg-blue-950 dark:hover:bg-blue-950"
                       >
                         {loading && applyingPattern === pattern.pattern_key ? 'Applying...' : 'Apply'}
                       </Button>
@@ -128,7 +128,7 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
                     variant="ghost"
                     disabled={loading}
                     onClick={handleDismiss}
-                    className="text-xs text-slate-500 hover:text-red-600"
+                    className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-red-600"
                   >
                     <XCircle className="w-3.5 h-3.5 mr-1" />
                     Dismiss
@@ -243,11 +243,11 @@ export default function PatientActivityReview() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <Activity className="w-6 h-6 text-blue-600" />
             Patient Activity Review
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
             AI-detected inactivity and recurring pattern suggestions
           </p>
         </div>
@@ -270,26 +270,26 @@ export default function PatientActivityReview() {
       </div>
 
       {scanMessage && (
-        <div className={`text-sm rounded-md p-3 ${scanMessage.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+        <div className={`text-sm rounded-md p-3 ${scanMessage.startsWith('Error') ? 'bg-red-50 dark:bg-red-950 text-red-700' : 'bg-green-50 dark:bg-green-950 text-green-700'}`}>
           {scanMessage}
         </div>
       )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
-        <Card className="border-yellow-200 bg-yellow-50/50">
+        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/50">
           <CardContent className="p-3 text-center">
             <div className="text-2xl font-bold text-yellow-700">{results.filter(r => r.status === 'pending_review').length}</div>
             <div className="text-xs text-yellow-600">Pending Review</div>
           </CardContent>
         </Card>
-        <Card className="border-red-200 bg-red-50/50">
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950/50">
           <CardContent className="p-3 text-center">
             <div className="text-2xl font-bold text-red-700">{results.filter(r => r.result_type === 'inactivity_flagged').length}</div>
             <div className="text-xs text-red-600">Marked Inactive</div>
           </CardContent>
         </Card>
-        <Card className="border-blue-200 bg-blue-50/50">
+        <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/50">
           <CardContent className="p-3 text-center">
             <div className="text-2xl font-bold text-blue-700">{results.filter(r => r.result_type !== 'inactivity_flagged').length}</div>
             <div className="text-xs text-blue-600">Pattern Results</div>
@@ -334,9 +334,9 @@ export default function PatientActivityReview() {
 
       {/* Results List */}
       {loading ? (
-        <div className="text-center py-12 text-slate-400">Loading...</div>
+        <div className="text-center py-12 text-slate-400 dark:text-slate-500 dark:text-slate-400">Loading...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-slate-400">No results found for these filters.</div>
+        <div className="text-center py-12 text-slate-400 dark:text-slate-500 dark:text-slate-400">No results found for these filters.</div>
       ) : (
         <div className="space-y-2">
           {filtered.map(result => (

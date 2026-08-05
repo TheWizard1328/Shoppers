@@ -207,8 +207,8 @@ export default function DevicesPanel({ currentUser }) {
 
   if (isLoading) return (
     <div className="animate-pulse space-y-3 p-1">
-      <div className="h-20 bg-slate-100 rounded-xl" />
-      <div className="h-20 bg-slate-100 rounded-xl" />
+      <div className="h-20 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+      <div className="h-20 bg-slate-100 dark:bg-slate-800 rounded-xl" />
     </div>
   );
 

@@ -65,8 +65,8 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-slate-900">COD Item Details</h2>
+        <div className="sticky top-0 bg-white dark:bg-slate-900 border-b p-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">COD Item Details</h2>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
             <X className="w-4 h-4" />
           </Button>
@@ -75,20 +75,20 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
         <CardContent className="p-6 space-y-6">
           {/* Transaction History */}
           <div>
-            <h3 className="font-semibold text-slate-900 mb-3">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">
               Transaction History ({itemTransactions.length})
             </h3>
             {itemTransactions.length === 0 ? (
-              <p className="text-center text-slate-500 py-6">No transactions yet</p>
+              <p className="text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 py-6">No transactions yet</p>
             ) : (
               <div className="space-y-3">
                 {itemTransactions.map(t => (
-                  <Card key={t.id} className="bg-slate-50 border-0">
+                  <Card key={t.id} className="bg-slate-50 dark:bg-slate-800 border-0">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">${(t.amount || 0).toFixed(2)}</p>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">${(t.amount || 0).toFixed(2)}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                             {new Date(t.created_date).toLocaleString()}
                           </p>
                         </div>
@@ -99,14 +99,14 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-xs mt-3">
                         <div>
-                          <p className="text-slate-500">Driver</p>
-                          <p className="font-medium text-slate-700">
+                          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Driver</p>
+                          <p className="font-medium text-slate-700 dark:text-slate-300">
                             {deliveries.find(d => d.id === t.delivery_id)?.driver_name || 'N/A'}
                           </p>
                         </div>
                         <div>
-                          <p className="text-slate-500">Date</p>
-                          <p className="font-medium text-slate-700">
+                          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Date</p>
+                          <p className="font-medium text-slate-700 dark:text-slate-300">
                             {deliveries.find(d => d.id === t.delivery_id)?.delivery_date ? new Date(deliveries.find(d => d.id === t.delivery_id).delivery_date).toLocaleDateString() : ''}
                           </p>
                         </div>
@@ -119,9 +119,9 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
           </div>
 
           {/* Item Metadata */}
-          <div className="bg-slate-50 rounded-lg p-4">
-            <p className="text-xs text-slate-500 font-medium mb-3">Additional Info</p>
-            <div className="space-y-2 text-xs text-slate-600">
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium mb-3">Additional Info</p>
+            <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
               <div className="flex justify-between">
                 <span>Created</span>
                 <span>{item.created_date ? new Date(item.created_date).toLocaleString() : 'N/A'}</span>
