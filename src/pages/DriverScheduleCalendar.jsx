@@ -232,7 +232,7 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
   <div className="grid items-center gap-0.5 w-full" style={{ gridTemplateColumns: '28px 28px 1fr 30px 16px' }}>
       <span
       className="text-[10px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden"
-      style={{ background: '#ffffff', color: storeColor, border: `1px solid ${storeColor}` }}>
+      style={{ background: 'var(--bg-white)', color: storeColor, border: `1px solid ${storeColor}` }}>
         <span className="truncate px-0.5">{storeLabel}</span>
       </span>
       <span
@@ -243,20 +243,20 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
       <div className="flex items-center gap-0.5 justify-center">
         {firstStop && lastStop ?
       <>
-            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: '#94a3b8' }} />
-            <span className="text-[10px]" style={{ color: '#64748b' }}>
+            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
+            <span className="text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
               {fmtTime(firstStop.arrival_time || firstStop.actual_delivery_time)}–{fmtTime(lastStop.actual_delivery_time)}
             </span>
           </> :
       timeWindow ?
       <>
-            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: '#94a3b8' }} />
-            <span className="text-[10px]" style={{ color: '#64748b' }}>{timeWindow}</span>
+            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
+            <span className="text-[10px]" style={{ color: 'var(--text-slate-500)' }}>{timeWindow}</span>
           </> :
       null}
       </div>
       <span className={`text-[10px] font-semibold rounded-full leading-4 h-[18px] w-[30px] inline-flex items-center justify-center flex-shrink-0 ${totalDeliveries > 0 ? '' : 'invisible'}`}
-    style={{ background: '#e2e8f0', color: '#475569' }}>
+    style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
         {totalDeliveries}
       </span>
       <span className="inline-flex items-center justify-center w-[14px]">
@@ -278,7 +278,7 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
   <div className="grid w-full items-center gap-0.5" style={{ gridTemplateColumns: '28px 28px 1fr 30px 16px' }}>
       <span
       className="text-[10px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden"
-      style={{ background: '#ffffff', color: storeColor, border: `1px solid ${storeColor}` }}>
+      style={{ background: 'var(--bg-white)', color: storeColor, border: `1px solid ${storeColor}` }}>
         <span className="truncate px-0.5">{storeLabel}</span>
       </span>
       <span
@@ -289,20 +289,20 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
       <div className="flex items-center justify-center gap-0.5 px-0.5">
         {firstStop ?
       <>
-            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: '#94a3b8' }} />
-            <span className="text-[10px] truncate" style={{ color: '#64748b' }}>
+            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
+            <span className="text-[10px] truncate" style={{ color: 'var(--text-slate-500)' }}>
               {fmtTime(firstStop.arrival_time || firstStop.actual_delivery_time)}–{fmtTime(lastStop.actual_delivery_time)}
             </span>
           </> :
       timeWindow ?
       <>
-            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: '#94a3b8' }} />
-            <span className="text-[10px] truncate" style={{ color: '#64748b' }}>{timeWindow}</span>
+            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
+            <span className="text-[10px] truncate" style={{ color: 'var(--text-slate-500)' }}>{timeWindow}</span>
           </> :
       null}
       </div>
       <span className={`text-[10px] font-semibold rounded-full leading-4 h-[18px] w-[30px] inline-flex items-center justify-center ${totalDeliveries > 0 ? '' : 'invisible'}`}
-    style={{ background: '#e2e8f0', color: '#475569' }}>
+    style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
         {slotDeliveries.filter((d) => d.status === 'completed').length}/{totalDeliveries}
       </span>
       <span className="inline-flex items-center justify-center w-[14px]">
