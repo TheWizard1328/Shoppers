@@ -498,10 +498,61 @@ export default function SquareManagement() {
   }, [appDataStores]);
 
   // Keep patients in sync without triggering the heavy lookup-data sync effect
+  // Merge (not replace) so the role-neutral patient loader below survives —
+  // appDataPatients is role-scoped (the dashboard fetches only the user's
+  // city's patients), but reconciliation matching uses fuzzy patient-name
+  // matching that requires the FULL list to behave identically for admins
+  // and drivers.
   useEffect(() => {
     const nextPatients = (appDataPatients || []).filter(Boolean);
-    if (nextPatients.length > 0) setPatients(nextPatients);
+    if (nextPatients.length > 0) {
+      setPatients((prev) => {
+        const map = new Map();
+        (prev || []).forEach((p) => { if (p?.id) map.set(p.id, p); });
+        nextPatients.forEach((p) => { if (p?.id) map.set(p.id, p); });
+        return Array.from(map.values());
+      });
+    }
   }, [appDataPatients]);
+
+  // ── Role-neutral patient loader ───────────────────────────────────────
+  // The Square sync (squareGetCodData2) is role-neutral at the backend (uses
+  // serviceRole), but the reconciliation matching on this page falls back to
+  // fuzzy patient-name + amount + location matching when a transaction has
+  // no direct delivery_id link yet. That fallback relies on the local
+  // `patients` state. Without this loader, drivers see only their city's
+  // patients → fallback silently fails → collected deliveries stay as
+  // "New Catalog Items" for drivers but get filtered out for admins who
+  // have the full patient list. Patient entity has empty RLS, so every
+  // authenticated user reads the full list — paginated here for safety.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const pageSize = 1000;
+        let skip = 0;
+        const all = [];
+        while (true) {
+          const page = await base44.entities.Patient.list('-updated_date', pageSize, skip);
+          if (!page?.length) break;
+          all.push(...page.filter(Boolean));
+          if (page.length < pageSize) break;
+          skip += pageSize;
+        }
+        if (mounted && all.length > 0) {
+          setPatients((prev) => {
+            const map = new Map();
+            (prev || []).forEach((p) => { if (p?.id) map.set(p.id, p); });
+            all.forEach((p) => { if (p?.id) map.set(p.id, p); });
+            return Array.from(map.values());
+          });
+        }
+      } catch (err) {
+        console.warn('[SquareManagement] Failed to load full patient list:', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Always sync lookup data whenever appData changes (no early-return guard on stores length)
   useEffect(() => {
