@@ -381,16 +381,14 @@ async function handleGetCodData(base44, payload={}) {
     elapsed: Date.now() - t0
   });
 
-  // Batch DB writes in parallel chunks
-  if (txToCreate.length > 0) {
-    const created = await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, txToCreate);
-    transactionRecords.push(...created);
-  }
-  if (txToUpdate.length > 0) {
-    await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, txToUpdate);
+  // SKIP DB writes for transactions — the frontend saves transactionRecords to IDB directly.
+  // Writing to the online DB was the bottleneck causing 429 timeouts for driver devices.
+  // For new transactions (no existing ID), add a synthetic ID so the frontend can dedupe.
+  for (const op of txToCreate) {
+    transactionRecords.push({ ...op.data, id: `${op.data.square_transaction_id || 'tx'}::${op.data.raw_square_data?.line_item_uid || 'unknown'}` });
   }
 
-  console.log('[squareGetCodData2] Transaction DB writes done, elapsed:', Date.now() - t0);
+  console.log('[squareGetCodData2] Transaction records built (DB writes skipped), elapsed:', Date.now() - t0);
 
   // ── 4) Build catalog records from live Square catalog ───────────────
   const catalogRecords = (liveCatalogItems || []).reduce((acc, item) => {
@@ -433,8 +431,8 @@ async function handleGetCodData(base44, payload={}) {
     const dbCleanupPromises = objectIds.map(async (objId) => {
       const dbMatches = await base44.asServiceRole.entities.SquareCatalogItems.filter({ square_catalog_object_id: objId }).catch(() => []);
       for (const r of dbMatches) { await base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null); cleanupDbCount++; }
-      const txMatches = await base44.asServiceRole.entities.SquareTransaction.filter({ square_catalog_object_id: objId, status: 'pending' }).catch(() => []);
-      for (const t of txMatches) { await base44.asServiceRole.entities.SquareTransaction.update(t.id, { status: 'completed', raw_square_data: { ...(t.raw_square_data || {}), deleted_at: new Date().toISOString(), deleted_reason: 'collected_cleanup' } }).catch(() => null); }
+      // Transaction status update skipped — transactions are no longer written to the online DB
+      // (the frontend manages them in IDB). This was causing 429 timeouts for driver devices.
     });
     await Promise.all(dbCleanupPromises);
   }

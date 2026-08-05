@@ -435,8 +435,43 @@ export default function SquareManagement() {
       } else if (syncError) {
         console.error('[SquareManagement] Sync failed', { error: syncError?.message });
         setError(syncError.message);
-        await loadSquareViewFromOffline();
-        toast.error('Sync failed: ' + syncError.message);
+        // Fallback: try loading transactions + catalog from online DB entity API
+        // The admin's sync populates these entities; drivers can read them directly.
+        try {
+          const loadAllFromEntity = async (entityApi) => {
+            const pageSize = 1000; let skip = 0; let all = [];
+            while (true) {
+              const page = await entityApi.list('-updated_date', pageSize, skip);
+              if (!page?.length) break;
+              all = all.concat(page);
+              if (page.length < pageSize) break;
+              skip += pageSize;
+            }
+            return all;
+          };
+          const [fallbackCatalog, fallbackTx] = await Promise.all([
+            loadAllFromEntity(base44.entities.SquareCatalogItems).catch(() => []),
+            loadAllFromEntity(base44.entities.SquareTransaction).catch(() => [])
+          ]);
+          if ((fallbackTx?.length || 0) > 0 || (fallbackCatalog?.length || 0) > 0) {
+            await squareCODOfflineManager.syncSquareCODSnapshotOffline({
+              catalogItems: fallbackCatalog || [],
+              transactions: fallbackTx || []
+            });
+            await loadSquareViewFromOffline();
+            const { startDateStr, endDateStr } = getSourceWindow();
+            const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+            if (windowedDeliveries.length > 0) setDeliveries([...windowedDeliveries]);
+            toast.success(`Loaded ${fallbackTx?.length || 0} transactions from server (sync was slow)`);
+          } else {
+            await loadSquareViewFromOffline();
+            toast.error('Sync failed: ' + syncError.message);
+          }
+        } catch (fallbackErr) {
+          console.error('[SquareManagement] Fallback entity load failed:', fallbackErr);
+          await loadSquareViewFromOffline();
+          toast.error('Sync failed: ' + syncError.message);
+        }
       }
     } catch (err) {
       setError(err.message);
