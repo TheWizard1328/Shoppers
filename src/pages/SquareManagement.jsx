@@ -1328,6 +1328,12 @@ export default function SquareManagement() {
         if (!matchedConfig?.id || !visibleSquareLocationConfigIds.has(matchedConfig.id)) return false;
       }
 
+      // Filter by the store the matched delivery is actually assigned to (not Square Location ID)
+      if (selectedStoreFilter && selectedStoreFilter !== 'all') {
+        const matchedDelivery = matchedDeliveryForFilter || findMatchingDeliveryForTransaction(transaction, transaction.store_id || null);
+        if (!matchedDelivery || matchedDelivery.store_id !== selectedStoreFilter) return false;
+      }
+
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
         if (selectedDriverUserIds.size === 0) return false;
         const matchedDriverId = transaction.driver_id || matchedDeliveryForFilter?.driver_id || null;
@@ -1411,19 +1417,19 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [allTransactions, lookbackStart, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction, visibleSquareLocationConfigIds, getDriverColorForId]);
+  }, [allTransactions, lookbackStart, visibleLocationIds, selectedStoreFilter, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction, visibleSquareLocationConfigIds, getDriverColorForId]);
 
   const filteredCatalogRows = useMemo(() => {
     const rows = (catalogItems || []).
     filter((item) => {
-      if (visibleLocationIds.size > 0 && item.location_id && !visibleLocationIds.has(item.location_id)) return false;
-      const store = stores.find((candidateStore) => candidateStore?.id === item.store_id) ||
-      getStoreForConfig(locationConfigs.find((c) => c?.square_location_id === item.location_id)) ||
-      null;
-      const storeConfig = getConfigForStore(store);
-      if (!storeConfig?.id || !visibleSquareLocationConfigIds.has(storeConfig.id)) return false;
-      // Exclude catalog items linked to pending or future-dated deliveries
+      // Resolve the linked delivery first so we can filter by the store it's actually assigned to
       const linkedDelivery = item.delivery_id ? deliveries.find((d) => d?.id === item.delivery_id) : null;
+      // Filter by the store the delivery is assigned to (not the Square Location ID)
+      if (selectedStoreFilter && selectedStoreFilter !== 'all') {
+        if (!linkedDelivery || linkedDelivery.store_id !== selectedStoreFilter) return false;
+      } else if (visibleStoreIds.size > 0 && linkedDelivery?.store_id && !visibleStoreIds.has(linkedDelivery.store_id)) {
+        return false;
+      }
       if (linkedDelivery?.status === 'pending') return false;
       // Exclude if the linked delivery was paid by Debit/Credit (manual override — no Square transaction needed)
       if (linkedDelivery && isManualCardOverride(linkedDelivery)) return false;
@@ -1514,7 +1520,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [catalogItems, locationConfigs, stores, visibleLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, lookupIndexes, getDriverColorForId, selectedDriverFilter, selectedDriverUserIds]);
+  }, [catalogItems, locationConfigs, stores, visibleLocationIds, visibleStoreIds, selectedStoreFilter, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, lookupIndexes, getDriverColorForId, selectedDriverFilter, selectedDriverUserIds]);
 
   // Build a fast set of delivery IDs that are already matched in the Transactions tab
   const transactionMatchedDeliveryIds = useMemo(() => {
@@ -1574,9 +1580,14 @@ export default function SquareManagement() {
       if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
       if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
 
-      const store = stores.find((candidateStore) => candidateStore?.id === delivery.store_id);
-      const storeConfig = getConfigForStore(store);
-      if (!storeConfig?.id || !visibleSquareLocationConfigIds.has(storeConfig.id)) return false;
+      // Filter by the store the delivery is actually assigned to (not Square Location ID)
+      const deliveryStore = stores.find((candidateStore) => candidateStore?.id === delivery.store_id);
+      const storeConfig = getConfigForStore(deliveryStore);
+      if (selectedStoreFilter && selectedStoreFilter !== 'all') {
+        if (delivery.store_id !== selectedStoreFilter) return false;
+      } else {
+        if (!storeConfig?.id || !visibleSquareLocationConfigIds.has(storeConfig.id)) return false;
+      }
 
       const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
       if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
@@ -1695,7 +1706,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, lookupIndexes, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId, findLinkedCatalogItem]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, selectedStoreFilter, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, lookupIndexes, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId, findLinkedCatalogItem]);
 
   reconciliationRowsRef.current = reconciliationRows;
   filteredCatalogRowsRef.current = filteredCatalogRows;
