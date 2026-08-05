@@ -12,7 +12,7 @@ const SQUARE_API_MAX_RETRIES = 3;
 const SQUARE_RETRY_BASE_DELAY_MS = 400;
 const isRetryableSquareStatus = (s) => [408, 409, 429, 500, 502, 503, 504].includes(Number(s));
 
-async function squareFetch(path, method, accessToken, body, options={}) {
+async function squareFetch(path, method, accessToken, body) {
   let lastError=null;
   for (let attempt=1;attempt<=SQUARE_API_MAX_RETRIES;attempt++) {
     try {
@@ -29,6 +29,7 @@ const TRANSACTION_RETENTION_DAYS = 90;
 const MATCH_DATE_STRICT_DAYS = 7;
 const MAX_TRANSACTION_ORDERS = 2000;
 const DELIVERY_BULK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+const DB_WRITE_BATCH_SIZE = 10;
 const formatLocalDate = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const unwrapEntityRecord = (r) => { if (!r || typeof r !== 'object') return null; if (r.data && typeof r.data === 'object') return { ...r.data, id: r.data.id || r.id }; return r; };
 const shouldRefreshDeliveries = (at, force=false) => { if (force) return true; const ms = new Date(at||0).getTime(); return !Number.isFinite(ms)||ms<=0||Date.now()-ms>=DELIVERY_BULK_REFRESH_INTERVAL_MS; };
@@ -38,7 +39,6 @@ const normalizeMatchName = (v) => normalizeText(v).replace(/\s+/g,' ').replace(/
 const getPreferredStoreAbbreviation = (store) => { const n=normalizeText(store?.abbreviation); if (n) return n.toUpperCase(); const ts=normalizeText(store?.name).split(/[^a-zA-Z0-9]+/).map((p)=>p.trim()).filter(Boolean); if (!ts.length) return 'NA'; if (ts.length===1) return ts[0].slice(0,2).toUpperCase(); return ts.map((t)=>t[0]).join('').slice(0,2).toUpperCase(); };
 const buildItemSignature = (n, c) => `${normalizeText(n)}::${toAmountCents(c)}`;
 
-// ── Store/location helpers ──────────────────────────────────────────────
 function extractItemNameAbbr(itemName) { const m = String(itemName||'').match(/\(([^)]+)\)/); return m ? normalizeText(m[1]).toUpperCase() : ''; }
 function getStoreAbbreviationVariants(store) {
   const vs=new Set();const push=(v)=>{const n=normalizeText(v);if(!n)return;vs.add(n.toLowerCase());n.split(/[^a-zA-Z0-9]+/).map((p)=>p.trim().toLowerCase()).filter(Boolean).forEach((p)=>vs.add(p));};
@@ -63,7 +63,6 @@ function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   return `${(month||'00').padStart(2,'0')}/${(day||'00').padStart(2,'0')}(${normalizeText(storeAbbreviation)||'NA'})-${normalizeText(patientName)||'Unknown Patient'}`;
 }
 
-// ── Date helpers ────────────────────────────────────────────────────────
 function extractCatalogMonthDay(v) {
   const n=normalizeText(v); const iso=n.match(/^\d{4}-(\d{2})-(\d{2})$/); if (iso) return `${iso[1]}-${iso[2]}`;
   const pre=n.slice(0,5); const m=pre.match(/^(\d{2})\/(\d{2})$/); return m?`${m[1]}-${m[2]}`:'';
@@ -76,7 +75,6 @@ function parseDateValue(value, ref=new Date()) {
 }
 const toIsoDate = (v) => { const p=parseDateValue(v); return (p&&!Number.isNaN(p.getTime()))?p.toISOString().slice(0,10):null; };
 
-// ── Name matching helpers ───────────────────────────────────────────────
 function tokenizeName(v) { return normalizeMatchName(v).replace(/[^a-z0-9\s]/g,' ').split(' ').map((p)=>p.trim()).filter((p)=>p.length>=2); }
 function levenshteinDistance(a,b) { const l=String(a||'');const r=String(b||'');if(!l)return r.length;if(!r)return l.length;const m=Array.from({length:l.length+1},()=>Array(r.length+1).fill(0));for(let i=0;i<=l.length;i++)m[i][0]=i;for(let j=0;j<=r.length;j++)m[0][j]=j;for(let i=1;i<=l.length;i++)for(let j=1;j<=r.length;j++){const c=l[i-1]===r[j-1]?0:1;m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+c);}return m[l.length][r.length]; }
 function notesContainPatientName(notesValue, patientName) {
@@ -87,18 +85,15 @@ function notesContainPatientName(notesValue, patientName) {
   return pt.every((t)=>nt.some((n)=>{const d=levenshteinDistance(t,n);return Math.max(t.length,n.length)>=4&&d<=1;}));
 }
 
-// ── Catalog helpers ─────────────────────────────────────────────────────
 const getCatalogItemLocationIds = (item) => Array.from(new Set([...(item?.present_at_location_ids||[]),...(item?.item_data?.variations||[]).flatMap((v)=>v?.present_at_location_ids||[])].filter(Boolean)));
 const getCatalogItemAmountCents = (item) => { const vs=item?.item_data?.variations||[]; const v=vs.find((e)=>e?.item_variation_data?.price_money?.amount!=null)||vs[0]; return toAmountCents(v?.item_variation_data?.price_money?.amount); };
 const isStructuredCodName = (v) => /^\d{2}[\/-]\d{2}\([^)]+\)-.+/.test(String(v||'').trim());
-const getStructuredCodDate = (v) => { if (!isStructuredCodName(v)) return null; return toIsoDate(v); };
 function structuredCodNamesMatch(txName, catalogName) {
   if (!isStructuredCodName(txName) || !isStructuredCodName(catalogName)) return null;
   if (normalizeText(txName) !== normalizeText(catalogName)) return false;
   return true;
 }
 
-// ── Square API: catalog + orders ────────────────────────────────────────
 async function listActiveCatalogItems(accessToken) {
   const objects=[];let cursor;
   do{const json=await squareFetch('/v2/catalog/search','POST',accessToken,{object_types:['ITEM'],include_deleted_objects:false,archived_state:'ARCHIVED_STATE_NOT_ARCHIVED',limit:1000,cursor});objects.push(...(json.objects||[]));cursor=json.cursor;if(cursor)await sleep(200);}while(cursor);
@@ -110,7 +105,6 @@ async function listOrders(locationIds, startAt, accessToken, maxOrders=2000, sta
   return orders.slice(0,maxOrders);
 }
 
-// ── Order/transaction processing ─────────────────────────────────────────
 function isOrderFullyRefunded(order) {
   const netTotal = order?.net_amounts?.total_money?.amount;
   if (netTotal != null && Number(netTotal) <= 0) return true;
@@ -147,7 +141,6 @@ function flattenOrderItems(orders) {
   return items;
 }
 
-// ── Catalog delete helpers (for cleanup) ────────────────────────────────
 async function safeDeleteSquareCatalogObject(catalogObjectId, accessToken) {
   if (!catalogObjectId) return {attempted:false,ok:false};
   let lastFailure=null;
@@ -167,10 +160,22 @@ async function deleteCatalogObjects(objectIds, accessToken) {
   catch{const deleted=[];const failed=[];for(const id of objectIds){const r=await safeDeleteSquareCatalogObject(id,accessToken);if(r?.ok)deleted.push(id);else failed.push({objectId:id,result:r});}if(failed.length)throw new Error(`Failed to delete: ${failed.map((e)=>e.objectId).join(', ')}`);return{deleted,failed:[]};}
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// MAIN HANDLER — all-in-one: catalog + transactions + cleanup
-// ════════════════════════════════════════════════════════════════════════
+// Batch DB writes in parallel chunks to avoid sequential bottleneck
+async function batchWriteEntities(entityApi, operations) {
+  const results = [];
+  for (let i = 0; i < operations.length; i += DB_WRITE_BATCH_SIZE) {
+    const chunk = operations.slice(i, i + DB_WRITE_BATCH_SIZE);
+    const chunkResults = await Promise.all(chunk.map((op) =>
+      op.type === 'create' ? entityApi.create(op.data) : entityApi.update(op.id, op.data)
+    ));
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
 async function handleGetCodData(base44, payload={}) {
+  const t0 = Date.now();
+  console.log('[squareGetCodData2] START');
   const user = await requireUser(base44);
   const accessToken = ensureSquareToken();
   const daysBack = Math.max(1, Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
@@ -178,6 +183,7 @@ async function handleGetCodData(base44, payload={}) {
   const lookbackStartAt = new Date(Date.now() - daysBack * 86400000).toISOString();
 
   // ── 1) Fetch ALL entity context in parallel ──────────────────────────
+  console.log('[squareGetCodData2] Fetching entity context...');
   const [allLocationConfigs, stores, appUsers, patients, existingTransactionsRaw, existingCatalogDb] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date', 500).catch(() => []),
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
@@ -191,18 +197,35 @@ async function handleGetCodData(base44, payload={}) {
   const safeConfigs = safeAllConfigs.filter((c) => c?.status === 'active');
   const safeStores = (Array.isArray(stores) ? stores : []).map(unwrapEntityRecord).filter(Boolean);
   const existingTransactions = (Array.isArray(existingTransactionsRaw) ? existingTransactionsRaw : []).map(unwrapEntityRecord).filter(Boolean);
-  const existingCatalog = (Array.isArray(existingCatalogDb) ? existingCatalogDb : []).map(unwrapEntityRecord).filter(Boolean);
   const activeConfigById = new Map(safeConfigs.map((c) => [c.id, c]));
   const storesByLocationId = buildStoresByLocationId(safeStores, activeConfigById);
   const locationIds = Array.from(new Set(safeAllConfigs.map((c) => c?.square_location_id).filter(Boolean)));
   const drivers = (appUsers || []).filter((u) => Array.isArray(u?.app_roles) && u.app_roles.includes('driver'));
   const patientsById = new Map((patients || []).map((p) => [p.id, p]));
 
+  // Build fast lookup index for existing transactions (avoids O(n) scan per item)
+  const existingTxIndex = new Map();
+  for (const t of existingTransactions) {
+    const key = `${normalizeText(t?.square_transaction_id)}::${normalizeText(t?.raw_square_data?.line_item_uid)}`;
+    existingTxIndex.set(key, t);
+  }
+
+  console.log('[squareGetCodData2] Context loaded:', {
+    stores: safeStores.length, configs: safeAllConfigs.length, locationIds: locationIds.length,
+    existingTx: existingTransactions.length, patients: patientsById.size, drivers: drivers.length,
+    elapsed: Date.now() - t0
+  });
+
   // ── 2) Fetch Square API: catalog + orders in parallel (ONE pass each) ─
+  console.log('[squareGetCodData2] Fetching Square catalog + orders...');
   const [liveCatalogItems, completedOrders] = await Promise.all([
     listActiveCatalogItems(accessToken),
     listOrders(locationIds, lookbackStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN']),
   ]);
+  console.log('[squareGetCodData2] Square API done:', {
+    catalogItems: liveCatalogItems.length, orders: completedOrders.length,
+    elapsed: Date.now() - t0
+  });
 
   // ── 3) Process orders → transaction records ───────────────────────────
   const refundedOrderIds = buildRefundedOrderIdSet(completedOrders);
@@ -212,6 +235,7 @@ async function handleGetCodData(base44, payload={}) {
     const t = new Date(item?.payment_date || item?.order_created_at || 0).getTime();
     return Number.isFinite(t) && t >= getTransactionRetentionStartMs();
   });
+  console.log('[squareGetCodData2] Paid order items:', paidOrderItems.length, 'elapsed:', Date.now() - t0);
 
   // Delivery matching context
   const deliveriesWithAmounts = (await (async () => {
@@ -231,6 +255,16 @@ async function handleGetCodData(base44, payload={}) {
     return all.filter((d) => { if (!storeSquareEligibility.has(d?.store_id)) return false; const ef = storeSquareEligibility.get(d.store_id); return !(ef && d.delivery_date < ef); });
   })());
 
+  console.log('[squareGetCodData2] Deliveries loaded:', deliveriesWithAmounts.length, 'elapsed:', Date.now() - t0);
+
+  // Pre-build delivery index by store_id for faster matching
+  const deliveriesByStoreId = new Map();
+  for (const d of deliveriesWithAmounts) {
+    if (!d?.store_id) continue;
+    if (!deliveriesByStoreId.has(d.store_id)) deliveriesByStoreId.set(d.store_id, []);
+    deliveriesByStoreId.get(d.store_id).push(d);
+  }
+
   const getDriverFromDelivery = (d) => drivers.find((dr) => dr?.user_id === d?.driver_id || dr?.id === d?.driver_id) || null;
   const txIsOnOrAfterDelivery = (payIso, deliveryDate) => { if (!payIso || !deliveryDate) return true; return payIso >= deliveryDate; };
   const sortByDateProximity = (candidates, payIso) => {
@@ -243,13 +277,19 @@ async function handleGetCodData(base44, payload={}) {
       return da - db;
     });
   };
+
+  // Optimized: use store-indexed deliveries instead of scanning all
   const getDeliveryCandidatesForItem = (item, resolvedStore) => {
     const payIso = (item?.payment_date || item?.order_created_at || '').slice(0, 10);
     const combined = `${normalizeText(item?.note || '')} ${normalizeText(item?.item_name || '')}`.trim();
     const locationStores = storesByLocationId.get(item?.location_id) || [];
-    const raw = deliveriesWithAmounts.filter((d) => {
-      const storeMatch = locationStores.some((s) => s?.id === d?.store_id);
-      if (!storeMatch) return false;
+    // Gather candidate deliveries from all stores at this location
+    const candidatePool = [];
+    for (const s of locationStores) {
+      const storeDels = deliveriesByStoreId.get(s?.id) || [];
+      storeDels.forEach((d) => candidatePool.push(d));
+    }
+    const raw = candidatePool.filter((d) => {
       const matchingStore = locationStores.find((s) => s?.id === d?.store_id) || resolvedStore;
       if (matchingStore && !itemNameContainsStore(item?.item_name, matchingStore) && !itemNameContainsStore(item?.note, matchingStore)) {
         const anyStoreMatch = locationStores.some((s) => itemNameContainsStore(item?.item_name, s) || itemNameContainsStore(item?.note, s));
@@ -282,9 +322,13 @@ async function handleGetCodData(base44, payload={}) {
     return pri.find((d) => { const p = patientsById.get(d?.patient_id); return p && notesContainPatientName(note, p.full_name); }) || pri.find((d) => { const p = patientsById.get(d?.patient_id); return p && notesContainPatientName(item?.item_name, p.full_name); }) || pri[0];
   };
 
-  // Build transaction records (inline — no cross-function invoke)
+  // Build all transaction records + prepare batch writes
+  console.log('[squareGetCodData2] Matching deliveries + building transaction records...');
+  const txToCreate = [];
+  const txToUpdate = [];
   const transactionRecords = [];
   const seenKeys = new Set();
+
   for (const item of paidOrderItems) {
     const ukey = `${item?.order_id}::${item?.line_item_uid}`;
     if (seenKeys.has(ukey)) continue;
@@ -297,7 +341,8 @@ async function handleGetCodData(base44, payload={}) {
     const isCustom = !normalizeText(item?.catalog_object_id);
     const fmtName = md ? formatItemName(md.delivery_date, getPreferredStoreAbbreviation(ms), mp?.full_name || md?.patient_name) : '';
     const dn = isCustom && fmtName ? fmtName : (item?.item_name || '');
-    const existing = existingTransactions.find((t) => normalizeText(t?.square_transaction_id) === normalizeText(item?.order_id) && normalizeText(t?.raw_square_data?.line_item_uid) === normalizeText(item?.line_item_uid));
+    const txKey = `${normalizeText(item?.order_id)}::${normalizeText(item?.line_item_uid)}`;
+    const existing = existingTxIndex.get(txKey);
     const pr = {
       square_transaction_id: item?.order_id || null,
       square_payment_id: `${item?.order_id || 'order'}:${item?.line_item_uid || 'line'}`,
@@ -317,13 +362,35 @@ async function handleGetCodData(base44, payload={}) {
       raw_square_data: { ...(existing?.raw_square_data || {}), line_item_uid: item?.line_item_uid || null, payment_date: item?.payment_date || null, order_created_at: item?.order_created_at || null, order_state: item?.order_state || null, notes: item?.note || '', original_item_name: item?.item_name || '', is_custom_amount: isCustom, matched_by: md ? 'delivery_match' : 'unmatched' }
     };
     if (existing) {
-      await base44.asServiceRole.entities.SquareTransaction.update(existing.id, pr);
-      transactionRecords.push({ id: existing.id, ...pr });
+      // Skip update if nothing changed (quick field comparison)
+      const changed = existing.item_name !== pr.item_name || existing.status !== pr.status || existing.delivery_id !== pr.delivery_id || existing.driver_id !== pr.driver_id || existing.patient_id !== pr.patient_id || existing.store_id !== pr.store_id;
+      if (changed) {
+        txToUpdate.push({ type: 'update', id: existing.id, data: pr });
+        transactionRecords.push({ id: existing.id, ...pr });
+      } else {
+        transactionRecords.push(existing);
+      }
     } else {
-      const c = await base44.asServiceRole.entities.SquareTransaction.create(pr);
-      transactionRecords.push(c);
+      txToCreate.push({ type: 'create', data: pr });
     }
   }
+
+  console.log('[squareGetCodData2] Transaction prep done:', {
+    total: transactionRecords.length, toCreate: txToCreate.length, toUpdate: txToUpdate.length,
+    skipped: paidOrderItems.length - txToCreate.length - txToUpdate.length,
+    elapsed: Date.now() - t0
+  });
+
+  // Batch DB writes in parallel chunks
+  if (txToCreate.length > 0) {
+    const created = await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, txToCreate);
+    transactionRecords.push(...created);
+  }
+  if (txToUpdate.length > 0) {
+    await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, txToUpdate);
+  }
+
+  console.log('[squareGetCodData2] Transaction DB writes done, elapsed:', Date.now() - t0);
 
   // ── 4) Build catalog records from live Square catalog ───────────────
   const catalogRecords = (liveCatalogItems || []).reduce((acc, item) => {
@@ -362,7 +429,7 @@ async function handleGetCodData(base44, payload={}) {
     const objectIds = toDelete.map((i) => i.id).filter(Boolean);
     const deleteResult = await deleteCatalogObjects(objectIds, accessToken);
     deletedCatalogIds = deleteResult.deleted || [];
-    // Clean up DB records for deleted objects
+    // Clean up DB records for deleted objects — batch in parallel
     const dbCleanupPromises = objectIds.map(async (objId) => {
       const dbMatches = await base44.asServiceRole.entities.SquareCatalogItems.filter({ square_catalog_object_id: objId }).catch(() => []);
       for (const r of dbMatches) { await base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null); cleanupDbCount++; }
@@ -372,9 +439,12 @@ async function handleGetCodData(base44, payload={}) {
     await Promise.all(dbCleanupPromises);
   }
 
+  console.log('[squareGetCodData2] Cleanup done:', { deleted: deletedCatalogIds.length, dbCleaned: cleanupDbCount, elapsed: Date.now() - t0 });
+
   // ── 6) Return everything in one response ────────────────────────────
-  // Deliveries (stripped of heavy fields for frontend)
   const strippedDeliveries = deliveriesWithAmounts.map((d) => ({ id: d?.id, delivery_id: d?.delivery_id, delivery_date: d?.delivery_date, status: d?.status, cod_total_amount_required: d?.cod_total_amount_required, cod_payments: d?.cod_payments, store_id: d?.store_id, patient_id: d?.patient_id, driver_id: d?.driver_id, driver_name: d?.driver_name }));
+
+  console.log('[squareGetCodData2] COMPLETE, elapsed:', Date.now() - t0, 'ms');
 
   return {
     success: true,
@@ -397,6 +467,7 @@ Deno.serve(async (req) => {
     return Response.json(await handleGetCodData(base44, payload));
   } catch(error) {
     const status = error?.status || 500;
+    console.error('[squareGetCodData2] ERROR:', error?.message || error);
     return Response.json({ error: error?.message || 'Internal Server Error' }, { status });
   }
 });
