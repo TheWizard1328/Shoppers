@@ -1853,7 +1853,7 @@ export default function SquareManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              {currentUser &&
+              {currentUser && !isDriverView &&
               <div className="flex-1 min-w-0">
                 <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
                   <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
