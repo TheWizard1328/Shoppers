@@ -554,6 +554,54 @@ export default function SquareManagement() {
     return () => { mounted = false; };
   }, []);
 
+  // ── Role-neutral SquareTransaction loader ─────────────────────────────
+  // The Square COD sync (`squareGetCodData2`) returns matched transactions,
+  // but only the ones corresponding to live Square orders inside the lookback
+  // window — every other SquareTransaction record the company ever persisted
+  // (manually recorded, collected-cleanup marked, imported, etc.) is left
+  // out. The local IDB gets cleared-and-rewritten from that filtered slice,
+  // so drivers whose collected deliveries were collected outside that
+  // window never see the transaction that already matched them — those
+  // deliveries look unmatched and show up as bogus "New Catalog Items".
+  // Load EVERY SquareTransaction record directly (entity has empty RLS, so
+  // every authenticated user reads the same set) and merge it into the
+  // local state so transaction-driven reconciliation filters work
+  // identically for admins and drivers.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const pageSize = 1000;
+        let skip = 0;
+        const all = [];
+        while (true) {
+          const page = await base44.entities.SquareTransaction.list('-updated_date', pageSize, skip);
+          if (!page?.length) break;
+          all.push(...page.filter(Boolean));
+          if (page.length < pageSize) break;
+          skip += pageSize;
+        }
+        if (mounted && all.length > 0) {
+          setAllTransactions((prev) => {
+            const map = new Map();
+            (prev || []).forEach((t) => { if (t?.id) map.set(t.id, t); });
+            all.forEach((t) => { if (t?.id) map.set(t.id, t); });
+            return Array.from(map.values());
+          });
+          setSoldCatalogItems((prev) => {
+            const map = new Map();
+            (prev || []).forEach((t) => { if (t?.id) map.set(t.id, t); });
+            all.filter((t) => ['completed', 'refunded'].includes(t?.status)).forEach((t) => { if (t?.id) map.set(t.id, t); });
+            return Array.from(map.values());
+          });
+        }
+      } catch (err) {
+        console.warn('[SquareManagement] Failed to load full SquareTransaction list:', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   // Always sync lookup data whenever appData changes (no early-return guard on stores length)
   useEffect(() => {
     if (!appCurrentUser) return;
