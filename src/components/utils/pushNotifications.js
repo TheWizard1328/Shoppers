@@ -42,33 +42,55 @@ async function persistSubscription(userId, subscription) {
   const endpoint = raw.endpoint;
   const p256dh = raw.keys?.p256dh;
   const auth = raw.keys?.auth;
-  if (!endpoint || !p256dh || !auth) return;
+  if (!endpoint || !p256dh || !auth) {
+    console.error('[pushNotifications] Missing subscription fields:', { endpoint: !!endpoint, p256dh: !!p256dh, auth: !!auth });
+    return null;
+  }
 
-  const existing = await base44.entities.PushSubscription.filter({ user_id: userId, endpoint }).catch(() => []);
-  if (existing && existing.length > 0) return existing[0];
+  try {
+    const existing = await base44.entities.PushSubscription.filter({ user_id: userId, endpoint });
+    if (existing && existing.length > 0) return existing[0];
 
-  return base44.entities.PushSubscription.create({
-    user_id: userId, endpoint, p256dh_key: p256dh, auth_key: auth, user_agent: navigator.userAgent
-  });
+    const created = await base44.entities.PushSubscription.create({
+      user_id: userId, endpoint, p256dh_key: p256dh, auth_key: auth, user_agent: navigator.userAgent
+    });
+    return created;
+  } catch (e) {
+    console.error('[pushNotifications] Persist failed:', e?.message || e);
+    return null;
+  }
 }
 
 export async function initPushNotifications(userId) {
-  if (!userId || !isPushSupported()) return;
+  if (!userId || !isPushSupported()) return { ok: false, reason: 'unsupported' };
   if (_initInFlight) return _initInFlight;
 
   _initInFlight = (async () => {
     try {
-      if (Notification.permission === 'denied') return;
+      if (Notification.permission === 'denied') {
+        console.warn('[pushNotifications] Permission denied');
+        return { ok: false, reason: 'denied' };
+      }
 
       if (Notification.permission === 'default') {
         const permission = await Notification.requestPermission();
-        if (permission !== 'granted') return;
+        if (permission !== 'granted') {
+          console.warn('[pushNotifications] Permission not granted:', permission);
+          return { ok: false, reason: 'permission_not_granted' };
+        }
       }
 
-      if (Notification.permission !== 'granted') return;
+      if (Notification.permission !== 'granted') {
+        return { ok: false, reason: 'not_granted' };
+      }
 
       const registration = await getPushRegistration();
       console.log('[pushNotifications] Using SW:', registration.active?.scriptURL);
+
+      if (!registration?.pushManager) {
+        console.error('[pushNotifications] No pushManager on registration');
+        return { ok: false, reason: 'no_push_manager' };
+      }
 
       let subscription = await registration.pushManager.getSubscription();
 
@@ -77,7 +99,7 @@ export async function initPushNotifications(userId) {
         const publicKey = result?.publicKey || result?.data?.publicKey;
         if (!publicKey) {
           console.warn('[pushNotifications] No VAPID public key returned:', result);
-          return;
+          return { ok: false, reason: 'no_vapid_key' };
         }
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
@@ -88,10 +110,16 @@ export async function initPushNotifications(userId) {
         console.log('[pushNotifications] Existing subscription found, persisting...');
       }
 
-      await persistSubscription(userId, subscription);
+      const persisted = await persistSubscription(userId, subscription);
+      if (!persisted) {
+        console.error('[pushNotifications] persistSubscription returned null');
+        return { ok: false, reason: 'persist_failed' };
+      }
       console.log('[pushNotifications] Subscription persisted for user', userId);
+      return { ok: true, subscription: true };
     } catch (error) {
       console.warn('[pushNotifications] Init failed:', error?.message || error);
+      return { ok: false, reason: 'error', error: error?.message || String(error) };
     } finally {
       _initInFlight = null;
     }

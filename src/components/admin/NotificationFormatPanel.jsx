@@ -10,6 +10,7 @@ import { Save, MessageSquare, RotateCcw, Loader2, FlaskConical, CheckCircle, Tra
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { notificationRules, applyTemplateUpdate } from '@/components/utils/notificationRules';
+import { initPushNotifications, resetPushSubscription } from '@/components/utils/pushNotifications';
 
 const formatEventLabel = (eventName) =>
 eventName ? eventName.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '';
@@ -43,6 +44,7 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
   const [isSaving, setIsSaving] = useState(null);
   const [isTesting, setIsTesting] = useState(null);
   const [testSuccess, setTestSuccess] = useState(null);
+  const [testPushStatus, setTestPushStatus] = useState(null); // null | 'sent' | 'no_sub' | 'denied' | 'error'
   const [editingEvent, setEditingEvent] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
   const textareaRef = useRef(null);
@@ -130,24 +132,62 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
     if (!preview) {alert('No message to test.');return;}
     setIsTesting(eventName);
     setTestSuccess(null);
+    setTestPushStatus(null);
     try {
       const eventLabel = records[eventName]?.label || formatEventLabel(eventName);
+
+      // 1. Send in-app message
       await base44.entities.Message.create({
         sender_id: currentUser.id, sender_name: 'System Test',
         receiver_id: currentUser.id, receiver_name: currentUser.full_name || 'You',
         conversation_id: [currentUser.id, 'system_test'].join('_'),
         content: `[TEST — ${eventLabel}]\n${preview}`, read: false
       });
-      await base44.functions.invoke('sendPushNotification', {
+
+      // 2. Ensure this device is subscribed to push BEFORE sending
+      if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
+        try {
+          await initPushNotifications(currentUser.id);
+        } catch (e) {
+          console.warn('[TestMsg] Push re-subscribe failed:', e?.message || e);
+        }
+      }
+
+      // 3. Send push notification
+      const pushRes = await base44.functions.invoke('sendPushNotification', {
         user_id: currentUser.id, title: `[TEST] ${eventLabel}`, body: preview, url: '/'
-      });
+      }).catch(e => ({ error: e?.message || String(e) }));
+
+      if (pushRes?.error) {
+        setTestPushStatus('error');
+      } else if (pushRes?.sent > 0) {
+        setTestPushStatus('sent');
+      } else if (pushRes?.message?.includes('disabled by user')) {
+        setTestPushStatus('denied');
+      } else {
+        setTestPushStatus('no_sub');
+      }
+
       setTestSuccess(eventName);
-      setTimeout(() => setTestSuccess(null), 3000);
+      setTimeout(() => { setTestSuccess(null); setTestPushStatus(null); }, 5000);
     } catch (e) {alert('Test failed: ' + (e?.message || e));} finally
     {setIsTesting(null);}
   };
 
-  const closeDialog = () => {setEditingEvent(null);setEditDraft(null);setTestSuccess(null);};
+  const handleResubscribe = async () => {
+    if (!currentUser?.id) return;
+    setIsTesting('resubscribe');
+    try {
+      await resetPushSubscription(currentUser.id);
+      alert('Push subscription reset. Check browser for notification permission prompt.');
+    } catch (e) {
+      alert('Re-subscribe failed: ' + (e?.message || e));
+    } finally {
+      setIsTesting(null);
+    }
+  };
+
+  const closeDialog = () => {setEditingEvent(null);setEditDraft(null);setTestSuccess(null);setTestPushStatus(null);};
 
   return (
     <div className="space-y-3">
@@ -209,7 +249,8 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
                   <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${enabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
                     {enabled ? 'Enabled' : 'Disabled'}
                   </span>
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex flex-col items-end gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
                     <Button size="sm" variant="outline" disabled={isTestingThis}
                       onClick={(e) => { e.stopPropagation(); sendTestMessage(eventName); }}
                       className={`text-sm px-4 h-8 ${testOk ? 'border-green-500 text-green-600' : 'text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600'}`}>
@@ -231,6 +272,21 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
                       className="text-sm px-4 h-8 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:text-red-600 hover:border-red-300">
                       Delete
                     </Button>
+                    </div>
+                    {testOk && testPushStatus === 'sent' && (
+                      <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">✅ Push delivered</span>
+                    )}
+                    {testOk && testPushStatus === 'no_sub' && (
+                      <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">
+                        ⚠️ No push subscription — <button className="underline" onClick={(e) => { e.stopPropagation(); handleResubscribe(); }}>Re-subscribe</button>
+                      </span>
+                    )}
+                    {testOk && testPushStatus === 'denied' && (
+                      <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">🚫 Push disabled in Settings</span>
+                    )}
+                    {testOk && testPushStatus === 'error' && (
+                      <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">❌ Push failed — check console</span>
+                    )}
                   </div>
                 </div>
               </div>

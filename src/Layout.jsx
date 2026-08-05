@@ -733,7 +733,9 @@ export default function Layout({ children, currentPageName }) {
     if (!currentUser?.id || typeof Notification === 'undefined') return;
 
     if (Notification.permission === 'granted') {
-      initPushNotifications(currentUser.id).catch(() => {});
+      initPushNotifications(currentUser.id).then(r => {
+        if (r && !r.ok) console.warn('[Layout] Push init result:', r.reason);
+      }).catch(() => {});
       return;
     }
 
@@ -742,7 +744,9 @@ export default function Layout({ children, currentPageName }) {
     const handleFirstGesture = () => {
       document.removeEventListener('pointerdown', handleFirstGesture, true);
       document.removeEventListener('keydown', handleFirstGesture, true);
-      initPushNotifications(currentUser.id).catch(() => {});
+      initPushNotifications(currentUser.id).then(r => {
+        if (r && !r.ok) console.warn('[Layout] Push init result:', r.reason);
+      }).catch(() => {});
     };
     document.addEventListener('pointerdown', handleFirstGesture, true);
     document.addEventListener('keydown', handleFirstGesture, true);
