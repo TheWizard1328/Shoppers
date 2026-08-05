@@ -373,116 +373,70 @@ export default function SquareManagement() {
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // 1) Load from offline DB first
-      await refreshUiFromOfflineOnly();
-
-      const { startDateStr, endDateStr } = getSourceWindow();
-      const offlineDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
-      if (offlineDeliveries.length > 0) {
-        setDeliveries([...(offlineDeliveries || [])]);
-      }
-
-      // 2) Refresh UI immediately without clearing totals
+      // ── STEP 1: Load from offline DB immediately (no UI changes yet) ──
+      // The mount effect already loaded offline data; just ensure isLoading is off
       setIsLoading(false);
 
-      // 5) PURGE online DBs then rebuild from Square API, then sync offline to match exactly
-      let catalogError = null;
-      let transactionError = null;
+      // ── STEP 2: Single API call — catalog + transactions + cleanup in one pass ──
+      // squareGetCodData2 now fetches catalog + orders once, builds transaction records,
+      // matches deliveries, and deletes collected catalog items — all inline.
+      // No intermediate UI state changes happen during this phase.
+      let syncError = null;
+      let codData = null;
       try {
-        // Step A: Purge + rebuild online SquareCatalogItems from live Square catalog API
-        const purgeResult = await base44.functions.invoke('squarePurgeCatalog', {});
-        const purgeData = purgeResult?.data || purgeResult || {};
-
-        // Step B: Pull fresh transactions + deliveries from Square API (rebuilds online SquareTransaction records)
         const codResponse = await base44.functions.invoke('squareGetCodData2', {
           forceDeliveryRefresh: true,
           daysBack: 90,
         });
-        const codData = codResponse?.data || codResponse || {};
+        codData = codResponse?.data || codResponse || {};
+      } catch (err) {
+        syncError = err;
+      }
+
+      if (!syncError && codData) {
         const transactionRecords = codData.transactionRecords || [];
+        const catalogRecords = codData.catalogRecords || [];
         const strippedDeliveries = Array.isArray(codData.deliveries) ?
-        codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest) :
-        [];
+          codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest) :
+          [];
+        const deletedCount = (codData.deletedCatalogIds || []).length;
 
-        // Step C: Use catalog records returned by purgeAndRebuildCatalog (already matches live Square)
-        const catalogRecords = purgeData.catalogRecords || [];
-
-        // Step D: Sync online→offline: replace offline stores with exactly what Square returned
+        // Sync online → offline (IDB writes only, no UI state)
         await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
         await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
 
-        // Step E: Merge deliveries (non-destructive — delivery data is not purged)
-        const mergeDeliveries = async (freshRecords) => {
-          const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
-          const existingMap = new Map(existing.map((r) => [r.id, r]));
-          (freshRecords || []).forEach((r) => { if (r?.id) existingMap.set(r.id, r); });
-          await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
-          return Array.from(existingMap.values());
-        };
-        const mergedDeliveries = await mergeDeliveries(strippedDeliveries);
+        // Merge deliveries non-destructively
+        const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
+        const existingMap = new Map(existing.map((r) => [r.id, r]));
+        (strippedDeliveries || []).forEach((r) => { if (r?.id) existingMap.set(r.id, r); });
+        await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
 
+        // ── STEP 3: One UI update from offline DB ──────────────────────
         const [uiCatalog, uiTransactions] = await Promise.all([
-        squareCODOfflineManager.getCatalogItemsOffline(),
-        squareCODOfflineManager.getPaymentTransactionsOffline()]
-        );
+          squareCODOfflineManager.getCatalogItemsOffline(),
+          squareCODOfflineManager.getPaymentTransactionsOffline()
+        ]);
+        const { startDateStr, endDateStr } = getSourceWindow();
+        const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
 
-        setDeliveries([...(mergedDeliveries || [])]);
+        setDeliveries([...(windowedDeliveries.length > 0 ? windowedDeliveries : Array.from(existingMap.values()))]);
         setCatalogItems([...(uiCatalog || [])]);
         setAllTransactions([...(uiTransactions || [])]);
-        setSoldCatalogItems([...(uiTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
+        setSoldCatalogItems([...(uiTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
 
-      } catch (err) {
-        transactionError = err;
-      }
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
-      if (transactionError || catalogError) {
-        await loadSquareViewFromOffline();
-        await loadSyncStatus();
-      }
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-
-      // Cleanup: delete catalog items that have already been collected via Square POS.
-      // This runs inline (not as a background fire-and-forget) so the UI reflects the true state.
-      try {
-        const cleanupResult = await base44.functions.invoke('squareCleanupCatalog', {});
-        const cleanupData = cleanupResult?.data || cleanupResult || {};
-        if (cleanupData?.deletedCount > 0) {
-          // Re-fetch after cleanup so the UI reflects removed items
-          const freshResponse = await base44.functions.invoke('squareGetCodData2', { daysBack: 90 });
-          const freshData = freshResponse?.data || freshResponse || {};
-          await squareCODOfflineManager.saveCatalogItemsOffline(freshData.catalogRecords || []);
-          await squareCODOfflineManager.savePaymentTransactionsOffline(freshData.transactionRecords || []);
-          const [freshCatalog, freshTransactions] = await Promise.all([
-          squareCODOfflineManager.getCatalogItemsOffline(),
-          squareCODOfflineManager.getPaymentTransactionsOffline()]
-          );
-          setCatalogItems([...(freshCatalog || [])]);
-          setAllTransactions([...(freshTransactions || [])]);
-          setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
-          toast.success(`Sync complete — removed ${cleanupData.deletedCount} collected catalog item(s)`);
+        if (deletedCount > 0) {
+          toast.success(`Sync complete — ${transactionRecords.length} transactions, removed ${deletedCount} collected item(s)`);
         } else {
-          toast.success('Square data synced locally');
+          toast.success(`Sync complete — ${transactionRecords.length} transactions synced`);
         }
-      } catch (_) {
-        toast.success('Square data synced locally');
-      }
-
-      let onlineSyncError = null;
-
-      if (catalogError || transactionError) {
-        const message = catalogError?.message || transactionError?.message || 'Square sync partially failed';
-        console.error('[SquareManagement] Sync finished with issues', {
-          catalogError: catalogError?.message || null,
-          transactionError: transactionError?.message || null,
-          onlineSyncError: onlineSyncError?.message || null
-        });
-        setError(message);
-        toast.error('Sync finished with issues: ' + message);
-      } else if (onlineSyncError) {
-        console.error('[SquareManagement] Background online sync issue', {
-          onlineSyncError: onlineSyncError?.message || null
-        });
+      } else if (syncError) {
+        console.error('[SquareManagement] Sync failed', { error: syncError?.message });
+        setError(syncError.message);
+        await loadSquareViewFromOffline();
+        toast.error('Sync failed: ' + syncError.message);
       }
     } catch (err) {
       setError(err.message);
