@@ -1067,22 +1067,19 @@ export default function SquareManagement() {
 
   const filteredCatalogItems = useMemo(() => {
     if (!currentUser) return [];
-    const userIsAppOwner = isAppOwner(currentUser);
     let items = [];
-    if (userIsAppOwner) {
-      if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-        const driver = drivers.find((d) => d.id === selectedDriverFilter);
-        const driverLocationIds = driver?.square_location_ids || [];
-        const squareLocationIds = locationConfigs.filter((c) => driverLocationIds.includes(c.id)).map((c) => c.square_location_id);
-        items = catalogItems.filter((item) => squareLocationIds.includes(item.location_id));
+    if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+      // Filter by the driver assigned to the linked delivery (not by Square location)
+      if (selectedDriverUserIds.size === 0) {
+        items = [];
       } else {
-        items = catalogItems;
+        items = catalogItems.filter((item) => {
+          const linkedDelivery = item.delivery_id ? deliveries.find((d) => d?.id === item.delivery_id) : null;
+          return linkedDelivery?.driver_id && selectedDriverUserIds.has(linkedDelivery.driver_id);
+        });
       }
     } else {
-      const driverRecord = drivers.find((d) => d.user_id === currentUser.id);
-      const driverLocationIds = driverRecord?.square_location_ids || [];
-      const squareLocationIds = locationConfigs.filter((c) => driverLocationIds.includes(c.id)).map((c) => c.square_location_id);
-      items = catalogItems.filter((item) => squareLocationIds.includes(item.location_id));
+      items = catalogItems;
     }
 
     const { settledTxCatalogIds, settledTxDeliveryIds, deliveryById } = lookupIndexes;
@@ -1113,7 +1110,7 @@ export default function SquareManagement() {
       const bStoreName = bStore?.name || bConfig?.name || '';
       return aStoreName.localeCompare(bStoreName);
     });
-  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, lookupIndexes]);
+  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, lookupIndexes, selectedDriverUserIds]);
 
   const selectedDriverUserIds = useMemo(() => {
     if (selectedDriverFilter && selectedDriverFilter !== 'all') {
@@ -1189,18 +1186,6 @@ export default function SquareManagement() {
     map((lc) => lc?.square_location_id).
     filter(Boolean)
   ), [locationConfigs, visibleSquareLocationConfigIds]);
-
-  const driverScopedLocationIds = useMemo(() => {
-    if (currentUser && isAppOwner(currentUser)) {
-      if (!selectedDriverFilter || selectedDriverFilter === 'all') return null;
-      const selectedDriver = drivers.find((driver) => driver?.id === selectedDriverFilter);
-      const configIds = new Set((selectedDriver?.square_location_ids || []).filter(Boolean));
-      return new Set(locationConfigs.filter((config) => configIds.has(config?.id)).map((config) => config?.square_location_id).filter(Boolean));
-    }
-    const configIds = new Set((currentAppUser?.square_location_ids || []).filter(Boolean));
-    if (configIds.size === 0) return null;
-    return new Set(locationConfigs.filter((config) => configIds.has(config?.id)).map((config) => config?.square_location_id).filter(Boolean));
-  }, [currentUser, currentAppUser, drivers, selectedDriverFilter, locationConfigs]);
 
   // Resolve the driver color (same palette as dashboard) for a given driver_id or driver user_id
   const getDriverColorForId = useCallback((driverId) => {
@@ -1431,7 +1416,6 @@ export default function SquareManagement() {
   const filteredCatalogRows = useMemo(() => {
     const rows = (catalogItems || []).
     filter((item) => {
-      if (driverScopedLocationIds && item.location_id && !driverScopedLocationIds.has(item.location_id)) return false;
       if (visibleLocationIds.size > 0 && item.location_id && !visibleLocationIds.has(item.location_id)) return false;
       const store = stores.find((candidateStore) => candidateStore?.id === item.store_id) ||
       getStoreForConfig(locationConfigs.find((c) => c?.square_location_id === item.location_id)) ||
@@ -1443,6 +1427,12 @@ export default function SquareManagement() {
       if (linkedDelivery?.status === 'pending') return false;
       // Exclude if the linked delivery was paid by Debit/Credit (manual override — no Square transaction needed)
       if (linkedDelivery && isManualCardOverride(linkedDelivery)) return false;
+      // Filter by the driver assigned to the linked delivery (not by Square location)
+      if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+        if (selectedDriverUserIds.size === 0) return false;
+        const deliveryDriverId = linkedDelivery?.driver_id || null;
+        if (!deliveryDriverId || !selectedDriverUserIds.has(deliveryDriverId)) return false;
+      }
       const itemDate = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
       if (itemDate && itemDate > todayDateString) return false;
       return true;
@@ -1524,7 +1514,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, lookupIndexes, getDriverColorForId]);
+  }, [catalogItems, locationConfigs, stores, visibleLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, lookupIndexes, getDriverColorForId, selectedDriverFilter, selectedDriverUserIds]);
 
   // Build a fast set of delivery IDs that are already matched in the Transactions tab
   const transactionMatchedDeliveryIds = useMemo(() => {
