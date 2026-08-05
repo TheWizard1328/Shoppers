@@ -265,7 +265,7 @@ export default function PatientForm({
         ring_bell: patient.ring_bell || false,
         dont_ring_bell: patient.dont_ring_bell || false,
         back_door: patient.back_door || false,
-        last_delivery_date: patient.last_delivery_date || ""
+        last_delivery_date: ""  // Always clear for duplicate/new-address so first-time delivery checkbox works
       });
 
       setIsRecurring(hasRecurring);

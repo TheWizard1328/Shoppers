@@ -140,6 +140,7 @@ export const buildDuplicatePatientDraft = ({
     full_name: '',
     phone: '',
     phone_secondary: '',
+    last_delivery_date: '',  // Clear so first-time delivery checkbox works
     _duplicateSource: true,
     _isNew: true
   };
@@ -258,6 +259,7 @@ export const buildNewAddressPatientDraft = ({
       unit_number: '',
       latitude: null,
       longitude: null,
+      last_delivery_date: '',  // Clear so first-time delivery checkbox works
       distance_from_store: null,
       _newAddressSource: true,
       _isNew: true,
