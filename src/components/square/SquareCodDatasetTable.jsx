@@ -1,7 +1,27 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { DollarSign, ChevronDown, Search, X } from "lucide-react";
 import { hexToRgba } from "@/components/utils/colorGenerator";
+
+// Collect searchable text from all row fields (values only, skip React elements/functions)
+const getRowSearchText = (row) => {
+  if (!row) return "";
+  const parts = [];
+  for (const value of Object.values(row)) {
+    if (value == null) continue;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      parts.push(String(value));
+    } else if (Array.isArray(value)) {
+      value.forEach((v) => {
+        if (v != null && (typeof v === "string" || typeof v === "number")) parts.push(String(v));
+      });
+    } else if (typeof value === "object" && !React.isValidElement(value)) {
+      try { parts.push(JSON.stringify(value)); } catch (_) {/* ignore circular */}
+    }
+  }
+  return parts.join(" ").toLowerCase();
+};
 
 const formatAmount = (value) => {
   const amount = Number(value || 0);
@@ -192,14 +212,26 @@ export default function SquareCodDatasetTable({
   headerActions,
   newCatalogRows
 }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const term = searchTerm.trim().toLowerCase();
+
+  const matchesSearch = (row) => {
+    if (!term) return true;
+    return getRowSearchText(row).includes(term);
+  };
+
+  // Apply search filter across all row fields before dedup/grouping.
+  const filteredRows = useMemo(() => (rows || []).filter(matchesSearch), [rows, term]);
+  const filteredNewCatalogRows = useMemo(() => (newCatalogRows || []).filter(matchesSearch), [newCatalogRows, term]);
+
   // Deduplicate newCatalogRows against the main rows (Not Collected + Collected) so the
   // same delivery never appears in both "New Catalog Items" and "Not Collected".
   // Match by: delivery ID (most reliable), then by itemName+amount as a fallback.
-  const mainRowDeliveryIds = new Set((rows || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
+  const mainRowDeliveryIds = new Set((filteredRows || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
   const mainRowSignatures = new Set(
-    (rows || []).map((r) => `${String(r.itemName || '').toLowerCase().trim()}::${Number(r.amount || 0).toFixed(2)}`)
+    (filteredRows || []).map((r) => `${String(r.itemName || '').toLowerCase().trim()}::${Number(r.amount || 0).toFixed(2)}`)
   );
-  const dedupedNewCatalogRows = (newCatalogRows || []).filter((r) => {
+  const dedupedNewCatalogRows = (filteredNewCatalogRows || []).filter((r) => {
     const deliveryId = r.rawDelivery?.id || r.id;
     if (deliveryId && mainRowDeliveryIds.has(deliveryId)) return false;
     const sig = `${String(r.itemName || '').toLowerCase().trim()}::${Number(r.amount || 0).toFixed(2)}`;
@@ -207,8 +239,8 @@ export default function SquareCodDatasetTable({
     return true;
   });
 
-  const notCollected = groupByCollected ? rows.filter((r) => !isRowCollected(r)) : rows;
-  const collected = groupByCollected ? rows.filter((r) => isRowCollected(r)) : [];
+  const notCollected = groupByCollected ? filteredRows.filter((r) => !isRowCollected(r)) : filteredRows;
+  const collected = groupByCollected ? filteredRows.filter((r) => isRowCollected(r)) : [];
   const hasNewCatalogRows = dedupedNewCatalogRows.length > 0;
   const colSpan = showLocationColumn ? 7 : 6;
 
@@ -218,6 +250,26 @@ export default function SquareCodDatasetTable({
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
           {headerActions && <div className="flex items-center gap-2 ml-auto">{headerActions}</div>}
+        </div>
+        <div className="relative mt-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+          <Input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search all fields..."
+            className="pl-9 pr-9 h-9 text-sm"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              aria-label="Clear search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-0 overflow-hidden flex flex-col md:flex-1 md:min-h-0">
@@ -231,7 +283,12 @@ export default function SquareCodDatasetTable({
             <p className="text-sm md:text-base">{emptyTitle}</p>
             {emptyDescription && <p className="text-xs md:text-sm mt-1">{emptyDescription}</p>}
           </div> :
-
+        filteredRows.length === 0 && filteredNewCatalogRows.length === 0 ?
+        <div className="text-center py-12 px-6 text-slate-500 dark:text-slate-400">
+            <Search className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
+            <p className="text-sm md:text-base">No matches for "{searchTerm}"</p>
+            <button type="button" onClick={() => setSearchTerm("")} className="text-xs md:text-sm mt-1 text-emerald-600 dark:text-emerald-400 hover:underline">Clear search</button>
+          </div> :
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             {/* Desktop */}
             <div className="hidden md:flex flex-col flex-1 min-h-0 overflow-hidden">
