@@ -547,11 +547,19 @@ function Dashboard() {
     // graying out the FAB even though the phase is still supposed to be locked.
     // The stamp must happen right before the actual trigger fires, same as every
     // other call site in this file (goPhase, REACTIVATE_FAB, etc.).
+    // When ENTERING immersive mode, containers slide OUT (padding shrinks) — 350ms is
+    // fine because even a partial transition gives us a smaller height, which is the
+    // direction we want. When EXITING immersive mode, containers slide back IN
+    // (padding grows) — we must wait for the full 500ms CSS transition to complete
+    // plus a small buffer, otherwise getMapPadding reads stale/incomplete heights
+    // and the map snaps to bounds that don't account for the reappeared containers.
+    const isExitingImmersive = !immersiveHidden; // immersiveHidden just became false
+    const delay = isExitingImmersive ? 600 : 350;
     const t = setTimeout(() => {
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger((p) => p + 1);
-    }, 350);
+    }, delay);
     return () => clearTimeout(t);
   }, [immersiveHidden]); // eslint-disable-line react-hooks/exhaustive-deps
 
