@@ -177,8 +177,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (!currentUser?.id || currentUser.id !== delivery?.driver_id) return;
     if (delivery?.delivery_date !== localDeviceTodayStr) return;
     try {
-      const { data } = await setDriverStatus({ newStatus: 'on_duty' });
-      try {await locationTracker.startTracking({ ...currentUser, appUserId: data?.appUserId });} catch (trackingError) {console.warn('Could not start location tracking:', trackingError.message);}
+      const { data, appUserId } = await setDriverStatus({ newStatus: 'on_duty' });
+      try {await locationTracker.startTracking({ ...currentUser, appUserId });} catch (trackingError) {console.warn('Could not start location tracking:', trackingError.message);}
       if (onDriverStatusChange) onDriverStatusChange('on_duty');
     } catch (error) {
       console.error('Failed to auto-toggle driver online:', error);

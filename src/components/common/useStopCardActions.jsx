@@ -205,8 +205,7 @@ export default function useStopCardActions(params) {
     if (currentDriverStatus === 'on_duty') return; // already on duty — nothing to do
 
     try {
-      const { data } = await setDriverStatus({ newStatus: 'on_duty' });
-      const appUserId = data?.appUserId;
+      const { data, appUserId } = await setDriverStatus({ newStatus: 'on_duty' });
       const deliveryDate = delivery?.delivery_date;
 
       // CRITICAL: Update the local IDB AppUser record so a page refresh doesn't
