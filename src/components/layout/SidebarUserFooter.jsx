@@ -27,7 +27,7 @@ function getDriverDistToStore(driver, stores, dispatcherStoreIds) {
   });
   return minDist === Infinity ? null : minDist < 1000 ? `${Math.round(minDist)}m` : `${(minDist / 1000).toFixed(1)}km`;
 }
-import { formatRoles } from '@/components/utils/userRoles';
+import { formatRoles, isAppOwner } from '@/components/utils/userRoles';
 import { getDriverDisplayName } from '@/components/utils/driverUtils';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
@@ -35,6 +35,7 @@ import { globalFilters } from '@/components/utils/globalFilters';
 import { User } from '@/api/entities';
 import { canShowExportRoute, getUserAvatarGradient } from '@/components/layout/sidebarUserUtils';
 import { base44 } from '@/api/base44Client';
+import { getEnvironmentLabel } from '@/components/utils/envUtils';
 
 // ── Fridge temp settings cache (loaded once from AppSettings) ─────────────
 let _fridgeCfgCache = null;
@@ -570,8 +571,13 @@ export default function SidebarUserFooter({
               <span className="text-white font-bold text-sm">{(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
+              <p className="font-semibold text-sm truncate flex items-center gap-1" style={{ color: 'var(--text-slate-900)' }}>
                 {getDriverDisplayName(currentUser)}
+                {isAppOwner(currentUser) && (
+                  <span className="text-[10px] font-semibold px-1 py-0 rounded-full bg-slate-200 text-slate-600 flex-shrink-0" title="Current build environment">
+                    {getEnvironmentLabel()}
+                  </span>
+                )}
               </p>
               <p className="text-xs truncate capitalize" style={{ color: 'var(--text-slate-500)' }}>
                 {formatRoles(currentUser)}
