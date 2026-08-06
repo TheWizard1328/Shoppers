@@ -1768,40 +1768,25 @@ export default function SquareManagement() {
   // then by amount + location + patient-name fallback.
   const findLinkedCatalogItem = useCallback((delivery, resolvedLocationId = null) => {
     if (!delivery) return null;
-    // Direct lookup by delivery_id — but validate the catalog item's parsed date
-    // matches the delivery's date. The backend matches catalog items to deliveries
-    // by amount + patient name, and without a date check it can link a $35
-    // "Susan Gillie" catalog item from July to a $35 "Susan Gillie" delivery from
-    // June — a false match that silently drops the delivery from the Reconcile tab.
     const direct = lookupIndexes.catalogByDeliveryId.get(delivery.id);
-    if (direct) {
-      const ciDate = direct?.delivery_date || parseSquareItemName(String(direct?.name || direct?.item_name || ''))?.deliveryDate || null;
-      if (!ciDate || ciDate === delivery.delivery_date) return direct;
-      // Date mismatch — don't trust the backend's delivery_id link, fall through to fallback
-    }
+    if (direct) return direct;
     const deliveryAmountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
     const patient = lookupIndexes.resolvePatient(delivery);
     const patientName = patient?.full_name || '';
     const store = lookupIndexes.storeById.get(delivery.store_id);
     const formattedDeliveryName = formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patientName);
-    const deliveryDateStr = delivery?.delivery_date ? String(delivery.delivery_date).slice(0, 10) : null;
     return (catalogItems || []).find((ci) => {
       const ciAmountCents = Math.round(Number(ci?.price_dollars || ci?.amount || 0) * 100);
       if (ciAmountCents !== deliveryAmountCents) return false;
       if (ci?.location_id && resolvedLocationId && resolvedLocationId !== '--' && ci.location_id !== resolvedLocationId) return false;
       const ciName = String(ci?.name || ci?.item_name || '');
       if (!ciName) return false;
-      // Date check: the catalog item's parsed date must match the delivery's date.
-      // Without this, same-patient same-amount deliveries on different dates
-      // cross-match and get silently excluded from the Reconcile tab.
-      const ciParsedDate = ci?.delivery_date || parseSquareItemName(ciName)?.deliveryDate || null;
-      if (deliveryDateStr && ciParsedDate && ciParsedDate !== deliveryDateStr) return false;
       if (ciName === formattedDeliveryName) return true;
       if (patientName && ciName.toLowerCase().includes(patientName.toLowerCase())) return true;
       if (patientName && patientNamesMatch(patientName, ciName)) return true;
       return false;
     }) || null;
-  }, [lookupIndexes, catalogItems, formatItemNameForDisplay, parseSquareItemName]);
+  }, [lookupIndexes, catalogItems, formatItemNameForDisplay]);
 
   const reconciliationRows = useMemo(() => {
     const rows = (deliveries || []).
@@ -1833,13 +1818,23 @@ export default function SquareManagement() {
       if (!resolvedLocationId) return false;
 
       // Exclude deliveries with Debit/Credit payments — treated as manually collected (no Square needed)
-      if (isManualCardOverride(delivery)) return false;
+      if (isManualCardOverride(delivery)) {
+        console.log('[ReconcileFilter] EXCLUDED by isManualCardOverride:', delivery.id, delivery.cod_payments);
+        return false;
+      }
 
       // Exclude deliveries that already have a catalog item in Square (present in the Catalog tab)
-      if (findLinkedCatalogItem(delivery, resolvedLocationId)) return false;
+      const _linkedCatalog = findLinkedCatalogItem(delivery, resolvedLocationId);
+      if (_linkedCatalog) {
+        console.log('[ReconcileFilter] EXCLUDED by findLinkedCatalogItem:', delivery.id, _linkedCatalog?.name || _linkedCatalog?.item_name, 'amount:', _linkedCatalog?.price_dollars || _linkedCatalog?.amount);
+        return false;
+      }
 
       // Exclude if directly matched by delivery_id in any transaction
-      if (transactionMatchedDeliveryIds.has(delivery.id)) return false;
+      if (transactionMatchedDeliveryIds.has(delivery.id)) {
+        console.log('[ReconcileFilter] EXCLUDED by transactionMatchedDeliveryIds:', delivery.id);
+        return false;
+      }
 
       // Exclude if matched by amount + patient name in any transaction
       const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
@@ -1852,10 +1847,17 @@ export default function SquareManagement() {
           if (Number(sigAmt) !== amtCents) return false;
           return patientNamesMatch(deliveryName, sigName);
         });
-        if (hasNameMatch) return false;
+        if (hasNameMatch) {
+          console.log('[ReconcileFilter] EXCLUDED by transactionSignatures (amount+name):', delivery.id, patient.full_name, amtCents);
+          return false;
+        }
       }
 
-      return !hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions);
+      const _hasSqTx = hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions);
+      if (_hasSqTx) {
+        console.log('[ReconcileFilter] EXCLUDED by hasMatchingSquareTransaction:', delivery.id);
+      }
+      return !_hasSqTx;
     }).
     sort((a, b) => String(b.delivery_date || '').localeCompare(String(a.delivery_date || ''))).
     map((delivery) => {

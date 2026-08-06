@@ -482,11 +482,7 @@ async function handleGetCodData(base44, payload={}) {
       // delivery by name + amount + location. Reads only service-role data
       // that is already loaded, so the result is identical for every user
       // regardless of role-scoped offline caches.
-      // Parse the catalog item's embedded date (MM/DD format in item name) so
-      // the matcher can enforce chronology — prevents a $35 Susan Gillie catalog
-      // item from July matching a $35 Susan Gillie delivery from June.
-      const catalogParsedDate = toIsoDate(itemName) || null;
-      const matchedDelivery = matchDeliveryForItem({ item_name: itemName, note: '', amount_cents: ac, location_id: rl, payment_date: catalogParsedDate, order_created_at: catalogParsedDate }, store);
+      const matchedDelivery = matchDeliveryForItem({ item_name: itemName, note: '', amount_cents: ac, location_id: rl, payment_date: null, order_created_at: null }, store);
       if (matchedDelivery) {
         deliveryId = matchedDelivery.id;
         const matchedPatient = patientsById.get(matchedDelivery.patient_id);
