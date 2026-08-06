@@ -590,9 +590,11 @@ export default function useStopCardActions(params) {
 
       window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'accept_all_button' } }));
 
+      return finalDeliveries;
     } catch (error) {
       console.error('❌ [Accept All] Error:', error);
       toast.error(`Failed to accept all: ${error.message}`);
+      return null;
     } finally {
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
@@ -1281,6 +1283,7 @@ export default function useStopCardActions(params) {
     shouldRecalculateEtas,
     skipCollapseCard = false,
     etaBaseTime = null,   // ISO timestamp to use as ETA cascade base (for retro timing)
+    freshDeliveriesOverride = null, // Post-Accept-All fresh deliveries (avoids stale allDeliveries closure)
   }) => {
     // 1. Atomic IDB write — offline-first, no smart-refresh trigger.
     //    This is ESSENTIAL WRITE #1: status + actual_delivery_time.
@@ -1299,7 +1302,15 @@ export default function useStopCardActions(params) {
 
     // 4. Build optimistic route snapshot from in-memory allDeliveries
     //    (do NOT call forceRefreshDriverDeliveries here — IDB hasn't caught up yet)
-    const allDriverDeliveries = allDeliveries
+    //    When called after a pickup-complete-with-pending flow, freshDeliveriesOverride
+    //    contains the just-optimized deliveries (correct status='in_transit' + stop_order).
+    //    Without this, the stale allDeliveries closure still shows the newly-accepted
+    //    deliveries as 'pending', filtering them out of incompleteDeliveries and causing
+    //    isNextDelivery to be set on the wrong stop (or routeIsFinished = true → EOD dialog).
+    const _allDeliveriesForSnapshot = Array.isArray(freshDeliveriesOverride) && freshDeliveriesOverride.length > 0
+      ? freshDeliveriesOverride
+      : allDeliveries;
+    const allDriverDeliveries = _allDeliveriesForSnapshot
       .filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date)
       .map((d) => d.id === delivery.id ? { ...d, ...criticalUpdate, isNextDelivery: false } : d);
 
@@ -1559,8 +1570,15 @@ export default function useStopCardActions(params) {
 
         // Pickup transition
         const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
+        let acceptAllFreshDeliveries = null;
         if (isPickup && hasPendingPickupTransitions) {
-          await executeAcceptAllStops();
+          // executeAcceptAllStops transitions pending → in_transit, runs the optimizer,
+          // and returns the fully-optimized deliveries. We MUST pass these to
+          // executeTerminalAction below — without them, executeTerminalAction uses the
+          // stale allDeliveries closure (where the deliveries are still 'pending'),
+          // filters them out of incompleteDeliveries, and either sets isNextDelivery on
+          // the wrong stop or triggers a false routeIsFinished → EOD dialog.
+          acceptAllFreshDeliveries = await executeAcceptAllStops();
           // CRITICAL: executeAcceptAllStops's finally block resumes ALL managers.
           // When called from the Complete handler, we must RE-PAUSE them so the
           // completion logic (executeTerminalAction, server writes) doesn't get
@@ -1571,6 +1589,18 @@ export default function useStopCardActions(params) {
           try { (await import('../utils/driverLocationPoller')).driverLocationPoller?.pause?.(); } catch (_) {}
           smartRefreshManager.pause();
           await waitForRouteTransitionSettle(pendingPickups?.length || 0);
+
+          // If executeAcceptAllStops didn't return deliveries (error/timeout), fall back
+          // to reading the latest state from IDB so executeTerminalAction has fresh data.
+          if (!acceptAllFreshDeliveries || acceptAllFreshDeliveries.length === 0) {
+            try {
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              const allIdbDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+              acceptAllFreshDeliveries = allIdbDeliveries.filter(
+                d => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+              );
+            } catch (_) { /* fall through with null — executeTerminalAction uses allDeliveries */ }
+          }
         }
 
         // Timing
@@ -1652,6 +1682,7 @@ export default function useStopCardActions(params) {
           shouldRecalculateEtas: shouldRecalculateCompletionEtas,
           skipCollapseCard: false,
           etaBaseTime: useRetroactiveTiming ? completionActualTime : null,
+          freshDeliveriesOverride: acceptAllFreshDeliveries,
         });
         // ────────────────────────────────────────────────────────────────────
 
