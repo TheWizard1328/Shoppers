@@ -1,15 +1,25 @@
-export const getPhaseBoundsMaxZoom = (spanKm, fallbackMinZoom = 12.5) => {
+export const getPhaseBoundsMaxZoom = (spanKm, fallbackMinZoom = 12.0) => {
   if (!Number.isFinite(spanKm) || spanKm <= 0) {
     return 18;
   }
 
-  if (spanKm <= 15) {
+  // Smooth linear decay — NO cliffs at any boundary.
+  // For small spans (≤8km) maxZoom stays at 18 (tight follow).
+  // Between 8–48km it decreases linearly at -0.15 levels/km, so a 1km GPS
+  // movement only changes maxZoom by ~0.15 — well within zoomSnap=0.25,
+  // preventing the jarring full-level zoom jumps the driver was seeing.
+  if (spanKm <= 8) {
     return 18;
   }
 
+  // Linear decay: 18 at 8km → ~12 at ~48km, clamped to fallbackMinZoom.
+  // Max change per 0.5km GPS movement = 0.075 levels (negligible).
+  const decay = (spanKm - 8) * 0.15;
+  const raw = 18 - decay;
+
   return Math.max(
     fallbackMinZoom,
-    Math.min(18, Math.round((17.2 - Math.log2(spanKm + 1) * 1.05) * 10) / 10)
+    Math.min(18, Math.round(raw * 10) / 10)
   );
 };
 
