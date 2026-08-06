@@ -641,6 +641,85 @@ export default function SquareManagement() {
     return () => { mounted = false; };
   }, []);
 
+  // ── Role-neutral Delivery loader ────────────────────────────────────
+  // The Reconcile tab's filter reads `deliveries` state. On mount that state
+  // is hydrated from offline IDB, which is populated by either the
+  // Dashboard's date-scoped sync or by `syncFromSquare` (only fires if the
+  // user explicitly clicks Sync). Deliveries that exist in the online DB
+  // but were never synced into IDB (e.g. older-than-current-month dates) are
+  // silently dropped from the Reconcile list even though every other filter
+  // would pass them. Load every Delivery record in the lookback window
+  // directly from the online entity (entity has empty RLS, so every
+  // authenticated user reads the same set) and merge into `deliveries`
+  // state AND into offline IDB, so reconciliation sees the same set of
+  // rows an admin sees — without requiring the user to manually run Sync.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const startDate = new Date();
+        startDate.setHours(0, 0, 0, 0);
+        startDate.setDate(startDate.getDate() - Number(selectedDaysRange || 90));
+        const startDateStr = getLocalDateString(startDate);
+
+        const pageSize = 500;
+        let skip = 0;
+        const fetched = [];
+        // Fetch deliveries within the lookback window. status/docs-with-cod
+        // are not filtered here — the reconcile filter applies those. We
+        // only narrow by date to keep the payload bounded.
+        while (true) {
+          const page = await base44.entities.Delivery.filter(
+            { delivery_date: { $gte: startDateStr } },
+            '-updated_date',
+            pageSize,
+            skip
+          );
+          if (!page?.length) break;
+          fetched.push(...page.filter(Boolean));
+          if (page.length < pageSize) break;
+          skip += pageSize;
+          if (skip > 10000) break; // hard safety cap
+        }
+
+        if (mounted && fetched.length > 0) {
+          setDeliveries((prev) => {
+            const map = new Map();
+            (prev || []).forEach((d) => { if (d?.id) map.set(d.id, d); });
+            fetched.forEach((d) => {
+              if (!d?.id) return;
+              const existing = map.get(d.id);
+              // Preserve ULID-encoded/local-only fields if the record already exists
+              map.set(d.id, existing ? { ...existing, ...d } : d);
+            });
+            return Array.from(map.values());
+          });
+
+          // Persist into IDB so subsequent mounts (and other pages that
+          // read from IDB) reflect the full set without needing another
+          // network round-trip. Merge non-destructively — never wipe records
+          // that IDB might already have but our query window excluded.
+          try {
+            const { offlineDB } = await import('@/components/utils/offlineDatabase');
+            const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
+            const map = new Map(existing.map((r) => [r.id, r]));
+            fetched.forEach((r) => {
+              if (!r?.id) return;
+              const cur = map.get(r.id);
+              // Keep any local-only fields (e.g. encoded_polyline) on the
+              // existing record so we don't lose routing data by overwriting
+              map.set(r.id, cur ? { ...cur, ...r } : r);
+            });
+            await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(map.values()));
+          } catch (_) { /* non-critical — state already updated */ }
+        }
+      } catch (err) {
+        console.warn('[SquareManagement] Failed to load full Delivery list:', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [selectedDaysRange, getLocalDateString]);
+
   // Always sync lookup data whenever appData changes (no early-return guard on stores length)
   useEffect(() => {
     if (!appCurrentUser) return;
