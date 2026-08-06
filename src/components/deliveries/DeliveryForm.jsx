@@ -1190,7 +1190,7 @@ export default function DeliveryForm({
 
   const sortedStagedDeliveries = useMemo(() => sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverId: formData.driver_id }), [stagedDeliveries, stores, formData.driver_id]);
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
-  const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, selectedDriverId: formData.driver_id, deliveryDate: formData.delivery_date, isDispatcher: isDispatcherOnly, scheduledDriverMap }), [projectedDeliveries, allDeliveries, stores, formData.driver_id, formData.delivery_date, isDispatcherOnly, scheduledDriverMap]);
+  const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, patients, selectedDriverId: formData.driver_id, deliveryDate: formData.delivery_date, isDispatcher: isDispatcherOnly, scheduledDriverMap, calculateDistance }), [projectedDeliveries, allDeliveries, stores, patients, formData.driver_id, formData.delivery_date, isDispatcherOnly, scheduledDriverMap]);
   const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending, patientSearchInputRef, shouldAutoFocusFields });
 
   // Stat holiday enforcement — for dispatchers, only force manual selection if no driver
