@@ -1745,6 +1745,9 @@ export default function SquareManagement() {
       // Already matched to a Square transaction — this is "Collected", not a Reconcile candidate
       if (matchingTx) return null;
 
+      // Already has a Square catalog item — already reconciled, don't show again
+      if (linkedCatalog) return null;
+
       const patientName = patient?.full_name || '';
       const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
       Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
