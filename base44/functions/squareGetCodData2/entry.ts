@@ -565,7 +565,7 @@ async function handleGetCodData(base44, payload={}) {
   } catch (e) { dbWriteErrors.push({type:'catalog', error: e?.message || String(e)}); console.warn('[squareGetCodData2] DB catalog write failed:', e?.message); }
 
   // ── 6) Return everything in one response ────────────────────────────
-  const strippedDeliveries = deliveriesWithAmounts.map((d) => ({ id: d?.id, delivery_id: d?.delivery_id, delivery_date: d?.delivery_date, status: d?.status, cod_total_amount_required: d?.cod_total_amount_required, cod_payments: d?.cod_payments, store_id: d?.store_id, patient_id: d?.patient_id, driver_id: d?.driver_id, driver_name: d?.driver_name }));
+  const strippedDeliveries = deliveriesWithAmounts.map((d) => ({ id: d?.id, delivery_id: d?.delivery_id, delivery_date: d?.delivery_date, status: d?.status, cod_total_amount_required: d?.cod_total_amount_required, cod_payments: d?.cod_payments, store_id: d?.store_id, patient_id: d?.patient_id, driver_id: d?.driver_id, driver_name: d?.driver_name, delivery_notes: d?.delivery_notes }));
 
   console.log('[squareGetCodData2] COMPLETE, elapsed:', Date.now() - t0, 'ms');
 

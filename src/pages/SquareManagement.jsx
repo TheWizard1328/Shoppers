@@ -411,10 +411,21 @@ export default function SquareManagement() {
         await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
         await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
 
-        // Merge deliveries non-destructively
+        // Merge deliveries non-destructively — preserve local-only fields (delivery_notes,
+        // encoded_polyline, etc.) that squareGetCodData2 doesn't return in its stripped payload.
         const existing = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
         const existingMap = new Map(existing.map((r) => [r.id, r]));
-        (strippedDeliveries || []).forEach((r) => { if (r?.id) existingMap.set(r.id, r); });
+        (strippedDeliveries || []).forEach((r) => {
+          if (!r?.id) return;
+          const prev = existingMap.get(r.id);
+          if (prev) {
+            // Shallow-merge server fields on top of existing record, but keep
+            // any local-only fields the server strip omitted.
+            existingMap.set(r.id, { ...prev, ...r, delivery_notes: prev.delivery_notes || r.delivery_notes || '' });
+          } else {
+            existingMap.set(r.id, r);
+          }
+        });
         await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, Array.from(existingMap.values()));
 
         // ── STEP 3: One UI update from offline DB ──────────────────────
@@ -1120,6 +1131,17 @@ export default function SquareManagement() {
         await base44.entities.Delivery.update(itemToDelete.delivery_id, { delivery_notes: updatedNotes });
       } catch (noteErr) {
         console.error('Failed to append collection note to delivery_notes:', noteErr);
+      }
+
+      // Also write the updated delivery_notes to IDB so syncFromSquare's merge preserves it
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const idbRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, itemToDelete.delivery_id);
+        if (idbRecord) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...idbRecord, delivery_notes: updatedNotes }]);
+        }
+      } catch (idbErr) {
+        console.error('Failed to write collection note to IDB:', idbErr);
       }
 
       setCatalogItems((prev) => prev.filter((i) => i.catalog_object_id !== itemToDelete.catalog_object_id));
