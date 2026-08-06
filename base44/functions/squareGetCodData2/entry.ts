@@ -45,6 +45,20 @@ function getStoreAbbreviationVariants(store) {
   push(store?.abbreviation);push(store?.name);return Array.from(vs);
 }
 const itemNameContainsStore=(itemName,store)=>{const n=normalizeMatchName(itemName);return !!n&&getStoreAbbreviationVariants(store).some((v)=>n.includes(v));};
+// Resolve a store by matching its abbreviation as a standalone token in the FULL
+// item name text. Searches across ALL stores (not location-scoped) because multiple
+// stores share one Square location (card). The abbreviation in the item name is the
+// authoritative store signal — never the Square Location ID alone. Returns null when
+// no store's abbreviation appears as a token in the text.
+const resolveStoreByAbbrInText = (text, allStores) => {
+  const tokens = new Set(tokenizeName(text));
+  if (!tokens.size) return null;
+  for (const s of allStores) {
+    const abbr = normalizeText(s?.abbreviation).toLowerCase();
+    if (abbr && abbr.length >= 2 && tokens.has(abbr)) return s;
+  }
+  return null;
+};
 function buildStoresByLocationId(stores, activeConfigById) {
   const map = new Map();
   for (const s of stores||[]) { const c = activeConfigById.get(s?.square_location_config_id); if (!c?.square_location_id) continue; const lid = c.square_location_id; if (!map.has(lid)) map.set(lid, []); map.get(lid).push(s); }
@@ -278,23 +292,28 @@ async function handleGetCodData(base44, payload={}) {
     });
   };
 
-  // Optimized: use store-indexed deliveries instead of scanning all
+  // Use store-indexed deliveries. When the item name contains a store abbreviation
+  // (found across ALL stores, not just the transaction's location), restrict the
+  // candidate pool to that single store's deliveries — this is the authoritative
+  // store signal and prevents cross-store mismatches when multiple stores share a
+  // Square location/card. Only when the abbreviation is absent do we gather
+  // candidates from all stores sharing the transaction's location.
   const getDeliveryCandidatesForItem = (item, resolvedStore) => {
     const payIso = (item?.payment_date || item?.order_created_at || '').slice(0, 10);
     const combined = `${normalizeText(item?.note || '')} ${normalizeText(item?.item_name || '')}`.trim();
-    const locationStores = storesByLocationId.get(item?.location_id) || [];
-    // Gather candidate deliveries from all stores at this location
-    const candidatePool = [];
-    for (const s of locationStores) {
-      const storeDels = deliveriesByStoreId.get(s?.id) || [];
-      storeDels.forEach((d) => candidatePool.push(d));
+    const abbrStore = resolveStoreByAbbrInText(combined, safeStores);
+    let candidatePool;
+    if (abbrStore) {
+      candidatePool = deliveriesByStoreId.get(abbrStore.id) || [];
+    } else {
+      const locationStores = storesByLocationId.get(item?.location_id) || [];
+      candidatePool = [];
+      for (const s of locationStores) {
+        const storeDels = deliveriesByStoreId.get(s?.id) || [];
+        storeDels.forEach((d) => candidatePool.push(d));
+      }
     }
     const raw = candidatePool.filter((d) => {
-      const matchingStore = locationStores.find((s) => s?.id === d?.store_id) || resolvedStore;
-      if (matchingStore && !itemNameContainsStore(item?.item_name, matchingStore) && !itemNameContainsStore(item?.note, matchingStore)) {
-        const anyStoreMatch = locationStores.some((s) => itemNameContainsStore(item?.item_name, s) || itemNameContainsStore(item?.note, s));
-        if (!anyStoreMatch) return false;
-      }
       const da = Math.round(Number(d?.cod_total_amount_required || 0) * 100);
       if (da !== toAmountCents(item?.amount_cents)) return false;
       if (!txIsOnOrAfterDelivery(payIso, d?.delivery_date)) return false;
@@ -369,11 +388,20 @@ async function handleGetCodData(base44, payload={}) {
     const ukey = `${item?.order_id}::${item?.line_item_uid}`;
     if (seenKeys.has(ukey)) continue;
     seenKeys.add(ukey);
-    const store = resolveStoreForItem(item?.item_name, item?.location_id, storesByLocationId);
-    const md = matchDeliveryForItem(item, store);
+    const combinedText = `${normalizeText(item?.note || '')} ${normalizeText(item?.item_name || '')}`.trim();
+    const abbrStore = resolveStoreByAbbrInText(combinedText, safeStores);
+    const locationStore = resolveStoreForItem(item?.item_name, item?.location_id, storesByLocationId);
+    const resolvedStore = abbrStore || locationStore;
+    const md = matchDeliveryForItem(item, resolvedStore);
     const mp = md ? patientsById.get(md?.patient_id) : null;
     const mdr = md ? getDriverFromDelivery(md) : null;
-    const ms = md ? (safeStores || []).find((s) => s?.id === md.store_id) || store : store;
+    // Store priority: 1) abbreviation in item name, 2) matched delivery's store,
+    // 3) patient's assigned store, 4) location-based fallback (last resort).
+    // The Square Location ID alone is never the store determinant when an
+    // abbreviation is present, since multiple stores share each card.
+    const mdStore = md ? (safeStores || []).find((s) => s?.id === md.store_id) : null;
+    const patientStore = mp ? (safeStores || []).find((s) => s?.id === mp.store_id) : null;
+    const ms = abbrStore || mdStore || patientStore || locationStore;
     const isCustom = !normalizeText(item?.catalog_object_id);
     const fmtName = md ? formatItemName(md.delivery_date, getPreferredStoreAbbreviation(ms), mp?.full_name || md?.patient_name) : '';
     const dn = isCustom && fmtName ? fmtName : (item?.item_name || '');
@@ -390,12 +418,12 @@ async function handleGetCodData(base44, payload={}) {
       status: item?.transaction_status || 'pending',
       delivery_id: md?.id || null,
       patient_id: mp?.id || md?.patient_id || null,
-      store_id: md?.store_id || store?.id || null,
+      store_id: ms?.id || md?.store_id || locationStore?.id || null,
       location_id: item?.location_id || null,
       driver_id: md?.driver_id || mdr?.id || mdr?.user_id || null,
       dispatcher_id: md?.created_by_app_user_id || null,
       payment_method: 'card',
-      raw_square_data: { ...(existing?.raw_square_data || {}), line_item_uid: item?.line_item_uid || null, payment_date: item?.payment_date || null, order_created_at: item?.order_created_at || null, order_state: item?.order_state || null, notes: item?.note || '', original_item_name: item?.item_name || '', is_custom_amount: isCustom, matched_by: md ? 'delivery_match' : 'unmatched' }
+      raw_square_data: { ...(existing?.raw_square_data || {}), line_item_uid: item?.line_item_uid || null, payment_date: item?.payment_date || null, order_created_at: item?.order_created_at || null, order_state: item?.order_state || null, notes: item?.note || '', original_item_name: item?.item_name || '', is_custom_amount: isCustom, matched_by: md ? (abbrStore ? 'abbr_store_match' : 'delivery_match') : 'unmatched' }
     };
     if (existing) {
       // Skip update if nothing changed (quick field comparison)
@@ -444,10 +472,11 @@ async function handleGetCodData(base44, payload={}) {
       buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100)) === buildItemSignature(itemName, ac)
     );
     const rl = mt?.location_id && lids.includes(mt.location_id) ? mt.location_id : lids.find((l) => storesByLocationId.has(l)) || lids[0];
-    const store = resolveStoreForItem(itemName, rl, storesByLocationId);
+    const abbrStore = resolveStoreByAbbrInText(itemName, safeStores);
+    const store = abbrStore || resolveStoreForItem(itemName, rl, storesByLocationId);
     let deliveryId = mt?.delivery_id || null;
     let patientId = mt?.patient_id || null;
-    let storeId = mt?.store_id || null;
+    let storeId = abbrStore?.id || mt?.store_id || null;
     if (!deliveryId) {
       // No matching transaction yet — try matching the catalog item to a
       // delivery by name + amount + location. Reads only service-role data
@@ -458,7 +487,7 @@ async function handleGetCodData(base44, payload={}) {
         deliveryId = matchedDelivery.id;
         const matchedPatient = patientsById.get(matchedDelivery.patient_id);
         patientId = matchedPatient?.id || matchedDelivery.patient_id || null;
-        storeId = matchedDelivery.store_id || null;
+        if (!storeId) storeId = matchedDelivery.store_id || null;
       }
     }
     acc.push({ id: item?.id, square_catalog_object_id: item?.id, square_catalog_version: item?.version || null, item_name: itemName, description: item?.item_data?.description || '', amount: ac / 100, amount_cents: ac, delivery_id: deliveryId, delivery_date: toIsoDate(itemName), patient_id: patientId, store_id: storeId || store?.id || null, location_id: rl, status: 'active' });
