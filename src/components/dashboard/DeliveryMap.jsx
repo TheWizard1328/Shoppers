@@ -1021,15 +1021,26 @@ function DeliveryMap({
         // so both markers are visible.  Without this, completing a stop while at
         // zoom 18 leaves the map stuck at 18 even though the bounds need 17.5 or less.
         const userOverZoomed = currentZoom > requestedMaxZoom + 0.01;
-        // zoomAlreadyCorrect: only fast-pan when the current zoom is within ±0.05 of
-        // what the bounds need.  The old threshold of 0.3 was too loose — when the
-        // driver moves AWAY from the next stop, the bounds expand and the target zoom
-        // drops below the current zoom.  At zoomDiff 0.1–0.3, the fast-pan fired at a
-        // zoom that was too tight for the expanded bounds, causing the driver marker
-        // or the next-stop marker to drift off-screen.  With a tight ±0.05 threshold,
-        // even small expansions trigger a proper fitBounds zoom-out so both markers
-        // stay visible.
-        const zoomAlreadyCorrect = !userOverZoomed && zoomDiff >= -0.05 && zoomDiff <= 0.05;
+        // ── THREE-TIER ZOOM DECISION ──────────────────────────────────────────
+        // Tier 1 (|zoomDiff| ≤ 0.25): FAST PAN — keep current zoom, just pan.
+        //   This handles the normal GPS-follow case.  0.25 matches zoomSnap, so
+        //   any change smaller than one snap increment is invisible to the user.
+        //   The old ±0.05 threshold was too tight — tiny GPS fluctuations (0.1–0.2
+        //   zoom levels) triggered fitBounds, which snapped to the nearest 0.25
+        //   increment, causing visible "zoom jumps" on Phase 2 follow.
+        //
+        // Tier 2 (0.25 < |zoomDiff| ≤ 1.0): SMOOTH ZOOM — use setView with the
+        //   target zoom and padding-adjusted center.  This changes zoom gradually
+        //   (0.5s animation) without the heavier fitBounds animation.  Since
+        //   getPhaseBoundsMaxZoom now decays at -0.15/km (max 0.15 per km of GPS
+        //   movement), the actual zoom change is small and smooth.
+        //
+        // Tier 3 (|zoomDiff| > 1.0): FITBOUNDS — full padding-aware animation
+        //   for large changes (initial Phase 2 entry from city view, or driver
+        //   moved far from the next stop).
+        const _zoomDelta = Math.abs(zoomDiff);
+        const zoomAlreadyCorrect = !userOverZoomed && _zoomDelta <= 0.25;
+        const smoothZoomChange = !userOverZoomed && _zoomDelta > 0.25 && _zoomDelta <= 1.0;
 
         fitBoundsInFlightRef.current = true;
         let settled = false;
@@ -1049,37 +1060,37 @@ function DeliveryMap({
         // completion indefinitely. Force-clear the in-flight flag after the requested
         // animation duration (+ margin) so a missed event can never permanently jam
         // the follow — it just picks up the latest position a little late instead.
-        // For small zoom adjustments during GPS follow (driver moving away from stop),
-        // use a shorter 0.5s duration so the map keeps up with GPS ticks.  For the
-        // initial Phase 2 entry (large zoom change), use the original longer duration.
-        const _zoomDelta = Math.abs(zoomDiff);
-        const panDuration = zoomAlreadyCorrect ? 0.5 : (_zoomDelta < 1 ? 0.5 : (opts.duration != null ? opts.duration : 0.9));
+        const panDuration = zoomAlreadyCorrect ? 0.5 : (smoothZoomChange ? 0.5 : (opts.duration != null ? opts.duration : 0.9));
         const animMs = Math.round(panDuration * 1000) + 600;
         safetyTimer = setTimeout(settle, animMs);
 
-        // Compute the padding-adjusted center of the bounds — used by both paths.
+        // Compute the padding-adjusted center of the bounds — used by all three paths.
         const boundsCenter = bounds.getCenter();
         const horizShift = (paddingBottomRight[0] - paddingTopLeft[0]) / 2;
         const vertShift  = (paddingBottomRight[1] - paddingTopLeft[1]) / 2;
-        const projected = map.project(boundsCenter, zoomAlreadyCorrect ? currentZoom : targetZoomForBounds);
-        const adjusted  = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), zoomAlreadyCorrect ? currentZoom : targetZoomForBounds);
+        const zoomForProjection = zoomAlreadyCorrect ? currentZoom : targetZoomForBounds;
+        const projected = map.project(boundsCenter, zoomForProjection);
+        const adjusted  = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), zoomForProjection);
 
         if (zoomAlreadyCorrect) {
-          // ── FAST PAN PATH (every GPS tick) ────────────────────────────────
-          // Map is already at or above the zoom the bounds need.  Just pan to
+          // ── TIER 1: FAST PAN (every GPS tick) ─────────────────────────────
+          // Map is already at or near the zoom the bounds need.  Just pan to
           // the new padding-adjusted center with a short 0.5s animation.
-          // This is the ONLY path that should fire on subsequent GPS ticks
-          // during Phase 2 follow — it completes quickly enough that the next
-          // tick (1–5s) never gets queued behind the animation.
           map.setView(adjusted, currentZoom, { animate: opts.animate !== false, duration: 0.5 });
           window._lastProgrammaticMapMove = Date.now();
+        } else if (smoothZoomChange) {
+          // ── TIER 2: SMOOTH ZOOM (small zoom adjustment) ───────────────────
+          // Zoom needs to change slightly (0.25–1.0 levels).  Use setView with
+          // the target zoom and padding-adjusted center for a smooth 0.5s
+          // transition.  This avoids the heavier fitBounds animation and
+          // prevents zoomSnap-discretized jumps on small GPS movements.
+          map.setView(adjusted, targetZoomForBounds, { animate: opts.animate !== false, duration: 0.5 });
+          window._lastProgrammaticMapMove = Date.now();
         } else {
-          // ── FITBOUNDS PATH (initial Phase 2 entry, zoom-in, OR zoom-out) ───
+          // ── TIER 3: FITBOUNDS (large zoom change) ─────────────────────────
           // Either the map is too zoomed out (initial entry) or too zoomed in
-          // (driver moved away from next stop, bounds expanded).  Use fitBounds
-          // to animate zoom + pan in one smooth step.  No redundant setZoom call
-          // — the old setZoom(fittedZoom) cancelled this animation and fired
-          // moveend prematurely, breaking the in-flight guard.
+          // (driver moved away from next stop, bounds expanded significantly).
+          // Use fitBounds to animate zoom + pan in one smooth step.
           map.fitBounds(bounds, { ...opts, paddingTopLeft, paddingBottomRight, animate: true });
           window._lastProgrammaticMapMove = Date.now();
         }
