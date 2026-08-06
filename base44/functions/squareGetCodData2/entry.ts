@@ -303,13 +303,33 @@ async function handleGetCodData(base44, payload={}) {
     });
     return sortByDateProximity(raw, payIso);
   };
-  const matchDeliveryForItem = (item, resolvedStore) => {
-    const note = normalizeText(item?.note || '');
+  // Cross-location fallback: when the item name is NOT structured (doesn't follow
+  // MM/DD(STORE)-Patient Name), search ALL stores across ALL Square locations.
+  // Relies on exact amount match + chronology (tx date >= delivery date) + fuzzy
+  // patient name match (handles misspellings and varied name/abbr orderings).
+  const getCrossLocationDeliveryCandidates = (item) => {
     const payIso = (item?.payment_date || item?.order_created_at || '').slice(0, 10);
-    const cands = getDeliveryCandidatesForItem(item, resolvedStore);
+    const combined = `${normalizeText(item?.note || '')} ${normalizeText(item?.item_name || '')}`.trim();
+    const candidatePool = [];
+    for (const s of safeStores) {
+      const storeDels = deliveriesByStoreId.get(s?.id) || [];
+      storeDels.forEach((d) => candidatePool.push(d));
+    }
+    const raw = candidatePool.filter((d) => {
+      const da = Math.round(Number(d?.cod_total_amount_required || 0) * 100);
+      if (da !== toAmountCents(item?.amount_cents)) return false;
+      if (!txIsOnOrAfterDelivery(payIso, d?.delivery_date)) return false;
+      const pt = patientsById.get(d?.patient_id);
+      return pt && notesContainPatientName(combined, pt.full_name);
+    });
+    return sortByDateProximity(raw, payIso);
+  };
+
+  // Pick the best delivery match from a candidate list using note/id/name heuristics.
+  const pickBestFromCandidates = (cands, note, item, payIso, preferredStoreId) => {
     if (!cands.length) return null;
-    const ssc = resolvedStore?.id ? cands.filter((d) => d?.store_id === resolvedStore.id) : [];
-    const pri = ssc.length ? [...ssc, ...cands.filter((d) => d?.store_id !== resolvedStore?.id)] : cands;
+    const ssc = preferredStoreId ? cands.filter((d) => d?.store_id === preferredStoreId) : [];
+    const pri = ssc.length ? [...ssc, ...cands.filter((d) => d?.store_id !== preferredStoreId)] : cands;
     const dm = note.match(/delivery\s*(id|#)?\s*[:=-]?\s*([a-f0-9]{24})/i);
     if (dm) { const m = pri.find((d) => d?.id === dm[2]); if (m) return m; }
     const sm = note.match(/\b(?:sid|stop\s*id)\s*[:=-]?\s*([a-z0-9-]+)/i);
@@ -320,6 +340,22 @@ async function handleGetCodData(base44, payload={}) {
     const closeByName = pri.find((d) => withinWindow(d) && notesContainPatientName(item?.item_name, patientsById.get(d?.patient_id)?.full_name || ''));
     if (closeByName) return closeByName;
     return pri.find((d) => { const p = patientsById.get(d?.patient_id); return p && notesContainPatientName(note, p.full_name); }) || pri.find((d) => { const p = patientsById.get(d?.patient_id); return p && notesContainPatientName(item?.item_name, p.full_name); }) || pri[0];
+  };
+
+  const matchDeliveryForItem = (item, resolvedStore) => {
+    const note = normalizeText(item?.note || '');
+    const payIso = (item?.payment_date || item?.order_created_at || '').slice(0, 10);
+    // Primary: location-scoped match (same Square location as the transaction)
+    const cands = getDeliveryCandidatesForItem(item, resolvedStore);
+    const primary = pickBestFromCandidates(cands, note, item, payIso, resolvedStore?.id);
+    if (primary) return primary;
+    // Fallback: non-structured names — search across ALL Square locations by
+    // amount + chronology + fuzzy patient name (handles misspellings / varied formats)
+    if (!isStructuredCodName(item?.item_name)) {
+      const xlCands = getCrossLocationDeliveryCandidates(item);
+      return pickBestFromCandidates(xlCands, note, item, payIso, resolvedStore?.id);
+    }
+    return null;
   };
 
   // Build all transaction records + prepare batch writes
