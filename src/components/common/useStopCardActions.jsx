@@ -199,13 +199,16 @@ export default function useStopCardActions(params) {
     if (!currentUser?.id || currentUser.id !== delivery?.driver_id) return;
     if (delivery?.delivery_date !== localDeviceTodayStr) return;
 
-    // Only act if the driver is currently off_duty or on_break
-    const currentDriverAppUserForCheck = appUsers?.find((u) => u?.user_id === currentUser.id);
-    const currentDriverStatus = currentDriverAppUserForCheck?.driver_status ?? currentUser?.driver_status;
-    if (currentDriverStatus === 'on_duty') return; // already on duty — nothing to do
+    // NOTE: We intentionally do NOT early-return if appUsers shows 'on_duty'.
+    // The appUsers array (booted from IDB) can be stale — the driver may have
+    // toggled off_duty/on_break via the DriverStatusToggle, but the React state
+    // hasn't propagated to the StopCard closure yet. The backend setDriverStatus
+    // has its own idempotency guard (NO-OP if already on_duty with open segment),
+    // so calling it here is always safe. Removing the frontend guard fixes the
+    // bug where the Start button silently failed to put a driver on duty.
 
     try {
-      const { data, appUserId } = await setDriverStatus({ newStatus: 'on_duty' });
+      const { data, appUserId, previousStatus: _prevStatus } = await setDriverStatus({ newStatus: 'on_duty' });
       const deliveryDate = delivery?.delivery_date;
 
       // CRITICAL: Update the local IDB AppUser record so a page refresh doesn't
@@ -235,7 +238,9 @@ export default function useStopCardActions(params) {
           // Fetch the current route deliveries (backend has set isNextDelivery) and
           // push them to IDB + UI immediately so the stop cards reflect the new flag
           // without waiting for the next smart refresh cycle.
-          if (deliveryDate) {
+          // Skip when the driver was already on_duty — the flags are already correct
+          // and the refetch would clobber any optimistic writes from the Start action.
+          if (deliveryDate && _prevStatus !== 'on_duty') {
             try {
               const { base44 } = await import('@/api/base44Client');
               const freshDeliveries = await base44.entities.Delivery.filter({
@@ -270,15 +275,17 @@ export default function useStopCardActions(params) {
           console.warn('[ensureDriverOnline] IDB update failed (non-critical):', idbErr?.message);
         }
       }
-      try { await locationTracker.startTracking({ ...currentUser, appUserId }); } catch {}
-      // Sync liveDistanceTracker internal state (NOT segment writes — those are
-      // handled by the backend setDriverStatus function which was just called).
-      try {
-        const { liveDistanceTracker } = await import('../utils/liveDistanceTracker');
-        if (liveDistanceTracker.isTracking) {
-          await liveDistanceTracker.updateDriverStatus('on_duty');
-        }
-      } catch {}
+      if (_prevStatus !== 'on_duty') {
+        try { await locationTracker.startTracking({ ...currentUser, appUserId }); } catch {}
+        // Sync liveDistanceTracker internal state (NOT segment writes — those are
+        // handled by the backend setDriverStatus function which was just called).
+        try {
+          const { liveDistanceTracker } = await import('../utils/liveDistanceTracker');
+          if (liveDistanceTracker.isTracking) {
+            await liveDistanceTracker.updateDriverStatus('on_duty');
+          }
+        } catch {}
+      }
       if (onDriverStatusChange) onDriverStatusChange('on_duty');
     } catch (error) {
       console.error('Failed to auto-toggle driver online:', error);
