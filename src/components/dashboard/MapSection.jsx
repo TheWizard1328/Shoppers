@@ -6,7 +6,6 @@ import { isAppOwner, userHasRole } from '@/components/utils/userRoles';
 import DeliveryMap from "@/components/dashboard/DeliveryMap";
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ETATracker from '@/components/dashboard/ETATracker';
-import ETANotification from '@/components/dashboard/ETANotification';
 import RealTimeRouteOptimizer from '@/components/dashboard/RealTimeRouteOptimizer';
 import CompletedRouteControls from '@/components/dashboard/CompletedRouteControls';
 import ImmersiveMapTopOverlay from '@/components/dashboard/ImmersiveMapTopOverlay';
@@ -86,8 +85,6 @@ export default function MapSection({
       {isMobile && isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
         <RealTimeRouteOptimizer selectedDriverId={selectedDriverId} selectedDate={selectedDateStr} currentUser={currentUser} isActive={!showDeliveryForm && !showPatientForm && !showOptimizationSettings} onRouteOptimized={() => {}} />
       }
-
-      <ETANotification deliveries={filteredDeliveries} driverId={selectedDriverId} currentUser={currentUser} />
 
       <CompletedRouteControls
         currentUser={currentUser}
