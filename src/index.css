@@ -263,10 +263,12 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
   border: 1px solid var(--border-slate-200) !important;
 }
 
-/* Cluster badge z-order fix — lift the entire marker icon above map tiles */
+/* Cluster badge z-order fix — keep the count badge from being clipped by the
+   marker icon's box, but DO NOT force a z-index here: Leaflet sets the marker's
+   inline z-index from zIndexOffset (so clustered markers stack by stop order),
+   and an !important z-index would override that and flatten the stack. */
 .leaflet-marker-icon:has(.cluster-badge) {
   overflow: visible !important;
-  z-index: 9999 !important;
 }
 .cluster-badge {
   z-index: 9999 !important;
