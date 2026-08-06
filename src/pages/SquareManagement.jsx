@@ -1789,149 +1789,106 @@ export default function SquareManagement() {
   }, [lookupIndexes, catalogItems, formatItemNameForDisplay]);
 
   const reconciliationRows = useMemo(() => {
-    const rows = (deliveries || []).
+    // Reuses the EXACT same matching logic as filteredDeliveryRows (the Deliveries tab,
+    // confirmed to correctly show all uncollected COD deliveries including Susan Gillie's
+    // $35 on Jun 22). We then filter down to only Cash/Check payments that haven't been
+    // matched to a Square transaction yet — those are the items that still need to be
+    // pushed into Square (Debit/Credit are collected via card machine directly and don't
+    // need Square catalog items).
+    const rows = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0).
     filter((delivery) => {
       if (!delivery) return false;
-      if (['failed', 'pending'].includes(delivery.status)) return false;
-      // Exclude future-dated deliveries — not yet assigned/accepted by a driver
+      if (['failed', 'cancelled', 'pending'].includes(delivery.status)) return false;
+      // Exclude future-dated deliveries — not yet assigned/accepted
       if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
-      if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
-
-      // Filter by the store the delivery is actually assigned to (not Square Location ID)
-      const deliveryStore = stores.find((candidateStore) => candidateStore?.id === delivery.store_id);
-      const storeConfig = getConfigForStore(deliveryStore);
+      // Only show deliveries for stores that have a Square location config
+      const deliveryStore = stores.find((s) => s?.id === delivery.store_id);
+      const deliveryConfig = getConfigForStore(deliveryStore);
+      if (!deliveryConfig?.id || !visibleSquareLocationConfigIds.has(deliveryConfig.id)) return false;
+      // Store filter: if a specific store is selected, filter by it
       if (selectedStoreFilter && selectedStoreFilter !== 'all') {
         if (delivery.store_id !== selectedStoreFilter) return false;
-      } else {
-        if (!storeConfig?.id || !visibleSquareLocationConfigIds.has(storeConfig.id)) return false;
       }
-
       const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
       if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
-
       if (selectedDriverFilter !== 'all') {
         if (selectedDriverUserIds.size === 0) return false;
         if (!selectedDriverUserIds.has(delivery.driver_id)) return false;
       }
-
-      const resolvedLocationId = storeConfig?.square_location_id || null;
-      if (!resolvedLocationId) return false;
-
-      // Exclude deliveries with Debit/Credit payments — treated as manually collected (no Square needed)
-      if (isManualCardOverride(delivery)) {
-        console.log('[ReconcileFilter] EXCLUDED by isManualCardOverride:', delivery.id, delivery.cod_payments);
-        return false;
-      }
-
-      // Exclude deliveries that already have a catalog item in Square (present in the Catalog tab)
-      const _linkedCatalog = findLinkedCatalogItem(delivery, resolvedLocationId);
-      if (_linkedCatalog) {
-        console.log('[ReconcileFilter] EXCLUDED by findLinkedCatalogItem:', delivery.id, _linkedCatalog?.name || _linkedCatalog?.item_name, 'amount:', _linkedCatalog?.price_dollars || _linkedCatalog?.amount);
-        return false;
-      }
-
-      // Exclude if directly matched by delivery_id in any transaction
-      if (transactionMatchedDeliveryIds.has(delivery.id)) {
-        console.log('[ReconcileFilter] EXCLUDED by transactionMatchedDeliveryIds:', delivery.id);
-        return false;
-      }
-
-      // Exclude if matched by amount + patient name in any transaction
-      const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
-      if (patient?.full_name) {
-        const amtCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
-        const deliveryName = normalizePatientName(patient.full_name);
-        // Check if any transaction signature matches this delivery's amount + name
-        const hasNameMatch = Array.from(transactionSignatures).some((sig) => {
-          const [sigAmt, sigName] = sig.split('::');
-          if (Number(sigAmt) !== amtCents) return false;
-          return patientNamesMatch(deliveryName, sigName);
-        });
-        if (hasNameMatch) {
-          console.log('[ReconcileFilter] EXCLUDED by transactionSignatures (amount+name):', delivery.id, patient.full_name, amtCents);
-          return false;
-        }
-      }
-
-      const _hasSqTx = hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions);
-      if (_hasSqTx) {
-        console.log('[ReconcileFilter] EXCLUDED by hasMatchingSquareTransaction:', delivery.id);
-      }
-      return !_hasSqTx;
+      // Only Cash or Check payments belong in Reconcile — Debit/Credit are collected
+      // directly via card machine and don't need a matching Square catalog item.
+      const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+      const hasCashCheck = codPayments.some((p) => p?.type === 'Cash' || p?.type === 'Check');
+      if (!hasCashCheck) return false;
+      return true;
     }).
     sort((a, b) => String(b.delivery_date || '').localeCompare(String(a.delivery_date || ''))).
     map((delivery) => {
       const patient = lookupIndexes.resolvePatient(delivery);
-      const store = lookupIndexes.storeById.get(delivery?.store_id);
+      const store = lookupIndexes.storeById.get(delivery.store_id);
       const config = getConfigForStore(store);
-      const resolvedLocationId = config?.square_location_id || '--';
-      const deliveryAmountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
+      const linkedCatalog = lookupIndexes.catalogByDeliveryId.get(delivery.id);
+      const resolvedLocationId = config?.square_location_id || null;
+
+      // O(1) lookup: try direct match by delivery_id first
+      let matchingTx = lookupIndexes.txByDeliveryId.get(delivery.id) || null;
+
+      // Fallback: scan transactions only if no direct match (much smaller scope)
+      if (!matchingTx) {
+        const deliveryAmountSet = getDeliveryPaymentAmountSet(delivery);
+        const patientName = patient?.full_name || '';
+        const deliveryStoreAbbr = String(store?.abbreviation || '').trim().toLowerCase();
+        matchingTx = (allTransactions || []).find((tx) => {
+          if (!tx || tx.type !== 'collection') return false;
+          if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
+          if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
+          const txSearchText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
+          const nameMatches = !!(patientName && txSearchText && patientNamesMatch(patientName, txSearchText));
+          const txAmountSet = getTransactionAmountSet(tx);
+          const amountsMatch = amountSetsIntersect(deliveryAmountSet, txAmountSet);
+          if (amountsMatch && nameMatches) return true;
+          if (!amountsMatch) return false;
+          const parsed = parseSquareItemName(String(tx.item_name || ''));
+          const txDate = parsed?.deliveryDate || null;
+          const txStoreAbbr = String(parsed?.storeAbbr || '').trim().toLowerCase();
+          const abbrMatches = !!deliveryStoreAbbr && (txStoreAbbr === deliveryStoreAbbr || String(tx.item_name || '').toLowerCase().includes(deliveryStoreAbbr));
+          if (txDate === delivery.delivery_date && (abbrMatches || nameMatches || tx.location_id === resolvedLocationId)) return true;
+          if (abbrMatches && nameMatches) return true;
+          return false;
+        }) || null;
+      }
+
+      // Already matched to a Square transaction — this is "Collected", not a Reconcile candidate
+      if (matchingTx) return null;
+
       const patientName = patient?.full_name || '';
-
-      // Detect cross-store collection: a transaction that matches by amount + patient name
-      // but was collected at a DIFFERENT Square location than the delivery's expected store.
-      const crossStoreTx = (allTransactions || []).find((tx) => {
-        if (!tx || tx.type !== 'collection') return false;
-        if (!['completed', 'pending'].includes(tx.status)) return false;
-        if (tx.location_id === resolvedLocationId) return false; // same location = not cross-store
-        const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
-        if (txAmountCents !== deliveryAmountCents) return false;
-        if (!patientName) return false;
-        return patientNamesMatch(patientName, String(tx.item_name || ''));
-      }) || null;
-
-      // Resolve which store the cross-store tx was collected at
-      const crossStoreConfig = crossStoreTx ?
-      locationConfigs.find((c) => c?.square_location_id === crossStoreTx.location_id) :
+      const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
+      Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
       null;
-      const crossStoreStore = crossStoreConfig ? getStoreForConfig(crossStoreConfig) : null;
-      const crossStoreName = crossStoreStore?.name || crossStoreConfig?.name || crossStoreTx?.location_id || null;
-
-      const linkedCatalogItem = findLinkedCatalogItem(delivery, resolvedLocationId);
-      const catalogObjectId = linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || null;
-
-      // Find any matching transaction (same-location or cross-store) for the Transaction ID column
-      const anyMatchingTx = crossStoreTx || lookupIndexes.txByDeliveryId.get(delivery.id) || (allTransactions || []).find((tx) => {
-        if (!tx || tx.type !== 'collection') return false;
-        if (!['completed', 'pending'].includes(tx.status)) return false;
-        if (tx.delivery_id === delivery.id) return true;
-        const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
-        if (txAmountCents !== deliveryAmountCents) return false;
-        if (!patientName) return false;
-        return patientNamesMatch(patientName, String(tx.item_name || ''));
-      }) || null;
 
       return {
         id: delivery.id,
-        key: `${delivery.id || 'delivery'}|${resolvedLocationId}|${delivery.delivery_date || 'no-date'}`,
+        key: `${delivery.id || 'delivery'}|${resolvedLocationId || '--'}|${delivery.delivery_date || 'no-date'}`,
         rawDelivery: delivery,
         amountSet: getDeliveryPaymentAmountSet(delivery),
         rawStoreId: delivery.store_id || null,
-        itemName: formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patient?.full_name),
+        itemName: formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patientName),
         amount: Number(delivery.cod_total_amount_required || 0),
         storeName: store?.name || 'Unknown',
-        locationId: resolvedLocationId,
-        catalogId: catalogObjectId || '--',
-        transactionId: anyMatchingTx ? anyMatchingTx.square_payment_id || anyMatchingTx.square_transaction_id || anyMatchingTx.id || '--' : '--',
+        locationId: resolvedLocationId || '--',
+        catalogId: linkedCatalog?.catalog_object_id || '--',
+        transactionId: '--',
         deliveryDate: delivery.delivery_date,
-        collectionType: Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
-        Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
-        null,
+        collectionType,
         subtext: delivery.driver_name || null,
         driverColor: getDriverColorForId(delivery.driver_id),
-        crossStoreAlert: crossStoreTx ? { collectedAt: crossStoreName } : null,
-        actions: crossStoreTx ?
-        <div className="flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
-              <Button variant="secondary" size="sm" className="border border-orange-300 bg-orange-100 text-orange-800 hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/40 dark:text-orange-300 leading-tight h-auto py-1 text-center whitespace-normal">
-                <span>Cross-Store{crossStoreName ? `: ${crossStoreName}` : ''}</span>
-              </Button>
-            </div> :
-
+        crossStoreAlert: null,
+        actions:
         <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-red-900/40 dark:text-red-300">Unmatched</Button>
 
       };
-    });
+    }).
+    filter(Boolean);
 
     const seenRowKeys = new Set();
     return rows.filter((row) => {
@@ -1940,7 +1897,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, selectedStoreFilter, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, lookupIndexes, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId, findLinkedCatalogItem]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, selectedStoreFilter, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, lookupIndexes, formatItemNameForDisplay, getDriverColorForId]);
 
   reconciliationRowsRef.current = reconciliationRows;
   filteredCatalogRowsRef.current = filteredCatalogRows;
