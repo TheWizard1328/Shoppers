@@ -277,7 +277,7 @@ export default function SquareCodDatasetTable({
         <div className="flex items-center justify-center py-12 px-6">
             <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
           </div> :
-        rows.length === 0 ?
+        rows.length === 0 && dedupedNewCatalogRows.length === 0 ?
         <div className="text-center py-12 px-6 text-slate-500 dark:text-slate-400 dark:text-slate-500">
             <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
             <p className="text-sm md:text-base">{emptyTitle}</p>

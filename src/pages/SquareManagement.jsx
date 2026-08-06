@@ -309,7 +309,11 @@ export default function SquareManagement() {
         });
       }
 
-      // ── Step 3: Refresh UI from offline DB (windowed deliveries only) ───
+      // ── Step 3: Sync new entities from online DB → IDB → UI ───
+      // syncSquareCods creates SquareCatalogItems + SquareTransaction records directly
+      // in the online DB. Without pulling them into the offline cache, the local reads below
+      // return stale data and the button appears to "do nothing".
+      await refreshOfflineSquareFromOnlineEntities();
       const { offlineDB: offlineDB2 } = await import('@/components/utils/offlineDatabase');
       const { startDateStr, endDateStr } = getSourceWindow();
       const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB2, startDateStr, endDateStr);
@@ -332,7 +336,7 @@ export default function SquareManagement() {
     } finally {
       setIsUpdatingCatalog(false);
     }
-  }, [isUpdatingCatalog, isSyncing, patients, refreshUiFromOfflineOnly]);
+  }, [isUpdatingCatalog, isSyncing, patients, refreshUiFromOfflineOnly, refreshOfflineSquareFromOnlineEntities]);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
