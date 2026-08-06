@@ -5,35 +5,41 @@ export function sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverI
     filtered = filtered.filter((delivery) => delivery.driver_id === selectedDriverId);
   }
 
+  // Precompute store sort-order lookups once (compared multiple times in the comparator)
+  const storeSortOrder = new Map();
+  (stores || []).forEach((store) => {
+    if (store?.id) storeSortOrder.set(store.id, store.sort_order ?? Infinity);
+  });
+
+  // Address + unit sort key — used within a store group
+  const addressKey = (d) => {
+    const addr = (d.delivery_address || '').trim().toLowerCase();
+    const unit = (d.unit_number || '').trim().toLowerCase();
+    return `${addr}|${unit}`;
+  };
+
   return filtered.sort((a, b) => {
     const aIsPending = !!a.id;
     const bIsPending = !!b.id;
     if (!aIsPending && bIsPending) return -1;
     if (aIsPending && !bIsPending) return 1;
 
-    // 1. Address + Unit Number (primary)
-    const addressKey = (d) => {
-      const addr = (d.delivery_address || '').trim().toLowerCase();
-      const unit = (d.unit_number || '').trim().toLowerCase();
-      return `${addr}|${unit}`;
-    };
+    // 1. Store sort order (primary) — group deliveries by store first
+    const sortOrderA = storeSortOrder.get(a.store_id) ?? Infinity;
+    const sortOrderB = storeSortOrder.get(b.store_id) ?? Infinity;
+    if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB;
+
+    // 2. Address + Unit Number (within store)
     const akA = addressKey(a);
     const akB = addressKey(b);
     if (akA !== akB) return akA.localeCompare(akB);
 
-    // 2. Distance from store (secondary)
+    // 3. Distance from parent store, ascending (within store + address)
     const distA = a.distanceFromStore ?? Infinity;
     const distB = b.distanceFromStore ?? Infinity;
     if (distA !== distB) return distA - distB;
 
-    // 3. Store sort order (tertiary)
-    const storeA = stores?.find((store) => store && store.id === a.store_id);
-    const storeB = stores?.find((store) => store && store.id === b.store_id);
-    const sortOrderA = storeA?.sort_order ?? Infinity;
-    const sortOrderB = storeB?.sort_order ?? Infinity;
-    if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB;
-
-    // Tie-breakers (after the user-requested primary sort)
+    // Tie-breakers
     // Sort pickups (no patient_id) by delivery_time_start
     const aIsPickup = !a.patient_id;
     const bIsPickup = !b.patient_id;
