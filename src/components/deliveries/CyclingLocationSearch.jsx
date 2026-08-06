@@ -83,9 +83,36 @@ export default function CyclingLocationSearch({
     try {
       const all = await base44.entities.CyclingLocation.filter({ city_id: cityId });
       const q = searchQuery.toLowerCase().trim();
+
+      // Driver's current position for as-the-crow-flies distance ranking.
+      // Falls back to null when GPS is unavailable — those locations sort last.
+      let driverLat = null;
+      let driverLon = null;
+      const cached = locationTracker.getCachedPosition();
+      if (cached?.latitude != null && cached?.longitude != null) {
+        driverLat = cached.latitude;
+        driverLon = cached.longitude;
+      } else {
+        const driverAppUser = (appUsers || []).find((au) => au?.user_id === currentUser?.id);
+        if (driverAppUser?.current_latitude != null && driverAppUser?.current_longitude != null) {
+          driverLat = driverAppUser.current_latitude;
+          driverLon = driverAppUser.current_longitude;
+        }
+      }
+      const distFromDriver = (loc) => {
+        if (driverLat == null || loc.latitude == null || loc.longitude == null) return Infinity;
+        return haversine(driverLat, driverLon, loc.latitude, loc.longitude);
+      };
+
       const filtered = (all || [])
         .filter((loc) => !q || loc.name?.toLowerCase().includes(q))
-        .sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0) || (a.name || '').localeCompare(b.name || ''));
+        .sort((a, b) => {
+          const da = distFromDriver(a);
+          const db = distFromDriver(b);
+          return da - db ||
+            (b.usage_count || 0) - (a.usage_count || 0) ||
+            (a.name || '').localeCompare(b.name || '');
+        });
       setResults(filtered.slice(0, 8));
     } catch (_) {
       setResults([]);

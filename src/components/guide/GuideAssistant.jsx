@@ -59,6 +59,15 @@ export default function GuideAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [isStopCardExpanded, setIsStopCardExpanded] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  // When the delivery form is open on mobile, the global FAB relocates into
+  // the form header — hide the floating button in that case.
+  const [isDeliveryFormOpen, setIsDeliveryFormOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 850 : false
+  );
+  // Ref to the latest handleOpen so the window-exposed opener always calls the
+  // current version (handleOpen is declared further down via useCallback).
+  const handleOpenRef = useRef(null);
   const [isBulkEditPanelOpen, setIsBulkEditPanelOpen] = useState(false);
   const [hasSeenIntro, setHasSeenIntro] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
@@ -99,12 +108,34 @@ export default function GuideAssistant() {
     const handleBulkEditPanel = (e) => setIsBulkEditPanelOpen(!!e?.detail?.open);
     window.addEventListener('pauseBackgroundSync', handleDialogOpen);
     window.addEventListener('resumeBackgroundSync', handleDialogClose);
+    const handleDeliveryFormOpen = (e) => setIsDeliveryFormOpen(!!e?.detail?.open);
     window.addEventListener('bulkEditPanelStateChange', handleBulkEditPanel);
+    window.addEventListener('deliveryFormOpenChange', handleDeliveryFormOpen);
     return () => {
       window.removeEventListener('stopCardExpandedChange', handleExpand);
       window.removeEventListener('pauseBackgroundSync', handleDialogOpen);
       window.removeEventListener('resumeBackgroundSync', handleDialogClose);
       window.removeEventListener('bulkEditPanelStateChange', handleBulkEditPanel);
+      window.removeEventListener('deliveryFormOpenChange', handleDeliveryFormOpen);
+    };
+  }, []);
+
+  // Track mobile viewport width so the relocation only applies on mobile.
+  useEffect(() => {
+    const onResize = () => setIsMobileViewport(window.innerWidth < 850);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Expose an open handle so the delivery form header button can open the guide,
+  // and listen for the same intent via a custom event as a fallback.
+  useEffect(() => {
+    const openHandler = () => handleOpenRef.current && handleOpenRef.current();
+    window.__openGuideAssistant = openHandler;
+    window.addEventListener('openGuideAssistant', openHandler);
+    return () => {
+      delete window.__openGuideAssistant;
+      window.removeEventListener('openGuideAssistant', openHandler);
     };
   }, []);
 
@@ -116,8 +147,11 @@ export default function GuideAssistant() {
     return () => window.removeEventListener('cameraOverlayChange', handler);
   }, []);
 
-  // FAB should be hidden when a stop card is expanded and no dialog is open
-  const hideFabForExpandedCard = (isStopCardExpanded && !isDialogOpen && !isOpen) || isBulkEditPanelOpen || isCameraOverlayOpen;
+  // FAB should be hidden when a stop card is expanded and no dialog is open,
+  // OR when the delivery form is open on mobile (the FAB relocates into the
+  // form header next to the close button in that case).
+  const deliveryFormRelocateActive = isDeliveryFormOpen && isMobileViewport;
+  const hideFabForExpandedCard = (isStopCardExpanded && !isDialogOpen && !isOpen) || isBulkEditPanelOpen || isCameraOverlayOpen || deliveryFormRelocateActive;
 
   // ── Dynamic bottom offset — tracks MapViewCycleFAB via getBoundingClientRect ────
   // Uses direct DOM measurement (viewport-accurate regardless of position context).
@@ -847,6 +881,10 @@ export default function GuideAssistant() {
 
     setTimeout(() => inputRef.current?.focus(), 300);
   }, [messages.length, userRole, hasShownDailyGreeting, generateDailyGreeting, markDailyGreetingShown, addBotMessage]);
+
+  // Keep the opener ref in sync with the latest handleOpen so the delivery form
+  // header button can trigger it without a TDZ reference.
+  handleOpenRef.current = handleOpen;
 
   const handleClose = useCallback(() => {
     setIsOpen(false);

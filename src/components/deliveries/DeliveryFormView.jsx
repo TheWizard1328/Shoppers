@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle, Car, Bike } from "lucide-react";
+import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle, Car, Bike, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { locationTracker } from "@/components/utils/locationTracker";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -147,6 +147,15 @@ export default function DeliveryFormView({
 }) {
   const activeFieldScrollFrameRef = useRef(null);
   const barcodeInputRef = useRef(null);
+
+  // Broadcast delivery-form open/close so the global Guide Assistant FAB can
+  // relocate into this header (mobile only) while the form is visible.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('deliveryFormOpenChange', { detail: { open: true } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('deliveryFormOpenChange', { detail: { open: false } }));
+    };
+  }, []);
   // Multi-select pickup store IDs (local to view)
   const [selectedPickupStoreIds, setSelectedPickupStoreIds] = React.useState(new Set());
   // Cycling location library selection
@@ -670,7 +679,24 @@ export default function DeliveryFormView({
                   })()}
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving}><X className="w-4 h-4" /></Button>
+              <div className="flex items-center gap-1">
+                {useMobileLayout && isMobileDevice && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant();
+                      else window.dispatchEvent(new CustomEvent('openGuideAssistant'));
+                    }}
+                    disabled={isSaving}
+                    title="Open guide assistant"
+                    aria-label="Open guide assistant"
+                  >
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving}><X className="w-4 h-4" /></Button>
+              </div>
             </div>
             {!delivery &&
             <div className={`flex gap-2 ${useMobileLayout && isMobileDevice ? 'w-full flex-nowrap' : 'ml-7 flex-wrap'}`}>

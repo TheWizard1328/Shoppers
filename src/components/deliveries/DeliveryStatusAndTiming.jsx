@@ -51,10 +51,18 @@ export default function DeliveryStatusAndTiming({
 }) {
   const completionTimeRef = useRef(null);
 
-  // Default Start Time to current time when cycling marker form opens with no value
+  // Default Start Time to current time when cycling marker Add-to-Route form opens.
+  // End Time defaults to 90 minutes after Start (1.5-hour cycling window).
   useEffect(() => {
     if (isCyclingMarker && !delivery && !formData.delivery_time_start) {
-      setFormData((prev) => ({ ...prev, delivery_time_start: format(new Date(), 'HH:mm') }));
+      const now = new Date();
+      const start = format(now, 'HH:mm');
+      const end = format(new Date(now.getTime() + 90 * 60 * 1000), 'HH:mm');
+      setFormData((prev) => ({
+        ...prev,
+        delivery_time_start: start,
+        delivery_time_end: prev.delivery_time_end || end,
+      }));
     }
   }, [isCyclingMarker, delivery]); // eslint-disable-line react-hooks/exhaustive-deps
 

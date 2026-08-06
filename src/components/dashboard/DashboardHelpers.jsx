@@ -123,17 +123,20 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   // (~64-88px), so it needs a bigger baseline than desktop, which has no
   // bottom nav (sidebar instead) — its FABs only need their own ~40px height
   // plus a little breathing room above the stop card row.
-  const EXTRA_ITEMS_HEIGHT = isMobile ? 80 : 50;
+  const EXTRA_ITEMS_HEIGHT = 50 ; // isMobile ? 80 : 50;
+
   // Immersive mode: stop cards + reoptimize button hide, leaving only temp badge + cycle FAB.
   const IMMERSIVE_ITEMS_HEIGHT = 50;
+
   // Baseline breathing room for top/sides when no UI obstructions are present.
   const BASE_PADDING = 25;
+
   // Immersive mode does NOT hide everything at the top — ImmersiveMapTopOverlay
   // (the compact "#stop / name / ETA" banner) stays pinned ~8px from the top and
   // is roughly 64px tall itself (two badge rows + padding), so its bottom edge
   // sits around ~72px down. Without this, fit-bounds/pan targets used only
   // BASE_PADDING (~35px), placing markers directly underneath the banner.
-  const IMMERSIVE_TOP_BANNER_HEIGHT = 88;
+  const IMMERSIVE_TOP_BANNER_HEIGHT = 60;
 
   // Bottom padding:
   //   Normal mode   — extra items + stop cards stack underneath
