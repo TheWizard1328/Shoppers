@@ -1768,25 +1768,40 @@ export default function SquareManagement() {
   // then by amount + location + patient-name fallback.
   const findLinkedCatalogItem = useCallback((delivery, resolvedLocationId = null) => {
     if (!delivery) return null;
+    // Direct lookup by delivery_id — but validate the catalog item's parsed date
+    // matches the delivery's date. The backend matches catalog items to deliveries
+    // by amount + patient name, and without a date check it can link a $35
+    // "Susan Gillie" catalog item from July to a $35 "Susan Gillie" delivery from
+    // June — a false match that silently drops the delivery from the Reconcile tab.
     const direct = lookupIndexes.catalogByDeliveryId.get(delivery.id);
-    if (direct) return direct;
+    if (direct) {
+      const ciDate = direct?.delivery_date || parseSquareItemName(String(direct?.name || direct?.item_name || ''))?.deliveryDate || null;
+      if (!ciDate || ciDate === delivery.delivery_date) return direct;
+      // Date mismatch — don't trust the backend's delivery_id link, fall through to fallback
+    }
     const deliveryAmountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
     const patient = lookupIndexes.resolvePatient(delivery);
     const patientName = patient?.full_name || '';
     const store = lookupIndexes.storeById.get(delivery.store_id);
     const formattedDeliveryName = formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patientName);
+    const deliveryDateStr = delivery?.delivery_date ? String(delivery.delivery_date).slice(0, 10) : null;
     return (catalogItems || []).find((ci) => {
       const ciAmountCents = Math.round(Number(ci?.price_dollars || ci?.amount || 0) * 100);
       if (ciAmountCents !== deliveryAmountCents) return false;
       if (ci?.location_id && resolvedLocationId && resolvedLocationId !== '--' && ci.location_id !== resolvedLocationId) return false;
       const ciName = String(ci?.name || ci?.item_name || '');
       if (!ciName) return false;
+      // Date check: the catalog item's parsed date must match the delivery's date.
+      // Without this, same-patient same-amount deliveries on different dates
+      // cross-match and get silently excluded from the Reconcile tab.
+      const ciParsedDate = ci?.delivery_date || parseSquareItemName(ciName)?.deliveryDate || null;
+      if (deliveryDateStr && ciParsedDate && ciParsedDate !== deliveryDateStr) return false;
       if (ciName === formattedDeliveryName) return true;
       if (patientName && ciName.toLowerCase().includes(patientName.toLowerCase())) return true;
       if (patientName && patientNamesMatch(patientName, ciName)) return true;
       return false;
     }) || null;
-  }, [lookupIndexes, catalogItems, formatItemNameForDisplay]);
+  }, [lookupIndexes, catalogItems, formatItemNameForDisplay, parseSquareItemName]);
 
   const reconciliationRows = useMemo(() => {
     const rows = (deliveries || []).

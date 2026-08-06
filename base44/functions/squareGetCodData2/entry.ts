@@ -482,7 +482,11 @@ async function handleGetCodData(base44, payload={}) {
       // delivery by name + amount + location. Reads only service-role data
       // that is already loaded, so the result is identical for every user
       // regardless of role-scoped offline caches.
-      const matchedDelivery = matchDeliveryForItem({ item_name: itemName, note: '', amount_cents: ac, location_id: rl, payment_date: null, order_created_at: null }, store);
+      // Parse the catalog item's embedded date (MM/DD format in item name) so
+      // the matcher can enforce chronology — prevents a $35 Susan Gillie catalog
+      // item from July matching a $35 Susan Gillie delivery from June.
+      const catalogParsedDate = toIsoDate(itemName) || null;
+      const matchedDelivery = matchDeliveryForItem({ item_name: itemName, note: '', amount_cents: ac, location_id: rl, payment_date: catalogParsedDate, order_created_at: catalogParsedDate }, store);
       if (matchedDelivery) {
         deliveryId = matchedDelivery.id;
         const matchedPatient = patientsById.get(matchedDelivery.patient_id);
@@ -526,6 +530,44 @@ async function handleGetCodData(base44, payload={}) {
 
   console.log('[squareGetCodData2] Cleanup done:', { deleted: deletedCatalogIds.length, dbCleaned: cleanupDbCount, elapsed: Date.now() - t0 });
 
+  // ── 5b) Write transactions + catalog items to online DB ─────────────
+  // Non-blocking: errors are caught so they never fail the sync. The IDB
+  // write (handled by the frontend) is the primary data path; the online DB
+  // is secondary, used for cross-device visibility and admin queries.
+  const dbWriteErrors = [];
+  try {
+    if (txToCreate.length > 0) {
+      await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, txToCreate);
+      console.log('[squareGetCodData2] DB: created', txToCreate.length, 'transactions');
+    }
+    if (txToUpdate.length > 0) {
+      await batchWriteEntities(base44.asServiceRole.entities.SquareTransaction, txToUpdate);
+      console.log('[squareGetCodData2] DB: updated', txToUpdate.length, 'transactions');
+    }
+  } catch (e) { dbWriteErrors.push({type:'transactions', error: e?.message || String(e)}); console.warn('[squareGetCodData2] DB transaction write failed:', e?.message); }
+
+  try {
+    // Build catalog upsert operations: update existing, create new
+    const existingCatalogByObjId = new Map();
+    for (const r of (Array.isArray(existingCatalogDb) ? existingCatalogDb : []).map(unwrapEntityRecord).filter(Boolean)) {
+      if (r?.square_catalog_object_id) existingCatalogByObjId.set(r.square_catalog_object_id, r);
+    }
+    const catalogOps = [];
+    for (const cr of catalogRecords) {
+      const existing = existingCatalogByObjId.get(cr.square_catalog_object_id);
+      if (existing) {
+        const changed = existing.item_name !== cr.item_name || existing.amount !== cr.amount || existing.delivery_id !== cr.delivery_id || existing.status !== cr.status;
+        if (changed) catalogOps.push({ type: 'update', id: existing.id, data: cr });
+      } else {
+        catalogOps.push({ type: 'create', data: cr });
+      }
+    }
+    if (catalogOps.length > 0) {
+      await batchWriteEntities(base44.asServiceRole.entities.SquareCatalogItems, catalogOps);
+      console.log('[squareGetCodData2] DB: wrote', catalogOps.length, 'catalog items');
+    }
+  } catch (e) { dbWriteErrors.push({type:'catalog', error: e?.message || String(e)}); console.warn('[squareGetCodData2] DB catalog write failed:', e?.message); }
+
   // ── 6) Return everything in one response ────────────────────────────
   const strippedDeliveries = deliveriesWithAmounts.map((d) => ({ id: d?.id, delivery_id: d?.delivery_id, delivery_date: d?.delivery_date, status: d?.status, cod_total_amount_required: d?.cod_total_amount_required, cod_payments: d?.cod_payments, store_id: d?.store_id, patient_id: d?.patient_id, driver_id: d?.driver_id, driver_name: d?.driver_name }));
 
@@ -542,6 +584,7 @@ async function handleGetCodData(base44, payload={}) {
     cleanupDbCount,
     locationConfigs: safeConfigs,
     locationIds,
+    dbWriteErrors,
   };
 }
 
