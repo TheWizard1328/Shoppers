@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, Clock, CreditCard, Loader2, CloudDownload, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
@@ -59,6 +60,7 @@ export default function SquareManagement() {
   const [deliveries, setDeliveries] = useState([]);
   const [activeView, setActiveView] = useState('catalog');
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [collectNote, setCollectNote] = useState('');
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
   const [lastCleanup] = useState(null);
@@ -1095,33 +1097,51 @@ export default function SquareManagement() {
 
   const confirmDelete = async () => {
     if (!itemToDelete) return;
-    setDeletingId(itemToDelete.catalog_object_id);
+    const noteText = collectNote.trim();
+    if (!noteText) {
+      toast.error('Please enter an explanation note before marking as collected.');
+      return;
+    }
+    const trackingId = itemToDelete.catalog_object_id || itemToDelete.delivery_id;
+    setDeletingId(trackingId);
     try {
       await base44.functions.invoke('squareMarkDebit', {
         deliveryId: itemToDelete.delivery_id,
-        catalogObjectId: itemToDelete.catalog_object_id,
-        transactionId: itemToDelete.transaction_id
+        catalogObjectId: itemToDelete.catalog_object_id || null,
+        transactionId: itemToDelete.transaction_id || null
       });
+
+      // Append the explanation note to the delivery's Driver Notes as a new line
+      const targetDelivery = deliveries.find((d) => d?.id === itemToDelete.delivery_id);
+      const existingNotes = String(targetDelivery?.delivery_notes || '').trim();
+      const noteLine = `[COD Collected ${format(new Date(), 'MM/dd/yyyy h:mm a')}]: ${noteText}`;
+      const updatedNotes = existingNotes ? `${existingNotes}\n${noteLine}` : noteLine;
+      try {
+        await base44.entities.Delivery.update(itemToDelete.delivery_id, { delivery_notes: updatedNotes });
+      } catch (noteErr) {
+        console.error('Failed to append collection note to delivery_notes:', noteErr);
+      }
 
       setCatalogItems((prev) => prev.filter((i) => i.catalog_object_id !== itemToDelete.catalog_object_id));
       setDeliveries((prev) => prev.map((delivery) =>
       delivery?.id === itemToDelete.delivery_id ?
       {
         ...delivery,
-        cod_payments: [{ type: 'Debit', amount: Number(delivery.cod_total_amount_required || 0) }]
+        cod_payments: [{ type: 'Debit', amount: Number(delivery.cod_total_amount_required || 0) }],
+        delivery_notes: updatedNotes
       } :
       delivery
       ));
 
       toast.success('Marked as collected — running sync...');
       setItemToDelete(null);
+      setCollectNote('');
       setDeletingId(null);
       await syncFromSquare();
     } catch (err) {
       console.error('Collect failed:', err);
       toast.error('Failed to mark collected: ' + err.message);
       setDeletingId(null);
-      setItemToDelete(null);
     }
   };
 
@@ -1753,13 +1773,15 @@ export default function SquareManagement() {
       Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
       null;
 
+      const computedItemName = formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patientName);
+
       return {
         id: delivery.id,
         key: `${delivery.id || 'delivery'}|${resolvedLocationId || '--'}|${delivery.delivery_date || 'no-date'}`,
         rawDelivery: delivery,
         amountSet: getDeliveryPaymentAmountSet(delivery),
         rawStoreId: delivery.store_id || null,
-        itemName: formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patientName),
+        itemName: computedItemName,
         amount: Number(delivery.cod_total_amount_required || 0),
         storeName: store?.name || 'Unknown',
         locationId: resolvedLocationId || '--',
@@ -1771,7 +1793,22 @@ export default function SquareManagement() {
         driverColor: getDriverColorForId(delivery.driver_id),
         crossStoreAlert: null,
         actions:
-        <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-red-900/40 dark:text-red-300">Unmatched</Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setItemToDelete({
+              name: computedItemName,
+              catalog_object_id: null,
+              delivery_id: delivery.id,
+              transaction_id: null
+            });
+          }}
+          disabled={deletingId === delivery.id}
+          className="rounded-lg border border-emerald-300 bg-white text-emerald-700 shadow-sm hover:bg-emerald-50 hover:border-emerald-400 dark:border-emerald-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-900/20">
+          {deletingId === delivery.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Collect'}
+        </Button>
 
       };
     }).
@@ -2291,18 +2328,38 @@ export default function SquareManagement() {
         <CODItemDetailModal item={selectedCODItem} locationConfigs={locationConfigs} stores={stores} transactions={allTransactions} drivers={drivers} deliveries={deliveries} onClose={() => setSelectedCODItem(null)} />
         }
 
-        <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+        <AlertDialog open={!!itemToDelete} onOpenChange={(open) => { if (!open) { setItemToDelete(null); setCollectNote(''); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Mark as Collected</AlertDialogTitle>
               <AlertDialogDescription>
-                This will remove "{itemToDelete?.name}" from Square and mark the linked delivery as Debit collected.
+                {itemToDelete?.catalog_object_id ?
+                <>This will remove "{itemToDelete?.name}" from Square and mark the linked delivery as Debit collected.</> :
+
+                <>This will mark the linked delivery as Debit collected.</>
+                }
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="space-y-2 py-2">
+              <label className="text-sm font-medium text-foreground">
+                Explanation note <span className="text-destructive">*</span>
+              </label>
+              <Textarea
+                value={collectNote}
+                onChange={(e) => setCollectNote(e.target.value)}
+                placeholder="Why is this being marked as collected? (e.g. 'Cash collected directly from patient, given to driver')"
+                className="min-h-[90px]"
+                autoFocus />
+
+              <p className="text-xs text-muted-foreground">This note will be added to the delivery's Driver Notes.</p>
+            </div>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className="rounded-lg border border-emerald-700 bg-emerald-600 hover:bg-emerald-700">
-                Collected
+              <AlertDialogCancel onClick={() => setCollectNote('')}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                disabled={!collectNote.trim() || deletingId === (itemToDelete?.catalog_object_id || itemToDelete?.delivery_id)}
+                className="rounded-lg border border-emerald-700 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50">
+                {deletingId === (itemToDelete?.catalog_object_id || itemToDelete?.delivery_id) ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Collected'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
