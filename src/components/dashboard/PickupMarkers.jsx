@@ -39,18 +39,26 @@ export default function PickupMarkers({
     let markerPosition = [pickup.latitude, pickup.longitude];
     let dynamicZIndex;
     const isFinished = FINISHED_STATUSES.includes(pickup.status);
-    const isPending = pickup.status === 'pending';
-    if (isPending) dynamicZIndex = 5000 + (500 - (pickup.number || 500));
-    else if (isFinished) dynamicZIndex = 100 + (500 - (pickup.number || 500));
-    else dynamicZIndex = 1000 + (500 - (pickup.number || 500));
+    const stopOrder = pickup.stop_order || pickup.number || 500;
+    const isNextDeliveryMarker = pickup.isNextDelivery === true || pickup.isNextInLine === true;
+
+    // Z-index tiers (higher = on top) — MUST match DeliveryMarkers so mixed
+    // pickup+delivery clusters stack consistently under one rule:
+    //   isNextDelivery: 12000 (always on top)
+    //   Incomplete (pending/active): 10000 tier — lowest stop_order on top (subtract stop_order)
+    //   Finished: 5000 tier — lowest stop_order on top within finished, always under incomplete
+    if (isNextDeliveryMarker) dynamicZIndex = 12000;
+    else if (!isFinished) dynamicZIndex = 10000 - stopOrder;
+    else dynamicZIndex = 5000 - stopOrder;
 
     if (isFanned && isClustered) {
       const all = [...(groupedPickupMarkers.get(lk)||[]), ...(groupedDeliveryMarkers.get(lk)||[])].sort((a,b)=>(a.stop_order||0)-(b.stop_order||0));
       const clusterIndex = all.findIndex(p => p.id === pickup.id);
       markerPosition = calculateFannedPositionWrapperWrapper(pickup.latitude, pickup.longitude, clusterIndex, all.length, pickup.stop_order);
-      const incomplete = all.filter(p => !FINISHED_STATUSES.includes(p.status));
-      if (isFinished) dynamicZIndex = 2000 - all.length - clusterIndex;
-      else { const ii = incomplete.findIndex(p => p.id === pickup.id); dynamicZIndex = 3000 + (incomplete.length - ii); }
+      // Fanned cluster: same tier logic — incomplete on top, finished underneath, lowest stop_order on top within each tier
+      if (isNextDeliveryMarker) dynamicZIndex = 12000;
+      else if (!isFinished) dynamicZIndex = 11000 - stopOrder;
+      else dynamicZIndex = 6000 - stopOrder;
     }
 
     const markerStoreColor = pickup.store ? getStoreColor(pickup.store) : null;
