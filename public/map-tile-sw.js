@@ -328,6 +328,29 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+/**
+ * Resolve a notification URL relative to THIS service worker's scope (the PWA root),
+ * NOT the origin root, so taps open the installed PWA in standalone mode rather
+ * than a browser tab at the origin root. (Mirror of push-sw.js logic.)
+ */
+function resolvePwaUrl(targetUrl) {
+  const scope = self.registration.scope;
+  if (!targetUrl || targetUrl === '/') {
+    return scope;
+  }
+  if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+    return targetUrl;
+  }
+  if (targetUrl.startsWith('/?')) {
+    const query = targetUrl.slice(1); // "?openChat=..."
+    return scope + (scope.endsWith('/') ? query.slice(1) : query);
+  }
+  if (targetUrl.startsWith('/')) {
+    return scope + (scope.endsWith('/') ? targetUrl.slice(1) : targetUrl);
+  }
+  return new URL(targetUrl, scope).href;
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const rawUrl = event.notification.data?.url || '/';
@@ -344,12 +367,14 @@ self.addEventListener('notificationclick', (event) => {
         if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
           if ('navigate' in client) {
             client.navigate(fullUrl).catch(() => {});
+
           }
           return client.focus();
         }
       }
       if (clients.openWindow) {
         return clients.openWindow(fullUrl);
+
       }
     })
   );
