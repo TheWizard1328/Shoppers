@@ -10,7 +10,12 @@ const STOPPED_IDLE_MS = 15000;       // was 10s
 // How long a double-tap override suppresses immersive mode
 const MAP_TAP_OVERRIDE_MS = 30000;
 // Within this range of the next stop → disable immersive mode
-const NEXT_STOP_DISABLE_DISTANCE_METERS = 250;
+const NEXT_STOP_DISABLE_DISTANCE_METERS = 250;   // Exit immersive when within this distance
+const NEXT_STOP_REENABLE_DISTANCE_METERS = 350;  // Must move BEYOND this to re-enter immersive
+// Minimum time between immersiveHidden state changes. GPS jitter at the proximity
+// boundary can cause isNearNextStop to flip on every tick, producing rapid padding
+// oscillation and the "double-jump" effect on the map.
+const IMMERSIVE_TOGGLE_DEBOUNCE_MS = 3000;
 // After completing/failing/cancelling a stop: block immersive re-activation
 // for this long so the driver isn't immediately re-immersed while still parked
 const POST_STOP_COOLDOWN_MS = 45000;
@@ -215,7 +220,12 @@ export default function useImmersiveMode({
     }, MAP_TAP_OVERRIDE_MS);
   }, []);
 
-  // ── Deactivation condition 1: proximity to next stop ────────────────────────
+  // ── Deactivation condition 1: proximity to next stop (with hysteresis) ──────
+  // Uses two thresholds to prevent oscillation at the boundary:
+  //   ≤250m → isNearNextStop = true  (immersive OFF)
+  //   ≥350m → isNearNextStop = false (immersive can turn ON)
+  // Between 250-350m, the previous state is retained (hysteresis band).
+  const isNearNextStopRef = useRef(false);
   const isNearNextStop = useMemo(() => {
     if (!nextStopLocation) return false;
     const dLat = Number(driverLocation?.latitude ?? driverLocation?.lat);
@@ -223,7 +233,14 @@ export default function useImmersiveMode({
     const sLat = Number(nextStopLocation?.latitude ?? nextStopLocation?.lat);
     const sLon = Number(nextStopLocation?.longitude ?? nextStopLocation?.lon);
     if (![dLat, dLon, sLat, sLon].every(Number.isFinite)) return false;
-    return getDistanceMeters({ latitude: dLat, longitude: dLon }, { latitude: sLat, longitude: sLon }) <= NEXT_STOP_DISABLE_DISTANCE_METERS;
+    const dist = getDistanceMeters({ latitude: dLat, longitude: dLon }, { latitude: sLat, longitude: sLon });
+    if (dist <= NEXT_STOP_DISABLE_DISTANCE_METERS) {
+      isNearNextStopRef.current = true;
+    } else if (dist >= NEXT_STOP_REENABLE_DISTANCE_METERS) {
+      isNearNextStopRef.current = false;
+    }
+    // In the hysteresis band (250-350m), retain previous state
+    return isNearNextStopRef.current;
   }, [
     driverLocation?.latitude, driverLocation?.longitude,
     driverLocation?.lat, driverLocation?.lon,
@@ -232,10 +249,12 @@ export default function useImmersiveMode({
     nextStopLocation,
   ]);
 
-  // ── Final immersive state ───────────────────────────────────────────────────
-  // ACTIVATE when: driver is moving AND a next stop exists
-  // DEACTIVATE when: near next stop OR manual override OR stopped OR cooldown OR no next stop
-  const immersiveHidden = useMemo(() => {
+  // ── Debounce immersiveHidden state changes ──────────────────────────────────
+  // Prevents rapid toggling caused by GPS jitter at the proximity boundary.
+  // When the computed value flips, we wait IMMERSIVE_TOGGLE_DEBOUNCE_MS before
+  // committing the change. If it flips back within that window, the change is
+  // cancelled — the driver never sees the oscillation.
+  const rawImmersiveHidden = useMemo(() => {
     if (!enabled || !isDriver || !isMobile) return false;
     if (isCooldownActive) return false;
     if (!nextStopLocation) return false;
@@ -243,6 +262,33 @@ export default function useImmersiveMode({
     if (isNearNextStop) return false;
     return isDriverMoving;
   }, [enabled, isDriver, isMobile, isCooldownActive, nextStopLocation, isOverrideActive, isNearNextStop, isDriverMoving]);
+
+  const pendingImmersiveRef = useRef(null);
+  const immersiveToggleTimerRef = useRef(null);
+  const [immersiveHidden, setImmersiveHidden] = useState(false);
+  useEffect(() => {
+    // If the raw value matches the current committed value, nothing to do.
+    if (rawImmersiveHidden === immersiveHidden) {
+      if (immersiveToggleTimerRef.current) {
+        clearTimeout(immersiveToggleTimerRef.current);
+        immersiveToggleTimerRef.current = null;
+        pendingImmersiveRef.current = null;
+      }
+      return;
+    }
+    // If we already have a pending change to this same value, do nothing.
+    if (pendingImmersiveRef.current === rawImmersiveHidden) return;
+    // Cancel any previous pending change and schedule the new one.
+    if (immersiveToggleTimerRef.current) {
+      clearTimeout(immersiveToggleTimerRef.current);
+    }
+    pendingImmersiveRef.current = rawImmersiveHidden;
+    immersiveToggleTimerRef.current = setTimeout(() => {
+      setImmersiveHidden(rawImmersiveHidden);
+      immersiveToggleTimerRef.current = null;
+      pendingImmersiveRef.current = null;
+    }, IMMERSIVE_TOGGLE_DEBOUNCE_MS);
+  }, [rawImmersiveHidden, immersiveHidden]);
 
   // ── Notify FAB on immersive toggle ─────────────────────────────────────────
   const previousImmersiveHiddenRef = useRef(immersiveHidden);
@@ -257,6 +303,11 @@ export default function useImmersiveMode({
     }
     previousImmersiveHiddenRef.current = immersiveHidden;
   }, [immersiveHidden]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => () => {
+    if (immersiveToggleTimerRef.current) clearTimeout(immersiveToggleTimerRef.current);
+  }, []);
 
   return {
     immersiveHidden,

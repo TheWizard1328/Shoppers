@@ -1054,10 +1054,13 @@ function DeliveryMap({
           const latest = latestFitBoundsRef.current;
           if (latest && latest !== request) {
             // Prevent "double zoom" — if the latest queued request has nearly
-            // identical bounds to what we just applied (center within 50m and
-            // same maxZoom), skip the second animation. This happens when a GPS
-            // tick arrives during the first animation and gets queued — the map
-            // is already at the target, so running it again causes a visible bounce.
+            // identical bounds to what we just applied, skip the second animation.
+            // "Nearly identical" now checks BOTH center distance AND span change.
+            // The old check (center < 50m only) missed the case where the driver
+            // is approaching the next stop: both markers converge symmetrically so
+            // the center barely moves, but the span shrinks and the optimal zoom
+            // increases. This caused the map to stay at a stale zoom for 30-60s
+            // until enough center drift accumulated, then suddenly jump.
             try {
               const latestB = L.latLngBounds(
                 (Array.isArray(latest.bounds) ? latest.bounds : []).filter(
@@ -1073,7 +1076,18 @@ function DeliveryMap({
                 const centerDiff = latestB.getCenter().distanceTo(reqB.getCenter());
                 const latestMaxZoom = (latest.options || {}).maxZoom ?? 17.5;
                 const reqMaxZoom = (request.options || {}).maxZoom ?? 17.5;
-                if (centerDiff < 50 && Math.abs(latestMaxZoom - reqMaxZoom) < 0.01) {
+                // Span comparison: if the bounds span has changed by more than 15%,
+                // the optimal zoom has changed enough to warrant a re-fit, even if
+                // the center hasn't moved. This catches the converging-markers case.
+                const reqSpan = reqB.getNorthEast().distanceTo(reqB.getSouthWest());
+                const latestSpan = latestB.getNorthEast().distanceTo(latestB.getSouthWest());
+                const spanChangeRatio = reqSpan > 0 ? Math.abs(latestSpan - reqSpan) / reqSpan : 0;
+                // Lower threshold from 50m → 20m: GPS accuracy is ~10-20m, so 50m
+                // was far too generous and suppressed legitimate re-fits.
+                const centerUnchanged = centerDiff < 20;
+                const zoomUnchanged = Math.abs(latestMaxZoom - reqMaxZoom) < 0.01;
+                const spanUnchanged = spanChangeRatio < 0.15;
+                if (centerUnchanged && zoomUnchanged && spanUnchanged) {
                   return; // Skip — already at the target
                 }
               }
