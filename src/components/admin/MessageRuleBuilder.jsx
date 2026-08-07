@@ -19,10 +19,12 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Loader2, Plus, Trash2, Save, X, GripVertical, Bell, BellRing,
-  Eye, EyeOff, Zap, Clock, Copy, ChevronDown, ChevronRight
+  Eye, EyeOff, Zap, Clock, Copy, ChevronDown, ChevronRight, FlaskConical, CheckCircle
 } from 'lucide-react';
-import { loadEnabledRules, clearRuleCache, dispatchMessageRules } from '@/components/utils/messageRuleEngine';
+import { loadEnabledRules, clearRuleCache, dispatchMessageRules, renderTemplate } from '@/components/utils/messageRuleEngine';
 import { applyTemplateUpdate } from '@/components/utils/notificationRules';
+import { initPushNotifications } from '@/components/utils/pushNotifications';
+import { useUser } from '@/components/utils/UserContext';
 import { toast } from 'sonner';
 
 // ── Event options ─────────────────────────────────────────────────────────
@@ -111,6 +113,18 @@ const TEMPLATE_VARIABLES = [
   '{{driverName}}', '{{patientName}}', '{{storeName}}', '{{deliveryCount}}',
   '{{deliveryList}}', '{{status}}', '{{timestamp}}', '{{eventName}}',
 ];
+
+// Sample values used to render a test message preview
+const SAMPLE_DATA = {
+  driverName: 'John D.',
+  patientName: 'Jane Smith',
+  storeName: 'Main Pharmacy',
+  deliveryCount: '3',
+  deliveryList: '\n• Jane Smith\n• Bob Wilson',
+  status: 'completed',
+  timestamp: new Date().toLocaleTimeString(),
+  eventName: 'Test Event',
+};
 
 // ── Entity multi-select ─────────────────────────────────────────────────────
 
@@ -480,7 +494,7 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
 
 // ── Rule card ────────────────────────────────────────────────────────────────
 
-function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drivers }) {
+function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drivers, onTest, testingId, testSuccessId, testPushStatus }) {
   const eventLabel = EVENT_OPTIONS.find((e) => e.value === rule.event_name)?.label || rule.event_name;
   const [expanded, setExpanded] = useState(false);
 
@@ -528,6 +542,14 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
           <div className="text-xs text-muted-foreground mt-0.5">
             <span className="font-medium">THEN:</span> {(rule.channels || []).join(' + ')} → {recipientLabels.join(', ')}
           </div>
+          {testSuccessId === rule.id && testPushStatus && (
+            <div className="text-[10px] mt-0.5 font-medium">
+              {testPushStatus === 'sent' && <span className="text-green-600">✅ Push delivered</span>}
+              {testPushStatus === 'no_sub' && <span className="text-orange-600">⚠️ No push subscription</span>}
+              {testPushStatus === 'denied' && <span className="text-red-600">🚫 Push disabled in Settings</span>}
+              {testPushStatus === 'error' && <span className="text-red-600">❌ Push failed — check console</span>}
+            </div>
+          )}
           {expanded && (
             <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
               <div><span className="font-medium">Message:</span> <span className="italic">"{rule.message_template || '(empty)'}"</span></div>
@@ -537,6 +559,11 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <Switch checked={rule.enabled} onCheckedChange={() => onToggle(rule)} />
+          <Button size="sm" variant="outline" disabled={testingId === rule.id} onClick={() => onTest(rule)}
+            className={`h-7 px-2 text-xs gap-1 ${testSuccessId === rule.id ? 'border-green-500 text-green-600' : ''}`}>
+            {testingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccessId === rule.id ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+            {testSuccessId === rule.id ? 'Sent!' : 'Test'}
+          </Button>
           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setExpanded((e) => !e)}>
             {expanded ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </Button>
@@ -564,6 +591,50 @@ export default function MessageRuleBuilder() {
   const [editingRule, setEditingRule] = useState(null);
   const [stores, setStores] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const { currentUser } = useUser();
+  const [testingId, setTestingId] = useState(null);
+  const [testSuccessId, setTestSuccessId] = useState(null);
+  const [testPushStatus, setTestPushStatus] = useState(null);
+
+  const handleTest = async (rule) => {
+    if (!currentUser?.id) { toast.error('Could not determine current user.'); return; }
+    const preview = renderTemplate(rule.message_template, SAMPLE_DATA);
+    if (!preview) { toast.error('No message to test.'); return; }
+    setTestingId(rule.id);
+    setTestSuccessId(null);
+    setTestPushStatus(null);
+    try {
+      const eventLabel = EVENT_OPTIONS.find((e) => e.value === rule.event_name)?.label || rule.event_name;
+      const channels = rule.channels?.length ? rule.channels : ['in_app'];
+      if (channels.includes('in_app')) {
+        await base44.entities.Message.create({
+          sender_id: currentUser.id, sender_name: 'System Test',
+          receiver_id: currentUser.id, receiver_name: currentUser.full_name || 'You',
+          conversation_id: [currentUser.id, 'system_test'].join('_'),
+          content: `[TEST — ${eventLabel}]\n${preview}`, read: false,
+        });
+      }
+      if (channels.includes('push')) {
+        if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
+          try { await initPushNotifications(currentUser.id); } catch {}
+        }
+        const pushRes = await base44.functions.invoke('sendPushNotification', {
+          user_id: currentUser.id, title: `[TEST] ${eventLabel}`, body: preview, url: '/',
+        }).catch((e) => ({ error: e?.message || String(e) }));
+        if (pushRes?.error) setTestPushStatus('error');
+        else if (pushRes?.sent > 0) setTestPushStatus('sent');
+        else if (pushRes?.message?.includes('disabled by user')) setTestPushStatus('denied');
+        else setTestPushStatus('no_sub');
+      }
+      setTestSuccessId(rule.id);
+      toast.success('Test message sent to you');
+      setTimeout(() => { setTestSuccessId(null); setTestPushStatus(null); }, 5000);
+    } catch (e) {
+      toast.error('Test failed: ' + (e?.message || e));
+    } finally {
+      setTestingId(null);
+    }
+  };
 
   const loadRules = useCallback(async () => {
     setIsLoading(true);
@@ -706,7 +777,8 @@ export default function MessageRuleBuilder() {
           </div>
           {rulesByEvent[eventKey].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999)).map((rule) => (
             <RuleCard key={rule.id} rule={rule} onEdit={(r) => { setEditingRule(r); setShowEditor(true); }}
-              onDelete={handleDelete} onToggle={handleToggle} onDuplicate={handleDuplicate} stores={stores} drivers={drivers} />
+              onDelete={handleDelete} onToggle={handleToggle} onDuplicate={handleDuplicate} stores={stores} drivers={drivers}
+              onTest={handleTest} testingId={testingId} testSuccessId={testSuccessId} testPushStatus={testPushStatus} />
           ))}
         </div>
       ))}
