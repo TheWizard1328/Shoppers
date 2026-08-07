@@ -39,7 +39,7 @@ async function handleMarkCollectedDebit(base44, payload) {
     const existingNotes=String(delivery.delivery_notes||'').trim();
     const ts=new Date().toLocaleString('en-US',{timeZone:'America/Edmonton'});
     const dateStr=new Date().toLocaleDateString('en-US',{timeZone:'America/Edmonton',month:'2-digit',day:'2-digit',year:'numeric'})+' '+new Date().toLocaleTimeString('en-US',{timeZone:'America/Edmonton',hour:'numeric',minute:'2-digit',hour12:true});
-    const noteLine=`[COD Collected ${dateStr}]: ${String(note).trim()}`;
+    const noteLine=`[COD Collected]:\n${String(note).trim()}`;
     updatePayload.delivery_notes=existingNotes?`${existingNotes}\n${noteLine}`:noteLine;
   }
   const updatedDelivery=await base44.asServiceRole.entities.Delivery.update(deliveryId,updatePayload);
