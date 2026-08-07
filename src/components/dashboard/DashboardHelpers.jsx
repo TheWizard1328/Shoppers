@@ -149,13 +149,16 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   }
 
   // Top padding:
-  //   Mobile normal    — stats card container height (includes driver legend)
-  //   Mobile immersive — IMMERSIVE_TOP_BANNER_HEIGHT (clears ImmersiveMapTopOverlay banner)
-  //   Desktop          — BASE_PADDING
+  //   Normal (all devices)   — stats card container height (DashboardStatsPanel overlays
+  //                            the top of the map on BOTH mobile AND desktop via absolute
+  //                            positioning at z-230. Not accounting for it on desktop left
+  //                            markers hidden behind the panel.)
+  //   Mobile immersive       — IMMERSIVE_TOP_BANNER_HEIGHT (clears ImmersiveMapTopOverlay banner)
+  //   Desktop immersive      — BASE_PADDING + breathing room (stats panel slides away)
   let topPadding;
-  if (isMobile && !isImmersiveModeOn) {
+  if (!isImmersiveModeOn) {
     topPadding = Math.max(statsCardHeight || 75, BASE_PADDING) + 10;
-  } else if (isMobile && isImmersiveModeOn) {
+  } else if (isMobile) {
     topPadding = IMMERSIVE_TOP_BANNER_HEIGHT;
   } else {
     topPadding = BASE_PADDING + 10;

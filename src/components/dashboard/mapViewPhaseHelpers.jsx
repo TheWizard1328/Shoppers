@@ -21,6 +21,18 @@ export function getSelfDriverLocationForBounds({ currentUser, appUsers, driverLo
   return null;
 }
 
+/**
+ * Extract a timestamp (ms since epoch) from a location-like object.
+ * Handles allDriverLocations entries (from poller) and AppUser records.
+ */
+function getLocationTimestamp(loc) {
+  if (!loc) return 0;
+  const ts = loc.location_updated_at || loc.updated_date || loc.timestamp || loc.created_date;
+  if (!ts) return 0;
+  const ms = new Date(ts).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 export function getFabTargetDriverMapLocation({
   selectedDriverId,
   currentUser,
@@ -53,23 +65,41 @@ export function getFabTargetDriverMapLocation({
   // For any driver (including self), only use shared/stored location if active
   if (!isOnDuty) return null;
 
-  // 2. allDriverLocations (excludes self on mobile/tablet — see driverLocationPoller filter)
+  // 2+3. Compare allDriverLocations (poller) vs AppUser record (WebSocket-fresh).
+  // The poller is async and may lag behind WebSocket appUser updates. The driver
+  // marker in DeliveryMap uses routeLocationSnapshot built from realtimeAppUsers
+  // (WebSocket), so it shows the freshest position. Phase 2 bounds must use the
+  // same freshest source — compare timestamps and prefer the more recent one.
   const sharedLocation = (allDriverLocations || []).find((loc) => (
     loc?.driver_id === targetDriverId ||
     loc?.driverId === targetDriverId ||
     loc?.user_id === targetDriverId ||
     loc?.id === targetDriverId
   ));
-  if (sharedLocation?.latitude && sharedLocation?.longitude) {
+  const appUserHasCoords = !!(targetAppUser?.current_latitude && targetAppUser?.current_longitude);
+  const sharedHasCoords = !!(sharedLocation?.latitude && sharedLocation?.longitude);
+
+  if (sharedHasCoords && appUserHasCoords) {
+    // Both sources available — prefer the freshest by timestamp
+    const sharedTs = getLocationTimestamp(sharedLocation);
+    const appUserTs = getLocationTimestamp(targetAppUser);
+    if (appUserTs > sharedTs) {
+      return {
+        latitude: Number(targetAppUser.current_latitude),
+        longitude: Number(targetAppUser.current_longitude),
+      };
+    }
     return { latitude: sharedLocation.latitude, longitude: sharedLocation.longitude };
   }
 
-  // 3. AppUser stored location — covers non-primary devices (tablets) where self is filtered
-  //    from allDriverLocations and live GPS may not be running
-  if (targetAppUser?.current_latitude && targetAppUser?.current_longitude) {
+  if (sharedHasCoords) {
+    return { latitude: sharedLocation.latitude, longitude: sharedLocation.longitude };
+  }
+
+  if (appUserHasCoords) {
     return {
-      latitude: targetAppUser.current_latitude,
-      longitude: targetAppUser.current_longitude,
+      latitude: Number(targetAppUser.current_latitude),
+      longitude: Number(targetAppUser.current_longitude),
     };
   }
 
