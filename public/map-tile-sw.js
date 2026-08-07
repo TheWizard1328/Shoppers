@@ -15,7 +15,7 @@
  *                         navigating to `data.url` if provided (deep link)
  */
 
-const SW_VERSION = 'v9';
+const SW_VERSION = 'v10';
 const CACHE_PREFIX = 'here-tiles';
 const DEFAULT_CACHE = `${CACHE_PREFIX}-default-${SW_VERSION}`;
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days

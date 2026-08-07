@@ -80,12 +80,12 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', async () => {
-    // Tile cache SW (also handles push via importScripts)
+    // Single combined SW: map-tile-sw.js handles BOTH tile caching AND push
+    // notifications. The separate push-sw.js was removed to eliminate the
+    // two-SW controller race that broke background push delivery on Android.
     navigator.serviceWorker.register('/map-tile-sw.js').then((registration) => {
       registration.update().catch(() => {});
     }).catch(() => {});
-    // Dedicated push SW (handles push + notificationclick)
-    navigator.serviceWorker.register('/push-sw.js').catch(() => {});
   });
 }
 

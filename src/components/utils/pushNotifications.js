@@ -19,21 +19,20 @@ function isPushSupported() {
 }
 
 /**
- * Get the best push-capable service worker registration.
- * Waits up to 5s for push-sw.js to become active, then falls back to any ready SW.
+ * Get the push-capable service worker registration.
+ * With push-sw.js removed, map-tile-sw.js is the sole SW and handles push.
+ * We wait for it to be ready (up to 5s), then fall back to navigator.serviceWorker.ready.
  */
 async function getPushRegistration() {
-  // Wait for push-sw.js specifically (up to 5 seconds)
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
     const registrations = await navigator.serviceWorker.getRegistrations();
-    const pushReg = registrations.find(
-      r => r.active?.scriptURL?.includes('push-sw.js')
+    const tileReg = registrations.find(
+      r => r.active?.scriptURL?.includes('map-tile-sw.js')
     );
-    if (pushReg) return pushReg;
+    if (tileReg) return tileReg;
     await new Promise(r => setTimeout(r, 300));
   }
-  // Fallback: any ready service worker
   return navigator.serviceWorker.ready;
 }
 
