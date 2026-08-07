@@ -1694,11 +1694,22 @@ export default function useStopCardActions(params) {
         const _driverAppUserForEOD = _routeIsFinished ? (appUsers || []).find((au) => au?.user_id === delivery.driver_id) : null;
         const _driverStatusForEOD = _driverAppUserForEOD?.driver_status ?? currentUser?.driver_status;
         if (_routeIsFinished && _driverStatusForEOD === 'on_duty') {
+          // CRITICAL: completionActualTime is a NAIVE local timestamp string
+          // (e.g. "2026-08-06T13:40:00", no timezone suffix) built from local
+          // Date components on this device. The backend setDriverStatus function
+          // runs on a UTC server — new Date() there treats a naive/no-offset
+          // string as UTC, not Edmonton local time, silently shifting the segment
+          // end_time by the Edmonton UTC offset (6h MDT / 7h MST) into the past.
+          // Convert to a real UTC instant HERE (on the client, where naive
+          // date-time strings ARE correctly interpreted as this device's local
+          // time) before sending — the backend then parses an unambiguous
+          // 'Z'-suffixed ISO string.
+          const anchorTimeUTC = new Date(completionActualTime).toISOString();
           setDriverStatus({
             newStatus: 'off_duty',
             selectedDate: delivery?.delivery_date,
             targetUserId: delivery?.driver_id,
-            anchorTime: completionActualTime,
+            anchorTime: anchorTimeUTC,
           }).catch((e) => console.warn('⚠️ Route-complete off_duty failed:', e?.message));
           if (_driverAppUserForEOD?.id) {
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {

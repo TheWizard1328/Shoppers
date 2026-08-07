@@ -2,6 +2,60 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
+// Detects a "naive" local timestamp string with NO timezone info (no trailing
+// Z, no +HH:MM/-HH:MM offset) — e.g. "2026-08-06T13:40:00". Delivery.actual_delivery_time
+// and anchorTime values built by generateCompletionTimestamp() on the client are
+// ALWAYS in this naive format, representing Edmonton wall-clock time.
+const isNaiveTimestamp = (str) => {
+  if (typeof str !== 'string') return false;
+  return !/Z$/i.test(str) && !/[+-]\d{2}:\d{2}$/.test(str);
+};
+
+// Converts a naive "YYYY-MM-DDTHH:MM:SS" string that represents America/Edmonton
+// wall-clock time into a true UTC ISO instant.
+//
+// ROOT CAUSE THIS FIXES: this backend function runs on a UTC server. new Date()
+// on a naive string with no timezone suffix parses it as UTC (per the JS spec's
+// "date-time string without offset" rule for the runtime's local zone, which on
+// this server IS UTC) — NOT as Edmonton local time. That silently shifted every
+// activity-segment boundary derived from a naive timestamp (client anchorTime,
+// or a DB actual_delivery_time fallback) by Edmonton's UTC offset (6h MDT / 7h
+// MST) into the past, corrupting on-duty segment durations.
+//
+// Uses a 2-pass Intl.DateTimeFormat convergence so it's correct even for
+// timestamps that fall near a DST transition.
+const edmontonNaiveToUTCISOString = (naiveStr) => {
+  const match = String(naiveStr).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+  if (!match) return new Date(naiveStr).toISOString();
+  const y = Number(match[1]), mo = Number(match[2]), d = Number(match[3]);
+  const h = Number(match[4]), mi = Number(match[5]), s = Number(match[6]);
+  const targetMs = Date.UTC(y, mo - 1, d, h, mi, s); // naive components read as if UTC
+
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Edmonton',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  });
+
+  let guessMs = targetMs;
+  for (let i = 0; i < 2; i++) {
+    const parts = dtf.formatToParts(new Date(guessMs));
+    const get = (type) => Number(parts.find((p) => p.type === type)?.value);
+    let edmH = get('hour'); if (edmH === 24) edmH = 0;
+    const edmProjectedMs = Date.UTC(get('year'), get('month') - 1, get('day'), edmH, get('minute'), get('second'));
+    const offsetMs = guessMs - edmProjectedMs; // how far ahead UTC is vs Edmonton at this instant
+    guessMs = targetMs + offsetMs;
+  }
+  return new Date(guessMs).toISOString();
+};
+
+// Normalizes any timestamp that MIGHT be a naive Edmonton-local string into a
+// real UTC ISO string. Already-correct 'Z'/offset timestamps pass through untouched.
+const normalizeToUTC = (timestamp) => {
+  if (!timestamp) return timestamp;
+  return isNaiveTimestamp(timestamp) ? edmontonNaiveToUTCISOString(timestamp) : timestamp;
+};
+
 const getEdmDate = () => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Edmonton',
@@ -60,7 +114,7 @@ const roundTo5Min = (isoTimestamp, direction) => {
 const recordActivitySegment = async (base44, driverId, driverName, newStatus, previousStatus, anchorTime = null) => {
   try {
     const todayStr = getEdmDate();
-    const rawNow = anchorTime || new Date().toISOString();
+    const rawNow = anchorTime ? normalizeToUTC(anchorTime) : new Date().toISOString();
 
     // Round segment boundary to nearest 5-minute mark per direction rule:
     //   on_duty  → floor (previous 5-min mark)
@@ -264,8 +318,11 @@ Deno.serve(async (req) => {
           .sort((a, b) => new Date(a.actual_delivery_time).getTime() - new Date(b.actual_delivery_time).getTime());
         if (completed.length > 0) {
           const firstDeliveryTime = completed[0].actual_delivery_time;
-          // Only use it if it's in the past (sanity check)
-          if (new Date(firstDeliveryTime).getTime() < Date.now()) {
+          // Sanity check must compare the CORRECTLY-interpreted (Edmonton-local ->
+          // UTC) instant against real current time — comparing the naive string
+          // directly against Date.now() misreads it as UTC and always looks
+          // artificially far in the past, defeating the "in the past" guard.
+          if (normalizeToUTC(firstDeliveryTime) && new Date(normalizeToUTC(firstDeliveryTime)).getTime() < Date.now()) {
             activityAnchorTime = firstDeliveryTime;
             console.log(`⏱️ [setDriverStatus] Using first delivery time as on_duty anchor: ${activityAnchorTime}`);
           }
