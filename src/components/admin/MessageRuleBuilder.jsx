@@ -46,7 +46,7 @@ const EVENT_OPTIONS = [
 const FIELD_OPTIONS = [
   { value: 'store_id',         label: 'Store',              type: 'entity' },
   { value: 'driver_id',        label: 'Driver',              type: 'entity' },
-  { value: 'delivery_status',  label: 'Delivery Status',     type: 'text' },
+  { value: 'delivery_status',  label: 'Delivery Status',     type: 'status' },
   { value: 'signature_needed', label: 'Signature Required',  type: 'bool' },
   { value: 'first_delivery',   label: 'First Delivery',       type: 'bool' },
   { value: 'fridge_item',      label: 'Fridge Item',          type: 'bool' },
@@ -77,6 +77,16 @@ const USER_ROLE_OPTIONS = [
   { value: 'dispatcher', label: 'Dispatcher' },
   { value: 'driver',    label: 'Driver' },
   { value: 'patient',   label: 'Patient' },
+];
+
+const DELIVERY_STATUS_OPTIONS = [
+  { value: 'all',        label: 'All' },
+  { value: 'pending',    label: 'Pending' },
+  { value: 'in_transit', label: 'In Transit' },
+  { value: 'en_route',   label: 'En Route' },
+  { value: 'completed',  label: 'Completed' },
+  { value: 'failed',     label: 'Failed' },
+  { value: 'cancelled',  label: 'Cancelled' },
 ];
 
 // ── Recipient options ──────────────────────────────────────────────────────
@@ -158,13 +168,15 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
   const fieldOpt = FIELD_OPTIONS.find((f) => f.value === condition.field);
   const isBoolField = fieldOpt?.type === 'bool';
   const isRoleField = fieldOpt?.type === 'role';
+  const isStatusField = fieldOpt?.type === 'status';
+  const isDropdownField = isRoleField || isStatusField;
 
-  // Auto-fix operator when switching to bool / role field
+  // Auto-fix operator when switching to bool / role / status field
   const handleFieldChange = (v) => {
     const newField = FIELD_OPTIONS.find((f) => f.value === v);
     if (newField?.type === 'bool') {
       onChange(index, 'operator', 'is_true');
-    } else if (newField?.type === 'role') {
+    } else if (newField?.type === 'role' || newField?.type === 'status') {
       if (!['equals', 'not_equals'].includes(condition.operator)) {
         onChange(index, 'operator', 'equals');
       }
@@ -172,7 +184,7 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
       onChange(index, 'operator', 'equals');
     }
     onChange(index, 'field', v);
-    onChange(index, 'value', newField?.type === 'role' ? 'all' : '');
+    onChange(index, 'value', (newField?.type === 'role' || newField?.type === 'status') ? 'all' : '');
   };
 
   return (
@@ -192,7 +204,7 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
           {OPERATOR_OPTIONS.filter((o) => {
             if (isBoolField) return ['is_true', 'is_false'].includes(o.value);
             if (fieldOpt?.type === 'number') return ['equals', 'not_equals', 'greater_than', 'less_than'].includes(o.value);
-            if (isRoleField) return ['equals', 'not_equals'].includes(o.value);
+            if (isDropdownField) return ['equals', 'not_equals'].includes(o.value);
             return !['is_true', 'is_false'].includes(o.value);
           }).map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
         </SelectContent>
@@ -205,6 +217,13 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
             <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="Role" /></SelectTrigger>
             <SelectContent>
               {USER_ROLE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ) : isStatusField ? (
+          <Select value={condition.value || 'all'} onValueChange={(v) => onChange(index, 'value', v)}>
+            <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              {DELIVERY_STATUS_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
         ) : (
@@ -486,6 +505,8 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
           val = ids.map((id) => opts.find((o) => o.id === id)?.label || id).join(', ');
         } else if (c.field === 'user_role') {
           val = USER_ROLE_OPTIONS.find((o) => o.value === c.value)?.label || c.value;
+        } else if (c.field === 'delivery_status') {
+          val = DELIVERY_STATUS_OPTIONS.find((o) => o.value === c.value)?.label || c.value;
         }
         return `${field} ${op}${val ? ` ${val}` : ''}`;
       }).join(' AND ');
