@@ -1127,7 +1127,10 @@ export default function SquareManagement() {
           transactionId: itemToDelete.transaction_id || null,
           note: noteText,
         });
-        resultData = res;
+        // base44.functions.invoke returns the raw fetch Response; the function's
+        // actual JSON payload sits under .data. Read delivery_notes from either layer
+        // so the collected note reaches state + IDB (otherwise updatedNotes is always '').
+        resultData = res?.data || res;
       } catch (err) {
         console.error('squareMarkDebit failed:', err);
         throw err;
