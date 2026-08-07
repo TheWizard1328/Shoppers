@@ -903,6 +903,9 @@ function Dashboard() {
       setIsMapViewLocked(shouldLock);
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
+      // FAB click = explicit user action — cancel any in-flight animation
+      // so the new phase's fitBounds fires immediately instead of queuing
+      window._cancelInFlightNextFit = true;
       setMapViewTrigger((p) => p + 1);
       if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
       setTimeout(() => { setAreCardsVisible(true); centerNextDeliveryCard(deliveriesWithStopOrder); }, 500);
