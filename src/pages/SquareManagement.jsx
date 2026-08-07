@@ -2363,7 +2363,7 @@ export default function SquareManagement() {
               <AlertDialogTitle>Mark as Collected</AlertDialogTitle>
               <AlertDialogDescription>
                 {itemToDelete?.catalog_object_id ?
-                <>This will remove "{itemToDelete?.name}" from Square and mark the linked delivery as Debit collected.</> :
+                <>This will remove "{itemToDelete?.name}" from Square and mark the linked delivery as collected.</> :
 
                 <>This will mark the linked delivery as Debit collected.</>
                 }
