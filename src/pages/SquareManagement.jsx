@@ -1116,33 +1116,28 @@ export default function SquareManagement() {
     const trackingId = itemToDelete.catalog_object_id || itemToDelete.delivery_id;
     setDeletingId(trackingId);
     try {
-      await base44.functions.invoke('squareMarkDebit', {
-        deliveryId: itemToDelete.delivery_id,
-        catalogObjectId: itemToDelete.catalog_object_id || null,
-        transactionId: itemToDelete.transaction_id || null
-      });
-
-      // Append the explanation note to the delivery's Driver Notes as a new line
-      const targetDelivery = deliveries.find((d) => d?.id === itemToDelete.delivery_id);
-      const existingNotes = String(targetDelivery?.delivery_notes || '').trim();
-      const noteLine = `[COD Collected ${format(new Date(), 'MM/dd/yyyy h:mm a')}]: ${noteText}`;
-      const updatedNotes = existingNotes ? `${existingNotes}\n${noteLine}` : noteLine;
+      // Single backend call updates cod_payments AND delivery_notes together —
+      // avoids a race where the realtime event from the cod_payments update
+      // would overwrite a separately-saved delivery_notes with the stale value.
+      let resultData = null;
       try {
-        await base44.entities.Delivery.update(itemToDelete.delivery_id, { delivery_notes: updatedNotes });
-      } catch (noteErr) {
-        console.error('Failed to append collection note to delivery_notes:', noteErr);
+        const res = await base44.functions.invoke('squareMarkDebit', {
+          deliveryId: itemToDelete.delivery_id,
+          catalogObjectId: itemToDelete.catalog_object_id || null,
+          transactionId: itemToDelete.transaction_id || null,
+          note: noteText,
+        });
+        // base44.functions.invoke returns the raw fetch Response; the function's
+        // actual JSON payload sits under .data. Read delivery_notes from either layer
+        // so the collected note reaches state + IDB (otherwise updatedNotes is always '').
+        resultData = res?.data || res;
+      } catch (err) {
+        console.error('squareMarkDebit failed:', err);
+        throw err;
       }
 
-      // Also write the updated delivery_notes to IDB so syncFromSquare's merge preserves it
-      try {
-        const { offlineDB } = await import('@/components/utils/offlineDatabase');
-        const idbRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, itemToDelete.delivery_id);
-        if (idbRecord) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{ ...idbRecord, delivery_notes: updatedNotes }]);
-        }
-      } catch (idbErr) {
-        console.error('Failed to write collection note to IDB:', idbErr);
-      }
+      // The backend returns the final delivery_notes; use it to update local state + IDB
+      const updatedNotes = resultData?.delivery_notes || '';
 
       setCatalogItems((prev) => prev.filter((i) => i.catalog_object_id !== itemToDelete.catalog_object_id));
       setDeliveries((prev) => prev.map((delivery) =>
@@ -1154,6 +1149,21 @@ export default function SquareManagement() {
       } :
       delivery
       ));
+
+      // Write the combined update to IDB so it survives syncFromSquare merges
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const idbRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, itemToDelete.delivery_id);
+        if (idbRecord) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [{
+            ...idbRecord,
+            cod_payments: [{ type: 'Debit', amount: Number(idbRecord.cod_total_amount_required || 0) }],
+            delivery_notes: updatedNotes,
+          }]);
+        }
+      } catch (idbErr) {
+        console.error('Failed to write collection note to IDB:', idbErr);
+      }
 
       toast.success('Marked as collected — running sync...');
       setItemToDelete(null);
@@ -2356,7 +2366,7 @@ export default function SquareManagement() {
               <AlertDialogTitle>Mark as Collected</AlertDialogTitle>
               <AlertDialogDescription>
                 {itemToDelete?.catalog_object_id ?
-                <>This will remove "{itemToDelete?.name}" from Square and mark the linked delivery as Debit collected.</> :
+                <>This will remove "{itemToDelete?.name}" from Square and mark the linked delivery as collected.</> :
 
                 <>This will mark the linked delivery as Debit collected.</>
                 }

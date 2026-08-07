@@ -19,17 +19,19 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Loader2, Plus, Trash2, Save, X, GripVertical, Bell, BellRing,
-  Eye, EyeOff, Zap, Clock, Copy, ChevronDown, ChevronRight
+  Eye, EyeOff, Zap, Clock, Copy, ChevronDown, ChevronRight, FlaskConical, CheckCircle
 } from 'lucide-react';
-import { loadEnabledRules, clearRuleCache, dispatchMessageRules } from '@/components/utils/messageRuleEngine';
+import { loadEnabledRules, clearRuleCache, dispatchMessageRules, renderTemplate } from '@/components/utils/messageRuleEngine';
 import { applyTemplateUpdate } from '@/components/utils/notificationRules';
+import { initPushNotifications } from '@/components/utils/pushNotifications';
+import { useUser } from '@/components/utils/UserContext';
 import { toast } from 'sonner';
 
 // ── Event options ─────────────────────────────────────────────────────────
 
 const EVENT_OPTIONS = [
   { value: 'driver_accepted',         label: 'Driver Accepted',              group: 'Assignment' },
-  { value: 'dispatcher_assigned_all',  label: 'Dispatcher Assigned All',      group: 'Assignment' },
+  { value: 'dispatcher_assigned_all',  label: 'Dispatcher Assigned Stops',    group: 'Assignment' },
   { value: 'driver_started',           label: 'Driver Started Delivery',      group: 'Delivery Status' },
   { value: 'driver_completed',         label: 'Driver Completed Delivery',    group: 'Delivery Status' },
   { value: 'driver_failed',            label: 'Driver Failed Delivery',       group: 'Delivery Status' },
@@ -46,14 +48,14 @@ const EVENT_OPTIONS = [
 const FIELD_OPTIONS = [
   { value: 'store_id',         label: 'Store',              type: 'entity' },
   { value: 'driver_id',        label: 'Driver',              type: 'entity' },
-  { value: 'delivery_status',  label: 'Delivery Status',     type: 'text' },
+  { value: 'delivery_status',  label: 'Delivery Status',     type: 'status' },
   { value: 'signature_needed', label: 'Signature Required',  type: 'bool' },
   { value: 'first_delivery',   label: 'First Delivery',       type: 'bool' },
   { value: 'fridge_item',      label: 'Fridge Item',          type: 'bool' },
   { value: 'oversized',        label: 'Oversized',            type: 'bool' },
   { value: 'cod_total_amount_required', label: 'COD Amount', type: 'number' },
   { value: 'no_charge',        label: 'No Charge',            type: 'bool' },
-  { value: 'user_role',        label: 'User Role',            type: 'text' },
+  { value: 'user_role',        label: 'User Role',            type: 'role' },
   { value: 'page_context',     label: 'Page/Screen',          type: 'text' },
 ];
 
@@ -70,6 +72,24 @@ const OPERATOR_OPTIONS = [
 
 const OPERATOR_NEEDS_VALUE = ['equals', 'not_equals', 'greater_than', 'less_than', 'in_list', 'not_in_list'];
 const ENTITY_FIELDS = ['store_id', 'driver_id'];
+
+const USER_ROLE_OPTIONS = [
+  { value: 'all',       label: 'All' },
+  { value: 'admin',     label: 'Admin' },
+  { value: 'dispatcher', label: 'Dispatcher' },
+  { value: 'driver',    label: 'Driver' },
+  { value: 'patient',   label: 'Patient' },
+];
+
+const DELIVERY_STATUS_OPTIONS = [
+  { value: 'all',        label: 'All' },
+  { value: 'pending',    label: 'Pending' },
+  { value: 'in_transit', label: 'In Transit' },
+  { value: 'en_route',   label: 'En Route' },
+  { value: 'completed',  label: 'Completed' },
+  { value: 'failed',     label: 'Failed' },
+  { value: 'cancelled',  label: 'Cancelled' },
+];
 
 // ── Recipient options ──────────────────────────────────────────────────────
 
@@ -93,6 +113,18 @@ const TEMPLATE_VARIABLES = [
   '{{driverName}}', '{{patientName}}', '{{storeName}}', '{{deliveryCount}}',
   '{{deliveryList}}', '{{status}}', '{{timestamp}}', '{{eventName}}',
 ];
+
+// Sample values used to render a test message preview
+const SAMPLE_DATA = {
+  driverName: 'John D.',
+  patientName: 'Jane Smith',
+  storeName: 'Main Pharmacy',
+  deliveryCount: '3',
+  deliveryList: '\n• Jane Smith\n• Bob Wilson',
+  status: 'completed',
+  timestamp: new Date().toLocaleTimeString(),
+  eventName: 'Test Event',
+};
 
 // ── Entity multi-select ─────────────────────────────────────────────────────
 
@@ -149,17 +181,24 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
   const isEntityField = ENTITY_FIELDS.includes(condition.field);
   const fieldOpt = FIELD_OPTIONS.find((f) => f.value === condition.field);
   const isBoolField = fieldOpt?.type === 'bool';
+  const isRoleField = fieldOpt?.type === 'role';
+  const isStatusField = fieldOpt?.type === 'status';
+  const isDropdownField = isRoleField || isStatusField;
 
-  // Auto-fix operator when switching to bool field
+  // Auto-fix operator when switching to bool / role / status field
   const handleFieldChange = (v) => {
     const newField = FIELD_OPTIONS.find((f) => f.value === v);
     if (newField?.type === 'bool') {
       onChange(index, 'operator', 'is_true');
+    } else if (newField?.type === 'role' || newField?.type === 'status') {
+      if (!['equals', 'not_equals'].includes(condition.operator)) {
+        onChange(index, 'operator', 'equals');
+      }
     } else if (condition.operator === 'is_true' || condition.operator === 'is_false') {
       onChange(index, 'operator', 'equals');
     }
     onChange(index, 'field', v);
-    onChange(index, 'value', '');
+    onChange(index, 'value', (newField?.type === 'role' || newField?.type === 'status') ? 'all' : '');
   };
 
   return (
@@ -179,6 +218,7 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
           {OPERATOR_OPTIONS.filter((o) => {
             if (isBoolField) return ['is_true', 'is_false'].includes(o.value);
             if (fieldOpt?.type === 'number') return ['equals', 'not_equals', 'greater_than', 'less_than'].includes(o.value);
+            if (isDropdownField) return ['equals', 'not_equals'].includes(o.value);
             return !['is_true', 'is_false'].includes(o.value);
           }).map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
         </SelectContent>
@@ -186,6 +226,20 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
       {needsValue && !isBoolField && (
         isEntityField ? (
           <EntityMultiSelect field={condition.field} value={condition.value || ''} onChange={(v) => onChange(index, 'value', v)} stores={stores} drivers={drivers} />
+        ) : isRoleField ? (
+          <Select value={condition.value || 'all'} onValueChange={(v) => onChange(index, 'value', v)}>
+            <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="Role" /></SelectTrigger>
+            <SelectContent>
+              {USER_ROLE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ) : isStatusField ? (
+          <Select value={condition.value || 'all'} onValueChange={(v) => onChange(index, 'value', v)}>
+            <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              {DELIVERY_STATUS_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
         ) : (
           <Input value={condition.value || ''} onChange={(e) => onChange(index, 'value', e.target.value)} placeholder="value" className="h-8 text-xs w-32" />
         )
@@ -440,7 +494,7 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
 
 // ── Rule card ────────────────────────────────────────────────────────────────
 
-function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drivers }) {
+function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drivers, onTest, testingId, testSuccessId, testPushStatus }) {
   const eventLabel = EVENT_OPTIONS.find((e) => e.value === rule.event_name)?.label || rule.event_name;
   const [expanded, setExpanded] = useState(false);
 
@@ -463,6 +517,10 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
             ? stores.map((s) => ({ id: s.id, label: s.name }))
             : drivers.map((d) => ({ id: d.user_id || d.id, label: d.user_name || d.id }));
           val = ids.map((id) => opts.find((o) => o.id === id)?.label || id).join(', ');
+        } else if (c.field === 'user_role') {
+          val = USER_ROLE_OPTIONS.find((o) => o.value === c.value)?.label || c.value;
+        } else if (c.field === 'delivery_status') {
+          val = DELIVERY_STATUS_OPTIONS.find((o) => o.value === c.value)?.label || c.value;
         }
         return `${field} ${op}${val ? ` ${val}` : ''}`;
       }).join(' AND ');
@@ -484,6 +542,14 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
           <div className="text-xs text-muted-foreground mt-0.5">
             <span className="font-medium">THEN:</span> {(rule.channels || []).join(' + ')} → {recipientLabels.join(', ')}
           </div>
+          {testSuccessId === rule.id && testPushStatus && (
+            <div className="text-[10px] mt-0.5 font-medium">
+              {testPushStatus === 'sent' && <span className="text-green-600">✅ Push delivered</span>}
+              {testPushStatus === 'no_sub' && <span className="text-orange-600">⚠️ No push subscription</span>}
+              {testPushStatus === 'denied' && <span className="text-red-600">🚫 Push disabled in Settings</span>}
+              {testPushStatus === 'error' && <span className="text-red-600">❌ Push failed — check console</span>}
+            </div>
+          )}
           {expanded && (
             <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
               <div><span className="font-medium">Message:</span> <span className="italic">"{rule.message_template || '(empty)'}"</span></div>
@@ -493,6 +559,11 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <Switch checked={rule.enabled} onCheckedChange={() => onToggle(rule)} />
+          <Button size="sm" variant="outline" disabled={testingId === rule.id} onClick={() => onTest(rule)}
+            className={`h-7 px-2 text-xs gap-1 ${testSuccessId === rule.id ? 'border-green-500 text-green-600' : ''}`}>
+            {testingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : testSuccessId === rule.id ? <CheckCircle className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+            {testSuccessId === rule.id ? 'Sent!' : 'Test'}
+          </Button>
           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setExpanded((e) => !e)}>
             {expanded ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </Button>
@@ -520,6 +591,50 @@ export default function MessageRuleBuilder() {
   const [editingRule, setEditingRule] = useState(null);
   const [stores, setStores] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const { currentUser } = useUser();
+  const [testingId, setTestingId] = useState(null);
+  const [testSuccessId, setTestSuccessId] = useState(null);
+  const [testPushStatus, setTestPushStatus] = useState(null);
+
+  const handleTest = async (rule) => {
+    if (!currentUser?.id) { toast.error('Could not determine current user.'); return; }
+    const preview = renderTemplate(rule.message_template, SAMPLE_DATA);
+    if (!preview) { toast.error('No message to test.'); return; }
+    setTestingId(rule.id);
+    setTestSuccessId(null);
+    setTestPushStatus(null);
+    try {
+      const eventLabel = EVENT_OPTIONS.find((e) => e.value === rule.event_name)?.label || rule.event_name;
+      const channels = rule.channels?.length ? rule.channels : ['in_app'];
+      if (channels.includes('in_app')) {
+        await base44.entities.Message.create({
+          sender_id: currentUser.id, sender_name: 'System Test',
+          receiver_id: currentUser.id, receiver_name: currentUser.full_name || 'You',
+          conversation_id: [currentUser.id, 'system_test'].join('_'),
+          content: `[TEST — ${eventLabel}]\n${preview}`, read: false,
+        });
+      }
+      if (channels.includes('push')) {
+        if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
+          try { await initPushNotifications(currentUser.id); } catch {}
+        }
+        const pushRes = await base44.functions.invoke('sendPushNotification', {
+          user_id: currentUser.id, title: `[TEST] ${eventLabel}`, body: preview, url: '/',
+        }).catch((e) => ({ error: e?.message || String(e) }));
+        if (pushRes?.error) setTestPushStatus('error');
+        else if (pushRes?.sent > 0) setTestPushStatus('sent');
+        else if (pushRes?.message?.includes('disabled by user')) setTestPushStatus('denied');
+        else setTestPushStatus('no_sub');
+      }
+      setTestSuccessId(rule.id);
+      toast.success('Test message sent to you');
+      setTimeout(() => { setTestSuccessId(null); setTestPushStatus(null); }, 5000);
+    } catch (e) {
+      toast.error('Test failed: ' + (e?.message || e));
+    } finally {
+      setTestingId(null);
+    }
+  };
 
   const loadRules = useCallback(async () => {
     setIsLoading(true);
@@ -662,7 +777,8 @@ export default function MessageRuleBuilder() {
           </div>
           {rulesByEvent[eventKey].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999)).map((rule) => (
             <RuleCard key={rule.id} rule={rule} onEdit={(r) => { setEditingRule(r); setShowEditor(true); }}
-              onDelete={handleDelete} onToggle={handleToggle} onDuplicate={handleDuplicate} stores={stores} drivers={drivers} />
+              onDelete={handleDelete} onToggle={handleToggle} onDuplicate={handleDuplicate} stores={stores} drivers={drivers}
+              onTest={handleTest} testingId={testingId} testSuccessId={testSuccessId} testPushStatus={testPushStatus} />
           ))}
         </div>
       ))}

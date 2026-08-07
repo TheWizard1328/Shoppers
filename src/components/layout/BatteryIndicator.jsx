@@ -60,31 +60,31 @@ export default function BatteryIndicator({ vertical = false }) {
   // Don't render if battery level is not available
   if (batteryLevel === null) return null;
 
-  // Determine color and fill based on battery level and charging status
+  // Theme detection — light mode always uses black text; dark mode uses white text.
+  const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches ||
+                     document.documentElement.classList.contains('dark');
+  const textColor = isDarkMode ? '#ffffff' : '#000000';
+
+  // Determine fill color based on battery level and charging status.
+  // In dark mode while charging, use a darker green (green-700) so the white
+  // percentage text stays legible against the fill instead of washing out.
   const getColorAndFill = () => {
     if (isCharging) {
-      return { bg: 'bg-green-500', text: 'text-green-600' };
+      return { bg: isDarkMode ? 'bg-green-700' : 'bg-green-500' };
     }
 
     if (batteryLevel <= 20) {
-      return { bg: 'bg-red-500', text: 'text-red-600' };
+      return { bg: 'bg-red-500' };
     } else if (batteryLevel <= 50) {
-      return { bg: 'bg-yellow-500', text: 'text-yellow-600' };
+      return { bg: 'bg-yellow-500' };
     } else if (batteryLevel <= 80) {
-      return { bg: 'bg-blue-500', text: 'text-blue-600' };
+      return { bg: 'bg-blue-500' };
     } else {
-      return { bg: 'bg-green-500', text: 'text-green-600' };
+      return { bg: 'bg-green-500' };
     }
   };
 
-  const { bg, text } = getColorAndFill();
-  
-  // Determine text color based on theme (dark mode = white, light mode = black)
-  const getTextColor = () => {
-    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches || 
-                       document.documentElement.classList.contains('dark');
-    return isDarkMode ? '#ffffff' : '#000000';
-  };
+  const { bg } = getColorAndFill();
 
   if (vertical) {
     return (
@@ -118,7 +118,7 @@ export default function BatteryIndicator({ vertical = false }) {
           {/* Percentage text - always centered */}
           {batteryLevel > 15 && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-[8px] font-bold origin-center" style={{ transform: 'rotate(-90deg)', color: getTextColor() }}>{batteryLevel}%</span>
+              <span className="text-[8px] font-bold origin-center" style={{ transform: 'rotate(-90deg)', color: textColor }}>{batteryLevel}%</span>
             </div>
           )}
         </div>
@@ -155,7 +155,7 @@ export default function BatteryIndicator({ vertical = false }) {
         {/* Percentage text - always centered */}
         {batteryLevel > 15 && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-[10px] font-bold" style={{ color: getTextColor() }}>{batteryLevel}%</span>
+            <span className="text-[10px] font-bold" style={{ color: textColor }}>{batteryLevel}%</span>
           </div>
         )}
       </div>

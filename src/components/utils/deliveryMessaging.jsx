@@ -43,7 +43,7 @@ export async function sendDeliveryMessage({
 /**
  * Fire-and-forget push notification alongside in-app messages
  */
-async function sendPushForNotification({ receiverId, senderName, content, event }) {
+export async function sendPushForNotification({ receiverId, senderName, content, event }) {
   if (!receiverId || !content) return;
   const title = (event && getNotificationLabel(event)) || senderName || 'RxDeliver';
   try {
@@ -237,7 +237,7 @@ export function buildDistanceBadge(patient, store) {
  * Get or create a store user for messaging
  * If the store doesn't have a user yet, creates one on-the-fly
  */
-async function getStoreUser(store) {
+export async function getStoreUser(store) {
   if (!store || !store.id) {
     console.warn('[deliveryMessaging] Invalid store');
     return null;
@@ -340,7 +340,7 @@ export async function notifyDispatcherAssignedAll({
     deliveryList += `\n• ${patientName}${badges}${distance}`;
   }
 
-  const messageData = { storeName, deliveryList };
+  const messageData = { storeName, deliveryList, pendingCount: deliveries.length };
 
   // Message FROM store TO driver
   await sendNotification({

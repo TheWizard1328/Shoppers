@@ -57,6 +57,9 @@ export function evaluateCondition(condition, context) {
   const fieldVal = context[condition.field];
   const condVal = condition.value;
 
+  // "All" wildcard for user_role / delivery_status — condition always passes
+  if ((condition.field === 'user_role' || condition.field === 'delivery_status') && String(condVal ?? '') === 'all') return true;
+
   switch (condition.operator) {
     case 'equals':
       return String(fieldVal ?? '') === String(condVal ?? '');
