@@ -405,6 +405,7 @@ Deno.serve(async (req) => {
       stop_id: puid,
       puid,
       store_id: storeId,
+      company_id: store?.company_id || null,
       delivery_id: generateDeliveryId(),
       delivery_date: deliveryDate,
       driver_id: driverId,
