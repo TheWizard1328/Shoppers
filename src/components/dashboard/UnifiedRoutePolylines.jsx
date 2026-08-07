@@ -4,7 +4,7 @@
  * Single polyline renderer implementing the consolidated route styling rules:
  *
  * ACTIVE ROUTE:
- *   - Finished stops  → no polyline (suppressed)
+ *   - Finished stops  → faded historical polyline (planned leg preserved on the stop record)
  *   - Pending stops   → no polyline (suppressed)
  *   - Current leg     → Blue (AM/PM dash pattern via getTravelModeLineStyle)
  *   - Incomplete/non-pending legs → Driver-specific color (or Green for cycling)
@@ -443,6 +443,48 @@ function UnifiedRoutePolylines({
           color={color}
         />
       );
+    }
+
+    // ── Finished legs on an active route ───────────────────────────────
+    // A completed/failed/cancelled stop keeps its stored planned polyline
+    // (encoded_polyline is preserved by the completion write — it never
+    // nulls it). Only the display was previously suppressed, which made a
+    // stop's route — including stop 1's home→first-stop leg — vanish the
+    // moment the driver finished it. Render the stored planned leg faded
+    // so the path the driver took remains visible while the route is
+    // still active.
+    if (hasFinished) {
+      const orderedAll = [...stops.complete, ...stops.incomplete]
+        .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+      const completedSorted = [...stops.complete]
+        .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+      completedSorted.forEach((stop) => {
+        let coords = decodePolyline(stop.encoded_polyline);
+        let isFallback = false;
+        if (!coords) {
+          const idx = orderedAll.findIndex((s) => s?.id === stop.id);
+          const prev = idx > 0 ? orderedAll[idx - 1] : null;
+          if (prev) { coords = makeFallback(prev, stop); isFallback = true; }
+        }
+        if (!coords) return;
+        const mode = getStopMode(stop, driverId, orderedAll);
+        const isCycling = mode === "cycling";
+        const color = isCycling ? CYCLING_COLOR : getDriverColor(driverId);
+        const isPM = stop.ampm_deliveries === "PM";
+        const style = getTravelModeLineStyle(mode, color, isPM);
+        const key = `finished-active-${driverId}-${stop.id}`;
+        if (seenKeys.has(key)) return;
+        seenKeys.add(key);
+        lines.push(
+          <Polyline
+            key={`unified-finished-active-line-${driverId}-${stop.id}`}
+            positions={coords}
+            renderer={renderer}
+            pathOptions={{ ...style, color, weight: 3, opacity: isFallback ? 0.2 : 0.28, lineJoin: "round", lineCap: "round" }}
+            pane="routeBasePane"
+          />
+        );
+      });
     }
   });
 
