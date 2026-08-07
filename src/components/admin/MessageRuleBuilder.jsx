@@ -29,7 +29,7 @@ import { toast } from 'sonner';
 
 const EVENT_OPTIONS = [
   { value: 'driver_accepted',         label: 'Driver Accepted',              group: 'Assignment' },
-  { value: 'dispatcher_assigned_all',  label: 'Dispatcher Assigned All',      group: 'Assignment' },
+  { value: 'dispatcher_assigned_all',  label: 'Dispatcher Assigned Stops',    group: 'Assignment' },
   { value: 'driver_started',           label: 'Driver Started Delivery',      group: 'Delivery Status' },
   { value: 'driver_completed',         label: 'Driver Completed Delivery',    group: 'Delivery Status' },
   { value: 'driver_failed',            label: 'Driver Failed Delivery',       group: 'Delivery Status' },
@@ -53,7 +53,7 @@ const FIELD_OPTIONS = [
   { value: 'oversized',        label: 'Oversized',            type: 'bool' },
   { value: 'cod_total_amount_required', label: 'COD Amount', type: 'number' },
   { value: 'no_charge',        label: 'No Charge',            type: 'bool' },
-  { value: 'user_role',        label: 'User Role',            type: 'text' },
+  { value: 'user_role',        label: 'User Role',            type: 'role' },
   { value: 'page_context',     label: 'Page/Screen',          type: 'text' },
 ];
 
@@ -70,6 +70,14 @@ const OPERATOR_OPTIONS = [
 
 const OPERATOR_NEEDS_VALUE = ['equals', 'not_equals', 'greater_than', 'less_than', 'in_list', 'not_in_list'];
 const ENTITY_FIELDS = ['store_id', 'driver_id'];
+
+const USER_ROLE_OPTIONS = [
+  { value: 'all',       label: 'All' },
+  { value: 'admin',     label: 'Admin' },
+  { value: 'dispatcher', label: 'Dispatcher' },
+  { value: 'driver',    label: 'Driver' },
+  { value: 'patient',   label: 'Patient' },
+];
 
 // ── Recipient options ──────────────────────────────────────────────────────
 
@@ -149,17 +157,22 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
   const isEntityField = ENTITY_FIELDS.includes(condition.field);
   const fieldOpt = FIELD_OPTIONS.find((f) => f.value === condition.field);
   const isBoolField = fieldOpt?.type === 'bool';
+  const isRoleField = fieldOpt?.type === 'role';
 
-  // Auto-fix operator when switching to bool field
+  // Auto-fix operator when switching to bool / role field
   const handleFieldChange = (v) => {
     const newField = FIELD_OPTIONS.find((f) => f.value === v);
     if (newField?.type === 'bool') {
       onChange(index, 'operator', 'is_true');
+    } else if (newField?.type === 'role') {
+      if (!['equals', 'not_equals'].includes(condition.operator)) {
+        onChange(index, 'operator', 'equals');
+      }
     } else if (condition.operator === 'is_true' || condition.operator === 'is_false') {
       onChange(index, 'operator', 'equals');
     }
     onChange(index, 'field', v);
-    onChange(index, 'value', '');
+    onChange(index, 'value', newField?.type === 'role' ? 'all' : '');
   };
 
   return (
@@ -179,6 +192,7 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
           {OPERATOR_OPTIONS.filter((o) => {
             if (isBoolField) return ['is_true', 'is_false'].includes(o.value);
             if (fieldOpt?.type === 'number') return ['equals', 'not_equals', 'greater_than', 'less_than'].includes(o.value);
+            if (isRoleField) return ['equals', 'not_equals'].includes(o.value);
             return !['is_true', 'is_false'].includes(o.value);
           }).map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
         </SelectContent>
@@ -186,6 +200,13 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
       {needsValue && !isBoolField && (
         isEntityField ? (
           <EntityMultiSelect field={condition.field} value={condition.value || ''} onChange={(v) => onChange(index, 'value', v)} stores={stores} drivers={drivers} />
+        ) : isRoleField ? (
+          <Select value={condition.value || 'all'} onValueChange={(v) => onChange(index, 'value', v)}>
+            <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="Role" /></SelectTrigger>
+            <SelectContent>
+              {USER_ROLE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
         ) : (
           <Input value={condition.value || ''} onChange={(e) => onChange(index, 'value', e.target.value)} placeholder="value" className="h-8 text-xs w-32" />
         )
@@ -463,6 +484,8 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
             ? stores.map((s) => ({ id: s.id, label: s.name }))
             : drivers.map((d) => ({ id: d.user_id || d.id, label: d.user_name || d.id }));
           val = ids.map((id) => opts.find((o) => o.id === id)?.label || id).join(', ');
+        } else if (c.field === 'user_role') {
+          val = USER_ROLE_OPTIONS.find((o) => o.value === c.value)?.label || c.value;
         }
         return `${field} ${op}${val ? ` ${val}` : ''}`;
       }).join(' AND ');
