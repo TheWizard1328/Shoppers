@@ -270,30 +270,57 @@ async function getCacheStats() {
 
 
 // ─── Web Push ─────────────────────────────────────────────────────────────────
+// This is the SINGLE source of push handling for the PWA. The separate push-sw.js
+// has been removed — having two SWs competing at the same scope caused Android
+// Chrome to deliver background push events to whichever SW won the controller
+// race (usually map-tile-sw.js since it registers first), but the push
+// subscription might have been created on the OTHER SW's registration. When the
+// app is backgrounded, the push event fires on the SW that owns the subscription
+// — if that SW is not the controlling SW, showNotification() may silently fail
+// or the event may not fire at all. Consolidating into one SW eliminates this
+// race entirely.
 
-const DEFAULT_NOTIFICATION_ICON = '/icons/icon-192.png';
-const DEFAULT_NOTIFICATION_BADGE = '/icons/icon-192.png';
+const ICON_192 = 'https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/25b6bccd2_renametoicon-192.png';
+const ICON_512 = 'https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/0fe50bd3b_renametoicon-512.png';
+
+function resolvePwaUrl(targetUrl) {
+  const scope = self.registration.scope;
+  if (!targetUrl || targetUrl === '/') {
+    return scope;
+  }
+  if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+    return targetUrl;
+  }
+  if (targetUrl.startsWith('/?')) {
+    const query = targetUrl.slice(1);
+    return scope + (scope.endsWith('/') ? query.slice(1) : query);
+  }
+  if (targetUrl.startsWith('/')) {
+    return scope + (scope.endsWith('/') ? targetUrl.slice(1) : targetUrl);
+  }
+  return new URL(targetUrl, scope).href;
+}
 
 self.addEventListener('push', (event) => {
   let payload = {};
   try {
     payload = event.data ? event.data.json() : {};
   } catch (_) {
-    // Payload wasn't JSON — fall back to plain text body
     payload = { body: event.data ? event.data.text() : '' };
   }
 
   const title = payload.title || 'RxDeliver';
   const options = {
     body: payload.body || '',
-    icon: payload.icon || DEFAULT_NOTIFICATION_ICON,
-    badge: payload.badge || DEFAULT_NOTIFICATION_BADGE,
+    icon: payload.icon || ICON_192,
+    badge: payload.badge || ICON_192,
     tag: payload.tag || undefined,
-    // Re-notify even if the same tag exists so route/message alerts aren't silently merged
     renotify: !!payload.tag,
     requireInteraction: !!payload.requireInteraction,
     data: {
       url: payload.url || '/',
+      tag: payload.tag || undefined,
+      requireInteraction: !!payload.requireInteraction,
       ...payload.data
     }
   };
@@ -303,36 +330,27 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/';
+  const rawUrl = event.notification.data?.url || '/';
+  const fullUrl = resolvePwaUrl(rawUrl);
 
   event.waitUntil(
-    (async () => {
-      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-
-      // If a window is already open, focus it and navigate to the deep link
-      for (const client of allClients) {
-        try {
-          const clientUrl = new URL(client.url);
-          const sameOrigin = clientUrl.origin === self.location.origin;
-          if (sameOrigin && 'focus' in client) {
-            await client.focus();
-            if ('navigate' in client && targetUrl !== clientUrl.pathname) {
-              try {
-                await client.navigate(targetUrl);
-              } catch (_) {
-                // navigate() can fail cross-origin or if unsupported — fall back silently,
-                // the focused window is still usable even without the deep link
-              }
-            }
-            return;
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === fullUrl && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      for (const client of clientList) {
+        if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
+          if ('navigate' in client) {
+            client.navigate(fullUrl).catch(() => {});
           }
-        } catch (_) {}
+          return client.focus();
+        }
       }
-
-      // No existing window — open a new one at the deep link
-      if (self.clients.openWindow) {
-        await self.clients.openWindow(targetUrl);
+      if (clients.openWindow) {
+        return clients.openWindow(fullUrl);
       }
-    })()
+    })
   );
 });
