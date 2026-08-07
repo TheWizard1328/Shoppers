@@ -43,8 +43,19 @@ async function handleMarkCollectedDebit(base44, payload) {
     updatePayload.delivery_notes=existingNotes?`${existingNotes}\n${noteLine}`:noteLine;
   }
   const updatedDelivery=await base44.asServiceRole.entities.Delivery.update(deliveryId,updatePayload);
-  const deleteResult=await base44.functions.invoke('squareDeleteCodItem', {deliveryId,transactionId,catalogObjectId,reason:'collected_debit'});
-  return{success:true,deliveryId,paymentType:'Debit',delivery_notes:updatedDelivery?.delivery_notes,...deleteResult};
+  let deleteError=null;
+  try{
+    await base44.functions.invoke('squareDeleteCodItem', {deliveryId,transactionId,catalogObjectId,reason:'collected_debit'});
+  }catch(e){
+    // Non-fatal — the COD item deletion can fail independently (e.g. already removed);
+    // the delivery's cod_payments + delivery_notes were already persisted above.
+    deleteError=e?.message||String(e);
+  }
+  // Return ONLY primitive fields — the raw invoke response carries circular Axios
+  // refs that make Response.json() throw "Converting circular structure to JSON",
+  // which would mask the successful Delivery.update and prevent the frontend from
+  // receiving delivery_notes.
+  return{success:true,deliveryId,paymentType:'Debit',delivery_notes:updatedDelivery?.delivery_notes||'',deleteError};
 }
 
 Deno.serve(async (req) => {
