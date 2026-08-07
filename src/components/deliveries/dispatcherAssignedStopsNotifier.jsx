@@ -4,9 +4,9 @@
  * Fires when a dispatcher clicks the "Done" button on the Add To Route form and
  * creates/activates pending patient deliveries on a driver's route.
  *
- * Resolution order (mirrors the legacy fallback contract):
+ * Resolution order:
  *   1. New Rule Engine (MessageRule entity) for event `dispatcher_assigned_all`
- *      — only fires if at least one enabled rule exists for the event.
+ *      — fires if at least one enabled rule matches.
  *   2. Legacy fallback (`notifyDispatcherAssignedAll`) which honours the
  *      NotificationTemplate entity config and the hardcoded buildMessage.
  *
@@ -14,7 +14,7 @@
  * the legacy fallback is skipped.
  */
 import { base44 } from '@/api/base44Client';
-import { dispatchMessageRules } from '@/components/utils/messageRuleEngine';
+import { dispatchMessageRules, clearRuleCache } from '@/components/utils/messageRuleEngine';
 import { getNotificationLabel } from '@/components/utils/notificationRules';
 import {
   notifyDispatcherAssignedAll,
@@ -48,20 +48,16 @@ export async function notifyDispatcherAssignedStops({
     deliveryList += `\n• ${patientName}${badges}${distance}`;
   }
 
-  // Resolve a store-pseudo-user sender (mirrors the legacy contract)
-  const sender = await getStoreUser(store);
-  if (!sender) {
-    // No sender available — fall back to legacy path which also resolves a store
-    // user and will bail for the same reason, but keep the contract intact.
-    try {
-      await notifyDispatcherAssignedAll({ dispatcher, driver, store, deliveries, patients });
-    } catch (e) {
-      console.warn('[DispatcherAssignedStops] legacy fallback failed:', e?.message || e);
-    }
-    return;
-  }
+  // Resolve store-pseudo-user sender lazily (needed for in-app messages)
+  let senderPromise = null;
+  const getSender = () => {
+    if (!senderPromise) senderPromise = getStoreUser(store);
+    return senderPromise;
+  };
 
   const sendInApp = async (userId, message, eventName) => {
+    const sender = await getSender();
+    if (!sender) return; // No store sender — skip in-app, push still goes out
     const label = getNotificationLabel(eventName);
     const content = label ? `[${label}]\n${message}` : message;
     await sendDeliveryMessage({
@@ -95,6 +91,9 @@ export async function notifyDispatcherAssignedStops({
     user_role: 'dispatcher',
     timestamp: new Date().toLocaleString(),
   };
+
+  // Force a fresh rule load so newly-created rules are picked up immediately
+  clearRuleCache();
 
   let handled = false;
   try {
