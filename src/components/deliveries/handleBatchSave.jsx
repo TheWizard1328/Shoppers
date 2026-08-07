@@ -6,6 +6,7 @@ import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { requestDeferredOptimization } from '../utils/optimizationDebouncer';
 import { executeOfflineBatchAction } from '../utils/offlineBatchAction';
+import { notifyDispatcherAssignedStops } from './dispatcherAssignedStopsNotifier';
 
 export async function handleBatchSave({
   batchSaveLockRef,
@@ -32,7 +33,10 @@ export async function handleBatchSave({
   updateDeliveryLocal,
   updatePatientLocal,
   onSave,
-  isNewRouteWithZeroStops
+  isNewRouteWithZeroStops,
+  currentUser,
+  patients,
+  appUsers
 }) {
   if (batchSaveLockRef.current || isSaving) return;
   batchSaveLockRef.current = true;
@@ -428,6 +432,43 @@ export async function handleBatchSave({
           }
         }));
       }
+    }
+
+    // ── Dispatcher Assigned Stops notification ────────────────────────────────
+    // Fire-and-forget: notify the assigned driver about deliveries that transitioned
+    // from Staged → Pending (or were newly created as Pending) when a dispatcher
+    // clicks Done. Resolves to the Rule Builder event first, falling back to the
+    // legacy NotificationTemplate path.
+    try {
+      const actorIsDriver = Array.isArray(currentUser?.app_roles)
+        ? currentUser.app_roles.includes('driver') && !currentUser.app_roles.includes('dispatcher')
+        : currentUser?.app_role === 'driver';
+      if (routeDriverId && !actorIsDriver) {
+        // Existing Staged patient deliveries → activated to 'pending' (per getStagedActivationStatus)
+        const stagedToPending = deliveriesToUpdate
+          .filter((d) => d?.patient_id && d?.status === 'Staged')
+          .map((d) => ({ ...d, status: 'pending' }));
+        // Newly-created pending patient deliveries
+        const newPending = (deliveriesReadyForDB || []).filter(
+          (d) => d?.patient_id && d?.status === 'pending',
+        );
+        const notifyDeliveries = [...stagedToPending, ...newPending];
+        if (notifyDeliveries.length > 0) {
+          const store = stores?.find((s) => s && s.id === notifyDeliveries[0]?.store_id) || null;
+          const resolvedDriver = (appUsers || []).find(
+            (u) => (u?.user_id || u?.id) === routeDriverId,
+          ) || { user_id: routeDriverId };
+          notifyDispatcherAssignedStops({
+            dispatcher: currentUser,
+            driver: resolvedDriver,
+            store,
+            deliveries: notifyDeliveries,
+            patients,
+          }).catch((e) => console.warn('[DispatcherAssignedStops] notify failed:', e?.message || e));
+        }
+      }
+    } catch (notifyError) {
+      console.warn('[DispatcherAssignedStops] notification setup failed:', notifyError?.message || notifyError);
     }
 
     // CLOSE THE FORM IMMEDIATELY after data is saved, before background operations

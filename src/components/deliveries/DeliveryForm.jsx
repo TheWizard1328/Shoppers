@@ -861,7 +861,7 @@ export default function DeliveryForm({
       ? [...(allDeliveries || []), ...alreadyCreatedPickups]
       : allDeliveries;
     addedPickupRecordsRef.current = [];
-    return runHandleBatchSave({ batchSaveLockRef, isSaving, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops });
+    return runHandleBatchSave({ batchSaveLockRef, isSaving, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops, currentUser, patients, appUsers });
   }, [isSaving, stagedDeliveries, hasPendingDeletes, formData, allDeliveries, stores, onCancel, onSave, isNewRouteWithZeroStops, handleClearForm, openMode, delivery, selectedPatient, setStagedDeliveries, setHasChanges]);
 
   const handleSearchKeyDown = useCallback((e) => {
