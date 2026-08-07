@@ -87,7 +87,7 @@ export async function notifyDispatcherAssignedStops({
     driverName,
     storeName,
     deliveryList,
-    deliveryCount: String(deliveries.length),
+    pendingCount: String(deliveries.length),
     status: 'pending',
     store_id: store?.id,
     driver_id: driverId,

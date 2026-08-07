@@ -340,7 +340,7 @@ export async function notifyDispatcherAssignedAll({
     deliveryList += `\n• ${patientName}${badges}${distance}`;
   }
 
-  const messageData = { storeName, deliveryList };
+  const messageData = { storeName, deliveryList, pendingCount: deliveries.length };
 
   // Message FROM store TO driver
   await sendNotification({
