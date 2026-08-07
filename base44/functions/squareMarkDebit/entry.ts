@@ -27,13 +27,24 @@ async function squareFetch(path, method, accessToken, body, options={}) {
 }
 
 async function handleMarkCollectedDebit(base44, payload) {
-  const{deliveryId,transactionId,catalogObjectId}=payload||{};
+  const{deliveryId,transactionId,catalogObjectId,note}=payload||{};
   if(!deliveryId)throw new HttpError(400,'Missing required field: deliveryId');
   const delivery=await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(()=>null);
   if(!delivery)throw new HttpError(404,'Delivery not found');
-  await base44.asServiceRole.entities.Delivery.update(deliveryId,{cod_payments:[{type:'Debit',amount:Number(delivery.cod_total_amount_required||0)}]});
+  const updatePayload={cod_payments:[{type:'Debit',amount:Number(delivery.cod_total_amount_required||0)}]};
+  // Append the explanation note to delivery_notes in the SAME update — avoids a
+  // race condition where the realtime event from the cod_payments change would
+  // overwrite a separately-saved delivery_notes with the stale (pre-note) value.
+  if(note&&String(note).trim()){
+    const existingNotes=String(delivery.delivery_notes||'').trim();
+    const ts=new Date().toLocaleString('en-US',{timeZone:'America/Edmonton'});
+    const dateStr=new Date().toLocaleDateString('en-US',{timeZone:'America/Edmonton',month:'2-digit',day:'2-digit',year:'numeric'})+' '+new Date().toLocaleTimeString('en-US',{timeZone:'America/Edmonton',hour:'numeric',minute:'2-digit',hour12:true});
+    const noteLine=`[COD Collected ${dateStr}]: ${String(note).trim()}`;
+    updatePayload.delivery_notes=existingNotes?`${existingNotes}\n${noteLine}`:noteLine;
+  }
+  const updatedDelivery=await base44.asServiceRole.entities.Delivery.update(deliveryId,updatePayload);
   const deleteResult=await base44.functions.invoke('squareDeleteCodItem', {deliveryId,transactionId,catalogObjectId,reason:'collected_debit'});
-  return{success:true,deliveryId,paymentType:'Debit',...deleteResult};
+  return{success:true,deliveryId,paymentType:'Debit',delivery_notes:updatedDelivery?.delivery_notes,...deleteResult};
 }
 
 Deno.serve(async (req) => {
