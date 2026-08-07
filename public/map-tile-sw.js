@@ -301,35 +301,59 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+/**
+ * Resolve a notification URL relative to THIS service worker's scope (the PWA root),
+ * NOT the origin root, so taps open the installed PWA in standalone mode rather
+ * than a browser tab at the origin root. (Mirror of push-sw.js logic.)
+ */
+function resolvePwaUrl(targetUrl) {
+  const scope = self.registration.scope;
+  if (!targetUrl || targetUrl === '/') {
+    return scope;
+  }
+  if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+    return targetUrl;
+  }
+  if (targetUrl.startsWith('/?')) {
+    const query = targetUrl.slice(1); // "?openChat=..."
+    return scope + (scope.endsWith('/') ? query.slice(1) : query);
+  }
+  if (targetUrl.startsWith('/')) {
+    return scope + (scope.endsWith('/') ? targetUrl.slice(1) : targetUrl);
+  }
+  return new URL(targetUrl, scope).href;
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/';
+  const rawUrl = event.notification.data?.url || '/';
+  const targetUrl = resolvePwaUrl(rawUrl);
 
   event.waitUntil(
     (async () => {
       const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 
-      // If a window is already open, focus it and navigate to the deep link
+      // 1. Exact URL match → focus
+      for (const client of allClients) {
+        if (client.url === targetUrl && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // 2. Any in-scope (PWA) client → navigate it to the deep link + focus
       for (const client of allClients) {
         try {
-          const clientUrl = new URL(client.url);
-          const sameOrigin = clientUrl.origin === self.location.origin;
-          if (sameOrigin && 'focus' in client) {
+          if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
             await client.focus();
-            if ('navigate' in client && targetUrl !== clientUrl.pathname) {
-              try {
-                await client.navigate(targetUrl);
-              } catch (_) {
-                // navigate() can fail cross-origin or if unsupported — fall back silently,
-                // the focused window is still usable even without the deep link
-              }
+            if ('navigate' in client) {
+              try { await client.navigate(targetUrl); } catch (_) {}
             }
             return;
           }
         } catch (_) {}
       }
-
-      // No existing window — open a new one at the deep link
+      // 3. No open PWA window → open at the scope-resolved URL. Because the URL
+      //    lives within the manifest's start_url/scope, Android launches the installed
+      //    PWA in standalone mode instead of a Chrome browser tab.
       if (self.clients.openWindow) {
         await self.clients.openWindow(targetUrl);
       }
