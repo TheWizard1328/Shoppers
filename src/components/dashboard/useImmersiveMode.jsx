@@ -125,19 +125,26 @@ export default function useImmersiveMode({
     const effectiveDistance = Math.max(0, rawDistance - Math.min(worstAccuracy, LOCATION_ACCURACY_BUFFER_METERS));
     const moving = effectiveDistance >= MOTION_DISTANCE_METERS;
 
-    if (stoppedTimeoutRef.current) { clearTimeout(stoppedTimeoutRef.current); stoppedTimeoutRef.current = null; }
-
     if (moving) {
+      // Driver is moving — clear any pending stopped timeout and mark as moving
+      if (stoppedTimeoutRef.current) { clearTimeout(stoppedTimeoutRef.current); stoppedTimeoutRef.current = null; }
       setIsDriverMoving(true);
       return;
     }
 
-    // Not moving yet — schedule a reset after idle threshold
-    stoppedTimeoutRef.current = setTimeout(() => {
-      locationHistoryRef.current = locationHistoryRef.current.slice(-1);
-      setIsDriverMoving(false);
-      stoppedTimeoutRef.current = null;
-    }, STOPPED_IDLE_MS);
+    // Not moving — only schedule a stopped timeout if one isn't already running.
+    // CRITICAL: Previously the timeout was cleared and re-set on EVERY GPS tick,
+    // so it never fired as long as ticks kept arriving every <15s. This meant
+    // isDriverMoving stayed true indefinitely when the driver was stopped,
+    // keeping immersiveHidden=true and using immersive-mode padding even though
+    // the UI showed the stats/stop cards (via isNearNextStop or override).
+    if (!stoppedTimeoutRef.current) {
+      stoppedTimeoutRef.current = setTimeout(() => {
+        locationHistoryRef.current = locationHistoryRef.current.slice(-1);
+        setIsDriverMoving(false);
+        stoppedTimeoutRef.current = null;
+      }, STOPPED_IDLE_MS);
+    }
   // Also depend on driverLocation?.timestamp so the effect fires on every GPS tick,
   // not just when lat/lon digit values change (GPS can repeat coords with new timestamps).
   }, [enabled, isDriver, isMobile, driverLocation?.latitude, driverLocation?.longitude, driverLocation?.timestamp]);

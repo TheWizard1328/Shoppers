@@ -1052,7 +1052,34 @@ function DeliveryMap({
           map.off('moveend', settle);
           fitBoundsInFlightRef.current = false;
           const latest = latestFitBoundsRef.current;
-          if (latest && latest !== request) runFit(latest);
+          if (latest && latest !== request) {
+            // Prevent "double zoom" — if the latest queued request has nearly
+            // identical bounds to what we just applied (center within 50m and
+            // same maxZoom), skip the second animation. This happens when a GPS
+            // tick arrives during the first animation and gets queued — the map
+            // is already at the target, so running it again causes a visible bounce.
+            try {
+              const latestB = L.latLngBounds(
+                (Array.isArray(latest.bounds) ? latest.bounds : []).filter(
+                  (p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1])
+                )
+              );
+              const reqB = L.latLngBounds(
+                (Array.isArray(request.bounds) ? request.bounds : []).filter(
+                  (p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1])
+                )
+              );
+              if (latestB.isValid() && reqB.isValid()) {
+                const centerDiff = latestB.getCenter().distanceTo(reqB.getCenter());
+                const latestMaxZoom = (latest.options || {}).maxZoom ?? 17.5;
+                const reqMaxZoom = (request.options || {}).maxZoom ?? 17.5;
+                if (centerDiff < 50 && Math.abs(latestMaxZoom - reqMaxZoom) < 0.01) {
+                  return; // Skip — already at the target
+                }
+              }
+            } catch {}
+            runFit(latest);
+          }
         };
         map.once('moveend', settle);
         // Safety net: 'moveend' should always fire (even a zero-distance panBy fires it
