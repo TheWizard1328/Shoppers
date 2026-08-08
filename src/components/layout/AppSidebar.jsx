@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,19 @@ export default function AppSidebar({
   totalRoutesCount
 }) {
   const { isMobile, isTabletPortrait, isWideScreenMobile, deviceType } = useDevice();
+  const navigate = useNavigate();
+
+  // CTRL/CMD + click on the app logo opens User Settings — the only entry point
+  // for dispatchers (who don't get the sidebar link). Admins/drivers keep their
+  // normal sidebar link.
+  const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') &&
+    !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver');
+  const handleLogoClick = (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    navigate(createPageUrl('Settings'));
+    setSidebarOpen(false);
+  };
 
   // Subscribe to all key entities for real-time sidebar updates
   useSidebarEntitySubscriptions(currentUser);
@@ -197,12 +210,17 @@ export default function AppSidebar({
               <img
                 src={branding.logo_url}
                 alt="RxDeliver"
-                className="rounded object-contain w-12 h-12"
+                onClick={handleLogoClick}
+                title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
+                className={`rounded object-contain w-12 h-12 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}
                 style={{ filter: 'var(--image-filter, none)' }}
                 onError={(e) => {e.currentTarget.style.display = 'none';}} /> :
 
 
-              <div className="w-10 h-10 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
+              <div
+                onClick={handleLogoClick}
+                title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
+                className={`w-10 h-10 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}>
             <span className="text-white font-bold text-sm">Rx</span>
           </div>
               }
