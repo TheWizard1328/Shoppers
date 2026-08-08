@@ -108,6 +108,7 @@ export async function loadEnabledRules(force = false) {
   }
   try {
     const all = await base44.entities.MessageRule.filter({ enabled: true });
+    console.warn('[MessageRuleEngine] filter({enabled:true}) returned:', Array.isArray(all) ? all.length : typeof all, 'records', (all || []).map(r => ({ id: r.id, event_name: r.event_name, enabled: r.enabled })));
     const byEvent = {};
     (all || []).forEach((r) => {
       if (!r.event_name) return;
@@ -232,8 +233,10 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
 export async function dispatchMessageRules(eventName, context = {}, sendInApp = null, sendPush = null) {
   const rulesByEvent = await loadEnabledRules();
   const rules = rulesByEvent[eventName];
+  console.warn('[MessageRuleEngine] dispatchMessageRules:', eventName, '— rules found:', rules?.length || 0, '— all event keys:', Object.keys(rulesByEvent));
 
   if (!rules || rules.length === 0) {
+    console.warn('[MessageRuleEngine] NO RULES for event:', eventName, '— falling back. Available events:', Object.keys(rulesByEvent));
     return { handled: false, matchedRules: [], results: [] };
   }
 
@@ -244,12 +247,14 @@ export async function dispatchMessageRules(eventName, context = {}, sendInApp = 
     if (!rule.enabled) continue;
 
     const conditionsMatch = evaluateAllConditions(rule.conditions, context);
+    console.warn('[MessageRuleEngine] Rule', rule.rule_label, '— conditions:', JSON.stringify(rule.conditions), '— context.user_role:', context.user_role, '— match:', conditionsMatch);
     if (!conditionsMatch) continue;
 
     matchedRules.push(rule);
 
     // Resolve recipients
     const recipientIds = await resolveRecipients(rule.recipients, context);
+    console.warn('[MessageRuleEngine] Rule', rule.rule_label, '— recipients:', rule.recipients, '— resolved:', recipientIds);
 
     // Render message
     const message = renderTemplate(rule.message_template, context);
