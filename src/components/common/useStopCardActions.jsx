@@ -26,7 +26,7 @@ import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { performRouteOptimization } from '../utils/routeOptimizationCoordinator';
 import { recalculateTrackingNumbersLocal, applyTrackingNumberUpdates } from '../utils/recalculateTrackingNumbersLocal';
-import { notifyDriverAccepted, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
+import { notifyDriverAccepted, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 import { updatePreferredTravelMode, normalizeTravelMode } from '../dashboard/travelModeHelpers';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 import { lockDeliveryFields } from '../utils/completionLockout';
@@ -404,28 +404,14 @@ export default function useStopCardActions(params) {
       try {
         const notifyDeliveries = stagedChangedDeliveries.filter(d => transitionedIds.has(d?.id));
         if (notifyDeliveries.length > 0) {
-          const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
-          if (isDriverAction) {
-            // Driver accepted their own deliveries — notify dispatchers/admins
-            notifyDriverAccepted({
-              driver: currentUser,
-              store,
-              appUsers,
-              pendingCount: notifyDeliveries.length,
-            }).catch(() => {});
-          } else {
-            // Dispatcher assigned deliveries to a driver — notify the driver
-            const assignedDriverAppUser = appUsers.find(u => u?.user_id === delivery.driver_id);
-            if (assignedDriverAppUser) {
-              notifyDispatcherAssignedAll({
-                dispatcher: currentUser,
-                driver: assignedDriverAppUser,
-                store,
-                deliveries: notifyDeliveries,
-                patients,
-              }).catch(() => {});
-            }
-          }
+          // Accept All is driver-only now — the dispatcher/admin "Assign All on
+          // behalf of driver" path has been removed (button hidden, code path retired).
+          notifyDriverAccepted({
+            driver: currentUser,
+            store,
+            appUsers,
+            pendingCount: notifyDeliveries.length,
+          }).catch(() => {});
         }
       } catch (_) {}
 
@@ -2270,28 +2256,15 @@ export default function useStopCardActions(params) {
         // ════════════════════════════════════════════════════════════════════
         // STEP 5: Check message rules and send Accept notification
         // ════════════════════════════════════════════════════════════════════
-        const isDriverAction = userHasRole(currentUser, 'driver') && driverId === currentUser.id;
-        if (isDriverAction) {
-          notifyDriverAccepted({
-            driver: currentUser,
-            store: resolvedStore,
-            appUsers,
-            pendingCount: 1,
-            patientName: projectedDelivery.patient_name || '',
-          }).catch((e) => console.warn('[AcceptSingle] notifyDriverAccepted failed:', e?.message || e));
-        } else {
-          // Dispatcher action — notify the driver
-          const assignedDriver = appUsers.find((u) => u?.user_id === driverId || u?.id === driverId);
-          if (assignedDriver) {
-            notifyDispatcherAssignedAll({
-              dispatcher: currentUser,
-              driver: assignedDriver,
-              store: resolvedStore,
-              deliveries: [projectedDelivery],
-              patients,
-            }).catch((e) => console.warn('[AcceptSingle] notifyDispatcherAssignedAll failed:', e?.message || e));
-          }
-        }
+        // Accept Single is driver-only now — the dispatcher/admin "Assign on
+        // behalf of driver" path has been removed (button hidden, code path retired).
+        notifyDriverAccepted({
+          driver: currentUser,
+          store: resolvedStore,
+          appUsers,
+          pendingCount: 1,
+          patientName: projectedDelivery.patient_name || '',
+        }).catch((e) => console.warn('[AcceptSingle] notifyDriverAccepted failed:', e?.message || e));
 
         console.log(`[AcceptSingle] STEP 5 — Notifications sent`);
 

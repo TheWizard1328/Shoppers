@@ -494,18 +494,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   }, [currentUser, delivery]);
 
   const canAccessAcceptButtons = useMemo(() => {
+    // Accept/Assign All is driver-only now — the dispatcher/admin "Assign All on
+    // behalf of driver" path has been removed. Only the assigned driver can accept
+    // their own pending stops.
     if (!currentUser || !delivery) return false;
-    if (isAppOwner(currentUser) || userHasRole(currentUser, 'admin')) return true;
-    if (isAssignedDispatcher) return true;
-    if (userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id) return true;
-    return false;
-  }, [currentUser, delivery, isAssignedDispatcher]);
+    return userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
+  }, [currentUser, delivery]);
 
-  const acceptButtonText = useMemo(() => {
-    if (!currentUser || !delivery) return 'Assign All';
-    const isAssignedDriver = delivery.driver_id === currentUser.id && userHasRole(currentUser, 'driver');
-    return isAssignedDriver ? 'Accept All' : 'Assign All';
-  }, [currentUser, delivery?.driver_id]);
+  const acceptButtonText = 'Accept All';
 
   const resetActionLocks = useCallback((skipCardScroll = true) => {
     startTapLockRef.current = false;

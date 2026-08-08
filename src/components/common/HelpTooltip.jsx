@@ -113,7 +113,7 @@ export const HELP_CONTENT = {
     content: "Important information about this patient including delivery preferences, recurring schedule, and any special notes from dispatch."
   },
   acceptAll: {
-    title: "Accept All / Assign All",
-    content: "Drivers see 'Accept All' to take all pending deliveries. Dispatchers see 'Assign All' to assign deliveries to the selected driver. This starts all pending stops and optimizes the route."
+    title: "Accept All",
+    content: "Drivers see 'Accept All' to take all pending deliveries at this store. This starts all pending stops and optimizes the route."
   }
 };
