@@ -50,18 +50,29 @@ async function persistSubscription(userId, subscription) {
   // notification settings (notifications_enabled is per-device, not global).
   const deviceIdentifier = localStorage.getItem('rxdeliver_device_identifier') || null;
 
+  // Denormalized user_name for easy identification in the PushSubscription table
+  let userName = null;
+  try {
+    const appUsers = await base44.entities.AppUser.filter({ user_id: userId });
+    userName = appUsers?.[0]?.user_name || null;
+  } catch (_) { /* non-critical */ }
+
   try {
     const existing = await base44.entities.PushSubscription.filter({ user_id: userId, endpoint });
     if (existing && existing.length > 0) {
-      // Backfill device_identifier on legacy subscriptions that predate the field
-      if (deviceIdentifier && !existing[0].device_identifier) {
-        await base44.entities.PushSubscription.update(existing[0].id, { device_identifier: deviceIdentifier }).catch(() => {});
+      // Backfill device_identifier + user_name on legacy subscriptions
+      const patch = {};
+      if (deviceIdentifier && !existing[0].device_identifier) patch.device_identifier = deviceIdentifier;
+      if (userName && !existing[0].user_name) patch.user_name = userName;
+      if (Object.keys(patch).length) {
+        await base44.entities.PushSubscription.update(existing[0].id, patch).catch(() => {});
       }
       return existing[0];
     }
 
     const created = await base44.entities.PushSubscription.create({
       user_id: userId, endpoint, p256dh_key: p256dh, auth_key: auth,
+      user_name: userName,
       user_agent: navigator.userAgent,
       device_identifier: deviceIdentifier
     });
