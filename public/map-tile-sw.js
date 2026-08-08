@@ -301,6 +301,33 @@ function resolvePwaUrl(targetUrl) {
   return new URL(targetUrl, scope).href;
 }
 
+// ─── Push: update last_used_at on THIS device only ─────────────────────────────
+// The server's sendPushNotification function no longer stamps last_used_at on
+// every subscription (it would stamp all of the user's devices with the same
+// time). Instead, each device's SW reads the updatePushLastUsed function URL
+// from the push-config cache and calls it here, so only the subscription for
+// THIS device gets its own timestamp reflecting when push arrived here.
+const PUSH_CONFIG_CACHE = 'push-config';
+const PUSH_CONFIG_KEY = 'push-config.js';
+
+async function updatePushLastUsed() {
+  try {
+    const cache = await caches.open(PUSH_CONFIG_CACHE);
+    const keyUrl = new URL(PUSH_CONFIG_KEY, self.registration.scope).href;
+    const response = await cache.match(keyUrl);
+    if (!response) return;
+    const config = await response.json();
+    if (!config?.functionUrl) return;
+    const sub = await self.registration.pushManager.getSubscription();
+    if (!sub) return;
+    await fetch(config.functionUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint })
+    });
+  } catch (_) {}
+}
+
 self.addEventListener('push', (event) => {
   let payload = {};
   try {
@@ -325,7 +352,10 @@ self.addEventListener('push', (event) => {
     }
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, options),
+    updatePushLastUsed()
+  ]));
 });
 
 /**

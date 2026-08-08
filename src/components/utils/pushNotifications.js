@@ -36,6 +36,28 @@ async function getPushRegistration() {
   return navigator.serviceWorker.ready;
 }
 
+// ── Service worker config: write the updatePushLastUsed function URL into a
+// cache so the SW can call it from its push handler (it has no access to the
+// base44 SDK, localStorage, or the auth token). Both the client and the SW
+// share the Cache Storage for the origin, so the SW reads from the same key.
+const PUSH_CONFIG_CACHE = 'push-config';
+const PUSH_CONFIG_KEY = '/push-config.js';
+
+async function writePushConfigToCache() {
+  try {
+    const { serverUrl, appId } = (await import('@/lib/app-params')).appParams;
+    if (!serverUrl || !appId) return;
+    const functionUrl = `${serverUrl}/api/apps/${appId}/functions/updatePushLastUsed`;
+    const cache = await caches.open(PUSH_CONFIG_CACHE);
+    const response = new Response(JSON.stringify({ functionUrl }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    await cache.put(new Request(window.location.origin + PUSH_CONFIG_KEY), response);
+  } catch (e) {
+    console.warn('[pushNotifications] Failed to write push config to cache:', e?.message || e);
+  }
+}
+
 async function persistSubscription(userId, subscription) {
   const raw = subscription.toJSON();
   const endpoint = raw.endpoint;
@@ -105,6 +127,11 @@ export async function initPushNotifications(userId) {
       if (Notification.permission !== 'granted') {
         return { ok: false, reason: 'not_granted' };
       }
+
+      // Write the updatePushLastUsed function URL to a cache so the SW can call it
+      // from its push handler. Done early — even if subscription creation fails,
+      // the SW needs this for future pushes.
+      await writePushConfigToCache();
 
       const registration = await getPushRegistration();
       console.log('[pushNotifications] Using SW:', registration.active?.scriptURL);

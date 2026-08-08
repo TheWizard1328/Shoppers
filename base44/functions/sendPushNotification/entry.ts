@@ -64,7 +64,10 @@ Deno.serve(async (req) => {
       try {
         await webpush.sendNotification(pushSubscription, payload);
         sent++;
-        await base44.asServiceRole.entities.PushSubscription.update(sub.id, { last_used_at: new Date().toISOString() }).catch(() => {});
+        // NOTE: last_used_at is NOT updated here — the service worker on each
+        // device updates its own PushSubscription last_used_at when the push
+        // event actually fires at that device (see updatePushLastUsed fn).
+        // Updating it here would stamp all subscriptions with the same time.
       } catch (err) {
         if (err?.statusCode === 410 || err?.statusCode === 404) {
           await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
