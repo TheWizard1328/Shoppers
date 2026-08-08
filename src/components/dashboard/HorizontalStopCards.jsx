@@ -725,7 +725,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         // onto itself, and an unchecked card never stacks onto a checked left neighbour.
         const prevCard = sortedPickupCards[cardIndex - 1];
         const prevCardWidth = prevCard?.is_cycling_marker ? 250 : (useFlexibleCardWidth ? phoneCardWidth : 338);
-        const fanOffset = prevCardWidth - 60; // leave 60px peeking out
+        const fanOffset = prevCardWidth - 40; // leave 40px peeking out
         const isFannedOverLeftChecked = bulkSelectionEnabled
           && !!prevCard
           && !!selectedDeliveryIds?.[prevCard.id]
