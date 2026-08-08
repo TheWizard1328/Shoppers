@@ -12,6 +12,14 @@
  *
  * Only ONE path delivers messages — if the rule engine handled the event,
  * the legacy fallback is skipped.
+ *
+ * The rule engine context is enriched with BATCH-AGGREGATED delivery-level
+ * fields (signature_needed, fridge_item, oversized, first_delivery, no_charge,
+ * cod_total_amount_required, store_id list, delivery_status list) so that NEW
+ * rules authored in MessageRuleBuilder with conditions on those fields evaluate
+ * correctly. Without this aggregation, only the first delivery's value is
+ * visible and any rule with a delivery-level condition silently fails to match,
+ * defaulting to the legacy system.
  */
 import { base44 } from '@/api/base44Client';
 import { dispatchMessageRules, clearRuleCache } from '@/components/utils/messageRuleEngine';
@@ -24,6 +32,110 @@ import {
   buildSpecialBadges,
   buildDistanceBadge,
 } from '../utils/deliveryMessaging';
+
+// ── Context aggregation helpers ─────────────────────────────────────────────
+
+const BOOL_FIELDS = ['signature_needed', 'fridge_item', 'oversized', 'first_delivery', 'no_charge'];
+
+function aggregateBool(deliveries, field) {
+  return deliveries.some((d) => !!d?.[field]);
+}
+
+function aggregateNumericSum(deliveries, field) {
+  return deliveries.reduce((sum, d) => sum + (Number(d?.[field]) || 0), 0);
+}
+
+function aggregateList(deliveries, field) {
+  const seen = new Set();
+  const out = [];
+  for (const d of deliveries) {
+    const v = d?.[field];
+    if (v && !seen.has(v)) {
+      seen.add(v);
+      out.push(v);
+    }
+  }
+  return out;
+}
+
+function buildBatchAwareContext({
+  driver,
+  driverId,
+  driverName,
+  store,
+  storeName,
+  deliveries,
+  dispatcher,
+  deliveryList,
+}) {
+  const storeIds = aggregateList(deliveries, 'store_id');
+  // If a single store, keep its id directly on store_id (matches "equals"/"in_list")
+  // so existing rules keep working. Provide store_ids list for multi-store batches.
+  const primaryStoreId = store?.id || deliveries[0]?.store_id || '';
+
+  // The list of statuses present in the batch (typically just 'pending');
+  // delivery_status stays 'pending' for backward compat with existing rules.
+  const statuses = aggregateList(deliveries, 'status');
+
+  // Resolve the triggering actor's role. Default to 'dispatcher' since this
+  // notifier only fires for non-driver actors, but read the actual role when
+  // available so rules keyed to 'admin' (when an admin is performing the
+  // assignment) also match.
+  let userRole = 'dispatcher';
+  if (Array.isArray(dispatcher?.app_roles)) {
+    if (dispatcher.app_roles.includes('dispatcher')) userRole = 'dispatcher';
+    else if (dispatcher.app_roles.includes('admin')) userRole = 'admin';
+  } else if (typeof dispatcher?.app_role === 'string') {
+    userRole = dispatcher.app_role;
+  }
+
+  const context = {
+    eventName: 'Dispatcher Assigned Stops',
+    driverName,
+    storeName,
+    deliveryList,
+    pendingCount: String(deliveries.length),
+    deliveryCount: String(deliveries.length),
+    status: 'pending',
+    // Aggregate / list fields for batch-aware condition evaluation
+    store_id: primaryStoreId,
+    store_ids: storeIds,
+    driver_id: driverId,
+    delivery_status: 'pending',
+    delivery_status_list: statuses,
+    user_role: userRole,
+    timestamp: new Date().toLocaleString(),
+    // Aggregate delivery-level boolean + numeric fields
+    patientName: deliveries[0]?.patient_name || '',
+  };
+
+  for (const f of BOOL_FIELDS) {
+    context[f] = aggregateBool(deliveries, f);
+  }
+  context.cod_total_amount_required = aggregateNumericSum(deliveries, 'cod_total_amount_required');
+
+  return context;
+}
+
+// ── Sender resolution for in-app messages ────────────────────────────────────
+async function resolveInAppSender({ store, dispatcher }) {
+  // 1. Try the store pseudo-user (preserves legacy behaviour)
+  const storeUser = await getStoreUser(store).catch(() => null);
+  if (storeUser?.id && storeUser?.user_name) return storeUser;
+
+  // 2. Fall back to the dispatcher themselves so the in-app message is STILL
+  //    delivered even when no store pseudo-user exists. The legacy system would
+  //    have bailed on a null storeUser entirely, leaving the driver with no
+  //    in-app notification.
+  const fallbackName = store?.name ? `${store.name} (Dispatcher)` : 'Dispatcher';
+  const fallbackId = dispatcher?.id || dispatcher?.user_id || null;
+  if (fallbackId) {
+    return { id: fallbackId, user_name: dispatcher?.user_name || fallbackName };
+  }
+
+  // 3. Last resort — bail; push channel still goes out.
+  return null;
+}
 
 export async function notifyDispatcherAssignedStops({
   dispatcher,
@@ -48,16 +160,16 @@ export async function notifyDispatcherAssignedStops({
     deliveryList += `\n• ${patientName}${badges}${distance}`;
   }
 
-  // Resolve store-pseudo-user sender lazily (needed for in-app messages)
+  // Resolve sender lazily (needed for in-app messages)
   let senderPromise = null;
   const getSender = () => {
-    if (!senderPromise) senderPromise = getStoreUser(store);
+    if (!senderPromise) senderPromise = resolveInAppSender({ store, dispatcher });
     return senderPromise;
   };
 
   const sendInApp = async (userId, message, eventName) => {
     const sender = await getSender();
-    if (!sender) return; // No store sender — skip in-app, push still goes out
+    if (!sender) return; // No usable sender — skip in-app, push still goes out
     const label = getNotificationLabel(eventName);
     const content = label ? `[${label}]\n${message}` : message;
     await sendDeliveryMessage({
@@ -78,24 +190,15 @@ export async function notifyDispatcherAssignedStops({
     });
   };
 
-  const context = {
-    eventName: 'Dispatcher Assigned Stops',
-    driverName,
-    storeName,
-    deliveryList,
-    pendingCount: String(deliveries.length),
-    status: 'pending',
-    store_id: store?.id,
-    driver_id: driverId,
-    delivery_status: 'pending',
-    user_role: 'dispatcher',
-    timestamp: new Date().toLocaleString(),
-  };
+  const context = buildBatchAwareContext({
+    driver, driverId, driverName, store, storeName, deliveries, dispatcher, deliveryList,
+  });
 
-  // Force a fresh rule load so newly-created rules are picked up immediately
+  // Force a fresh rule load so newly-created / edited rules are picked up immediately
   clearRuleCache();
 
   let handled = false;
+  let ruleEngineError = null;
   try {
     const result = await dispatchMessageRules(
       'dispatcher_assigned_all',
@@ -104,7 +207,11 @@ export async function notifyDispatcherAssignedStops({
       sendPush,
     );
     handled = !!result?.handled;
+    if (!handled) {
+      console.warn('[DispatcherAssignedStops] rule engine returned handled=false — falling back to legacy. context keys:', Object.keys(context), 'result:', result);
+    }
   } catch (e) {
+    ruleEngineError = e;
     console.warn('[DispatcherAssignedStops] rule engine failed:', e?.message || e);
   }
   if (handled) return;
@@ -113,6 +220,6 @@ export async function notifyDispatcherAssignedStops({
   try {
     await notifyDispatcherAssignedAll({ dispatcher, driver, store, deliveries, patients });
   } catch (e) {
-    console.warn('[DispatcherAssignedStops] legacy fallback failed:', e?.message || e);
+    console.warn('[DispatcherAssignedStops] legacy fallback failed:', e?.message || e, 'ruleEngineError:', ruleEngineError?.message);
   }
 }

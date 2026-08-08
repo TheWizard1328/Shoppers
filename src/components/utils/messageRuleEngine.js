@@ -151,12 +151,17 @@ export function renderTemplate(template, context) {
 export async function resolveRecipients(recipientStrings, context, appUsers = null) {
   const userIds = new Set();
 
-  // Try to get app users if not provided
-  let users = appUsers;
+  // Try to get app users if not provided. Hard-defensive: ensure `users` is
+  // ALWAYS an array — if AppUser.list returns null without throwing, the
+  // subsequent `users.forEach(...)` calls would crash the engine, propagate
+  // out of `dispatchMessageRules`, and signal `handled=false` to the caller,
+  // silently defaulting to the legacy notification system.
+  let users = Array.isArray(appUsers) ? appUsers : null;
   if (!users) {
     try {
-      users = await base44.entities.AppUser.list('sort_order', 200, null,
+      const list = await base44.entities.AppUser.list('sort_order', 200, null,
         'id,user_id,user_name,app_roles,status,store_ids,role');
+      users = Array.isArray(list) ? list : [];
     } catch { users = []; }
   }
 
