@@ -203,6 +203,7 @@ export async function notifyDispatcherAssignedStops({
   const context = buildBatchAwareContext({
     driver, driverId, driverName, store, storeName, deliveries, dispatcher, deliveryList,
   });
+  console.warn('[DispatcherAssignedStops] context built — driver_id:', context.driver_id, '— driver object:', { user_id: driver?.user_id, id: driver?.id }, '— user_role:', context.user_role, '— store_id:', context.store_id);
 
   // Force a fresh rule load so newly-created / edited rules are picked up immediately
   clearRuleCache();
@@ -217,6 +218,7 @@ export async function notifyDispatcherAssignedStops({
       sendPush,
     );
     handled = !!result?.handled;
+    console.warn('[DispatcherAssignedStops] rule engine result — handled:', handled, '— matchedRules:', result?.matchedRules?.length, '— results:', JSON.stringify(result?.results));
     if (!handled) {
       console.warn('[DispatcherAssignedStops] rule engine returned handled=false — falling back to legacy. context keys:', Object.keys(context), 'result:', result);
     }

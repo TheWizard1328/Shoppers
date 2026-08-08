@@ -186,11 +186,13 @@ export async function resolveRecipients(recipientStrings, context, appUsers = nu
       });
     } else if (r.startsWith('relation:')) {
       const rel = r.slice(9);
-      if (rel === 'driver' && context.driver_id) {
-        userIds.add(context.driver_id);
+      if (rel === 'driver') {
+        console.warn('[MessageRuleEngine] relation:driver — context.driver_id:', JSON.stringify(context.driver_id), '— truthy:', !!context.driver_id);
+        if (context.driver_id) userIds.add(context.driver_id);
       } else if (rel === 'appowner') {
         // App owner is typically the first admin or has a specific flag
         const owner = users.find((u) => u.app_roles?.includes('admin'));
+        console.warn('[MessageRuleEngine] relation:appowner — found:', !!owner, '— user_id:', owner?.user_id, '— id:', owner?.id, '— total users checked:', users.length);
         if (owner) userIds.add(owner.user_id || owner.id);
       } else if (rel === 'dispatchers' && context.store_id) {
         users.forEach((u) => {
