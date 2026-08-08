@@ -30,8 +30,8 @@ import { toast } from 'sonner';
 // ── Event options ─────────────────────────────────────────────────────────
 
 const EVENT_OPTIONS = [
-  { value: 'driver_accepted',         label: 'Driver Accepted',              group: 'Assignment' },
-  { value: 'dispatcher_assigned_all',  label: 'Dispatcher Assigned Stops',    group: 'Assignment' },
+  { value: 'driver_accepted',          label: 'Driver Accepted',              group: 'Assignment' },
+  { value: 'dispatcher_assigned_all',  label: 'Assigned Stops',               group: 'Assignment' },
   { value: 'driver_started',           label: 'Driver Started Delivery',      group: 'Delivery Status' },
   { value: 'driver_completed',         label: 'Driver Completed Delivery',    group: 'Delivery Status' },
   { value: 'driver_failed',            label: 'Driver Failed Delivery',       group: 'Delivery Status' },
@@ -40,47 +40,47 @@ const EVENT_OPTIONS = [
   { value: 'app_update_available',     label: 'App Update Available',         group: 'System' },
   { value: 'admin_broadcast',          label: 'Admin Broadcast',              group: 'System' },
   { value: 'doc_access_requested',     label: 'Document Access Requested',    group: 'Documents' },
-  { value: 'doc_access_approved',     label: 'Document Access Approved',     group: 'Documents' },
+  { value: 'doc_access_approved',      label: 'Document Access Approved',     group: 'Documents' },
 ];
 
 // ── Condition field options ───────────────────────────────────────────────
 
 const FIELD_OPTIONS = [
-  { value: 'store_id',         label: 'Store',              type: 'entity' },
-  { value: 'driver_id',        label: 'Driver',              type: 'entity' },
-  { value: 'delivery_status',  label: 'Delivery Status',     type: 'status' },
-  { value: 'signature_needed', label: 'Signature Required',  type: 'bool' },
-  { value: 'first_delivery',   label: 'First Delivery',       type: 'bool' },
-  { value: 'fridge_item',      label: 'Fridge Item',          type: 'bool' },
-  { value: 'oversized',        label: 'Oversized',            type: 'bool' },
-  { value: 'cod_total_amount_required', label: 'COD Amount', type: 'number' },
-  { value: 'no_charge',        label: 'No Charge',            type: 'bool' },
-  { value: 'user_role',        label: 'User Role',            type: 'role' },
-  { value: 'user_roles',       label: 'User Roles (Contains)', type: 'roles' },
-  { value: 'page_context',     label: 'Page/Screen',          type: 'text' },
+  { value: 'store_id',                  label: 'Store',                 type: 'entity' },
+  { value: 'driver_id',                 label: 'Driver',                type: 'entity' },
+  { value: 'delivery_status',           label: 'Delivery Status',       type: 'status' },
+  { value: 'signature_needed',          label: 'Signature Required',    type: 'bool' },
+  { value: 'first_delivery',            label: 'First Delivery',        type: 'bool' },
+  { value: 'fridge_item',               label: 'Fridge Item',           type: 'bool' },
+  { value: 'oversized',                 label: 'Oversized',             type: 'bool' },
+  { value: 'cod_total_amount_required', label: 'COD Amount',            type: 'number' },
+  { value: 'no_charge',                 label: 'No Charge',             type: 'bool' },
+  { value: 'user_role',                 label: 'User Role',             type: 'role' },
+  { value: 'user_roles',                label: 'User Roles (Contains)', type: 'roles' },
+  { value: 'page_context',              label: 'Page/Screen',           type: 'text' },
 ];
 
 const OPERATOR_OPTIONS = [
   { value: 'equals',       label: 'Is' },
   { value: 'not_equals',   label: 'Is Not' },
   { value: 'contains',     label: 'Contains' },
-  { value: 'greater_than', label: 'greater than' },
-  { value: 'less_than',    label: 'less than' },
-  { value: 'is_true',      label: 'is true' },
-  { value: 'is_false',     label: 'is false' },
-  { value: 'in_list',      label: 'is in list' },
-  { value: 'not_in_list',  label: 'is not in list' },
+  { value: 'greater_than', label: 'Greater than' },
+  { value: 'less_than',    label: 'Less than' },
+  { value: 'is_true',      label: 'Is True' },
+  { value: 'is_false',     label: 'Is False' },
+  { value: 'in_list',      label: 'Is in List' },
+  { value: 'not_in_list',  label: 'Is not in List' },
 ];
 
 const OPERATOR_NEEDS_VALUE = ['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'in_list', 'not_in_list'];
 const ENTITY_FIELDS = ['store_id', 'driver_id'];
 
 const USER_ROLE_OPTIONS = [
-  { value: 'all',       label: 'All' },
-  { value: 'admin',     label: 'Admin' },
-  { value: 'dispatcher', label: 'Dispatcher' },
-  { value: 'driver',    label: 'Driver' },
-  { value: 'patient',   label: 'Patient' },
+  { value: 'all',         label: 'All' },
+  { value: 'admin',       label: 'Admin' },
+  { value: 'dispatcher',  label: 'Dispatcher' },
+  { value: 'driver',      label: 'Driver' },
+  { value: 'patient',     label: 'Patient' },
 ];
 
 const DELIVERY_STATUS_OPTIONS = [
@@ -96,12 +96,12 @@ const DELIVERY_STATUS_OPTIONS = [
 // ── Recipient options ──────────────────────────────────────────────────────
 
 const RECIPIENT_OPTIONS = [
-  { value: 'role:admin',        label: '🔧 All Admins' },
-  { value: 'role:dispatcher',  label: '📋 All Dispatchers' },
-  { value: 'role:driver',       label: '🚗 All Drivers' },
-  { value: 'relation:driver',   label: '🎯 Assigned Driver' },
-  { value: 'relation:dispatchers', label: '🏪 Store Dispatchers' },
-  { value: 'relation:appowner', label: '👑 App Owner' },
+  { value: 'role:admin',            label: '🔧 All Admins' },
+  { value: 'role:dispatcher',       label: '📋 All Dispatchers' },
+  { value: 'role:driver',           label: '🚗 All Drivers' },
+  { value: 'relation:driver',       label: '🎯 Assigned Driver' },
+  { value: 'relation:dispatchers',  label: '🏪 Store Dispatchers' },
+  { value: 'relation:appowner',     label: '👑 App Owner' },
 ];
 
 const CHANNEL_OPTIONS = [
