@@ -18,6 +18,10 @@
       "type": "string",
       "description": "The auth secret from the PushSubscription.keys object"
     },
+    "device_identifier": {
+      "type": "string",
+      "description": "Links this subscription to its device's per-device notification settings in UserSettings.device_settings_profiles"
+    },
     "user_agent": {
       "type": "string",
       "description": "Browser/device user agent string at time of subscription"

@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import webpush from 'npm:web-push@3.6.7';
 
-// Payload: user_id (required), title (required), body (required), url (optional, default '/'), tag (optional), requireInteraction (optional), force (optional — bypass user push preference, used for app update broadcasts)
+// Payload: user_id (required), title (required), body (required), url (optional, default '/'), tag (optional), requireInteraction (optional), force (optional — bypass per-device push preference, used for app update broadcasts)
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -18,12 +18,14 @@ Deno.serve(async (req) => {
 
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
-    // Unless force=true (e.g. App Update broadcasts), check user's push preference.
+    // Fetch user settings ONCE to get per-device notification preferences.
+    // notifications_enabled is now a DEVICE-SPECIFIC setting — each device
+    // can independently enable/disable its own pushes. We map each
+    // PushSubscription to its device profile via device_identifier.
+    let deviceProfiles = {};
     if (!force) {
       const userSettingsRecords = await base44.asServiceRole.entities.UserSettings.filter({ user_id }).catch(() => []);
-      const userSettings = userSettingsRecords?.[0];
-      const pushEnabled = userSettings?.global_settings?.notifications_enabled ?? true;
-      if (!pushEnabled) return Response.json({ sent: 0, message: 'Push notifications disabled by user preference' });
+      deviceProfiles = userSettingsRecords?.[0]?.device_settings_profiles || {};
     }
 
     const subscriptions = await base44.asServiceRole.entities.PushSubscription.filter({ user_id });
@@ -31,9 +33,21 @@ Deno.serve(async (req) => {
 
     const payload = JSON.stringify({ title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction });
 
-    let sent = 0, removed = 0;
+    let sent = 0, removed = 0, skipped = 0;
     const errors = [];
     await Promise.all(subscriptions.map(async (sub) => {
+      // Per-device notification preference check (skip when force=true)
+      if (!force) {
+        let deviceEnabled = true; // default: allow (legacy sub or missing profile)
+        if (sub.device_identifier && deviceProfiles[sub.device_identifier]) {
+          deviceEnabled = deviceProfiles[sub.device_identifier].notifications_enabled ?? true;
+        }
+        if (!deviceEnabled) {
+          skipped++;
+          return;
+        }
+      }
+
       const pushSubscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } };
       try {
         await webpush.sendNotification(pushSubscription, payload);
@@ -49,7 +63,7 @@ Deno.serve(async (req) => {
       }
     }));
 
-    return Response.json({ sent, removed, errors });
+    return Response.json({ sent, removed, skipped, errors });
   } catch (error) {
     return Response.json({ error: error.message || 'Unknown error' }, { status: 500 });
   }

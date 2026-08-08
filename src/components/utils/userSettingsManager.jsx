@@ -88,10 +88,7 @@ const DEFAULT_SETTINGS = getInitialDefaultSettings();
  * Defines which settings are global (synced across devices) vs device-specific
  */
 const GLOBAL_SETTINGS = [
-  'units_of_measurement',
-  'notifications_enabled', 
-  'notifications_sound',
-  'notifications_vibration'
+  'units_of_measurement'
 ];
 
 // CRITICAL: These settings are NEVER synced across devices
@@ -108,7 +105,10 @@ const DEVICE_SPECIFIC_SETTINGS = [
   'show_breadcrumbs',
   'location_tracking_enabled',
   'selected_date',
-  'selected_driver_id'
+  'selected_driver_id',
+  'notifications_enabled',
+  'notifications_sound',
+  'notifications_vibration'
 ];
 
 // Check if a setting is global or device-specific
@@ -262,7 +262,15 @@ export async function loadUserSettings(userId) {
       
       // Get device-specific settings or initialize empty object
       const deviceProfile = userSettingsRecord.device_settings_profiles?.[deviceIdentifier] || {};
-      const globalSettings = userSettingsRecord.global_settings || {};
+      // CRITICAL: Only extract keys currently classified as GLOBAL_SETTINGS.
+      // This prevents stale values (e.g. notifications_enabled stored as global
+      // before it was moved to device-specific) from bleeding through into the
+      // merged settings and wrongly applying across all devices.
+      const rawGlobalSettings = userSettingsRecord.global_settings || {};
+      const globalSettings = {};
+      GLOBAL_SETTINGS.forEach(key => {
+        if (rawGlobalSettings[key] !== undefined) globalSettings[key] = rawGlobalSettings[key];
+      });
       
       cachedSettings = {
          ...DEFAULT_SETTINGS,

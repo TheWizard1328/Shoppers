@@ -46,12 +46,24 @@ async function persistSubscription(userId, subscription) {
     return null;
   }
 
+  // Device identifier — links this subscription to its device-specific
+  // notification settings (notifications_enabled is per-device, not global).
+  const deviceIdentifier = localStorage.getItem('rxdeliver_device_identifier') || null;
+
   try {
     const existing = await base44.entities.PushSubscription.filter({ user_id: userId, endpoint });
-    if (existing && existing.length > 0) return existing[0];
+    if (existing && existing.length > 0) {
+      // Backfill device_identifier on legacy subscriptions that predate the field
+      if (deviceIdentifier && !existing[0].device_identifier) {
+        await base44.entities.PushSubscription.update(existing[0].id, { device_identifier: deviceIdentifier }).catch(() => {});
+      }
+      return existing[0];
+    }
 
     const created = await base44.entities.PushSubscription.create({
-      user_id: userId, endpoint, p256dh_key: p256dh, auth_key: auth, user_agent: navigator.userAgent
+      user_id: userId, endpoint, p256dh_key: p256dh, auth_key: auth,
+      user_agent: navigator.userAgent,
+      device_identifier: deviceIdentifier
     });
     return created;
   } catch (e) {
