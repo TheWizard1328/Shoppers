@@ -76,6 +76,21 @@
             "type": "string",
             "description": "Last selected driver filter in Admin Utilities"
           },
+          "notifications_enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether push notifications are enabled for this device (device-specific)"
+          },
+          "notifications_sound": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether notification sounds are enabled for this device (device-specific)"
+          },
+          "notifications_vibration": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether notification vibration is enabled for this device (device-specific)"
+          },
           "breadcrumbs_enabled": {
             "type": "boolean",
             "default": true,
@@ -101,21 +116,6 @@
           ],
           "default": "kilometers",
           "description": "Preferred units for distance display"
-        },
-        "notifications_enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether notifications are enabled"
-        },
-        "notifications_sound": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether notification sounds are enabled"
-        },
-        "notifications_vibration": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether notification vibration is enabled"
         }
       }
     },

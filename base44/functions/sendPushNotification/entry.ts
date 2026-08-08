@@ -22,10 +22,17 @@ Deno.serve(async (req) => {
     // notifications_enabled is now a DEVICE-SPECIFIC setting — each device
     // can independently enable/disable its own pushes. We map each
     // PushSubscription to its device profile via device_identifier.
+    // Legacy subscriptions without device_identifier are conservatively
+    // skipped if the user has explicitly disabled notifications on ANY
+    // device (signals active use of the per-device toggle).
     let deviceProfiles = {};
+    let hasAnyExplicitFalse = false;
     if (!force) {
       const userSettingsRecords = await base44.asServiceRole.entities.UserSettings.filter({ user_id }).catch(() => []);
       deviceProfiles = userSettingsRecords?.[0]?.device_settings_profiles || {};
+      hasAnyExplicitFalse = Object.values(deviceProfiles).some(
+        (p: any) => p?.notifications_enabled === false
+      );
     }
 
     const subscriptions = await base44.asServiceRole.entities.PushSubscription.filter({ user_id });
@@ -38,9 +45,14 @@ Deno.serve(async (req) => {
     await Promise.all(subscriptions.map(async (sub) => {
       // Per-device notification preference check (skip when force=true)
       if (!force) {
-        let deviceEnabled = true; // default: allow (legacy sub or missing profile)
+        let deviceEnabled = true; // default: allow unless explicitly disabled
         if (sub.device_identifier && deviceProfiles[sub.device_identifier]) {
           deviceEnabled = deviceProfiles[sub.device_identifier].notifications_enabled ?? true;
+        } else if (hasAnyExplicitFalse) {
+          // Legacy subscription (no device_identifier) — the user has explicitly
+          // disabled notifications on at least one device, so conservatively skip
+          // this unattributed subscription rather than guessing which device owns it.
+          deviceEnabled = false;
         }
         if (!deviceEnabled) {
           skipped++;
