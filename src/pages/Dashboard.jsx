@@ -796,6 +796,43 @@ function Dashboard() {
     };
   }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, appUsers]);
 
+  // ── Route finished: reset FAB to Phase 1 ──────────────────────────────────
+  // When the driver completes/fails/cancels their final stop, switch the map
+  // cycle FAB to Phase 1 (overview) so they see the full route instead of being
+  // zoomed into a completed stop. Phase 1 is unlocked auto-follow mode.
+  useEffect(() => {
+    const onRouteFinished = () => {
+      if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
+      mapLockExpiresAtRef.current = null;
+      mapUserUnlockedRef.current = false;
+      window._userMapControlUntil = 0;
+      mapViewPhaseRef.current = 1;
+      isMapViewLockedRef.current = true;
+      pendingPhaseRef.current = 1;
+      setMapViewPhase(1);
+      setIsMapViewLocked(true);
+      lastProgrammaticMapMoveRef.current = Date.now();
+      window._lastProgrammaticMapMove = Date.now();
+      window._cancelInFlightNextFit = true;
+      window._suppressImmersiveRefitUntil = Date.now() + 4000;
+      setMapViewTrigger((p) => p + 1);
+      if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+      // Unlock after 500ms so the overview fits bounds, then lets the driver pan freely
+      const exp = Date.now() + 500;
+      mapLockExpiresAtRef.current = exp;
+      mapLockTimeoutRef.current = setTimeout(() => {
+        if (mapLockExpiresAtRef.current === exp) {
+          isMapViewLockedRef.current = false;
+          setIsMapViewLocked(false);
+          mapLockExpiresAtRef.current = null;
+          mapLockTimeoutRef.current = null;
+        }
+      }, 500);
+    };
+    window.addEventListener('routeFinishedResetToPhase1', onRouteFinished);
+    return () => window.removeEventListener('routeFinishedResetToPhase1', onRouteFinished);
+  }, [currentUser?.id]);
+
   useEffect(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver') || showAIAssistant || !isAIEnabled) {
       return;

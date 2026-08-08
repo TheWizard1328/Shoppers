@@ -1720,21 +1720,32 @@ export default function useStopCardActions(params) {
 
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
-        // CRITICAL: Dispatch completionFabRelock to re-engage the FAB in phase 2/3.
-        // reactivateFAB alone can be blocked by the user interaction guard
-        // (isUserControllingMap / isUserSwipingStopCards) since the driver just
-        // tapped a button. It also doesn't clear mapUserUnlockedRef, so if the
-        // driver had previously panned the map, the FAB wouldn't actually follow
-        // the new next stop. completionFabRelock bypasses both issues — it always
-        // re-locks and clears the free-pan flag. 300ms delay lets the optimistic
-        // UI settle before the map repositions.
-        const _phaseAfterComplete = window.__currentMapViewPhase || 1;
-        if (_phaseAfterComplete === 2 || _phaseAfterComplete === 3) {
+        if (_routeIsFinished) {
+          // Route is finished — all stops are terminal. Switch the FAB to Phase 1
+          // (overview) so the driver sees the full route overview instead of being
+          // zoomed into a completed stop. Phase 1 is unlocked auto-follow mode.
           setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('completionFabRelock', {
-              detail: { phase: _phaseAfterComplete, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+            window.dispatchEvent(new CustomEvent('routeFinishedResetToPhase1', {
+              detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
             }));
           }, 300);
+        } else {
+          // CRITICAL: Dispatch completionFabRelock to re-engage the FAB in phase 2/3.
+          // reactivateFAB alone can be blocked by the user interaction guard
+          // (isUserControllingMap / isUserSwipingStopCards) since the driver just
+          // tapped a button. It also doesn't clear mapUserUnlockedRef, so if the
+          // driver had previously panned the map, the FAB wouldn't actually follow
+          // the new next stop. completionFabRelock bypasses both issues — it always
+          // re-locks and clears the free-pan flag. 300ms delay lets the optimistic
+          // UI settle before the map repositions.
+          const _phaseAfterComplete = window.__currentMapViewPhase || 1;
+          if (_phaseAfterComplete === 2 || _phaseAfterComplete === 3) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('completionFabRelock', {
+                detail: { phase: _phaseAfterComplete, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+              }));
+            }, 300);
+          }
         }
         // Prompt cooler temp if:
         // 1. Direct fridge delivery (fridge_item flag), OR
@@ -1917,7 +1928,7 @@ export default function useStopCardActions(params) {
 
         // ── Terminal engine ──────────────────────────────────────────────────
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
-        await executeTerminalAction({
+        const _failTerminalResult = await executeTerminalAction({
           status,
           criticalUpdate,
           pendingBreadcrumbsString,
@@ -1928,20 +1939,31 @@ export default function useStopCardActions(params) {
         });
         // ────────────────────────────────────────────────────────────────────
 
+        const _failRouteIsFinished = _failTerminalResult?.routeIsFinished ?? false;
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
-        // CRITICAL: Same completionFabRelock dispatch as the Complete handler.
-        // Fail/Cancel also needs the FAB to re-engage in phase 2/3 after the
-        // terminal action completes. Without this, the FAB stays deactivated
-        // (from the deactivateFAB call at the start of the handler) and the
-        // map doesn't follow the new next stop.
-        const _phaseAfterFail = window.__currentMapViewPhase || 1;
-        if (_phaseAfterFail === 2 || _phaseAfterFail === 3) {
+        if (_failRouteIsFinished) {
+          // Route is finished — switch to Phase 1 (overview) so the driver sees
+          // the full route instead of being zoomed into the last failed stop.
           setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('completionFabRelock', {
-              detail: { phase: _phaseAfterFail, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+            window.dispatchEvent(new CustomEvent('routeFinishedResetToPhase1', {
+              detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
             }));
           }, 300);
+        } else {
+          // CRITICAL: Same completionFabRelock dispatch as the Complete handler.
+          // Fail/Cancel also needs the FAB to re-engage in phase 2/3 after the
+          // terminal action completes. Without this, the FAB stays deactivated
+          // (from the deactivateFAB call at the start of the handler) and the
+          // map doesn't follow the new next stop.
+          const _phaseAfterFail = window.__currentMapViewPhase || 1;
+          if (_phaseAfterFail === 2 || _phaseAfterFail === 3) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('completionFabRelock', {
+                detail: { phase: _phaseAfterFail, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+              }));
+            }, 300);
+          }
         }
         // Only prompt if no arrival_time reading was already taken for this fridge stop
         if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded(status === 'failed' ? 'Failed' : 'Cancelled');
