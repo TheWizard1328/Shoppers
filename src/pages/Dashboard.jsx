@@ -536,6 +536,13 @@ function Dashboard() {
     prevImmersiveForFitRef.current = immersiveHidden;
     // Don't re-fit if there's no map phase yet (initial mount).
     if (mapViewPhaseRef.current === 0) return;
+    // Suppress immersive re-fit shortly after an explicit FAB tap (goPhase).
+    // The immersive toggle debounce (3s in useImmersiveMode) may fire within
+    // seconds of the FAB tap, which would trigger this effect and fire a
+    // second fitBounds with immersive padding — the bounce bug. We still
+    // update prevImmersiveForFitRef above so we acknowledge the state change;
+    // the next GPS tick will naturally re-fit with the correct padding.
+    if ((window._suppressImmersiveRefitUntil || 0) > Date.now()) return;
     mapUserUnlockedRef.current = false;
     // BUG FIX: Do NOT stamp _lastProgrammaticMapMove here — the actual map move
     // (setMapViewTrigger below) doesn't happen until 350ms later, and Leaflet's
@@ -906,6 +913,13 @@ function Dashboard() {
       // FAB click = explicit user action — cancel any in-flight animation
       // so the new phase's fitBounds fires immediately instead of queuing
       window._cancelInFlightNextFit = true;
+      // Suppress immersive-mode re-fit for 4 seconds after an explicit FAB tap.
+      // The driver may be moving, and a pending immersive toggle debounce (3s)
+      // could fire shortly after the FAB tap, triggering a second fitBounds with
+      // tighter (immersive) padding — causing a visible bounce from the
+      // non-immersive view the FAB just established. The next GPS tick will
+      // naturally re-fit with whatever immersive mode is active at that point.
+      window._suppressImmersiveRefitUntil = Date.now() + 4000;
       setMapViewTrigger((p) => p + 1);
       if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
       setTimeout(() => { setAreCardsVisible(true); centerNextDeliveryCard(deliveriesWithStopOrder); }, 500);
