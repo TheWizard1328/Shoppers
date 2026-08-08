@@ -56,12 +56,14 @@ const FIELD_OPTIONS = [
   { value: 'cod_total_amount_required', label: 'COD Amount', type: 'number' },
   { value: 'no_charge',        label: 'No Charge',            type: 'bool' },
   { value: 'user_role',        label: 'User Role',            type: 'role' },
+  { value: 'user_roles',       label: 'User Roles (Contains)', type: 'roles' },
   { value: 'page_context',     label: 'Page/Screen',          type: 'text' },
 ];
 
 const OPERATOR_OPTIONS = [
-  { value: 'equals',       label: 'equals' },
-  { value: 'not_equals',   label: 'is not' },
+  { value: 'equals',       label: 'Is' },
+  { value: 'not_equals',   label: 'Is Not' },
+  { value: 'contains',     label: 'Contains' },
   { value: 'greater_than', label: 'greater than' },
   { value: 'less_than',    label: 'less than' },
   { value: 'is_true',      label: 'is true' },
@@ -70,7 +72,7 @@ const OPERATOR_OPTIONS = [
   { value: 'not_in_list',  label: 'is not in list' },
 ];
 
-const OPERATOR_NEEDS_VALUE = ['equals', 'not_equals', 'greater_than', 'less_than', 'in_list', 'not_in_list'];
+const OPERATOR_NEEDS_VALUE = ['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'in_list', 'not_in_list'];
 const ENTITY_FIELDS = ['store_id', 'driver_id'];
 
 const USER_ROLE_OPTIONS = [
@@ -182,23 +184,27 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
   const fieldOpt = FIELD_OPTIONS.find((f) => f.value === condition.field);
   const isBoolField = fieldOpt?.type === 'bool';
   const isRoleField = fieldOpt?.type === 'role';
+  const isRolesField = fieldOpt?.type === 'roles';
   const isStatusField = fieldOpt?.type === 'status';
-  const isDropdownField = isRoleField || isStatusField;
+  const isDropdownField = isRoleField || isRolesField || isStatusField;
 
-  // Auto-fix operator when switching to bool / role / status field
+  // Operators allowed for dropdown-type fields (role, roles, status)
+  const DROPDOWN_OPERATORS = ['equals', 'not_equals', 'contains'];
+
+  // Auto-fix operator when switching to bool / role / roles / status field
   const handleFieldChange = (v) => {
     const newField = FIELD_OPTIONS.find((f) => f.value === v);
     if (newField?.type === 'bool') {
       onChange(index, 'operator', 'is_true');
-    } else if (newField?.type === 'role' || newField?.type === 'status') {
-      if (!['equals', 'not_equals'].includes(condition.operator)) {
+    } else if (newField?.type === 'role' || newField?.type === 'roles' || newField?.type === 'status') {
+      if (!DROPDOWN_OPERATORS.includes(condition.operator)) {
         onChange(index, 'operator', 'equals');
       }
     } else if (condition.operator === 'is_true' || condition.operator === 'is_false') {
       onChange(index, 'operator', 'equals');
     }
     onChange(index, 'field', v);
-    onChange(index, 'value', (newField?.type === 'role' || newField?.type === 'status') ? 'all' : '');
+    onChange(index, 'value', (newField?.type === 'role' || newField?.type === 'roles' || newField?.type === 'status') ? 'all' : '');
   };
 
   return (
@@ -218,7 +224,8 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
           {OPERATOR_OPTIONS.filter((o) => {
             if (isBoolField) return ['is_true', 'is_false'].includes(o.value);
             if (fieldOpt?.type === 'number') return ['equals', 'not_equals', 'greater_than', 'less_than'].includes(o.value);
-            if (isDropdownField) return ['equals', 'not_equals'].includes(o.value);
+            if (isDropdownField) return DROPDOWN_OPERATORS.includes(o.value);
+            if (fieldOpt?.type === 'text') return ['equals', 'not_equals', 'contains'].includes(o.value);
             return !['is_true', 'is_false'].includes(o.value);
           }).map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
         </SelectContent>
@@ -226,7 +233,7 @@ function ConditionRow({ condition, index, onChange, onRemove, stores, drivers })
       {needsValue && !isBoolField && (
         isEntityField ? (
           <EntityMultiSelect field={condition.field} value={condition.value || ''} onChange={(v) => onChange(index, 'value', v)} stores={stores} drivers={drivers} />
-        ) : isRoleField ? (
+        ) : (isRoleField || isRolesField) ? (
           <Select value={condition.value || 'all'} onValueChange={(v) => onChange(index, 'value', v)}>
             <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="Role" /></SelectTrigger>
             <SelectContent>
@@ -517,7 +524,7 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
             ? stores.map((s) => ({ id: s.id, label: s.name }))
             : drivers.map((d) => ({ id: d.user_id || d.id, label: d.user_name || d.id }));
           val = ids.map((id) => opts.find((o) => o.id === id)?.label || id).join(', ');
-        } else if (c.field === 'user_role') {
+        } else if (c.field === 'user_role' || c.field === 'user_roles') {
           val = USER_ROLE_OPTIONS.find((o) => o.value === c.value)?.label || c.value;
         } else if (c.field === 'delivery_status') {
           val = DELIVERY_STATUS_OPTIONS.find((o) => o.value === c.value)?.label || c.value;

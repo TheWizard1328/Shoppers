@@ -82,11 +82,19 @@ function buildBatchAwareContext({
   // available so rules keyed to 'admin' (when an admin is performing the
   // assignment) also match.
   let userRole = 'dispatcher';
-  if (Array.isArray(dispatcher?.app_roles)) {
+  let userRolesArray = ['dispatcher'];
+  if (Array.isArray(dispatcher?.app_roles) && dispatcher.app_roles.length > 0) {
+    userRolesArray = dispatcher.app_roles;
     if (dispatcher.app_roles.includes('dispatcher')) userRole = 'dispatcher';
     else if (dispatcher.app_roles.includes('admin')) userRole = 'admin';
   } else if (typeof dispatcher?.app_role === 'string') {
     userRole = dispatcher.app_role;
+    userRolesArray = [dispatcher.app_role];
+  }
+  // Also include 'driver' in the roles array if the assigning user happens to be
+  // a driver self-assigning stops, so `Contains 'driver'` conditions match.
+  if (dispatcher?.app_roles?.includes('driver')) {
+    if (!userRolesArray.includes('driver')) userRolesArray = [...userRolesArray, 'driver'];
   }
 
   const context = {
@@ -104,6 +112,8 @@ function buildBatchAwareContext({
     delivery_status: 'pending',
     delivery_status_list: statuses,
     user_role: userRole,
+    user_roles: userRolesArray,
+    sender_id: dispatcher?.id || dispatcher?.user_id || '',
     timestamp: new Date().toLocaleString(),
     // Aggregate delivery-level boolean + numeric fields
     patientName: deliveries[0]?.patient_name || '',

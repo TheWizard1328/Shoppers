@@ -44,17 +44,26 @@ export async function sendDeliveryMessage({
  * Fire-and-forget push notification alongside in-app messages
  */
 export async function sendPushForNotification({ receiverId, senderName, content, event }) {
-  if (!receiverId || !content) return;
+  if (!receiverId || !content) return { sent: 0, reason: 'missing_receiver_or_content' };
   const title = (event && getNotificationLabel(event)) || senderName || 'RxDeliver';
   try {
-    await base44.functions.invoke('sendPushNotification', {
+    const res = await base44.functions.invoke('sendPushNotification', {
       user_id: receiverId,
       title,
       body: content,
       url: '/'
     });
+    // Unwrap axios .data if present
+    const data = res?.data ?? res;
+    if (data?.sent > 0) {
+      console.log(`🔔 [deliveryMessaging] Push sent to ${receiverId}: "${title}"`);
+    } else {
+      console.warn(`🔔 [deliveryMessaging] Push NOT delivered to ${receiverId}: ${data?.message || data?.error || JSON.stringify(data)}`);
+    }
+    return data;
   } catch (error) {
     console.warn('[deliveryMessaging] Push notification failed:', error?.message || error);
+    return { sent: 0, error: error?.message || String(error) };
   }
 }
 

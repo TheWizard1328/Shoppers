@@ -57,14 +57,20 @@ export function evaluateCondition(condition, context) {
   const fieldVal = context[condition.field];
   const condVal = condition.value;
 
-  // "All" wildcard for user_role / delivery_status — condition always passes
-  if ((condition.field === 'user_role' || condition.field === 'delivery_status') && String(condVal ?? '') === 'all') return true;
+  // "All" wildcard for user_role / user_roles / delivery_status — condition always passes
+  if ((condition.field === 'user_role' || condition.field === 'user_roles' || condition.field === 'delivery_status') && String(condVal ?? '') === 'all') return true;
 
   switch (condition.operator) {
     case 'equals':
       return String(fieldVal ?? '') === String(condVal ?? '');
     case 'not_equals':
       return String(fieldVal ?? '') !== String(condVal ?? '');
+    case 'contains': {
+      // Array membership (e.g. user_roles contains 'dispatcher')
+      // or substring match for string fields
+      if (Array.isArray(fieldVal)) return fieldVal.map(String).includes(String(condVal));
+      return String(fieldVal ?? '').toLowerCase().includes(String(condVal).toLowerCase());
+    }
     case 'greater_than':
       return coerceNum(fieldVal) > coerceNum(condVal);
     case 'less_than':
