@@ -719,13 +719,17 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         const cardIndex = sortedPickupCards.findIndex((item) => item?.id === card.id);
         const fanStyle = desktopFanLayout?.[cardIndex];
         const isRailCentered = !isDesktopFanLayout || card.id === sortedPickupCards[centeredCardIndex]?.id;
-        // Fan: if THIS card is bulk-selected, pull the next card (right neighbor) over it.
-        // Apply negative marginLeft to THIS card when the card to its left is selected,
-        // so the right neighbor slides on top of the selected card.
+        // Fan: when both THIS card AND the previous card (lower stop_order, to its left)
+        // are bulk-selected, pull THIS card left so it stacks ON TOP of the left card.
+        // Only checked cards fan — a checked card never pulls an unchecked right neighbour
+        // onto itself, and an unchecked card never stacks onto a checked left neighbour.
         const prevCard = sortedPickupCards[cardIndex - 1];
         const prevCardWidth = prevCard?.is_cycling_marker ? 250 : (useFlexibleCardWidth ? phoneCardWidth : 338);
         const fanOffset = prevCardWidth - 60; // leave 60px peeking out
-        const isInRightDeck = bulkSelectionEnabled && !!prevCard && !!selectedDeliveryIds?.[prevCard.id];
+        const isFannedOverLeftChecked = bulkSelectionEnabled
+          && !!prevCard
+          && !!selectedDeliveryIds?.[prevCard.id]
+          && !!selectedDeliveryIds?.[card.id];
         const sequentialCardZIndex = 200 + cardIndex;
 
         // Cycling markers get their own special inline pin card
@@ -741,7 +745,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
                 zIndex: sequentialCardZIndex,
                 position: 'relative',
                 overflow: 'visible',
-                marginLeft: isInRightDeck ? `${-fanOffset}px` : undefined,
+                marginLeft: isFannedOverLeftChecked ? `${-fanOffset}px` : undefined,
               }}
               data-is-next-delivery={card.isNextDelivery ? "true" : undefined}
             >
@@ -775,7 +779,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               overflow: 'visible',
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal',
-              marginLeft: isInRightDeck ? `${-fanOffset}px` : undefined,
+              marginLeft: isFannedOverLeftChecked ? `${-fanOffset}px` : undefined,
               zIndex: sequentialCardZIndex
             }}
             data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
@@ -827,7 +831,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               stores={stores}
               onDriverStatusChange={onDriverStatusChange}
               appUsers={appUsers}
-              isRailCentered={isRailCentered || isInRightDeck} />
+              isRailCentered={isRailCentered || isFannedOverLeftChecked} />
 
           </div>);
 
