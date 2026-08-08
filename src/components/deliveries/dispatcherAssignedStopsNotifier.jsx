@@ -177,10 +177,10 @@ export async function notifyDispatcherAssignedStops({
     return senderPromise;
   };
 
-  const sendInApp = async (userId, message, eventName) => {
+  const sendInApp = async (userId, message, eventName, rule) => {
     const sender = await getSender();
     if (!sender) return; // No usable sender — skip in-app, push still goes out
-    const label = getNotificationLabel(eventName);
+    const label = rule?.rule_label || getNotificationLabel(eventName);
     const content = label ? `[${label}]\n${message}` : message;
     await sendDeliveryMessage({
       senderId: sender.id,
@@ -191,12 +191,13 @@ export async function notifyDispatcherAssignedStops({
     });
   };
 
-  const sendPush = async (userId, message, eventName) => {
+  const sendPush = async (userId, message, eventName, rule) => {
     await sendPushForNotification({
       receiverId: userId,
       senderName: storeName,
       content: message,
       event: eventName,
+      titleOverride: rule?.rule_label,
     });
   };
 

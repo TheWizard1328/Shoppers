@@ -43,9 +43,9 @@ export async function sendDeliveryMessage({
 /**
  * Fire-and-forget push notification alongside in-app messages
  */
-export async function sendPushForNotification({ receiverId, senderName, content, event }) {
+export async function sendPushForNotification({ receiverId, senderName, content, event, titleOverride }) {
   if (!receiverId || !content) return { sent: 0, reason: 'missing_receiver_or_content' };
-  const title = (event && getNotificationLabel(event)) || senderName || 'RxDeliver';
+  const title = titleOverride || (event && getNotificationLabel(event)) || senderName || 'RxDeliver';
   try {
     const res = await base44.functions.invoke('sendPushNotification', {
       user_id: receiverId,
