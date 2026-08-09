@@ -586,9 +586,9 @@ export async function optimizeRouteClientSide({
   // delivery_time_start window. Patient time windows are synced onto deliveries first;
   // patients without a time window inherit their pickup's delivery_time_start + 5 min.
   if (isFutureRoute && !routeOfficiallyStarted && !preserveExistingOrder
-      && !cyclingSegmentOnly && !drivingSegmentOnly && cyclingMarkers.length === 0) {
-    console.log(`[clientRouteEngine] ${source} — FUTURE route: skipping HERE optimizer, sorting by delivery_time_start`);
-    return _handleFutureRoute({
+       && !cyclingSegmentOnly && !drivingSegmentOnly && cyclingMarkers.length === 0) {
+    console.log(`[clientRouteEngine] ${source} — FUTURE route: skipping HERE sequence optimizer, sorting by delivery_time_start, generating planned polylines`);
+    return await _handleFutureRoute({
       optimizableDeliveries,
       storeMap,
       patientMap,
@@ -597,6 +597,7 @@ export async function optimizeRouteClientSide({
       completedDeliveries,
       currentMinutes,
       source,
+      hereApiKey,
     });
   }
 
@@ -1362,7 +1363,7 @@ export async function optimizeRouteClientSide({
 
 // ─── Future route handler (light mode, no HERE call) ─────────────────────────
 
-function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source }) {
+async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey }) {
   const startOrder = (startingStopOrder != null) ? startingStopOrder : completedDeliveries.length;
   const weekdayCode = getWeekdayCode(deliveryDate);
   const isWeekend = weekdayCode === 'sa' || weekdayCode === 'su';
@@ -1477,10 +1478,70 @@ function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliv
     return { id: delivery.id, data: updateData };
   });
 
-  // ── No polylines for future/not-started routes ────────────────────────────
-  // All stops are pending (route hasn't started). Pending stops never get polylines.
-  // The main engine's active-stops filter enforces the same rule for today's routes.
-  console.log(`[clientRouteEngine] ${source} — future route: skipping polylines (all stops are pending)`);
+  // ── Generate planned polylines for future route order ─────────────────────
+  // The HERE sequence optimizer (findsequence2) is skipped for future routes —
+  // stops are sorted by delivery_time_start only. But the planned stop-to-stop
+  // polylines are still generated via a single consolidated HERE Router v8 call
+  // per transport-mode group so the driver sees the full planned path before start.
+  // polyPoints[0] (first pickup) is the route origin → no inbound leg into it.
+  // Each leg INTO stop[i] uses stop[i]'s transport_mode (HERE is single-mode/call).
+  const futurePolylineByDeliveryId = new Map();
+  const resolveFutureMode = (delivery) => {
+    const raw = String(delivery.transport_mode || 'driving').toLowerCase();
+    if (raw === 'cycling') return 'cycling';
+    if (raw === 'pedestrian') return 'pedestrian';
+    return 'driving';
+  };
+  const polyPoints = [];
+  for (const { delivery } of orderedStops) {
+    const c = getDeliveryCoords(delivery, patientMap, storeMap);
+    if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) continue;
+    polyPoints.push({ id: delivery.id, lat: c.lat, lon: c.lon, mode: resolveFutureMode(delivery) });
+  }
+  if (polyPoints.length >= 2 && hereApiKey) {
+    const stopsToPolyline = polyPoints.slice(1); // origin (polyPoints[0]) has no inbound leg
+    const modeGroups = [];
+    for (let i = 0; i < stopsToPolyline.length; i++) {
+      const p = stopsToPolyline[i];
+      const prev = i === 0 ? polyPoints[0] : stopsToPolyline[i - 1];
+      const last = modeGroups[modeGroups.length - 1];
+      if (last && last.mode === p.mode) {
+        last.points.push(p);
+      } else {
+        modeGroups.push({ mode: p.mode, origin: { lat: prev.lat, lon: prev.lon }, points: [p] });
+      }
+    }
+    const groupResults = await Promise.all(modeGroups.map(async (group) => {
+      const herePoints = [group.origin, ...group.points.map(p => ({ lat: p.lat, lon: p.lon }))];
+      const result = await getMultiStopRouteHere(herePoints, group.mode, hereApiKey).catch(() => ({ sections: [] }));
+      return { group, sections: result.sections || [] };
+    }));
+    for (const { group, sections } of groupResults) {
+      group.points.forEach((p, idx) => {
+        const section = sections[idx] || null;
+        futurePolylineByDeliveryId.set(p.id, {
+          encodedPolyline: section?.encoded_polyline || null,
+          estimatedDistanceKm: section?.estimated_distance_km ?? null,
+          estimatedDurationMinutes: section?.estimated_duration_minutes ?? null,
+          transportMode: group.mode,
+        });
+      });
+    }
+    const _polyCount = [...futurePolylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
+    console.log(`[clientRouteEngine] ${source} — future route polylines: ${_polyCount}/${stopsToPolyline.length} legs (${modeGroups.length} mode group(s))`);
+  } else if (polyPoints.length < 2) {
+    console.log(`[clientRouteEngine] ${source} — future route: <2 coord-resolvable stops, skipping polylines`);
+  }
+
+  // ── Augment writeBatch with planned polyline fields ───────────────────────
+  for (const w of writeBatch) {
+    const seg = futurePolylineByDeliveryId.get(w.id);
+    if (!seg) continue;
+    if (seg.encodedPolyline != null) w.data.encoded_polyline = seg.encodedPolyline;
+    if (seg.transportMode) w.data.transport_mode = seg.transportMode;
+    if (seg.estimatedDistanceKm != null) w.data.estimated_distance_km = seg.estimatedDistanceKm;
+    if (seg.estimatedDurationMinutes != null) w.data.estimated_duration_minutes = seg.estimatedDurationMinutes;
+  }
 
   return {
     success: true, driverId: null, deliveryDate,
@@ -1488,7 +1549,7 @@ function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliv
     locationSource: 'future_schedule', usedTimeWindows: true, usedFallbackOrdering: false,
     preserveExistingOrder: false, shouldRefreshPolylines: true,
     orderedDeliveryIds: writeBatch.map(w => w.id),
-    optimizedRoute: writeBatch.map((w, i) => ({ deliveryId: w.id, newETA: w.data.delivery_time_eta, stop_order: startOrder + i + 1, isNextDelivery: w.data.isNextDelivery === true, encoded_polyline: w.data.encoded_polyline || null })),
+    optimizedRoute: writeBatch.map((w, i) => ({ deliveryId: w.id, newETA: w.data.delivery_time_eta, stop_order: startOrder + i + 1, isNextDelivery: w.data.isNextDelivery === true, encoded_polyline: w.data.encoded_polyline || null, transport_mode: w.data.transport_mode || null })),
     writeBatch
   };
 }
