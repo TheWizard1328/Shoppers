@@ -477,15 +477,33 @@ export default function StatsPanel({
                 <Select value={selectedDriverId || 'all'} onValueChange={handleDriverChange} disabled={isDriverDropdownDisabled}>
                   <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                     <SelectValue placeholder="All Drivers">{
-                         !selectedDriverId ?
-                         isDispatcher ? 'No Drivers' : 'All Drivers' :
-                         selectedDriverId === 'all' ?
-                         (isDispatcher && driversList.length === 0 ? 'No Drivers' : 'All Drivers') :
-                         driversList.find((d) => d?.id === selectedDriverId)?.user_name || driversList.find((d) => d?.id === selectedDriverId)?.full_name || 'Driver'
-                         }</SelectValue>
+                        (() => {
+                          // Dispatchers: "All Drivers" only makes sense with >1 driver assigned
+                          // to the selected date. With 0 → "No Drivers"; with 1 → just the driver.
+                          if (!selectedDriverId) return isDispatcher ? 'No Drivers' : 'All Drivers';
+                          if (selectedDriverId === 'all') {
+                            if (isDispatcher) {
+                              if (driversList.length === 0) return 'No Drivers';
+                              if (driversList.length === 1) return driversList[0]?.user_name || driversList[0]?.full_name || 'Driver';
+                              return 'All Drivers';
+                            }
+                            return 'All Drivers';
+                          }
+                          return driversList.find((d) => d?.id === selectedDriverId)?.user_name || driversList.find((d) => d?.id === selectedDriverId)?.full_name || 'Driver';
+                        })()
+                        }</SelectValue>
                   </SelectTrigger>
                   <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-                    <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
+                    {/* "All Drivers" is only useful when more than 1 driver has stops for the
+                        selected date. Otherwise it's redundant (1 driver) or meaningless (0). */}
+                    {(!isDispatcher || driversList.length > 1) && (
+                      <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
+                    )}
+                    {/* Empty dispatcher list — show a disabled placeholder so the dropdown
+                        isn't blank. */}
+                    {isDispatcher && driversList.length === 0 && (
+                      <SelectItem value="__none__" disabled style={{ color: 'var(--text-slate-400)' }}>No Drivers</SelectItem>
+                    )}
                     {driversList.map((driver) =>
                         <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
                         {driver.user_name || driver.full_name}
