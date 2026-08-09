@@ -31,7 +31,7 @@ import { toast } from 'sonner';
 
 const EVENT_OPTIONS = [
   { value: 'driver_accepted',          label: 'Driver Accepted',              group: 'Assignment' },
-  { value: 'dispatcher_assigned_all',  label: 'Assigned Stops',               group: 'Assignment' },
+  { value: 'stops_created',             label: 'Stops Created',               group: 'Assignment' },
   { value: 'driver_started',           label: 'Driver Started Delivery',      group: 'Delivery Status' },
   { value: 'driver_completed',         label: 'Driver Completed Delivery',    group: 'Delivery Status' },
   { value: 'driver_failed',            label: 'Driver Failed Delivery',       group: 'Delivery Status' },
