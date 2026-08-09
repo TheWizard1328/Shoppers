@@ -312,6 +312,47 @@ function UnifiedRoutePolylines({
       return;
     }
 
+    // ── PLANNED ROUTE (future / not-yet-started): all stops pending ───────
+    // A future route has zero completed and zero in-transit stops — every stop is
+    // pending. The engine still generates planned stop-to-stop polylines (origin =
+    // driver home); render them here so dispatchers/drivers can preview the route.
+    if (stops.incomplete.length === 0 && stops.complete.length === 0 && stops.pending.length > 0) {
+      const orderedPending = [...stops.pending]
+        .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+
+      orderedPending.forEach((stop) => {
+        if (!stop.encoded_polyline) return; // only render legs the engine actually generated
+        const mode = getStopMode(stop, driverId, orderedPending);
+        const isCycling = mode === "cycling";
+        const color = isCycling ? CYCLING_COLOR : getDriverColor(driverId);
+        const isPM = stop.ampm_deliveries === "PM";
+        const style = getTravelModeLineStyle(mode, color, isPM);
+
+        const coords = decodePolyline(stop.encoded_polyline);
+        if (!coords) return;
+
+        const key = `planned-${driverId}-${stop.id}`;
+        if (seenKeys.has(key)) return;
+        seenKeys.add(key);
+
+        lines.push(
+          <Polyline
+            key={`unified-planned-line-${driverId}-${stop.id}`}
+            positions={coords}
+            renderer={renderer}
+            pathOptions={{ ...style, color, opacity: 0.6, lineJoin: "round", lineCap: "round" }}
+            pane="routeBasePane"
+          />,
+          <RouteDirectionDecorator
+            key={`unified-planned-arrow-${driverId}-${stop.id}`}
+            positions={coords}
+            color={color}
+          />
+        );
+      });
+      return;
+    }
+
     // ── ACTIVE ROUTE ─────────────────────────────────────────────────────
     const hasFinished = stops.complete.length > 0;
 
