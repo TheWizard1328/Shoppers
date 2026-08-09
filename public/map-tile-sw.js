@@ -15,7 +15,7 @@
  *                         navigating to `data.url` if provided (deep link)
  */
 
-const SW_VERSION = 'v10';
+const SW_VERSION = 'v11';
 const CACHE_PREFIX = 'here-tiles';
 const DEFAULT_CACHE = `${CACHE_PREFIX}-default-${SW_VERSION}`;
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -328,6 +328,66 @@ async function updatePushLastUsed() {
   } catch (_) {}
 }
 
+// ─── Auth token bridge for background actions ─────────────────────────────────
+// The SW has no access to localStorage. The app mirrors the Base44 access token
+// into IndexedDB (rxdeliver_auth_bridge) so background notification actions can
+// make authenticated API calls while the app is closed.
+async function getBridgeToken() {
+  try {
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open('rxdeliver_auth_bridge', 1);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const token = await new Promise((resolve, reject) => {
+      const tx = db.transaction('tokens', 'readonly');
+      const req = tx.objectStore('tokens').get('current');
+      req.onsuccess = () => resolve(req.result?.token || null);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return token;
+  } catch (_) {
+    return null;
+  }
+}
+
+// ─── Backend API call helper ─────────────────────────────────────────────────
+async function callBackendFunction(functionName, body) {
+  try {
+    const token = await getBridgeToken();
+    if (!token) {
+      console.warn('[SW] No auth token in bridge — cannot call backend function');
+      return null;
+    }
+    const scope = self.registration.scope;
+    // Extract origin + base path from scope (e.g. https://base44.com/apps/xxx/)
+    // The function API endpoint is: {origin}/api/apps/{appId}/functions/{functionName}
+    // We read the appId from the scope path.
+    const scopeUrl = new URL(scope);
+    const pathParts = scopeUrl.pathname.split('/').filter(Boolean)
+    // Find 'apps' in path and grab the next segment as appId
+    let appId = null;
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      if (pathParts[i] === 'apps') { appId = pathParts[i + 1]; break; }
+    }
+    if (!appId) return null;
+    const apiUrl = `${scopeUrl.origin}/api/apps/${appId}/functions/${functionName}`;
+    const resp = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+    return resp.ok;
+  } catch (e) {
+    console.warn('[SW] Backend function call failed:', e?.message || e);
+    return false;
+  }
+}
+
 self.addEventListener('push', (event) => {
   let payload = {};
   try {
@@ -343,14 +403,26 @@ self.addEventListener('push', (event) => {
     badge: payload.badge || ICON_192,
     tag: payload.tag || undefined,
     renotify: !!payload.tag,
-    requireInteraction: !!payload.requireInteraction,
+    requireInteraction: payload.requireInteraction != null ? !!payload.requireInteraction : true,
     data: {
       url: payload.url || '/',
       tag: payload.tag || undefined,
-      requireInteraction: !!payload.requireInteraction,
+      requireInteraction: payload.requireInteraction != null ? !!payload.requireInteraction : true,
       ...payload.data
     }
   };
+
+  // Add action buttons if the payload includes them.
+  // Chrome on Android supports max 2 action buttons on persistent notifications.
+  if (payload.actions && Array.isArray(payload.actions)) {
+    options.actions = payload.actions.slice(0, 2).map(a => ({
+      action: a.action,
+      title: a.title,
+      icon: a.icon || undefined
+    }));
+    // Store action metadata in data for the click handler
+    options.data._actions = payload.actions.slice(0, 2);
+  }
 
   event.waitUntil(Promise.all([
     self.registration.showNotification(title, options),
@@ -358,30 +430,49 @@ self.addEventListener('push', (event) => {
   ]));
 });
 
-/**
- * Resolve a notification URL relative to THIS service worker's scope (the PWA root),
- * NOT the origin root, so taps open the installed PWA in standalone mode rather
- * than a browser tab at the origin root. (Mirror of push-sw.js logic.)
- */
-function resolvePwaUrl(targetUrl) {
-  const scope = self.registration.scope;
-  if (!targetUrl || targetUrl === '/') {
-    return scope;
-  }
-  if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
-    return targetUrl;
-  }
-  if (targetUrl.startsWith('/?')) {
-    const query = targetUrl.slice(1); // "?openChat=..."
-    return scope + (scope.endsWith('/') ? query.slice(1) : query);
-  }
-  if (targetUrl.startsWith('/')) {
-    return scope + (scope.endsWith('/') ? targetUrl.slice(1) : targetUrl);
-  }
-  return new URL(targetUrl, scope).href;
-}
+
 
 self.addEventListener('notificationclick', (event) => {
+  const action = event.action; // '' when the notification body is clicked (not a button)
+
+  // ─── Action button clicks ─────────────────────────────────────────────────
+  if (action === 'mark_read' || action === 'acknowledge') {
+    event.notification.close();
+
+    const notifData = event.notification.data || {};
+    // Fire the backend call in the background and focus the app if it's open
+    event.waitUntil((async () => {
+      let result = false;
+      if (action === 'mark_read' && notifData.message_id) {
+        result = await callBackendFunction('handleNotificationAction', {
+          action: 'mark_read',
+          message_id: notifData.message_id
+        });
+      } else if (action === 'acknowledge' && notifData.delivery_ids) {
+        result = await callBackendFunction('handleNotificationAction', {
+          action: 'acknowledge',
+          delivery_ids: notifData.delivery_ids
+        });
+      }
+
+      // Post a message to any open client so the UI can update in real-time
+      const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clientList) {
+        if (client.url.startsWith(self.registration.scope)) {
+          client.postMessage({
+            type: 'notification_action',
+            action,
+            result,
+            message_id: notifData.message_id,
+            delivery_ids: notifData.delivery_ids
+          });
+        }
+      }
+    })());
+    return;
+  }
+
+  // ─── Default: body click — open/focus the app ──────────────────────────────
   event.notification.close();
   const rawUrl = event.notification.data?.url || '/';
   const fullUrl = resolvePwaUrl(rawUrl);
@@ -397,14 +488,12 @@ self.addEventListener('notificationclick', (event) => {
         if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
           if ('navigate' in client) {
             client.navigate(fullUrl).catch(() => {});
-
           }
           return client.focus();
         }
       }
       if (clients.openWindow) {
         return clients.openWindow(fullUrl);
-
       }
     })
   );

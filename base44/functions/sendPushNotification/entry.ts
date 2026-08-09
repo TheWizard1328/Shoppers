@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { user_id, title, body, url, tag, requireInteraction, force } = await req.json();
+    const { user_id, title, body, url, tag, requireInteraction, force, actions, data } = await req.json();
     if (!user_id || !title || !body) return Response.json({ error: 'user_id, title, and body are required' }, { status: 400 });
 
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
@@ -38,7 +38,10 @@ Deno.serve(async (req) => {
     const subscriptions = await base44.asServiceRole.entities.PushSubscription.filter({ user_id });
     if (!subscriptions || subscriptions.length === 0) return Response.json({ sent: 0, message: 'No push subscriptions for this user' });
 
-    const payload = JSON.stringify({ title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction });
+    const pushData = { title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction };
+    if (actions) pushData.actions = actions;
+    if (data) pushData.data = data;
+    const payload = JSON.stringify(pushData);
 
     let sent = 0, removed = 0, skipped = 0;
     const errors = [];

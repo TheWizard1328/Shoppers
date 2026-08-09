@@ -169,14 +169,16 @@ function ChatWindow({
         content: messageContent,
         read: false,
       });
-      // Fire-and-forget push notification to recipient
+      // Fire-and-forget push notification to recipient with "Mark as Read" action button
       const senderName = currentUser.user_name || currentUser.full_name || 'RxDeliver';
       base44.functions.invoke('sendPushNotification', {
         user_id: otherUserId,
         title: senderName,
         body: messageContent,
         tag: `chat-${conversationId}`,
-        url: `/?openChat=${encodeURIComponent(currentUser.id)}&openChatName=${encodeURIComponent(senderName)}`
+        url: `/?openChat=${encodeURIComponent(currentUser.id)}&openChatName=${encodeURIComponent(senderName)}`,
+        actions: [{ action: 'mark_read', title: 'Mark as Read' }],
+        data: { message_id: createdMessage.id }
       }).catch((error) => console.warn('Push notification failed:', error?.message || error));
       setNewMessage('');
       setMessages((prev) => [...prev, createdMessage]);

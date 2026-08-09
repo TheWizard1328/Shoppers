@@ -43,16 +43,27 @@ export async function sendDeliveryMessage({
 /**
  * Fire-and-forget push notification alongside in-app messages
  */
-export async function sendPushForNotification({ receiverId, senderName, content, event, titleOverride }) {
+export async function sendPushForNotification({ receiverId, senderName, content, event, titleOverride, actions, url, tag, requireInteraction, message_id, delivery_ids }) {
   if (!receiverId || !content) return { sent: 0, reason: 'missing_receiver_or_content' };
   const title = titleOverride || (event && getNotificationLabel(event)) || senderName || 'RxDeliver';
   try {
-    const res = await base44.functions.invoke('sendPushNotification', {
+    const payload = {
       user_id: receiverId,
       title,
       body: content,
-      url: '/'
-    });
+      url: url || '/'
+    };
+    // Pass through optional fields for action buttons and metadata
+    if (actions) payload.actions = actions;
+    if (tag) payload.tag = tag;
+    if (requireInteraction) payload.requireInteraction = true;
+    // Embed action metadata into data so the SW click handler can use it
+    if (message_id || delivery_ids) {
+      payload.data = {};
+      if (message_id) payload.data.message_id = message_id;
+      if (delivery_ids) payload.data.delivery_ids = delivery_ids;
+    }
+    const res = await base44.functions.invoke('sendPushNotification', payload);
     // Unwrap axios .data if present
     const data = res?.data ?? res;
     if (data?.sent > 0) {

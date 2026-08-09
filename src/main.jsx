@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
+import { startAuthTokenBridge } from '@/lib/authTokenBridge'
 
 // ── Global chunk-load error handler ─────────────────────────────────────────
 // When Vite rebuilds after a deploy, dynamic import() calls in open tabs reference
@@ -87,6 +88,19 @@ if ('serviceWorker' in navigator) {
       registration.update().catch(() => {});
     }).catch(() => {});
   });
+
+  // Listen for notification action button clicks from the service worker
+  // (e.g. "Mark as Read", "Acknowledge") so the UI can update in real-time
+  // when the user taps a button on a push notification while the app is open.
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event?.data?.type === 'notification_action') {
+      window.dispatchEvent(new CustomEvent('notification_action', { detail: event.data }));
+    }
+  });
+
+  // Mirror the auth token into IndexedDB so the SW can make authenticated
+  // API calls for background notification actions.
+  startAuthTokenBridge();
 }
 
 if (import.meta.hot) {
