@@ -273,6 +273,15 @@
     "polyline_saved_at": {
       "type": "string",
       "description": "ISO timestamp of the last time breadcrumb polyline was saved to this delivery \u2014 used to force a full WebSocket broadcast"
+    },
+    "driver_acknowledged": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the driver has acknowledged this delivery assignment via a push notification action button"
+    },
+    "driver_acknowledged_at": {
+      "type": "string",
+      "description": "ISO timestamp when the driver acknowledged this delivery assignment"
     }
   },
   "required": [
