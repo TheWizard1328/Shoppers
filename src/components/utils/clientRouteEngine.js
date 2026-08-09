@@ -587,7 +587,14 @@ export async function optimizeRouteClientSide({
   // patients without a time window inherit their pickup's delivery_time_start + 5 min.
   if (isFutureRoute && !routeOfficiallyStarted && !preserveExistingOrder
        && !cyclingSegmentOnly && !drivingSegmentOnly && cyclingMarkers.length === 0) {
-    console.log(`[clientRouteEngine] ${source} — FUTURE route: skipping HERE sequence optimizer, sorting by delivery_time_start, generating planned polylines`);
+    // Origin for future-route planned polylines = the selected driver's HOME location.
+    // The route begins at home; every stop (including the first pickup) receives an
+    // inbound polyline leg FROM home. Falls back to first-pickup-as-origin (no inbound
+    // leg) only if the driver has no home coordinates.
+    const driverHomeLocation = (_driverAppUser?.home_latitude != null && _driverAppUser?.home_longitude != null)
+      ? { lat: Number(_driverAppUser.home_latitude), lon: Number(_driverAppUser.home_longitude) }
+      : null;
+    console.log(`[clientRouteEngine] ${source} — FUTURE route: skipping HERE sequence optimizer, sorting by delivery_time_start, generating planned polylines (origin=${driverHomeLocation ? 'driver_home' : 'first_pickup_fallback'})`);
     return await _handleFutureRoute({
       optimizableDeliveries,
       storeMap,
@@ -598,6 +605,7 @@ export async function optimizeRouteClientSide({
       currentMinutes,
       source,
       hereApiKey,
+      driverHomeLocation,
     });
   }
 
@@ -1363,7 +1371,7 @@ export async function optimizeRouteClientSide({
 
 // ─── Future route handler (light mode, no HERE call) ─────────────────────────
 
-async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey }) {
+async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, driverHomeLocation = null }) {
   const startOrder = (startingStopOrder != null) ? startingStopOrder : completedDeliveries.length;
   const weekdayCode = getWeekdayCode(deliveryDate);
   const isWeekend = weekdayCode === 'sa' || weekdayCode === 'su';
@@ -1480,11 +1488,13 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
 
   // ── Generate planned polylines for future route order ─────────────────────
   // The HERE sequence optimizer (findsequence2) is skipped for future routes —
-  // stops are sorted by delivery_time_start only. But the planned stop-to-stop
-  // polylines are still generated via a single consolidated HERE Router v8 call
-  // per transport-mode group so the driver sees the full planned path before start.
-  // polyPoints[0] (first pickup) is the route origin → no inbound leg into it.
-  // Each leg INTO stop[i] uses stop[i]'s transport_mode (HERE is single-mode/call).
+  // stops are sorted by delivery_time_start only. But the planned polylines are
+  // still generated via a single consolidated HERE Router v8 call per transport-mode
+  // group so the driver sees the full planned path before start.
+  // ORIGIN = the selected driver's HOME location. The route begins at home, so
+  // every stop — including the first pickup — receives an inbound polyline leg
+  // FROM home. Falls back to first-pickup-as-origin (no inbound leg into it) only
+  // when the driver has no home coordinates.
   const futurePolylineByDeliveryId = new Map();
   const resolveFutureMode = (delivery) => {
     const raw = String(delivery.transport_mode || 'driving').toLowerCase();
@@ -1492,18 +1502,25 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     if (raw === 'pedestrian') return 'pedestrian';
     return 'driving';
   };
-  const polyPoints = [];
+  const stopPoints = [];
   for (const { delivery } of orderedStops) {
     const c = getDeliveryCoords(delivery, patientMap, storeMap);
     if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) continue;
-    polyPoints.push({ id: delivery.id, lat: c.lat, lon: c.lon, mode: resolveFutureMode(delivery) });
+    stopPoints.push({ id: delivery.id, lat: c.lat, lon: c.lon, mode: resolveFutureMode(delivery) });
   }
-  if (polyPoints.length >= 2 && hereApiKey) {
-    const stopsToPolyline = polyPoints.slice(1); // origin (polyPoints[0]) has no inbound leg
+  const hasHomeOrigin = driverHomeLocation
+    && Number.isFinite(driverHomeLocation.lat) && Number.isFinite(driverHomeLocation.lon);
+  const originPoint = hasHomeOrigin ? { lat: driverHomeLocation.lat, lon: driverHomeLocation.lon } : null;
+  // stopsToPolyline = every stop when home-origin exists (each gets a home→stop or stop→stop leg);
+  // otherwise the first stop is the origin (no inbound leg into it) — legacy fallback.
+  const stopsToPolyline = originPoint ? stopPoints : stopPoints.slice(1);
+  if (stopsToPolyline.length >= 1 && hereApiKey) {
     const modeGroups = [];
     for (let i = 0; i < stopsToPolyline.length; i++) {
       const p = stopsToPolyline[i];
-      const prev = i === 0 ? polyPoints[0] : stopsToPolyline[i - 1];
+      const prev = (i === 0)
+        ? (originPoint ? { lat: originPoint.lat, lon: originPoint.lon } : stopPoints[0])
+        : stopsToPolyline[i - 1];
       const last = modeGroups[modeGroups.length - 1];
       if (last && last.mode === p.mode) {
         last.points.push(p);
@@ -1528,9 +1545,9 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
       });
     }
     const _polyCount = [...futurePolylineByDeliveryId.values()].filter(s => s?.encodedPolyline != null).length;
-    console.log(`[clientRouteEngine] ${source} — future route polylines: ${_polyCount}/${stopsToPolyline.length} legs (${modeGroups.length} mode group(s))`);
-  } else if (polyPoints.length < 2) {
-    console.log(`[clientRouteEngine] ${source} — future route: <2 coord-resolvable stops, skipping polylines`);
+    console.log(`[clientRouteEngine] ${source} — future route polylines: ${_polyCount}/${stopsToPolyline.length} legs (${modeGroups.length} mode group(s), origin=${originPoint ? 'driver_home' : 'first_pickup'})`);
+  } else if (stopsToPolyline.length < 1) {
+    console.log(`[clientRouteEngine] ${source} — future route: no coord-resolvable inbound legs, skipping polylines`);
   }
 
   // ── Augment writeBatch with planned polyline fields ───────────────────────
