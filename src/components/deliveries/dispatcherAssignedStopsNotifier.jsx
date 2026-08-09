@@ -77,25 +77,14 @@ function buildBatchAwareContext({
   // delivery_status stays 'pending' for backward compat with existing rules.
   const statuses = aggregateList(deliveries, 'status');
 
-  // Resolve the triggering actor's role. Default to 'dispatcher' since this
-  // notifier only fires for non-driver actors, but read the actual role when
-  // available so rules keyed to 'admin' (when an admin is performing the
-  // assignment) also match.
-  let userRole = 'dispatcher';
-  let userRolesArray = ['dispatcher'];
-  if (Array.isArray(dispatcher?.app_roles) && dispatcher.app_roles.length > 0) {
-    userRolesArray = dispatcher.app_roles;
-    if (dispatcher.app_roles.includes('dispatcher')) userRole = 'dispatcher';
-    else if (dispatcher.app_roles.includes('admin')) userRole = 'admin';
-  } else if (typeof dispatcher?.app_role === 'string') {
-    userRole = dispatcher.app_role;
-    userRolesArray = [dispatcher.app_role];
-  }
-  // Also include 'driver' in the roles array if the assigning user happens to be
-  // a driver self-assigning stops, so `Contains 'driver'` conditions match.
-  if (dispatcher?.app_roles?.includes('driver')) {
-    if (!userRolesArray.includes('driver')) userRolesArray = [...userRolesArray, 'driver'];
-  }
+  // Pass through the actor's real app_roles verbatim — the Rule Builder is the
+  // single source of truth for role-based conditions. No hard-coded default,
+  // no priority ordering, no implicit 'dispatcher' fallback, so a multi-role
+  // user (e.g. admin + driver) is evaluated against their actual roles and
+  // both Admin AND Dispatcher rules can be authored independently.
+  const userRolesArray = Array.isArray(dispatcher?.app_roles) ? dispatcher.app_roles
+    : (typeof dispatcher?.app_role === 'string' ? [dispatcher.app_role] : []);
+  let userRole = dispatcher?.app_role || (userRolesArray.length > 0 ? userRolesArray[0] : '');
 
   const context = {
     eventName: 'Dispatcher Assigned Stops',
@@ -219,7 +208,7 @@ export async function notifyDispatcherAssignedStops({
   let ruleEngineError = null;
   try {
     const result = await dispatchMessageRules(
-      'dispatcher_assigned_all',
+      'stops_created',
       context,
       sendInApp,
       sendPush,

@@ -434,16 +434,13 @@ export async function handleBatchSave({
       }
     }
 
-    // ── Dispatcher Assigned Stops notification ────────────────────────────────
-    // Fire-and-forget: notify the assigned driver about deliveries that transitioned
-    // from Staged → Pending (or were newly created as Pending) when a dispatcher
-    // clicks Done. Resolves to the Rule Builder event first, falling back to the
-    // legacy NotificationTemplate path.
+    // ── Stops Created notification ─────────────────────────────────────────────
+    // Fire-and-forget: any user clicking Done dispatches the "Stops Created" event.
+    // No role pre-filtering here — the Message Rules (Rule Builder) own all
+    // role-based conditions and recipient selection. Resolves to the Rule Builder
+    // event first, falling back to the legacy NotificationTemplate path.
     try {
-      const actorIsDriver = Array.isArray(currentUser?.app_roles)
-        ? currentUser.app_roles.includes('driver') && !currentUser.app_roles.includes('dispatcher')
-        : currentUser?.app_role === 'driver';
-      if (routeDriverId && !actorIsDriver) {
+      if (routeDriverId) {
         // Existing Staged patient deliveries → activated to 'pending' (per getStagedActivationStatus)
         const stagedToPending = deliveriesToUpdate
           .filter((d) => d?.patient_id && d?.status === 'Staged')

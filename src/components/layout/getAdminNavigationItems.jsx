@@ -59,7 +59,7 @@ export default function getAdminNavigationItems({
     );
   }
 
-  if (currentUser && (isAppOwner(currentUser) || isAdmin) && adminImportEnabled) {
+  if (currentUser && isAppOwner(currentUser) && adminImportEnabled) {
     items.push({
       title: 'Admin Utilities',
       pageName: 'AdminUtilities',
