@@ -728,20 +728,37 @@ export default function MessageRuleBuilder() {
     try {
       const eventLabel = EVENT_OPTIONS.find((e) => e.value === rule.event_name)?.label || rule.event_name;
       const channels = rule.channels?.length ? rule.channels : ['in_app'];
+      let testMessageId = null;
       if (channels.includes('in_app')) {
-        await base44.entities.Message.create({
+        const msg = await base44.entities.Message.create({
           sender_id: currentUser.id, sender_name: 'System Test',
           receiver_id: currentUser.id, receiver_name: currentUser.full_name || 'You',
           conversation_id: [currentUser.id, 'system_test'].join('_'),
           content: `[TEST — ${eventLabel}]\n${preview}`, read: false,
         });
+        testMessageId = msg?.id || null;
       }
       if (channels.includes('push')) {
         if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
           try { await initPushNotifications(currentUser.id); } catch {}
         }
+        // Forward the rule's configured action buttons + the metadata the
+        // service worker needs to route each action's click (mark_read needs
+        // a real message_id; acknowledge needs delivery_ids). Without these
+        // the test push renders body-only with no buttons.
+        const ruleActions = (rule.actions && rule.actions.length > 0) ? rule.actions : undefined;
+        const testData = {};
+        if (testMessageId && (ruleActions || []).some(a => a.action === 'mark_read' || a.action === 'update_now')) testData.message_id = testMessageId;
+        if ((ruleActions || []).some(a => a.action === 'acknowledge')) testData.delivery_ids = ['test_did'];
+        if ((ruleActions || []).some(a => a.action === 'reply')) { testData.reply_to = currentUser.id; testData.reply_to_name = currentUser.full_name || 'You'; }
         const pushRes = await base44.functions.invoke('sendPushNotification', {
-          user_id: currentUser.id, title: `[TEST] ${eventLabel}`, body: preview, url: '/',
+          user_id: currentUser.id,
+          title: `[TEST] ${eventLabel}`,
+          body: preview,
+          url: '/',
+          actions: ruleActions,
+          data: Object.keys(testData).length > 0 ? testData : undefined,
+          requireInteraction: true,
         }).catch((e) => ({ error: e?.message || String(e) }));
         if (pushRes?.error) setTestPushStatus('error');
         else if (pushRes?.sent > 0) setTestPushStatus('sent');
