@@ -142,7 +142,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   // 20px breathing room (was 10) — the stats panel has shadows and rounded
   // corners that extend slightly beyond offsetHeight, and markers were
   // being rendered underneath the panel's bottom edge.
-  const TOP_BUFFER = 20;
+  const TOP_BUFFER = 30;
 
   // Bottom padding:
   //   Normal mode    — extra items (FABs) + stop cards + buffer
