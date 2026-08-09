@@ -580,6 +580,26 @@ export async function optimizeRouteClientSide({
   const isFutureRoute = !historicalRoute && deliveryDate > getEdmontonTodayDateString();
   const routeOfficiallyStarted = completedDeliveries.length > 0;
 
+  // ── Future route fast-path: sort stops by delivery_time_start (NO HERE call) ──
+  // For future-date routes where the driver hasn't started, the optimizer should NOT
+  // make HERE sequencing calls — just sort stops chronologically by their
+  // delivery_time_start window. Patient time windows are synced onto deliveries first;
+  // patients without a time window inherit their pickup's delivery_time_start + 5 min.
+  if (isFutureRoute && !routeOfficiallyStarted && !preserveExistingOrder
+      && !cyclingSegmentOnly && !drivingSegmentOnly && cyclingMarkers.length === 0) {
+    console.log(`[clientRouteEngine] ${source} — FUTURE route: skipping HERE optimizer, sorting by delivery_time_start`);
+    return _handleFutureRoute({
+      optimizableDeliveries,
+      storeMap,
+      patientMap,
+      deliveryDate,
+      startingStopOrder,
+      completedDeliveries,
+      currentMinutes,
+      source,
+    });
+  }
+
   // ── Determine current position (origin) ───────────────────────────────────
   const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
   const explicitNextDelivery = incompleteDeliveries.find(d => d?.isNextDelivery === true) || null;
@@ -1357,38 +1377,69 @@ function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliv
   };
 
   const pickups = optimizableDeliveries.filter(d => !d.patient_id);
-  const pendingDeliveries = optimizableDeliveries.filter(d => d.patient_id && d.status === 'pending');
-  const activeDeliveries = optimizableDeliveries.filter(d => d.patient_id && d.status !== 'pending');
 
+  // 1. Normalize pickups with store-default windows so every pickup has a resolvable
+  //    delivery_time_start (fallback for downstream patient-window derivation).
   const normalizedPickups = pickups.map(p => {
     const dw = getStoreDefaultWindow(p.store_id, p.ampm_deliveries);
-    return { ...p, delivery_time_start: p.delivery_time_start || dw.start || p.delivery_time_start, delivery_time_end: p.delivery_time_end || dw.end || p.delivery_time_end };
-  }).sort((a, b) => parseTimeToMinutes(a.delivery_time_start || '00:00') - parseTimeToMinutes(b.delivery_time_start || '00:00'));
-
-  const pickupByPuid = new Map(normalizedPickups.map(p => [p.stop_id, p]));
-  const normalizedPendingDeliveries = pendingDeliveries.map(d => {
-    const patient = patientMap.get(d.patient_id);
-    const pickup = d.puid ? pickupByPuid.get(d.puid) : null;
-    let deliveryStart = d.delivery_time_start;
-    if (!deliveryStart && pickup?.delivery_time_start) deliveryStart = formatMinutesToTime(parseTimeToMinutes(pickup.delivery_time_start) + 5);
-    return { ...d, delivery_time_start: deliveryStart || d.delivery_time_start, time_window_start: d.time_window_start || patient?.time_window_start || null, time_window_end: d.time_window_end || patient?.time_window_end || null, _resolvedPickupStart: pickup?.delivery_time_start || null };
-  });
-
-  const sortedPendingDeliveries = normalizedPendingDeliveries.sort((a, b) =>
-    parseTimeToMinutes(a.delivery_time_start || a._resolvedPickupStart || '99:99') - parseTimeToMinutes(b.delivery_time_start || b._resolvedPickupStart || '99:99')
+    return {
+      ...p,
+      delivery_time_start: p.delivery_time_start || dw.start || p.delivery_time_start,
+      delivery_time_end: p.delivery_time_end || dw.end || p.delivery_time_end,
+    };
+  }).sort((a, b) =>
+    parseTimeToMinutes(a.delivery_time_start || '00:00') -
+    parseTimeToMinutes(b.delivery_time_start || '00:00')
   );
 
+  const pickupByPuid = new Map(normalizedPickups.map(p => [p.stop_id, p]));
+
+  // 2. Sync patient deliveries to time windows — source of truth for future sort:
+  //    - Patient HAS time_window_start → delivery inherits patient's window (REPLACE).
+  //    - Patient has NO time window → delivery gets pickup.delivery_time_start + 5 min.
+  //    Applies to ALL patient deliveries on the future route (pending + any in_transit)
+  //    since the route hasn't started yet and the driver hasn't set manual times.
+  const normalizedDeliveries = optimizableDeliveries
+    .filter(d => d.patient_id)
+    .map(d => {
+      const patient = patientMap.get(d.patient_id);
+      const pickup = d.puid ? pickupByPuid.get(d.puid) : null;
+      const pickupStartMin = pickup?.delivery_time_start ? parseTimeToMinutes(pickup.delivery_time_start) : Infinity;
+      let newStart = d.delivery_time_start;
+      let newEnd = d.delivery_time_end;
+      if (patient?.time_window_start) {
+        newStart = patient.time_window_start;
+        if (patient.time_window_end) newEnd = patient.time_window_end;
+      } else if (Number.isFinite(pickupStartMin)) {
+        newStart = formatMinutesToTime(pickupStartMin + 5);
+      }
+      return {
+        ...d,
+        delivery_time_start: newStart || d.delivery_time_start,
+        delivery_time_end: newEnd || d.delivery_time_end,
+        time_window_start: patient?.time_window_start || d.time_window_start || null,
+        time_window_end: patient?.time_window_end || d.time_window_end || null,
+      };
+    });
+
+  // 3. Sort all patient deliveries chronologically by their corrected delivery_time_start
+  const sortedDeliveries = normalizedDeliveries.slice().sort((a, b) =>
+    parseTimeToMinutes(a.delivery_time_start || '99:99') -
+    parseTimeToMinutes(b.delivery_time_start || '99:99')
+  );
+
+  // 4. Build ordered stop list: each pickup followed by its window-sorted deliveries,
+  //    then any orphan deliveries without a matching pickup.
   const orderedStops = [];
   const addedDeliveryIds = new Set();
   for (const pickup of normalizedPickups) {
     orderedStops.push({ delivery: pickup, isPickup: true });
-    const pickupDeliveries = [
-      ...activeDeliveries.filter(d => d.puid === pickup.stop_id),
-      ...sortedPendingDeliveries.filter(d => d.puid === pickup.stop_id)
-    ].sort((a, b) => parseTimeToMinutes(a.delivery_time_start || a.time_window_start || '99:99') - parseTimeToMinutes(b.delivery_time_start || b.time_window_start || '99:99'));
-    for (const del of pickupDeliveries) { orderedStops.push({ delivery: del, isPickup: false }); addedDeliveryIds.add(del.id); }
+    for (const del of sortedDeliveries.filter(d => d.puid === pickup.stop_id)) {
+      orderedStops.push({ delivery: del, isPickup: false });
+      addedDeliveryIds.add(del.id);
+    }
   }
-  for (const del of [...activeDeliveries, ...sortedPendingDeliveries]) {
+  for (const del of sortedDeliveries) {
     if (!addedDeliveryIds.has(del.id)) orderedStops.push({ delivery: del, isPickup: false });
   }
 
@@ -1416,12 +1467,11 @@ function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliv
       if (np.delivery_time_start !== delivery.delivery_time_start) updateData.delivery_time_start = np.delivery_time_start;
       if (np.delivery_time_end !== delivery.delivery_time_end) updateData.delivery_time_end = np.delivery_time_end;
     }
-    if (!isPickup && delivery.status === 'pending') {
-      const nd = normalizedPendingDeliveries.find(d => d.id === delivery.id);
+    if (!isPickup) {
+      const nd = normalizedDeliveries.find(d => d.id === delivery.id);
       if (nd) {
         if (nd.delivery_time_start && nd.delivery_time_start !== delivery.delivery_time_start) updateData.delivery_time_start = nd.delivery_time_start;
-        if (nd.time_window_start !== delivery.time_window_start) updateData.time_window_start = nd.time_window_start;
-        if (nd.time_window_end !== delivery.time_window_end) updateData.time_window_end = nd.time_window_end;
+        if (nd.delivery_time_end && nd.delivery_time_end !== delivery.delivery_time_end) updateData.delivery_time_end = nd.delivery_time_end;
       }
     }
     return { id: delivery.id, data: updateData };
@@ -1438,7 +1488,7 @@ function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliv
     locationSource: 'future_schedule', usedTimeWindows: true, usedFallbackOrdering: false,
     preserveExistingOrder: false, shouldRefreshPolylines: true,
     orderedDeliveryIds: writeBatch.map(w => w.id),
-    optimizedRoute: writeBatch.map((w, i) => ({ deliveryId: w.id, newETA: w.data.delivery_time_eta, stop_order: startOrder + i + 1, isNextDelivery: i === 0, encoded_polyline: w.data.encoded_polyline || null })),
+    optimizedRoute: writeBatch.map((w, i) => ({ deliveryId: w.id, newETA: w.data.delivery_time_eta, stop_order: startOrder + i + 1, isNextDelivery: w.data.isNextDelivery === true, encoded_polyline: w.data.encoded_polyline || null })),
     writeBatch
   };
 }
