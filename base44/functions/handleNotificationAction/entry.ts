@@ -63,7 +63,30 @@ export default async function(req: Request): Promise<Response> {
       const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
       const driverAppUser = driverAppUsers?.[0];
       const driverName = driverAppUser?.user_name || user.full_name || 'Driver';
-      const messageContent = `${driverName} has Acknowledged receipt of pending deliveries.`;
+
+      // Fetch patient names so the dispatcher can see WHO is being acknowledged
+      const patientIds = [...new Set(deliveries.map(d => d.patient_id).filter(Boolean))];
+      let patientNames: string[] = [];
+      for (const pid of patientIds) {
+        try {
+          const p = await base44.asServiceRole.entities.Patient.filter({ id: pid });
+          if (p && p.length > 0 && p[0].full_name) patientNames.push(p[0].full_name);
+        } catch { /* skip missing */ }
+      }
+
+      // Dynamically build the message content
+      const deliveryCount = deliveries.length;
+      const deliveryPlural = deliveryCount === 1 ? "delivery" : "deliveries";
+      const patientCount = patientNames.length;
+      const patientPlural = patientCount === 1 ? "patient" : "patients";
+      let messageContent = `${driverName} has Acknowledged receipt of ${deliveryCount} ${deliveryPlural}.`;
+      if (patientNames.length > 0) {
+        const nameList = patientNames.length <= 4
+          ? patientNames.join(", ")
+          : `${patientNames.slice(0, 4).join(", ")} + ${patientNames.length - 4} more`;
+        messageContent += ` (${patientCount} ${patientPlural}: ${nameList})`;
+      }
+
 
       // Find recipients: dispatchers for the deliveries' stores + admins + delivery creator
       const storeIds = [...new Set(deliveries.map(d => d.store_id).filter(Boolean))];
