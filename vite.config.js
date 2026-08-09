@@ -6,6 +6,15 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   logLevel: 'error', // Suppress warnings, only show errors
+  server: {
+    // The Base44 preview sandbox advertises its HMR WebSocket on a host/port
+    // the proxy doesn't forward (net::ERR_CONNECTION_TIMED_OUT). Disable Vite's
+    // native HMR client so the browser stops attempting that connection; file
+    // changes still trigger a server rebuild, just without live HMR push. The
+    // Base44 hmrNotifier injection guards on `if (import.meta.hot)` so it
+    // remains a safe no-op.
+    hmr: false,
+  },
   plugins: [
     base44({
       // Support for legacy code that imports the base44 SDK with @/integrations, @/entities, etc.

@@ -44,7 +44,10 @@ import CyclingLocationSearch from './CyclingLocationSearch';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
-    <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
+    {/* Coerce to a real boolean so the underlying Radix checkbox stays
+        controlled for its entire lifetime (avoids React's
+        "controlled -> uncontrolled" warning when formData fields are undefined). */}
+    <Checkbox id={id} checked={Boolean(checked)} onCheckedChange={onChange} disabled={disabled} />
     <Label htmlFor={id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
   </div>;
 
@@ -1585,7 +1588,7 @@ export default function DeliveryFormView({
                     <CheckboxField
                     id="after_hours_pickup_footer"
                     label="After Hours Pickup"
-                    checked={formData.after_hours_pickup}
+                    checked={Boolean(formData.after_hours_pickup)}
                     onChange={(c) => {
                       if (!userHasRole(currentUser, 'admin')) return;
                       setFormData((p) => ({ ...p, after_hours_pickup: c }));
