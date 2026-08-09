@@ -137,6 +137,7 @@ const ACTION_PRESETS_BY_EVENT = {
 
 const TEMPLATE_VARIABLES = [
   '{{driverName}}', '{{patientName}}', '{{storeName}}', '{{deliveryCount}}',
+  '{{pendingCount}}', '{{pendingCountLabel}}', '{{existingStopCount}}', '{{hasExistingStops}}',
   '{{deliveryList}}', '{{status}}', '{{timestamp}}', '{{eventName}}',
 ];
 
@@ -146,6 +147,10 @@ const SAMPLE_DATA = {
   patientName: 'Jane Smith',
   storeName: 'Main Pharmacy',
   deliveryCount: '3',
+  pendingCount: '3',
+  pendingCountLabel: '3 more',
+  existingStopCount: '2',
+  hasExistingStops: true,
   deliveryList: '\n• Jane Smith\n• Bob Wilson',
   status: 'completed',
   timestamp: new Date().toLocaleTimeString(),

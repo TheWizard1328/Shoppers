@@ -67,6 +67,7 @@ function buildBatchAwareContext({
   deliveries,
   dispatcher,
   deliveryList,
+  existingStopCount = 0,
 }) {
   const storeIds = aggregateList(deliveries, 'store_id');
   // If a single store, keep its id directly on store_id (matches "equals"/"in_list")
@@ -86,6 +87,17 @@ function buildBatchAwareContext({
     : (typeof dispatcher?.app_role === 'string' ? [dispatcher.app_role] : []);
   let userRole = dispatcher?.app_role || (userRolesArray.length > 0 ? userRolesArray[0] : '');
 
+  // "More" phrasing: when the driver already has active stops for the same
+  // pickup (PUID), the batch is ADDITIONAL — the template reads "3 more"
+  // instead of just "3". pendingCount stays the raw new-stop count so existing
+  // numeric conditions/comparisons keep working; pendingCountLabel is the
+  // ready-to-render phrase. existingStopCount + hasExistingStops let rule
+  // conditions key off the situation (e.g. only send when adding MORE stops).
+  const existingCount = Number(existingStopCount) || 0;
+  const pendingCountLabel = existingCount > 0
+    ? `${deliveries.length} more`
+    : String(deliveries.length);
+
   const context = {
     eventName: 'Dispatcher Assigned Stops',
     driverName,
@@ -93,6 +105,9 @@ function buildBatchAwareContext({
     deliveryList,
     pendingCount: String(deliveries.length),
     deliveryCount: String(deliveries.length),
+    pendingCountLabel,
+    existingStopCount: String(existingCount),
+    hasExistingStops: existingCount > 0,
     status: 'pending',
     // Aggregate / list fields for batch-aware condition evaluation
     store_id: primaryStoreId,
@@ -199,10 +214,34 @@ export async function notifyDispatcherAssignedStops({
     });
   };
 
+  // ── Smarter "Stops Created": detect whether the driver ALREADY has active
+  // stops from the same pickup (PUID) for this date. If so, expose that count
+  // so the message template can read "{{pendingCount}} more" instead of just
+  // the new-stop count — making it clear these are additional stops.
+  const newIds = new Set(deliveries.map((d) => d?.id).filter(Boolean));
+  const puids = [...new Set(deliveries.map((d) => d?.puid).filter(Boolean))];
+  let existingStopCount = 0;
+  if (puids.length > 0 && driverId && deliveries[0]?.delivery_date) {
+    try {
+      const existing = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveries[0].delivery_date,
+        status: { $in: ['pending', 'in_transit'] },
+        puid: { $in: puids },
+      }, '-created_date', 200);
+      existingStopCount = (existing || []).filter((d) => !newIds.has(d?.id)).length;
+    } catch (e) {
+      // Non-fatal — fall back to treating the batch as "first of this pickup".
+      console.warn('[DispatcherAssignedStops] existing-stop lookup failed:', e?.message || e);
+      existingStopCount = 0;
+    }
+  }
+
   const context = buildBatchAwareContext({
     driver, driverId, driverName, store, storeName, deliveries, dispatcher, deliveryList,
+    existingStopCount,
   });
-  console.warn('[DispatcherAssignedStops] context built — driver_id:', context.driver_id, '— driver object:', { user_id: driver?.user_id, id: driver?.id }, '— user_role:', context.user_role, '— store_id:', context.store_id);
+  console.warn('[DispatcherAssignedStops] context built — driver_id:', context.driver_id, '— driver object:', { user_id: driver?.user_id, id: driver?.id }, '— user_role:', context.user_role, '— store_id:', context.store_id, '— existingStopCount:', existingStopCount, '— pendingCountLabel:', context.pendingCountLabel);
 
   // Force a fresh rule load so newly-created / edited rules are picked up immediately
   clearRuleCache();
