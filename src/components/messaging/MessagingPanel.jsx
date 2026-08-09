@@ -59,13 +59,19 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
           read: false,
         });
 
-        // App Update is always pushed regardless of user push preference (force: true)
+        // App Update is always pushed regardless of user push preference (force: true).
+        // Include an "Update Now" action button so the user can trigger the
+        // update straight from the notification, plus the broadcast message_id
+        // so the "mark read" path works when the update is applied.
         await base44.functions.invoke('sendPushNotification', {
           user_id: user.id,
           title: 'App Update Available',
           body: 'There is an update available. App restart required.',
           url: '/',
           force: true,
+          requireInteraction: true,
+          actions: [{ action: 'update_now', title: 'Update Now' }],
+          data: message?.id ? { message_id: message.id } : undefined,
         }).catch(() => {});
 
         return { recipientId: user.id, message };

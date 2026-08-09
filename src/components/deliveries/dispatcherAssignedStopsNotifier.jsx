@@ -183,14 +183,17 @@ export async function notifyDispatcherAssignedStops({
   const sendPush = async (userId, message, eventName, rule) => {
     // Collect delivery IDs for the "Acknowledge" action button
     const deliveryIds = deliveries.map(d => d.id).filter(Boolean);
+    // Use rule-configured actions if the rule has any; otherwise fall back to
+    // the default "Acknowledge" button so legacy behaviour is preserved.
+    const ruleActions = (rule?.actions && rule.actions.length > 0) ? rule.actions :
+      (deliveryIds.length > 0 ? [{ action: 'acknowledge', title: 'Acknowledge' }] : undefined);
     await sendPushForNotification({
       receiverId: userId,
       senderName: storeName,
       content: message,
       event: eventName,
       titleOverride: rule?.rule_label,
-      // Add "Acknowledge" action button to the push notification
-      actions: deliveryIds.length > 0 ? [{ action: 'acknowledge', title: 'Acknowledge' }] : undefined,
+      actions: ruleActions,
       delivery_ids: deliveryIds.length > 0 ? deliveryIds : undefined,
       requireInteraction: true,
     });
