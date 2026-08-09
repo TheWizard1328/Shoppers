@@ -314,19 +314,6 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [isFormOverlayOpen]);
 
-  // Listen for pause/resume sync events from dialogs
-  useEffect(() => {
-    const handlePauseSync = () => {
-      smartRefreshManager.pause();
-      backgroundSyncManager.pause();
-    };
-    const handleResumeSync = () => {
-      smartRefreshManager.resume();
-      backgroundSyncManager.resume();
-    };
-    window.addEventListener('pauseBackgroundSync', handlePauseSync);
-    window.addEventListener('resumeBackgroundSync', handleResumeSync);
-
   // ─── Push notification action button handler ─────────────────────────────
   // When the user taps "Mark as Read" or "Acknowledge" on a push notification
   // while the app is open, the SW posts a message that main.jsx re-dispatches
@@ -342,12 +329,25 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [setUnreadMessageCount]);
 
-  window.addEventListener('notification_action', handleNotificationAction);
+  // Listen for pause/resume sync events from dialogs (+ push notification actions)
+  useEffect(() => {
+    const handlePauseSync = () => {
+      smartRefreshManager.pause();
+      backgroundSyncManager.pause();
+    };
+    const handleResumeSync = () => {
+      smartRefreshManager.resume();
+      backgroundSyncManager.resume();
+    };
+    window.addEventListener('pauseBackgroundSync', handlePauseSync);
+    window.addEventListener('resumeBackgroundSync', handleResumeSync);
+    window.addEventListener('notification_action', handleNotificationAction);
     return () => {
       window.removeEventListener('pauseBackgroundSync', handlePauseSync);
       window.removeEventListener('resumeBackgroundSync', handleResumeSync);
+      window.removeEventListener('notification_action', handleNotificationAction);
     };
-  }, []);
+  }, [handleNotificationAction]);
 
   // ─── Event Subscriptions are wired after callbacks are defined (see below) ───
 
