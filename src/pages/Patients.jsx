@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { subscribePatientsRealtime } from '../components/patients/patientsRealtimeHelper';
 import { createPageUrl } from "@/utils";
 import { getStoreColor, hexToRgba } from "@/components/utils/colorGenerator";
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
 import {
   Search,
   Plus,
@@ -246,8 +247,8 @@ const sortPatients = (patients) => {
     // Get recurring info for both
     const aRecurring = getRecurringInfo(a);
     const bRecurring = getRecurringInfo(b);
-    const aDaysSince = getDaysSinceLastDelivery(a.last_delivery_date, today);
-    const bDaysSince = getDaysSinceLastDelivery(b.last_delivery_date, today);
+    const aDaysSince = getDaysSinceLastDelivery(getLastDeliveryDate(a), today);
+    const bDaysSince = getDaysSinceLastDelivery(getLastDeliveryDate(b), today);
 
     // PRIORITY 4: Recurring patients come before non-recurring
     const aHasRecurring = aRecurring !== null;
@@ -319,8 +320,8 @@ const sortPatients = (patients) => {
     // PRIORITY 6: Non-recurring patients - sort by most recent delivery first
     if (!aHasRecurring && !bHasRecurring) {
       // Patients with no delivery date go to bottom
-      const aHasDate = a.last_delivery_date && a.last_delivery_date !== '';
-      const bHasDate = b.last_delivery_date && b.last_delivery_date !== '';
+      const aHasDate = getLastDeliveryDate(a);
+      const bHasDate = getLastDeliveryDate(b);
 
       if (!aHasDate && !bHasDate) {
         return (a.full_name || '').localeCompare(b.full_name || '');
@@ -919,8 +920,8 @@ export default function Patients() {
           }
           return 300;
         case 'multi-weekly':
-          if (patient.last_delivery_date) {
-            const lastDeliveryDate = new Date(patient.last_delivery_date);
+          if (getLastDeliveryDate(patient)) {
+            const lastDeliveryDate = new Date(getLastDeliveryDate(patient));
             const nextDue = addWeeks(lastDeliveryDate, recurringInfo.weeks);
             const daysUntilDue = differenceInCalendarDays(nextDue, new Date());
             if (daysUntilDue <= 3 && daysUntilDue >= -3) {
@@ -929,8 +930,8 @@ export default function Patients() {
           }
           return 350;
         case 'bi-monthly':
-          if (patient.last_delivery_date) {
-            const lastDeliveryDate = new Date(patient.last_delivery_date);
+          if (getLastDeliveryDate(patient)) {
+            const lastDeliveryDate = new Date(getLastDeliveryDate(patient));
             const nextDue = addMonths(lastDeliveryDate, 2);
             const daysUntilDue = differenceInCalendarDays(nextDue, new Date());
             if (daysUntilDue <= 7 && daysUntilDue >= -7) {
@@ -939,8 +940,8 @@ export default function Patients() {
           }
           return 370;
         case 'monthly':
-          if (patient.last_delivery_date) {
-            const lastDeliveryDate = new Date(patient.last_delivery_date);
+          if (getLastDeliveryDate(patient)) {
+            const lastDeliveryDate = new Date(getLastDeliveryDate(patient));
             const nextDue = addMonths(lastDeliveryDate, 1);
             const daysUntilDue = differenceInCalendarDays(nextDue, new Date());
             if (daysUntilDue <= 3 && daysUntilDue >= -3) {
@@ -955,7 +956,7 @@ export default function Patients() {
 
     return filteredPatients.map((patient) => {
       const patientTodayDelivery = todayActiveDeliveries.filter((d) => d.patient_id === patient.id).sort((a, b) => (a.status === 'in_transit' ? 0 : a.status === 'pending' ? 1 : 2) - (b.status === 'in_transit' || b.status === 'picked_up' ? 0 : b.status === 'pending' ? 1 : 2) || (a.stop_order || Infinity) - (b.stop_order || Infinity))[0];
-      const daysSince = getDaysSinceLastDelivery(patient.last_delivery_date, new Date());
+      const daysSince = getDaysSinceLastDelivery(getLastDeliveryDate(patient), new Date());
       const recurring = getRecurringInfo(patient);
 
       let displayPriority = 'normal';

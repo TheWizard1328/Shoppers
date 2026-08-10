@@ -1,3 +1,4 @@
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
 export function sortFilteredPatients(results, { currentUser, userHasRole, stores, stagedPatientIds, calculateDistance }) {
   return [...results].sort((a, b) => {
     const aIsInactive = a.status === 'inactive';
@@ -23,8 +24,8 @@ export function sortFilteredPatients(results, { currentUser, userHasRole, stores
       if (distanceDiff !== 0) return distanceDiff;
     }
 
-    const aDate = a.last_delivery_date ? new Date(a.last_delivery_date).getTime() : 0;
-    const bDate = b.last_delivery_date ? new Date(b.last_delivery_date).getTime() : 0;
+    const aLastDate = getLastDeliveryDate(a); const aDate = aLastDate ? new Date(aLastDate).getTime() : 0;
+    const bLastDate = getLastDeliveryDate(b); const bDate = bLastDate ? new Date(bLastDate).getTime() : 0;
     return bDate - aDate;
   });
 }

@@ -1,3 +1,4 @@
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
 import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -65,7 +66,7 @@ function PatientResultCard({ result, stores, onApply, onDismiss }) {
             <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 flex gap-3 flex-wrap">
               <span>{store?.name || result.store_name}</span>
               <span>Analyzed: {result.analysis_date}</span>
-              {result.last_delivery_date && <span>Last delivery: {result.last_delivery_date}</span>}
+              {getLastDeliveryDate(result) && <span>Last delivery: {getLastDeliveryDate(result)}</span>}
               <span>{result.total_deliveries_analyzed} deliveries analyzed</span>
             </div>
           </div>
