@@ -49,6 +49,27 @@
       },
       "description": "Who receives this notification"
     },
+    "actions": {
+      "type": "array",
+      "description": "Push notification action buttons. Each item: {action, title}. Max 2 buttons are shown (Chrome Android limit). Configurable per template so action buttons are no longer hard-coded.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Action identifier used by the service worker to route the click (e.g. mark_read, reply, acknowledge, update_now)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Button label shown on the push notification"
+          }
+        },
+        "required": [
+          "action",
+          "title"
+        ]
+      }
+    },
     "trigger_conditions": {
       "type": "array",
       "description": "Optional conditions that must ALL pass for this notification to fire. Empty = always fire.",

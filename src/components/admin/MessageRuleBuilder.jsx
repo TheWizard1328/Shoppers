@@ -109,10 +109,35 @@ const CHANNEL_OPTIONS = [
   { value: 'push',   label: 'Push',   icon: BellRing },
 ];
 
+// ── Push action button presets ──────────────────────────────────────────────
+// Known action IDs that the service worker (map-tile-sw.js) knows how to route.
+// The "key" maps to event_name so the builder can suggest the right buttons.
+// Users can still type a custom action ID.
+
+const KNOWN_ACTION_TYPES = [
+  { value: 'mark_read',   label: 'Mark Read',     description: 'Marks the linked in-app message as read' },
+  { value: 'reply',       label: 'Reply',         description: 'Opens the chat conversation with the sender' },
+  { value: 'acknowledge', label: 'Acknowledge',   description: 'Driver acknowledges receipt of pending deliveries' },
+  { value: 'update_now',  label: 'Update Now',    description: 'Triggers an app reload to apply a pending update' },
+];
+
+const ACTION_PRESETS_BY_EVENT = {
+  stops_created:        [{ action: 'acknowledge', title: 'Acknowledge' }],
+  app_update_available: [{ action: 'update_now', title: 'Update Now' }],
+  driver_accepted:      [{ action: 'mark_read', title: 'Mark Read' }, { action: 'reply', title: 'Reply' }],
+  driver_started:        [{ action: 'mark_read', title: 'Mark Read' }, { action: 'reply', title: 'Reply' }],
+  driver_completed:      [{ action: 'mark_read', title: 'Mark Read' }, { action: 'reply', title: 'Reply' }],
+  driver_failed:         [{ action: 'mark_read', title: 'Mark Read' }, { action: 'reply', title: 'Reply' }],
+  driver_retry:          [{ action: 'mark_read', title: 'Mark Read' }, { action: 'reply', title: 'Reply' }],
+  driver_return:         [{ action: 'mark_read', title: 'Mark Read' }, { action: 'reply', title: 'Reply' }],
+  admin_broadcast:       [{ action: 'mark_read', title: 'Mark Read' }, { action: 'reply', title: 'Reply' }],
+};
+
 // ── Template variable suggestions ───────────────────────────────────────────
 
 const TEMPLATE_VARIABLES = [
   '{{driverName}}', '{{patientName}}', '{{storeName}}', '{{deliveryCount}}',
+  '{{pendingCount}}', '{{pendingCountLabel}}', '{{existingStopCount}}', '{{hasExistingStops}}',
   '{{deliveryList}}', '{{status}}', '{{timestamp}}', '{{eventName}}',
 ];
 
@@ -122,6 +147,10 @@ const SAMPLE_DATA = {
   patientName: 'Jane Smith',
   storeName: 'Main Pharmacy',
   deliveryCount: '3',
+  pendingCount: '3',
+  pendingCountLabel: '3 more',
+  existingStopCount: '2',
+  hasExistingStops: true,
   deliveryList: '\n• Jane Smith\n• Bob Wilson',
   status: 'completed',
   timestamp: new Date().toLocaleTimeString(),
@@ -277,6 +306,7 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
         channels: ['in_app'],
         message_template: '',
         recipients: [],
+        actions: [],
         stop_on_match: true,
         cooldown_seconds: 0,
         shadow_mode: false,
@@ -316,6 +346,31 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
     setDraft((d) => ({ ...d, message_template: (d.message_template || '') + varStr }));
   };
 
+  // ── Action button handlers ───────────────────────────────────────────────
+  const addAction = () => {
+    setDraft((d) => ({ ...d, actions: [...(d.actions || []), { action: 'mark_read', title: 'Mark Read' }] }));
+  };
+
+  const updateAction = (idx, key, val) => {
+    setDraft((d) => ({ ...d, actions: (d.actions || []).map((a, i) => i === idx ? { ...a, [key]: val } : a) }));
+  };
+
+  const removeAction = (idx) => {
+    setDraft((d) => ({ ...d, actions: (d.actions || []).filter((_, i) => i !== idx) }));
+  };
+
+  // Pre-fill the default action buttons for the selected event type when the
+  // user first picks an event and hasn't configured any actions yet.
+  const handleEventChange = (v) => {
+    setDraft((d) => {
+      const presets = ACTION_PRESETS_BY_EVENT[v];
+      const hasActions = (d.actions || []).length > 0;
+      const next = { ...d, event_name: v };
+      if (presets && !hasActions) next.actions = presets.map((p) => ({ ...p }));
+      return next;
+    });
+  };
+
   const handleSave = async () => {
     if (!draft.event_name) { toast.error('Please select an event'); return; }
     if (!draft.rule_label?.trim()) { toast.error('Please enter a rule name'); return; }
@@ -345,7 +400,7 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">Trigger Event</Label>
-              <Select value={draft.event_name} onValueChange={(v) => setDraft({ ...draft, event_name: v })}>
+              <Select value={draft.event_name} onValueChange={handleEventChange}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select event…" /></SelectTrigger>
                 <SelectContent>
                   {[...new Set(EVENT_OPTIONS.map((e) => e.group))].map((group) => (
@@ -451,6 +506,68 @@ function RuleEditor({ open, onClose, onSave, initialRule, stores, drivers }) {
                 })}
               </div>
             </div>
+
+            {/* Action Buttons (push only) */}
+            {draft.channels.includes('push') && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-xs text-muted-foreground">Push Action Buttons</Label>
+                  <div className="flex items-center gap-2">
+                    {(draft.actions || []).length > 0 && (
+                      <Button size="sm" variant="ghost" onClick={() => setDraft({ ...draft, actions: [] })}
+                        className="h-6 text-[10px] text-muted-foreground hover:text-destructive px-1.5">
+                        Clear
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" onClick={addAction}
+                      disabled={(draft.actions || []).length >= 2}
+                      className="h-6 text-xs gap-1">
+                      <Plus className="w-3 h-3" /> Add Action
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground mb-1.5">
+                  Quick-response buttons on the push notification. Max 2 (Chrome Android limit).
+                </p>
+                {(!draft.actions || draft.actions.length === 0) ? (
+                  <p className="text-xs text-muted-foreground italic">No action buttons — the push will show body text only.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {draft.actions.map((act, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Select value={act.action} onValueChange={(v) => {
+                          updateAction(i, 'action', v);
+                          const known = KNOWN_ACTION_TYPES.find((k) => k.value === v);
+                          if (known && (!act.title || act.title === act.action)) updateAction(i, 'title', known.label);
+                        }}>
+                          <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {KNOWN_ACTION_TYPES.map((k) => (
+                              <SelectItem key={k.value} value={k.value} className="text-xs">
+                                <div className="flex flex-col">
+                                  <span>{k.label}</span>
+                                  <span className="text-[10px] text-muted-foreground">{k.description}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          value={act.title || ''}
+                          onChange={(e) => updateAction(i, 'title', e.target.value)}
+                          placeholder="Button label"
+                          className="h-8 text-xs flex-1"
+                        />
+                        <Button size="sm" variant="ghost" onClick={() => removeAction(i)}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive">
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── Advanced settings ──────────────────────────────────── */}
@@ -548,6 +665,9 @@ function RuleCard({ rule, onEdit, onDelete, onToggle, onDuplicate, stores, drive
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
             <span className="font-medium">THEN:</span> {(rule.channels || []).join(' + ')} → {recipientLabels.join(', ')}
+            {(rule.actions || []).length > 0 && (
+              <span className="ml-1">· buttons: {rule.actions.map((a) => a.title || a.action).join(', ')}</span>
+            )}
           </div>
           {testSuccessId === rule.id && testPushStatus && (
             <div className="text-[10px] mt-0.5 font-medium">
@@ -613,20 +733,37 @@ export default function MessageRuleBuilder() {
     try {
       const eventLabel = EVENT_OPTIONS.find((e) => e.value === rule.event_name)?.label || rule.event_name;
       const channels = rule.channels?.length ? rule.channels : ['in_app'];
+      let testMessageId = null;
       if (channels.includes('in_app')) {
-        await base44.entities.Message.create({
+        const msg = await base44.entities.Message.create({
           sender_id: currentUser.id, sender_name: 'System Test',
           receiver_id: currentUser.id, receiver_name: currentUser.full_name || 'You',
           conversation_id: [currentUser.id, 'system_test'].join('_'),
           content: `[TEST — ${eventLabel}]\n${preview}`, read: false,
         });
+        testMessageId = msg?.id || null;
       }
       if (channels.includes('push')) {
         if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
           try { await initPushNotifications(currentUser.id); } catch {}
         }
+        // Forward the rule's configured action buttons + the metadata the
+        // service worker needs to route each action's click (mark_read needs
+        // a real message_id; acknowledge needs delivery_ids). Without these
+        // the test push renders body-only with no buttons.
+        const ruleActions = (rule.actions && rule.actions.length > 0) ? rule.actions : undefined;
+        const testData = {};
+        if (testMessageId && (ruleActions || []).some(a => a.action === 'mark_read' || a.action === 'update_now')) testData.message_id = testMessageId;
+        if ((ruleActions || []).some(a => a.action === 'acknowledge')) testData.delivery_ids = ['test_did'];
+        if ((ruleActions || []).some(a => a.action === 'reply')) { testData.reply_to = currentUser.id; testData.reply_to_name = currentUser.full_name || 'You'; }
         const pushRes = await base44.functions.invoke('sendPushNotification', {
-          user_id: currentUser.id, title: `[TEST] ${eventLabel}`, body: preview, url: '/',
+          user_id: currentUser.id,
+          title: `[TEST] ${eventLabel}`,
+          body: preview,
+          url: '/',
+          actions: ruleActions,
+          data: Object.keys(testData).length > 0 ? testData : undefined,
+          requireInteraction: true,
         }).catch((e) => ({ error: e?.message || String(e) }));
         if (pushRes?.error) setTestPushStatus('error');
         else if (pushRes?.sent > 0) setTestPushStatus('sent');

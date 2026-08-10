@@ -803,7 +803,15 @@ export default function PolylineViewer({ users = [] }) {
                 return offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).then(() => updatedDelivery);
               })
               .then(updatedDelivery => {
-                if (updatedDelivery) broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
+                if (updatedDelivery) {
+                  broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
+                  // Combined Overlay: refresh the planned polyline in local state
+                  setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, encoded_polyline: updatedDelivery.encoded_polyline, travel_dist: updatedDelivery.travel_dist } : d));
+                  setFocusedGroup(prev => {
+                    if (!prev || !prev.delivery) return prev;
+                    return { ...prev, delivery: { ...prev.delivery, encoded_polyline: updatedDelivery.encoded_polyline, travel_dist: updatedDelivery.travel_dist } };
+                  });
+                }
                 window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
               })
               .catch(() => {});
@@ -966,6 +974,8 @@ export default function PolylineViewer({ users = [] }) {
         const updatedItem = { ...item, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true, imported_from_delivery: false };
         setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
         setFocusedItem(updatedItem);
+        // Combined Overlay: refresh the focused group's breadcrumb immediately
+        setFocusedGroup(prev => prev ? { ...prev, breadcrumb: updatedItem } : prev);
         setIsCleaningMode(false);
         setIsBrushPickMode(false);
         setCleanedPoints([]);
@@ -993,6 +1003,15 @@ export default function PolylineViewer({ users = [] }) {
               ? { ...existing, travel_dist: travelDistKm ?? existing.travel_dist, encoded_polyline: deliveryPoly, polyline_saved_at: nowIso }
               : { id: deliveryId, encoded_polyline: deliveryPoly, travel_dist: travelDistKm, polyline_saved_at: nowIso };
             await offlineDB.save(offlineDB.STORES.DELIVERIES, updatedDelivery).catch(() => {});
+            // Combined Overlay: refresh the deliveries state + focused group's delivery
+            // so the planned polyline re-renders on the map with the saved breadcrumb path.
+            setDeliveries(prev => prev.map(d => d.id === deliveryId
+              ? { ...d, encoded_polyline: deliveryPoly, travel_dist: travelDistKm ?? d.travel_dist, polyline_saved_at: nowIso }
+              : d));
+            setFocusedGroup(prev => {
+              if (!prev || !prev.delivery) return prev;
+              return { ...prev, delivery: { ...prev.delivery, encoded_polyline: deliveryPoly, travel_dist: travelDistKm ?? prev.delivery.travel_dist, polyline_saved_at: nowIso } };
+            });
             broadcastMutation('Delivery', 'update', deliveryId, updatedDelivery);
             window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
               detail: { source: 'breadcrumbSave', deliveryId, driverId: item.driver_id, deliveryDate: item.delivery_date }
@@ -1046,6 +1065,8 @@ export default function PolylineViewer({ users = [] }) {
       const updatedItem = { ...item, encoded_polyline: newPoly, point_count: pts.length, saved_to_route: false, imported_from_delivery: true };
       setBreadcrumbs(prev => prev.map(b => b.id === item.id ? updatedItem : b));
       if (focusedItem?.id === item.id) setFocusedItem(updatedItem);
+      // Combined Overlay: refresh the focused group so the map re-renders the imported polyline
+      setFocusedGroup(prev => prev ? { ...prev, breadcrumb: updatedItem } : prev);
       toast.success(`Stop #${item.stop_order} — Delivery polyline imported (${pts.length} pts).`);
     } catch (e) {
       toast.error(`Import failed: ${e.message}`);

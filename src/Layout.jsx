@@ -314,7 +314,31 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [isFormOverlayOpen]);
 
-  // Listen for pause/resume sync events from dialogs
+  // ─── Push notification action button handler ─────────────────────────────
+  // When the user taps "Mark as Read" or "Acknowledge" on a push notification
+  // while the app is open, the SW posts a message that main.jsx re-dispatches
+  // as a 'notification_action' CustomEvent. Update the UI accordingly.
+  const handleNotificationAction = useCallback((event) => {
+    const { action, result, message_id, delivery_ids, reply_to, reply_to_name } = event?.detail || {};
+    if (action === 'mark_read' && result && message_id) {
+      // Decrement unread count — the backend already marked the message as read
+      setUnreadMessageCount((prev) => Math.max(0, prev - 1));
+    } else if (action === 'acknowledge' && result && delivery_ids) {
+      // Refresh delivery data so the acknowledged status is reflected
+      window.dispatchEvent(new CustomEvent('dataSourceChanged', { detail: { source: 'notification_acknowledge' } }));
+    } else if (action === 'reply' && reply_to) {
+      // Open the chat with the sender of the original message
+      const openName = reply_to_name ? decodeURIComponent(reply_to_name) : 'User';
+      const conversationId = currentUser?.id ? [currentUser.id, reply_to].sort().join('_') : '';
+      setInitialConversation({ conversationId, otherUserId: reply_to, otherUserName: openName });
+      setShowMessaging(true);
+    } else if (action === 'update_now') {
+      // Reload the app to apply the pending update
+      window.location.reload();
+    }
+  }, [setUnreadMessageCount, currentUser?.id]);
+
+  // Listen for pause/resume sync events from dialogs (+ push notification actions)
   useEffect(() => {
     const handlePauseSync = () => {
       smartRefreshManager.pause();
@@ -326,28 +350,13 @@ export default function Layout({ children, currentPageName }) {
     };
     window.addEventListener('pauseBackgroundSync', handlePauseSync);
     window.addEventListener('resumeBackgroundSync', handleResumeSync);
-
-  // ─── Push notification action button handler ─────────────────────────────
-  // When the user taps "Mark as Read" or "Acknowledge" on a push notification
-  // while the app is open, the SW posts a message that main.jsx re-dispatches
-  // as a 'notification_action' CustomEvent. Update the UI accordingly.
-  const handleNotificationAction = useCallback((event) => {
-    const { action, result, message_id, delivery_ids } = event?.detail || {};
-    if (action === 'mark_read' && result && message_id) {
-      // Decrement unread count — the backend already marked the message as read
-      setUnreadMessageCount((prev) => Math.max(0, prev - 1));
-    } else if (action === 'acknowledge' && result && delivery_ids) {
-      // Refresh delivery data so the acknowledged status is reflected
-      window.dispatchEvent(new CustomEvent('dataSourceChanged', { detail: { source: 'notification_acknowledge' } }));
-    }
-  }, [setUnreadMessageCount]);
-
-  window.addEventListener('notification_action', handleNotificationAction);
+    window.addEventListener('notification_action', handleNotificationAction);
     return () => {
       window.removeEventListener('pauseBackgroundSync', handlePauseSync);
       window.removeEventListener('resumeBackgroundSync', handleResumeSync);
+      window.removeEventListener('notification_action', handleNotificationAction);
     };
-  }, []);
+  }, [handleNotificationAction]);
 
   // ─── Event Subscriptions are wired after callbacks are defined (see below) ───
 

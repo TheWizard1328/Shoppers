@@ -495,16 +495,20 @@ async function handleGetCodData(base44, payload={}) {
   }, []);
 
   // ── 5) Cleanup collected catalog items (reuses fetched data) ─────────
+  // ONLY delete by explicit catalog-object ID match — i.e. when the order's
+  // line item was actually rung up with this catalog item selected in Square
+  // POS. The previous structured-name match path was too aggressive: it
+  // deleted any catalog item whose name matched an old paid order's typed
+  // line item name, which silently wiped out catalog items created by the
+  // "Update Catalog" flow for deliveries that had been paid in a prior
+  // Square order with the same structured name. Completed-delivery cleanup
+  // is handled separately by the event-driven syncSquareCods handleDeleteCodItem.
   const paidCatalogObjectIds = new Set(paidOrderItems.map((x) => x.catalog_object_id).filter(Boolean));
   const toDelete = (liveCatalogItems || []).filter((item) => {
     if (!item?.id) return false;
     const varIds = (item?.item_data?.variations || []).map((v) => v?.id).filter(Boolean);
     if (paidCatalogObjectIds.has(item.id)) return true;
     if (varIds.some((v) => paidCatalogObjectIds.has(v))) return true;
-    const n = normalizeText(item?.item_data?.name);
-    if (isStructuredCodName(n)) {
-      return paidOrderItems.some((pi) => structuredCodNamesMatch(pi.item_name, n) === true);
-    }
     return false;
   });
 

@@ -214,7 +214,17 @@ Deno.serve(async (req) => {
     const taxAmount = gstHstEnabled ? round2(grossPay * gstRate) : 0;
 
     // --- Deductions (only applied when creating a new record; existing records keep their own) ---
-    const driverDeductions = Array.isArray(appUser.deductions) ? appUser.deductions : [];
+    // Filter by date range: a deduction applies to this pay period if the period's
+    // start date is within [start_date, end_date] (inclusive). Empty bounds = open.
+    const normDate = (v) => (v ? String(v).slice(0, 10) : '');
+    const allDriverDeductions = Array.isArray(appUser.deductions) ? appUser.deductions : [];
+    const driverDeductions = allDriverDeductions.filter((d) => {
+      const start = normDate(d?.start_date);
+      const end = normDate(d?.end_date);
+      if (start && period.start < start) return false;
+      if (end && period.start > end) return false;
+      return true;
+    });
     const totalDeductions = round2(driverDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0));
 
     const netPay = round2(grossPay + taxAmount - totalDeductions);

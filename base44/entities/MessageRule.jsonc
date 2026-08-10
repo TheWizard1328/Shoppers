@@ -43,6 +43,27 @@
         "type": "string"
       }
     },
+    "actions": {
+      "type": "array",
+      "description": "Push notification action buttons. Each item: {action, title}. Max 2 buttons are shown (Chrome Android limit). Configurable per rule so action buttons are no longer hard-coded.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Action identifier used by the service worker to route the click (e.g. mark_read, reply, acknowledge, update_now)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Button label shown on the push notification"
+          }
+        },
+        "required": [
+          "action",
+          "title"
+        ]
+      }
+    },
     "stop_on_match": {
       "type": "boolean",
       "description": "Stop evaluating further rules after this one fires"
@@ -53,7 +74,7 @@
     },
     "shadow_mode": {
       "type": "boolean",
-      "description": "Log the rule firing without actually sending — dry-run mode"
+      "description": "Log the rule firing without actually sending \u2014 dry-run mode"
     }
   },
   "required": [

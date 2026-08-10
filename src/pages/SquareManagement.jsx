@@ -239,53 +239,13 @@ export default function SquareManagement() {
     setIsUpdatingCatalog(true);
     setError(null);
     try {
-      const { offlineDB } = await import('@/components/utils/offlineDatabase');
-
-      // Combine rows from both tabs to find items with a Transaction ID
-      const allRows = [...(filteredCatalogRowsRef.current || []), ...(reconciliationRowsRef.current || [])];
-
-      // ── Step 1: Delete catalog items that have a Transaction ID ──────────
-      const toDeleteMap = new Map();
-      for (const row of allRows) {
-        const catalogId = row.catalogId;
-        const transactionId = row.transactionId;
-        if (!catalogId || catalogId === '--') continue;
-        if (!transactionId || transactionId === '--') continue;
-        if (!toDeleteMap.has(catalogId)) toDeleteMap.set(catalogId, row);
-      }
-      const toDelete = Array.from(toDeleteMap.values());
-
-      for (const row of toDelete) {
-        try {
-          await base44.functions.invoke('squareDeleteCodItem', { catalogObjectId: row.catalogId });
-          const existing = await base44.entities.SquareCatalogItems.filter({ square_catalog_object_id: row.catalogId });
-          for (const record of existing || []) {
-            await base44.entities.SquareCatalogItems.delete(record.id);
-          }
-        } catch (_) { /* skip individual failures */ }
-      }
-
-      // Purge deleted items from offline DB
-      if (toDelete.length > 0) {
-        const deletedIds = new Set(toDelete.map((r) => r.catalogId));
-        const allOffline = (await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)) || [];
-        const remaining = allOffline.filter((item) => !deletedIds.has(item.square_catalog_object_id) && !deletedIds.has(item.id));
-        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, remaining);
-      }
-
-      // ── Step 2: Add items without a Catalog ID to Square ────────────────
-      // Exclude any reconciliation row whose delivery already exists in the catalog tab
-      // (filteredCatalogRows) OR already has a non-empty catalogId itself.
+      // ── Add all reconciliation items (no catalog ID yet) to Square ───
+      // Deletions are handled by the authoritative sync that follows.
       const catalogDeliveryIds = new Set(
         (filteredCatalogRowsRef.current || []).map((r) => r.rawDelivery?.id || r.id).filter(Boolean)
       );
-      const catalogObjectIds = new Set(
-        (filteredCatalogRowsRef.current || []).map((r) => r.catalogId).filter((id) => id && id !== '--')
-      );
       const rowsToAdd = (reconciliationRowsRef.current || []).filter((row) => {
-        // Skip if it already has a catalog ID (already in Square)
         if (row.catalogId && row.catalogId !== '--') return false;
-        // Skip if the delivery is already represented in the catalog tab
         const deliveryId = row.rawDelivery?.id || row.id;
         if (deliveryId && catalogDeliveryIds.has(deliveryId)) return false;
         return true;
@@ -304,41 +264,45 @@ export default function SquareManagement() {
         };
       }).filter((item) => item && item.deliveryId && Number(item.codAmount) > 0);
 
+      let addedCount = 0;
+      let failedCount = 0;
       if (itemsToAdd.length > 0) {
-        await base44.functions.invoke('syncSquareCods', {
+        // Wait for the batch to fully complete — syncSquareCods creates the items
+        // in Square AND persists SquareCatalogItems + SquareTransaction records.
+        const res = await base44.functions.invoke('syncSquareCods', {
           items: itemsToAdd,
           deletions: [],
         });
+        const results = res?.data?.results || res?.results || [];
+        addedCount = results.filter((r) => r.status === 'ok' || r.status === 'skipped').length;
+        failedCount = results.filter((r) => r.status === 'error').length;
+        if (failedCount > 0) {
+          const errs = results.filter((r) => r.status === 'error').map((r) => r.error).slice(0, 3).join('; ');
+          throw new Error(`${failedCount} item(s) failed: ${errs}`);
+        }
       }
 
-      // ── Step 3: Sync new entities from online DB → IDB → UI ───
-      // syncSquareCods creates SquareCatalogItems + SquareTransaction records directly
-      // in the online DB. Without pulling them into the offline cache, the local reads below
-      // return stale data and the button appears to "do nothing".
-      await refreshOfflineSquareFromOnlineEntities();
-      const { offlineDB: offlineDB2 } = await import('@/components/utils/offlineDatabase');
-      const { startDateStr, endDateStr } = getSourceWindow();
-      const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB2, startDateStr, endDateStr);
-      if (windowedDeliveries.length > 0) setDeliveries([...windowedDeliveries]);
-      const [freshCatalog, freshTransactions] = await Promise.all([
-        getCatalogItemsOffline(),
-        getPaymentTransactionsOffline(),
-      ]);
-      if (freshCatalog) setCatalogItems([...freshCatalog]);
-      if (freshTransactions) {
-        setAllTransactions([...freshTransactions]);
-        setSoldCatalogItems([...freshTransactions.filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
-      }
-      await loadSyncStatus();
+      // ── Run authoritative sync (same as page load) ──────────────────
+      // Resets the 30s cooldown guard so it runs immediately even if a sync
+      // just happened. This pulls the freshly-created catalog items from Square,
+      // cleans up collected items, and fully reconciles UI state.
+      lastSyncAtRef.current = 0;
+      await syncFromSquare();
 
-      toast.success(`Catalog updated: ${itemsToAdd.length} added, ${toDelete.length} deleted`);
+      if (addedCount > 0) {
+        toast.success(`Catalog updated: ${addedCount} item(s) added to Square`);
+      } else {
+        toast.success('Catalog synced — no new items to add');
+      }
     } catch (err) {
+      console.error('[SquareManagement] Update Catalog failed:', err);
       toast.error('Catalog update failed: ' + err.message);
       setError(err.message);
     } finally {
       setIsUpdatingCatalog(false);
     }
-  }, [isUpdatingCatalog, isSyncing, patients, refreshUiFromOfflineOnly, refreshOfflineSquareFromOnlineEntities]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUpdatingCatalog, isSyncing, patients]);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);

@@ -199,6 +199,15 @@ export function getRecipients(event) {
 }
 
 /**
+ * Get the push notification action buttons configured for an event.
+ * Returns the live NotificationTemplate.actions array, or null if not configured.
+ */
+export function getNotificationActions(event) {
+  const live = _liveTemplates[event];
+  return live?.actions || null;
+}
+
+/**
  * Get the display label for an event (live entity label, falls back to formatted event key).
  */
 export function getNotificationLabel(event) {

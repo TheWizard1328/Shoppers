@@ -24,8 +24,9 @@ export async function sendDeliveryMessage({
 
   const conversationId = [senderId, receiverId].sort().join('_');
 
+  let created = null;
   try {
-    await base44.entities.Message.create({
+    created = await base44.entities.Message.create({
       sender_id: senderId,
       sender_name: senderName || 'System',
       receiver_id: receiverId,
@@ -38,12 +39,13 @@ export async function sendDeliveryMessage({
   } catch (error) {
     console.error('[deliveryMessaging] Failed to send in-app message:', error);
   }
+  return created;
 }
 
 /**
  * Fire-and-forget push notification alongside in-app messages
  */
-export async function sendPushForNotification({ receiverId, senderName, content, event, titleOverride, actions, url, tag, requireInteraction, message_id, delivery_ids }) {
+export async function sendPushForNotification({ receiverId, senderName, content, event, titleOverride, actions, url, tag, requireInteraction, message_id, delivery_ids, reply_to, reply_to_name }) {
   if (!receiverId || !content) return { sent: 0, reason: 'missing_receiver_or_content' };
   const title = titleOverride || (event && getNotificationLabel(event)) || senderName || 'RxDeliver';
   try {
@@ -58,10 +60,12 @@ export async function sendPushForNotification({ receiverId, senderName, content,
     if (tag) payload.tag = tag;
     if (requireInteraction) payload.requireInteraction = true;
     // Embed action metadata into data so the SW click handler can use it
-    if (message_id || delivery_ids) {
+    if (message_id || delivery_ids || reply_to) {
       payload.data = {};
       if (message_id) payload.data.message_id = message_id;
       if (delivery_ids) payload.data.delivery_ids = delivery_ids;
+      if (reply_to) payload.data.reply_to = reply_to;
+      if (reply_to_name) payload.data.reply_to_name = reply_to_name;
     }
     const res = await base44.functions.invoke('sendPushNotification', payload);
     // Unwrap axios .data if present
@@ -97,15 +101,28 @@ async function sendNotification({
     const label = getNotificationLabel(event);
     // Title on its own line, then the body
     const content = label ? `[${label}]\n${body}` : body;
-    await sendDeliveryMessage({
+    const msg = await sendDeliveryMessage({
       senderId,
       senderName,
       receiverId,
       receiverName,
       content
     });
-    // Fire-and-forget push alongside each in-app message
-    sendPushForNotification({ receiverId, senderName, content: body, event });
+    // Fire-and-forget push alongside each in-app message.
+    // Pass message_id (for mark_read), sender info (for reply), and
+    // actions from the configured NotificationTemplate so the push
+    // carries the right quick-response buttons.
+    const { getNotificationActions } = await import('./notificationRules');
+    sendPushForNotification({
+      receiverId,
+      senderName,
+      content: body,
+      event,
+      message_id: msg?.id,
+      reply_to: senderId,
+      reply_to_name: senderName,
+      actions: getNotificationActions(event),
+    });
   }
 }
 

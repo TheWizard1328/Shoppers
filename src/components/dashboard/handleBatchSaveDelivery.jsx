@@ -56,7 +56,7 @@ export const handleBatchSaveDelivery = async ({
 
   if (!stagedDeliveries || stagedDeliveries.length === 0) {
     console.warn('[AddToRoute] ⚠️ No staged deliveries found!');
-    return;
+    return { createdDeliveries: [] };
   }
 
   // CRITICAL: Enter silent mode for the entire batch — suppresses per-record notifyMutation,
@@ -576,4 +576,10 @@ export const handleBatchSaveDelivery = async ({
   // The deliveriesUpdated event above (batchSaveImmediate) already merges the new records
   // into the Layout state. The WebSocket echo will arrive shortly after and be deduplicated
   // by realtimeSync's completion lockout. A full reload is unnecessary and harmful here.
+
+  // Return the created patient deliveries (with real IDs) so the caller can wire the
+  // "Acknowledge" push-notification action button with valid delivery_ids. Without this,
+  // newly-created stops carry only _tempId at notify time and the SW can't call the
+  // handleNotificationAction backend → no acknowledgement reply message is ever created.
+  return { createdDeliveries: allCreatedDeliveries };
 };

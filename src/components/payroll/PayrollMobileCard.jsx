@@ -248,14 +248,15 @@ export default function PayrollMobileCard({
             const ytdDed = ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0;
             const isNeg = periodDeductions < 0;
             const isYtdNeg = ytdDed < 0;
+            const dedLabel = periodDeductions < 0 ? "Add On's:" : "Deductions:";
             return (
             <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: isNeg ? '#16a34a' : '#ef4444' }}>
               <div className="text-left">
                 {isAdmin && onDeductionsClick ?
                 <span onClick={() => onDeductionsClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium cursor-pointer">
-                    Add On's:
+                    {dedLabel}
                   </span> :
-                "Add On's:"
+                dedLabel
                 }
               </div>
               <div className="text-right pr-0.5">{isNeg ? '+$' : '-$'}</div>

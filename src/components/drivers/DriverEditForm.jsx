@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
+import { normalizeDate } from '@/components/utils/deductionHelpers';
 
 // Helper to format number with min 2 decimals, preserving extra precision
 const formatRate = (value) => {
@@ -38,6 +39,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
   const [isSaving, setIsSaving] = useState(false);
   const [newDeductionName, setNewDeductionName] = useState('');
   const [newDeductionAmount, setNewDeductionAmount] = useState('');
+  const [newDeductionStartDate, setNewDeductionStartDate] = useState('');
+  const [newDeductionEndDate, setNewDeductionEndDate] = useState('');
   const [squareLocations, setSquareLocations] = useState([]);
 
   // Load Square locations on mount
@@ -65,8 +68,12 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         pay_cycle_type: formData.pay_cycle_type
       };
 
-      // Include deductions in updates
-      updates.deductions = formData.deductions;
+      // Include deductions in updates — normalize empty date strings to undefined
+      updates.deductions = (formData.deductions || []).map((d) => {
+        const s = normalizeDate(d?.start_date) || undefined;
+        const e = normalizeDate(d?.end_date) || undefined;
+        return { ...d, start_date: s, end_date: e };
+      });
 
       // CRITICAL: Include edited pay_rate_history in updates (allows manual deletion)
       updates.pay_rate_history = formData.pay_rate_history;
@@ -356,79 +363,156 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
 
           {/* Deductions Section */}
           <div className="pt-2 border-t">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 block flex items-center gap-1">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 block flex items-center gap-1">
               <DollarSign className="w-3 h-3" />
               Recurring Deductions
             </Label>
-            
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">Set a Start/End date to control which pay periods each deduction applies to. Blank means no bound.</p>
+
             {/* Existing Deductions */}
             {formData.deductions.length > 0 && (
-              <div className="space-y-1 mb-3">
-                {formData.deductions.map((deduction, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded">
-                    <span className="flex-1 text-sm text-slate-700 dark:text-slate-300">{deduction.name}</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-100">${deduction.amount.toFixed(2)}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950"
-                      onClick={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          deductions: prev.deductions.filter((_, i) => i !== idx)
-                        }));
-                      }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                ))}
+              <div className="space-y-1.5 mb-3">
+                {formData.deductions.map((deduction, idx) => {
+                  const dateRange = (() => {
+                    const s = normalizeDate(deduction.start_date);
+                    const e = normalizeDate(deduction.end_date);
+                    if (!s && !e) return null;
+                    return { s, e };
+                  })();
+                  return (
+                    <div key={idx} className="p-2 bg-slate-50 dark:bg-slate-800 rounded text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="flex-1 font-medium text-slate-700 dark:text-slate-200 truncate">{deduction.name}</span>
+                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">${Number(deduction.amount || 0).toFixed(2)}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              deductions: prev.deductions.filter((_, i) => i !== idx)
+                            }));
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                        <div>
+                          <Label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">Start</Label>
+                          <Input
+                            type="date"
+                            value={normalizeDate(deduction.start_date)}
+                            onChange={(e) => {
+                              const value = e.target.value || '';
+                              setFormData(prev => ({
+                                ...prev,
+                                deductions: prev.deductions.map((d, i) => i === idx ? { ...d, start_date: value } : d)
+                              }));
+                            }}
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">End</Label>
+                          <Input
+                            type="date"
+                            value={normalizeDate(deduction.end_date)}
+                            onChange={(e) => {
+                              const value = e.target.value || '';
+                              setFormData(prev => ({
+                                ...prev,
+                                deductions: prev.deductions.map((d, i) => i === idx ? { ...d, end_date: value } : d)
+                              }));
+                            }}
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+                      {dateRange && (
+                        <p className="text-[10px] mt-1 text-slate-400 dark:text-slate-500">
+                          Active: {dateRange.s || 'open'} → {dateRange.e || 'ongoing'}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
-            
+
             {/* Add New Deduction */}
-            <div className="flex gap-2">
-              <Input
-                placeholder="Deduction name"
-                value={newDeductionName}
-                onChange={(e) => setNewDeductionName(e.target.value)}
-                className="flex-1 h-8 text-sm"
-              />
-              <Input
-                type="number"
-                placeholder="Amount"
-                value={newDeductionAmount}
-                onChange={(e) => setNewDeductionAmount(e.target.value)}
-                className="w-24 h-8 text-sm"
-                step="0.01"
-                min="0"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 px-2"
-                disabled={!newDeductionName.trim() || !newDeductionAmount || parseFloat(newDeductionAmount) <= 0}
-                onClick={() => {
-                  if (newDeductionName.trim() && parseFloat(newDeductionAmount) > 0) {
-                    setFormData(prev => ({
-                      ...prev,
-                      deductions: [
-                        ...prev.deductions,
-                        { name: newDeductionName.trim(), amount: parseFloat(newDeductionAmount) }
-                      ]
-                    }));
-                    setNewDeductionName('');
-                    setNewDeductionAmount('');
-                  }
-                }}
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
+            <div className="space-y-1.5">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Deduction name"
+                  value={newDeductionName}
+                  onChange={(e) => setNewDeductionName(e.target.value)}
+                  className="flex-1 h-8 text-sm"
+                />
+                <Input
+                  type="number"
+                  placeholder="Amount"
+                  value={newDeductionAmount}
+                  onChange={(e) => setNewDeductionAmount(e.target.value)}
+                  className="w-24 h-8 text-sm"
+                  step="0.01"
+                  min="0"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  disabled={!newDeductionName.trim() || !newDeductionAmount || parseFloat(newDeductionAmount) <= 0}
+                  onClick={() => {
+                    if (newDeductionName.trim() && parseFloat(newDeductionAmount) > 0) {
+                      setFormData(prev => ({
+                        ...prev,
+                        deductions: [
+                          ...prev.deductions,
+                          {
+                            name: newDeductionName.trim(),
+                            amount: parseFloat(newDeductionAmount),
+                            start_date: normalizeDate(newDeductionStartDate) || undefined,
+                            end_date: normalizeDate(newDeductionEndDate) || undefined
+                          }
+                        ]
+                      }));
+                      setNewDeductionName('');
+                      setNewDeductionAmount('');
+                      setNewDeductionStartDate('');
+                      setNewDeductionEndDate('');
+                    }
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 block">Start Date (optional)</Label>
+                  <Input
+                    type="date"
+                    value={newDeductionStartDate}
+                    onChange={(e) => setNewDeductionStartDate(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 block">End Date (optional)</Label>
+                  <Input
+                    type="date"
+                    value={newDeductionEndDate}
+                    onChange={(e) => setNewDeductionEndDate(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
             </div>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
-              These deductions will be applied to each payroll period
+            <p className="text-xs mt-1.5" style={{ color: 'var(--text-slate-500)' }}>
+              These deductions will be applied to each payroll period that starts within the date range.
             </p>
           </div>
 

@@ -436,13 +436,15 @@ self.addEventListener('notificationclick', (event) => {
   const action = event.action; // '' when the notification body is clicked (not a button)
 
   // ─── Action button clicks ─────────────────────────────────────────────────
-  if (action === 'mark_read' || action === 'acknowledge') {
+  if (action === 'mark_read' || action === 'acknowledge' || action === 'reply' || action === 'update_now') {
     event.notification.close();
 
     const notifData = event.notification.data || {};
-    // Fire the backend call in the background and focus the app if it's open
     event.waitUntil((async () => {
       let result = false;
+
+      // mark_read + acknowledge + update_now(message_id) hit the backend
+      // handleNotificationAction; reply is pure client-side navigation.
       if (action === 'mark_read' && notifData.message_id) {
         result = await callBackendFunction('handleNotificationAction', {
           action: 'mark_read',
@@ -452,6 +454,12 @@ self.addEventListener('notificationclick', (event) => {
         result = await callBackendFunction('handleNotificationAction', {
           action: 'acknowledge',
           delivery_ids: notifData.delivery_ids
+        });
+      } else if (action === 'update_now' && notifData.message_id) {
+        // Mark the update broadcast message as read, then reload client-side
+        result = await callBackendFunction('handleNotificationAction', {
+          action: 'mark_read',
+          message_id: notifData.message_id
         });
       }
 
@@ -464,9 +472,31 @@ self.addEventListener('notificationclick', (event) => {
             action,
             result,
             message_id: notifData.message_id,
-            delivery_ids: notifData.delivery_ids
+            delivery_ids: notifData.delivery_ids,
+            reply_to: notifData.reply_to,
+            reply_to_name: notifData.reply_to_name
           });
         }
+      }
+
+      // reply + update_now also focus/navigate the app so the user lands on
+      // the right screen (conversation / reload) even when the app was closed.
+      if (action === 'reply' || action === 'update_now') {
+        let rawUrl = notifData.url || '/';
+        if (action === 'reply' && notifData.reply_to) {
+          const sep = rawUrl.includes('?') ? '&' : '?';
+          rawUrl = rawUrl + sep + 'openChat=' + encodeURIComponent(notifData.reply_to) +
+            (notifData.reply_to_name ? '&openChatName=' + encodeURIComponent(notifData.reply_to_name) : '');
+        }
+        const fullUrl = resolvePwaUrl(rawUrl);
+        const clientsList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of clientsList) {
+          if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
+            if ('navigate' in client) client.navigate(fullUrl).catch(() => {});
+            return client.focus();
+          }
+        }
+        if (clients.openWindow) return clients.openWindow(fullUrl);
       }
     })());
     return;

@@ -84,6 +84,23 @@ if ('serviceWorker' in navigator) {
     // Single combined SW: map-tile-sw.js handles BOTH tile caching AND push
     // notifications. The separate push-sw.js was removed to eliminate the
     // two-SW controller race that broke background push delivery on Android.
+    //
+    // CRITICAL: unregister any lingering push-sw.js registrations from earlier
+    // builds. When two SWs are registered at the same scope, Android Chrome
+    // sometimes fires the push event on the NON-controlling SW (push-sw.js),
+    // which has no handler — so push notifications only arrive when the app
+    // is foregrounded and map-tile-sw.js happens to be active. Removing the
+    // stale registration forces map-tile-sw.js to be the sole controller.
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(async (r) => {
+        const scriptUrl = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || '';
+        if (scriptUrl.includes('push-sw.js')) {
+          await r.unregister().catch(() => {});
+        }
+      }));
+    } catch (_) { /* non-critical */ }
+
     navigator.serviceWorker.register('/map-tile-sw.js').then((registration) => {
       registration.update().catch(() => {});
     }).catch(() => {});
