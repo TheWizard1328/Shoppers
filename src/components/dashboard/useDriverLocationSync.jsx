@@ -173,8 +173,8 @@ export default function useDriverLocationSync({
       // stale window var caused the GPS handler to bail, breaking Phase 2 auto-pan.
       const phase = mapViewPhaseRef.current;
 
-      if (!isMapViewLockedRef.current) {
-        // Map is unlocked — check proximity snap instead.
+      if (!isMapViewLockedRef.current || mapUserUnlockedRef?.current) {
+        // Map is unlocked (either by lock expiry or manual pan/zoom) — check proximity snap instead.
         _checkProximitySnap(newLocation, now);
         return;
       }
@@ -264,6 +264,8 @@ export default function useDriverLocationSync({
 
       // Only act when the map is locked in Phase 2 or 3.
       if (!isMapViewLockedRef.current) return;
+      // Don't reposition if the user has manually unlocked the map (free-pan mode).
+      if (mapUserUnlockedRef?.current) return;
       // CRITICAL: Use the ref as authoritative — window.__currentMapViewPhase can
       // lag behind the ref when the FAB component hasn't committed yet.
       const phase = mapViewPhaseRef.current;
@@ -323,6 +325,8 @@ export default function useDriverLocationSync({
 
     const watchdog = setInterval(() => {
       if (!isMapViewLockedRef.current) return;
+      // Don't reposition if the user has manually unlocked the map (free-pan mode).
+      if (mapUserUnlockedRef?.current) return;
       const phase = mapViewPhaseRef.current;
       if (phase !== 2 && phase !== 3) return;
 

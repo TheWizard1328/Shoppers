@@ -543,6 +543,14 @@ function Dashboard() {
     // update prevImmersiveForFitRef above so we acknowledge the state change;
     // the next GPS tick will naturally re-fit with the correct padding.
     if ((window._suppressMapRepositionUntil || 0) > Date.now()) return;
+    // CRITICAL: If the user has manually unlocked the map by panning/zooming,
+    // do NOT clear the free-pan flag and do NOT re-fit. The user has explicitly
+    // taken control of the map — an immersive mode toggle (which happens on a
+    // 3-second debounce from GPS motion detection) must not override that.
+    // This fixes two bugs:
+    //   1. Map re-locking after user pan/zoom (FAB shows unlocked but map snaps back)
+    //   2. Padding changing to immersive after user tapped FAB while not in immersive mode
+    if (mapUserUnlockedRef.current) return;
     mapUserUnlockedRef.current = false;
     // BUG FIX: Do NOT stamp _lastProgrammaticMapMove here — the actual map move
     // (setMapViewTrigger below) doesn't happen until 350ms later, and Leaflet's
