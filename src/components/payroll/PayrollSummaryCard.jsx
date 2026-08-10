@@ -25,6 +25,7 @@ import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 import { exportPayrollPdf } from './payrollPdfExport';
 import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
+import { getActiveDeductions } from '../utils/deductionHelpers';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
@@ -248,8 +249,11 @@ export default function PayrollSummaryCard({
           if (provinceCode && PROVINCE_TAX_RATES[provinceCode]) {taxRate = PROVINCE_TAX_RATES[provinceCode];taxAmount = totalPay * taxRate;}
         }
       }
-      const deductionsArray = Array.isArray(appUser?.deductions) ? appUser.deductions : [];
-      const totalDeductions = totalPay > 0 ? deductionsArray.reduce((sum, d) => sum + (d?.amount || 0), 0) : 0;
+      // Filter recurring deductions to those active for THIS pay period.
+      // Reference date = pay period start date; empty start_date/end_date = open bound.
+      const allDriverDeductions = Array.isArray(appUser?.deductions) ? appUser.deductions : [];
+      const deductionsArray = periodStartStr ? getActiveDeductions(allDriverDeductions, periodStartStr) : allDriverDeductions;
+      const totalDeductions = totalPay > 0 ? sumDeductionAmounts(deductionsArray) : 0;
       const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
       const storedPaidAmount = payrollRecord?.paid_amount;
 
