@@ -29,6 +29,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
   const [deliveryStats, setDeliveryStats] = useState(null);
   const [allDeliveries, setAllDeliveries] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(30);
 
   useEffect(() => {
     if (!patient?.id) return;
@@ -64,10 +65,11 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
 
   const codCount = allDeliveries.filter((d) => Number(d.cod_total_amount_required || 0) > 0).length;
 
-  const patientDeliveries = allDeliveries
+  const filteredDeliveries = allDeliveries
     .filter((d) => !codOnly || Number(d.cod_total_amount_required || 0) > 0)
-    .sort((a, b) => new Date(b.delivery_date) - new Date(a.delivery_date))
-    .slice(0, 30);
+    .sort((a, b) => new Date(b.delivery_date) - new Date(a.delivery_date));
+  const patientDeliveries = filteredDeliveries.slice(0, visibleCount);
+  const hasMore = filteredDeliveries.length > visibleCount;
 
   return (
     <AnimatePresence>
@@ -117,8 +119,8 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
               </button>
             </div>
 
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+            {/* Content */}
+            <div className="flex-1 flex flex-col overflow-hidden px-3 py-3 space-y-3">
 
               {isLoading && (
                 <div className="flex items-center justify-center py-10 gap-2" style={{ color: 'var(--text-slate-500)' }}>
@@ -202,8 +204,8 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
               )}
 
               {/* Recent Deliveries */}
-              {!isLoading && <div className="rounded-xl border shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border-slate-100)' }}>
+              {!isLoading && <div className="rounded-xl border shadow-sm flex flex-col flex-1 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-100)' }}>
                   <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
                      <Package className="w-4 h-4 text-blue-600" />
                      Recent Deliveries
@@ -221,10 +223,11 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                    )}
                 </div>
 
-                <div className="p-3">
+                <div className="p-3 overflow-y-auto flex-1">
                   {patientDeliveries.length === 0 ? (
                     <p className="text-sm text-center py-4" style={{ color: 'var(--text-slate-500)' }}>No deliveries found</p>
                   ) : (
+                    <>
                     <div className="space-y-2">
                       {patientDeliveries.map((delivery) => {
                         const statusStyle = getStatusStyle(delivery.status);
@@ -300,6 +303,16 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                         );
                       })}
                     </div>
+                    {hasMore && (
+                      <button
+                        onClick={() => setVisibleCount((c) => c + 30)}
+                        className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100"
+                        style={{ color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-200)' }}
+                      >
+                        Show more ({filteredDeliveries.length - visibleCount} more)
+                      </button>
+                    )}
+                    </>
                   )}
                 </div>
               </div>}
