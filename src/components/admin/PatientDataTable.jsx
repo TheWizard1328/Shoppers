@@ -5,6 +5,8 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
+
 
 export default function PatientDataTable({ patients, stores, onEdit, onDelete }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -42,8 +44,8 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
 
     // Sort
     const sorted = [...filtered].sort((a, b) => {
-      let aVal = a[sortField] || "";
-      let bVal = b[sortField] || "";
+      let aVal = sortField === "last_delivery_date" ? getLastDeliveryDate(a) : (a[sortField] || "");
+      let bVal = sortField === "last_delivery_date" ? getLastDeliveryDate(b) : (b[sortField] || "");
 
       // Handle dates
       if (sortField === "created_date" || sortField === "last_delivery_date" || sortField === "last_login_date") {
@@ -227,8 +229,8 @@ export default function PatientDataTable({ patients, stores, onEdit, onDelete })
                   <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">{patient.phone || "—"}</td>
                   <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">{getStoreName(patient.store_id)}</td>
                   <td className="p-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-sm">
-                    {patient.last_delivery_date 
-                      ? format(new Date(patient.last_delivery_date), 'MMM d, yyyy')
+                    {getLastDeliveryDate(patient) 
+                      ? format(new Date(getLastDeliveryDate(patient)), 'MMM d, yyyy')
                       : "—"
                     }
                   </td>

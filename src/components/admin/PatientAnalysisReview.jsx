@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { CheckCircle2, XCircle, Clock, User, Store, CalendarDays, Loader2, RefreshCw, Play } from 'lucide-react';
 import { format } from 'date-fns';
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
+
 
 const PATTERN_LABELS = {
   recurring_daily: 'Daily',
@@ -222,10 +224,10 @@ export default function PatientAnalysisReview({ stores = [] }) {
                         <span className="flex items-center gap-1">
                           <Store className="w-3 h-3" />{result.store_name}
                         </span>
-                        {result.last_delivery_date && (
+                        {getLastDeliveryDate(result) && (
                           <span className="flex items-center gap-1">
                             <CalendarDays className="w-3 h-3" />
-                            Last: {result.last_delivery_date}
+                            Last: {getLastDeliveryDate(result)}
                           </span>
                         )}
                         <span>{result.total_deliveries_analyzed} deliveries analyzed</span>
@@ -270,7 +272,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
               <DialogTitle>Review Pattern for {selectedResult.patient_name}</DialogTitle>
               <DialogDescription>
                 {selectedResult.total_deliveries_analyzed} deliveries analyzed from {selectedResult.store_name}.
-                Last delivery: {selectedResult.last_delivery_date || 'N/A'}
+                Last delivery: {getLastDeliveryDate(selectedResult) || 'N/A'}
               </DialogDescription>
             </DialogHeader>
 

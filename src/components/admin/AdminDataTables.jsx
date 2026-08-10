@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, ArrowUpDown, Edit, Trash2, Database } from 'lucide-react';
 import { format, parse, parseISO } from 'date-fns';
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
+
 import { ResizableColumnHeader, ColumnVisibilityControl } from './AdminTableControls';
 
 const parseFlexibleDate = (dateString) => {
@@ -147,7 +149,7 @@ export const PatientDataTable = ({
       const q = filterText.toLowerCase().trim();
       f = f.filter((p) => {
         const storeName = stores.find((s) => s.id === p.store_id)?.name?.toLowerCase() || '';
-        return p.id?.toLowerCase().includes(q) || p.full_name?.toLowerCase().includes(q) || p.phone?.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q) || p.patient_id?.toLowerCase().includes(q) || storeName.includes(q) || (p.last_delivery_date || '').toLowerCase().includes(q);
+        return p.id?.toLowerCase().includes(q) || p.full_name?.toLowerCase().includes(q) || p.phone?.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q) || p.patient_id?.toLowerCase().includes(q) || storeName.includes(q) || (getLastDeliveryDate(p) || '').toLowerCase().includes(q);
       });
     }
     if (sortColumn) {
@@ -155,8 +157,8 @@ export const PatientDataTable = ({
         let av, bv;
         if (sortColumn === 'store_id') { av = stores.find((s) => s.id === a.store_id)?.name || ''; bv = stores.find((s) => s.id === b.store_id)?.name || ''; }
         else if (sortColumn === 'last_delivery_date') {
-          const at = parseFlexibleDate(a.last_delivery_date)?.getTime() ?? NaN;
-          const bt = parseFlexibleDate(b.last_delivery_date)?.getTime() ?? NaN;
+          const at = parseFlexibleDate(getLastDeliveryDate(a))?.getTime() ?? NaN;
+          const bt = parseFlexibleDate(getLastDeliveryDate(b))?.getTime() ?? NaN;
           if (isNaN(at) && isNaN(bt)) return 0; if (isNaN(at)) return 1; if (isNaN(bt)) return -1;
           return sortDirection === 'asc' ? at - bt : bt - at;
         } else { av = a[sortColumn]; bv = b[sortColumn]; }
@@ -252,7 +254,7 @@ export const PatientDataTable = ({
                         {visibleColumns.includes('address') && <td className={`p-3 ${isDupNA ? 'bg-orange-50' : isDupAddr ? 'bg-yellow-50 dark:bg-yellow-950' : ''}`} style={textPrimary}>{patient.address}{isDupNA && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}</td>}
                         {visibleColumns.includes('unit') && <td className="p-3 text-xs" style={textPrimary}>{patient.unit_number || '-'}</td>}
                         {visibleColumns.includes('store') && <td className="p-3">{patientStore ? <div className="flex flex-col"><span className="font-medium" style={textPrimary}>{patientStore.name}</span><span className="text-xs font-mono select-all" style={{ color: 'var(--text-slate-500)' }}>{patient.id}</span></div> : <span style={{ color: 'var(--text-slate-400)' }}>Unassigned</span>}</td>}
-                        {visibleColumns.includes('last_delivery_date') && <td className="p-3 text-sm" style={textPrimary}>{patient.last_delivery_date ? (() => { const d = parseFlexibleDate(patient.last_delivery_date); return d && !isNaN(d.getTime()) ? format(d, 'MMM d, yyyy') : <span className="text-amber-600 text-xs">{patient.last_delivery_date}</span>; })() : <span style={{ color: 'var(--text-slate-400)' }}>Never</span>}</td>}
+                        {visibleColumns.includes('last_delivery_date') && <td className="p-3 text-sm" style={textPrimary}>{getLastDeliveryDate(patient) ? (() => { const d = parseFlexibleDate(getLastDeliveryDate(patient)); return d && !isNaN(d.getTime()) ? format(d, 'MMM d, yyyy') : <span className="text-amber-600 text-xs">{getLastDeliveryDate(patient)}</span>; })() : <span style={{ color: 'var(--text-slate-400)' }}>Never</span>}</td>}
                         {visibleColumns.includes('actions') && <td className="p-3 text-right"><div className="flex justify-end gap-2"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(patient)}><Edit className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:bg-red-950 dark:hover:bg-red-950" onClick={() => onDelete(patient)}><Trash2 className="w-4 h-4" /></Button></div></td>}
                       </tr>
                     );
