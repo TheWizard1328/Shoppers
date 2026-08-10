@@ -70,6 +70,9 @@ export async function handleBatchSave({
    let routeStructureChanged = false;
    let hasInTransitTransition = false;
    let newPickupsCreated = false;
+   // Created patient deliveries (with real IDs) returned by onSave — used by the
+   // Stops Created notification so the Acknowledge push button carries valid delivery_ids.
+   let createdPatientDeliveries = [];
 
   console.log('[AddToRoute] handleBatchSave:start', {
     openMode: formData?.openMode,
@@ -420,7 +423,12 @@ export async function handleBatchSave({
         };
       });
 
-      await onSave({ _isBatchSave: true, _stagedDeliveries: stagedDeliveriesWithResolvedIds, _ensuredPickups: ensuredPickupRecords });
+      // Capture the created patient deliveries (with real IDs) so the Stops Created
+      // push notification's "Acknowledge" action carries valid delivery_ids. Without
+      // real IDs the service worker can't call handleNotificationAction and no reply
+      // message is created when the driver taps Acknowledge.
+      const saveResult = await onSave({ _isBatchSave: true, _stagedDeliveries: stagedDeliveriesWithResolvedIds, _ensuredPickups: ensuredPickupRecords });
+      createdPatientDeliveries = (saveResult?.createdDeliveries || []).filter((d) => d?.patient_id);
       if (creatorFlowEnsuredPickups.length > 0) {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: {
@@ -445,10 +453,11 @@ export async function handleBatchSave({
         const stagedToPending = deliveriesToUpdate
           .filter((d) => d?.patient_id && d?.status === 'Staged')
           .map((d) => ({ ...d, status: 'pending' }));
-        // Newly-created pending patient deliveries
-        const newPending = (deliveriesReadyForDB || []).filter(
-          (d) => d?.patient_id && d?.status === 'pending',
-        );
+        // Newly-created pending patient deliveries — use the REAL created records (with
+        // server-assigned ids) from onSave so the Acknowledge push button carries valid
+        // delivery_ids. The pre-save objects only have _tempId, which the SW can't forward
+        // to handleNotificationAction, so no acknowledgement reply would be created.
+        const newPending = createdPatientDeliveries.filter((d) => d?.status === 'pending');
         const notifyDeliveries = [...stagedToPending, ...newPending];
         if (notifyDeliveries.length > 0) {
           const store = stores?.find((s) => s && s.id === notifyDeliveries[0]?.store_id) || null;
