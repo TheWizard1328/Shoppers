@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { parseISO, isBefore } from "date-fns";
 import { Loader2 } from "lucide-react";
 import { getDeliveryTypeFlags } from '../utils/deliveryTypeUtils';
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
 import {
   StopCardPhoneRow,
   StopCardCodSection,
@@ -110,15 +111,16 @@ export default function StopCardBody({
 
     if (priorCompletedDates[0]) return priorCompletedDates[0];
 
-    if (patient?.last_delivery_date) {
-      const patientLastDate = parseISO(`${patient.last_delivery_date}T00:00:00`);
+    const lastDate = getLastDeliveryDate(patient);
+    if (lastDate) {
+      const patientLastDate = parseISO(`${lastDate}T00:00:00`);
       if (isBefore(patientLastDate, currentDeliveryDate)) {
-        return patient.last_delivery_date;
+        return lastDate;
       }
     }
 
     return null;
-  }, [allDeliveries, delivery?.delivery_date, delivery?.id, delivery?.patient_id, isPickup, patient?.last_delivery_date]);
+  }, [allDeliveries, delivery?.delivery_date, delivery?.id, delivery?.patient_id, isPickup, patient]);
 
   return (
     <>

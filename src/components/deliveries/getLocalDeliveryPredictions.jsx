@@ -1,3 +1,4 @@
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
 const RECENT_DELIVERY_LOOKBACK_DAYS = 5; // Check past 5 days for recent deliveries
 
 const userHasRole = (user, role) => {
@@ -100,7 +101,7 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
       patient.recurring_biweekly || patient.recurring_weekly_x4 || patient.recurring_monthly || patient.recurring_bimonthly;
   }).map((patient) => {
     const hasDaySelected = patient[`recurring_weekly_${selectedDayName}`];
-    const lastDate = patient.last_delivery_date ? new Date(`${patient.last_delivery_date}T00:00:00`) : null;
+    const lastDateStr = getLastDeliveryDate(patient); const lastDate = lastDateStr ? new Date(lastDateStr + 'T00:00:00') : null;
     const daysSinceLast = lastDate ? diffDays(dateObj, lastDate) : null;
 
     let shouldDeliver = false;
@@ -156,7 +157,7 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
       store_id: patient.store_id,
       reason: `${frequency} delivery`,
       frequency,
-      last_delivery_date: patient.last_delivery_date || null,
+      last_delivery_date: getLastDeliveryDate(patient) || null,
       cod_total_amount_required: 0,
       prescription_number: '',
       extra_time: 0
