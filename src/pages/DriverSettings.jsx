@@ -232,7 +232,7 @@ export default function DriverSettings() {
       // CRITICAL: Update local state immediately (optimistic merge) — avoids full refresh
       // which would wipe pay data from all driver cards in memory.
       setFreshAppUsers((prev) =>
-        prev.map((u) => (u?.id === appUser.id ? mergedRecord : u))
+      prev.map((u) => u?.id === appUser.id ? mergedRecord : u)
       );
 
       // Notify Layout to merge this single AppUser update without a full reload
@@ -398,7 +398,7 @@ export default function DriverSettings() {
               return (
                 <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full w-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <CardContent className="p-4 h-full">
-                    <div className="flex items-start gap-4 h-full">
+                    <div className="flex items-start h-full gap-2">
                       {/* Avatar */}
                       <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor}`}>
                         <span className="text-white font-bold text-lg">
