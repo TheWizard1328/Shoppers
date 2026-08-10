@@ -397,7 +397,7 @@ export default function DriverSettings() {
               // Full card for admins
               return (
                 <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full w-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                  <CardContent className="p-4 h-full">
+                  <CardContent className="h-full px-2 py-2">
                     <div className="flex items-start h-full gap-2">
                       {/* Avatar */}
                       <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor}`}>
