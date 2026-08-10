@@ -542,7 +542,7 @@ function Dashboard() {
     // second fitBounds with immersive padding — the bounce bug. We still
     // update prevImmersiveForFitRef above so we acknowledge the state change;
     // the next GPS tick will naturally re-fit with the correct padding.
-    if ((window._suppressImmersiveRefitUntil || 0) > Date.now()) return;
+    if ((window._suppressMapRepositionUntil || 0) > Date.now()) return;
     mapUserUnlockedRef.current = false;
     // BUG FIX: Do NOT stamp _lastProgrammaticMapMove here — the actual map move
     // (setMapViewTrigger below) doesn't happen until 350ms later, and Leaflet's
@@ -814,7 +814,7 @@ function Dashboard() {
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
       window._cancelInFlightNextFit = true;
-      window._suppressImmersiveRefitUntil = Date.now() + 4000;
+      window._suppressMapRepositionUntil = Date.now() + 1000;
       setMapViewTrigger((p) => p + 1);
       if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
       // Unlock after 500ms so the overview fits bounds, then lets the driver pan freely
@@ -950,12 +950,10 @@ function Dashboard() {
       // FAB click = explicit user action — cancel any in-flight animation
       // so the new phase's fitBounds fires immediately instead of queuing
       window._cancelInFlightNextFit = true;
-      // Suppress immersive re-fit (4s) AND GPS/watchdog auto-follow re-fit (1.3s) after a
-      // FAB tap: useDriverLocationSync guards on window._suppressMapRepositionUntil, which
-      // was never set, so the next GPS tick refired fitBounds mid-animation and bounced to
-      // a new center/zoom even when immersive wasn't active. 1.3s covers the 0.9s Phase 2 anim.
-      window._suppressImmersiveRefitUntil = Date.now() + 4000;
-      window._suppressMapRepositionUntil = Date.now() + 1300;
+      // Unified 1s re-fit suppression lock after a FAB tap: useDriverLocationSync GPS/WS/watchdog
+      // handlers AND the immersive re-fit effect both guard on this flag, so the next GPS tick
+      // or a pending immersive toggle can't fire a second fitBounds and bounce the view.
+      window._suppressMapRepositionUntil = Date.now() + 1000;
       setMapViewTrigger((p) => p + 1);
       if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
       setTimeout(() => { setAreCardsVisible(true); centerNextDeliveryCard(deliveriesWithStopOrder); }, 500);
@@ -1376,7 +1374,7 @@ function Dashboard() {
           });
           if (phase2DispatcherCoords.length > 0) {
             const padding = getMapPadding(immersiveHiddenRef.current);
-            setShouldFitBounds({ bounds: phase2DispatcherCoords, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 }, cancelInFlight: _cancelInFlight });
+            setShouldFitBounds({ bounds: phase2DispatcherCoords, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15 }, cancelInFlight: _cancelInFlight });
             setMapCenter(null);
             setMapZoom(null);
           }
@@ -1390,7 +1388,7 @@ function Dashboard() {
           const _p2TgtId2 = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : (isDriver ? currentUser?.id : null); const _selectedDateStr2 = format(selectedDateRef.current, 'yyyy-MM-dd'); const _ns = _p2TgtId2 ? deliveriesRef.current.find((d) => d && d.delivery_date === _selectedDateStr2 && d.driver_id === _p2TgtId2 && d.isNextDelivery === true && d.status !== 'pending') : null;
           const _nc = _ns?.patient_id ? (() => { const p = patientsRef.current.find((x) => x && x.id === _ns.patient_id); return p?.latitude && p?.longitude ? { lat: p.latitude, lon: p.longitude } : null; })() : _ns && isInterStoreDelivery(_ns.delivery_id) ? (() => { const isl = getInterStoreLocationSync(_ns.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })() : _ns?.store_id ? (() => { const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })() : (selectedDriverId === currentUser?.id || !_p2TgtId2 ? nextStopCoordinatesRef.current : null);
           const bounds = [[fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude], ...(_nc?.lat && _nc?.lon ? [[_nc.lat, _nc.lon]] : [])];
-          setShouldFitBounds({ bounds, options: { ...getMapPadding(immersiveHiddenRef.current), maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 }, cancelInFlight: _cancelInFlight });
+          setShouldFitBounds({ bounds, options: { ...getMapPadding(immersiveHiddenRef.current), maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15 }, cancelInFlight: _cancelInFlight });
           setMapCenter(null); setMapZoom(null);
         } } // end if (!_phase2Handled)
         break; } // end case 2
@@ -1495,7 +1493,9 @@ function Dashboard() {
             options: {
               ...padding,
               maxZoom: phase3MaxZoom,
-              animate: true
+              animate: true,
+              duration: 0.5,
+              easeLinearity: 0.15
             }
           });
           setMapCenter(null);
@@ -2097,7 +2097,7 @@ function Dashboard() {
             }
             if (appUser?.driver_status === 'on_duty' && appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
             if (bounds.length) {
-              setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
+              setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15 } });
               setMapCenter(null);setMapZoom(null);
             }
 
@@ -2118,7 +2118,7 @@ function Dashboard() {
           }
           if (appUser?.driver_status === 'on_duty' && appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
           if (bounds.length) {
-            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
+            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15 } });
             setMapCenter(null);setMapZoom(null);
           }
 

@@ -136,6 +136,9 @@ export function useFabControlEventHandler({
       requestAnimationFrame(() => {
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
+        // Unified 1s re-fit suppression lock — prevents a GPS/WS/watchdog re-fit from
+        // bouncing the bounds the completionFabRelock just set (Phase 2/3 programmatic refit).
+        window._suppressMapRepositionUntil = Date.now() + 1000;
         setMapViewTrigger((p) => p + 1);
       });
     };
