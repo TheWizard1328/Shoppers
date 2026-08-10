@@ -298,7 +298,7 @@ function Dashboard() {
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, [isDriver, currentUser?.id]);
-  useEffect(() => { isMapViewLockedRef.current = isMapViewLocked; }, [isMapViewLocked]);
+  useEffect(() => { isMapViewLockedRef.current = isMapViewLocked; window.__fabIsLocked = isMapViewLocked; }, [isMapViewLocked]);
 
   const activeDriverIdsOnDate = useMemo(() => {
     const _ds = format(selectedDate, 'yyyy-MM-dd');
