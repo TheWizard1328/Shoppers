@@ -950,13 +950,12 @@ function Dashboard() {
       // FAB click = explicit user action — cancel any in-flight animation
       // so the new phase's fitBounds fires immediately instead of queuing
       window._cancelInFlightNextFit = true;
-      // Suppress immersive-mode re-fit for 4 seconds after an explicit FAB tap.
-      // The driver may be moving, and a pending immersive toggle debounce (3s)
-      // could fire shortly after the FAB tap, triggering a second fitBounds with
-      // tighter (immersive) padding — causing a visible bounce from the
-      // non-immersive view the FAB just established. The next GPS tick will
-      // naturally re-fit with whatever immersive mode is active at that point.
+      // Suppress immersive re-fit (4s) AND GPS/watchdog auto-follow re-fit (1.3s) after a
+      // FAB tap: useDriverLocationSync guards on window._suppressMapRepositionUntil, which
+      // was never set, so the next GPS tick refired fitBounds mid-animation and bounced to
+      // a new center/zoom even when immersive wasn't active. 1.3s covers the 0.9s Phase 2 anim.
       window._suppressImmersiveRefitUntil = Date.now() + 4000;
+      window._suppressMapRepositionUntil = Date.now() + 1300;
       setMapViewTrigger((p) => p + 1);
       if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
       setTimeout(() => { setAreCardsVisible(true); centerNextDeliveryCard(deliveriesWithStopOrder); }, 500);
