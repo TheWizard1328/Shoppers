@@ -136,6 +136,7 @@ export function useFabControlEventHandler({
       requestAnimationFrame(() => {
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
+        window._suppressMapRepositionUntil = Date.now() + 1500;
         setMapViewTrigger((p) => p + 1);
       });
     };
@@ -156,6 +157,7 @@ export function useFabControlEventHandler({
       setIsMapViewLocked(true);
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
+      window._suppressMapRepositionUntil = Date.now() + 1500;
       setMapViewTrigger((p) => p + 1);
     };
     window.addEventListener('proximityActivatedPhase2', onProximityActivatedPhase2);
@@ -175,7 +177,7 @@ export function useFabControlEventHandler({
           } else {
             clearTimer(); isMapViewLockedRef.current = true; setIsMapViewLocked(true);
           }
-          pendingPhaseRef.current = ph; lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now(); setMapViewTrigger((p) => p + 1);
+          pendingPhaseRef.current = ph; lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now(); window._suppressMapRepositionUntil = Date.now() + 1500; setMapViewTrigger((p) => p + 1);
           break;
         }
         case 'USER_MAP_INTERACTION': {

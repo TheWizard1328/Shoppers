@@ -815,6 +815,7 @@ function Dashboard() {
       window._lastProgrammaticMapMove = Date.now();
       window._cancelInFlightNextFit = true;
       window._suppressImmersiveRefitUntil = Date.now() + 4000;
+      window._suppressMapRepositionUntil = Date.now() + 1500;
       setMapViewTrigger((p) => p + 1);
       if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
       // Unlock after 500ms so the overview fits bounds, then lets the driver pan freely
@@ -957,6 +958,7 @@ function Dashboard() {
       // non-immersive view the FAB just established. The next GPS tick will
       // naturally re-fit with whatever immersive mode is active at that point.
       window._suppressImmersiveRefitUntil = Date.now() + 4000;
+      window._suppressMapRepositionUntil = Date.now() + 1500;
       setMapViewTrigger((p) => p + 1);
       if (currentUser?.id) saveSetting(currentUser.id, 'fab_map_cycle_phase', nextPhase);
       setTimeout(() => { setAreCardsVisible(true); centerNextDeliveryCard(deliveriesWithStopOrder); }, 500);
@@ -1643,6 +1645,7 @@ function Dashboard() {
     // is subscribed before it reads pendingPhaseRef. Without this separation the
     // trigger and the phase-set land in the same batch, the map effect fires before
     // pendingPhaseRef reflects the saved phase, and the map doesn't reposition.
+    window._suppressMapRepositionUntil = Date.now() + 1500;
     setTimeout(() => {
       setMapViewTrigger((p) => p + 1);
     }, 150);
