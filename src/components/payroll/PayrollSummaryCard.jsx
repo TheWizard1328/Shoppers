@@ -1514,7 +1514,7 @@ export default function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(data.taxAmount || 0)}</td>
                             </tr>
-                            {(() => { const dedTotal = sumDeductionAmounts(edit.deductions || []); const isNegDed = dedTotal < 0; const dedLabel = dedTotal > 0 ? "Add On's:" : "Deductions:"; return (
+                            {(() => { const dedTotal = sumDeductionAmounts(edit.deductions || []); const isNegDed = dedTotal < 0; const dedLabel = dedTotal < 0 ? "Add On's:" : "Deductions:"; return (
                             <tr style={{ color: isNegDed ? '#16a34a' : '#ef4444' }}>
                               <td className="text-left pr-2">
                                 {isAdmin ?
@@ -1837,7 +1837,7 @@ export default function PayrollSummaryCard({
                               }
                               {grandTotalDeductions !== 0 &&
                               <tr style={{ color: grandTotalDeductions < 0 ? '#16a34a' : '#ef4444' }}>
-                                 <td className="text-left pr-2">{grandTotalDeductions > 0 ? "Add On's:" : "Deductions:"}</td>
+                                 <td className="text-left pr-2">{grandTotalDeductions < 0 ? "Add On's:" : "Deductions:"}</td>
                                  <td className="text-right pr-0.5">{grandTotalDeductions < 0 ? '+$' : '-$'}</td>
                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{Math.abs(grandTotalDeductions).toFixed(2)}</td>
                                </tr>
@@ -1975,7 +1975,7 @@ export default function PayrollSummaryCard({
                     {/* Deductions */}
                     {grandTotalDeductions !== 0 &&
                     <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: grandTotalDeductions < 0 ? '#16a34a' : '#ef4444' }}>
-                      <div className="text-left">{grandTotalDeductions > 0 ? "Add On's:" : "Deductions:"}</div>
+                      <div className="text-left">{grandTotalDeductions < 0 ? "Add On's:" : "Deductions:"}</div>
                       <div className="text-right pr-0.5">{grandTotalDeductions < 0 ? '+$' : '-$'}</div>
                       <div className="text-right font-semibold">{Math.abs(grandTotalDeductions).toFixed(2)}</div>
                       <div className="text-right pr-0.5">{ytdGrandTotalDeductions < 0 ? '+$' : '-$'}</div>
