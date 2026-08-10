@@ -1503,7 +1503,11 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     return 'driving';
   };
   const stopPoints = [];
+  // ONLY generate polylines for active stops (in_transit / en_route).
+  // Pending stops on a future route stay polyline-free until the driver starts them.
+  const FUTURE_ACTIVE_STATUSES = new Set(['in_transit', 'en_route']);
   for (const { delivery } of orderedStops) {
+    if (!FUTURE_ACTIVE_STATUSES.has(String(delivery.status || ''))) continue;
     const c = getDeliveryCoords(delivery, patientMap, storeMap);
     if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) continue;
     stopPoints.push({ id: delivery.id, lat: c.lat, lon: c.lon, mode: resolveFutureMode(delivery) });
