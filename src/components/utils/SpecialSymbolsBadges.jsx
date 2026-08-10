@@ -2,6 +2,7 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Bell, BellOff, Mailbox, StickyNote, PenLine, Thermometer } from "lucide-react";
 import HelpTooltip, { HELP_CONTENT } from "../common/HelpTooltip";
+import { isFirstDeliveryPatient } from '@/components/utils/patientHistoryUtils';
 
 const TEMP_MIN = 2;
 const TEMP_MAX = 8;
@@ -89,7 +90,7 @@ export default function SpecialSymbolsBadges({
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
   const isFirstDelivery = !isPickup && !isInterStore && (
     delivery.first_delivery === true ||
-    (patient && !patient.last_delivery_date) ||
+    (patient && isFirstDeliveryPatient(patient)) ||
     delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
     delivery.delivery_instructions?.toLowerCase().includes('first delivery')
   );
@@ -154,7 +155,7 @@ export function hasSpecialSymbols(delivery, patient, isPickup = false, isInterSt
 
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
   const isFirstDelivery = !isPickup && !isInterStore && (delivery.first_delivery === true ||
-    (patient && !patient.last_delivery_date) ||
+    (patient && isFirstDeliveryPatient(patient)) ||
     delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
     delivery.delivery_instructions?.toLowerCase().includes('first delivery'));
   const hasOversized = delivery.oversized === true;
@@ -181,7 +182,7 @@ export function getSpecialFlagsText(delivery, patient, isPickup = false) {
 
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
   const isFirstDelivery = delivery.first_delivery === true ||
-  patient && !patient.last_delivery_date ||
+  patient && isFirstDeliveryPatient(patient) ||
   delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
   delivery.delivery_instructions?.toLowerCase().includes('first delivery');
   const hasOversized = delivery.oversized === true;

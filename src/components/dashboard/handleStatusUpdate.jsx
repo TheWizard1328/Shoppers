@@ -16,6 +16,7 @@ import { calculateDistance } from '@/components/dashboard/DashboardHelpers';
 import { roundCompletionTime } from '@/components/dashboard/DashboardHelpers';
 import { lockDeliveryFields } from '@/components/utils/completionLockout';
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
+import { buildHistoryEntry, appendToHistory } from '@/components/utils/patientHistoryUtils';
 
 const getEdmDate = () => {
   const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -282,7 +283,16 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     }
 
     if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
-      base44.entities.Patient.update(targetDelivery.patient_id, { last_delivery_date: deliveryDate }).catch((error) => console.warn('⚠️ Patient last_delivery_date update failed:', error));
+      ;(async () => {
+        try {
+          const p = await base44.entities.Patient.get(targetDelivery.patient_id);
+          if (p) {
+            const entry = buildHistoryEntry(targetDelivery.id, deliveryDate, targetDelivery.actual_delivery_time || new Date().toISOString(), targetDelivery.status === 'completed' ? 'completed' : 'failed');
+            const newHistory = appendToHistory(p.delivery_history, entry);
+            await base44.entities.Patient.update(targetDelivery.patient_id, { delivery_history: newHistory, last_delivery_date: deliveryDate });
+          }
+        } catch(e) { console.warn('Patient delivery_history update failed:', e); }
+      })();
     }
 
     // If a pickup (no patient_id) is completed and any linked delivery has fridge_item=true,
@@ -443,7 +453,16 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId, deliveryDate, triggeredBy: 'statusUpdate' } }));
 
     if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
-      base44.entities.Patient.update(targetDelivery.patient_id, { last_delivery_date: deliveryDate }).catch((error) => console.warn('⚠️ Patient update failed:', error));
+      ;(async () => {
+        try {
+          const p = await base44.entities.Patient.get(targetDelivery.patient_id);
+          if (p) {
+            const entry = buildHistoryEntry(targetDelivery.id, deliveryDate, targetDelivery.actual_delivery_time || new Date().toISOString(), targetDelivery.status === 'completed' ? 'completed' : 'failed');
+            const newHistory = appendToHistory(p.delivery_history, entry);
+            await base44.entities.Patient.update(targetDelivery.patient_id, { delivery_history: newHistory, last_delivery_date: deliveryDate });
+          }
+        } catch(e) { console.warn('Patient delivery_history update failed:', e); }
+      })();
     }
 
     if (['completed', 'failed'].includes(newStatus)) {

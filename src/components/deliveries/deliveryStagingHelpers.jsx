@@ -1,3 +1,4 @@
+import { isFirstDeliveryPatient } from '@/components/utils/patientHistoryUtils';
 export const resolveDistanceFromStore = ({ patient, store, calculateDistance }) => {
   let distanceFromStore = patient?.distance_from_store;
 
@@ -86,5 +87,5 @@ export const buildPatientStagedDelivery = ({
   distanceFromStore,
   delivery_address: patient?.address || store.address,
   transport_mode: formData.transport_mode || 'driving',
-  ...(includeFirstDelivery ? { first_delivery: isNewPatient || !patient?.last_delivery_date } : {})
+  ...(includeFirstDelivery ? { first_delivery: isNewPatient || isFirstDeliveryPatient(patient) } : {})
 });

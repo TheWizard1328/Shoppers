@@ -19,6 +19,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { getPickupStopIdForDelivery, determineDeliveryAMPM, getStoreAssignedTimeSlot } from '../utils/ampmUtils';
 import { generateBikDeliveryId } from '@/components/utils/idGenerator';
 import { isAppOwner } from '../utils/userRoles';
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
 import SmartBarcodeScanner from './SmartBarcodeScanner';
 import PatientMatchPopup from './PatientMatchPopup';
 import DeliveryPatientSearch from './DeliveryPatientSearch';
@@ -673,9 +674,10 @@ export default function DeliveryFormView({
                     if (!patientToCheck && formData.patient_id && patients) {
                       patientToCheck = patients.find((p) => p && p.id === formData.patient_id);
                     }
-                    if (!patientToCheck?.last_delivery_date) return null;
+                    const lastDate = getLastDeliveryDate(patientToCheck);
+                    if (!lastDate) return null;
                     try {
-                      const date = new Date(patientToCheck.last_delivery_date + 'T00:00:00');
+                      const date = new Date(lastDate + 'T00:00:00');
                       if (isNaN(date.getTime())) return null;
                       return <Badge variant="outline" className="text-xs font-normal ml-2">LD: {format(date, 'MMM d, yyyy')}</Badge>;
                     } catch {return null;}

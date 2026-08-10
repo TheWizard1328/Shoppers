@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { buildHistoryEntry, appendToHistory } from '@/components/utils/patientHistoryUtils';
 import { base44 } from '@/api/base44Client';
 import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
 import { resetBatchSaveDraftState, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
@@ -147,7 +148,7 @@ export async function handleBatchSave({
         });
       });
       await Promise.allSettled(updatePromises);
-      (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(deliveriesToUpdate.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});}catch(_){}})();
+      ;(async()=>{try{const __now=new Date().toISOString();const __todayLocal=format(new Date(),'yyyy-MM-dd');const patientDeliveries=new Map();for(const d of deliveriesToUpdate){if((d.status==='completed'||d.status==='failed')&&d.patient_id){if(!patientDeliveries.has(d.patient_id))patientDeliveries.set(d.patient_id,[]);patientDeliveries.get(d.patient_id).push(d);}}for(const [pid, delivs] of patientDeliveries){try{const p=await base44.entities.Patient.get(pid);if(!p)continue;let history=Array.isArray(p.delivery_history)?[...p.delivery_history]:[];for(const d of delivs){const entry=buildHistoryEntry(d.id, d.delivery_date||__todayLocal, d.actual_delivery_time||__now, d.status);history=appendToHistory(history, entry);}updatePatientLocal(pid,{delivery_history: history, last_delivery_date: history[0]?.delivery_date || __todayLocal});}catch(_){}}}catch(_){}})();
     }
 
     const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
