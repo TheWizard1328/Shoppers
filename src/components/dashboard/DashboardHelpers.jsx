@@ -123,7 +123,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   // bottom edge aren't crammed under the FABs.
   // Mobile needs slightly more since the stop cards strip + FABs together
   // occupy more vertical space proportionally on small screens.
-  const EXTRA_ITEMS_HEIGHT = isMobile ? 65 : 55;
+  const EXTRA_ITEMS_HEIGHT = 55; //isMobile ? 65 : 55;
 
   // ── Immersive bottom: only cycle FAB remains (temp badge hidden) ──
   // FAB is 40px at 10px from bottom = 50px total. 45px padding gives a
@@ -164,7 +164,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   } else if (isMobile) {
     topPadding = IMMERSIVE_TOP_BANNER_HEIGHT;
   } else {
-    topPadding = BASE_PADDING + 10;
+    topPadding = BASE_PADDING;
   }
 
   return {
