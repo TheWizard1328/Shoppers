@@ -67,8 +67,17 @@ export function evaluateCondition(condition, context) {
       return String(fieldVal ?? '') !== String(condVal ?? '');
     case 'contains': {
       // Array membership (e.g. user_roles contains 'dispatcher')
-      // or substring match for string fields
       if (Array.isArray(fieldVal)) return fieldVal.map(String).includes(String(condVal));
+      // "User Role Contains X" must check the user's FULL role set, not just the
+      // primary/first role string held in user_role. A multi-role user (e.g.
+      // app_roles = ['admin','driver']) whose resolved user_role string is
+      // 'driver' would otherwise fail a "contains admin" condition. Fall back to
+      // the user_roles array (already populated by the notifier) for membership.
+      if (condition.field === 'user_role' && Array.isArray(context?.user_roles)) {
+        const want = String(condVal).toLowerCase();
+        if (context.user_roles.map(String).some((r) => r.toLowerCase() === want)) return true;
+      }
+      // Substring match for string fields
       return String(fieldVal ?? '').toLowerCase().includes(String(condVal).toLowerCase());
     }
     case 'greater_than':
