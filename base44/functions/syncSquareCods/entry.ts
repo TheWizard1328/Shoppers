@@ -129,16 +129,19 @@ async function handleCreateCodItem(b44, payload) {
   const rsa = nt(store?.abbreviation || storeAbbreviation || 'XX');
   const ac = Math.round(Number(codAmount) * 100);
   const iname = formatItemName(rdd, rsa, epn);
-  // Check existing pending
+  // NOTE: Do NOT skip even if a pending tx already references a catalog object —
+  // that reference may be stale (the Square object could have been deleted by a
+  // prior sync cleanup). Fall through to verify against the live catalog.
   const ep = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'pending' }).catch(() => []);
-  if (ep?.length && ep[0]?.square_catalog_object_id && ep[0]?.item_name === iname && ep[0]?.amount_cents === ac) {
-    return { success: true, catalogObjectId: ep[0].square_catalog_object_id, catalogVersion: ep[0].square_catalog_version, itemName: ep[0].item_name, transactionId: ep[0].id, note: 'Skipped: existing pending item' };
-  }
   let catId, catVer;
   if (ep?.length && ep[0]?.square_catalog_object_id && (ep[0]?.item_name !== iname || ep[0]?.amount_cents !== ac)) {
+    // Existing pending tx with different name/amount — update the live item.
+    // updateItem falls back to createItem if the catalog object is gone (404).
     const u = await updateItem({ catalogObjectId: ep[0].square_catalog_object_id, catalogVersion: ep[0].square_catalog_version, itemName: iname, amountCents: ac, locationId, deliveryId, patientName: epn, token });
     catId = u?.id || ep[0].square_catalog_object_id; catVer = u?.version || ep[0].square_catalog_version;
   } else {
+    // Either no pending tx, or name+amount already match. Always verify the live catalog
+    // item exists; if it was deleted by a prior sync cleanup, recreate it.
     const live = await lc(token);
     const ex = live.find((i) => nt(i?.item_data?.description || '').toLowerCase().includes(`delivery ${deliveryId}`) || nt(i?.item_data?.description || '').toLowerCase().includes(deliveryId));
     if (ex) { const u = await updateItem({ catalogObjectId: ex.id, catalogVersion: ex.version, itemName: iname, amountCents: ac, locationId, deliveryId, patientName: epn, token }); catId = u?.id || ex.id; catVer = u?.version || ex.version; }
