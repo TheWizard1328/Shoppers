@@ -122,6 +122,9 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   // Cycle FAB is h-10 (40px) + 10px bottom offset = 50px above stop cards.
   const EXTRA_ITEMS_HEIGHT = 60;
 
+  // Immersive top: ImmersiveMapTopOverlay banner (~50px bottom edge).
+  const IMMERSIVE_TOP_BANNER_HEIGHT = 50;
+
   // Baseline breathing room for top/sides.
   const BASE_PADDING = 25;
 
