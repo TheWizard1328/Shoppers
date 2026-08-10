@@ -120,25 +120,10 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   // ── Constants ──────────────────────────────────────────────────────────────
   // Non-immersive bottom: FABs + temp badge sit ON TOP of the stop cards.
   // Cycle FAB is h-10 (40px) + 10px bottom offset = 50px above stop cards.
-  const EXTRA_ITEMS_HEIGHT = 50;
-
-  // Immersive bottom: only cycle FAB remains (temp badge hidden).
-  // FAB is 40px at 10px from bottom = 50px total. 45px padding gives a
-  // small overlap tolerance since the FAB is semi-transparent at the edges.
-  const IMMERSIVE_BOTTOM = 50;
+  const EXTRA_ITEMS_HEIGHT = 80;
 
   // Baseline breathing room for top/sides.
   const BASE_PADDING = 25;
-
-  // Immersive top: ImmersiveMapTopOverlay banner.
-  // Banner: top offset 8px + py-1.5 (12px) + row1 (24px) + mt-1 (4px) + row2 (20px)
-  // = ~68px bottom edge. Use 68 to just clear it without excessive gap.
-  const IMMERSIVE_TOP_BANNER_HEIGHT = 50;
-
-  // Non-immersive top buffer below stats panel.
-  // 30px breathing room — the stats panel has shadows and rounded corners
-  // that extend slightly beyond offsetHeight.
-  const TOP_BUFFER = 30;
 
   // ── Padding logic ──────────────────────────────────────────────────────────
   // Structure: isMobile is the OUTER condition.
@@ -158,7 +143,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
       // ── Mobile + Non-Immersive ──
       // Top: stats card height + breathing room
       // Bottom: FABs + stop cards + buffer
-      topPadding = Math.max(statsCardHeight || 75, BASE_PADDING);
+      topPadding = Math.max(statsCardHeight, BASE_PADDING);
       bottomPadding = EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
     }
   } else {
@@ -177,8 +162,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
     _debug: {
       isImmersiveModeOn,
       isMobile,
-      EXTRA_ITEMS_HEIGHT, TOP_BUFFER,
-      IMMERSIVE_BOTTOM, IMMERSIVE_TOP_BANNER_HEIGHT,
+      EXTRA_ITEMS_HEIGHT,
       statsCardHeight,
       stopCardsBaseHeight,
       topPadding,
