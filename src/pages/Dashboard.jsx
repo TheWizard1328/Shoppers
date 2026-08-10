@@ -588,13 +588,17 @@ function Dashboard() {
   // the state updates and something re-triggers the fit. Reading the DOM
   // directly here means the FIRST call already gets the real height.
   const getMapPadding = useCallback((isImmersiveModeOn = false) => {
+    // Guard: immersive mode only exists on mobile. Even if immersiveHiddenRef
+    // is somehow true on a non-mobile device (debounce race, stale ref, etc.),
+    // never pass isImmersiveModeOn=true to buildMapPadding for desktop.
+    const effectiveImmersive = isMobile && isImmersiveModeOn;
     const liveStatsHeight = statsContainerRef.current
       ? (statsContainerRef.current.offsetTop || 0) + (statsContainerRef.current.offsetHeight || 0)
       : 0;
     const liveStopCardsHeight = horizontalStopCardsRef.current?.offsetHeight || 0;
     return buildMapPadding({
       isMobile,
-      isImmersiveModeOn,
+      isImmersiveModeOn: effectiveImmersive,
       statsCardHeight: liveStatsHeight || statsContainerBaseHeight || statsCardBaseHeight,
       stopCardsBaseHeight: liveStopCardsHeight || stopCardsBaseHeight,
     });

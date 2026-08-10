@@ -117,15 +117,12 @@ export const roundCompletionTime = (timeISO) => {
  * temp badge + cycle FAB (~50px), so we use a smaller immersive baseline.
  */
 export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, stopCardsBaseHeight }) => {
-  // ── Non-immersive bottom: FABs + temp badge sit ON TOP of the stop cards ──
+  // ── Constants ──────────────────────────────────────────────────────────────
+  // Non-immersive bottom: FABs + temp badge sit ON TOP of the stop cards.
   // Cycle FAB is h-10 (40px) + 10px bottom offset = 50px above stop cards.
-  // Temp badge is similar. Add 15px breathing room so markers near the
-  // bottom edge aren't crammed under the FABs.
-  // Mobile needs slightly more since the stop cards strip + FABs together
-  // occupy more vertical space proportionally on small screens.
-  const EXTRA_ITEMS_HEIGHT = 55; //isMobile ? 65 : 55;
+  const EXTRA_ITEMS_HEIGHT = 55;
 
-  // ── Immersive bottom: only cycle FAB remains (temp badge hidden) ──
+  // Immersive bottom: only cycle FAB remains (temp badge hidden).
   // FAB is 40px at 10px from bottom = 50px total. 45px padding gives a
   // small overlap tolerance since the FAB is semi-transparent at the edges.
   const IMMERSIVE_BOTTOM = 45;
@@ -133,38 +130,43 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
   // Baseline breathing room for top/sides.
   const BASE_PADDING = 25;
 
-  // ── Immersive top: ImmersiveMapTopOverlay banner ──
+  // Immersive top: ImmersiveMapTopOverlay banner.
   // Banner: top offset 8px + py-1.5 (12px) + row1 (24px) + mt-1 (4px) + row2 (20px)
   // = ~68px bottom edge. Use 68 to just clear it without excessive gap.
   const IMMERSIVE_TOP_BANNER_HEIGHT = 68;
 
-  // ── Non-immersive top buffer below stats panel ──
-  // 20px breathing room (was 10) — the stats panel has shadows and rounded
-  // corners that extend slightly beyond offsetHeight, and markers were
-  // being rendered underneath the panel's bottom edge.
+  // Non-immersive top buffer below stats panel.
+  // 30px breathing room — the stats panel has shadows and rounded corners
+  // that extend slightly beyond offsetHeight.
   const TOP_BUFFER = 30;
 
-  // Bottom padding:
-  //   Normal mode    — extra items (FABs) + stop cards + buffer
-  //   Immersive mode — only cycle FAB remains
-  let bottomPadding;
-  if (!isImmersiveModeOn) {
-    bottomPadding = EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
-  } else {
-    bottomPadding = IMMERSIVE_BOTTOM;
-  }
-
-  // Top padding:
-  //   Normal (all devices)   — stats card container height + breathing room
-  //   Mobile immersive       — immersive banner height
-  //   Desktop immersive      — baseline + small buffer
+  // ── Padding logic ──────────────────────────────────────────────────────────
+  // Structure: isMobile is the OUTER condition.
+  //   Mobile  → immersive vs non-immersive (immersive mode only exists on mobile)
+  //   Desktop → fixed non-immersive padding (desktop never uses immersive mode)
   let topPadding;
-  if (!isImmersiveModeOn) {
-    topPadding = Math.max(statsCardHeight || 75, BASE_PADDING) + TOP_BUFFER;
-  } else if (isMobile) {
-    topPadding = IMMERSIVE_TOP_BANNER_HEIGHT;
+  let bottomPadding;
+
+  if (isMobile) {
+    if (isImmersiveModeOn) {
+      // ── Mobile + Immersive ──
+      // Top: immersive banner overlay
+      // Bottom: only cycle FAB remains
+      topPadding = IMMERSIVE_TOP_BANNER_HEIGHT;
+      bottomPadding = IMMERSIVE_BOTTOM;
+    } else {
+      // ── Mobile + Non-Immersive ──
+      // Top: stats card height + breathing room
+      // Bottom: FABs + stop cards + buffer
+      topPadding = Math.max(statsCardHeight || 75, BASE_PADDING) + TOP_BUFFER;
+      bottomPadding = EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
+    }
   } else {
-    topPadding = BASE_PADDING;
+    // ── Desktop (no immersive mode) ──
+    // Top: stats card height + breathing room
+    // Bottom: FABs + stop cards + buffer
+    topPadding = Math.max(statsCardHeight || 75, BASE_PADDING) + TOP_BUFFER;
+    bottomPadding = EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
   }
 
   return {
@@ -174,8 +176,9 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
     bottomPadding,
     _debug: {
       isImmersiveModeOn,
+      isMobile,
       EXTRA_ITEMS_HEIGHT, TOP_BUFFER,
-      IMMERSIVE_BOTTOM,
+      IMMERSIVE_BOTTOM, IMMERSIVE_TOP_BANNER_HEIGHT,
       statsCardHeight,
       stopCardsBaseHeight,
       topPadding,
