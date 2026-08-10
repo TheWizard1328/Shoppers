@@ -86,6 +86,16 @@
           "amount": {
             "type": "number",
             "description": "Amount of the deduction"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Inclusive start date this deduction should be applied from (snapshot from AppUser)"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Inclusive end date this deduction should be applied until (snapshot from AppUser)"
           }
         },
         "required": [
@@ -93,7 +103,7 @@
           "amount"
         ]
       },
-      "description": "List of individual deductions applied in this pay period"
+      "description": "List of individual deductions applied in this pay period (snapshot of the driver's AppUser.deductions filtered by date range)"
     },
     "total_deductions": {
       "type": "number",

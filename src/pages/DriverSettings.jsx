@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation, Building2 } from 'lucide-react';
+import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation, Building2, DollarSign } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppData } from '../components/utils/AppDataContext';
@@ -20,6 +20,7 @@ import { globalFilters } from '../components/utils/globalFilters';
 import { getData } from '../components/utils/dataManager';
 import { subscribeMutations } from '../components/utils/entityMutations';
 import { calculateHaversineDistance } from '../components/utils/distanceCalculator';
+import { getActiveDeductions, formatDeductionDateRange, getTodayDateStr } from '../components/utils/deductionHelpers';
 
 export default function DriverSettings() {
   const { users, appUsers, stores, cities = [], refreshData } = useAppData();
@@ -474,6 +475,43 @@ export default function DriverSettings() {
                             {latestAppUser?.oversized_item_rate > 0 && <span>${Number(latestAppUser.oversized_item_rate).toFixed(2)}/oversized</span>}
                           </div>
                         }
+
+                        {/* Deductions display - admins only */}
+                        {(() => {
+                          const deductions = Array.isArray(latestAppUser?.deductions) ? latestAppUser.deductions : [];
+                          if (deductions.length === 0) return null;
+                          const today = getTodayDateStr();
+                          const active = getActiveDeductions(deductions, today);
+                          const totalActive = active.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+                          return (
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700/50 space-y-0.5">
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <DollarSign className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                                <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>
+                                  Deductions ({active.length}/{deductions.length})
+                                </span>
+                                <span className="text-slate-500 dark:text-slate-400">•</span>
+                                <span className="text-red-600 dark:text-red-400 font-medium">-${totalActive.toFixed(2)}</span>
+                              </div>
+                              <div className="flex flex-col gap-0.5 pl-4">
+                                {deductions.map((d, i) => {
+                                  const isActive = active.includes(d);
+                                  return (
+                                    <div key={i} className={`flex items-center gap-1.5 text-[11px] ${isActive ? '' : 'opacity-50 line-through'}`} style={{ color: 'var(--text-slate-500)' }}>
+                                      <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                                      <span className="truncate">{d.name}: ${Number(d.amount || 0).toFixed(2)}</span>
+                                      {(() => {
+                                        const range = formatDeductionDateRange(d);
+                                        if (!range) return null;
+                                        return <span className="text-slate-400 dark:text-slate-500 truncate">({range})</span>;
+                                      })()}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Actions */}
