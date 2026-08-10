@@ -1157,11 +1157,18 @@ function DeliveryMap({
     }
   }, [mapStyle, tileLayerConfig?.base, tileLayerConfig?.overlay, map]);
 
-  // This effect only fires when FAB/positioning logic explicitly sets center/zoom via setMapCenter/setMapZoom.
-  // It is never triggered by user map interaction (moveend no longer echoes center back).
+  // This effect fires when mapCenter/mapZoom state changes. In practice, the only source
+  // of non-null mapCenter/mapZoom is MapController's moveend handler echoing the map's
+  // current center/zoom back into React state after a fitBounds/setView animation completes.
+  //
+  // BUG FIX: The old guard only blocked Phase 2 locked (`mapViewPhase === 2 && isMapViewLocked`).
+  // Phase 3 locked had NO guard, so the moveend echo triggered a SECOND setView call with raw
+  // center/zoom values — no padding awareness — causing an "extra zoom" that pushed markers
+  // behind the stats card and stop cards on mobile. The fix: block setView whenever the map
+  // is locked in ANY phase. When locked, the fitBounds path (with padding) handles all positioning.
   useEffect(() => {
     if (!map || !map._loaded || !map._container || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
-    if (mapViewPhase === 2 && isMapViewLocked) return;
+    if (isMapViewLocked) return;
     // CRITICAL: Don't fight an active user pan/zoom — _userMapControlUntil is set
     // by MapController whenever a real gesture (drag/pinch) is detected. Without this
     // check, echoing mapCenter/mapZoom state back from moveend and then re-entering

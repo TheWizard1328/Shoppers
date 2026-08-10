@@ -157,7 +157,15 @@ export default function MapController({
       // setView effect to re-fire (even as a no-op comparison, it can disturb Leaflet),
       // producing the 1-second "jitter" / snap-back the user sees after panning.
       if ((window._userMapControlUntil || 0) > Date.now()) return;
-      
+
+      // CRITICAL: Don't echo center/zoom back to React state when the FAB is locked
+      // in Phase 2 or 3. The fitBounds path (with padding) handles all positioning in
+      // those phases. Echoing back feeds the setView effect in DeliveryMap, which uses
+      // raw center/zoom without padding — causing an "extra zoom" that pushes markers
+      // behind the stats card and stop cards on mobile.
+      // The __fabLockState is maintained by useFabControlEventHandler.
+      if (window.__fabIsLocked === true) return;
+
       window.__currentMapCenter = newCenter;
       setMapCenter(prev => {
         if (!prev || prev[0] !== newCenter[0] || prev[1] !== newCenter[1]) {
