@@ -58,10 +58,40 @@
       "type": "number",
       "description": "Distance in km from the assigned store"
     },
+    "delivery_history": {
+      "type": "array",
+      "description": "Chronological delivery history (newest first). Entry 0 = most recent delivery. Empty array = never delivered (first delivery).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Delivery entity record ID (Base44 ObjectId) for direct lookup"
+          },
+          "delivery_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Scheduled delivery date (YYYY-MM-DD)"
+          },
+          "actual_delivery_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp when delivery was actually completed/failed"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["completed", "failed", "returned"],
+            "description": "Terminal delivery status"
+          }
+        },
+        "required": ["id", "delivery_date", "status"]
+      },
+      "default": []
+    },
     "last_delivery_date": {
       "type": "string",
       "format": "date",
-      "description": "The date of the patient's last delivery"
+      "description": "DEPRECATED — being replaced by delivery_history[0].delivery_date. Kept during transition only."
     },
     "last_login_date": {
       "type": "string",

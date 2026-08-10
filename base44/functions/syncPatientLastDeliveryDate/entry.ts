@@ -1,5 +1,4 @@
-// Redeployed on 2026-03-28
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
@@ -8,51 +7,39 @@ const TERMINAL_STATUSES = new Set(['completed', 'failed']);
 const getEdmontonDateString = (value = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Edmonton',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
+    year: 'numeric', month: '2-digit', day: '2-digit'
   }).formatToParts(new Date(value));
-
-  const year = parts.find((part) => part.type === 'year')?.value;
-  const month = parts.find((part) => part.type === 'month')?.value;
-  const day = parts.find((part) => part.type === 'day')?.value;
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
   return `${year}-${month}-${day}`;
 };
 
 const normalizeDateString = (value) => {
   if (!value) return null;
-
   if (typeof value === 'string') {
     const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/);
     if (isoMatch) return isoMatch[0];
-
     const legacyMatch = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (legacyMatch) {
       const [, month, day, year] = legacyMatch;
       return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
   }
-
   return null;
 };
 
 const shiftDateString = (dateString, days) => {
   const [year, month, day] = dateString.split('-').map(Number);
   const shifted = new Date(Date.UTC(year, month - 1, day + days));
-  const shiftedYear = shifted.getUTCFullYear();
-  const shiftedMonth = String(shifted.getUTCMonth() + 1).padStart(2, '0');
-  const shiftedDay = String(shifted.getUTCDate()).padStart(2, '0');
-  return `${shiftedYear}-${shiftedMonth}-${shiftedDay}`;
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}-${String(shifted.getUTCDate()).padStart(2, '0')}`;
 };
 
 const resolvePatientLastDeliveryDate = (delivery) => {
-  return (
-    normalizeDateString(delivery?.actual_delivery_time) ||
+  return normalizeDateString(delivery?.actual_delivery_time) ||
     normalizeDateString(delivery?.arrival_time) ||
     normalizeDateString(delivery?.updated_date) ||
-    normalizeDateString(delivery?.delivery_date) ||
-    null
-  );
+    normalizeDateString(delivery?.delivery_date) || null;
 };
 
 const getPatientById = async (base44, patientId) => {
@@ -60,92 +47,62 @@ const getPatientById = async (base44, patientId) => {
   return patients?.[0] || null;
 };
 
-const syncSingleDelivery = async (base44, delivery) => {
-  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:start', {
-    deliveryId: delivery?.id,
-    patientId: delivery?.patient_id,
-    status: delivery?.status,
-    deliveryDate: delivery?.delivery_date,
-    actualDeliveryTime: delivery?.actual_delivery_time,
-    arrivalTime: delivery?.arrival_time,
-    updatedDate: delivery?.updated_date
+// Build a delivery_history entry from a delivery record
+const buildHistoryEntry = (delivery) => ({
+  id: delivery.id,
+  delivery_date: delivery.delivery_date || resolvePatientLastDeliveryDate(delivery),
+  actual_delivery_time: delivery.actual_delivery_time || null,
+  status: delivery.status
+});
+
+// Append entry to history array (newest first, sorted)
+const appendToHistory = (existingHistory, entry) => {
+  const history = Array.isArray(existingHistory) ? [...existingHistory] : [];
+  // Avoid duplicate entries (same delivery ID)
+  const existingIdx = history.findIndex(h => h.id === entry.id);
+  if (existingIdx !== -1) {
+    history[existingIdx] = entry; // update in place
+  } else {
+    history.unshift(entry);
+  }
+  history.sort((a, b) => {
+    const aDate = a.delivery_date || '';
+    const bDate = b.delivery_date || '';
+    if (aDate !== bDate) return bDate.localeCompare(aDate);
+    const aTime = a.actual_delivery_time || '';
+    const bTime = b.actual_delivery_time || '';
+    return bTime.localeCompare(aTime);
   });
+  return history;
+};
 
-  if (!delivery?.patient_id) {
-    console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:skip:no_patient');
-    return { updated: false, reason: 'No patient linked' };
-  }
-
-  if (!TERMINAL_STATUSES.has(delivery.status)) {
-    console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:skip:not_terminal', { status: delivery?.status });
-    return { updated: false, reason: 'Status not terminal' };
-  }
+const syncSingleDelivery = async (base44, delivery) => {
+  if (!delivery?.patient_id) return { updated: false, reason: 'No patient linked' };
+  if (!TERMINAL_STATUSES.has(delivery.status)) return { updated: false, reason: 'Status not terminal' };
 
   const resolvedDate = resolvePatientLastDeliveryDate(delivery);
-  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:resolved_date', { resolvedDate });
-  if (!resolvedDate) {
-    return { updated: false, reason: 'No usable date found' };
-  }
+  if (!resolvedDate) return { updated: false, reason: 'No usable date found' };
 
   const patient = await getPatientById(base44, delivery.patient_id);
-  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:patient_lookup', {
-    requestedPatientId: delivery.patient_id,
-    foundPatientId: patient?.id,
-    foundPatientName: patient?.full_name,
-    currentLastDeliveryDateRaw: patient?.last_delivery_date
-  });
-  if (!patient) {
-    return { updated: false, reason: 'Patient not found' };
-  }
+  if (!patient) return { updated: false, reason: 'Patient not found' };
 
   const currentLastDeliveryDate = normalizeDateString(patient.last_delivery_date);
-  const nextLastDeliveryDate =
-    !currentLastDeliveryDate || resolvedDate > currentLastDeliveryDate
-      ? resolvedDate
-      : currentLastDeliveryDate;
+  const nextLastDeliveryDate = !currentLastDeliveryDate || resolvedDate > currentLastDeliveryDate
+    ? resolvedDate : currentLastDeliveryDate;
 
-  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:date_compare', {
-    currentLastDeliveryDate,
-    nextLastDeliveryDate,
-    rawPatientLastDeliveryDate: patient.last_delivery_date
-  });
-
-  if (patient.last_delivery_date === nextLastDeliveryDate) {
-    console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:skip:already_current');
-    return { updated: false, reason: 'Patient already has same/newer date', date: nextLastDeliveryDate };
-  }
-
-  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:updating_patient', {
-    patientId: patient.id,
-    nextLastDeliveryDate
-  });
+  // Build and append history entry
+  const historyEntry = buildHistoryEntry(delivery);
+  const newHistory = appendToHistory(patient.delivery_history, historyEntry);
 
   await base44.asServiceRole.entities.Patient.update(patient.id, {
+    delivery_history: newHistory,
     last_delivery_date: nextLastDeliveryDate
   }).catch((error) => {
-    console.error('❌ [syncPatientLastDeliveryDate] syncSingleDelivery:update_failed', {
-      patientId: patient.id,
-      nextLastDeliveryDate,
-      error: error?.message,
-      status: error?.status,
-      responseStatus: error?.response?.status
-    });
     if (isNotFoundError(error)) return null;
     throw error;
   });
 
-  console.log('✅ [syncPatientLastDeliveryDate] syncSingleDelivery:updated', {
-    patientId: patient.id,
-    fullName: patient.full_name,
-    nextLastDeliveryDate
-  });
-
-  return {
-    updated: true,
-    patientId: patient.id,
-    fullName: patient.full_name,
-    date: resolvedDate
-  };
+  return { updated: true, patientId: patient.id, fullName: patient.full_name, date: resolvedDate };
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -155,69 +112,53 @@ const runBackfill = async (base44, backfillDays) => {
   const todayEdmontonDate = getEdmontonDateString();
   const cutoffDate = shiftDateString(todayEdmontonDate, -(safeDays - 1));
 
-  // Fetch deliveries and all patients in parallel — single bulk call instead of per-patient queries
   const [deliveries, allPatients] = await Promise.all([
     base44.asServiceRole.entities.Delivery.list('-delivery_date', 5000),
     base44.asServiceRole.entities.Patient.list('full_name', 5000),
   ]);
 
-  // Build a lookup map by patient id
   const patientMap = new Map(allPatients.map((p) => [p.id, p]));
-
-  const latestByPatient = new Map();
+  // Group deliveries by patient for full history building
+  const deliveriesByPatient = new Map();
   let deliveriesScanned = 0;
 
   for (const delivery of deliveries) {
     if (!delivery?.patient_id || !TERMINAL_STATUSES.has(delivery.status)) continue;
-
     const deliveryDate = normalizeDateString(delivery.delivery_date);
     if (!deliveryDate || deliveryDate < cutoffDate || deliveryDate > todayEdmontonDate) continue;
-
-    const resolvedDate = resolvePatientLastDeliveryDate(delivery);
-    if (!resolvedDate) continue;
-
     deliveriesScanned += 1;
-    const existingDate = latestByPatient.get(delivery.patient_id);
-    if (!existingDate || resolvedDate > existingDate) {
-      latestByPatient.set(delivery.patient_id, resolvedDate);
-    }
+    if (!deliveriesByPatient.has(delivery.patient_id)) deliveriesByPatient.set(delivery.patient_id, []);
+    deliveriesByPatient.get(delivery.patient_id).push(delivery);
   }
 
   let updatedCount = 0;
-
-  // Process updates sequentially with a delay between each to avoid rate limits
-  for (const [patientId, lastDeliveryDate] of latestByPatient.entries()) {
+  for (const [patientId, patientDeliveries] of deliveriesByPatient.entries()) {
     const patient = patientMap.get(patientId);
     if (!patient) continue;
 
-    const currentLastDeliveryDate = normalizeDateString(patient.last_delivery_date);
-    const nextLastDeliveryDate =
-      !currentLastDeliveryDate || lastDeliveryDate > currentLastDeliveryDate
-        ? lastDeliveryDate
-        : currentLastDeliveryDate;
+    // Build full history array from all matched deliveries
+    let history = Array.isArray(patient.delivery_history) ? [...patient.delivery_history] : [];
+    for (const d of patientDeliveries) {
+      const entry = buildHistoryEntry(d);
+      history = appendToHistory(history, entry);
+    }
 
-    if (patient.last_delivery_date === nextLastDeliveryDate) continue;
+    const lastDate = history.length > 0 ? history[0].delivery_date : null;
 
-    await base44.asServiceRole.entities.Patient.update(patient.id, {
-      last_delivery_date: nextLastDeliveryDate
+    await base44.asServiceRole.entities.Patient.update(patientId, {
+      delivery_history: history,
+      last_delivery_date: lastDate
     }).catch((error) => {
       if (isNotFoundError(error)) return null;
       throw error;
     });
     updatedCount += 1;
-
-    // Delay between each update to stay within rate limits
     await sleep(200);
   }
 
   return Response.json({
-    success: true,
-    mode: 'backfill',
-    backfillDays: safeDays,
-    cutoffDate,
-    deliveriesScanned,
-    patientsMatched: latestByPatient.size,
-    patientsUpdated: updatedCount
+    success: true, mode: 'backfill', backfillDays: safeDays,
+    cutoffDate, deliveriesScanned, patientsMatched: deliveriesByPatient.size, patientsUpdated: updatedCount
   });
 };
 
@@ -226,22 +167,8 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const payload = await req.json().catch(() => ({}));
 
-    console.log('ℹ️ [syncPatientLastDeliveryDate] request_received', {
-      hasBackfillDays: !!payload?.backfillDays,
-      eventType: payload?.event?.type,
-      deliveryId: payload?.data?.id,
-      patientId: payload?.data?.patient_id,
-      status: payload?.data?.status,
-      oldStatus: payload?.old_data?.status
-    });
-
     if (payload?.backfillDays) {
       const user = await base44.auth.me();
-      console.log('ℹ️ [syncPatientLastDeliveryDate] backfill_requested', {
-        backfillDays: payload?.backfillDays,
-        userId: user?.id,
-        userRole: user?.role
-      });
       if (!user || !['admin', 'App Owner'].includes(user.role)) {
         return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
       }
@@ -252,35 +179,16 @@ Deno.serve(async (req) => {
     const oldDelivery = payload?.old_data;
     const eventType = payload?.event?.type;
 
-    if (!delivery) {
-      console.log('ℹ️ [syncPatientLastDeliveryDate] skip:no_delivery_payload');
-      return Response.json({ skipped: true, reason: 'No delivery payload' });
-    }
-
-    if (!TERMINAL_STATUSES.has(delivery.status)) {
-      console.log('ℹ️ [syncPatientLastDeliveryDate] skip:not_terminal', { status: delivery.status });
-      return Response.json({ skipped: true, reason: 'Delivery not completed or failed' });
-    }
-
+    if (!delivery) return Response.json({ skipped: true, reason: 'No delivery payload' });
+    if (!TERMINAL_STATUSES.has(delivery.status)) return Response.json({ skipped: true, reason: 'Delivery not completed or failed' });
     if (eventType === 'update' && oldDelivery?.status === delivery.status) {
-      console.log('ℹ️ [syncPatientLastDeliveryDate] skip:status_unchanged', {
-        eventType,
-        status: delivery.status,
-        oldStatus: oldDelivery?.status
-      });
       return Response.json({ skipped: true, reason: 'Status did not change into terminal state' });
     }
 
     const result = await syncSingleDelivery(base44, delivery);
-    console.log('✅ [syncPatientLastDeliveryDate] request_complete', result);
     return Response.json({ success: true, mode: 'delivery_sync', ...result });
-  } catch (error) {
-    console.error('❌ [syncPatientLastDeliveryDate] Error:', {
-      message: error?.message,
-      status: error?.status,
-      responseStatus: error?.response?.status,
-      stack: error?.stack
-    });
-    return Response.json({ error: error.message }, { status: 500 });
+  } catch (e) {
+    console.error('❌ [syncPatientLastDeliveryDate] error', e?.message || e);
+    return Response.json({ error: e?.message || 'Unknown error' }, { status: 500 });
   }
 });

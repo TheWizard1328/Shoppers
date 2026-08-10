@@ -227,7 +227,7 @@ Deno.serve(async (req) => {
 
         const lastDeliveryDate = deliveryDates.length > 0 
           ? deliveryDates[deliveryDates.length - 1] 
-          : patient.last_delivery_date;
+          : (patient.delivery_history?.[0]?.delivery_date || patient.last_delivery_date);
 
         // --- INACTIVITY CHECK ---
         if (!lastDeliveryDate || lastDeliveryDate < sixMonthsAgoStr) {

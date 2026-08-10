@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
               ? deliveries.sort((a, b) => b.delivery_date.localeCompare(a.delivery_date))[0]
               : null;
 
-            const lastDeliveryDate = lastDelivery?.delivery_date || patient.last_delivery_date || null;
+            const lastDeliveryDate = lastDelivery?.delivery_date || patient.delivery_history?.[0]?.delivery_date || patient.last_delivery_date || null;
 
             // --- CHECK INACTIVITY ---
             if (!lastDeliveryDate || lastDeliveryDate < sixMonthsAgoStr) {

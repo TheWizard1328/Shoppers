@@ -1,4 +1,5 @@
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+import { isFirstDeliveryPatient } from '@/components/utils/patientHistoryUtils';
 
 export const shouldUseImmediateAddToRouteStage = ({ openMode, delivery, stagedDeliveries, formData }) => {
   return openMode === 'add_to_route' && !delivery && (stagedDeliveries?.length || 0) === 0 && !!formData?.patient_id && !!formData?.store_id && !!formData?.delivery_date;
@@ -9,6 +10,9 @@ export const buildImmediateAddToRouteStage = ({ formData, selectedPatient, store
   // ISP/ISD deliveries (patient or non-patient) must always be in_transit
   const isInterStore = !!(formData?._interstore_source_id) || isInterStoreDelivery(formData?.delivery_id);
   const stagedStatus = (isInterStore || formData?.status === 'in_transit') ? 'in_transit' : 'Staged';
+  // Check first_delivery: prefer patient's delivery_history array, fall back to allDeliveries check
+  const isFirstFromHistory = selectedPatient ? isFirstDeliveryPatient(selectedPatient) : null;
+  const isFirstFromDeliveries = !((allDeliveries || []).some((delivery) => delivery && delivery.patient_id === formData.patient_id && delivery.status === 'completed'));
   return {
     ...formData,
     status: stagedStatus,
@@ -20,7 +24,7 @@ export const buildImmediateAddToRouteStage = ({ formData, selectedPatient, store
     store_name: store?.name || '',
     store_abbreviation: store?.abbreviation || '',
     cod_total_amount_required: formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0,
-    first_delivery: !((allDeliveries || []).some((delivery) => delivery && delivery.patient_id === formData.patient_id && delivery.status === 'completed'))
+    first_delivery: isFirstFromHistory !== null ? isFirstFromHistory : isFirstFromDeliveries
   };
 };
 

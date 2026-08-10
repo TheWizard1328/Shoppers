@@ -1,3 +1,4 @@
+import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
 import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -350,11 +351,11 @@ export default function DeliveryFormStaged({
         const projectedUnitNumber = projected.unit_number || projectedPatient?.unit_number || '';
         const projectedRecurrence = [
         projected.frequency || projected.reason,
-        formatLastDelivered(projectedPatient?.last_delivery_date || projected.last_delivery_date, projected.frequency)].
+        formatLastDelivered(getLastDeliveryDate(projectedPatient) || projected.last_delivery_date, projected.frequency)].
         filter(Boolean).join(' • ');
 
         // Border/fill color: green = on/exact due date, red = overdue, bright yellow = early/upcoming
-        const ldText = formatLastDelivered(projectedPatient?.last_delivery_date || projected.last_delivery_date, projected.frequency);
+        const ldText = formatLastDelivered(getLastDeliveryDate(projectedPatient) || projected.last_delivery_date, projected.frequency);
         const isOverdue = ldText?.includes('>');
         const isExact = ldText && !ldText.includes('~') && !ldText.includes('>') && getRecurrenceWindow(projected.frequency);
         const projBorderColor = isOverdue ? '#dc2626' : isExact ? '#16a34a' : '#eab308';
