@@ -158,13 +158,17 @@ export default function MapController({
       // producing the 1-second "jitter" / snap-back the user sees after panning.
       if ((window._userMapControlUntil || 0) > Date.now()) return;
 
-      // CRITICAL: Don't echo center/zoom back to React state when the FAB is locked
-      // in Phase 2 or 3. The fitBounds path (with padding) handles all positioning in
-      // those phases. Echoing back feeds the setView effect in DeliveryMap, which uses
-      // raw center/zoom without padding — causing an "extra zoom" that pushes markers
-      // behind the stats card and stop cards on mobile.
-      // The __fabLockState is maintained by useFabControlEventHandler.
-      if (window.__fabIsLocked === true) return;
+      // CRITICAL: Don't echo center/zoom back to React state when the map is in
+      // Phase 2 or 3 (driver follow / remaining stops). The fitBounds path (with
+      // padding) is the sole authority in those phases — echoing back feeds the
+      // setView effect in DeliveryMap which uses raw center/zoom WITHOUT padding,
+      // causing an "extra zoom" that pushes markers behind the stats card and
+      // stop cards on mobile. This must check the phase directly (via the window
+      // ref), NOT just `__fabIsLocked`, because the FAB lock expires (unlockMs
+      // timeout) while the map is still in Phase 2/3 — after expiry, __fabIsLocked
+      // flips to false and the echo would leak through on every GPS tick.
+      const _mapPhase = window._mapViewPhaseRef?.current;
+      if (window.__fabIsLocked === true || _mapPhase === 2 || _mapPhase === 3) return;
 
       window.__currentMapCenter = newCenter;
       setMapCenter(prev => {

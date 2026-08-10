@@ -1161,14 +1161,17 @@ function DeliveryMap({
   // of non-null mapCenter/mapZoom is MapController's moveend handler echoing the map's
   // current center/zoom back into React state after a fitBounds/setView animation completes.
   //
-  // BUG FIX: The old guard only blocked Phase 2 locked (`mapViewPhase === 2 && isMapViewLocked`).
-  // Phase 3 locked had NO guard, so the moveend echo triggered a SECOND setView call with raw
-  // center/zoom values — no padding awareness — causing an "extra zoom" that pushed markers
-  // behind the stats card and stop cards on mobile. The fix: block setView whenever the map
-  // is locked in ANY phase. When locked, the fitBounds path (with padding) handles all positioning.
+  // CRITICAL: In Phase 2/3 the fitBounds path (with padding) is the SOLE authority for map
+  // positioning. The moveend echo from MapController writes raw center/zoom into mapCenter/mapZoom
+  // state, which would re-enter here and call setView WITHOUT padding — an "extra zoom" that
+  // pushes markers behind the stats card and stop cards on mobile. This was previously guarded
+  // only by `isMapViewLocked`, but when the FAB lock EXPIRES (after unlockMs) `isMapViewLocked`
+  // flips to false while the map is still in Phase 2/3 — the moveend echo leaks through and the
+  // setView effect fires a second, unpadded zoom on every subsequent GPS tick / watchdog re-fire.
+  // Fix: block setView for ALL of Phase 2/3, locked or unlocked. The fitBounds path handles it.
   useEffect(() => {
     if (!map || !map._loaded || !map._container || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
-    if (isMapViewLocked) return;
+    if (isMapViewLocked || mapViewPhase === 2 || mapViewPhase === 3) return;
     // CRITICAL: Don't fight an active user pan/zoom — _userMapControlUntil is set
     // by MapController whenever a real gesture (drag/pinch) is detected. Without this
     // check, echoing mapCenter/mapZoom state back from moveend and then re-entering
