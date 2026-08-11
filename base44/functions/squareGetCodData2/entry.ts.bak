@@ -269,23 +269,11 @@ async function handleGetCodData(base44, payload={}) {
     return all.filter((d) => { if (!storeSquareEligibility.has(d?.store_id)) return false; const ef = storeSquareEligibility.get(d.store_id); return !(ef && d.delivery_date < ef); });
   })());
 
-  // Build set of failed delivery IDs for catalog cleanup + exclude from matching/return paths.
-  // Rule: a delivery marked as 'failed' is exempt from the Square COD Deliveries tab list,
-  // the Reconcile flow, and the Square Catalog update path. Its COD catalog item (if any
-  // survived the on-failure deletion) is cleaned up during sync.
-  const failedDeliveryIds = new Set(deliveriesWithAmounts
-    .filter((d) => d?.status === 'failed')
-    .map((d) => d?.id)
-    .filter(Boolean));
-  // Active deliveries = all minus failed — used for transaction matching, catalog linking,
-  // and the returned strippedDeliveries payload.
-  const activeDeliveriesWithAmounts = deliveriesWithAmounts.filter((d) => d?.status !== 'failed');
-
   console.log('[squareGetCodData2] Deliveries loaded:', deliveriesWithAmounts.length, 'elapsed:', Date.now() - t0);
 
-  // Pre-build delivery index by store_id for faster matching (active deliveries only)
+  // Pre-build delivery index by store_id for faster matching
   const deliveriesByStoreId = new Map();
-  for (const d of activeDeliveriesWithAmounts) {
+  for (const d of deliveriesWithAmounts) {
     if (!d?.store_id) continue;
     if (!deliveriesByStoreId.has(d.store_id)) deliveriesByStoreId.set(d.store_id, []);
     deliveriesByStoreId.get(d.store_id).push(d);
@@ -506,14 +494,6 @@ async function handleGetCodData(base44, payload={}) {
     return acc;
   }, []);
 
-  // ── 4b) Cleanup orphaned catalog items for FAILED deliveries ─────────
-  // Rule: failed deliveries are exempt from Square COD. Their catalog items should
-  // have been deleted by the event-driven syncSquareCods handler when the delivery
-  // was marked as failed, but if that deletion timed out or failed, the catalog
-  // item persists in Square as an orphan. Here we identify catalog items linked
-  // to failed deliveries (via the catalogRecords built in step 4) and include
-  // them in the cleanup deletion below.
-
   // ── 5) Cleanup collected catalog items (reuses fetched data) ─────────
   // ONLY delete by explicit catalog-object ID match — i.e. when the order's
   // line item was actually rung up with this catalog item selected in Square
@@ -524,18 +504,8 @@ async function handleGetCodData(base44, payload={}) {
   // Square order with the same structured name. Completed-delivery cleanup
   // is handled separately by the event-driven syncSquareCods handleDeleteCodItem.
   const paidCatalogObjectIds = new Set(paidOrderItems.map((x) => x.catalog_object_id).filter(Boolean));
-  // Build a set of catalog object IDs linked to failed deliveries (from catalogRecords)
-  const failedCatalogObjectIds = new Set(
-    catalogRecords
-      .filter((cr) => cr?.delivery_id && failedDeliveryIds.has(cr.delivery_id))
-      .map((cr) => cr.square_catalog_object_id)
-      .filter(Boolean)
-  );
-
   const toDelete = (liveCatalogItems || []).filter((item) => {
     if (!item?.id) return false;
-    // Delete catalog items for failed deliveries (orphan cleanup)
-    if (failedCatalogObjectIds.has(item.id)) return true;
     const varIds = (item?.item_data?.variations || []).map((v) => v?.id).filter(Boolean);
     if (paidCatalogObjectIds.has(item.id)) return true;
     if (varIds.some((v) => paidCatalogObjectIds.has(v))) return true;
@@ -599,9 +569,7 @@ async function handleGetCodData(base44, payload={}) {
   } catch (e) { dbWriteErrors.push({type:'catalog', error: e?.message || String(e)}); console.warn('[squareGetCodData2] DB catalog write failed:', e?.message); }
 
   // ── 6) Return everything in one response ────────────────────────────
-  // Failed deliveries are excluded from strippedDeliveries — they are exempt from
-  // the Deliveries tab list, Reconcile flow, and Square Catalog update path.
-  const strippedDeliveries = activeDeliveriesWithAmounts.map((d) => ({ id: d?.id, delivery_id: d?.delivery_id, delivery_date: d?.delivery_date, status: d?.status, cod_total_amount_required: d?.cod_total_amount_required, cod_payments: d?.cod_payments, store_id: d?.store_id, patient_id: d?.patient_id, driver_id: d?.driver_id, driver_name: d?.driver_name, delivery_notes: d?.delivery_notes }));
+  const strippedDeliveries = deliveriesWithAmounts.map((d) => ({ id: d?.id, delivery_id: d?.delivery_id, delivery_date: d?.delivery_date, status: d?.status, cod_total_amount_required: d?.cod_total_amount_required, cod_payments: d?.cod_payments, store_id: d?.store_id, patient_id: d?.patient_id, driver_id: d?.driver_id, driver_name: d?.driver_name, delivery_notes: d?.delivery_notes }));
 
   console.log('[squareGetCodData2] COMPLETE, elapsed:', Date.now() - t0, 'ms');
 
