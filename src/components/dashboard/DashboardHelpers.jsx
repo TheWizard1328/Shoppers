@@ -118,7 +118,7 @@ export const roundCompletionTime = (timeISO) => {
  */
 export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, stopCardsBaseHeight }) => {
   const EXTRA_ITEMS_HEIGHT = 55;
-  const BASE_PADDING = 10;
+  let BASE_PADDING = 10;
   const Extra_Top_PADDING = 20;
 
   let topPadding;
