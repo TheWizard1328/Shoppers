@@ -15,6 +15,21 @@ function historyChanged(existing, incoming) {
   return false;
 }
 
+// Check if a delivery is a Return delivery (patient_name contains "Return" case-insensitive)
+function isReturnDelivery(d) {
+  return d.patient_name && /Return/i.test(d.patient_name);
+}
+
+// Parse patient names from "For:" section of delivery_notes
+function parseReturnNames(deliveryNotes) {
+  if (!deliveryNotes || !/For:/i.test(deliveryNotes)) return { hasFor: false, names: [] };
+  let namesText = deliveryNotes.substring(deliveryNotes.indexOf('For:') + 4);
+  const rtnIdx = namesText.indexOf('(RTN)');
+  if (rtnIdx !== -1) namesText = namesText.substring(0, rtnIdx);
+  const names = namesText.split(/\s+And\s+/i).flatMap(s => s.split(',')).map(s => s.trim()).filter(s => s.length > 0 && !s.match(/^(RTN|From:)/i));
+  return { hasFor: true, names };
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const user = await base44.auth.me();
@@ -33,10 +48,23 @@ Deno.serve(async (req) => {
   const WRITE_DELAY = 500;
   const CUTOFF_DATE = '2026-01-01';
 
-  let totalDeliveries = 0, totalPatients = 0, totalReturns = 0;
+  let totalReturns = 0;
   const errors = [];
 
-  const storeReport = {};
+  // Per-store tracking
+  const storeData = {};
+  for (const sid of store_ids) {
+    storeData[sid] = {
+      patient_count: 0,
+      patient_updates_needed: 0,
+      patient_updates_done: 0,
+      patient_noops: 0,
+      deliveries_processed: 0,
+      returns_parsed: 0,
+      unknownReturns: [],
+      missingReturns: [],
+    };
+  }
 
   // Step 1: Fetch all patients for these stores (preserve existing delivery_history)
   const patients = [];
@@ -50,7 +78,9 @@ Deno.serve(async (req) => {
       if (batch.length < BATCH) break;
     }
   }
-  totalPatients = patients.length;
+  for (const sid of store_ids) {
+    storeData[sid].patient_count = patients.filter(p => p.store_id === sid).length;
+  }
 
   const patientById = new Map();
   const patientsByName = new Map();
@@ -68,10 +98,11 @@ Deno.serve(async (req) => {
   for (const p of patients) {
     const existing = Array.isArray(p.delivery_history) ? p.delivery_history : [];
     const pre2026 = existing.filter(e => (e.delivery_date || '') < CUTOFF_DATE);
-    historyMerge.set(p.id, { pre2026, new2026: [], existingHistory: existing, firstDeliveryById: new Map() });
+    historyMerge.set(p.id, { pre2026, new2026: [], existingHistory: existing, firstDeliveryById: new Map(), store_id: p.store_id });
   }
 
-  // Step 2: Fetch terminal deliveries (2026 only) — capture first_delivery field
+  // Step 2: Fetch ALL terminal deliveries (completed + failed) per store
+  // Detect Return deliveries CLIENT-SIDE (no $regex filter) in the same pass
   for (const sid of store_ids) {
     let skip = 0;
     while (true) {
@@ -80,10 +111,67 @@ Deno.serve(async (req) => {
         'created_date', BATCH, skip
       ).catch(e => { errors.push(`Delivery fetch store ${sid}: ${e.message}`); return []; });
       if (!batch.length) break;
-      totalDeliveries += batch.length;
+
       for (const d of batch) {
         const dDate = d.delivery_date || d.created_date || '';
-        if (dDate < CUTOFF_DATE) continue;
+        if (dDate < CUTOFF_DATE) continue; // 2026 only
+        storeData[sid].deliveries_processed++;
+
+        // ── RETURN DELIVERY DETECTION (client-side, no $regex) ──
+        if (isReturnDelivery(d)) {
+          storeData[sid].returns_parsed++;
+          totalReturns++;
+
+          // Check for "For: Unknown" in delivery_notes
+          if (d.delivery_notes && /For:\s*Unknown/i.test(d.delivery_notes)) {
+            storeData[sid].unknownReturns.push({
+              delivery_id: d.id,
+              delivery_date: d.delivery_date || d.created_date,
+              patient_name: d.patient_name,
+              delivery_notes: d.delivery_notes
+            });
+            continue; // Skip parsing, it's unknown
+          }
+
+          // Check for no "For:" at all, or null/empty delivery_notes
+          if (!d.delivery_notes || !/For:/i.test(d.delivery_notes)) {
+            storeData[sid].missingReturns.push({
+              delivery_id: d.id,
+              delivery_date: d.delivery_date || d.created_date,
+              patient_name: d.patient_name,
+              delivery_notes: d.delivery_notes || '(empty)'
+            });
+            continue; // Skip parsing, no patient names
+          }
+
+          // Parse patient names from "For:" section and match to patients
+          const { names } = parseReturnNames(d.delivery_notes);
+          for (const name of names) {
+            const key = name.toLowerCase().trim();
+            if (key === 'unknown') {
+              storeData[sid].unknownReturns.push({
+                delivery_id: d.id,
+                delivery_date: d.delivery_date || d.created_date,
+                patient_name: d.patient_name,
+                delivery_notes: d.delivery_notes
+              });
+              continue;
+            }
+            const matchedPatients = patientsByName.get(key);
+            if (matchedPatients && matchedPatients.length > 0) {
+              for (const p of matchedPatients) {
+                const entry = historyMerge.get(p.id);
+                if (entry) {
+                  entry.new2026.push({ id: d.id, delivery_date: d.delivery_date || null, actual_delivery_time: d.actual_delivery_time || null, status: 'returned', _created: d.created_date, _currentFirstDelivery: d.first_delivery });
+                  entry.firstDeliveryById.set(d.id, d.first_delivery);
+                }
+              }
+            }
+          }
+          continue; // Return delivery fully processed, skip regular processing
+        }
+
+        // ── REGULAR DELIVERY (not a Return) ──
         if (!d.patient_id || !patientById.has(d.patient_id)) continue;
         const entry = historyMerge.get(d.patient_id);
         if (entry) {
@@ -96,78 +184,13 @@ Deno.serve(async (req) => {
           entry.firstDeliveryById.set(d.id, d.first_delivery);
         }
       }
+
       skip += BATCH;
       if (batch.length < BATCH) break;
     }
   }
 
-  // Step 3: Fetch return deliveries (2026 only) and parse patient names
-  for (const sid of store_ids) {
-    let skip = 0;
-    while (true) {
-      const batch = await db.entities.Delivery.filter(
-        { store_id: sid, patient_name: { $regex: 'Return', $options: 'i' } },
-        'created_date', BATCH, skip
-      ).catch(e => { errors.push(`Return fetch store ${sid}: ${e.message}`); return []; });
-      if (!batch.length) break;
-      for (const d of batch) {
-        const dDate = d.delivery_date || d.created_date || '';
-        if (dDate < CUTOFF_DATE) continue;
-        totalReturns++;
-
-        // Report: Return deliveries with "For: Unknown"
-        if (d.delivery_notes && /For:\s*Unknown/i.test(d.delivery_notes)) {
-          if (!storeReport[sid]) storeReport[sid] = { unknownReturns: [], missingReturns: [] };
-          storeReport[sid].unknownReturns.push({
-            delivery_id: d.id, delivery_date: d.delivery_date || d.created_date,
-            patient_name: d.patient_name, delivery_notes: d.delivery_notes
-          });
-          continue;
-        }
-
-        // Report: Return deliveries with no "For:" at all
-        if (!d.delivery_notes || !/For:/i.test(d.delivery_notes)) {
-          if (!storeReport[sid]) storeReport[sid] = { unknownReturns: [], missingReturns: [] };
-          storeReport[sid].missingReturns.push({
-            delivery_id: d.id, delivery_date: d.delivery_date || d.created_date,
-            patient_name: d.patient_name, delivery_notes: d.delivery_notes || ''
-          });
-          continue;
-        }
-
-        // Parse names from delivery_notes
-        let namesText = d.delivery_notes.substring(d.delivery_notes.indexOf('For:') + 4);
-        const rtnIdx = namesText.indexOf('(RTN)');
-        if (rtnIdx !== -1) namesText = namesText.substring(0, rtnIdx);
-        const names = namesText.split(/\s+And\s+/i).flatMap(s => s.split(',')).map(s => s.trim()).filter(s => s.length > 0 && !s.match(/^(RTN|From:)/i));
-        for (const name of names) {
-          const key = name.toLowerCase().trim();
-          if (key === 'unknown') {
-            if (!storeReport[sid]) storeReport[sid] = { unknownReturns: [], missingReturns: [] };
-            storeReport[sid].unknownReturns.push({
-              delivery_id: d.id, delivery_date: d.delivery_date || d.created_date,
-              patient_name: d.patient_name, delivery_notes: d.delivery_notes
-            });
-            continue;
-          }
-          const matchedPatients = patientsByName.get(key);
-          if (matchedPatients && matchedPatients.length > 0) {
-            for (const p of matchedPatients) {
-              const entry = historyMerge.get(p.id);
-              if (entry) {
-                entry.new2026.push({ id: d.id, delivery_date: d.delivery_date || null, actual_delivery_time: d.actual_delivery_time || null, status: 'returned', _created: d.created_date, _currentFirstDelivery: d.first_delivery });
-                entry.firstDeliveryById.set(d.id, d.first_delivery);
-              }
-            }
-          }
-        }
-      }
-      skip += BATCH;
-      if (batch.length < BATCH) break;
-    }
-  }
-
-  // Step 4: Merge pre-2026 + new 2026, dedupe by delivery ID, sort, build update payloads
+  // Step 3: Merge pre-2026 + new 2026, dedupe by delivery ID, sort, build update payloads
   const patientUpdates = [];
   const deliveryCorrections = [];
   let skippedNoOpDelivery = 0;
@@ -194,8 +217,10 @@ Deno.serve(async (req) => {
     // Skip patient update if delivery_history hasn't changed
     if (!historyChanged(merge.existingHistory, cleanHistory)) {
       skippedNoOpPatient++;
+      if (storeData[merge.store_id]) storeData[merge.store_id].patient_noops++;
     } else {
-      patientUpdates.push({ id: patientId, delivery_history: cleanHistory, last_delivery_date: cleanHistory.length > 0 ? cleanHistory[0].delivery_date : null });
+      patientUpdates.push({ id: patientId, store_id: merge.store_id, delivery_history: cleanHistory, last_delivery_date: cleanHistory.length > 0 ? cleanHistory[0].delivery_date : null });
+      if (storeData[merge.store_id]) storeData[merge.store_id].patient_updates_needed++;
     }
 
     // first_delivery corrections only for 2026 entries — SKIP NO-OPS
@@ -221,19 +246,22 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Step 5: Throttled patient updates (batch of 10, 500ms delay)
+  // Step 4: Throttled patient updates
   let patientSuccess = 0, patientErrors = 0;
   for (let i = 0; i < patientUpdates.length; i += PATIENT_BATCH) {
     const chunk = patientUpdates.slice(i, i + PATIENT_BATCH);
     const results = await Promise.allSettled(chunk.map(u => db.entities.Patient.update(u.id, { delivery_history: u.delivery_history, last_delivery_date: u.last_delivery_date })));
     for (let j = 0; j < results.length; j++) {
-      if (results[j].status === 'fulfilled') patientSuccess++;
+      if (results[j].status === 'fulfilled') {
+        patientSuccess++;
+        if (storeData[chunk[j].store_id]) storeData[chunk[j].store_id].patient_updates_done++;
+      }
       else { patientErrors++; if (errors.length < 20) errors.push(`Patient update ${chunk[j].id}: ${results[j].reason?.message}`); }
     }
     await sleep(WRITE_DELAY);
   }
 
-  // Step 6: Throttled delivery first_delivery corrections (batch of 10, 500ms delay, no-ops skipped)
+  // Step 5: Throttled delivery first_delivery corrections
   let deliverySuccess = 0, deliveryErrors = 0;
   for (let i = 0; i < deliveryCorrections.length; i += DELIVERY_BATCH) {
     const chunk = deliveryCorrections.slice(i, i + DELIVERY_BATCH);
@@ -245,29 +273,39 @@ Deno.serve(async (req) => {
     await sleep(WRITE_DELAY);
   }
 
-  // Build store-by-store report
+  // Build store-by-store report with full per-store breakdown
   const storeSummary = [];
   for (const sid of store_ids) {
-    const store = storeReport[sid] || { unknownReturns: [], missingReturns: [] };
+    const sd = storeData[sid];
     storeSummary.push({
       store_id: sid,
-      unknown_count: store.unknownReturns.length,
-      missing_count: store.missingReturns.length,
-      needs_fixing: store.unknownReturns.length + store.missingReturns.length,
-      unknown_details: store.unknownReturns,
-      missing_details: store.missingReturns
+      patient_count: sd.patient_count,
+      patients_updated: sd.patient_updates_done,
+      patient_updates_needed: sd.patient_updates_needed,
+      patient_noops: sd.patient_noops,
+      deliveries_processed: sd.deliveries_processed,
+      returns_parsed: sd.returns_parsed,
+      unknown_count: sd.unknownReturns.length,
+      missing_count: sd.missingReturns.length,
+      needs_fixing: sd.unknownReturns.length + sd.missingReturns.length,
+      unknown_details: sd.unknownReturns,
+      missing_details: sd.missingReturns,
     });
   }
 
   return Response.json({
-    store_ids, total_patients: totalPatients, patients_updated: patientSuccess,
-    patients_with_2026_history: [...historyMerge.values()].filter(m => m.new2026.length > 0).length,
-    total_deliveries_processed: totalDeliveries, total_returns_parsed: totalReturns,
+    store_ids,
+    total_patients: patients.length,
+    patients_updated: patientSuccess,
+    patient_noops_skipped: skippedNoOpPatient,
+    total_deliveries_processed: Object.values(storeData).reduce((a, s) => a + s.deliveries_processed, 0),
+    total_returns_parsed: totalReturns,
     first_delivery_corrections: deliveryCorrections.length,
     first_delivery_noops_skipped: skippedNoOpDelivery,
-    patient_noops_skipped: skippedNoOpPatient,
     patient_updates: { success: patientSuccess, errors: patientErrors },
     delivery_corrections: { success: deliverySuccess, errors: deliveryErrors },
-    store_summary: storeSummary, errors: errors.slice(0, 20), error_count: errors.length
+    store_summary: storeSummary,
+    errors: errors.slice(0, 20),
+    error_count: errors.length,
   });
 });
