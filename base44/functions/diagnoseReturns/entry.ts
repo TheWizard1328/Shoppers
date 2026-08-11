@@ -10,70 +10,88 @@ Deno.serve(async (req) => {
   const BATCH = 500;
   const CUTOFF = '2026-01-01';
 
-  // ALL 12 active store IDs
-  const storeIds = [
-    '695b6333e8a9b6f5b0c467d7', '69354c3f7d5201849e84af97',
-    '685cd33055969a07cb634fe9', '685cd33055969a07cb634fe8',
-    '685cd33055969a07cb634fe7', '685cd33055969a07cb634fe6',
-    '685cd33055969a07cb634fe5', '685cd33055969a07cb634fe4',
-    '685cd33055969a07cb634fe3', '685cd33055969a07cb634fe2',
-    '685cd33055969a07cb634fe1', '685cd33055969a07cb634fe0',
-  ];
-
-  const storeNames = {
-    '695b6333e8a9b6f5b0c467d7': 'Lakeland Ridge',
-    '69354c3f7d5201849e84af97': 'Sherwood Park Mall',
-    '685cd33055969a07cb634fe9': 'Beverly',
-    '685cd33055969a07cb634fe8': 'WestPark',
-    '685cd33055969a07cb634fe7': 'SouthPoint',
-    '685cd33055969a07cb634fe6': 'Callingwood',
-    '685cd33055969a07cb634fe5': 'Hamptons',
-    '685cd33055969a07cb634fe4': 'Londonderry',
-    '685cd33055969a07cb634fe3': 'Meadows',
-    '685cd33055969a07cb634fe2': 'Bonnie Doon',
-    '685cd33055969a07cb634fe1': 'Scona',
-    '685cd33055969a07cb634fe0': 'Kingsway',
+  // Return patient IDs for all 12 active stores
+  const returnPatients = {
+    '68e1e249f45648303b222cdf': 'Hamptons',
+    '68e1e249f45648303b222bff': 'Callingwood',
+    '68e1e249f45648303b222956': 'Beverly',
+    '68e1e249f45648303b222ddd': 'Londonderry',
+    '68e156d4b5b79aa33ef88dd1': 'Kingsway',
+    '68e1e249f45648303b222a13': 'Bonnie Doon',
+    '6940fbe3ffa8cc080a3d6c46': 'Sherwood Park Mall',
+    '696667d6fe7cbd5a34eb3bf8': 'Lakeland Ridge',
+    '68e1e249f45648303b223185': 'WestPark',
+    '68e1e249f45648303b22313c': 'SouthPoint',
+    '68e1e249f45648303b222eb8': 'Meadows',
+    '68e1e249f45648303b223073': 'Scona',
   };
 
-  const allReturns = [];
   const storeSummary = {};
+  const allProblemDeliveries = [];
 
-  for (const sid of storeIds) {
-    storeSummary[storeNames[sid]] = { total: 0, unknown: 0, missing: 0, clean: 0, returns: [] };
+  for (const [patientId, storeName] of Object.entries(returnPatients)) {
+    storeSummary[storeName] = { total_returns: 0, unknown: 0, missing: 0, empty: 0, clean: 0, problems: [] };
     let skip = 0;
 
     while (true) {
       const batch = await db.entities.Delivery.filter(
-        { store_id: sid },
+        { patient_id: patientId },
         'created_date', BATCH, skip
-      ).catch(e => { console.error(`Fetch error ${sid}: ${e.message}`); return []; });
+      ).catch(e => { console.error(`Fetch error ${patientId}: ${e.message}`); return []; });
 
       if (!batch.length) break;
 
       for (const d of batch) {
         const dDate = d.delivery_date || d.created_date || '';
-        if (dDate < CUTOFF) continue;
+        if (dDate < CUTOFF) continue; // 2026 only
 
-        const pn = (d.patient_name || '').toLowerCase();
-        if (!pn.includes('return')) continue;
+        storeSummary[storeName].total_returns++;
 
-        const entry = {
-          id: d.id,
-          patient_name: d.patient_name,
-          status: d.status,
-          delivery_date: d.delivery_date || d.created_date,
-          delivery_notes: d.delivery_notes ? d.delivery_notes.substring(0, 300) : '(null)',
-          has_for: d.delivery_notes ? /For:/i.test(d.delivery_notes) : false,
-          has_for_unknown: d.delivery_notes ? /For:\s*Unknown/i.test(d.delivery_notes) : false,
-        };
+        const notes = d.delivery_notes || '';
+        const hasForUnknown = /For:\s*Unknown/i.test(notes);
+        const hasFor = /For:/i.test(notes);
 
-        storeSummary[storeNames[sid]].total++;
-        storeSummary[storeNames[sid]].returns.push(entry);
-        allReturns.push({ store: storeNames[sid], ...entry });
+        // Extract text after "For:" to check if it's empty/whitespace only
+        let afterFor = '';
+        if (hasFor) {
+          const forIdx = notes.indexOf('For:');
+          afterFor = notes.substring(forIdx + 4).trim();
+          // Strip (RTN) and From: prefixes
+          const rtnIdx = afterFor.indexOf('(RTN)');
+          if (rtnIdx !== -1) afterFor = afterFor.substring(0, rtnIdx).trim();
+          const fromIdx = afterFor.indexOf('From:');
+          if (fromIdx !== -1) afterFor = afterFor.substring(0, fromIdx).trim();
+        }
 
-        if (entry.has_for_unknown) storeSummary[storeNames[sid]].unknown++;
-        else if (!entry.has_for) storeSummary[storeNames[sid]].missing++;
-        else storeSummary[storeNames[sid]].clean++;
+        let problemType = null;
+        if (!notes || notes.trim() === '') {
+          problemType = 'empty';
+          storeSummary[storeName].empty++;
+        } else if (hasForUnknown) {
+          problemType = 'unknown';
+          storeSummary[storeName].unknown++;
+        } else if (!hasFor) {
+          problemType = 'missing_for';
+          storeSummary[storeName].missing++;
+        } else if (afterFor === '') {
+          problemType = 'for_empty';
+          storeSummary[storeName].missing++;
+        } else {
+          storeSummary[storeName].clean++;
+        }
+
+        if (problemType) {
+          const entry = {
+            store: storeName,
+            delivery_id: d.id,
+            delivery_date: d.delivery_date || d.created_date,
+            status: d.status,
+            problem_type: problemType,
+            delivery_notes: notes ? notes.substring(0, 300) : '(null)',
+          };
+          storeSummary[storeName].problems.push(entry);
+          allProblemDeliveries.push(entry);
+        }
       }
 
       skip += BATCH;
@@ -82,8 +100,17 @@ Deno.serve(async (req) => {
   }
 
   return Response.json({
-    total_returns_across_all_stores: allReturns.length,
-    store_summary: storeSummary,
-    all_returns: allReturns,
+    total_problem_deliveries: allProblemDeliveries.length,
+    store_summary: Object.entries(storeSummary).map(([name, data]) => ({
+      store_name: name,
+      total_returns: data.total_returns,
+      unknown: data.unknown,
+      missing: data.missing,
+      empty: data.empty,
+      clean: data.clean,
+      needs_fixing: data.unknown + data.missing + data.empty,
+      problems: data.problems,
+    })),
+    all_problems: allProblemDeliveries,
   });
 });
