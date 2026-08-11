@@ -196,6 +196,83 @@
       "type": "boolean",
       "default": true,
       "description": "Flag to indicate if this is demo data"
+    },
+    "latitude": {
+      "type": "number",
+      "description": "Patient delivery latitude"
+    },
+    "longitude": {
+      "type": "number",
+      "description": "Patient delivery longitude"
+    },
+    "is_cycling_marker": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is a cycling route marker"
+    },
+    "cycling_latitude": {
+      "type": "number",
+      "description": "Cycling marker latitude"
+    },
+    "cycling_longitude": {
+      "type": "number",
+      "description": "Cycling marker longitude"
+    },
+    "transport_mode": {
+      "type": "string",
+      "enum": [
+        "driving",
+        "cycling"
+      ],
+      "default": "driving"
+    },
+    "_interstore_source_id": {
+      "type": "string",
+      "description": "InterStore source store ID (ISP)"
+    },
+    "_interstore_dest_id": {
+      "type": "string",
+      "description": "InterStore destination store ID (ISD)"
+    },
+    "_interstore_source_name": {
+      "type": "string",
+      "description": "InterStore source store name"
+    },
+    "_interstore_dest_name": {
+      "type": "string",
+      "description": "InterStore destination store name"
+    },
+    "estimated_distance_km": {
+      "type": "number",
+      "description": "Estimated route distance in km"
+    },
+    "estimated_duration_minutes": {
+      "type": "number",
+      "description": "Estimated route duration in minutes"
+    },
+    "first_leg_origin_lat": {
+      "type": "number",
+      "description": "Origin latitude for first leg (home or previous stop)"
+    },
+    "first_leg_origin_lng": {
+      "type": "number",
+      "description": "Origin longitude for first leg"
+    },
+    "driver_acknowledged": {
+      "type": "boolean",
+      "default": false
+    },
+    "driver_acknowledged_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "encoded_polyline": {
+      "type": "string",
+      "description": "Encoded polyline for the route leg"
+    },
+    "polyline_saved_at": {
+      "type": "string",
+      "format": "date-time"
     }
   },
   "required": [
