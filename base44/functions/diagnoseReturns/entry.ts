@@ -10,7 +10,6 @@ Deno.serve(async (req) => {
   const BATCH = 500;
   const CUTOFF = '2026-01-01';
 
-  // Return patient IDs for all 12 active stores
   const returnPatients = {
     '68e1e249f45648303b222cdf': 'Hamptons',
     '68e1e249f45648303b222bff': 'Callingwood',
@@ -26,11 +25,12 @@ Deno.serve(async (req) => {
     '68e1e249f45648303b223073': 'Scona',
   };
 
-  const storeSummary = {};
-  const allProblemDeliveries = [];
+  // Compact summary — just counts per store
+  const summary = {};
+  const problems = [];
 
   for (const [patientId, storeName] of Object.entries(returnPatients)) {
-    storeSummary[storeName] = { total_returns: 0, unknown: 0, missing: 0, empty: 0, clean: 0, problems: [] };
+    summary[storeName] = { total: 0, unknown: 0, missing: 0, empty: 0, clean: 0 };
     let skip = 0;
 
     while (true) {
@@ -43,54 +43,39 @@ Deno.serve(async (req) => {
 
       for (const d of batch) {
         const dDate = d.delivery_date || d.created_date || '';
-        if (dDate < CUTOFF) continue; // 2026 only
+        if (dDate < CUTOFF) continue;
 
-        storeSummary[storeName].total_returns++;
-
+        summary[storeName].total++;
         const notes = d.delivery_notes || '';
+
         const hasForUnknown = /For:\s*Unknown/i.test(notes);
         const hasFor = /For:/i.test(notes);
 
-        // Extract text after "For:" to check if it's empty/whitespace only
         let afterFor = '';
         if (hasFor) {
           const forIdx = notes.indexOf('For:');
           afterFor = notes.substring(forIdx + 4).trim();
-          // Strip (RTN) and From: prefixes
           const rtnIdx = afterFor.indexOf('(RTN)');
           if (rtnIdx !== -1) afterFor = afterFor.substring(0, rtnIdx).trim();
           const fromIdx = afterFor.indexOf('From:');
           if (fromIdx !== -1) afterFor = afterFor.substring(0, fromIdx).trim();
         }
 
-        let problemType = null;
-        if (!notes || notes.trim() === '') {
-          problemType = 'empty';
-          storeSummary[storeName].empty++;
-        } else if (hasForUnknown) {
-          problemType = 'unknown';
-          storeSummary[storeName].unknown++;
-        } else if (!hasFor) {
-          problemType = 'missing_for';
-          storeSummary[storeName].missing++;
-        } else if (afterFor === '') {
-          problemType = 'for_empty';
-          storeSummary[storeName].missing++;
-        } else {
-          storeSummary[storeName].clean++;
-        }
+        let type = null;
+        if (!notes || notes.trim() === '') { type = 'empty'; summary[storeName].empty++; }
+        else if (hasForUnknown) { type = 'unknown'; summary[storeName].unknown++; }
+        else if (!hasFor) { type = 'missing_for'; summary[storeName].missing++; }
+        else if (afterFor === '') { type = 'for_empty'; summary[storeName].missing++; }
+        else { summary[storeName].clean++; }
 
-        if (problemType) {
-          const entry = {
+        if (type) {
+          // Compact: only essential fields
+          problems.push({
             store: storeName,
-            delivery_id: d.id,
-            delivery_date: d.delivery_date || d.created_date,
-            status: d.status,
-            problem_type: problemType,
-            delivery_notes: notes ? notes.substring(0, 300) : '(null)',
-          };
-          storeSummary[storeName].problems.push(entry);
-          allProblemDeliveries.push(entry);
+            id: d.id,
+            date: d.delivery_date || d.created_date,
+            type,
+          });
         }
       }
 
@@ -100,17 +85,10 @@ Deno.serve(async (req) => {
   }
 
   return Response.json({
-    total_problem_deliveries: allProblemDeliveries.length,
-    store_summary: Object.entries(storeSummary).map(([name, data]) => ({
-      store_name: name,
-      total_returns: data.total_returns,
-      unknown: data.unknown,
-      missing: data.missing,
-      empty: data.empty,
-      clean: data.clean,
-      needs_fixing: data.unknown + data.missing + data.empty,
-      problems: data.problems,
+    total_problems: problems.length,
+    summary: Object.entries(summary).map(([name, d]) => ({
+      store: name, total: d.total, unknown: d.unknown, missing: d.missing, empty: d.empty, clean: d.clean, needs_fixing: d.unknown + d.missing + d.empty
     })),
-    all_problems: allProblemDeliveries,
+    problems,
   });
 });
