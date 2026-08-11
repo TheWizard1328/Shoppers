@@ -104,21 +104,22 @@ export const roundCompletionTime = (timeISO) => {
  * card heights. No map updates (panning/zooming) should fire when cards
  * expand or contract.
  *
- *   ┌─────────────┬──────────────────┬──────────────────┬─────────────┐
- *   │             │  Mobile Immersive │  Mobile Normal   │  Desktop    │
- *   ├─────────────┼──────────────────┼──────────────────┼─────────────┤
+ *   ┌─────────────┬───────────────────┬──────────────────┬──────────────┐
+ *   │             │  Mobile Immersive │  Mobile Normal   │  Desktop     │
+ *   ├─────────────┼───────────────────┼──────────────────┼──────────────┤
  *   │ TOP         │  BASE_PADDING     │  statsCardHeight │  BASE_PADDING│
  *   │ BOTTOM      │  EXTRA_ITEMS      │  EXTRA_ITEMS +   │  EXTRA_ITEMS+│
- *   │             │                   │  stopCardsHeight │  stopCardsH │
+ *   │             │                   │  stopCardsHeight │  stopCardsH  │
  *   │ LEFT/RIGHT  │  BASE_PADDING     │  BASE_PADDING    │  BASE_PADDING│
- *   └─────────────┴──────────────────┴──────────────────┴─────────────┘
+ *   └─────────────┴───────────────────┴──────────────────┴──────────────┘
  *
  * Desktop ignores statsCardHeight for top padding — plenty of screen space
  * means the stats card doesn't obscure map markers.
  */
 export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, stopCardsBaseHeight }) => {
   const EXTRA_ITEMS_HEIGHT = 55;
-  const BASE_PADDING = 25;
+  const BASE_PADDING = 15;
+  const Extra_Top_PADDING = 20;
 
   let topPadding;
   let bottomPadding;
@@ -132,7 +133,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
       bottomPadding = EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
     }
   } else {
-    topPadding = BASE_PADDING;
+    topPadding = BASE_PADDING + Extra_Top_PADDING;
     bottomPadding = EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
   }
 
