@@ -1,0 +1,496 @@
+{
+  "current": {
+    "Robert T": {
+      "deliveries": 270,
+      "income": 1660.5,
+      "driving_km": 1384.3,
+      "pickups": 40,
+      "stores": [
+        {
+          "store": "Callingwood",
+          "abbr": "CW",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 11.5,
+          "deliveries": 70,
+          "income": 430.5,
+          "driving_km": 229.8,
+          "cycling": true
+        },
+        {
+          "store": "Hamptons",
+          "abbr": "HS",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 11.8,
+          "deliveries": 50,
+          "income": 307.5,
+          "driving_km": 236.2,
+          "cycling": false
+        },
+        {
+          "store": "Beverly",
+          "abbr": "BS",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 22.1,
+          "deliveries": 80,
+          "income": 492.0,
+          "driving_km": 442.5,
+          "cycling": false
+        },
+        {
+          "store": "Londonderry",
+          "abbr": "LD",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 23.8,
+          "deliveries": 70,
+          "income": 430.5,
+          "driving_km": 475.8,
+          "cycling": true
+        }
+      ],
+      "role": "primary",
+      "pay_rate": 6.15
+    },
+    "Sharuk": {
+      "deliveries": 579,
+      "income": 3184.5,
+      "driving_km": 1849.2,
+      "pickups": 78,
+      "stores": [
+        {
+          "store": "Bonnie Doon",
+          "abbr": "BD",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 5.3,
+          "deliveries": 100,
+          "income": 550.0,
+          "driving_km": 105.8,
+          "cycling": false
+        },
+        {
+          "store": "Bonnie Doon",
+          "abbr": "BD",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 5.3,
+          "deliveries": 100,
+          "income": 550.0,
+          "driving_km": 105.8,
+          "cycling": false
+        },
+        {
+          "store": "Kingsway",
+          "abbr": "KW",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 8.8,
+          "deliveries": 90,
+          "income": 495.0,
+          "driving_km": 175.8,
+          "cycling": false
+        },
+        {
+          "store": "Kingsway",
+          "abbr": "KW",
+          "slot": "SAT_AM",
+          "days": 3,
+          "dist_km": 8.8,
+          "deliveries": 27,
+          "income": 148.5,
+          "driving_km": 52.7,
+          "cycling": false
+        },
+        {
+          "store": "Kingsway",
+          "abbr": "KW",
+          "slot": "SUN_AM",
+          "days": 2,
+          "dist_km": 8.8,
+          "deliveries": 18,
+          "income": 99.0,
+          "driving_km": 35.2,
+          "cycling": false
+        },
+        {
+          "store": "Beverly",
+          "abbr": "BS",
+          "slot": "SAT_AM",
+          "days": 3,
+          "dist_km": 12.0,
+          "deliveries": 24,
+          "income": 132.0,
+          "driving_km": 72.0,
+          "cycling": false
+        },
+        {
+          "store": "Sherwood Pk Mall",
+          "abbr": "SM",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 15.3,
+          "deliveries": 70,
+          "income": 385.0,
+          "driving_km": 305.3,
+          "cycling": false
+        },
+        {
+          "store": "Sherwood Pk Mall",
+          "abbr": "SM",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 15.3,
+          "deliveries": 70,
+          "income": 385.0,
+          "driving_km": 305.3,
+          "cycling": false
+        },
+        {
+          "store": "Lakeland Ridge",
+          "abbr": "LR",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 17.3,
+          "deliveries": 40,
+          "income": 220.0,
+          "driving_km": 345.6,
+          "cycling": false
+        },
+        {
+          "store": "Lakeland Ridge",
+          "abbr": "LR",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 17.3,
+          "deliveries": 40,
+          "income": 220.0,
+          "driving_km": 345.6,
+          "cycling": false
+        }
+      ],
+      "role": "primary",
+      "pay_rate": 5.5
+    },
+    "Erin": {
+      "deliveries": 50,
+      "income": 262.5,
+      "driving_km": 77.1,
+      "pickups": 10,
+      "stores": [
+        {
+          "store": "Scona",
+          "abbr": "SC",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 3.9,
+          "deliveries": 50,
+          "income": 262.5,
+          "driving_km": 77.1,
+          "cycling": false
+        }
+      ],
+      "role": "secondary",
+      "pay_rate": 5.25
+    },
+    "Anna": {
+      "deliveries": 100,
+      "income": 615.0,
+      "driving_km": 1220.8,
+      "pickups": 30,
+      "stores": [
+        {
+          "store": "Meadows",
+          "abbr": "MD",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 5.9,
+          "deliveries": 50,
+          "income": 307.5,
+          "driving_km": 118.3,
+          "cycling": false
+        },
+        {
+          "store": "WestPark",
+          "abbr": "WP",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 26.4,
+          "deliveries": 30,
+          "income": 184.5,
+          "driving_km": 528.2,
+          "cycling": false
+        },
+        {
+          "store": "SouthPoint",
+          "abbr": "SP",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 28.7,
+          "deliveries": 20,
+          "income": 123.0,
+          "driving_km": 574.3,
+          "cycling": false
+        }
+      ],
+      "role": "secondary",
+      "pay_rate": 6.15
+    }
+  },
+  "optimized": {
+    "Robert T": {
+      "deliveries": 240,
+      "income": 1476.0,
+      "driving_km": 1232.9,
+      "pickups": 40,
+      "stores": [
+        {
+          "store": "Callingwood",
+          "abbr": "CW",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 11.5,
+          "deliveries": 70,
+          "income": 430.5,
+          "driving_km": 229.8,
+          "cycling": true
+        },
+        {
+          "store": "Hamptons",
+          "abbr": "HS",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 11.8,
+          "deliveries": 50,
+          "income": 307.5,
+          "driving_km": 236.2,
+          "cycling": false
+        },
+        {
+          "store": "Meadows",
+          "abbr": "MD",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 14.6,
+          "deliveries": 50,
+          "income": 307.5,
+          "driving_km": 291.1,
+          "cycling": false
+        },
+        {
+          "store": "Londonderry",
+          "abbr": "LD",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 23.8,
+          "deliveries": 70,
+          "income": 430.5,
+          "driving_km": 475.8,
+          "cycling": true
+        }
+      ],
+      "role": "primary",
+      "pay_rate": 6.15
+    },
+    "Sharuk": {
+      "deliveries": 499,
+      "income": 2744.5,
+      "driving_km": 1157.9,
+      "pickups": 58,
+      "stores": [
+        {
+          "store": "Bonnie Doon",
+          "abbr": "BD",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 5.3,
+          "deliveries": 100,
+          "income": 550.0,
+          "driving_km": 105.8,
+          "cycling": false
+        },
+        {
+          "store": "Bonnie Doon",
+          "abbr": "BD",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 5.3,
+          "deliveries": 100,
+          "income": 550.0,
+          "driving_km": 105.8,
+          "cycling": false
+        },
+        {
+          "store": "Kingsway",
+          "abbr": "KW",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 8.8,
+          "deliveries": 90,
+          "income": 495.0,
+          "driving_km": 175.8,
+          "cycling": false
+        },
+        {
+          "store": "Kingsway",
+          "abbr": "KW",
+          "slot": "SAT_AM",
+          "days": 3,
+          "dist_km": 8.8,
+          "deliveries": 27,
+          "income": 148.5,
+          "driving_km": 52.7,
+          "cycling": false
+        },
+        {
+          "store": "Kingsway",
+          "abbr": "KW",
+          "slot": "SUN_AM",
+          "days": 2,
+          "dist_km": 8.8,
+          "deliveries": 18,
+          "income": 99.0,
+          "driving_km": 35.2,
+          "cycling": false
+        },
+        {
+          "store": "Beverly",
+          "abbr": "BS",
+          "slot": "SAT_AM",
+          "days": 3,
+          "dist_km": 12.0,
+          "deliveries": 24,
+          "income": 132.0,
+          "driving_km": 72.0,
+          "cycling": false
+        },
+        {
+          "store": "Sherwood Pk Mall",
+          "abbr": "SM",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 15.3,
+          "deliveries": 70,
+          "income": 385.0,
+          "driving_km": 305.3,
+          "cycling": false
+        },
+        {
+          "store": "Sherwood Pk Mall",
+          "abbr": "SM",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 15.3,
+          "deliveries": 70,
+          "income": 385.0,
+          "driving_km": 305.3,
+          "cycling": false
+        }
+      ],
+      "role": "primary",
+      "pay_rate": 5.5
+    },
+    "Erin": {
+      "deliveries": 130,
+      "income": 682.5,
+      "driving_km": 756.8,
+      "pickups": 30,
+      "stores": [
+        {
+          "store": "Scona",
+          "abbr": "SC",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 3.9,
+          "deliveries": 50,
+          "income": 262.5,
+          "driving_km": 77.1,
+          "cycling": false
+        },
+        {
+          "store": "Lakeland Ridge",
+          "abbr": "LR",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 17.0,
+          "deliveries": 40,
+          "income": 210.0,
+          "driving_km": 339.9,
+          "cycling": false
+        },
+        {
+          "store": "Lakeland Ridge",
+          "abbr": "LR",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 17.0,
+          "deliveries": 40,
+          "income": 210.0,
+          "driving_km": 339.9,
+          "cycling": false
+        }
+      ],
+      "role": "secondary",
+      "pay_rate": 5.25
+    },
+    "Anna": {
+      "deliveries": 130,
+      "income": 799.5,
+      "driving_km": 1317.5,
+      "pickups": 30,
+      "stores": [
+        {
+          "store": "Beverly",
+          "abbr": "BS",
+          "slot": "PM",
+          "days": 10,
+          "dist_km": 10.8,
+          "deliveries": 80,
+          "income": 492.0,
+          "driving_km": 215.1,
+          "cycling": false
+        },
+        {
+          "store": "WestPark",
+          "abbr": "WP",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 26.4,
+          "deliveries": 30,
+          "income": 184.5,
+          "driving_km": 528.2,
+          "cycling": false
+        },
+        {
+          "store": "SouthPoint",
+          "abbr": "SP",
+          "slot": "AM",
+          "days": 10,
+          "dist_km": 28.7,
+          "deliveries": 20,
+          "income": 123.0,
+          "driving_km": 574.3,
+          "cycling": false
+        }
+      ],
+      "role": "secondary",
+      "pay_rate": 6.15
+    }
+  },
+  "totals": {
+    "current": {
+      "del": 999,
+      "income": 5722.5,
+      "km": 4531.4
+    },
+    "optimized": {
+      "del": 999,
+      "income": 5702.5,
+      "km": 4465.1
+    },
+    "km_saved": 66.3,
+    "annual_km_saved": 1591
+  }
+}
