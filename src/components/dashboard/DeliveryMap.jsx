@@ -1435,6 +1435,7 @@ function DeliveryMap({
           setVisibleBounds={setVisibleBounds}
           setFannedLocationKey={setFannedLocationKey}
           mapViewPhase={mapViewPhase}
+          isMapViewLocked={isMapViewLocked}
           currentUser={currentUser}
           immersiveHidden={immersiveHidden}
 

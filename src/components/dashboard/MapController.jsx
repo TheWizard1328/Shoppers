@@ -7,21 +7,39 @@ const markUserMapControlActive = (durationMs = 4000) => {
 import { useMapEvents } from 'react-leaflet';
 
 
-export default function MapController({ 
-  onMapInteraction, 
-  onDoubleTap, 
-  currentZoom, 
-  setCurrentZoom, 
-  setShowZoomOverlay, 
-  zoomOverlayTimeoutRef, 
+export default function MapController({
+  onMapInteraction,
+  onDoubleTap,
+  currentZoom,
+  setCurrentZoom,
+  setShowZoomOverlay,
+  zoomOverlayTimeoutRef,
   setMapCenter,
   setMapZoom,
   setVisibleBounds,
   setFannedLocationKey,
+  mapViewPhase,
+  isMapViewLocked,
   immersiveHidden,
 }) {
   const isDraggingRef = useRef(false);
   const hasMovedRef = useRef(false);
+
+  // ── Authoritative phase/lock refs ─────────────────────────────────────────
+  // MapController's event handlers (registered ONCE by useMapEvents) close over
+  // these refs. We keep them in sync with the latest React props on every render
+  // so the moveend/zoomend guards always see the CURRENT phase — not a stale
+  // window var. The previous guard relied on `window._mapViewPhaseRef` which was
+  // NEVER wired, and on `window.__fabIsLocked` which flips to false when the FAB
+  // lock EXPIRES (unlockMs timeout) while the map is STILL in Phase 2/3. That
+  // let the moveend echo leak through after lock expiry and feed DeliveryMap's
+  // UNPADDED setView effect, producing the "secondary zoom" that ignored FAB
+  // padding and snapped to integer zoom levels on every GPS tick.
+  const mapViewPhaseRef = useRef(mapViewPhase);
+  const isMapViewLockedRef = useRef(isMapViewLocked);
+  mapViewPhaseRef.current = mapViewPhase;
+  isMapViewLockedRef.current = isMapViewLocked;
+  const isPhase2or3 = () => mapViewPhaseRef.current === 2 || mapViewPhaseRef.current === 3;
 
   const mapInstance = useMapEvents({
     zoomstart: () => {
@@ -104,8 +122,11 @@ export default function MapController({
         const isProgrammaticFromTimer = timeSinceProgrammatic < 1500;
         const isUserZoom = !isProgrammaticFromFlag && !isProgrammaticFromTimer;
 
-        // Only echo zoom back to Dashboard state on genuine user zoom to avoid re-triggering setView
-        if (isUserZoom && timeSinceProgrammatic >= 3500) {
+        // Only echo zoom back to Dashboard state on genuine user zoom to avoid re-triggering setView.
+        // CRITICAL: suppress in Phase 2/3 (and while locked) — the fitBounds path (with padding)
+        // is the sole authority there. Echoing back feeds DeliveryMap's UNPADDED setView effect,
+        // causing the integer-snap "secondary zoom" that ignores FAB padding.
+        if (isUserZoom && timeSinceProgrammatic >= 3500 && !isPhase2or3() && !isMapViewLockedRef.current) {
           setMapZoom?.(roundedZoom);
         }
         
@@ -167,8 +188,11 @@ export default function MapController({
       // ref), NOT just `__fabIsLocked`, because the FAB lock expires (unlockMs
       // timeout) while the map is still in Phase 2/3 — after expiry, __fabIsLocked
       // flips to false and the echo would leak through on every GPS tick.
-      const _mapPhase = window._mapViewPhaseRef?.current;
-      if (window.__fabIsLocked === true || _mapPhase === 2 || _mapPhase === 3) return;
+      // Use the authoritative prop refs — see note at top of component. The old
+      // window-var guard was dead code (window._mapViewPhaseRef never set) and
+      // `window.__fabIsLocked` flips false on FAB lock expiry, leaking the echo
+      // in Phase 2/3 and triggering DeliveryMap's unpadded setView (secondary zoom).
+      if (isMapViewLockedRef.current || isPhase2or3()) return;
 
       window.__currentMapCenter = newCenter;
       setMapCenter(prev => {
