@@ -2039,16 +2039,8 @@ function Dashboard() {
     lastUserInteractionRef.current = Date.now();
 
     if (selectedCardId === delivery.id) {
-      // Collapsing: restore map to pre-expansion state
+      // Collapsing: clear card state — NO map update (no panning/zooming on card expand/collapse)
       setSelectedCardId(null); setHighlightedCardId(null); cardExpandedAtRef.current = null;
-      if (previousMapState?.center && previousMapState?.zoom) {
-        // Use a direct map restore event so the map component can call setView
-        // directly — mapCenter/mapZoom are null after fitBounds and can't be used.
-        window.dispatchEvent(new CustomEvent('restoreMapView', {
-          detail: { center: previousMapState.center, zoom: previousMapState.zoom }
-        }));
-        setShouldFitBounds(null);
-      }
       setPreviousMapState(null);
       window.dispatchEvent(new CustomEvent('collapseStatsCard'));
       return;
@@ -2057,17 +2049,6 @@ function Dashboard() {
       if (isDispatcher && currentUser?.store_ids && !currentUser.store_ids.includes(delivery.store_id)) {
         if (selectedCardId) { setSelectedCardId(null); setHighlightedCardId(null); cardExpandedAtRef.current = null; }
       }
-      // Only capture map state when no card is currently expanded — if a card is already
-      // open and the user taps another, keep the original pre-expansion state so collapsing
-      // the new card returns to where the map was before ANY card was expanded.
-      // Read the live map center/zoom from the map instance globals so we always get the
-      // actual rendered position (mapCenter/mapZoom state are set to null after fitBounds).
-      if (!selectedCardId) {
-        const liveCenter = window.__mapCurrentCenter || (Array.isArray(mapCenter) ? [...mapCenter] : null);
-        const liveZoom = window.__mapCurrentZoom ?? mapZoom;
-        setPreviousMapState({ center: liveCenter, zoom: liveZoom });
-      }
-
       // Collapse the stats card when a stop card expands or collapses (mutual exclusion)
       if (isExpanded) setIsExpanded(false);
       window.dispatchEvent(new CustomEvent('collapseStatsCard'));
@@ -2075,70 +2056,8 @@ function Dashboard() {
       setHighlightedCardId(delivery.id);
       cardExpandedAtRef.current = Date.now();
 
-      // Card expand — do NOT touch lock state. FAB phase is the user's choice;
-      // expanding a card is a map inspection action, not a phase transition.
-
-      // CRITICAL: Wait for card expansion animation, then measure and center on mobile
-      const centerMarkerWithPadding = () => {
-        if (isMobile) {
-          // Measure actual expanded height after animation completes
-          setTimeout(() => {
-            const container = stopCardsContainerRef.current;
-            const actualHeight = container?.offsetHeight || stopCardsBaseHeight || 0;
-
-            const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
-            const topPadding = statsCardCurrHeight + 25;
-            const bottomPadding = actualHeight > 0 ? actualHeight + 10 : 25;
-
-            const padding = {
-              paddingTopLeft: [25, topPadding],
-              paddingBottomRight: [25, bottomPadding]
-            };
-
-            const appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
-            if (delivery.patient_id) {
-              const patient = patients.find((p) => p.id === delivery.patient_id);
-              if (patient?.latitude && patient?.longitude) bounds.push([patient.latitude, patient.longitude]);
-            } else if (delivery.store_id) {
-              const store = stores.find((s) => s.id === delivery.store_id);
-              if (store?.latitude && store?.longitude) bounds.push([store.latitude, store.longitude]);
-            }
-            // Always include originating store in bounds
-            if (delivery.store_id) {
-              const originStore = stores.find((s) => s.id === delivery.store_id);
-              if (originStore?.latitude && originStore?.longitude) bounds.push([originStore.latitude, originStore.longitude]);
-            }
-            if (appUser?.driver_status === 'on_duty' && appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
-            if (bounds.length) {
-              setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15 } });
-              setMapCenter(null);setMapZoom(null);
-            }
-
-          }, 350);
-        } else {
-          const padding = getMapPadding(immersiveHiddenRef.current),appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
-          if (delivery.patient_id) {
-            const patient = patients.find((p) => p.id === delivery.patient_id);
-            if (patient?.latitude && patient?.longitude) bounds.push([patient.latitude, patient.longitude]);
-          } else if (delivery.store_id) {
-            const store = stores.find((s) => s.id === delivery.store_id);
-            if (store?.latitude && store?.longitude) bounds.push([store.latitude, store.longitude]);
-          }
-          // Always include originating store in bounds
-          if (delivery.store_id) {
-            const originStore = stores.find((s) => s.id === delivery.store_id);
-            if (originStore?.latitude && originStore?.longitude) bounds.push([originStore.latitude, originStore.longitude]);
-          }
-          if (appUser?.driver_status === 'on_duty' && appUser?.current_latitude && appUser?.current_longitude) bounds.push([appUser.current_latitude, appUser.current_longitude]);
-          if (bounds.length) {
-            setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.5, easeLinearity: 0.15 } });
-            setMapCenter(null);setMapZoom(null);
-          }
-
-        }
-      };
-
-      centerMarkerWithPadding();
+      // Card expand — do NOT touch lock state. No map update on card expand/collapse.
+      // The map stays exactly where it is; only the card UI changes.
 
       // CRITICAL: Auto-center card in horizontal scroll - increased delay for reliability
       setTimeout(() => {

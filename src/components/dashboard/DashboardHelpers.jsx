@@ -100,60 +100,39 @@ export const roundCompletionTime = (timeISO) => {
 /**
  * Calculates stable map padding for fit-bounds calls.
  *
- * Three padding regions:
- *   TOP    — mobile normal:     stats card container height (measured via ResizeObserver);
- *            mobile immersive:  ImmersiveMapTopOverlay banner height (~80px) — that
- *                                banner does NOT hide in immersive mode, unlike the
- *                                full stats card, so top padding must clear it or
- *                                markers render underneath it;
- *            desktop:           BASE_PADDING (25px)
- *   BOTTOM — normal: EXTRA_ITEMS + stop cards height;
- *            immersive: IMMERSIVE_ITEMS (50px) — only temp badge + FAB remain
- *   SIDES  — BASE_PADDING (25px) on all platforms
+ * Padding uses COLLAPSED (non-expanded) heights only — never the expanded
+ * card heights. No map updates (panning/zooming) should fire when cards
+ * expand or contract.
  *
- * The 80px EXTRA_ITEMS_HEIGHT accounts for always-present bottom UI chrome
- * (bulk-select bar, temp badge, FABs, reoptimize button) in normal mode.
- * In immersive mode, stop cards + reoptimize button hide, leaving only the
- * temp badge + cycle FAB (~50px), so we use a smaller immersive baseline.
+ *   ┌─────────────┬──────────────────┬──────────────────┬─────────────┐
+ *   │             │  Mobile Immersive │  Mobile Normal   │  Desktop    │
+ *   ├─────────────┼──────────────────┼──────────────────┼─────────────┤
+ *   │ TOP         │  BASE_PADDING     │  statsCardHeight │  BASE_PADDING│
+ *   │ BOTTOM      │  EXTRA_ITEMS      │  EXTRA_ITEMS +   │  EXTRA_ITEMS+│
+ *   │             │                   │  stopCardsHeight │  stopCardsH │
+ *   │ LEFT/RIGHT  │  BASE_PADDING     │  BASE_PADDING    │  BASE_PADDING│
+ *   └─────────────┴──────────────────┴──────────────────┴─────────────┘
+ *
+ * Desktop ignores statsCardHeight for top padding — plenty of screen space
+ * means the stats card doesn't obscure map markers.
  */
 export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, stopCardsBaseHeight }) => {
-  // ── Constants ──────────────────────────────────────────────────────────────
-  // Non-immersive bottom: FABs + temp badge sit ON TOP of the stop cards.
-  // Cycle FAB is h-10 (40px) + 10px bottom offset = 50px above stop cards.
   const EXTRA_ITEMS_HEIGHT = 55;
-
-  // Immersive top: ImmersiveMapTopOverlay banner (~50px bottom edge).
-  const IMMERSIVE_TOP_BANNER_HEIGHT = 65;
-
-  // Baseline breathing room for top/sides.
   const BASE_PADDING = 25;
 
-  // ── Padding logic ──────────────────────────────────────────────────────────
-  // Structure: isMobile is the OUTER condition.
-  //   Mobile  → immersive vs non-immersive (immersive mode only exists on mobile)
-  //   Desktop → fixed non-immersive padding (desktop never uses immersive mode)
   let topPadding;
   let bottomPadding;
 
   if (isMobile) {
     if (isImmersiveModeOn) {
-      // ── Mobile + Immersive ──
-      // Top: immersive banner overlay
-      // Bottom: only cycle FAB remains
-      topPadding = IMMERSIVE_TOP_BANNER_HEIGHT;
+      topPadding = BASE_PADDING;
       bottomPadding = EXTRA_ITEMS_HEIGHT;
     } else {
-      // ── Mobile + Non-Immersive ──
-      // Top: stats card height + breathing room
-      // Bottom: FABs + stop cards + buffer
-      topPadding = Math.max(statsCardHeight, BASE_PADDING);
+      topPadding = statsCardHeight;
       bottomPadding = EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
     }
   } else {
-    // ── Desktop (no immersive mode) ──
-    // Top: stats card height + breathing room
-    // Bottom: FABs + stop cards + buffer
-    topPadding = BASE_PADDING; // Math.max(statsCardHeight || 75, BASE_PADDING) + TOP_BUFFER;
+    topPadding = BASE_PADDING;
     bottomPadding = EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
   }
 
