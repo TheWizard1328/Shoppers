@@ -2,6 +2,19 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Compare two delivery_history arrays for equality (same IDs, same order, same status/date)
+function historyChanged(existing, incoming) {
+  if (!Array.isArray(existing)) return incoming.length > 0;
+  if (existing.length !== incoming.length) return true;
+  for (let i = 0; i < incoming.length; i++) {
+    const e = existing[i], n = incoming[i];
+    if (e.id !== n.id) return true;
+    if ((e.delivery_date || null) !== (n.delivery_date || null)) return true;
+    if ((e.status || null) !== (n.status || null)) return true;
+  }
+  return false;
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const user = await base44.auth.me();
@@ -15,8 +28,9 @@ Deno.serve(async (req) => {
 
   const db = base44.asServiceRole;
   const BATCH = 500;
-  const UPDATE_BATCH = 20;
-  const WRITE_DELAY = 400;
+  const PATIENT_BATCH = 10;
+  const DELIVERY_BATCH = 10;
+  const WRITE_DELAY = 500;
   const CUTOFF_DATE = '2026-01-01';
 
   let totalDeliveries = 0, totalPatients = 0, totalReturns = 0;
@@ -49,12 +63,12 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Map: patientId -> { pre2026: [...], new2026: [...], firstDeliveryById: Map<deliveryId, currentFirstDelivery> }
+  // Map: patientId -> { pre2026, new2026, existingHistory, firstDeliveryById }
   const historyMerge = new Map();
   for (const p of patients) {
     const existing = Array.isArray(p.delivery_history) ? p.delivery_history : [];
     const pre2026 = existing.filter(e => (e.delivery_date || '') < CUTOFF_DATE);
-    historyMerge.set(p.id, { pre2026, new2026: [], firstDeliveryById: new Map() });
+    historyMerge.set(p.id, { pre2026, new2026: [], existingHistory: existing, firstDeliveryById: new Map() });
   }
 
   // Step 2: Fetch terminal deliveries (2026 only) — capture first_delivery field
@@ -79,7 +93,6 @@ Deno.serve(async (req) => {
             status: d.status, _created: d.created_date,
             _currentFirstDelivery: d.first_delivery
           });
-          // Track current first_delivery value for no-op skip
           entry.firstDeliveryById.set(d.id, d.first_delivery);
         }
       }
@@ -157,7 +170,8 @@ Deno.serve(async (req) => {
   // Step 4: Merge pre-2026 + new 2026, dedupe by delivery ID, sort, build update payloads
   const patientUpdates = [];
   const deliveryCorrections = [];
-  let skippedNoOp = 0;
+  let skippedNoOpDelivery = 0;
+  let skippedNoOpPatient = 0;
 
   for (const [patientId, merge] of historyMerge) {
     const allEntries = [...merge.pre2026, ...merge.new2026];
@@ -176,7 +190,13 @@ Deno.serve(async (req) => {
     });
 
     const cleanHistory = deduped.map(e => ({ id: e.id, delivery_date: e.delivery_date, actual_delivery_time: e.actual_delivery_time, status: e.status }));
-    patientUpdates.push({ id: patientId, delivery_history: cleanHistory, last_delivery_date: cleanHistory.length > 0 ? cleanHistory[0].delivery_date : null });
+
+    // Skip patient update if delivery_history hasn't changed
+    if (!historyChanged(merge.existingHistory, cleanHistory)) {
+      skippedNoOpPatient++;
+    } else {
+      patientUpdates.push({ id: patientId, delivery_history: cleanHistory, last_delivery_date: cleanHistory.length > 0 ? cleanHistory[0].delivery_date : null });
+    }
 
     // first_delivery corrections only for 2026 entries — SKIP NO-OPS
     const new2026Sorted = merge.new2026.slice().sort((a, b) => {
@@ -186,7 +206,6 @@ Deno.serve(async (req) => {
       return (a.actual_delivery_time || '').localeCompare(b.actual_delivery_time || '');
     });
     if (new2026Sorted.length > 0) {
-      // Oldest 2026 delivery = first_delivery: true, rest = false
       const corrections = [
         { id: new2026Sorted[new2026Sorted.length - 1].id, first_delivery: true },
         ...new2026Sorted.slice(0, -1).map(e => ({ id: e.id, first_delivery: false }))
@@ -194,18 +213,18 @@ Deno.serve(async (req) => {
       for (const c of corrections) {
         const current = merge.firstDeliveryById.get(c.id);
         if (current === c.first_delivery) {
-          skippedNoOp++;
-          continue; // Skip no-op (True→True or False→False)
+          skippedNoOpDelivery++;
+          continue;
         }
         deliveryCorrections.push(c);
       }
     }
   }
 
-  // Step 5: Throttled patient updates
+  // Step 5: Throttled patient updates (batch of 10, 500ms delay)
   let patientSuccess = 0, patientErrors = 0;
-  for (let i = 0; i < patientUpdates.length; i += UPDATE_BATCH) {
-    const chunk = patientUpdates.slice(i, i + UPDATE_BATCH);
+  for (let i = 0; i < patientUpdates.length; i += PATIENT_BATCH) {
+    const chunk = patientUpdates.slice(i, i + PATIENT_BATCH);
     const results = await Promise.allSettled(chunk.map(u => db.entities.Patient.update(u.id, { delivery_history: u.delivery_history, last_delivery_date: u.last_delivery_date })));
     for (let j = 0; j < results.length; j++) {
       if (results[j].status === 'fulfilled') patientSuccess++;
@@ -214,10 +233,10 @@ Deno.serve(async (req) => {
     await sleep(WRITE_DELAY);
   }
 
-  // Step 6: Throttled delivery first_delivery corrections (2026 only, no-ops skipped)
+  // Step 6: Throttled delivery first_delivery corrections (batch of 10, 500ms delay, no-ops skipped)
   let deliverySuccess = 0, deliveryErrors = 0;
-  for (let i = 0; i < deliveryCorrections.length; i += UPDATE_BATCH) {
-    const chunk = deliveryCorrections.slice(i, i + UPDATE_BATCH);
+  for (let i = 0; i < deliveryCorrections.length; i += DELIVERY_BATCH) {
+    const chunk = deliveryCorrections.slice(i, i + DELIVERY_BATCH);
     const results = await Promise.allSettled(chunk.map(c => db.entities.Delivery.update(c.id, { first_delivery: c.first_delivery })));
     for (let j = 0; j < results.length; j++) {
       if (results[j].status === 'fulfilled') deliverySuccess++;
@@ -244,7 +263,9 @@ Deno.serve(async (req) => {
     store_ids, total_patients: totalPatients, patients_updated: patientSuccess,
     patients_with_2026_history: [...historyMerge.values()].filter(m => m.new2026.length > 0).length,
     total_deliveries_processed: totalDeliveries, total_returns_parsed: totalReturns,
-    first_delivery_corrections: deliveryCorrections.length, first_delivery_noops_skipped: skippedNoOp,
+    first_delivery_corrections: deliveryCorrections.length,
+    first_delivery_noops_skipped: skippedNoOpDelivery,
+    patient_noops_skipped: skippedNoOpPatient,
     patient_updates: { success: patientSuccess, errors: patientErrors },
     delivery_corrections: { success: deliverySuccess, errors: deliveryErrors },
     store_summary: storeSummary, errors: errors.slice(0, 20), error_count: errors.length
