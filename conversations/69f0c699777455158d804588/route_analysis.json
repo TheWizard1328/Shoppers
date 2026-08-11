@@ -3,101 +3,50 @@
     "Robert T": {
       "deliveries": 243,
       "distance": 1586.0,
-      "income": 1494.45,
-      "stores": [
-        "Callingwood",
-        "Hamptons",
-        "Beverly",
-        "Londonderry"
-      ]
+      "income": 1494.45
     },
     "Sharuk": {
       "deliveries": 474,
       "distance": 2081.0,
-      "income": 2607.0,
-      "stores": [
-        "Lakeland Ridge",
-        "Sherwood Pk Mall",
-        "Bonnie Doon",
-        "Kingsway",
-        "Lakeland Ridge",
-        "Sherwood Pk Mall",
-        "Bonnie Doon",
-        "Beverly",
-        "Kingsway",
-        "Kingsway"
-      ]
+      "income": 2607.0
     },
     "Erin": {
       "deliveries": 44,
       "distance": 196.3,
-      "income": 231.0,
-      "stores": [
-        "Scona"
-      ]
+      "income": 231.0
     },
     "Anna": {
       "deliveries": 83,
       "distance": 877.9,
-      "income": 510.45,
-      "stores": [
-        "WestPark",
-        "SouthPoint",
-        "Meadows"
-      ]
+      "income": 510.45
     }
   },
   "optimized": {
     "Robert T": {
-      "deliveries": 243,
-      "distance": 1586.0,
-      "income": 1494.45,
-      "stores": [
-        "Callingwood",
-        "Hamptons",
-        "Beverly",
-        "Londonderry"
-      ]
+      "deliveries": 170,
+      "distance": 1357.2,
+      "income": 1045.5
     },
     "Sharuk": {
-      "deliveries": 454,
-      "distance": 2093.6,
-      "income": 2497.0,
-      "stores": [
-        "Lakeland Ridge",
-        "Bonnie Doon",
-        "Kingsway",
-        "Lakeland Ridge",
-        "Sherwood Pk Mall",
-        "Bonnie Doon",
-        "Scona",
-        "Beverly",
-        "Kingsway",
-        "Kingsway"
-      ]
+      "deliveries": 402,
+      "distance": 1775.9,
+      "income": 2211.0
     },
     "Erin": {
-      "deliveries": 0,
-      "distance": 0,
-      "income": 0.0,
-      "stores": []
+      "deliveries": 116,
+      "distance": 1020.8,
+      "income": 609.0
     },
     "Anna": {
-      "deliveries": 147,
-      "distance": 989.0,
-      "income": 904.05,
-      "stores": [
-        "WestPark",
-        "SouthPoint",
-        "Sherwood Pk Mall",
-        "Meadows"
-      ]
+      "deliveries": 156,
+      "distance": 1218.5,
+      "income": 959.4
     }
   },
   "total": {
     "current_km": 4741.2,
-    "optimized_km": 4668.7,
-    "saved_km": 72.5,
-    "annual_saved_km": 1741
+    "optimized_km": 5372.5,
+    "saved_km": -631.2,
+    "annual_saved_km": -15149
   }
 }
