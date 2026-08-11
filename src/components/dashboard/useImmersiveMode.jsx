@@ -300,6 +300,14 @@ export default function useImmersiveMode({
       if (previousImmersiveHiddenRef.current && !immersiveHidden) {
         window._lastImmersiveExitAt = Date.now();
       }
+      // When ENTERING immersive mode (visible → hidden), stamp a global timestamp so
+      // the watchdog and GPS map repositioning are suppressed for a grace period.
+      // This prevents the double-zoom: immersive refit fires with immersive padding,
+      // then the first GPS tick (or watchdog) fires a second animation that puts
+      // markers behind partially-visible UI elements.
+      if (!previousImmersiveHiddenRef.current && immersiveHidden) {
+        window._lastImmersiveEntryAt = Date.now();
+      }
     }
     previousImmersiveHiddenRef.current = immersiveHidden;
   }, [immersiveHidden]);

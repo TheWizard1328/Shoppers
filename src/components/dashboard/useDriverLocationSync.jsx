@@ -182,6 +182,7 @@ export default function useDriverLocationSync({
       if (phase !== 2 && phase !== 3) return;
       if ((window._suppressMapRepositionUntil || 0) > now) return;
       if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
+      if ((window._lastImmersiveEntryAt || 0) > now - 1500) return; // Grace period after immersive entry
 
       // Don't override bounds when an admin is viewing a DIFFERENT driver's route.
       const selectedId = selectedDriverIdRef.current;
@@ -271,6 +272,8 @@ export default function useDriverLocationSync({
       const phase = mapViewPhaseRef.current;
       if (phase !== 2 && phase !== 3) return;
       if ((window._suppressMapRepositionUntil || 0) > now) return;
+      if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
+      if ((window._lastImmersiveEntryAt || 0) > now - 1500) return; // Grace period after immersive entry
 
       const updatedAppUsers = event?.detail?.appUsers;
       if (!Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) return;
@@ -331,11 +334,24 @@ export default function useDriverLocationSync({
       if (phase !== 2 && phase !== 3) return;
 
       const now = Date.now();
-      const timeSinceLastTrigger = now - (lastMapTriggerTimeRef.current || 0);
+      // CRITICAL: Consider ALL programmatic map moves (GPS ticks, WS updates, FAB taps,
+      // immersive refit, proximity snap) when determining staleness. The old check only
+      // looked at lastMapTriggerTimeRef (set by GPS/WS handlers), missing the immersive
+      // refit and FAB tap which set window._lastProgrammaticMapMove instead. This caused
+      // the watchdog to re-fire 12s after the last GPS tick even though the immersive
+      // refit had just repositioned the map — triggering the double-zoom.
+      const lastActivity = Math.max(
+        lastMapTriggerTimeRef.current || 0,
+        window._lastProgrammaticMapMove || 0
+      );
+      const timeSinceLastTrigger = now - lastActivity;
       if (timeSinceLastTrigger < STALE_THRESHOLD_MS) return;
 
       // Don't fire if the user just exited immersive mode (give 1.5s grace)
       if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
+      // Don't fire if the user just ENTERED immersive mode (give 3.5s grace for
+      // the 350ms refit delay plus animation completion)
+      if ((window._lastImmersiveEntryAt || 0) > now - 3500) return;
 
       // Don't fire if map reposition is explicitly suppressed
       if ((window._suppressMapRepositionUntil || 0) > now) return;
