@@ -129,7 +129,7 @@ export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, 
       topPadding = BASE_PADDING + BASE_PADDING;
       bottomPadding = EXTRA_ITEMS_HEIGHT;
     } else {
-      topPadding = statsCardHeight;
+      topPadding = statsCardHeight + BASE_PADDING;
       bottomPadding = EXTRA_ITEMS_HEIGHT + (stopCardsBaseHeight || 0);
     }
     BASE_PADDING = 15;
