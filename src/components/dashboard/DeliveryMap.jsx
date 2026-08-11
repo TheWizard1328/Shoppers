@@ -931,6 +931,10 @@ function DeliveryMap({
   // latest position with zero dropped updates and no artificial delay/timer.
   const fitBoundsInFlightRef = useRef(false);
   const latestFitBoundsRef = useRef(null);
+  // Generation counter: incremented on cancelInFlight so the old settle() from a
+  // cancelled animation knows it's been superseded and does not call runFit(latest)
+  // (which would start a second ghost animation - the double-zoom bug).
+  const fitGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!map || !shouldFitBounds) return;
@@ -951,6 +955,7 @@ function DeliveryMap({
       if (shouldFitBounds.cancelInFlight) {
         map.stop(); // abort the current Leaflet pan/zoom animation
         fitBoundsInFlightRef.current = false;
+        fitGenerationRef.current++; // invalidate any pending settle() from the cancelled animation
         // fall through to runFit below
       } else {
         // An animation from a very recent tick is still playing — the in-flight
@@ -961,6 +966,7 @@ function DeliveryMap({
     }
 
     const runFit = (request) => {
+      const myGeneration = fitGenerationRef.current;
       try {
         const bounds = L.latLngBounds((Array.isArray(request.bounds) ? request.bounds : []).filter((point) => Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1])));
         if (!bounds.isValid()) return;
@@ -983,11 +989,26 @@ function DeliveryMap({
         // already at, so a real fitBounds call would get clamped and silently skip the pan anyway.
         let targetZoomForBounds = requestedMaxZoom;
         try {
-          const avgPadding = L.point(
-            (paddingTopLeft[0] + paddingBottomRight[0]) / 2,
-            (paddingTopLeft[1] + paddingBottomRight[1]) / 2
-          );
-          targetZoomForBounds = Math.min(map.getBoundsZoom(bounds, false, avgPadding), requestedMaxZoom);
+          // CRITICAL: Leaflet getBoundsZoom uses Math.floor returning an INTEGER
+          // even with zoomSnap=0. This caused whole-number zoom jumps instead of
+          // smooth fractional changes. We compute the fractional zoom ourselves:
+          // project bounds at zoom 0, compute scale ratio against padded map size,
+          // convert via log2 - no rounding.
+          const nw = bounds.getNorthWest();
+          const se = bounds.getSouthEast();
+          const mapSize = map.getSize();
+          const padX = (paddingTopLeft[0] + paddingBottomRight[0]);
+          const padY = (paddingTopLeft[1] + paddingBottomRight[1]);
+          const boundsSize = map.project(se, 0).subtract(map.project(nw, 0));
+          const availX = Math.max(1, mapSize.x - padX);
+          const availY = Math.max(1, mapSize.y - padY);
+          const bsX = Math.max(1, Math.abs(boundsSize.x));
+          const bsY = Math.max(1, Math.abs(boundsSize.y));
+          const scale = Math.min(availX / bsX, availY / bsY);
+          if (isFinite(scale) && scale > 0) {
+            const fractionalZoom = Math.log2(scale);
+            targetZoomForBounds = Math.min(fractionalZoom, requestedMaxZoom);
+          }
         } catch {}
 
         // ── UNIFIED PHASE 2/3 PAN RULE ──────────────────────────────────────────
@@ -1089,6 +1110,10 @@ function DeliveryMap({
                 }
               }
             } catch {}
+            // CRITICAL: If a newer runFit was started via cancelInFlight (generation
+            // incremented), this settle is from a STALE animation and must NOT start
+            // a second runFit - that would be the ghost double-zoom animation.
+            if (myGeneration !== fitGenerationRef.current) return;
             runFit(latest);
           }
         };
@@ -1128,8 +1153,13 @@ function DeliveryMap({
           // ── TIER 3: FITBOUNDS (large zoom change) ─────────────────────────
           // Either the map is too zoomed out (initial entry) or too zoomed in
           // (driver moved away from next stop, bounds expanded significantly).
-          // Use fitBounds to animate zoom + pan in one smooth step.
-          map.fitBounds(bounds, { ...opts, paddingTopLeft, paddingBottomRight, animate: true });
+          // Use setView with the exact fractional target zoom and padding-adjusted center.
+          // CRITICAL: Leaflet fitBounds internally calls getBoundsZoom which uses
+          // Math.floor, snapping to integer zoom even with zoomSnap=0. By using setView
+          // with our pre-computed fractional targetZoomForBounds, we get smooth continuous
+          // zoom transitions on every GPS tick - no whole-number jumps.
+          const tier3Duration = opts.duration != null ? opts.duration : 0.9;
+          map.setView(adjusted, targetZoomForBounds, { animate: opts.animate !== false, duration: tier3Duration, easeLinearity: opts.easeLinearity != null ? opts.easeLinearity : 0.25 });
           window._lastProgrammaticMapMove = Date.now();
         }
       } catch {
