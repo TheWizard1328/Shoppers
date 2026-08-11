@@ -2,8 +2,14 @@ import React from "react";
 import { CheckCircle, AlertCircle, Clock, Loader2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
-// Compact, single-row sync status pill for embedding inside a list-view header.
-// Renders: [icon] Synced • 10 minutes ago (@ HH:mm:ss) | Cash X · Debit X · Credit X · Cheque X
+// Compact sync status badge for embedding inside a list-view header.
+//
+// Mobile (≤ md): two stacked rows inside a rounded card —
+//   Row 1: [icon] Synced • 18 minutes ago (@ 22:18:40)
+//   Row 2: Cash 229 • Debit 255 • Credit 67 • Cheque 0
+//
+// Desktop (md+): single inline row (rounded-full pill) —
+//   [icon] Synced • 18 min ago (@ 22:18:40) | Cash 229 · Debit 255 · Credit 67 · Cheque 0
 export default function SyncStatusInline({ syncStatus, isSyncing, error, collectedCodTypeBreakdown = { Cash: 0, Debit: 0, Credit: 0, Check: 0 } }) {
   const catalogStatus = syncStatus?.catalog;
   const transactionStatus = syncStatus?.transactions;
@@ -38,19 +44,26 @@ export default function SyncStatusInline({ syncStatus, isSyncing, error, collect
   const pill = "rounded-full bg-white/80 dark:bg-slate-900/60 px-2 py-0.5 text-slate-700 dark:text-slate-300 whitespace-nowrap shrink-0";
 
   return (
-    <div className={`flex items-center gap-2 rounded-full border ${border} ${bg} px-3 py-1.5 text-xs flex-wrap`}>
-      <span className={`${color} shrink-0`}>{icon}</span>
-      <span className={`font-semibold ${color} shrink-0`}>{text}</span>
-      {lastSyncTime &&
-      <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0">
-          • {formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true })} (@ {format(new Date(lastSyncTime), 'HH:mm:ss')})
-        </span>
-      }
+    <div className={`flex flex-col md:flex-row md:items-center gap-1 md:gap-2 rounded-xl md:rounded-full border ${border} ${bg} px-3 py-1.5 text-xs w-full md:w-auto`}>
+      {/* Row 1 (mobile) / leading segment (desktop) — status + time */}
+      <div className="flex items-center gap-2 min-w-0">
+        <span className={`${color} shrink-0`}>{icon}</span>
+        <span className={`font-semibold ${color} shrink-0`}>{text}</span>
+        {lastSyncTime &&
+        <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0 truncate">
+            • {formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true })} (@ {format(new Date(lastSyncTime), 'HH:mm:ss')})
+          </span>
+        }
+      </div>
+      {/* Divider — desktop only */}
       <span className="w-px h-4 bg-slate-200 dark:bg-slate-600 shrink-0 hidden md:inline-block" />
-      <span className={`${pill}`}>Cash {collectedCodTypeBreakdown.Cash | 0}</span>
-      <span className={`${pill}`}>Debit {collectedCodTypeBreakdown.Debit | 0}</span>
-      <span className={`${pill}`}>Credit {collectedCodTypeBreakdown.Credit | 0}</span>
-      <span className={`${pill}`}>Cheque {collectedCodTypeBreakdown.Check | 0}</span>
+      {/* Row 2 (mobile) / trailing segment (desktop) — cash type pills */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className={`${pill}`}>Cash {collectedCodTypeBreakdown.Cash | 0}</span>
+        <span className={`${pill}`}>Debit {collectedCodTypeBreakdown.Debit | 0}</span>
+        <span className={`${pill}`}>Credit {collectedCodTypeBreakdown.Credit | 0}</span>
+        <span className={`${pill}`}>Cheque {collectedCodTypeBreakdown.Check | 0}</span>
+      </div>
     </div>
   );
 }

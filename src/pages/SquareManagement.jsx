@@ -1900,8 +1900,8 @@ export default function SquareManagement() {
                                ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex-shrink-0 mb-4 space-y-3">
 
-        {/* ── Row 1: Filters + Tab buttons — single row on desktop ── */}
-        <div className="flex flex-row flex-wrap items-center gap-2">
+        {/* ── Row 1: Filters (2×2 grid on mobile, single row on desktop) + Tab buttons ── */}
+        <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-2">
           {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
           <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
             <SelectTrigger className="w-full md:w-40 text-sm shrink-0">
@@ -1918,7 +1918,7 @@ export default function SquareManagement() {
           {isDriverView && currentAppUser &&
           <Select value={selectedDriverFilter} disabled>
             <SelectTrigger className="w-full md:w-40 text-sm opacity-70 cursor-not-allowed shrink-0">
-              <SelectValue>{currentAppUser.user_name || 'My Items'}</SelectValue>
+              <SelectValue>{currentAppUser.user_name}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={currentAppUser.id}>{currentAppUser.user_name}</SelectItem>
@@ -1957,7 +1957,7 @@ export default function SquareManagement() {
           </Button>
           }
           {currentUser && isAppOwner(currentUser) &&
-          <div className="flex flex-row items-center gap-2 ml-auto shrink-0">
+          <div className="col-span-2 md:col-span-auto flex flex-row items-center gap-2 md:ml-auto shrink-0">
             {[{ key: 'deliveries', label: 'Deliveries' }, { key: 'transactions', label: 'Transactions' }, { key: 'catalog', label: 'Catalog' }, { key: 'reconciliation', label: 'Reconcile' }].map((view) =>
             <Button
               key={view.key}
@@ -1973,7 +1973,7 @@ export default function SquareManagement() {
           </div>
           }
           {!isDriverView && currentUser && !isAppOwner(currentUser) &&
-          <div className="w-full">
+          <div className="col-span-2 md:col-span-auto md:ml-auto">
             <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
           </div>
           }
@@ -2003,11 +2003,13 @@ export default function SquareManagement() {
           return (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                <div className="px-5 pt-5 pb-3">
+                <div className="px-4 md:px-5 pt-4 pb-3">
                   <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Total Amount</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
-                  <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
-                  <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                  <div className="flex items-end justify-between gap-2">
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 pb-0.5 whitespace-nowrap">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
                     {collectedPct > 0 && <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />}
                     {catalogPct > 0 && <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />}
                     {newItemsPct > 0 && <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />}
@@ -2015,31 +2017,37 @@ export default function SquareManagement() {
                 </div>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                <div className="px-5 pt-5 pb-3">
+                <div className="px-4 md:px-5 pt-4 pb-3">
                   <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Total Collected</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${collectedAmount.toFixed(2)}</div>
-                  <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{collectedRows.length} item{collectedRows.length !== 1 ? 's' : ''}</div>
-                  <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="flex items-end justify-between gap-2">
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${collectedAmount.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 pb-0.5 whitespace-nowrap">{collectedRows.length} item{collectedRows.length !== 1 ? 's' : ''}</div>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />
                   </div>
                 </div>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                <div className="px-5 pt-5 pb-3">
+                <div className="px-4 md:px-5 pt-4 pb-3">
                   <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Catalog Items</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${catalogTotal.toFixed(2)}</div>
-                  <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{catalogOnlyItemCount} item{catalogOnlyItemCount !== 1 ? 's' : ''}</div>
-                  <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="flex items-end justify-between gap-2">
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${catalogTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 pb-0.5 whitespace-nowrap">{catalogOnlyItemCount} item{catalogOnlyItemCount !== 1 ? 's' : ''}</div>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />
                   </div>
                 </div>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                <div className="px-5 pt-5 pb-3">
+                <div className="px-4 md:px-5 pt-4 pb-3">
                   <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">New Items</div>
-                  <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${newCatalogTotal.toFixed(2)}</div>
-                  <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{newCatalogItems.length} item{newCatalogItems.length !== 1 ? 's' : ''}</div>
-                  <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="flex items-end justify-between gap-2">
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${newCatalogTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 pb-0.5 whitespace-nowrap">{newCatalogItems.length} item{newCatalogItems.length !== 1 ? 's' : ''}</div>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />
                   </div>
                 </div>
