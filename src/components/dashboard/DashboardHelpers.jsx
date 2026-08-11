@@ -117,7 +117,7 @@ export const roundCompletionTime = (timeISO) => {
  * means the stats card doesn't obscure map markers.
  */
 export const buildMapPadding = ({ isMobile, isImmersiveModeOn, statsCardHeight, stopCardsBaseHeight }) => {
-  const EXTRA_ITEMS_HEIGHT = 50;
+  const EXTRA_ITEMS_HEIGHT = 55;
   let BASE_PADDING = 10;
   const Extra_Top_PADDING = 20;
 
