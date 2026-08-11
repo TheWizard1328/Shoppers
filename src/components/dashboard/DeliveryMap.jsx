@@ -1002,8 +1002,20 @@ function DeliveryMap({
           const boundsSize = map.project(se, 0).subtract(map.project(nw, 0));
           const availX = Math.max(1, mapSize.x - padX);
           const availY = Math.max(1, mapSize.y - padY);
-          const bsX = Math.max(1, Math.abs(boundsSize.x));
-          const bsY = Math.max(1, Math.abs(boundsSize.y));
+          // BUG FIX: was Math.max(1, ...) — clamping the zoom-0 projected bounds size to a
+          // MINIMUM of 1 pixel. At zoom 0 the entire world is only 256px wide (~156km/px at
+          // the equator), so any realistic driver-to-next-stop distance (a few km, sometimes
+          // even a full city, ~20-50km) projects to WELL UNDER 1 pixel at zoom 0. Clamping
+          // that to exactly 1 massively overestimated the zoom-0 bounds size, which
+          // underestimated the scale/zoom needed — causing the map to zoom out far more than
+          // necessary on EVERY phase (Phase 2/3 tight driver+stop views were hit hardest since
+          // their true zoom-0 size is smallest, e.g. 0.03px vs the clamped 1px = 33x error).
+          // Use a near-zero epsilon instead — only guards against exact divide-by-zero for a
+          // truly degenerate single-point/zero-size bounds case, where the resulting huge scale
+          // correctly clamps to requestedMaxZoom via Math.min below.
+          const EPS = 1e-6;
+          const bsX = Math.max(EPS, Math.abs(boundsSize.x));
+          const bsY = Math.max(EPS, Math.abs(boundsSize.y));
           const scale = Math.min(availX / bsX, availY / bsY);
           if (isFinite(scale) && scale > 0) {
             const fractionalZoom = Math.log2(scale);
