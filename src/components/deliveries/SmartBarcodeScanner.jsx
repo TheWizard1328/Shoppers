@@ -623,6 +623,7 @@ export default function SmartBarcodeScanner({
           autoCorrect="off"
           inputMode="none" />
         
+        {isMobile &&
         <Button
           type="button"
           size="sm"
@@ -634,6 +635,7 @@ export default function SmartBarcodeScanner({
           
           <Camera className="w-4 h-4" />
         </Button>
+        }
       </div>
 
       
