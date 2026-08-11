@@ -1,0 +1,335 @@
+{
+  "current": {
+    "Robert T": {
+      "deliveries": 135,
+      "income": 830.25,
+      "driving_km": 692.1406020752833,
+      "pickups": 20,
+      "stores": [
+        {
+          "store": "Beverly",
+          "slot": "PM",
+          "days": 5,
+          "dist": 22.1,
+          "deliveries": 40
+        },
+        {
+          "store": "Callingwood",
+          "slot": "AM",
+          "days": 5,
+          "dist": 11.5,
+          "deliveries": 35
+        },
+        {
+          "store": "Hamptons",
+          "slot": "AM",
+          "days": 5,
+          "dist": 11.8,
+          "deliveries": 25
+        },
+        {
+          "store": "Londonderry",
+          "slot": "PM",
+          "days": 5,
+          "dist": 23.8,
+          "deliveries": 35
+        }
+      ]
+    },
+    "Sharuk": {
+      "deliveries": 281,
+      "income": 1545.5,
+      "driving_km": 903.7905157887211,
+      "pickups": 38,
+      "stores": [
+        {
+          "store": "Lakeland Ridge",
+          "slot": "AM",
+          "days": 5,
+          "dist": 17.3,
+          "deliveries": 20
+        },
+        {
+          "store": "Lakeland Ridge",
+          "slot": "PM",
+          "days": 5,
+          "dist": 17.3,
+          "deliveries": 20
+        },
+        {
+          "store": "Sherwood Pk Mall",
+          "slot": "AM",
+          "days": 5,
+          "dist": 15.3,
+          "deliveries": 35
+        },
+        {
+          "store": "Sherwood Pk Mall",
+          "slot": "PM",
+          "days": 5,
+          "dist": 15.3,
+          "deliveries": 35
+        },
+        {
+          "store": "Beverly",
+          "slot": "SAT_AM",
+          "days": 1,
+          "dist": 12.0,
+          "deliveries": 8
+        },
+        {
+          "store": "Bonnie Doon",
+          "slot": "AM",
+          "days": 5,
+          "dist": 5.3,
+          "deliveries": 50
+        },
+        {
+          "store": "Bonnie Doon",
+          "slot": "PM",
+          "days": 5,
+          "dist": 5.3,
+          "deliveries": 50
+        },
+        {
+          "store": "Kingsway",
+          "slot": "AM",
+          "days": 5,
+          "dist": 8.8,
+          "deliveries": 45
+        },
+        {
+          "store": "Kingsway",
+          "slot": "SAT_AM",
+          "days": 1,
+          "dist": 8.8,
+          "deliveries": 9
+        },
+        {
+          "store": "Kingsway",
+          "slot": "SUN_AM",
+          "days": 1,
+          "dist": 8.8,
+          "deliveries": 9
+        }
+      ]
+    },
+    "Erin": {
+      "deliveries": 25,
+      "income": 131.25,
+      "driving_km": 38.54410405724762,
+      "pickups": 5,
+      "stores": [
+        {
+          "store": "Scona",
+          "slot": "PM",
+          "days": 5,
+          "dist": 3.9,
+          "deliveries": 25
+        }
+      ]
+    },
+    "Anna": {
+      "deliveries": 50,
+      "income": 307.5,
+      "driving_km": 610.3795776825995,
+      "pickups": 15,
+      "stores": [
+        {
+          "store": "WestPark",
+          "slot": "AM",
+          "days": 5,
+          "dist": 26.4,
+          "deliveries": 15
+        },
+        {
+          "store": "SouthPoint",
+          "slot": "AM",
+          "days": 5,
+          "dist": 28.7,
+          "deliveries": 10
+        },
+        {
+          "store": "Meadows",
+          "slot": "PM",
+          "days": 5,
+          "dist": 5.9,
+          "deliveries": 25
+        }
+      ]
+    }
+  },
+  "optimized": {
+    "Robert T": {
+      "deliveries": 95,
+      "income": 584.25,
+      "driving_km": 470.9141572382248,
+      "pickups": 15,
+      "stores": [
+        {
+          "store": "Hamptons",
+          "slot": "AM",
+          "days": 5,
+          "dist": 11.8,
+          "deliveries": 25
+        },
+        {
+          "store": "Callingwood",
+          "slot": "AM",
+          "days": 5,
+          "dist": 11.5,
+          "deliveries": 35
+        },
+        {
+          "store": "Londonderry",
+          "slot": "PM",
+          "days": 5,
+          "dist": 23.8,
+          "deliveries": 35
+        }
+      ]
+    },
+    "Sharuk": {
+      "deliveries": 71,
+      "income": 390.5,
+      "driving_km": 147.06207445093779,
+      "pickups": 8,
+      "stores": [
+        {
+          "store": "Kingsway",
+          "slot": "AM",
+          "days": 5,
+          "dist": 8.8,
+          "deliveries": 45
+        },
+        {
+          "store": "Beverly",
+          "slot": "SAT_AM",
+          "days": 1,
+          "dist": 12.0,
+          "deliveries": 8
+        },
+        {
+          "store": "Kingsway",
+          "slot": "SAT_AM",
+          "days": 1,
+          "dist": 8.8,
+          "deliveries": 9
+        },
+        {
+          "store": "Kingsway",
+          "slot": "SUN_AM",
+          "days": 1,
+          "dist": 8.8,
+          "deliveries": 9
+        }
+      ]
+    },
+    "Erin": {
+      "deliveries": 195,
+      "income": 1023.75,
+      "driving_km": 442.34722248406615,
+      "pickups": 25,
+      "stores": [
+        {
+          "store": "Bonnie Doon",
+          "slot": "AM",
+          "days": 5,
+          "dist": 5.2,
+          "deliveries": 50
+        },
+        {
+          "store": "Bonnie Doon",
+          "slot": "PM",
+          "days": 5,
+          "dist": 5.2,
+          "deliveries": 50
+        },
+        {
+          "store": "Scona",
+          "slot": "PM",
+          "days": 5,
+          "dist": 3.9,
+          "deliveries": 25
+        },
+        {
+          "store": "Sherwood Pk Mall",
+          "slot": "AM",
+          "days": 5,
+          "dist": 15.0,
+          "deliveries": 35
+        },
+        {
+          "store": "Sherwood Pk Mall",
+          "slot": "PM",
+          "days": 5,
+          "dist": 15.0,
+          "deliveries": 35
+        }
+      ]
+    },
+    "Anna": {
+      "deliveries": 130,
+      "income": 799.5,
+      "driving_km": 1005.1372378417007,
+      "pickups": 30,
+      "stores": [
+        {
+          "store": "WestPark",
+          "slot": "AM",
+          "days": 5,
+          "dist": 26.4,
+          "deliveries": 15
+        },
+        {
+          "store": "SouthPoint",
+          "slot": "AM",
+          "days": 5,
+          "dist": 28.7,
+          "deliveries": 10
+        },
+        {
+          "store": "Meadows",
+          "slot": "PM",
+          "days": 5,
+          "dist": 5.9,
+          "deliveries": 25
+        },
+        {
+          "store": "Beverly",
+          "slot": "PM",
+          "days": 5,
+          "dist": 10.8,
+          "deliveries": 40
+        },
+        {
+          "store": "Lakeland Ridge",
+          "slot": "AM",
+          "days": 5,
+          "dist": 14.4,
+          "deliveries": 20
+        },
+        {
+          "store": "Lakeland Ridge",
+          "slot": "PM",
+          "days": 5,
+          "dist": 14.4,
+          "deliveries": 20
+        }
+      ]
+    }
+  },
+  "total_current": {
+    "driving": 2244.9,
+    "income": 2814.5
+  },
+  "total_optimized": {
+    "driving": 2065.5,
+    "income": 2798.0
+  },
+  "savings": {
+    "driving_week": 179.4,
+    "driving_month": 771.4,
+    "driving_year": 9328.0
+  }
+}
