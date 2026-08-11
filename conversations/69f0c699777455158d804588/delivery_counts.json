@@ -1,0 +1,100 @@
+{
+  "per_store": {
+    "685cd33055969a07cb634fe0": {
+      "name": "Kingsway",
+      "total": 641,
+      "avg_per_day": 7.82,
+      "avg_am": 7.65,
+      "avg_pm": 0.17,
+      "days_active": 82
+    },
+    "685cd33055969a07cb634fe1": {
+      "name": "Scona",
+      "total": 325,
+      "avg_per_day": 5.24,
+      "avg_am": 3.53,
+      "avg_pm": 1.71,
+      "days_active": 62
+    },
+    "685cd33055969a07cb634fe2": {
+      "name": "Bonnie Doon",
+      "total": 628,
+      "avg_per_day": 9.97,
+      "avg_am": 6.13,
+      "avg_pm": 3.84,
+      "days_active": 63
+    },
+    "685cd33055969a07cb634fe3": {
+      "name": "Meadows",
+      "total": 298,
+      "avg_per_day": 5.52,
+      "avg_am": 0.56,
+      "avg_pm": 4.96,
+      "days_active": 54
+    },
+    "685cd33055969a07cb634fe4": {
+      "name": "Londonderry",
+      "total": 410,
+      "avg_per_day": 6.51,
+      "avg_am": 0.13,
+      "avg_pm": 6.38,
+      "days_active": 63
+    },
+    "685cd33055969a07cb634fe5": {
+      "name": "Hamptons",
+      "total": 580,
+      "avg_per_day": 9.67,
+      "avg_am": 9.5,
+      "avg_pm": 0.17,
+      "days_active": 60
+    },
+    "685cd33055969a07cb634fe6": {
+      "name": "Callingwood",
+      "total": 506,
+      "avg_per_day": 8.72,
+      "avg_am": 8.55,
+      "avg_pm": 0.17,
+      "days_active": 58
+    },
+    "685cd33055969a07cb634fe7": {
+      "name": "SouthPoint",
+      "total": 235,
+      "avg_per_day": 4.35,
+      "avg_am": 1.2,
+      "avg_pm": 3.13,
+      "days_active": 54
+    },
+    "685cd33055969a07cb634fe8": {
+      "name": "WestPark",
+      "total": 119,
+      "avg_per_day": 2.53,
+      "avg_am": 0.57,
+      "avg_pm": 1.94,
+      "days_active": 47
+    },
+    "685cd33055969a07cb634fe9": {
+      "name": "Beverly",
+      "total": 393,
+      "avg_per_day": 4.73,
+      "avg_am": 1.51,
+      "avg_pm": 3.23,
+      "days_active": 83
+    },
+    "69354c3f7d5201849e84af97": {
+      "name": "Sherwood Pk Mall",
+      "total": 404,
+      "avg_per_day": 5.86,
+      "avg_am": 3.72,
+      "avg_pm": 2.13,
+      "days_active": 69
+    },
+    "695b6333e8a9b6f5b0c467d7": {
+      "name": "Lakeland Ridge",
+      "total": 286,
+      "avg_per_day": 4.47,
+      "avg_am": 2.27,
+      "avg_pm": 2.2,
+      "days_active": 64
+    }
+  }
+}

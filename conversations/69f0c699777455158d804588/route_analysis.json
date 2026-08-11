@@ -1,0 +1,103 @@
+{
+  "current": {
+    "Robert T": {
+      "deliveries": 243,
+      "distance": 1586.0,
+      "income": 1494.45,
+      "stores": [
+        "Callingwood",
+        "Hamptons",
+        "Beverly",
+        "Londonderry"
+      ]
+    },
+    "Sharuk": {
+      "deliveries": 474,
+      "distance": 2081.0,
+      "income": 2607.0,
+      "stores": [
+        "Lakeland Ridge",
+        "Sherwood Pk Mall",
+        "Bonnie Doon",
+        "Kingsway",
+        "Lakeland Ridge",
+        "Sherwood Pk Mall",
+        "Bonnie Doon",
+        "Beverly",
+        "Kingsway",
+        "Kingsway"
+      ]
+    },
+    "Erin": {
+      "deliveries": 44,
+      "distance": 196.3,
+      "income": 231.0,
+      "stores": [
+        "Scona"
+      ]
+    },
+    "Anna": {
+      "deliveries": 83,
+      "distance": 877.9,
+      "income": 510.45,
+      "stores": [
+        "WestPark",
+        "SouthPoint",
+        "Meadows"
+      ]
+    }
+  },
+  "optimized": {
+    "Robert T": {
+      "deliveries": 243,
+      "distance": 1586.0,
+      "income": 1494.45,
+      "stores": [
+        "Callingwood",
+        "Hamptons",
+        "Beverly",
+        "Londonderry"
+      ]
+    },
+    "Sharuk": {
+      "deliveries": 454,
+      "distance": 2093.6,
+      "income": 2497.0,
+      "stores": [
+        "Lakeland Ridge",
+        "Bonnie Doon",
+        "Kingsway",
+        "Lakeland Ridge",
+        "Sherwood Pk Mall",
+        "Bonnie Doon",
+        "Scona",
+        "Beverly",
+        "Kingsway",
+        "Kingsway"
+      ]
+    },
+    "Erin": {
+      "deliveries": 0,
+      "distance": 0,
+      "income": 0.0,
+      "stores": []
+    },
+    "Anna": {
+      "deliveries": 147,
+      "distance": 989.0,
+      "income": 904.05,
+      "stores": [
+        "WestPark",
+        "SouthPoint",
+        "Sherwood Pk Mall",
+        "Meadows"
+      ]
+    }
+  },
+  "total": {
+    "current_km": 4741.2,
+    "optimized_km": 4668.7,
+    "saved_km": 72.5,
+    "annual_saved_km": 1741
+  }
+}
