@@ -1364,6 +1364,9 @@ export default function SquareManagement() {
     const rows = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0).
     filter((delivery) => {
       if (!delivery) return false;
+      // RULE: Failed deliveries are exempt from the Square COD Deliveries tab list,
+      // Reconcile flow, and Square Catalog update path. Cancelled and pending are
+      // also excluded — they never reached active delivery status.
       if (['failed', 'cancelled', 'pending'].includes(delivery.status)) return false;
       // Exclude future-dated deliveries — not yet assigned/accepted
       if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
@@ -1698,6 +1701,9 @@ export default function SquareManagement() {
     const rows = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0).
     filter((delivery) => {
       if (!delivery) return false;
+      // RULE: Failed deliveries are exempt from Reconcile and Square Catalog update.
+      // The backend (squareGetCodData2) also excludes them from returned data
+      // and cleans up orphaned catalog items for failed deliveries.
       if (['failed', 'cancelled', 'pending'].includes(delivery.status)) return false;
       // Exclude future-dated deliveries — not yet assigned/accepted
       if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
