@@ -210,6 +210,7 @@ export default function SquareCodDatasetTable({
   groupByCollected,
   showCatalogColumn,
   headerActions,
+  headerStatus,
   newCatalogRows
 }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -269,6 +270,7 @@ export default function SquareCodDatasetTable({
               </button>
             )}
           </div>
+          {headerStatus && <div className="flex items-center gap-2 shrink-0">{headerStatus}</div>}
           {headerActions && <div className="flex items-center gap-2 ml-auto shrink-0">{headerActions}</div>}
         </div>
       </CardHeader>

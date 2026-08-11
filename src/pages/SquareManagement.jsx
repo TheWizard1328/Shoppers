@@ -13,7 +13,7 @@ import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import LocationSummaryCard from "@/components/square/LocationSummaryCard";
 import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel";
 import CODItemDetailModal from "@/components/square/CODItemDetailModal";
-import SyncStatusIndicator from "@/components/square/SyncStatusIndicator";
+import SyncStatusInline from "@/components/square/SyncStatusInline";
 import BackgroundSyncProgressBar from "@/components/square/BackgroundSyncProgressBar";
 import SquareCodViewSwitcher from "@/components/square/SquareCodViewSwitcher";
 import SquareCodDatasetTable from "@/components/square/SquareCodDatasetTable";
@@ -1898,325 +1898,277 @@ export default function SquareManagement() {
                                    Left column  : auto/shrink  (content-width)
                                    Right column : flex-1       (fills remaining width)
                                ═══════════════════════════════════════════════════════════════════ */}
-      <div className="flex-shrink-0 mb-4">
+      <div className="flex-shrink-0 mb-4 space-y-3">
 
-        {/* ── 2×2 GRID LAYOUT ── */}
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-[40%_60%]">
-
-          {/* R1-C1: Filters + Tab buttons */}
-          <div className="flex flex-col gap-2">
-
-            {/* Sub-row 1: Drivers | Stores | Date range | Sync */}
-            <div className="flex flex-row items-center gap-2">
-              {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
-              <div className="flex-1 min-w-0">
-                <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue placeholder="All Drivers" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Drivers</SelectItem>
-                    {drivers.map((driver) =>
-                    <SelectItem key={driver.id} value={driver.id}>{driver.user_name}</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              }
-              {isDriverView && currentAppUser &&
-              <div className="flex-1 min-w-0">
-                <Select value={selectedDriverFilter} disabled>
-                  <SelectTrigger className="w-full text-sm opacity-70 cursor-not-allowed">
-                    <SelectValue>{currentAppUser.user_name || 'My Items'}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={currentAppUser.id}>{currentAppUser.user_name}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              }
-              <div className="flex-1 min-w-0">
-                <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue placeholder="All Stores" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Stores</SelectItem>
-                    {availableStoresForFilter.map((store) =>
-                    <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex-1 min-w-0">
-                <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue placeholder="Days" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7">7 Days</SelectItem>
-                    <SelectItem value="14">14 Days</SelectItem>
-                    <SelectItem value="21">21 Days</SelectItem>
-                    <SelectItem value="28">28 Days</SelectItem>
-                    <SelectItem value="45">45 Days</SelectItem>
-                    <SelectItem value="60">60 Days</SelectItem>
-                    <SelectItem value="90">90 Days</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {currentUser && !isDriverView &&
-              <div className="flex-1 min-w-0">
-                <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
-                  <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-                  {isSyncing ? 'Syncing...' : 'Sync'}
-                </Button>
-              </div>
-              }
-            </div>
-
-            {/* Sub-row 2: Tab buttons */}
-            {!isDriverView && currentUser && isAppOwner(currentUser) ?
-            <div className="grid grid-cols-4 gap-2">
-                {[{ key: 'deliveries', label: 'Deliveries' }, { key: 'transactions', label: 'Transactions' }, { key: 'catalog', label: 'Catalog' }, { key: 'reconciliation', label: 'Reconcile' }].map((view) =>
-              <Button
-                key={view.key}
-                type="button"
-                variant={activeView === view.key ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setActiveView(view.key)}
-                className="w-full h-auto py-1.5 justify-center rounded-md px-2 flex-col gap-0">
-                    <span className="text-xs font-medium leading-tight">{view.label}</span>
-                    {typeof viewCounts[view.key] === 'number' && <span className="text-[11px] opacity-60 leading-tight">{viewCounts[view.key]}</span>}
-                  </Button>
+        {/* ── Row 1: Filters + Tab buttons — single row on desktop ── */}
+        <div className="flex flex-row flex-wrap items-center gap-2">
+          {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
+          <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
+            <SelectTrigger className="w-full md:w-40 text-sm shrink-0">
+              <SelectValue placeholder="All Drivers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Drivers</SelectItem>
+              {drivers.map((driver) =>
+              <SelectItem key={driver.id} value={driver.id}>{driver.user_name}</SelectItem>
               )}
-              </div> :
-
-            <div className="flex flex-row flex-wrap items-center gap-2">
-                <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={isDriverView} />
-              </div>
-            }
-
-
-
-
-
+            </SelectContent>
+          </Select>
+          }
+          {isDriverView && currentAppUser &&
+          <Select value={selectedDriverFilter} disabled>
+            <SelectTrigger className="w-full md:w-40 text-sm opacity-70 cursor-not-allowed shrink-0">
+              <SelectValue>{currentAppUser.user_name || 'My Items'}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={currentAppUser.id}>{currentAppUser.user_name}</SelectItem>
+            </SelectContent>
+          </Select>
+          }
+          <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
+            <SelectTrigger className="w-full md:w-40 text-sm shrink-0">
+              <SelectValue placeholder="All Stores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stores</SelectItem>
+              {availableStoresForFilter.map((store) =>
+              <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+          <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
+            <SelectTrigger className="w-full md:w-28 text-sm shrink-0">
+              <SelectValue placeholder="Days" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">7 Days</SelectItem>
+              <SelectItem value="14">14 Days</SelectItem>
+              <SelectItem value="21">21 Days</SelectItem>
+              <SelectItem value="28">28 Days</SelectItem>
+              <SelectItem value="45">45 Days</SelectItem>
+              <SelectItem value="60">60 Days</SelectItem>
+              <SelectItem value="90">90 Days</SelectItem>
+            </SelectContent>
+          </Select>
+          {currentUser && !isDriverView &&
+          <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full md:w-auto gap-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3 shrink-0">
+            <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
+            {isSyncing ? 'Syncing...' : 'Sync'}
+          </Button>
+          }
+          {currentUser && isAppOwner(currentUser) &&
+          <div className="flex flex-row items-center gap-2 ml-auto shrink-0">
+            {[{ key: 'deliveries', label: 'Deliveries' }, { key: 'transactions', label: 'Transactions' }, { key: 'catalog', label: 'Catalog' }, { key: 'reconciliation', label: 'Reconcile' }].map((view) =>
+            <Button
+              key={view.key}
+              type="button"
+              variant={activeView === view.key ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActiveView(view.key)}
+              className="w-24 md:w-28 h-auto py-1.5 justify-center rounded-md px-2 flex-col gap-0 shrink-0">
+              <span className="text-xs font-medium leading-tight">{view.label}</span>
+              {typeof viewCounts[view.key] === 'number' && <span className="text-[11px] opacity-60 leading-tight">{viewCounts[view.key]}</span>}
+            </Button>
+            )}
           </div>
-
-          {/* R1-C2: Sync status card */}
-          <div className="flex-1 min-w-0 self-start">
-            {syncStatus &&
-            <SyncStatusIndicator
-              syncStatus={syncStatus}
-              isSyncing={isSyncing}
-              error={error}
-              codDeliveryCount={codDeliveriesCount}
-              catalogItemCount={filteredCatalogItems.length}
-              cardSpendCount={filteredCardSalesCount}
-              salesCount={filteredSalesCount}
-              collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
-            }
-          </div>
-
-          {/* R2-C1: 4 stat cards (catalog view only) */}
-          {activeView === 'catalog' && currentUser && (() => {
-            const catalogDeliveryIdsForStats = new Set(filteredCatalogRows.map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
-            const newCatalogItems = reconciliationRows.filter((r) => {
-              if (r.catalogId && r.catalogId !== '--') return false;
-              const deliveryId = r.rawDelivery?.id || r.id;
-              return !catalogDeliveryIdsForStats.has(deliveryId);
-            });
-            const newCatalogTotal = newCatalogItems.reduce((s, r) => s + Number(r.amount || 0), 0);
-            const uncollectedRows = filteredCatalogRows.filter((row) => !row.isCollected);
-            const collectedRows = filteredCatalogRows.filter((row) => row.isCollected);
-            const uncollectedTotal = uncollectedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-            const collectedAmount = collectedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-            const catalogTotal = filteredCatalogRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-            // Total = Catalog Items + New Items - Collected
-            const grandTotal = catalogTotal + newCatalogTotal - collectedAmount;
-            const totalItemCount = filteredCatalogRows.length + newCatalogItems.length;
-            const uncollectedItemCount = uncollectedRows.length;
-            const catalogOnlyItemCount = filteredCatalogRows.length;
-            // Bar percentages relative to the overall pool (catalog + new) for all 4 cards
-            const overallPool = catalogTotal + newCatalogTotal > 0 ? catalogTotal + newCatalogTotal : 1;
-            const collectedPct = (collectedAmount / overallPool) * 100;
-            const uncollectedPct = (uncollectedTotal / overallPool) * 100;
-            const catalogPct = (catalogTotal / overallPool) * 100;
-            const newItemsPct = (newCatalogTotal / overallPool) * 100;
-            return (
-              <div className="grid grid-cols-4 gap-3 mt-6 mb-1">
-                {/* Total Amount = Catalog + New - Collected */}
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                  <div className="px-5 pt-5 pb-3">
-                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Total Amount</div>
-                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
-                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
-                      {collectedPct > 0 && <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />}
-                      {catalogPct > 0 && <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />}
-                      {newItemsPct > 0 && <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />}
-                    </div>
-                  </div>
-                </div>
-                {/* Collected */}
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                  <div className="px-5 pt-5 pb-3">
-                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Total Collected</div>
-                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${collectedAmount.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{collectedRows.length} item{collectedRows.length !== 1 ? 's' : ''}</div>
-                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />
-                    </div>
-                  </div>
-                </div>
-                {/* Catalog Items */}
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                  <div className="px-5 pt-5 pb-3">
-                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Catalog Items</div>
-                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${catalogTotal.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{catalogOnlyItemCount} item{catalogOnlyItemCount !== 1 ? 's' : ''}</div>
-                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />
-                    </div>
-                  </div>
-                </div>
-                {/* New Items */}
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                  <div className="px-5 pt-5 pb-3">
-                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">New Items</div>
-                    <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${newCatalogTotal.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{newCatalogItems.length} item{newCatalogItems.length !== 1 ? 's' : ''}</div>
-                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />
-                    </div>
-                  </div>
-                </div>
-              </div>);
-
-          })()}
-
-          {/* R2-C2: Store location cards (catalog view only) */}
-          {activeView === 'catalog' && currentUser && locationConfigs.length > 0 &&
-          <div className="flex-1 min-w-0 self-start">
-            <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-100 dark:text-slate-50">By Store</h2>
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-              {(() => {
-                const storeCardMap = new Map();
-                const catalogDeliveryIdsForStoreCards = new Set(filteredCatalogRows.map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
-                const newCatalogItemsForStore = reconciliationRows.filter((r) => {
-                  if (r.catalogId && r.catalogId !== '--') return false;
-                  const deliveryId = r.rawDelivery?.id || r.id;
-                  return !catalogDeliveryIdsForStoreCards.has(deliveryId);
-                });
-                for (const item of filteredCatalogRows) {
-                  const parsed = parseSquareItemName(item.itemName || item.name || '');
-                  const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
-                  const locationId = item.locationId;
-                  const config = locationConfigs.find((c) => c?.square_location_id === locationId);
-                  const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
-                  const storeByConfig = getStoreForConfig(config);
-                  const resolvedStore = storeByAbbr || storeByConfig;
-                  const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
-                  const sortOrder = resolvedStore?.sort_order ?? Infinity;
-                  const cardKey = `${locationId}::${abbr || 'unknown'}`;
-                  if (!storeCardMap.has(cardKey)) storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
-                  storeCardMap.get(cardKey).items.push(item);
-                }
-                for (const row of newCatalogItemsForStore) {
-                  const store = stores.find((s) => s?.id === row.rawStoreId);
-                  const config = store ? getConfigForStore(store) : null;
-                  const locationId = row.locationId !== '--' ? row.locationId : config?.square_location_id || null;
-                  if (!locationId) continue;
-                  const abbr = store?.abbreviation?.toUpperCase() || null;
-                  const label = store?.name || row.storeName || 'Unknown';
-                  const sortOrder = store?.sort_order ?? Infinity;
-                  const cardKey = `${locationId}::${abbr || 'unknown'}`;
-                  if (!storeCardMap.has(cardKey)) storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
-                  storeCardMap.get(cardKey).newItems.push(row);
-                }
-                return Array.from(storeCardMap.values()).sort((a, b) => a.sortOrder - b.sortOrder).map(({ label, locationId, config, storeAbbr, items, newItems, sortOrder }) => {
-                  const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0) + (newItems || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
-                  const itemCount = items.length + (newItems || []).length;
-                  // Resolve the store's default driver color (same logic as dashboard)
-                  const resolvedStore = storeAbbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === storeAbbr) : getStoreForConfig(config);
-                  const defaultDriverId = resolvedStore?.weekday_am_driver_id || resolvedStore?.weekday_pm_driver_id || resolvedStore?.saturday_am_driver_id || null;
-                  const defaultDriver = defaultDriverId ? drivers.find((d) => d?.id === defaultDriverId || d?.user_id === defaultDriverId) : null;
-                  const driverHex = defaultDriver?.user_name ? generateDriverColor(defaultDriver.user_name) : null;
-                  const cardStoreColor = driverHex ? { border: driverHex, bg: hexToRgba(driverHex, 0.06) } : undefined;
-                  return (
-                    <LocationSummaryCard
-                      key={`${locationId}::${storeAbbr || 'unknown'}`}
-                      location={{ name: label, square_location_id: locationId }}
-                      codTotal={codTotal}
-                      itemCount={itemCount}
-                      storeColor={cardStoreColor}
-                      onClick={() => config && setSelectedLocation(config)} />);
-
-                });
-              })()}
-            </div>
+          }
+          {!isDriverView && currentUser && !isAppOwner(currentUser) &&
+          <div className="w-full">
+            <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
           </div>
           }
         </div>
 
-        {/* Reconciliation stat cards — full-width single row */}
+        {/* ── Catalog: 4 stat cards (full width) ── */}
+        {activeView === 'catalog' && currentUser && (() => {
+          const catalogDeliveryIdsForStats = new Set(filteredCatalogRows.map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
+          const newCatalogItems = reconciliationRows.filter((r) => {
+            if (r.catalogId && r.catalogId !== '--') return false;
+            const deliveryId = r.rawDelivery?.id || r.id;
+            return !catalogDeliveryIdsForStats.has(deliveryId);
+          });
+          const newCatalogTotal = newCatalogItems.reduce((s, r) => s + Number(r.amount || 0), 0);
+          const uncollectedRows = filteredCatalogRows.filter((row) => !row.isCollected);
+          const collectedRows = filteredCatalogRows.filter((row) => row.isCollected);
+          const uncollectedTotal = uncollectedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+          const collectedAmount = collectedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+          const catalogTotal = filteredCatalogRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+          const grandTotal = catalogTotal + newCatalogTotal - collectedAmount;
+          const totalItemCount = filteredCatalogRows.length + newCatalogItems.length;
+          const catalogOnlyItemCount = filteredCatalogRows.length;
+          const overallPool = catalogTotal + newCatalogTotal > 0 ? catalogTotal + newCatalogTotal : 1;
+          const collectedPct = (collectedAmount / overallPool) * 100;
+          const catalogPct = (catalogTotal / overallPool) * 100;
+          const newItemsPct = (newCatalogTotal / overallPool) * 100;
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="px-5 pt-5 pb-3">
+                  <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Total Amount</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
+                  <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                    {collectedPct > 0 && <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />}
+                    {catalogPct > 0 && <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />}
+                    {newItemsPct > 0 && <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />}
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="px-5 pt-5 pb-3">
+                  <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Total Collected</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${collectedAmount.toFixed(2)}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{collectedRows.length} item{collectedRows.length !== 1 ? 's' : ''}</div>
+                  <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="px-5 pt-5 pb-3">
+                  <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">Catalog Items</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${catalogTotal.toFixed(2)}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{catalogOnlyItemCount} item{catalogOnlyItemCount !== 1 ? 's' : ''}</div>
+                  <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="px-5 pt-5 pb-3">
+                  <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 dark:text-slate-400 mb-2">New Items</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">${newCatalogTotal.toFixed(2)}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">{newCatalogItems.length} item{newCatalogItems.length !== 1 ? 's' : ''}</div>
+                  <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Catalog: By Store cards (full width, stretched) ── */}
+        {activeView === 'catalog' && currentUser && locationConfigs.length > 0 &&
+        <div className="w-full">
+          <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-100 dark:text-slate-50">By Store</h2>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {(() => {
+              const storeCardMap = new Map();
+              const catalogDeliveryIdsForStoreCards = new Set(filteredCatalogRows.map((r) => r.rawDelivery?.id || r.id).filter(Boolean));
+              const newCatalogItemsForStore = reconciliationRows.filter((r) => {
+                if (r.catalogId && r.catalogId !== '--') return false;
+                const deliveryId = r.rawDelivery?.id || r.id;
+                return !catalogDeliveryIdsForStoreCards.has(deliveryId);
+              });
+              for (const item of filteredCatalogRows) {
+                const parsed = parseSquareItemName(item.itemName || item.name || '');
+                const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
+                const locationId = item.locationId;
+                const config = locationConfigs.find((c) => c?.square_location_id === locationId);
+                const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
+                const storeByConfig = getStoreForConfig(config);
+                const resolvedStore = storeByAbbr || storeByConfig;
+                const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
+                const sortOrder = resolvedStore?.sort_order ?? Infinity;
+                const cardKey = `${locationId}::${abbr || 'unknown'}`;
+                if (!storeCardMap.has(cardKey)) storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
+                storeCardMap.get(cardKey).items.push(item);
+              }
+              for (const row of newCatalogItemsForStore) {
+                const store = stores.find((s) => s?.id === row.rawStoreId);
+                const config = store ? getConfigForStore(store) : null;
+                const locationId = row.locationId !== '--' ? row.locationId : config?.square_location_id || null;
+                if (!locationId) continue;
+                const abbr = store?.abbreviation?.toUpperCase() || null;
+                const label = store?.name || row.storeName || 'Unknown';
+                const sortOrder = store?.sort_order ?? Infinity;
+                const cardKey = `${locationId}::${abbr || 'unknown'}`;
+                if (!storeCardMap.has(cardKey)) storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
+                storeCardMap.get(cardKey).newItems.push(row);
+              }
+              return Array.from(storeCardMap.values()).sort((a, b) => a.sortOrder - b.sortOrder).map(({ label, locationId, config, storeAbbr, items, newItems }) => {
+                const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0) + (newItems || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
+                const itemCount = items.length + (newItems || []).length;
+                const resolvedStore = storeAbbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === storeAbbr) : getStoreForConfig(config);
+                const defaultDriverId = resolvedStore?.weekday_am_driver_id || resolvedStore?.weekday_pm_driver_id || resolvedStore?.saturday_am_driver_id || null;
+                const defaultDriver = defaultDriverId ? drivers.find((d) => d?.id === defaultDriverId || d?.user_id === defaultDriverId) : null;
+                const driverHex = defaultDriver?.user_name ? generateDriverColor(defaultDriver.user_name) : null;
+                const cardStoreColor = driverHex ? { border: driverHex, bg: hexToRgba(driverHex, 0.06) } : undefined;
+                return (
+                  <LocationSummaryCard
+                    key={`${locationId}::${storeAbbr || 'unknown'}`}
+                    location={{ name: label, square_location_id: locationId }}
+                    codTotal={codTotal}
+                    itemCount={itemCount}
+                    storeColor={cardStoreColor}
+                    onClick={() => config && setSelectedLocation(config)} />
+                );
+              });
+            })()}
+          </div>
+        </div>
+        }
+
+        {/* ── Reconciliation: 10 stat cards — full width, centered two-line ── */}
         {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
-        <div className="grid grid-cols-10 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-2">
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Locations</div>
               <div className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">{new Set(reconciliationRows.map((r) => r.locationId).filter(Boolean)).size}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Transactions</div>
               <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{filteredTransactionRows.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Collected $</div>
               <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">${filteredTransactionRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Cash</div>
               <div className="text-base font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Cash}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Debit</div>
               <div className="text-base font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Debit}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Credit</div>
               <div className="text-base font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Credit}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">COD Deliveries</div>
               <div className="text-base font-bold text-slate-900 dark:text-slate-100 dark:text-slate-50 tabular-nums">{codDeliveriesCount}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Unmatched</div>
               <div className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">{reconciliationRows.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Unmatched $</div>
               <div className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">${reconciliationRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-orange-200 dark:border-orange-800">
-            <CardContent className="p-3 flex items-center justify-between gap-1">
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center gap-0.5 h-full">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Cross-Store</div>
               <div className="text-base font-bold text-orange-600 dark:text-orange-400 tabular-nums">{reconciliationRows.filter((r) => r.crossStoreAlert).length}</div>
             </CardContent>
@@ -2267,6 +2219,7 @@ export default function SquareManagement() {
           emptyDescription="Deliveries that do not have a matching transaction by amount and Square location will appear here."
           showLocationColumn={currentUser && isAppOwner(currentUser)}
           navHeight={navHeight}
+          headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined}
           headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
           <>
               <Button
@@ -2280,9 +2233,9 @@ export default function SquareManagement() {
           undefined} /> :
 
         activeView === 'deliveries' ?
-        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected showCatalogColumn /> :
+        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected showCatalogColumn /> :
         activeView === 'transactions' ?
-        <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected /> :
+        <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined} groupByCollected /> :
 
         <SquareCodDatasetTable
           key="catalog"
@@ -2304,6 +2257,7 @@ export default function SquareManagement() {
               return !catalogDeliveryIds.has(deliveryId); // exclude if already in catalog tab
             });
           })()}
+          headerStatus={syncStatus ? <SyncStatusInline syncStatus={syncStatus} isSyncing={isSyncing} error={error} collectedCodTypeBreakdown={collectedCodTypeBreakdown} /> : undefined}
           headerActions={(!isDriverView && currentUser) ? (
           <Button
             onClick={updateCatalog}
