@@ -710,12 +710,12 @@ export default function StopDetailsPanel({
 
                 {/* COD Information */}
                 {(delivery.cod_total_amount_required > 0 || delivery.cod_payments && delivery.cod_payments.length > 0 || canEditCodInCurrentState) &&
-                <div className="pt-2 border-t space-y-2" style={{ borderColor: 'var(--border-slate-100)' }}>
-                  <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                    <DollarSign className="w-3 h-3" /> COD Payment
-                  </p>
+                <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
                   {canEditCodInCurrentState ?
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 mt-2">
+                    <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                      <DollarSign className="w-3 h-3" /> COD Payment
+                    </p>
                     <div className="flex items-end gap-2">
                       <div className="flex-1">
                         <Label className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
@@ -740,17 +740,20 @@ export default function StopDetailsPanel({
                       }
                     </div>
                   </div> :
-                  delivery.cod_total_amount_required > 0 ?
-                  <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
-                    Required: ${delivery.cod_total_amount_required.toFixed(2)}
-                  </p> :
-                  null}
-                  {delivery.cod_payments && delivery.cod_payments.length > 0 &&
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    {delivery.cod_payments.map((payment, idx) =>
-                    <Badge key={idx} variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-                      {payment.type}: ${payment.amount.toFixed(2)}
-                    </Badge>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-2 text-sm" style={{ color: 'var(--text-slate-700)' }}>
+                    <span className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                      <DollarSign className="w-3 h-3" /> COD Payment:
+                    </span>
+                    {delivery.cod_total_amount_required > 0 &&
+                    <span className="font-medium">Required: ${delivery.cod_total_amount_required.toFixed(2)}</span>
+                    }
+                    {delivery.cod_payments && delivery.cod_payments.length > 0 && delivery.cod_payments.map((payment, idx) =>
+                    <span key={idx} className="contents">
+                      <span style={{ color: 'var(--text-slate-400)' }}>-</span>
+                      <Badge variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                        {payment.type}: ${payment.amount.toFixed(2)}
+                      </Badge>
+                    </span>
                     )}
                   </div>
                   }
