@@ -597,7 +597,7 @@ export default function StopDetailsPanel({
               }
             </div>
           </CardHeader>
-          <CardContent className="space-y-3 py-2 px-2">
+          <CardContent className="space-y-3 px-2 py-2">
             {isPickup ?
             <>
                 <div>
