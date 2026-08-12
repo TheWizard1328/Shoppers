@@ -351,7 +351,8 @@ export default function DeliveryFormStaged({
         const projectedUnitNumber = projected.unit_number || projectedPatient?.unit_number || '';
         const projectedRecurrence = [
         projected.frequency || projected.reason,
-        formatLastDelivered(getLastDeliveryDate(projectedPatient) || projected.last_delivery_date, projected.frequency)].
+        formatLastDelivered(getLastDeliveryDate(projectedPatient) || projected.last_delivery_date, projected.frequency),
+        projectedPatient?.care_pros && projectedPatient?.cp_name ? `CP: ${projectedPatient.cp_name}` : null].
         filter(Boolean).join(' • ');
 
         // Border/fill color: green = on/exact due date, red = overdue, bright yellow = early/upcoming
