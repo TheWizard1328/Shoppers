@@ -457,65 +457,28 @@ export default function DeliveriesPage() {
           console.log(`🔄 [Deliveries] Starting background historical sync (last sync: ${hoursSinceLastSync.toFixed(1)}h ago)`);
           setTimeout(async () => {
             try {
-              const currentYear = new Date().getFullYear();
-              const startYear = currentYear - 1; // CRITICAL: Only fetch last 2 years to prevent rate limits
-              const allYearData = [];
-
-              // Fetch each year with LONG delays to avoid rate limits
-              for (let year = currentYear; year >= startYear; year--) {
-                console.log(`📅 [Deliveries Background] Fetching year ${year}...`);
-                const quarters = [
-                { start: `${year}-01-01`, end: `${year}-03-31`, label: 'Q1' },
-                { start: `${year}-04-01`, end: `${year}-06-30`, label: 'Q2' },
-                { start: `${year}-07-01`, end: `${year}-09-30`, label: 'Q3' },
-                { start: `${year}-10-01`, end: `${year}-12-31`, label: 'Q4' }];
-
-                for (const quarter of quarters) {
-                  try {
-                    const quarterData = await base44.entities.Delivery.filter({
-                      delivery_date: { $gte: quarter.start, $lte: quarter.end }
-                    }, '-delivery_date');
-
-                    if (quarterData && quarterData.length > 0) {
-                      allYearData.push(...quarterData);
-                    }
-
-                    // CRITICAL: 5 second delay between quarter requests to prevent rate limits
-                    await new Promise((resolve) => setTimeout(resolve, 5000));
-                  } catch (quarterError) {
-                    console.warn(`⚠️ [Deliveries Background] Failed to fetch ${year} ${quarter.label}:`, quarterError.message);
-                    // Continue with other quarters even if one fails
-                  }
-                }
-              }
-
+              const { runHistoricalDeliveriesSync } = await import('../components/deliveries/deliveriesDataLoader');
+              const allYearData = await runHistoricalDeliveriesSync();
               console.log(`✅ [Deliveries Background] Synced ${allYearData.length} deliveries from online DB`);
 
-              // CRITICAL: Filter out deleted deliveries before saving to offline DB
+              // Filter out deleted deliveries before saving to offline DB
               const { smartRefreshManager } = await import('../components/utils/smartRefreshManager');
-              const filteredData = allYearData.filter((delivery) => !smartRefreshManager.isDeliveryDeleted(delivery.id));
+              const filteredData = allYearData.filter((d) => !smartRefreshManager.isDeliveryDeleted(d.id));
 
-              console.log(`🗑️ [Deliveries Background] Filtered out ${allYearData.length - filteredData.length} deleted deliveries`);
-
-              // Save to offline DB
               if (filteredData.length > 0) {
                 const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
                 await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, filteredData);
                 console.log(`💾 [Deliveries Background] Saved ${filteredData.length} to offline DB`);
-
-                // Update UI with fresh data (excluding deleted)
                 if (isMounted.current) {
                   setAllDeliveries(filteredData);
                   console.log('✅ [Deliveries Background] UI updated with fresh online data (deleted filtered)');
                 }
               }
 
-              // CRITICAL: Mark sync complete to prevent repeated syncing
               localStorage.setItem(lastHistoricalSyncKey, Date.now().toString());
               console.log('🕐 [Deliveries Background] Historical sync timestamp updated');
             } catch (error) {
               console.error('❌ [Deliveries Background] Sync failed:', error);
-              // Silently fail - offline data is already displayed
             }
           }, 100); // Start background sync after 100ms
         } else {
@@ -527,20 +490,18 @@ export default function DeliveriesPage() {
           console.log(`📅 [Deliveries] Delivery date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
       } else {
-        // Load current month through end of current year, so future scheduled deliveries
-        // (e.g. next month) always appear in the date list alongside current-month dates.
+        // Rolling ~90-day window back through end of current year — independent of
+        // selectedYear/selectedMonth, so month/year changes never require a re-fetch.
         const now = new Date();
-        const rangeStart = new Date(now.getFullYear(), now.getMonth(), 1); // start of current month
-        const rangeEnd = new Date(now.getFullYear(), 11, 31); // end of current year
-        const startDateStr = format(rangeStart, 'yyyy-MM-dd');
-        const endDateStr = format(rangeEnd, 'yyyy-MM-dd');
+        const startDateStr = format(subDays(now, 90), 'yyyy-MM-dd');
+        const endDateStr = format(new Date(now.getFullYear(), 11, 31), 'yyyy-MM-dd');
 
-        // Skip network fetch if we already have data and this isn't a forced refresh
         if (allDeliveries && allDeliveries.length > 0 && !forceRefresh) {
           deliveriesData = allDeliveries;
         } else {
           try {
-            deliveriesData = await getData('Delivery', '-delivery_date', { delivery_date: { $gte: startDateStr, $lte: endDateStr } }, forceRefresh);
+            const { fetchDeliveriesInRange } = await import('../components/deliveries/deliveriesDataLoader');
+            deliveriesData = await fetchDeliveriesInRange(startDateStr, endDateStr);
           } catch (error) {
             console.error('❌ [Deliveries] Error fetching deliveries:', error.message);
             deliveriesData = allDeliveries.length > 0 ? allDeliveries : [];
@@ -788,9 +749,8 @@ export default function DeliveriesPage() {
     if (prevModeRef.current === null) return;
     if (prevModeRef.current === true && !isDriverOverviewMode && driverFilter !== 'all') {loadData(false).catch(() => {});prevYMRef.current = { y: selectedYear, m: selectedMonth };return;}
     if (isDriverOverviewMode || !initialLoadDone.current) return;
-    if (prevYMRef.current.y === selectedYear && prevYMRef.current.m === selectedMonth) return;
+    // Route Management loads a fixed now-based window independent of selectedYear/selectedMonth — no re-fetch needed on month change.
     prevYMRef.current = { y: selectedYear, m: selectedMonth };
-    loadData(true).catch(() => {});
   }, [isDriverOverviewMode, driverFilter, loadData, selectedYear, selectedMonth]);
 
   const availableOverviewYears = useMemo(() => {
