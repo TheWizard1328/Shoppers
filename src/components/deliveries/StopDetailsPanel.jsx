@@ -486,21 +486,31 @@ export default function StopDetailsPanel({
             }
           </div>
 
-          {/* Dispatcher-only second row: Status, Arrival & Completion badges */}
+          {/* Dispatcher-only second row: Status, Arrival & Completion (ETA for in-transit) */}
           {isDispatcherOnly &&
           <div className="hidden md:flex items-center gap-2 flex-wrap pt-1">
             <Badge className={`border rounded-full ${status.color}`}>
               <StatusIcon className="w-3 h-3 mr-1" />
               {status.label}
             </Badge>
+            {!['pending', 'in_transit'].includes(delivery.status) && delivery?.arrival_time &&
             <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
               <Clock className="w-3 h-3 mr-1" />
-              Arrived {delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'h:mm a') : '—'}
+              Arrived {format(new Date(delivery.arrival_time), 'h:mm a')}
             </Badge>
+            }
+            {!['pending', 'in_transit'].includes(delivery.status) && delivery?.actual_delivery_time &&
             <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
               <Clock className="w-3 h-3 mr-1" />
-              {delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'h:mm a') : '—'}
+              {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
             </Badge>
+            }
+            {delivery.status === 'in_transit' && delivery?.delivery_time_eta &&
+            <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+              <Clock className="w-3 h-3 mr-1" />
+              ETA {delivery.delivery_time_eta}
+            </Badge>
+            }
           </div>
           }
         </div>
