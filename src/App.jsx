@@ -33,8 +33,12 @@ const ResetPassword = lazyReact(() => import('@/pages/ResetPassword'));
 
 const cleanupLocalStorageQuota = () => {
   try {
-    const protectedKeys = new Set(['base44_server_url', 'base44_data_env', 'rxdeliver_device_identifier']);
-    const isProtected = (key) => protectedKeys.has(key) || key.startsWith('base44_');
+    // CRITICAL: protect idbCrypto key material — if these are deleted, the AES key is
+    // re-derived from new material on next boot and EVERY existing encrypted offline-DB
+    // record (deliveries, patients, app_users, payroll, square_transactions, rx_temp_logs)
+    // becomes undecryptable → purgeUndecryptableRecords wipes them (recurring data loss).
+    const protectedKeys = new Set(['base44_server_url', 'base44_data_env', 'rxdeliver_device_identifier', 'rxdeliver_idb_salt', 'rxdeliver_idb_key_material']);
+    const isProtected = (key) => protectedKeys.has(key) || key.startsWith('base44_') || key.startsWith('rxdeliver_idb_');
     const getSize = (key) => {
       const value = localStorage.getItem(key) || '';
       return key.length + value.length;
