@@ -40,6 +40,7 @@ import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescript
 import { buildDeliveryFormInitialState } from './deliveryFormInitialState';
 import useDeliveryCamera from './useDeliveryCamera';
 import { sortStagedDeliveries, sortProjectedDeliveries } from './deliverySortHelpers';
+import { isCareProSearch } from '../utils/careProSearchHelper';
 import { syncDeliveryCodOnUpdate, buildUpdatedDeliveryPayload } from './deliveryCodSaveHelpers';
 import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './projectedDeliveryHelpers';
 import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
@@ -584,10 +585,12 @@ export default function DeliveryForm({
         availablePatients = availablePatients.filter((p) => p && p.store_id && driverStoreIds.has(p.store_id));
       }
     }
+    const careProKeywordSearch = isCareProSearch(searchLower);
     let results = availablePatients.filter((patient) => {
       if (!patient) return false;
       const name = patient.full_name?.toLowerCase() || '';
       if (name.includes('deceased') || name.includes('(old')) return false;
+      if (careProKeywordSearch && patient.care_pros) return true;
       return patient.full_name?.toLowerCase().includes(searchLower) || patient.address?.toLowerCase().includes(searchLower) || patient.phone?.toLowerCase().includes(searchLower) || patient.notes?.toLowerCase().includes(searchLower) || patient.cp_name?.toLowerCase().includes(searchLower);
     });
     results = sortFilteredPatients(results, { currentUser, userHasRole, stores, stagedPatientIds, calculateDistance });

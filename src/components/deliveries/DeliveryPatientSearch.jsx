@@ -141,7 +141,7 @@ export default function DeliveryPatientSearch({
             ref={patientSearchInputRef}
             autoFocus
             type="text"
-            placeholder="Search by name, address, phone..."
+            placeholder="Search by name, address, phone, Care Pro, or CP name..."
             value={locked ? '' : patientSearch}
             onChange={(e) => {setPatientSearch(e.target.value);setHighlightedPatientIndex(-1);}}
             onKeyDown={handlePatientSearchKeyDown}
