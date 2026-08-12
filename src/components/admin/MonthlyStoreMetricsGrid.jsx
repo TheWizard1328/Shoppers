@@ -279,7 +279,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                 checked={showEnvelopeAdjustedTotals}
                 onCheckedChange={onEnvelopeToggleChange} />
 
-              <Label htmlFor="envelope-totals-grid" className="text-xs whitespace-nowrap">Envelope Totals</Label>
+              <Label htmlFor="envelope-totals-grid" className="text-xs whitespace-nowrap">Dels + Envelope</Label>
             </div>}
             
             <div className="flex gap-2 shrink-0">
