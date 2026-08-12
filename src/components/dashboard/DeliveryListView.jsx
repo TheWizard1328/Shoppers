@@ -230,7 +230,7 @@ const DeliveryRow = memo(({
         </div>
 
         {/* Notes column */}
-        <div className="flex min-w-0 items-start py-1 text-xs text-slate-700 dark:text-slate-300 overflow-hidden">
+        <div className="flex min-w-0 items-center py-1 text-xs text-slate-700 dark:text-slate-300 overflow-hidden">
           <div className="min-w-0 w-full space-y-1 overflow-hidden leading-4">
             {patient?.notes &&
           <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">P:</span> {patient.notes}</div>
