@@ -89,6 +89,10 @@ export const createPatientFromDraft = async ({
     dont_ring_bell: formData.dont_ring_bell || false,
     back_door: formData.back_door || false,
     signature_needed: formData.signature_needed || false,
+    // Care Pro fields — must be persisted on new patient creation (duplicate / new_address modes)
+    care_pros: formData.care_pros || false,
+    cp_name: formData.cp_name || '',
+    cp_envelopes: Number.isFinite(Number(formData.cp_envelopes)) ? Number(formData.cp_envelopes) : 0,
     recurring: formData.recurring || false,
     recurring_daily: formData.recurring_daily || false,
     recurring_weekly_mon: formData.recurring_weekly_mon || false,

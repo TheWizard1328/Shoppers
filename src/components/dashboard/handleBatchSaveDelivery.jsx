@@ -451,6 +451,9 @@ export const handleBatchSaveDelivery = async ({
         signature_needed: stop.signature_needed || false,
         fridge_item: stop.fridge_item || false,
         oversized: stop.oversized || false,
+        // Care Pro per-delivery envelope count — must be persisted on initial save so it
+        // survives for dispatchers/drivers when the pending delivery is reloaded later.
+        cp_envelopes: Number.isFinite(Number(stop.cp_envelopes)) ? Number(stop.cp_envelopes) : 0,
         extra_time: stop.extra_time || 5,
         first_delivery: stop.first_delivery || false,
         // Cycling marker fields — preserved only when stop is a cycling marker
