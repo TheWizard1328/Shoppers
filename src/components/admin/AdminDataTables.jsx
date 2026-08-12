@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, ArrowUpDown, Edit, Trash2, Database } from 'lucide-react';
 import { format, parse, parseISO } from 'date-fns';
 import { getLastDeliveryDate } from '@/components/utils/patientHistoryUtils';
+import { patientMatchesSearch } from '@/components/utils/careProSearchHelper';
 
 import { ResizableColumnHeader, ColumnVisibilityControl } from './AdminTableControls';
 
@@ -149,7 +150,7 @@ export const PatientDataTable = ({
       const q = filterText.toLowerCase().trim();
       f = f.filter((p) => {
         const storeName = stores.find((s) => s.id === p.store_id)?.name?.toLowerCase() || '';
-        return p.id?.toLowerCase().includes(q) || p.full_name?.toLowerCase().includes(q) || p.phone?.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q) || p.patient_id?.toLowerCase().includes(q) || storeName.includes(q) || (getLastDeliveryDate(p) || '').toLowerCase().includes(q);
+        return patientMatchesSearch(p, filterText) || storeName.includes(q) || (getLastDeliveryDate(p) || '').toLowerCase().includes(q);
       });
     }
     if (sortColumn) {
@@ -193,7 +194,7 @@ export const PatientDataTable = ({
       <CardContent>
         <div className="space-y-3 mb-4">
           <div className="flex gap-3 flex-wrap">
-            <Input placeholder="Filter by ID, name, PID, phone, address, store, or last delivery date..." value={filterText} onChange={(e) => onFilterChange(e.target.value)} disabled={isLoadingData} className="flex-1 min-w-[250px]" />
+            <Input placeholder="Filter by ID, name, PID, phone, address, store, last delivery date, Care Pro, or CP name..." value={filterText} onChange={(e) => onFilterChange(e.target.value)} disabled={isLoadingData} className="flex-1 min-w-[250px]" />
             <Select value={storeFilter} onValueChange={setStoreFilter} disabled={isLoadingData}>
               <SelectTrigger className="w-48"><SelectValue placeholder="All Stores" /></SelectTrigger>
               <SelectContent>
