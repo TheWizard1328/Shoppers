@@ -565,8 +565,8 @@ export default function StopDetailsPanel({
       <div className="flex-1 overflow-y-auto space-y-4 py-2 px-2">
         {/* Patient Info Card */}
         <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between gap-2">
+          <CardHeader className="px-4">
+            <div className="flex items-center justify-between gap-1">
               {/* Patient Name */}
                 <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {finalDisplayName}{patient?.care_pros && patient?.cp_name ? ` (${patient.cp_name})` : ''}
@@ -597,7 +597,7 @@ export default function StopDetailsPanel({
               }
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 px-3 py-2">
             {isPickup ?
             <>
                 <div>
@@ -621,7 +621,7 @@ export default function StopDetailsPanel({
               }
               </> :
             patient || delivery.patient_id ?
-            <div className="space-y-3">
+            <div className="space-y-1">
              {/* Main row: address, phone, COD, preferences */}
              <div className="min-w-0">
                 {/* Address with unit number */}
