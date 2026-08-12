@@ -573,7 +573,6 @@ const DeliveryListView = ({
           onBulkToggle={onBulkToggle}
           currentUser={currentUser}
           isDispatcher={isDispatcher} />
-        
       </div>);
 
   }, [deliveries, patientMap, storeMap, selectedDeliveryId, handleSelect, getStatusBadge, getTimeDisplay, getCODDisplay, handleOpenMedia, bulkEditMode, bulkSelectedIds, onBulkToggle, isDispatcher]);
