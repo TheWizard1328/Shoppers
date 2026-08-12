@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Navigation, Pen, Camera, Eye } from "lucide-react";
+import { Phone, Navigation, Pen, Camera, Eye, DollarSign, StickyNote } from "lucide-react";
 import { isAppOwner, userHasRole, shouldShowStoreBadges } from "../utils/userRoles";
 import { getStoreColor } from "../utils/colorGenerator";
 import { getCurrentEtaForDelivery } from "../utils/etaTrendBus";
@@ -141,6 +141,35 @@ export default function RouteManagementMobileCard({
 
   const borderColor = delivery.isNextDelivery ? "#10B981" : "#3B82F6";
 
+  // ── Computed row data ─────────────────────────────────────────────────
+  const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
+  const hasCODRow = codRequired > 0 || codPayments.length > 0;
+
+  const arrivalTime = fmt(delivery.arrival_time);
+  const hasArrival = arrivalTime !== "--:--";
+  const timeAtLocation = (() => {
+    if (hasArrival) return arrivalTime;
+    if (delivery.status === "in_transit" || delivery.status === "en_route") {
+      const eta = fmt(getCurrentEtaForDelivery(delivery.id, delivery.delivery_time_eta || delivery.delivery_time_start || null));
+      return eta !== "--:--" ? `ETA ${eta}` : null;
+    }
+    return null;
+  })();
+
+  const actualTime = fmt(delivery.actual_delivery_time);
+  const statusLabel = isFinished && actualTime !== "--:--" ? `${statusInfo.label} ${actualTime}` : statusInfo.label;
+
+  // Address (with unit for patients)
+  const addrLine = isPickup
+    ? store?.address
+    : [patient?.address, patient?.unit_number ? `Unit ${patient.unit_number}` : null].filter(Boolean).join(", ");
+
+  const phoneSecondary = isPickup ? null : patient?.phone_secondary;
+  const patientNotes = isPickup ? null : patient?.notes;
+  const driverNotes = delivery.delivery_notes;
+
+  const barcodes = Array.isArray(barcodeSource) ? barcodeSource : [];
+
   return (
     <>
       {/* Fullscreen image viewer */}
@@ -182,10 +211,9 @@ export default function RouteManagementMobileCard({
       >
         <div className="px-3 py-2 flex flex-col gap-1.5">
 
-          {/* ── Row 1: Stop# • TR# | [AppOwner badge] | Time • Status ── */}
+          {/* ── Row 1: Stop# • TR# (left) | Store badge • Time • Status+time (right) ── */}
           <div className="flex items-center justify-between gap-1 min-w-0">
-            {/* Left: stop# and TR# */}
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-1 flex-shrink-0 min-w-0">
               <Badge
                 className="text-xs font-bold px-1.5 py-0.5 rounded-full text-white"
                 style={{ backgroundColor: storeColor }}
@@ -194,7 +222,7 @@ export default function RouteManagementMobileCard({
               </Badge>
               {trLabel && (
                 <>
-                  <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 text-xs">•</span>
+                  <span className="text-slate-400 dark:text-slate-500 text-xs">•</span>
                   <span className="text-xs font-semibold" style={{ color: "var(--text-slate-600)" }}>
                     {trLabel}
                   </span>
@@ -202,130 +230,152 @@ export default function RouteManagementMobileCard({
               )}
             </div>
 
-            {/* Center: AppOwner store badge (St Abbrev • SID) */}
-            {showStoreBadge && (storeAbbr || sid) && (
-              <Badge
-                className="text-xs font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                style={{ backgroundColor: storeColor }}
-              >
-                {storeAbbr && sid
-                  ? `${storeAbbr} • ${sid}`
-                  : storeAbbr || sid}
-              </Badge>
-            )}
-
-            {/* Right: Time • Status */}
             <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
-              {timeDisplay && (
+              {showStoreBadge && (storeAbbr || sid) && (
+                <Badge
+                  className="text-xs font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                  style={{ backgroundColor: storeColor }}
+                >
+                  {storeAbbr && sid ? `${storeAbbr} • ${sid}` : storeAbbr || sid}
+                </Badge>
+              )}
+              {timeAtLocation && (
                 <span className="text-xs font-semibold" style={{ color: "var(--text-slate-600)" }}>
-                  {timeDisplay}
+                  {timeAtLocation}
                 </span>
               )}
               <Badge className={`text-xs font-bold px-2 py-0.5 rounded-full text-white ${statusInfo.cls}`}>
-                {statusInfo.label}
+                {statusLabel}
               </Badge>
             </div>
           </div>
 
-          {/* ── Row 2: Name (left) | COD (right) ── */}
-          <div className="flex items-center justify-between gap-2 min-w-0">
-            <span
-              className="text-base font-semibold truncate flex-1 min-w-0"
-              style={{ color: "var(--text-slate-900)" }}
-            >
-              {displayName}
-            </span>
-            {hasCOD && (
-              <span
-                className={`text-xs font-bold flex-shrink-0 ${
-                  codComplete ? "text-emerald-600" : "text-amber-600"
-                }`}
-              >
-                ${codCollected.toFixed(2)}/{codRequired.toFixed(2)}
-              </span>
-            )}
-          </div>
-
-          {/* ── Row 3: Address (clickable) • Phone (clickable) ── */}
-          {(address || phone) && (
-            <div className="flex items-center gap-2 min-w-0">
-              {address && navHref ? (
+          {/* ── Row 2: Name + Address & Unit ── */}
+          {(displayName || addrLine) && (
+            <div className="flex items-baseline gap-1.5 min-w-0">
+              {displayName && (
+                <span className="text-sm font-semibold truncate" style={{ color: "var(--text-slate-900)" }}>
+                  {displayName}
+                </span>
+              )}
+              {addrLine && navHref ? (
                 <a
                   href={navHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-xs text-blue-600 underline truncate flex-1 min-w-0 flex items-center gap-1"
+                  className="text-xs text-blue-600 dark:text-blue-400 underline truncate flex-1 min-w-0 flex items-center gap-1"
                 >
                   <Navigation className="w-3 h-3 flex-shrink-0" />
-                  {address}
+                  {addrLine}
                 </a>
-              ) : address ? (
+              ) : addrLine ? (
                 <span className="text-xs truncate flex-1 min-w-0" style={{ color: "var(--text-slate-600)" }}>
-                  {address}
+                  {addrLine}
                 </span>
               ) : null}
+            </div>
+          )}
 
+          {/* ── Row 3: Phone numbers ── */}
+          {(phone || phoneSecondary) && (
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
               {phone && (
                 <a
                   href={`tel:${String(phone).replace(/\D/g, "")}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-shrink-0 flex items-center gap-1 text-xs text-emerald-600 font-medium"
+                  className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium"
                 >
                   <Phone className="w-3 h-3" />
                   {phone}
                 </a>
               )}
+              {phoneSecondary && (
+                <a
+                  href={`tel:${String(phoneSecondary).replace(/\D/g, "")}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium"
+                >
+                  <Phone className="w-3 h-3" />
+                  {phoneSecondary}
+                </a>
+              )}
             </div>
           )}
 
-          {/* ── Row 4: Sig & Photo (left) | First barcode (right) ── */}
-          {(hasSig || photos.length > 0 || firstBarcode) && (
-            <div className="flex items-center justify-between gap-2">
-              {/* Signature & Photo thumbnails */}
-              <div className="flex items-center gap-1">
-                {hasSig && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setViewingImageUrl(delivery.signature_image_url);
-                    }}
-                    className="w-8 h-8 rounded border border-emerald-400 bg-emerald-50 flex items-center justify-center"
-                    title="View signature"
-                  >
-                    <Pen className="w-4 h-4 text-emerald-700" />
-                  </button>
-                )}
-                {photos.length > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setViewingImageUrl(photos[0]);
-                    }}
-                    className="w-8 h-8 rounded border border-emerald-400 bg-emerald-50 flex items-center justify-center"
-                    title="View photo"
-                  >
-                    <Camera className="w-4 h-4 text-emerald-700" />
-                  </button>
-                )}
-              </div>
+          {/* ── Row 4: COD info (single row) ── */}
+          {hasCODRow && (
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs" style={{ color: "var(--text-slate-700)" }}>
+              <span className="font-medium flex items-center gap-1" style={{ color: "var(--text-slate-500)" }}>
+                <DollarSign className="w-3 h-3" /> COD Payment:
+              </span>
+              {codRequired > 0 && (
+                <span className="font-medium">Required: ${codRequired.toFixed(2)}</span>
+              )}
+              {codPayments.map((p, idx) => (
+                <span key={idx} className="contents">
+                  <span style={{ color: "var(--text-slate-400)" }}>-</span>
+                  <Badge variant="secondary" className="text-xs" style={{ background: "var(--bg-slate-100)", color: "var(--text-slate-700)" }}>
+                    {p.type}: ${Number(p.amount || 0).toFixed(2)}
+                  </Badge>
+                </span>
+              ))}
+            </div>
+          )}
 
-              {/* First barcode */}
-              {firstBarcode && (
+          {/* ── Row 5: Patient Notes ── */}
+          {patientNotes && (
+            <div className="flex items-start gap-1 min-w-0">
+              <StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "var(--text-slate-400)" }} />
+              <p className="text-xs whitespace-pre-wrap break-words" style={{ color: "var(--text-slate-700)" }}>
+                <span className="font-medium">Patient Notes:</span> {patientNotes}
+              </p>
+            </div>
+          )}
+
+          {/* ── Row 6: Driver Notes ── */}
+          {driverNotes && (
+            <div className="flex items-start gap-1 min-w-0">
+              <StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "var(--text-slate-400)" }} />
+              <p className="text-xs whitespace-pre-wrap break-words" style={{ color: "var(--text-slate-700)" }}>
+                <span className="font-medium">Driver Notes:</span> {driverNotes}
+              </p>
+            </div>
+          )}
+
+          {/* ── Row 7: POD & Barcodes ── */}
+          {(hasSig || photos.length > 0 || barcodes.length > 0) && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {hasSig && (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setViewingImageUrl(
-                      `https://barcodeapi.org/api/128/${encodeURIComponent(firstBarcode)}`
-                    );
-                  }}
-                  className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  onClick={(e) => { e.stopPropagation(); setViewingImageUrl(delivery.signature_image_url); }}
+                  className="w-7 h-7 rounded border border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center"
+                  title="View signature"
+                >
+                  <Pen className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                </button>
+              )}
+              {photos.map((url, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); setViewingImageUrl(url); }}
+                  className="w-7 h-7 rounded border border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center"
+                  title="View photo"
+                >
+                  <Camera className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                </button>
+              ))}
+              {barcodes.map((bc, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); setViewingImageUrl(`https://barcodeapi.org/api/128/${encodeURIComponent(bc)}`); }}
+                  className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700"
                   title="View barcode"
                 >
                   <Eye className="w-3 h-3" />
-                  <span className="font-mono truncate max-w-[100px]">{firstBarcode}</span>
+                  <span className="font-mono truncate max-w-[90px]">{bc}</span>
                 </button>
-              )}
+              ))}
             </div>
           )}
 
