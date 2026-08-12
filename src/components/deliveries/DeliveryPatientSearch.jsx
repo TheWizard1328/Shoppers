@@ -254,6 +254,7 @@ export default function DeliveryPatientSearch({
                   
                       <div className="font-medium truncate flex items-center gap-1.5">
                         {patient.full_name}
+                        {patient.care_pros && patient.cp_name && <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">({patient.cp_name})</span>}
                         {isAlreadyStaged && <Badge className="bg-amber-200/80 text-amber-900 dark:text-amber-950 text-[10px] px-1.5 py-0 h-4">STAGED</Badge>}
                         {storeAbbr && shouldShowStoreBadges(currentUser) && (() => {
                       const color = patientStore ? getStoreColor(patientStore) : '#64748b';
