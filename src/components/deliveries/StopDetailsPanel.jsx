@@ -621,9 +621,9 @@ export default function StopDetailsPanel({
               }
               </> :
             patient || delivery.patient_id ?
-            <div className="flex gap-4">
-             {/* LEFT column: address, phone, COD, preferences */}
-             <div className="w-[60%] min-w-0 space-y-3">
+            <div className="space-y-3">
+             {/* Main row: address, phone, COD, preferences */}
+             <div className="min-w-0 space-y-3">
                 {/* Address with unit number */}
                 {!isPickup && finalDisplayAddress &&
                 <div className="flex items-start gap-2">
@@ -636,22 +636,22 @@ export default function StopDetailsPanel({
                     <MapPin className="w-4 h-4" style={{ color: '#2563eb' }} />
                   </button>
                   <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => openInMaps(finalDisplayAddress)}
-                        className="text-sm text-left hover:underline"
-                        style={{ color: '#2563eb' }}
-                      >{finalDisplayAddress}</button>
-                      {patient?.unit_number &&
-                      <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
-                      }
-                    </div>
-                    {patient?.distance_from_store &&
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-400)' }}>
-                      {patient.distance_from_store.toFixed(1)} km from store
-                    </p>
-                    }
+                   <div className="flex items-center gap-2 flex-wrap">
+                     <button
+                          type="button"
+                          onClick={() => openInMaps(finalDisplayAddress)}
+                          className="text-sm text-left hover:underline"
+                          style={{ color: '#2563eb' }}
+                        >{finalDisplayAddress}</button>
+                        {patient?.unit_number &&
+                     <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
+                     }
+                     {patient?.distance_from_store > 0 &&
+                     <Badge variant="outline" className="text-xs" style={{ borderColor: store?.color || 'var(--border-slate-300)', color: store?.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}>
+                       {patient.distance_from_store.toFixed(1)} km from store
+                     </Badge>
+                     }
+                   </div>
                   </div>
                 </div>
                 }
@@ -759,25 +759,44 @@ export default function StopDetailsPanel({
                 </div>
               </div>
 
-              {/* RIGHT column: Patient Notes + Driver Notes */}
+              {/* Bottom row: Patient Notes (left) + Driver Notes (right) */}
               {(patient?.notes || delivery.delivery_notes) &&
-              <div className="w-[40%] flex-shrink-0 space-y-3">
-                {patient?.notes &&
-                <div>
-                   <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                     <StickyNote className="w-3 h-3" /> Patient Notes
-                   </p>
-                   <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
-                 </div>
-                 }
-                {delivery.delivery_notes &&
-                <div>
-                  <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                    <StickyNote className="w-3 h-3" /> Driver Notes
-                  </p>
-                  <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
-                </div>
-                }
+              <div className="flex gap-4">
+                {patient?.notes && delivery.delivery_notes ? (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                        <StickyNote className="w-3 h-3" /> Patient Notes
+                      </p>
+                      <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                        <StickyNote className="w-3 h-3" /> Driver Notes
+                      </p>
+                      <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full min-w-0">
+                    {patient?.notes && (
+                      <>
+                        <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                          <StickyNote className="w-3 h-3" /> Patient Notes
+                        </p>
+                        <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
+                      </>
+                    )}
+                    {delivery.delivery_notes && (
+                      <>
+                        <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                          <StickyNote className="w-3 h-3" /> Driver Notes
+                        </p>
+                        <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               }
             </div> :
