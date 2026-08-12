@@ -46,8 +46,8 @@ import CyclingLocationSearch from './CyclingLocationSearch';
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
     {/* Coerce to a real boolean so the underlying Radix checkbox stays
-        controlled for its entire lifetime (avoids React's
-        "controlled -> uncontrolled" warning when formData fields are undefined). */}
+       controlled for its entire lifetime (avoids React's
+       "controlled -> uncontrolled" warning when formData fields are undefined). */}
     <Checkbox id={id} checked={Boolean(checked)} onCheckedChange={onChange} disabled={disabled} />
     <Label htmlFor={id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
   </div>;
@@ -685,21 +685,21 @@ export default function DeliveryFormView({
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                {useMobileLayout && isMobileDevice && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant();
-                      else window.dispatchEvent(new CustomEvent('openGuideAssistant'));
-                    }}
-                    disabled={isSaving}
-                    title="Open guide assistant"
-                    aria-label="Open guide assistant"
-                  >
+                {useMobileLayout && isMobileDevice &&
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant();else
+                    window.dispatchEvent(new CustomEvent('openGuideAssistant'));
+                  }}
+                  disabled={isSaving}
+                  title="Open guide assistant"
+                  aria-label="Open guide assistant">
+                  
                     <Sparkles className="w-4 h-4 text-emerald-600" />
                   </Button>
-                )}
+                }
                 <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving}><X className="w-4 h-4" /></Button>
               </div>
             </div>
@@ -1210,12 +1210,12 @@ export default function DeliveryFormView({
                               </div>
                             </div>
                             <div className="space-y-2 min-w-0">
-                              {formData.care_pros ? (
-                                <>
-                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Care Pro's</Label>
+                              {formData.care_pros ?
+                              <>
+                                  <Label className="text-sm font-semibold hidden" style={{ color: 'var(--text-slate-900)' }}>Care Pro's</Label>
                                   <div className="space-y-3">
                                     <div className="space-y-1">
-                                      <Label className="text-xs text-slate-500">CP Name</Label>
+                                      <Label className="text-xs text-slate-500">Care Pro Name</Label>
                                       <Input type="text" value={formData.cp_name || ''} onChange={(e) => setFormData((p) => ({ ...p, cp_name: e.target.value }))} placeholder="Care Pro name" className="h-9 text-sm" disabled={isSaving} data-hotkey-add="true" />
                                     </div>
                                     <div className="space-y-1">
@@ -1223,9 +1223,9 @@ export default function DeliveryFormView({
                                       <Input type="number" min="0" value={formData.cp_envelopes ?? 0} onChange={(e) => setFormData((p) => ({ ...p, cp_envelopes: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 }))} placeholder="0" className="h-9 text-sm" disabled={isSaving} data-hotkey-add="true" />
                                     </div>
                                   </div>
-                                </>
-                              ) : (
-                                <>
+                                </> :
+
+                              <>
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
                                   <div className="space-y-3">
                                     <div className="flex items-center space-x-2">
@@ -1233,14 +1233,14 @@ export default function DeliveryFormView({
                                       <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
                                     </div>
                                     {formData.cod_total_amount_required >= 0 &&
-                                    <div className="relative">
+                                  <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm">$</span>
                                         <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} onKeyDown={(e) => {if (e.key === 'Tab') {e.preventDefault();barcodeInputRef.current?.focus();}}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
                                       </div>
-                                    }
+                                  }
                                   </div>
                                 </>
-                              )}
+                              }
                             </div>
                           </div>
                         </div>
@@ -1294,10 +1294,10 @@ export default function DeliveryFormView({
                                   <div className="flex items-center justify-between" style={{ height: '1.5rem' }}>
                                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
                                     <button
-                                      type="button"
-                                      disabled={!formData.unit_number || isSaving}
-                                      onClick={handleBuzzerOpen}
-                                      className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                                    type="button"
+                                    disabled={!formData.unit_number || isSaving}
+                                    onClick={handleBuzzerOpen}
+                                    className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
                                       + Buzzer #
                                     </button>
                                   </div>
@@ -1450,7 +1450,7 @@ export default function DeliveryFormView({
 
                           <div className="space-y-2">
                           {/* Store / Status / Time */}
-                          <div className={                          `space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
+                          <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
                         style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <DeliveryStatusAndTiming
                             formData={formData} setFormData={setFormData}
@@ -1516,10 +1516,10 @@ export default function DeliveryFormView({
                                  <div className="flex items-center justify-between" style={{ height: '1.5rem' }}>
                                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
                                    <button
-                                     type="button"
-                                     disabled={!formData.unit_number || isSaving}
-                                     onClick={handleBuzzerOpen}
-                                     className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
+                                  type="button"
+                                  disabled={!formData.unit_number || isSaving}
+                                  onClick={handleBuzzerOpen}
+                                  className={`text-xs font-medium px-1.5 py-0.5 rounded transition-colors ${formData.unit_number ? 'text-blue-600 hover:text-blue-800 cursor-pointer' : 'text-slate-300 cursor-not-allowed'}`}>
                                      Buzzer #
                                    </button>
                                  </div>
@@ -1657,9 +1657,9 @@ export default function DeliveryFormView({
                     const { base44 } = await import('@/api/base44Client');
                     const driver = allDrivers.find((d) => d.id === formData.driver_id);
                     const isStart = (formData.delivery_notes || '').toLowerCase().includes('start');
-                    const startActualTime = completionTime && formData.status === 'completed'
-                      ? `${formData.delivery_date}T${completionTime}:00`
-                      : null;
+                    const startActualTime = completionTime && formData.status === 'completed' ?
+                    `${formData.delivery_date}T${completionTime}:00` :
+                    null;
                     const endActualTime = (() => {
                       if (!startActualTime) return null;
                       const d = new Date(startActualTime);
@@ -1681,7 +1681,7 @@ export default function DeliveryFormView({
                       ...(formData.cycling_latitude != null && { cycling_latitude: formData.cycling_latitude }),
                       ...(formData.cycling_longitude != null && { cycling_longitude: formData.cycling_longitude }),
                       ...(formData._cycling_location_name?.trim() && { cycling_location_name: formData._cycling_location_name.trim() }),
-                      ...(formData.cycling_location_id && { cycling_location_id: formData.cycling_location_id }),
+                      ...(formData.cycling_location_id && { cycling_location_id: formData.cycling_location_id })
                     };
 
                     // ── Time windows ──────────────────────────────────────────
@@ -1707,20 +1707,20 @@ export default function DeliveryFormView({
                       ...(startMarkerTimeStart && { delivery_time_start: startMarkerTimeStart }),
                       ...(startMarkerTimeEnd && { delivery_time_end: startMarkerTimeEnd }),
                       transport_mode: 'driving',
-                      isNextDelivery: true,
+                      isNextDelivery: true
                     };
                     const endPayload = isStart ? {
                       ...basePayload,
                       delivery_notes: 'Cycling Route End',
                       delivery_id: generateBikDeliveryId(
                         [...(allDeliveries || []).filter((d) => d?.delivery_id?.startsWith('BIK-')).map((d) => d.delivery_id),
-                         ...(formData.delivery_id ? [formData.delivery_id] : [])]
+                        ...(formData.delivery_id ? [formData.delivery_id] : [])]
                       ),
                       ...(endActualTime && { actual_delivery_time: endActualTime }),
                       ...(endMarkerTimeStart && { delivery_time_start: endMarkerTimeStart }),
                       ...(endMarkerTimeEnd && { delivery_time_end: endMarkerTimeEnd }),
                       transport_mode: 'cycling',
-                      isNextDelivery: false,
+                      isNextDelivery: false
                     } : null;
 
                     // ── Step 1: Write both markers to local UI immediately ────
@@ -1736,12 +1736,12 @@ export default function DeliveryFormView({
                     // ── Step 1b: Clear isNextDelivery on all other active stops for this driver/date ──
                     // The cycling start marker must be the only stop with isNextDelivery=true so
                     // any optimization (Accept All, manual, cycling dialog) locks it as the first stop.
-                    const otherNextStops = (allDeliveries || [])
-                      .filter(d => d && d.isNextDelivery === true &&
-                        d.driver_id === formData.driver_id &&
-                        d.delivery_date === formData.delivery_date &&
-                        !d.is_cycling_marker)
-                      .map(d => ({ ...d, isNextDelivery: false }));
+                    const otherNextStops = (allDeliveries || []).
+                    filter((d) => d && d.isNextDelivery === true &&
+                    d.driver_id === formData.driver_id &&
+                    d.delivery_date === formData.delivery_date &&
+                    !d.is_cycling_marker).
+                    map((d) => ({ ...d, isNextDelivery: false }));
 
                     if (otherNextStops.length > 0) {
                       await _odb.bulkSave(_odb.STORES.DELIVERIES, otherNextStops).catch(() => null);
@@ -1767,11 +1767,11 @@ export default function DeliveryFormView({
                     const payloadsToCreate = [startPayload, endPayload].filter(Boolean);
                     const createdMarkers = await Promise.all(
                       payloadsToCreate.map((p) =>
-                        base44.entities.Delivery.create(p).catch(() => null)
+                      base44.entities.Delivery.create(p).catch(() => null)
                       )
                     );
                     const realStart = createdMarkers.find((m) => m && (m.delivery_notes || '').toLowerCase().includes('start')) || null;
-                    const realEnd   = createdMarkers.find((m) => m && (m.delivery_notes || '').toLowerCase().includes('end'))   || null;
+                    const realEnd = createdMarkers.find((m) => m && (m.delivery_notes || '').toLowerCase().includes('end')) || null;
                     const realRecords = createdMarkers.filter(Boolean);
 
                     // Replace temp records in IDB with real records
@@ -1780,7 +1780,7 @@ export default function DeliveryFormView({
                       await Promise.all(tempRecords.map((t) => new Promise((res) => {
                         const tx = db.transaction([_odb.STORES.DELIVERIES], 'readwrite');
                         tx.objectStore(_odb.STORES.DELIVERIES).delete(t.id);
-                        tx.oncomplete = res; tx.onerror = res;
+                        tx.oncomplete = res;tx.onerror = res;
                       })));
                       await _odb.bulkSave(_odb.STORES.DELIVERIES, realRecords);
                       applyDeliveryChangesLocally?.({ upserts: realRecords, deleteIds: tempRecords.map((t) => t.id) });
@@ -1792,7 +1792,7 @@ export default function DeliveryFormView({
                     // so the server state matches local IDB.
                     if (otherNextStops.length > 0) {
                       base44.functions.invoke('bulkUpdateDeliveries', {
-                        updates: otherNextStops.map(d => ({ id: d.id, data: { isNextDelivery: false } }))
+                        updates: otherNextStops.map((d) => ({ id: d.id, data: { isNextDelivery: false } }))
                       }).catch(() => null);
                     }
 
@@ -1811,7 +1811,7 @@ export default function DeliveryFormView({
                           longitude: formData.cycling_longitude,
                           city_id: libCityId,
                           created_by_app_user_id: driverAppUser?.id || null,
-                          usage_count: 1,
+                          usage_count: 1
                         }).then((newLoc) => {
                           if (realStart?.id && newLoc?.id) {
                             base44.entities.Delivery.update(realStart.id, { cycling_location_id: newLoc.id }).catch(() => null);
@@ -1993,7 +1993,7 @@ export default function DeliveryFormView({
                       runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser });
                     } catch (_) {}
                   })();
-                }}                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll || requiresDriverSelection}>
+                }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll || requiresDriverSelection}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><Save className="w-4 h-4" />{delivery?.is_cycling_marker ? 'Update Cycle' : isInterStoreMode ? 'Update InterStore' : isPickupMode ? 'Update Pickup' : 'Update Delivery'}</>}
                   </Button>
                 }
@@ -2004,30 +2004,30 @@ export default function DeliveryFormView({
       </motion.div>
 
       {/* Buzzer # floating dialog */}
-      {showBuzzerInput && buzzerAnchorRect && (
-        <>
-          <div className="fixed inset-0 z-[10030]" onClick={() => { setShowBuzzerInput(false); setBuzzerValue(''); }} />
+      {showBuzzerInput && buzzerAnchorRect &&
+      <>
+          <div className="fixed inset-0 z-[10030]" onClick={() => {setShowBuzzerInput(false);setBuzzerValue('');}} />
           <div
-            className="fixed z-[10031] bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-3 w-52"
-            style={{ top: buzzerAnchorRect.bottom + 6, left: Math.min(buzzerAnchorRect.right - 208, window.innerWidth - 216) }}>
+          className="fixed z-[10031] bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-3 w-52"
+          style={{ top: buzzerAnchorRect.bottom + 6, left: Math.min(buzzerAnchorRect.right - 208, window.innerWidth - 216) }}>
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-500 mb-2">Enter Buzzer #</p>
             <Input
-              ref={buzzerInputRef}
-              value={buzzerValue}
-              onChange={(e) => setBuzzerValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); handleBuzzerConfirm(); }
-                if (e.key === 'Escape') { setShowBuzzerInput(false); setBuzzerValue(''); }
-              }}
-              placeholder="e.g. 223"
-              className="h-8 text-sm mb-2" />
+            ref={buzzerInputRef}
+            value={buzzerValue}
+            onChange={(e) => setBuzzerValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {e.preventDefault();handleBuzzerConfirm();}
+              if (e.key === 'Escape') {setShowBuzzerInput(false);setBuzzerValue('');}
+            }}
+            placeholder="e.g. 223"
+            className="h-8 text-sm mb-2" />
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => { setShowBuzzerInput(false); setBuzzerValue(''); }} className="h-7 px-3 text-xs rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">Cancel</button>
+              <button type="button" onClick={() => {setShowBuzzerInput(false);setBuzzerValue('');}} className="h-7 px-3 text-xs rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800">Cancel</button>
               <button type="button" onClick={handleBuzzerConfirm} className="h-7 px-3 text-xs rounded bg-blue-600 text-white hover:bg-blue-700">OK</button>
             </div>
           </div>
         </>
-      )}
+      }
 
       {/* Patient Match Popup */}
       {showMatchPopup &&
