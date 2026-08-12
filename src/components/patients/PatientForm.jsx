@@ -1204,7 +1204,7 @@ export default function PatientForm({
                         disabled={disableOtherFieldsDuringAddressLookup}
                         onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
                         placeholder="Special delivery instructions, preferences, etc."
-                        className="h-24 md:h-32 text-sm resize-none min-h-[70px]"
+                        className="h-24 md:h-32 text-sm resize-none min-h-[90px]"
                         style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
                     {formData.care_pros &&
