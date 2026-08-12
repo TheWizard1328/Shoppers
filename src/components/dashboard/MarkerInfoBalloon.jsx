@@ -55,7 +55,13 @@ export default function MarkerInfoBalloon({
     if (isISP) return ispLoc?.store_name ? `${ispLoc.store_name} (ISP)` : 'Inter-Store Pickup';
     if (isISD) return 'InterStore DropOff';
     if (isPickup) return 'Store Pickup';
-    if (patient) return patient.full_name || 'Patient';
+    if (patient) {
+      // Care Pro delivery: show "CP <cp_name>" (matches StopCard formatting)
+      if ((patient.care_pros || delivery?.care_pros) && (patient.cp_name || delivery?.cp_name)) {
+        return `CP ${patient.cp_name || delivery.cp_name}`;
+      }
+      return patient.full_name || 'Patient';
+    }
     const storeName = store?.name || 'Store';
     return `${storeName} Delivery`;
   };
