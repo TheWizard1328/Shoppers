@@ -843,6 +843,8 @@ const subscribeToEntity = (entityName) => {
                     'patient_name', 'patient_phone', 'delivery_instructions', 'unit_number',
                     // COD
                     'cod_total_amount_required', 'cod_payments',
+                    // Care Pro's
+                    'cp_envelopes',
                     // Proof
                     'signature_image_url', 'proof_photo_urls', 'barcode_values', 'receipt_barcode_values',
                   ];

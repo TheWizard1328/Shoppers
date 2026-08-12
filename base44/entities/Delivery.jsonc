@@ -147,6 +147,11 @@
       "type": "number",
       "description": "Total COD amount required to be collected for this delivery"
     },
+    "cp_envelopes": {
+      "type": "number",
+      "default": 0,
+      "description": "Care Pro's envelope count for this delivery (recalled from patient default, editable per delivery)"
+    },
     "cod_payments": {
       "type": "array",
       "items": {

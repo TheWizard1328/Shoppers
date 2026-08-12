@@ -132,6 +132,21 @@
       "type": "boolean",
       "default": false
     },
+    "care_pros": {
+      "type": "boolean",
+      "default": false,
+      "description": "Care Pro's flag — replaces COD with CP Name and Envelope Count fields"
+    },
+    "cp_name": {
+      "type": "string",
+      "default": "",
+      "description": "Care Pro's contact name (searchable via patient search)"
+    },
+    "cp_envelopes": {
+      "type": "number",
+      "default": 0,
+      "description": "Default envelope count for Care Pro's deliveries"
+    },
     "recurring": {
       "type": "boolean",
       "default": false,

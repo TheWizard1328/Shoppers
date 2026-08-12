@@ -1210,19 +1210,37 @@ export default function DeliveryFormView({
                               </div>
                             </div>
                             <div className="space-y-2 min-w-0">
-                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
-                              <div className="space-y-3">
-                                <div className="flex items-center space-x-2">
-                                  <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={(checked) => {setFormData((p) => ({ ...p, cod_total_amount_required: 0 }));if (checked && shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100);}} disabled={isSaving} />
-                                  <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
-                                </div>
-                                {formData.cod_total_amount_required >= 0 &&
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm">$</span>
-                                    <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} onKeyDown={(e) => {if (e.key === 'Tab') {e.preventDefault();barcodeInputRef.current?.focus();}}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
+                              {formData.care_pros ? (
+                                <>
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Care Pro's</Label>
+                                  <div className="space-y-3">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-slate-500">CP Name</Label>
+                                      <Input type="text" value={formData.cp_name || ''} onChange={(e) => setFormData((p) => ({ ...p, cp_name: e.target.value }))} placeholder="Care Pro name" className="h-9 text-sm" disabled={isSaving} data-hotkey-add="true" />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-slate-500">Envelope Count</Label>
+                                      <Input type="number" min="0" value={formData.cp_envelopes ?? 0} onChange={(e) => setFormData((p) => ({ ...p, cp_envelopes: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 }))} placeholder="0" className="h-9 text-sm" disabled={isSaving} data-hotkey-add="true" />
+                                    </div>
                                   </div>
-                                }
-                              </div>
+                                </>
+                              ) : (
+                                <>
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
+                                  <div className="space-y-3">
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={(checked) => {setFormData((p) => ({ ...p, cod_total_amount_required: 0 }));if (checked && shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100);}} disabled={isSaving} />
+                                      <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
+                                    </div>
+                                    {formData.cod_total_amount_required >= 0 &&
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm">$</span>
+                                        <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} onKeyDown={(e) => {if (e.key === 'Tab') {e.preventDefault();barcodeInputRef.current?.focus();}}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
+                                      </div>
+                                    }
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1340,6 +1358,7 @@ export default function DeliveryFormView({
                               <CheckboxField id="call_upon_arrival" label="Call Upon Arrival" checked={formData.call_upon_arrival} onChange={(c) => setFormData((p) => ({ ...p, call_upon_arrival: c }))} disabled={isSaving} />
                               <CheckboxField id="dont_ring_bell" label="Don't Ring Bell" checked={formData.dont_ring_bell} onChange={(c) => setFormData((p) => ({ ...p, dont_ring_bell: c }))} disabled={isSaving} />
                               <CheckboxField id="back_door" label="Back Door" checked={formData.back_door} onChange={(c) => setFormData((p) => ({ ...p, back_door: c }))} disabled={isSaving} />
+                              <CheckboxField id="care_pros" label="Care Pro's" checked={formData.care_pros} onChange={(c) => setFormData((p) => ({ ...p, care_pros: c }))} disabled={isSaving} />
                             </div>
                           </div>
 
@@ -1518,6 +1537,7 @@ export default function DeliveryFormView({
                                 <CheckboxField id="call_upon_arrival" label="Call Upon Arrival" checked={formData.call_upon_arrival} onChange={(c) => setFormData((p) => ({ ...p, call_upon_arrival: c }))} disabled={isSaving} />
                                 <CheckboxField id="dont_ring_bell" label="Don't Ring Bell" checked={formData.dont_ring_bell} onChange={(c) => setFormData((p) => ({ ...p, dont_ring_bell: c }))} disabled={isSaving} />
                                 <CheckboxField id="back_door" label="Back Door" checked={formData.back_door} onChange={(c) => setFormData((p) => ({ ...p, back_door: c }))} disabled={isSaving} />
+                                <CheckboxField id="care_pros" label="Care Pro's" checked={formData.care_pros} onChange={(c) => setFormData((p) => ({ ...p, care_pros: c }))} disabled={isSaving} />
                               </div>
                             </div>
 
