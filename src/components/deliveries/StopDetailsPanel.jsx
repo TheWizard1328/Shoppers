@@ -423,8 +423,9 @@ export default function StopDetailsPanel({
       {/* Header */}
       <div className="flex-shrink-0 border-b px-4 py-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
 
-        {/* ── DESKTOP layout (md+): unchanged single row ── */}
-        <div className="hidden md:flex items-center gap-2">
+        {/* ── DESKTOP layout (md+): two-row header ── */}
+        <div className="hidden md:flex flex-col gap-1">
+          <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={onClose} className="flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -485,10 +486,11 @@ export default function StopDetailsPanel({
             </Badge>
             }
           </div>
+          </div>
 
-          {/* Dispatcher-only second row: Status, Arrival & Completion (ETA for in-transit) */}
+          {/* Row 2 (dispatcher-only): Status, Arrival & Completion (ETA for in-transit) */}
           {isDispatcherOnly &&
-          <div className="hidden md:flex items-center gap-2 flex-wrap pt-1">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <Badge className={`border rounded-full ${status.color}`}>
               <StatusIcon className="w-3 h-3 mr-1" />
               {status.label}
