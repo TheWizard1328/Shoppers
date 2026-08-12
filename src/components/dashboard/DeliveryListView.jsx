@@ -53,6 +53,7 @@ const DeliveryRow = memo(({
   // (driving → Start, cycling → End). A marker is only one or the other.
   const { isCyclingMarker, cyclingName } = getCyclingMarkerDisplayInfo(delivery);
   const finalDisplayName = isCyclingMarker ? cyclingName : rawDisplayName;
+  const isCarePros = !!(patient?.care_pros || delivery.cp_envelopes > 0);
 
   const desktopGridClass = bulkEditMode ?
   'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2' :
@@ -109,7 +110,7 @@ const DeliveryRow = memo(({
           {/* Row 2 Left: Patient/Pickup */}
           <div className="min-w-0 mt-1">
             <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
-              {finalDisplayName}
+              {finalDisplayName}{isCarePros && patient?.cp_name ? ` (${patient.cp_name})` : ''}
             </span>
           </div>
 
@@ -217,7 +218,7 @@ const DeliveryRow = memo(({
         <div className="flex items-center min-w-0">
           <div className="flex flex-col min-w-0">
             <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
-              {finalDisplayName}
+              {finalDisplayName}{isCarePros && patient?.cp_name ? ` (${patient.cp_name})` : ''}
             </span>
             {isCyclingMarker
               ? (store?.name &&
@@ -232,6 +233,9 @@ const DeliveryRow = memo(({
         {/* Notes column */}
         <div className="flex min-w-0 items-center py-1 text-xs text-slate-700 dark:text-slate-300 overflow-hidden">
           <div className="min-w-0 w-full space-y-1 overflow-hidden leading-4">
+            {isCarePros && (delivery.cp_envelopes || patient?.cp_envelopes) > 0 &&
+          <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">E:</span> Envelopes: {delivery.cp_envelopes || patient?.cp_envelopes}</div>
+          }
             {patient?.notes &&
           <div className="w-full break-words whitespace-pre-wrap"><span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">P:</span> {patient.notes}</div>
           }
