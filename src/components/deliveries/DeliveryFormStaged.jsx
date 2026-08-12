@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { shouldShowStoreBadges } from '../utils/userRoles';
+import { formatPhoneNumber } from '../utils/phoneFormatter';
 
 export default function DeliveryFormStaged({
   sortedStagedDeliveries,
@@ -150,8 +151,8 @@ export default function DeliveryFormStaged({
                     }
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
+                  <div className="flex items-center gap-1 min-h-0">
+                    <div className="truncate flex-1 min-w-0 text-slate-700 dark:text-slate-300 text-[10px] leading-none">{staged.delivery_address}</div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <SpecialSymbolsBadges
                       delivery={staged}
@@ -182,6 +183,9 @@ export default function DeliveryFormStaged({
                         </Badge>
                     }
                     </div>
+                  </div>
+                  <div className="text-slate-700 dark:text-slate-300 text-[10px] truncate pr-1 leading-none min-h-0">
+                    {staged.care_pros && staged.cp_name ? staged.cp_name : (staged.patient_phone ? formatPhoneNumber(staged.patient_phone) : '')}
                   </div>
                 </div>
 
@@ -262,8 +266,8 @@ export default function DeliveryFormStaged({
                     }
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
+                  <div className="flex items-center gap-1 min-h-0">
+                    <div className="truncate flex-1 min-w-0 text-slate-700 dark:text-slate-300 text-[10px] leading-none">{staged.delivery_address}</div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <SpecialSymbolsBadges
                       delivery={staged}
@@ -294,6 +298,9 @@ export default function DeliveryFormStaged({
                         </Badge>
                     }
                     </div>
+                  </div>
+                  <div className="text-slate-700 dark:text-slate-300 text-[10px] truncate pr-1 leading-none min-h-0">
+                    {staged.care_pros && staged.cp_name ? staged.cp_name : (staged.patient_phone ? formatPhoneNumber(staged.patient_phone) : '')}
                   </div>
                 </div>
 
