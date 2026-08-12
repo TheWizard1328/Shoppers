@@ -11,30 +11,19 @@ export function sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverI
     if (store?.id) storeSortOrder.set(store.id, store.sort_order ?? Infinity);
   });
 
-  // Address + unit sort key — used within a store group
-  const addressKey = (d) => {
-    const addr = (d.delivery_address || '').trim().toLowerCase();
-    const unit = (d.unit_number || '').trim().toLowerCase();
-    return `${addr}|${unit}`;
-  };
-
+  // Sort: driver (primary) → store sort order → distance from store → patient name (tie-breaker)
   return filtered.sort((a, b) => {
-    const aIsPending = !!a.id;
-    const bIsPending = !!b.id;
-    if (!aIsPending && bIsPending) return -1;
-    if (aIsPending && !bIsPending) return 1;
+    // 1. Driver — group by driver first
+    const driverA = a.driver_id || '';
+    const driverB = b.driver_id || '';
+    if (driverA !== driverB) return driverA.localeCompare(driverB);
 
-    // 1. Store sort order (primary) — group deliveries by store first
+    // 2. Store sort order (within driver)
     const sortOrderA = storeSortOrder.get(a.store_id) ?? Infinity;
     const sortOrderB = storeSortOrder.get(b.store_id) ?? Infinity;
     if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB;
 
-    // 2. Address + Unit Number (within store)
-    const akA = addressKey(a);
-    const akB = addressKey(b);
-    if (akA !== akB) return akA.localeCompare(akB);
-
-    // 3. Distance from parent store, ascending (within store + address)
+    // 3. Distance from parent store, ascending (within store)
     const distA = a.distanceFromStore ?? Infinity;
     const distB = b.distanceFromStore ?? Infinity;
     if (distA !== distB) return distA - distB;
@@ -48,10 +37,6 @@ export function sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverI
       const timeB = b.delivery_time_start || b.ampm_deliveries || 'ZZ';
       if (timeA !== timeB) return timeA.localeCompare(timeB);
     }
-
-    const ampmA = a.ampm_deliveries || 'ZZ';
-    const ampmB = b.ampm_deliveries || 'ZZ';
-    if (ampmA !== ampmB) return ampmA.localeCompare(ampmB);
 
     return (a.patient_name || '').localeCompare(b.patient_name || '');
   });
@@ -151,7 +136,7 @@ export function sortProjectedDeliveries({ projectedDeliveries, allDeliveries, st
 
   // Precompute patient + store lookups and per-projection address+unit + distance
   // (projections are bare patient summaries with no address/distance, so derive
-  // those here to honor address → distance → store sort order).
+  // those here to honor store sort order → distance from store).
   const patientMap = new Map((patients || []).filter(Boolean).map((p) => [p.id, p]));
   const storeMap = new Map((stores || []).filter(Boolean).map((s) => [s.id, s]));
 
@@ -172,10 +157,10 @@ export function sortProjectedDeliveries({ projectedDeliveries, allDeliveries, st
     };
   });
 
+  // Sort: store sort order (primary) → distance from store (within store) → patient name (tie-breaker)
   enriched.sort((a, b) => {
-    if (a.addressKey !== b.addressKey) return a.addressKey.localeCompare(b.addressKey);
-    if (a.distance !== b.distance) return a.distance - b.distance;
     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+    if (a.distance !== b.distance) return a.distance - b.distance;
     return (a.p.patient_name || '').localeCompare(b.p.patient_name || '');
   });
 
