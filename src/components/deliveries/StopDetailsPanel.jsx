@@ -89,6 +89,12 @@ export default function StopDetailsPanel({
   const [completionTime, setCompletionTime] = useState(
     delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
   );
+  const [adminArrivalTime, setAdminArrivalTime] = useState(
+    delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : ''
+  );
+  const [adminCompletionTime, setAdminCompletionTime] = useState(
+    delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : ''
+  );
 
   useEffect(() => {
     if (!delivery) return;
@@ -99,7 +105,9 @@ export default function StopDetailsPanel({
     setCompletionTime(
       delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
     );
-  }, [delivery?.id, delivery?.status, delivery?.delivery_time_start, delivery?.delivery_time_end, delivery?.actual_delivery_time]);
+    setAdminArrivalTime(delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : '');
+    setAdminCompletionTime(delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : '');
+  }, [delivery?.id, delivery?.status, delivery?.delivery_time_start, delivery?.delivery_time_end, delivery?.actual_delivery_time, delivery?.arrival_time]);
 
   // Must be called before any early returns to satisfy React hooks rules
   const isPickupForHook = !delivery?.patient_id;
@@ -338,6 +346,45 @@ export default function StopDetailsPanel({
     }
   };
 
+  const handleApplyAdminTiming = async () => {
+    if (!isAdminUser) return;
+    setIsUpdating(true);
+    try {
+      const update = {};
+      if (adminArrivalTime && delivery?.delivery_date) {
+        update.arrival_time = `${delivery.delivery_date}T${adminArrivalTime}:00`;
+      } else {
+        update.arrival_time = '';
+      }
+      if (adminCompletionTime && delivery?.delivery_date) {
+        update.actual_delivery_time = `${delivery.delivery_date}T${adminCompletionTime}:00`;
+      } else {
+        update.actual_delivery_time = '';
+      }
+      if (Object.keys(update).length === 0) return;
+      await base44.entities.Delivery.update(delivery.id, update);
+      window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+        detail: {
+          deliveryId: delivery.id,
+          updates: update,
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          source: 'stopDetailsPanelAdminTiming'
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          triggeredBy: 'stopDetailsPanelAdminTiming'
+        }
+      }));
+      toast.success('Timestamps updated');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleSaveCodAmount = async () => {
     if (!canEditCodInCurrentState) return;
     setIsUpdating(true);
@@ -438,6 +485,12 @@ export default function StopDetailsPanel({
               {delivery.ampm_deliveries}
             </Badge>
             }
+            {delivery.arrival_time &&
+            <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+              <Clock className="w-3 h-3 mr-1" />
+              Arrived {format(new Date(delivery.arrival_time), 'h:mm a')}
+            </Badge>
+            }
             {delivery.actual_delivery_time &&
             <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
               <Clock className="w-3 h-3 mr-1" />
@@ -504,6 +557,12 @@ export default function StopDetailsPanel({
               {delivery.ampm_deliveries}
             </Badge>
             }
+            {delivery.arrival_time &&
+            <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+              <Clock className="w-3 h-3 mr-1" />
+              Arrived {format(new Date(delivery.arrival_time), 'h:mm a')}
+            </Badge>
+            }
             {delivery.actual_delivery_time &&
             <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
               <Clock className="w-3 h-3 mr-1" />
@@ -544,7 +603,7 @@ export default function StopDetailsPanel({
             <div className="flex items-center justify-between gap-2">
               {/* Patient Name */}
                 <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {finalDisplayName}
+                  {finalDisplayName}{patient?.care_pros && patient?.cp_name ? ` (${patient.cp_name})` : ''}
                 </p>
               {/* Edit/Delete Buttons inline with name */}
               {canManageStop &&
@@ -640,7 +699,7 @@ export default function StopDetailsPanel({
                     </span>
                   ) : (
                     <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
-                      {finalDisplayPhone}
+                      {formatPhoneNumber(patient.phone)}
                     </a>
                   )}
                 </div>
@@ -889,6 +948,46 @@ export default function StopDetailsPanel({
                 aria-label="Mark delivery failed">
                 <XCircle className="w-4 h-4" />
               </Button>
+            </div>
+            }
+
+            {/* Admin: always-editable arrival & completion times */}
+            {isAdminUser &&
+            <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
+                Admin — Adjust Timestamps
+              </p>
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
+                <div className="min-w-0 w-full space-y-1">
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                    Arrival
+                  </Label>
+                  <div className="relative">
+                    <Input type="time" value={adminArrivalTime} onChange={(e) => setAdminArrivalTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                    {adminArrivalTime &&
+                    <button type="button" onClick={() => setAdminArrivalTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" disabled={isUpdating}>
+                      <X className="w-4 h-4" />
+                    </button>
+                    }
+                  </div>
+                </div>
+                <div className="min-w-0 w-full space-y-1">
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                    Completion
+                  </Label>
+                  <div className="relative">
+                    <Input type="time" value={adminCompletionTime} onChange={(e) => setAdminCompletionTime(e.target.value)} disabled={isUpdating} className="h-9 text-sm" />
+                    {adminCompletionTime &&
+                    <button type="button" onClick={() => setAdminCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" disabled={isUpdating}>
+                      <X className="w-4 h-4" />
+                    </button>
+                    }
+                  </div>
+                </div>
+                <Button onClick={handleApplyAdminTiming} disabled={isUpdating} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
+                  Apply
+                </Button>
+              </div>
             </div>
             }
           </CardContent>
