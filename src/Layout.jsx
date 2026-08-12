@@ -184,9 +184,9 @@ export default function Layout({ children, currentPageName }) {
   const [branding, setBranding] = useState({
     logo_url: '',
     favicon_url: '',
-    primary_color: '#000000',
-    secondary_color: '#FFFFFF',
-    accent_color: '#0066CC'
+    primary_color: 'hsl(var(--background))',
+    secondary_color: 'hsl(var(--foreground))',
+    accent_color: 'hsl(var(--primary))'
   });
 
   const handleThemeChange = async (newTheme) => {
