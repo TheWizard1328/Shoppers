@@ -32,6 +32,10 @@ export function useDeliveryDisplayInfo({
       return delivery.patient_name || patient?.full_name || `${store?.name || 'Unknown Store'} Pickup`;
     }
     if (isPickup) return `${store?.name || 'Unknown Store'} Pickup`;
+    // Care Pro delivery: show "CP <cp_name>" instead of the stored "CP Home NN" patient name
+    if ((patient?.care_pros || delivery?.care_pros) && (patient?.cp_name || delivery?.cp_name)) {
+      return `CP ${patient?.cp_name || delivery?.cp_name}`;
+    }
     return patient?.full_name || delivery.patient_name || 'Unknown';
   }, [delivery, isPickup, isInterStorePickup, store, patient]);
 
