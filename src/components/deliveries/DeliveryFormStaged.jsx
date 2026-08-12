@@ -358,18 +358,20 @@ export default function DeliveryFormStaged({
         const ldText = formatLastDelivered(getLastDeliveryDate(projectedPatient) || projected.last_delivery_date, projected.frequency);
         const isOverdue = ldText?.includes('>');
         const isExact = ldText && !ldText.includes('~') && !ldText.includes('>') && getRecurrenceWindow(projected.frequency);
-        const projBorderColor = isOverdue ? '#dc2626' : isExact ? '#16a34a' : '#eab308';
-        const projBgColor    = isOverdue ? '#fef2f2' : isExact ? '#f0fdf4' : '#fefce8';
+        const projCardClass = isOverdue
+          ? 'bg-red-50 border-red-500 dark:bg-red-950/70 dark:border-red-700'
+          : isExact
+          ? 'bg-green-50 border-green-600 dark:bg-green-950/70 dark:border-green-700'
+          : 'bg-yellow-50 border-yellow-500 dark:bg-yellow-950/70 dark:border-yellow-700';
 
         return (
           <div
-            key={`proj-${projected.patient_id}`} className="px-2 py-2 text-xs rounded flex border-2 transition-colors"
-            style={{ borderColor: projBorderColor, backgroundColor: projBgColor }}>
+            key={`proj-${projected.patient_id}`} className={`px-2 py-2 text-xs rounded flex border-2 transition-colors ${projCardClass}`}>
             
 
             <div className="flex-1 min-w-0 flex flex-col gap-[1px] leading-none">
               <div className="flex items-center gap-1.5 min-h-0">
-                <span className="font-medium truncate flex-1 min-w-0 text-slate-900 dark:text-slate-100 leading-none">{projected.patient_name}</span>
+                <span className="font-medium truncate flex-1 min-w-0 text-slate-900 dark:text-slate-50 leading-none">{projected.patient_name}</span>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {projectedStore?.abbreviation && shouldShowStoreBadges(currentUser) &&
                   <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
@@ -380,7 +382,7 @@ export default function DeliveryFormStaged({
                 </div>
               </div>
               <div className="flex items-center gap-1 min-h-0">
-                <div className="truncate flex-1 min-w-0 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-[10px] leading-none">
+                <div className="truncate flex-1 min-w-0 text-slate-700 dark:text-slate-300 text-[10px] leading-none">
                   {projectedAddress}
                   {projectedUnitNumber ? ` #${projectedUnitNumber}` : ''}
                 </div>
@@ -393,7 +395,7 @@ export default function DeliveryFormStaged({
                   
                 </div>
               </div>
-              <div className="text-slate-600 dark:text-slate-400 dark:text-slate-500 text-[10px] truncate pr-1 leading-none min-h-0">
+              <div className="text-slate-700 dark:text-slate-300 text-[10px] truncate pr-1 leading-none min-h-0">
                 {projectedRecurrence}
               </div>
             </div>
