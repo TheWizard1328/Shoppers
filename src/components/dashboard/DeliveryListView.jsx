@@ -12,6 +12,7 @@ import { getCodSymbolColorClass } from '../utils/SpecialSymbolsBadges';
 import { isAppOwner, userHasRole } from '../utils/userRoles';
 import { generateDriverColor, getContrastColor } from '../utils/colorGenerator';
 import { useDeliveryDisplayInfo } from '../common/StopCardRedaction';
+import { getCyclingMarkerDisplayInfo } from '../utils/deliveryTypeUtils';
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
 
 // Memoized row component to prevent re-renders
@@ -47,15 +48,11 @@ const DeliveryRow = memo(({
     isStrippedForDispatcher: false,
   });
 
-  // Override display name for cycling marker stops
-  const cyclingNotes = delivery.delivery_notes || '';
-  const isCyclingStart = delivery.is_cycling_marker || cyclingNotes.includes('Cycling Route Start');
-  const isCyclingEnd = !isCyclingStart && cyclingNotes.includes('Cycling Route End');
-  const finalDisplayName = isCyclingStart
-    ? 'Cycling Route Start'
-    : isCyclingEnd
-      ? 'Cycling Route End'
-      : rawDisplayName;
+  // Override display name for cycling marker stops.
+  // Determine Start vs End via delivery_notes first, then transport_mode
+  // (driving → Start, cycling → End). A marker is only one or the other.
+  const { isCyclingMarker, cyclingName } = getCyclingMarkerDisplayInfo(delivery);
+  const finalDisplayName = isCyclingMarker ? cyclingName : rawDisplayName;
 
   const desktopGridClass = bulkEditMode ?
   'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2' :

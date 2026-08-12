@@ -45,6 +45,36 @@ export function getDeliveryType(delivery) {
 /**
  * Convenience flags derived from getDeliveryType.
  */
+/**
+ * Resolves the display name for a cycling marker stop.
+ *
+ * A cycling marker (`is_cycling_marker === true`) marks either the START or the
+ * END of a cycling loop. Determine which using, in order:
+ *   1. `delivery_notes` — 'Cycling Route Start' / 'Cycling Route End' (or any
+ *      note containing "start"/"end").
+ *   2. `transport_mode` — 'driving' → START (driver switches to cycling here),
+ *      'cycling' → END (cycling loop finishes here).
+ *
+ * @returns {{ isCyclingMarker, isCyclingStart, isCyclingEnd, cyclingName }}
+ */
+export function getCyclingMarkerDisplayInfo(delivery) {
+  if (!delivery?.is_cycling_marker) {
+    return { isCyclingMarker: false, isCyclingStart: false, isCyclingEnd: false, cyclingName: null };
+  }
+  const notes = (delivery.delivery_notes || '').toLowerCase();
+  if (notes.includes('end')) {
+    return { isCyclingMarker: true, isCyclingStart: false, isCyclingEnd: true, cyclingName: 'Cycling Route End' };
+  }
+  if (notes.includes('start')) {
+    return { isCyclingMarker: true, isCyclingStart: true, isCyclingEnd: false, cyclingName: 'Cycling Route Start' };
+  }
+  // Fall back to transport_mode: driving = Start, cycling = End
+  if (delivery.transport_mode === 'cycling') {
+    return { isCyclingMarker: true, isCyclingStart: false, isCyclingEnd: true, cyclingName: 'Cycling Route End' };
+  }
+  return { isCyclingMarker: true, isCyclingStart: true, isCyclingEnd: false, cyclingName: 'Cycling Route Start' };
+}
+
 export function getDeliveryTypeFlags(delivery) {
   const type = getDeliveryType(delivery);
   return {

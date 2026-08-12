@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
 import { userHasRole } from '../utils/userRoles';
 import { useInterStoreDisplayName, useInterStoreLocation } from '../utils/interStoreDisplayName';
-import { getDeliveryTypeFlags } from '../utils/deliveryTypeUtils';
+import { getDeliveryTypeFlags, getCyclingMarkerDisplayInfo } from '../utils/deliveryTypeUtils';
 
 /**
  * Custom hook that encapsulates all patient data redaction logic for StopCard.
@@ -26,7 +26,8 @@ export function useDeliveryDisplayInfo({
   const displayName = useMemo(() => {
     if (!delivery) return '';
     // Cycling start markers have no patient/store — use delivery_notes as name
-    if (delivery.is_cycling_start_marker) return delivery.delivery_notes || 'Cycling Route Start';
+    const cycling = getCyclingMarkerDisplayInfo(delivery);
+    if (cycling.isCyclingMarker) return cycling.cyclingName;
     if (isPickup && isInterStorePickup) {
       return delivery.patient_name || patient?.full_name || `${store?.name || 'Unknown Store'} Pickup`;
     }

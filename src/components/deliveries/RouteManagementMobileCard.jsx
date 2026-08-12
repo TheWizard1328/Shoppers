@@ -5,6 +5,7 @@ import { isAppOwner, userHasRole, shouldShowStoreBadges } from "../utils/userRol
 import { getStoreColor } from "../utils/colorGenerator";
 import { getCurrentEtaForDelivery } from "../utils/etaTrendBus";
 import { useInterStoreDisplayName, isInterStoreDelivery } from "../utils/interStoreDisplayName";
+import { getCyclingMarkerDisplayInfo } from "../utils/deliveryTypeUtils";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -101,11 +102,14 @@ export default function RouteManagementMobileCard({
   })();
 
   // ── Row 2 data ──────────────────────────────────────────────────────────
-  const displayName = isInterStoreDelivery(delivery.delivery_id) && ispDisplayName
-    ? ispDisplayName
-    : isPickup
-      ? store?.name || "Pickup"
-      : patient?.full_name || delivery.patient_name || "Unknown";
+  const cycling = getCyclingMarkerDisplayInfo(delivery);
+  const displayName = cycling.isCyclingMarker
+    ? cycling.cyclingName
+    : isInterStoreDelivery(delivery.delivery_id) && ispDisplayName
+      ? ispDisplayName
+      : isPickup
+        ? store?.name || "Pickup"
+        : patient?.full_name || delivery.patient_name || "Unknown";
 
   const codRequired = delivery.cod_total_amount_required || 0;
   const codCollected = (delivery.cod_payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
