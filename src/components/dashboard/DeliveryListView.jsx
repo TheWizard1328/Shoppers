@@ -70,11 +70,31 @@ const DeliveryRow = memo(({
     const m = String(v).match(/T(\d{2}:\d{2})/) || String(v).match(/^(\d{2}:\d{2})/);
     return m ? m[1] : null;
   };
-  const arrivalTm = extractTm(delivery.arrival_time);
   const actualTm = extractTm(delivery.actual_delivery_time);
-  const etaTm = extractTm(delivery.delivery_time_eta || delivery.delivery_time_start);
-  const timeAtLocation = arrivalTm || (((delivery.status === 'in_transit' || delivery.status === 'en_route') && etaTm) ? `ETA ${etaTm}` : null);
-  const actualTime = isFinished ? actualTm : null;
+
+  // Duration spent at this location — finished stops: arrival → actual delivery
+  // (on-site minutes); in-transit/en-route: arrival → now (live elapsed). null when
+  // the driver has not arrived yet.
+  const minutesOnLocation = (() => {
+    const arrRaw = delivery.arrival_time;
+    if (!arrRaw) return null;
+    const arr = new Date(arrRaw);
+    if (isNaN(arr.getTime())) return null;
+    const endRaw = isFinished && delivery.actual_delivery_time ? delivery.actual_delivery_time : null;
+    const end = endRaw ? new Date(endRaw) : null;
+    const ref = end && !isNaN(end.getTime()) ? end : new Date();
+    return Math.max(0, Math.round((ref.getTime() - arr.getTime()) / 60000));
+  })();
+
+  const STATUS_MAP = {
+    completed: { cls: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200', label: 'Completed' },
+    in_transit: { cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200', label: 'In Transit' },
+    en_route: { cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200', label: 'En Route' },
+    pending: { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200', label: 'Pending' },
+    failed: { cls: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200', label: 'Failed' },
+    cancelled: { cls: 'bg-slate-100 text-slate-800 dark:bg-slate-800/80 dark:text-slate-100', label: 'Cancelled' },
+  };
+  const statusMeta = STATUS_MAP[delivery.status] || { cls: 'bg-slate-100 text-slate-800 dark:bg-slate-800/80 dark:text-slate-100', label: String(delivery.status || '') };
 
   const storeBadgeEl = isDispatcher
     ? (delivery.driver_name && (() => {
@@ -120,7 +140,7 @@ const DeliveryRow = memo(({
     isMobile ?
     <div
       onClick={handleRowClick}
-      className={`flex h-full flex-col rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+      className={`flex flex-col rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
       isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60'} ${
       isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
       style={{ borderColor: 'var(--border-slate-200)' }}>
@@ -139,11 +159,15 @@ const DeliveryRow = memo(({
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
               {storeBadgeEl}
-              {timeAtLocation && <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{timeAtLocation}</span>}
-              <div className="flex items-center gap-1">
-                {getStatusBadge(delivery.status)}
-                {actualTime && <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{actualTime}</span>}
-              </div>
+              <Badge className={`flex items-center gap-1 ${statusMeta.cls}`}>
+                <span>{statusMeta.label}</span>
+                {actualTm && <span className="opacity-80 font-normal">• {actualTm}</span>}
+              </Badge>
+              {minutesOnLocation !== null && (
+                <Badge variant="outline" className="flex items-center gap-1 text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-300)' }}>
+                  <Clock className="w-3 h-3" />{minutesOnLocation} min
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -225,7 +249,7 @@ const DeliveryRow = memo(({
           {hasPodRow && (
             <div className="flex flex-wrap items-center gap-2">
               {hasSig && (
-                <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border cursor-zoom-in" style={{ borderColor: 'var(--border-slate-200)' }} onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }} />
+                <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert" style={{ borderColor: 'var(--border-slate-200)' }} onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }} />
               )}
               {photos.slice(0, 2).map((url, i) => (
                 <img key={i} src={url} alt={`POD ${i + 1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white cursor-zoom-in" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: url, title: `Photo ${i + 1}` }); }} />
@@ -350,7 +374,7 @@ const DeliveryRow = memo(({
         <img
           src={delivery.signature_image_url}
           alt="Signature"
-          className="w-20 h-7 rounded-sm object-cover border cursor-zoom-in"
+          className="w-20 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert"
           style={{ borderColor: 'var(--border-slate-200)' }}
           onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' });}} /> :
 
@@ -395,7 +419,6 @@ const DeliveryRow = memo(({
 
 DeliveryRow.displayName = 'DeliveryRow';
 
-const MOBILE_ROW_HEIGHT = 260;
 const DESKTOP_ROW_HEIGHT = 88;
 const DESKTOP_LIST_WIDTH = 1400;
 const DESKTOP_BULK_LIST_WIDTH = 1456;
@@ -699,18 +722,45 @@ const DeliveryListView = ({
         <div
           ref={bodyScrollRef}
           onScroll={syncBodyScroll}
-          className="flex-1 min-h-0 min-w-0 h-full w-full max-h-full max-w-full overflow-x-auto overflow-y-hidden">
+          className={`flex-1 min-h-0 min-w-0 h-full w-full max-h-full max-w-full ${isMobile ? 'overflow-y-auto overflow-x-hidden' : 'overflow-x-auto overflow-y-hidden'}`}>
           {deliveries.length === 0 ?
           <div className="flex items-center justify-center h-32 text-slate-500 dark:text-slate-400 dark:text-slate-500">
               No deliveries found
             </div> :
+          isMobile ?
+          <div className="w-full pb-2">
+              {deliveries.map((delivery, index) => {
+                const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+                const store = storeMap.get(delivery.store_id);
+                return (
+                  <div key={delivery.id || index} style={{ padding: '0 8px 8px', boxSizing: 'border-box' }}>
+                    <DeliveryRow
+                      delivery={delivery}
+                      patient={patient}
+                      store={store}
+                      isSelected={selectedDeliveryId === delivery.id}
+                      onSelect={handleSelect}
+                      getStatusBadge={getStatusBadge}
+                      getTimeDisplay={getTimeDisplay}
+                      getCODDisplay={getCODDisplay}
+                      onOpenMedia={handleOpenMedia}
+                      isMobile={isMobile}
+                      bulkEditMode={bulkEditMode}
+                      isBulkSelected={bulkSelectedIds.includes(delivery.id)}
+                      onBulkToggle={onBulkToggle}
+                      currentUser={currentUser}
+                      isDispatcher={isDispatcher} />
+                  </div>
+                );
+              })}
+            </div> :
           listViewportHeight > 0 && listViewportWidth > 0 ?
-          <div className={!isMobile ? 'min-w-max' : 'w-full'} style={{ width: listWidth }}>
+          <div className="min-w-max" style={{ width: listWidth }}>
               <List
               height={listHeight}
               width={listWidth}
               itemCount={deliveries.length}
-              itemSize={isMobile ? MOBILE_ROW_HEIGHT : DESKTOP_ROW_HEIGHT}
+              itemSize={DESKTOP_ROW_HEIGHT}
               itemKey={getItemKey}
               overscanCount={8}>
                 {renderVirtualRow}
