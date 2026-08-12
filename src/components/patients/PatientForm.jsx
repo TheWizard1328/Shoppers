@@ -1217,7 +1217,7 @@ export default function PatientForm({
                           disabled={disableOtherFieldsDuringAddressLookup}
                           onChange={(e) => setFormData((prev) => ({ ...prev, cp_name: e.target.value }))}
                           placeholder="Care Pro name"
-                          className="text-sm h-9"
+                          className="h-9 text-xs file:text-xs md:text-xs"
                           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                         </div>
                         <div className="space-y-0.5">
@@ -1230,7 +1230,7 @@ export default function PatientForm({
                           disabled={disableOtherFieldsDuringAddressLookup}
                           onChange={(e) => setFormData((prev) => ({ ...prev, cp_envelopes: Number(e.target.value) }))}
                           placeholder="0"
-                          className="text-sm h-9"
+                          className="h-9 text-xs file:text-xs md:text-xs"
                           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                         </div>
                       </div>
