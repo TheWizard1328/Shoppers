@@ -1209,7 +1209,7 @@ export default function PatientForm({
                     </div>
                     {formData.care_pros &&
                     <div className="col-span-2 space-y-2">
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           <Label htmlFor="cp_name" className="text-xs font-medium" style={{ color: 'var(--text-slate-900)' }}>CP Name</Label>
                           <Input
                           id="cp_name"
