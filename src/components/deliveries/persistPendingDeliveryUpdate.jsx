@@ -51,7 +51,9 @@ export async function persistPendingDeliveryUpdate({
     receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [],
     paid_km_override: formData.paid_km_override !== null && formData.paid_km_override !== undefined
       ? parseFloat(formData.paid_km_override.toFixed(2))
-      : null
+      : null,
+    // Care Pro envelope count is stored on the Delivery entity (editable per delivery)
+    cp_envelopes: formData.cp_envelopes || 0
   };
 
   const updatedDelivery = await updateDeliveryLocal(selectedStaged.id, immediateUpdateData, {
@@ -70,7 +72,11 @@ export async function persistPendingDeliveryUpdate({
       store_name: store.name,
       store_abbreviation: store.abbreviation,
       distanceFromStore: distanceFromStore,
-      delivery_address: patient?.address || store.address
+      delivery_address: patient?.address || store.address,
+      // Reflect the latest Care Pro flag/name from the form on the staged card
+      // (these fields live on the Patient entity, updated via buildPatientUpdatePayload above)
+      care_pros: formData.care_pros || false,
+      cp_name: formData.cp_name || ''
     },
     deliveryId: selectedStaged.id
   };
