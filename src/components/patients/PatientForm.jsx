@@ -892,7 +892,7 @@ export default function PatientForm({
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
               {/* AppOwner Only: GPS & Distance Section */}
               {(isAppOwner(currentUser) || forceAppOwnerView) &&
-              <div className="border-2 px-2 py-2 rounded-[10px] space-y-2" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-slate-200)' }}>
+              <div className="px-2 rounded-[10px] py-2 border-12space-y-1" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-slate-200)' }}>
                   <div className="flex items-center gap-2 mb-1">
                     <Label className="text-xs font-semibold uppercase" style={{ color: 'var(--text-slate-700)' }}>App Owner Controls</Label>
                   </div>
