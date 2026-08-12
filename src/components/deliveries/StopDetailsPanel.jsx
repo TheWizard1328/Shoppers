@@ -478,11 +478,31 @@ export default function StopDetailsPanel({
               PID {patient.patient_id}
             </Badge>
             }
+            {!isDispatcherOnly &&
             <Badge className={`border rounded-full ${status.color}`}>
               <StatusIcon className="w-3 h-3 mr-1" />
               {status.label}
             </Badge>
+            }
           </div>
+
+          {/* Dispatcher-only second row: Status, Arrival & Completion badges */}
+          {isDispatcherOnly &&
+          <div className="hidden md:flex items-center gap-2 flex-wrap pt-1">
+            <Badge className={`border rounded-full ${status.color}`}>
+              <StatusIcon className="w-3 h-3 mr-1" />
+              {status.label}
+            </Badge>
+            <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+              <Clock className="w-3 h-3 mr-1" />
+              Arrived {delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'h:mm a') : '—'}
+            </Badge>
+            <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+              <Clock className="w-3 h-3 mr-1" />
+              {delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'h:mm a') : '—'}
+            </Badge>
+          </div>
+          }
         </div>
 
         {/* ── MOBILE layout (<md): two-row structured header ── */}
@@ -718,11 +738,11 @@ export default function StopDetailsPanel({
                   </p> :
                   null}
                   {delivery.cod_payments && delivery.cod_payments.length > 0 &&
-                  <div className="mt-1 space-y-1">
+                  <div className="mt-1 flex flex-wrap gap-1.5">
                     {delivery.cod_payments.map((payment, idx) =>
-                    <p key={idx} className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                    <Badge key={idx} variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                       {payment.type}: ${payment.amount.toFixed(2)}
-                    </p>
+                    </Badge>
                     )}
                   </div>
                   }
@@ -804,30 +824,12 @@ export default function StopDetailsPanel({
             <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Patient information not available</p>
             }
 
-            {/* Status & Timing */}
-            {canEdit && typeof onStatusUpdate === 'function' &&
+            {/* Status & Timing (drivers/admins only — dispatchers see badges in header) */}
+            {canEditStatusTiming && typeof onStatusUpdate === 'function' &&
             <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
               <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                 Status & Timing
               </p>
-
-              {/* Dispatcher: badges only — no editors, no Apply button */}
-              {isDispatcherOnly &&
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge className={`border rounded-full ${status.color}`}>
-                  <StatusIcon className="w-3 h-3 mr-1" />
-                  {status.label}
-                </Badge>
-                <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-                  <Clock className="w-3 h-3 mr-1" />
-                  Arrived {delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'h:mm a') : '—'}
-                </Badge>
-                <Badge variant="secondary" className="font-mono rounded-full text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-                  <Clock className="w-3 h-3 mr-1" />
-                  {delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'h:mm a') : '—'}
-                </Badge>
-              </div>
-              }
 
               {/* Driver/Admin: editable Status, Arrival & Completion (drivers gated when route complete) */}
               {canEditStatusTiming &&
