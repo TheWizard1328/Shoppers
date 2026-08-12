@@ -204,7 +204,7 @@ export default function PatientCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 min-w-0">
               <h3 className="font-semibold text-base truncate" style={{ color: 'var(--text-slate-900)' }}>
-                {patient.full_name}
+                {patient.full_name}{patient.care_pros && patient.cp_name ? ` (${patient.cp_name})` : ''}
               </h3>
               {store && showStoreBadge &&
               <Badge style={{ backgroundColor: store.color, color: 'white' }} className="bg-primary text-primary-foreground px-2.5 py-0.5 text-xs font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80">

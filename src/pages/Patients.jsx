@@ -855,15 +855,26 @@ export default function Patients() {
     // Apply search filter
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase();
+      // Care Pro keyword matching — recognizes all common variants (with or without
+      // spaces/hyphens/apostrophes) so a search for any "Care Pro" spelling surfaces
+      // patients whose care_pros flag is true.
+      const careProVariants = [
+        'care pro', "care pro's", 'care pros',
+        'carepro', 'carepros', "carepro's",
+        'care-pro', "care-pro's", 'care-pros'
+      ];
+      const isCareProSearch = careProVariants.some((v) => searchLower.includes(v));
       availablePatients = availablePatients.filter((patient) => {
         if (!patient) return false;
+        if (isCareProSearch && patient.care_pros) return true;
         const searchFields = [
         patient.full_name,
         patient.address,
         patient.phone,
         patient.patient_id,
         patient.id,
-        patient.notes];
+        patient.notes,
+        patient.cp_name];
 
         return searchFields.some((field) => field && String(field).toLowerCase().includes(searchLower));
       });
