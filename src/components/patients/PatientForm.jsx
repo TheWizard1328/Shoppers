@@ -1183,9 +1183,9 @@ export default function PatientForm({
               {/* Container 4: Patient Notes + Care Pro's */}
               <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                 <div className="px-2 py-2 space-y-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <Label htmlFor="notes" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Checkbox
                         id="care_pros"
                         checked={formData.care_pros}
@@ -1194,6 +1194,19 @@ export default function PatientForm({
                       <Label htmlFor="care_pros" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                         Care Pro's
                       </Label>
+                      {formData.care_pros && (
+                        <div className="flex items-center gap-1">
+                          <Label htmlFor="cp_name" className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-900)' }}>CP Name</Label>
+                          <Input
+                            id="cp_name"
+                            value={formData.cp_name}
+                            disabled={disableOtherFieldsDuringAddressLookup}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, cp_name: e.target.value }))}
+                            placeholder="Care Pro name"
+                            className="h-8 w-32 text-xs file:text-xs md:text-xs"
+                            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className={formData.care_pros ? "grid grid-cols-5 gap-2" : "grid grid-cols-1"}>
@@ -1209,17 +1222,6 @@ export default function PatientForm({
                     </div>
                     {formData.care_pros &&
                     <div className="col-span-2 space-y-2">
-                        <div className="space-y-0.5">
-                          <Label htmlFor="cp_name" className="text-xs font-medium" style={{ color: 'var(--text-slate-900)' }}>CP Name</Label>
-                          <Input
-                          id="cp_name"
-                          value={formData.cp_name}
-                          disabled={disableOtherFieldsDuringAddressLookup}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, cp_name: e.target.value }))}
-                          placeholder="Care Pro name"
-                          className="h-9 text-xs file:text-xs md:text-xs"
-                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
-                        </div>
                         <div className="space-y-0.5">
                           <Label htmlFor="cp_envelopes" className="text-xs font-medium" style={{ color: 'var(--text-slate-900)' }}>CP Envelopes</Label>
                           <Input
