@@ -116,7 +116,7 @@ export default function StopDetailsPanel({
     isInterStore: false,
     isInterStorePickup: false,
     isStrippedDelivery: false,
-    isStrippedForDispatcher: false,
+    isStrippedForDispatcher: false
   });
 
   if (!delivery) {
@@ -452,13 +452,13 @@ export default function StopDetailsPanel({
             </Badge>
             }
             {delivery.arrival_time &&
-            <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            <Badge variant="secondary" className="font-mono rounded-full hidden" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
               <Clock className="w-3 h-3 mr-1" />
               Arrived {format(new Date(delivery.arrival_time), 'h:mm a')}
             </Badge>
             }
             {delivery.actual_delivery_time &&
-            <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            <Badge variant="secondary" className="font-mono rounded-full hidden" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
               <Clock className="w-3 h-3 mr-1" />
               {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
             </Badge>
@@ -623,7 +623,7 @@ export default function StopDetailsPanel({
             patient || delivery.patient_id ?
             <div className="space-y-3">
              {/* Main row: address, phone, COD, preferences */}
-             <div className="min-w-0 space-y-3">
+             <div className="min-w-0">
                 {/* Address with unit number */}
                 {!isPickup && finalDisplayAddress &&
                 <div className="flex items-start gap-2">
@@ -631,26 +631,26 @@ export default function StopDetailsPanel({
                     type="button"
                     onClick={() => openInMaps(finalDisplayAddress)}
                     className="mt-0.5 flex-shrink-0 hover:opacity-70 transition-opacity"
-                    title="Navigate"
-                  >
+                    title="Navigate">
+                    
                     <MapPin className="w-4 h-4" style={{ color: '#2563eb' }} />
                   </button>
                   <div>
                    <div className="flex items-center gap-2 flex-wrap">
                      <button
-                          type="button"
-                          onClick={() => openInMaps(finalDisplayAddress)}
-                          className="text-sm text-left hover:underline"
-                          style={{ color: '#2563eb' }}
-                        >{finalDisplayAddress}</button>
+                        type="button"
+                        onClick={() => openInMaps(finalDisplayAddress)}
+                        className="text-sm text-left hover:underline"
+                        style={{ color: '#2563eb' }}>
+                        {finalDisplayAddress}</button>
                         {patient?.unit_number &&
-                     <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
-                     }
+                      <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
+                      }
                      {patient?.distance_from_store > 0 &&
-                     <Badge variant="outline" className="text-xs" style={{ borderColor: store?.color || 'var(--border-slate-300)', color: store?.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}>
+                      <Badge variant="outline" className="text-xs" style={{ borderColor: store?.color || 'var(--border-slate-300)', color: store?.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}>
                        {patient.distance_from_store.toFixed(1)} km from store
                      </Badge>
-                     }
+                      }
                    </div>
                   </div>
                 </div>
@@ -659,15 +659,15 @@ export default function StopDetailsPanel({
                 {finalDisplayPhone &&
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                  {shouldRedact ? (
-                    <span className="text-sm" style={{ color: 'var(--text-slate-700)' }}>
+                  {shouldRedact ?
+                  <span className="text-sm" style={{ color: 'var(--text-slate-700)' }}>
                       {finalDisplayPhone}
-                    </span>
-                  ) : (
-                    <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
+                    </span> :
+
+                  <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
                       {formatPhoneNumber(patient.phone)}
                     </a>
-                  )}
+                  }
                 </div>
                 }
 
@@ -762,8 +762,8 @@ export default function StopDetailsPanel({
               {/* Bottom row: Patient Notes (left) + Driver Notes (right) */}
               {(patient?.notes || delivery.delivery_notes) &&
               <div className="flex gap-4">
-                {patient?.notes && delivery.delivery_notes ? (
-                  <>
+                {patient?.notes && delivery.delivery_notes ?
+                <>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                         <StickyNote className="w-3 h-3" /> Patient Notes
@@ -776,27 +776,27 @@ export default function StopDetailsPanel({
                       </p>
                       <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
                     </div>
-                  </>
-                ) : (
-                  <div className="w-full min-w-0">
-                    {patient?.notes && (
-                      <>
+                  </> :
+
+                <div className="w-full min-w-0">
+                    {patient?.notes &&
+                  <>
                         <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                           <StickyNote className="w-3 h-3" /> Patient Notes
                         </p>
                         <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
                       </>
-                    )}
-                    {delivery.delivery_notes && (
-                      <>
+                  }
+                    {delivery.delivery_notes &&
+                  <>
                         <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                           <StickyNote className="w-3 h-3" /> Driver Notes
                         </p>
                         <p className="text-sm whitespace-pre-wrap break-words" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
                       </>
-                    )}
+                  }
                   </div>
-                )}
+                }
               </div>
               }
             </div> :
@@ -837,26 +837,26 @@ export default function StopDetailsPanel({
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                     {isPickup ? 'Pickup Status' : 'Delivery Status'}
                   </Label>
-                  <Select value={editableStatus} onValueChange={handleStatusChange} disabled={isUpdating || canEditTimeWindows || (isDriverUser && isRouteCompleted(delivery, allDeliveries))}>
+                  <Select value={editableStatus} onValueChange={handleStatusChange} disabled={isUpdating || canEditTimeWindows || isDriverUser && isRouteCompleted(delivery, allDeliveries)}>
                     <SelectTrigger className="h-9">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="z-[10030]">
                       {isPickup ?
-                    <>
+                      <>
                           <SelectItem value="en_route">En Route</SelectItem>
                           <SelectItem value="completed">Completed</SelectItem>
                           <SelectItem value="cancelled">Cancelled</SelectItem>
                         </> :
 
-                    <>
+                      <>
                           <SelectItem value="pending">Pending</SelectItem>
                           <SelectItem value="in_transit">In Transit</SelectItem>
                           <SelectItem value="completed">Completed</SelectItem>
                           <SelectItem value="failed">Failed</SelectItem>
                           <SelectItem value="cancelled">Cancelled</SelectItem>
                         </>
-                    }
+                      }
                     </SelectContent>
                   </Select>
                 </div>
@@ -866,7 +866,7 @@ export default function StopDetailsPanel({
                     Arrival
                   </Label>
                   <div className="relative">
-                    <Input type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                    <Input type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || isDriverUser && isRouteCompleted(delivery, allDeliveries)} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                     {showDesktopClearButtons && arrivalTime &&
                     <button type="button" onClick={() => setArrivalTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
                       <X className="w-4 h-4" />
@@ -876,18 +876,18 @@ export default function StopDetailsPanel({
                 </div>
 
                 {showTimeWindowEditors &&
-              <>
+                <>
                   <div className="min-w-0 w-full space-y-1">
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       Start
                     </Label>
                     <div className="relative">
-                      <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                      <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || isDriverUser && isRouteCompleted(delivery, allDeliveries)} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                       {showDesktopClearButtons && deliveryTimeStart &&
-                  <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
+                      <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
                         <X className="w-4 h-4" />
                       </button>
-                  }
+                      }
                     </div>
                   </div>
                   <div className="min-w-0 w-full space-y-1">
@@ -895,30 +895,30 @@ export default function StopDetailsPanel({
                       End
                     </Label>
                     <div className="relative">
-                      <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                      <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || isDriverUser && isRouteCompleted(delivery, allDeliveries)} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                       {showDesktopClearButtons && deliveryTimeEnd &&
-                  <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
+                      <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
                         <X className="w-4 h-4" />
                       </button>
-                  }
+                      }
                     </div>
                   </div>
                 </>
                 }
 
                 {isCompletionEditStatus &&
-              <>
+                <>
                   <div className="min-w-0 w-full space-y-1">
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       Completion
                     </Label>
                     <div className="relative">
-                    <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                    <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || isDriverUser && isRouteCompleted(delivery, allDeliveries)} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                     {showDesktopClearButtons && completionTime &&
-                  <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
+                      <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300" disabled={isUpdating}>
                       <X className="w-4 h-4" />
                     </button>
-                  }
+                      }
                   </div>
                   </div>
                   <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
@@ -929,7 +929,7 @@ export default function StopDetailsPanel({
                 }
 
                 {!(showTimeWindowEditors || isCompletionEditStatus) &&
-              <>
+                <>
                   <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
                     <Label className="text-sm font-semibold">Start</Label>
                     <Input type="time" value="" readOnly className="h-9 text-sm" />
@@ -941,7 +941,7 @@ export default function StopDetailsPanel({
                 </>
                 }
 
-                <Button onClick={handleApplyStatusTiming} disabled={isUpdating || !hasStatusTimingChanges || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
+                <Button onClick={handleApplyStatusTiming} disabled={isUpdating || !hasStatusTimingChanges || isDriverUser && isRouteCompleted(delivery, allDeliveries)} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
                   Apply
                 </Button>
               </div>
@@ -997,15 +997,15 @@ export default function StopDetailsPanel({
                   {!isCompleted && canEditProofOfDelivery &&
                   <div className="flex gap-1">
                     <Button onClick={() => setShowSignatureCapture(true)} disabled={isUpdating}
-                      className={`text-xs whitespace-nowrap h-7 px-2 ${hasSignature ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                      style={!hasSignature ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
-                      size="sm">
+                    className={`text-xs whitespace-nowrap h-7 px-2 ${hasSignature ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                    style={!hasSignature ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
+                    size="sm">
                       <FileSignature className="w-3 h-3 mr-1" />
                       {hasSignature ? 'Re-Capture' : 'Capture'}
                     </Button>
                     {hasSignature &&
                     <Button onClick={clearSignature} disabled={isUpdating} variant="outline" size="sm" className="h-7 px-2 text-xs"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}>
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}>
                       <RotateCcw className="w-3 h-3" />
                     </Button>
                     }
@@ -1014,10 +1014,10 @@ export default function StopDetailsPanel({
                 </div>
                 {delivery.signature_image_url ?
                 <div className="border rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                  style={{ borderColor: 'var(--border-slate-200)' }}
-                  onClick={() => setViewingImage({ url: delivery.signature_image_url, title: 'Customer Signature' })}>
+                style={{ borderColor: 'var(--border-slate-200)' }}
+                onClick={() => setViewingImage({ url: delivery.signature_image_url, title: 'Customer Signature' })}>
                   <img src={delivery.signature_image_url} alt="Customer Signature"
-                    className="w-full h-auto max-h-24 object-contain" style={{ background: 'var(--bg-white)' }} />
+                  className="w-full h-auto max-h-24 object-contain" style={{ background: 'var(--bg-white)' }} />
                 </div> :
                 delivery.signature_needed ?
                 <div className="text-center py-3 border rounded-lg" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
@@ -1038,9 +1038,9 @@ export default function StopDetailsPanel({
                   </p>
                   {!isCompleted && canEditProofOfDelivery &&
                   <Button onClick={() => setShowPhotoCapture(true)} disabled={isUpdating}
-                    className={`text-xs whitespace-nowrap h-7 px-2 ${hasPhotos ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                    style={!hasPhotos ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
-                    size="sm">
+                  className={`text-xs whitespace-nowrap h-7 px-2 ${hasPhotos ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                  style={!hasPhotos ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
+                  size="sm">
                     <Camera className="w-3 h-3 mr-1" />
                     {hasPhotos ? 'Add' : 'Capture'}
                   </Button>
@@ -1051,11 +1051,11 @@ export default function StopDetailsPanel({
                   {delivery.proof_photo_urls.map((url, index) =>
                   <div key={index} className="relative border rounded-lg overflow-hidden group" style={{ borderColor: 'var(--border-slate-200)' }}>
                     <img src={url} alt={`Proof photo ${index + 1}`}
-                      className="w-full h-20 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => setViewingImage({ url, title: `Proof Photo ${index + 1}` })} />
+                    className="w-full h-20 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => setViewingImage({ url, title: `Proof Photo ${index + 1}` })} />
                     <button onClick={(e) => {e.stopPropagation();deletePhoto(index);}} disabled={isUpdating}
-                      className="absolute top-1 right-1 rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                      style={{ background: '#dc2626', color: '#ffffff' }}>
+                    className="absolute top-1 right-1 rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                    style={{ background: '#dc2626', color: '#ffffff' }}>
                       <X className="w-3 h-3" />
                     </button>
                   </div>
@@ -1079,7 +1079,7 @@ export default function StopDetailsPanel({
                   Barcodes
                 </CardTitle>
                 {delivery?.barcode_values?.length > 0 &&
-                  <span className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Rx ({delivery.barcode_values.length})</span>
+                <span className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Rx ({delivery.barcode_values.length})</span>
                 }
               </div>
             </CardHeader>
@@ -1092,8 +1092,8 @@ export default function StopDetailsPanel({
                 <div className="flex flex-col gap-2">
                   {delivery.receipt_barcode_values.map((val, idx) =>
                   <div key={`rb-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors"
-                    style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                    onClick={() => setBarcodePreview({ value: val, isRx: false })}>
+                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                  onClick={() => setBarcodePreview({ value: val, isRx: false })}>
                     <BarcodeThumb value={val} />
                   </div>
                   )}
@@ -1105,8 +1105,8 @@ export default function StopDetailsPanel({
                 <div className="flex flex-col gap-2">
                   {delivery.barcode_values.map((val, idx) =>
                   <div key={`rx-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors"
-                    style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                    onClick={() => setBarcodePreview({ value: val, isRx: true })}>
+                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                  onClick={() => setBarcodePreview({ value: val, isRx: true })}>
                     <BarcodeThumb value={val} isRx={true} />
                     <p className="mt-1 text-[11px] text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono font-semibold">{String(val).slice(0, 8)}</p>
                   </div>
