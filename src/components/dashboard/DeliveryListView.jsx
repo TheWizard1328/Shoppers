@@ -35,7 +35,7 @@ const DeliveryRow = memo(({
   const { isMobile } = useDevice();
   const isPickup = !delivery.patient_id;
   const isNextDelivery = delivery.isNextDelivery === true;
-  
+
   const { finalDisplayName: rawDisplayName, finalDisplayAddress, shouldRedact } = useDeliveryDisplayInfo({
     delivery,
     patient,
@@ -45,7 +45,7 @@ const DeliveryRow = memo(({
     isInterStore: false,
     isInterStorePickup: false,
     isStrippedDelivery: false,
-    isStrippedForDispatcher: false,
+    isStrippedForDispatcher: false
   });
 
   // Override display name for cycling marker stops.
@@ -94,15 +94,15 @@ const DeliveryRow = memo(({
           <div className="flex flex-col items-end">
             <div className="flex flex-col items-center gap-1">
               {getStatusBadge(delivery.status)}
-              {isDispatcher ? (
+              {isDispatcher ?
                 delivery.driver_name &&
-                (() => { const dColor = generateDriverColor(delivery.driver_name); const parts = delivery.driver_name.split(' '); const first = parts[0]; const label = first.length <= 1 && parts[1] ? parts[1] : first; return <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: dColor, color: getContrastColor(dColor) }} title={delivery.driver_name}>{label}</Badge>; })()
-              ) : (
+                (() => {const dColor = generateDriverColor(delivery.driver_name);const parts = delivery.driver_name.split(' ');const first = parts[0];const label = first.length <= 1 && parts[1] ? parts[1] : first;return <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: dColor, color: getContrastColor(dColor) }} title={delivery.driver_name}>{label}</Badge>;})() :
+
                 store?.abbreviation &&
                 <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
                   {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
                 </Badge>
-              )}
+                }
             </div>
           </div>
 
@@ -177,7 +177,7 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick} className="py-2 grid w-full grid-cols-[120px_100px_100px_200px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60"
+      onClick={handleRowClick} className="grid w-full grid-cols-[120px_100px_100px_200px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60 py-1"
 
       style={{ borderColor: 'var(--border-slate-200)' }}>
       
@@ -195,15 +195,15 @@ const DeliveryRow = memo(({
 
         <div className="flex flex-col items-center justify-center gap-1">
           {getStatusBadge(delivery.status)}
-          {isDispatcher ? (
-            delivery.driver_name &&
-            (() => { const dColor = generateDriverColor(delivery.driver_name); const parts = delivery.driver_name.split(' '); const first = parts[0]; const label = first.length <= 1 && parts[1] ? parts[1] : first; return <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: dColor, color: getContrastColor(dColor) }} title={delivery.driver_name}>{label}</Badge>; })()
-          ) : (
-            store?.abbreviation &&
-            <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center text-white" style={{ background: store.color || 'var(--bg-slate-400)' }}>
+          {isDispatcher ?
+        delivery.driver_name &&
+        (() => {const dColor = generateDriverColor(delivery.driver_name);const parts = delivery.driver_name.split(' ');const first = parts[0];const label = first.length <= 1 && parts[1] ? parts[1] : first;return <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: dColor, color: getContrastColor(dColor) }} title={delivery.driver_name}>{label}</Badge>;})() :
+
+        store?.abbreviation &&
+        <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center text-white" style={{ background: store.color || 'var(--bg-slate-400)' }}>
               {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
             </Badge>
-          )}
+        }
         </div>
 
         <div className="flex items-center justify-center">
@@ -411,9 +411,9 @@ const DeliveryListView = ({
     return (
       <div className="flex flex-col items-center">
         <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{requiredAmount.toFixed(2)}</span>
-        {isFailed
-          ? <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Cancelled</span>
-          : <span className="text-xs text-amber-600 dark:text-amber-300">Pending collection</span>
+        {isFailed ?
+        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Cancelled</span> :
+        <span className="text-xs text-amber-600 dark:text-amber-300">Pending collection</span>
         }
       </div>);
 
@@ -589,13 +589,13 @@ const DeliveryListView = ({
       <div className="h-full max-h-full w-full max-w-full min-h-0 min-w-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
         <div className="sticky top-0 flex-shrink-0 border-b z-20" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-          {isMobile && (
-            <div className="grid grid-cols-[2fr_1fr_1fr] px-2 py-1 text-xs font-semibold" style={{ color: 'var(--text-slate-500)' }}>
+          {isMobile &&
+          <div className="grid grid-cols-[2fr_1fr_1fr] px-2 py-1 text-xs font-semibold" style={{ color: 'var(--text-slate-500)' }}>
               <span>Patient / Address</span>
               <span className="text-center">Status</span>
               <span className="text-center">Stop</span>
             </div>
-          )}
+          }
           {!isMobile &&
           <div
             ref={headerScrollRef}
