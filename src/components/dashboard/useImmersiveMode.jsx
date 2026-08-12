@@ -213,6 +213,18 @@ export default function useImmersiveMode({
   // ── Deactivation condition 2: double-tap override ───────────────────────────
   const forceShowUI = useCallback(() => {
     setIsOverrideActive(true);
+    // CRITICAL: User-initiated tap must exit immersive mode INSTANTLY. The 3-second
+    // IMMERSIVE_TOGGLE_DEBOUNCE_MS is meant for GPS-jitter proximity flips, not for
+    // an explicit gesture — but it currently gates this flip too, causing the
+    // "very long delay / doesn't deactivate / need 2-3 taps" symptom. Bypass the
+    // debounce here: cancel any pending toggle, clear the pending ref, and commit
+    // immersiveHidden=false synchronously so the UI reappears immediately.
+    if (immersiveToggleTimerRef.current) {
+      clearTimeout(immersiveToggleTimerRef.current);
+      immersiveToggleTimerRef.current = null;
+    }
+    pendingImmersiveRef.current = null;
+    setImmersiveHidden(false);
     if (overrideTimeoutRef.current) clearTimeout(overrideTimeoutRef.current);
     overrideTimeoutRef.current = setTimeout(() => {
       setIsOverrideActive(false);
