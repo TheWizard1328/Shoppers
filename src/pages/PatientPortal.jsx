@@ -22,8 +22,8 @@ const HOUSE_SVG = (strokeColor) =>
   `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><polyline points='9 22 9 12 15 12 15 22'/></svg>`;
 
 function makeStoreIcon(pickupDone) {
-  const bg = pickupDone ? '#16a34a' : 'white';
-  const border = pickupDone ? '#15803d' : '#e2e8f0';
+  const bg = pickupDone ? 'hsl(var(--accent))' : 'white';
+  const border = pickupDone ? 'hsl(var(--accent-foreground))' : 'hsl(var(--border))';
   return L.divIcon({
     html: `<div style="background:${bg};width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid ${border};overflow:hidden;"><img src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/189b7cc2c_ShoppersLogo.ico" style="width:30px;height:30px;object-fit:contain;" /></div>`,
     className: '',
@@ -33,16 +33,16 @@ function makeStoreIcon(pickupDone) {
 }
 
 function makePatientIcon(deliveryStatus, isNextDelivery, stopsBeforeCount) {
-  let bg = '#2563eb';
+  let bg = 'hsl(var(--primary))';
   let iconColor = 'white';
-  if (deliveryStatus === 'completed') { bg = '#16a34a'; }
-  else if (deliveryStatus === 'failed') { bg = '#dc2626'; }
-  else if (isNextDelivery) { bg = '#ca8a04'; iconColor = '#fef08a'; }
+  if (deliveryStatus === 'completed') { bg = 'hsl(var(--accent))'; }
+  else if (deliveryStatus === 'failed') { bg = 'hsl(var(--destructive))'; }
+  else if (isNextDelivery) { bg = 'hsl(var(--accent))'; iconColor = 'hsl(var(--muted))'; }
 
   // Cluster badge: show stops-before count only when delivery is not yet done and count > 0
   const showBadge = stopsBeforeCount != null && stopsBeforeCount > 0 && !['completed', 'failed', 'cancelled'].includes(deliveryStatus);
   const badge = showBadge
-    ? `<div style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);z-index:10;">${stopsBeforeCount}</div>`
+    ? `<div style="position:absolute;top:-6px;right:-6px;background:hsl(var(--destructive));color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);z-index:10;">${stopsBeforeCount}</div>`
     : '';
 
   return L.divIcon({
@@ -54,7 +54,7 @@ function makePatientIcon(deliveryStatus, isNextDelivery, stopsBeforeCount) {
 }
 
 const driverIcon = L.divIcon({
-  html: `<div style="background:#16a34a;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:18px;border:3px solid white;">🚚</div>`,
+  html: `<div style="background:hsl(var(--accent));color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:18px;border:3px solid white;">🚚</div>`,
   className: '',
   iconSize: [36, 36],
   iconAnchor: [18, 36],
@@ -649,7 +649,7 @@ export default function PatientPortal() {
               {staticPolylineCoords.length > 1 && (
                 <Polyline
                   positions={staticPolylineCoords}
-                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                  pathOptions={{ color: 'hsl(var(--primary))', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
                 />
               )}
 
@@ -657,7 +657,7 @@ export default function PatientPortal() {
               {showLiveTracking && firstLegCoords.length > 1 && (
                 <Polyline
                   positions={firstLegCoords}
-                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                  pathOptions={{ color: 'hsl(var(--primary))', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
                 />
               )}
 
@@ -665,7 +665,7 @@ export default function PatientPortal() {
               {showLiveTracking && currentLegCoords.length > 1 && (
                 <Polyline
                   positions={currentLegCoords}
-                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.75, dashArray: '8, 6' }}
+                  pathOptions={{ color: 'hsl(var(--accent))', weight: 4, opacity: 0.75, dashArray: '8, 6' }}
                 />
               )}
 
