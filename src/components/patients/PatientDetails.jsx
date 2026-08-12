@@ -121,7 +121,8 @@ const RecentDeliveries = ({ deliveries, patient, currentUser, onEditDelivery }) 
                   <div className={`flex items-center justify-between ${delivery.delivery_notes ? 'pt-2 border-t' : ''}`} style={{ borderColor: 'var(--border-slate-300)' }}>
                     {delivery.delivery_notes &&
                   <div className="text-xs flex-1 mr-2" style={{ color: 'var(--text-slate-600)' }}>
-                        <span className="font-medium">Notes:</span>/n{delivery.delivery_notes}
+                        <span className="font-medium">Notes:</span>
+                        {delivery.delivery_notes}
                       </div>
                   }
                     <div className="ml-auto flex items-center gap-2">
