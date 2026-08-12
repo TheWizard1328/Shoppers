@@ -1756,25 +1756,43 @@ export default function useStopCardActions(params) {
         }
 
         // Fire-and-forget: InterStore dropoff lookup is background work
+        // An InterStore Pickup is identified either by an "ISP"-prefixed delivery_id
+        // (authoritative source of truth per the user's request) OR by the backend's
+        // fuzzy name/notes detection. Either way, prompt the driver to optionally
+        // create a matching interstore drop-off stop.
         if (isPickup) {
+          const pickupDeliveryIsISP = String(delivery?.delivery_id || '').toUpperCase().startsWith('ISP');
           base44.functions.invoke('findInterStoreDropoff', { deliveryId: delivery.id })
             .then(interStoreResponse => {
               const interStoreData = interStoreResponse?.data || interStoreResponse;
-              if (interStoreData?.isInterStorePickup) {
+              const isInterStore = interStoreData?.isInterStorePickup || pickupDeliveryIsISP;
+              if (isInterStore) {
                 const originatingStoreId = interStoreData?.match?.store_id || null;
                 const driverRouteDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
+                // When the backend did not detect ISP (but the prefix did), originatingStoreId
+                // is null — these guards then resolve to "no duplicate drop-off yet", which
+                // is the intended behavior: still show the prompt (with an amber "no match"
+                // notice) so the driver can decide whether to create one.
                 const hasEnRoutePickupForOriginStore = driverRouteDeliveries.some((item) => item && !item.patient_id && item.store_id === originatingStoreId && item.status === 'en_route');
                 const hasMatchingInTransitDropoff = driverRouteDeliveries.some((item) => {
                   if (!item || item.id === delivery.id || item.status !== 'in_transit') return false;
                   const notes = String(item.delivery_notes || '').toLowerCase();
-                  return item.patient_id === interStoreData?.match?.id && (notes.includes('interstore drop-off') || notes.includes('interstore dropoff') || notes.includes('isd'));
+                  return interStoreData?.match?.id && item.patient_id === interStoreData.match.id && (notes.includes('interstore drop-off') || notes.includes('interstore dropoff') || notes.includes('isd'));
                 });
                 if (!hasEnRoutePickupForOriginStore && !hasMatchingInTransitDropoff) {
                   setInterStoreMatch?.(interStoreData.match || null);
                   setShowInterStoreDialog?.(true);
                 }
               }
-            }).catch(() => {});
+            }).catch(() => {
+              // Backend lookup failed — but if the delivery_id explicitly marks this as
+              // an InterStore Pickup (ISP prefix), still prompt the driver. The dialog
+              // shows its amber "no matching ISD patient found" notice in this case.
+              if (pickupDeliveryIsISP) {
+                setInterStoreMatch?.(null);
+                setShowInterStoreDialog?.(true);
+              }
+            });
         }
 
         dispatchStopCardActionCollapse();
