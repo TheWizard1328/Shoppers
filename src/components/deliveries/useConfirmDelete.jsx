@@ -77,14 +77,14 @@ export function useConfirmDelete({
           if (!targetPickup) throw new Error('Target pickup not found');
           const targetPickupTR = parseInt(targetPickup.tracking_number, 10) || 0;
           const existingTargetStops = sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === targetPickup.stop_id).length;
-          for (let i = 0; i < linkedStops.length; i += 1) {
-            await updateDeliveryLocal(linkedStops[i].id, {
-              puid: targetPickup.stop_id,
-              tracking_number: String(targetPickupTR + existingTargetStops + i + 1),
-              store_id: targetPickup.store_id,
-              ampm_deliveries: targetPickup.ampm_deliveries,
-            });
-          }
+          // Parallel: each linked stop's update is an independent network call.
+          // tracking_number uses the captured index `i` so concurrent writes still get unique numbers.
+          await Promise.all(linkedStops.map((stop, i) => updateDeliveryLocal(stop.id, {
+            puid: targetPickup.stop_id,
+            tracking_number: String(targetPickupTR + existingTargetStops + i + 1),
+            store_id: targetPickup.store_id,
+            ampm_deliveries: targetPickup.ampm_deliveries,
+          })));
         }
       }
 

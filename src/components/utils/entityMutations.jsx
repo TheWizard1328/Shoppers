@@ -691,31 +691,26 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       console.warn('⚠️ [EntityMutations] IndexedDB delete check failed:', offlineError.message);
     }
 
-    // Square COD cleanup: if this delivery has a COD amount, delete the corresponding
-    // Square catalog item before removing the delivery record from the backend.
-    if (deletedDeliverySnapshot && Number(deletedDeliverySnapshot.cod_total_amount_required || 0) > 0) {
-      try {
-        await base44.functions.invoke('squareDeleteCodItem', { deliveryId, reason: 'delivery_deleted' });
-        console.log('💳 [EntityMutations] Square COD catalog item deleted for delivery:', deliveryId);
-      } catch (squareErr) {
-        console.warn('⚠️ [EntityMutations] Square COD delete failed (continuing):', squareErr?.message || squareErr);
-      }
-    }
+    // STEP 2: Square COD cleanup + backend delete — parallel independent network calls
+    const squareCodPromise = (deletedDeliverySnapshot && Number(deletedDeliverySnapshot.cod_total_amount_required || 0) > 0)
+      ? base44.functions.invoke('squareDeleteCodItem', { deliveryId, reason: 'delivery_deleted' })
+          .then(() => console.log('💳 [EntityMutations] Square COD catalog item deleted for delivery:', deliveryId))
+          .catch((squareErr) => console.warn('⚠️ [EntityMutations] Square COD delete failed (continuing):', squareErr?.message || squareErr))
+      : Promise.resolve();
 
-    // STEP 2: Delete from backend (skip if not found)
     let existedOnline = false;
-    try {
-      await base44.entities.Delivery.delete(deliveryId);
-      existedOnline = true;
-      console.log('☁️ [EntityMutations] Backend deleted:', deliveryId);
-    } catch (error) {
-      if (error.message?.includes('not found') || error.message?.includes('404') || error.response?.status === 404) {
-        console.log('⏭️ [EntityMutations] Not found in backend, skipping online delete:', deliveryId);
-      } else {
+    const backendDeletePromise = base44.entities.Delivery.delete(deliveryId)
+      .then(() => { existedOnline = true; console.log('☁️ [EntityMutations] Backend deleted:', deliveryId); })
+      .catch((error) => {
+        if (error.message?.includes('not found') || error.message?.includes('404') || error.response?.status === 404) {
+          console.log('⏭️ [EntityMutations] Not found in backend, skipping online delete:', deliveryId);
+          return;
+        }
         console.warn('⚠️ [EntityMutations] Delivery delete sync failed, queuing:', error.message);
-        await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: deliveryId });
-      }
-    }
+        return offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: deliveryId });
+      });
+
+    await Promise.all([squareCodPromise, backendDeletePromise]);
 
     // If delivery didn't exist in either DB, still remove it from UI/cache in case
     // it exists in React state but was already cleaned from both DBs.
@@ -725,19 +720,22 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       removeDeletedFromCache('Delivery', [deliveryId]);
       const { smartRefreshManager } = await import('./smartRefreshManager');
       smartRefreshManager.deletedDeliveryIds.add(deliveryId);
-      await restartSmartRefresh();
+      smartRefreshManager.resume();
       return true;
     }
 
     if (deletedDeliverySnapshot?.driver_id && deletedDeliverySnapshot?.delivery_date) {
-      const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
-      await performRouteOptimization({
-        driverId: deletedDeliverySnapshot.driver_id,
-        deliveryDate: deletedDeliverySnapshot.delivery_date,
-        preserveExistingOrder: true,
-        bypassDriverStatus: true,
-        source: 'entity_mutation_delete',
-      }).catch(() => null);
+      // Fire-and-forget: route rebuilds in background. Awaiting this HERE API call
+      // was the single biggest blocker on the delete-pending path.
+      import('@/components/utils/routeOptimizationCoordinator')
+        .then(({ performRouteOptimization }) => performRouteOptimization({
+          driverId: deletedDeliverySnapshot.driver_id,
+          deliveryDate: deletedDeliverySnapshot.delivery_date,
+          preserveExistingOrder: true,
+          bypassDriverStatus: true,
+          source: 'entity_mutation_delete',
+        }))
+        .catch(() => null);
     }
 
     // STEP 3: CRITICAL - Remove from cache (prevents deleted item from showing)
@@ -761,10 +759,16 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
     // STEP 5: Broadcast immediate delete so other devices update UI right away too
     await broadcastMutation('Delivery', 'delete', deliveryId, deletedDeliverySnapshot);
 
-    await restartSmartRefresh();
+    // CRITICAL: Do NOT restart SmartRefresh after delete — same pattern as updateDelivery.
+    // restartSmartRefresh() triggers a full server re-fetch cycle which causes the UI lag
+    // the user observes. The optimistic notifyMutation above already removed the delivery
+    // from local state; SmartRefresh will reconcile on its own natural interval.
+    const { smartRefreshManager: _srm } = await import('./smartRefreshManager');
+    _srm.resume();
     return true;
   } catch (error) {
-    await restartSmartRefresh();
+    const { smartRefreshManager: _srmErr } = await import('./smartRefreshManager');
+    _srmErr.resume();
     throw error;
   }
 };
