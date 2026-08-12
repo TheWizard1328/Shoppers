@@ -272,11 +272,24 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                                 )}
                               </div>
                             </div>
-                            <div className={`flex items-center justify-between ${delivery.delivery_notes ? 'pt-2 border-t' : ''}`} style={{ borderColor: 'var(--border-slate-300)' }}>
-                              {delivery.delivery_notes && (
-                                <div className="text-xs flex-1 mr-2" style={{ color: 'var(--text-slate-600)' }}>
-                                  <span className="font-medium">Notes:</span> {delivery.delivery_notes}
+                            <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: 'var(--border-slate-300)' }}>
+                              {delivery.delivery_notes ? (
+                                <div className="text-xs flex-1 mr-2 flex items-start gap-1.5">
+                                  <span
+                                    className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
+                                    style={{ background: 'rgba(245,158,11,0.12)', color: '#92400e', border: '1px solid rgba(245,158,11,0.25)' }}
+                                  >
+                                    Delivery Notes
+                                  </span>
+                                  <span style={{ color: 'var(--text-slate-600)' }}>{delivery.delivery_notes}</span>
                                 </div>
+                              ) : (
+                                <span
+                                  className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                  style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-400)', border: '1px solid var(--border-slate-200)' }}
+                                >
+                                  No Delivery Notes
+                                </span>
                               )}
                               <div className="ml-auto flex items-center gap-2">
                                 {userHasRole(currentUser, 'admin') && onEditDelivery && (
