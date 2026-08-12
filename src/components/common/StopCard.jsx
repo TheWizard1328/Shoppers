@@ -1143,14 +1143,22 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             onSkip={() => {
               setShowInterStoreDialog(false);
               setInterStoreMatch(null);
+              // Release the prompt Promise in useStopCardActions so the terminal
+              // action continues without creating a drop-off.
+              window.dispatchEvent(new CustomEvent('interStoreDropoffSkipped'));
             }}
             onConfirm={async () => {
-              if (!interStoreMatch) return;
+              if (!interStoreMatch) {
+                setShowInterStoreDialog(false);
+                setInterStoreMatch(null);
+                window.dispatchEvent(new CustomEvent('interStoreDropoffSkipped'));
+                return;
+              }
               const nextTrackingNumber = String((Number(delivery.tracking_number || 0) + 1)).padStart(2, '0');
               const now = new Date();
               const startInFiveMinutes = new Date(now.getTime() + 5 * 60 * 1000);
               const deliveryTimeStart = `${String(startInFiveMinutes.getHours()).padStart(2, '0')}:${String(startInFiveMinutes.getMinutes()).padStart(2, '0')}`;
-              await createDeliveryLocal({
+              const newDropoff = await createDeliveryLocal({
                 patient_id: interStoreMatch.id,
                 store_id: delivery.store_id,
                 driver_id: delivery.driver_id,
@@ -1168,6 +1176,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               });
               setShowInterStoreDialog(false);
               setInterStoreMatch(null);
+              // Hand control back to useStopCardActions — the route optimizer now
+              // runs with the ISP pickup still isNextDelivery=true (route origin)
+              // before the terminal action flips the flag to the new drop-off.
+              window.dispatchEvent(new CustomEvent('interStoreDropoffConfirmed', {
+                detail: { createdDeliveryId: newDropoff?.id || newDropoff?.data?.id || null },
+              }));
             }}
           />
           
