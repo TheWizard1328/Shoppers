@@ -451,18 +451,18 @@ export default function StopDetailsPanel({
               {delivery.ampm_deliveries}
             </Badge>
             }
-            {delivery.arrival_time &&
-            <Badge variant="secondary" className="font-mono rounded-full hidden" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-              <Clock className="w-3 h-3 mr-1" />
-              Arrived {format(new Date(delivery.arrival_time), 'h:mm a')}
-            </Badge>
-            }
-            {delivery.actual_delivery_time &&
-            <Badge variant="secondary" className="font-mono rounded-full hidden" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-              <Clock className="w-3 h-3 mr-1" />
-              {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
-            </Badge>
-            }
+            
+
+
+
+
+            
+            
+
+
+
+
+            
             {isAppOwner(currentUser) && delivery.puid &&
             <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
               PUID {delivery.puid}
