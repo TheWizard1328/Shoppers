@@ -1217,7 +1217,7 @@ export default function PatientForm({
                           disabled={disableOtherFieldsDuringAddressLookup}
                           onChange={(e) => setFormData((prev) => ({ ...prev, cp_name: e.target.value }))}
                           placeholder="Care Pro name"
-                          className="h-9 text-sm"
+                          className="text-sm h-8"
                           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                         </div>
                         <div className="space-y-0.5">
