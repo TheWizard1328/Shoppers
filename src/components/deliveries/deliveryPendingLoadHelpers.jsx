@@ -66,6 +66,10 @@ export const mapPendingDeliveriesToStaged = ({
     patient_name: delivery.patient_name || patient?.full_name || 'Unknown',
     patient_phone: delivery.patient_phone || patient?.phone || '',
     unit_number: delivery.unit_number || patient?.unit_number || '',
+    // Care Pro fields — pulled from the patient record so the pending card can show
+    // the CP name when the patient's care_pros flag is true (matches staged card behavior).
+    care_pros: delivery.care_pros ?? patient?.care_pros ?? false,
+    cp_name: delivery.cp_name || patient?.cp_name || '',
     store_id: finalStoreId,
     store_name: store?.name || 'Unknown Store',
     store_abbreviation: store?.abbreviation || '',
