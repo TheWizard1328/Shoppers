@@ -319,5 +319,38 @@ export async function handleStartDelivery({
     resumeOfflineSync();
     smartRefreshManager.resume();
     backgroundSyncManager.resume();
+
+    // ─── STEP 9: Priority delivery refresh — fires 3 sec after start completes ──
+    // The start process is fully done once the sync managers above have resumed.
+    // Schedule a priority delivery refresh 3 sec later so other drivers' deliveries
+    // (and any server-side changes triggered by this start) are reconciled without
+    // racing the just-resumed sync managers.
+    setTimeout(() => {
+      import('@/components/utils/dataManager')
+        .then(({ loadPriorityDeliveriesForSelection }) =>
+          loadPriorityDeliveriesForSelection(deliveryDate, 'all', true)
+        )
+        .then((freshDeliveries) => {
+          if (!Array.isArray(freshDeliveries) || freshDeliveries.length === 0) return;
+          if (updateDeliveriesLocally) {
+            // Merge (not replace) so other drivers' same-date deliveries are preserved.
+            updateDeliveriesLocally(freshDeliveries, false);
+          }
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              driverId,
+              deliveryDate,
+              triggeredBy: 'startDelivery_priorityRefresh',
+              freshDeliveries,
+              fullReplacement: false,
+            },
+          }));
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          console.log('✅ [handleStartDelivery] Step 9 complete — priority delivery refresh');
+        })
+        .catch((err) => {
+          console.warn('⚠️ [handleStartDelivery] Priority delivery refresh failed:', err?.message || err);
+        });
+    }, 3000);
   }
 }
