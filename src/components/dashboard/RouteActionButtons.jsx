@@ -111,6 +111,10 @@ export default function RouteActionButtons({
     }
     if (delivery.patient_id) {
       const patient = (patients || []).find((p) => p?.id === delivery.patient_id);
+      // Care Pro delivery: show "CP <cp_name>" (matches StopCard + map balloon formatting)
+      if (patient && (patient.care_pros || delivery.care_pros) && (patient.cp_name || delivery.cp_name)) {
+        return `CP ${patient.cp_name || delivery.cp_name}`;
+      }
       if (patient?.full_name) return patient.full_name;
     }
     if (delivery.store_id) {
