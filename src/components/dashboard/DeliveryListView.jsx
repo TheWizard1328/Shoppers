@@ -3,7 +3,7 @@ import { useDevice } from '@/components/utils/DeviceContext';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { format, differenceInMinutes } from 'date-fns';
-import { CheckCircle, Clock, Package, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle, Clock, Package, AlertCircle, ChevronDown, ChevronUp, Phone, DollarSign, StickyNote } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FixedSizeList as List } from 'react-window';
 import { RouteManagementStopDetailsOverlay } from '../deliveries/RouteManagementHeader';
@@ -59,6 +59,55 @@ const DeliveryRow = memo(({
   'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2' :
   'grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2';
 
+  // ── Mobile 7-row card data ────────────────────────────────────────────────
+  const stopNum = delivery.display_stop_order || delivery.stop_order || '—';
+  const trLabel = delivery.tracking_number || null;
+  const FINISHED = ['completed', 'failed', 'cancelled'];
+  const isFinished = FINISHED.includes(delivery.status);
+
+  const extractTm = (v) => {
+    if (!v) return null;
+    const m = String(v).match(/T(\d{2}:\d{2})/) || String(v).match(/^(\d{2}:\d{2})/);
+    return m ? m[1] : null;
+  };
+  const arrivalTm = extractTm(delivery.arrival_time);
+  const actualTm = extractTm(delivery.actual_delivery_time);
+  const etaTm = extractTm(delivery.delivery_time_eta || delivery.delivery_time_start);
+  const timeAtLocation = arrivalTm || (((delivery.status === 'in_transit' || delivery.status === 'en_route') && etaTm) ? `ETA ${etaTm}` : null);
+  const actualTime = isFinished ? actualTm : null;
+
+  const storeBadgeEl = isDispatcher
+    ? (delivery.driver_name && (() => {
+        const dColor = generateDriverColor(delivery.driver_name);
+        const parts = delivery.driver_name.split(' ');
+        const first = parts[0];
+        const label = first.length <= 1 && parts[1] ? parts[1] : first;
+        return <Badge className="rounded-full text-[11px] px-2 py-0.5 text-white" style={{ background: dColor }} title={delivery.driver_name}>{label}</Badge>;
+      })())
+    : (store?.abbreviation && (
+        <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
+          {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
+        </Badge>
+      ));
+
+  const displayNameFull = isCarePros && patient?.cp_name ? `${finalDisplayName} (${patient.cp_name})` : finalDisplayName;
+  const unitNumber = patient?.unit_number || delivery.unit_number;
+  const phonePrimary = isPickup ? store?.phone : (patient?.phone || delivery.patient_phone);
+  const phoneSecondary = isPickup ? null : patient?.phone_secondary;
+  const patientNotes = isPickup ? null : patient?.notes;
+  const driverNotes = delivery.delivery_notes;
+
+  const codRequired = Number(delivery.cod_total_amount_required || 0);
+  const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
+  const hasCODRow = codRequired > 0 || codPayments.length > 0;
+
+  const barcodeList = isPickup
+    ? (Array.isArray(delivery.receipt_barcode_values) ? delivery.receipt_barcode_values : [])
+    : (Array.isArray(delivery.barcode_values) ? delivery.barcode_values : []);
+  const photos = Array.isArray(delivery.proof_photo_urls) ? delivery.proof_photo_urls : [];
+  const hasSig = !!delivery.signature_image_url;
+  const hasPodRow = hasSig || photos.length > 0 || barcodeList.length > 0;
+
   const handleRowClick = () => {
     if (bulkEditMode) {
       onBulkToggle(delivery.id);
@@ -76,108 +125,124 @@ const DeliveryRow = memo(({
       isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
       style={{ borderColor: 'var(--border-slate-200)' }}>
       
-        <div className="flex items-start gap-3">
-          {bulkEditMode &&
-        <div className="pt-1" onClick={(event) => event.stopPropagation()}>
-              <Checkbox checked={isBulkSelected} onCheckedChange={() => onBulkToggle(delivery.id)} />
+        <div className="flex flex-col gap-1.5 w-full">
+          {/* Row 1: Stop# • TR# (left) | Store badge • Time • Status+time (right) */}
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              {bulkEditMode &&
+                <div onClick={(event) => event.stopPropagation()}>
+                  <Checkbox checked={isBulkSelected} onCheckedChange={() => onBulkToggle(delivery.id)} />
+                </div>
+              }
+              <span className={`font-mono text-sm font-semibold ${isNextDelivery ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-300'}`}>#{stopNum}</span>
+              {trLabel && <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">• {trLabel}</span>}
             </div>
-        }
-          <div className="flex-1">
-        {/* Rows 1-2: Structured two-column layout */}
-        <div className="grid grid-cols-[1fr_auto] gap-x-3">
-          {/* Row 1 Left: Stop/TR */}
-          <div className="flex items-center gap-2 min-w-0">
-            <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700 dark:text-slate-300'}`}>#{delivery.display_stop_order || delivery.stop_order || '—'}</span>
-            <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{delivery.tracking_number || '—'}</span>
-          </div>
-
-          {/* Row 1 Right: Store + Status */}
-          <div className="flex flex-col items-end">
-            <div className="flex flex-col items-center gap-1">
-              {getStatusBadge(delivery.status)}
-              {isDispatcher ?
-                delivery.driver_name &&
-                (() => {const dColor = generateDriverColor(delivery.driver_name);const parts = delivery.driver_name.split(' ');const first = parts[0];const label = first.length <= 1 && parts[1] ? parts[1] : first;return <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: dColor, color: getContrastColor(dColor) }} title={delivery.driver_name}>{label}</Badge>;})() :
-
-                store?.abbreviation &&
-                <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
-                  {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
-                </Badge>
-                }
+            <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+              {storeBadgeEl}
+              {timeAtLocation && <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{timeAtLocation}</span>}
+              <div className="flex items-center gap-1">
+                {getStatusBadge(delivery.status)}
+                {actualTime && <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{actualTime}</span>}
+              </div>
             </div>
           </div>
 
-          {/* Row 2 Left: Patient/Pickup */}
-          <div className="min-w-0 mt-1">
-            <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
-              {finalDisplayName}{isCarePros && patient?.cp_name ? ` (${patient.cp_name})` : ''}
-            </span>
-          </div>
-
-          {/* Row 2 Right: Time centered under status */}
-          <div className="mt-1 flex justify-center text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:text-slate-300">
-            {getTimeDisplay(delivery)}
-          </div>
-        </div>
-
-        {/* Row 3: Address & Unit */}
-        <div className="mt-1 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            {isCyclingMarker
-              ? (store?.name &&
-                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{store.name}</span>
-              )
-              : (finalDisplayAddress &&
-                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{finalDisplayAddress}</span>
+          {/* Row 2: Name + Address & Unit */}
+          {(displayNameFull || finalDisplayAddress || unitNumber) && (
+            <div className="flex items-baseline gap-1.5 min-w-0">
+              {displayNameFull && (
+                <span className={`text-sm font-medium truncate ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
+                  {displayNameFull}
+                </span>
               )}
-            {(patient?.unit_number || delivery.unit_number) &&
-              <Badge variant="secondary" className="text-xs px-2 py-0.5" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-                Unit {patient?.unit_number || delivery.unit_number}
-              </Badge>
+              {isCyclingMarker
+                ? (store?.name && <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{store.name}</span>)
+                : (finalDisplayAddress && <span className="text-xs text-slate-500 dark:text-slate-400 truncate flex-1 min-w-0">{finalDisplayAddress}</span>)
               }
-          </div>
-        </div>
+              {unitNumber && (
+                <Badge variant="secondary" className="text-xs px-2 py-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                  Unit {unitNumber}
+                </Badge>
+              )}
+            </div>
+          )}
 
-        {/* Media + COD */}
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            {delivery.signature_image_url ?
-              <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border" style={{ borderColor: 'var(--border-slate-200)' }} /> :
+          {/* Row 3: Phone numbers */}
+          {(phonePrimary || phoneSecondary) && (
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              {phonePrimary && (
+                <a href={`tel:${String(phonePrimary).replace(/\D/g, '')}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                  <Phone className="w-3 h-3" />{phonePrimary}
+                </a>
+              )}
+              {phoneSecondary && (
+                <a href={`tel:${String(phoneSecondary).replace(/\D/g, '')}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                  <Phone className="w-3 h-3" />{phoneSecondary}
+                </a>
+              )}
+            </div>
+          )}
 
-              <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm">—</span>
-              }
-            {Array.isArray(delivery.proof_photo_urls) && delivery.proof_photo_urls.length > 0 ?
-              <div className="flex -space-x-2">
-                {delivery.proof_photo_urls.slice(0, 2).map((url, i) =>
-                <img key={i} src={url} alt={`POD ${i + 1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white" />
-                )}
-                {delivery.proof_photo_urls.length > 2 &&
-                <div className="w-7 h-7 rounded-md bg-slate-200 text-slate-700 dark:text-slate-300 text-xs flex items-center justify-center ring-2 ring-white">+{delivery.proof_photo_urls.length - 2}</div>
-                }
-              </div> :
+          {/* Row 4: COD info (single row) */}
+          {hasCODRow && (
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span className="font-medium flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                <DollarSign className="w-3 h-3" /> COD Payment:
+              </span>
+              {codRequired > 0 && <span className="font-medium">Required: ${codRequired.toFixed(2)}</span>}
+              {codPayments.map((p, idx) => (
+                <span key={idx} className="contents">
+                  <span className="text-slate-400 dark:text-slate-500">-</span>
+                  <Badge variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                    {p.type}: ${Number(p.amount || 0).toFixed(2)}
+                  </Badge>
+                </span>
+              ))}
+            </div>
+          )}
 
-              <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 text-sm">—</span>
-              }
-            {Array.isArray(delivery.receipt_barcode_values) && delivery.receipt_barcode_values.length > 0 &&
-              <div className="flex items-center gap-1">
-                <div className="w-10 h-6 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
-                  <BarcodeThumb value={delivery.receipt_barcode_values[0]} height={24} className="w-full h-6" />
-                </div>
-                <span className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">x{delivery.receipt_barcode_values.length}</span>
-              </div>
-              }
-            {Array.isArray(delivery.barcode_values) && delivery.barcode_values.length > 0 &&
-              <div className="flex items-center gap-1">
-                <div className="w-10 h-6 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>
-                  <BarcodeThumb value={delivery.barcode_values[0]} height={24} className="w-full h-6" />
-                </div>
-                <span className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">x{delivery.barcode_values.length}</span>
-              </div>
-              }
-          </div>
-          <div>{getCODDisplay(delivery)}</div>
-        </div>
-          </div>
+          {/* Row 5: Patient Notes */}
+          {patientNotes && (
+            <div className="flex items-start gap-1 min-w-0">
+              <StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+              <p className="text-xs whitespace-pre-wrap break-words line-clamp-2 text-slate-700 dark:text-slate-300">
+                <span className="font-medium">Patient Notes:</span> {patientNotes}
+              </p>
+            </div>
+          )}
+
+          {/* Row 6: Driver Notes */}
+          {driverNotes && (
+            <div className="flex items-start gap-1 min-w-0">
+              <StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+              <p className="text-xs whitespace-pre-wrap break-words line-clamp-2 text-slate-700 dark:text-slate-300">
+                <span className="font-medium">Driver Notes:</span> {driverNotes}
+              </p>
+            </div>
+          )}
+
+          {/* Row 7: POD & Barcodes */}
+          {hasPodRow && (
+            <div className="flex flex-wrap items-center gap-2">
+              {hasSig && (
+                <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border cursor-zoom-in" style={{ borderColor: 'var(--border-slate-200)' }} onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }} />
+              )}
+              {photos.slice(0, 2).map((url, i) => (
+                <img key={i} src={url} alt={`POD ${i + 1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white cursor-zoom-in" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: url, title: `Photo ${i + 1}` }); }} />
+              ))}
+              {photos.length > 2 && (
+                <div className="w-7 h-7 rounded-md bg-slate-200 text-slate-700 dark:text-slate-300 text-xs flex items-center justify-center ring-2 ring-white cursor-zoom-in" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: photos[2], title: 'Photo' }); }}>+{photos.length - 2}</div>
+              )}
+              {barcodeList.length > 0 && (
+                <button className="flex items-center gap-1 cursor-zoom-in" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'barcode', value: barcodeList[0], title: isPickup ? 'Receipt Barcode' : 'Rx Barcode' }); }}>
+                  <div className="w-10 h-6 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center" style={{ borderColor: 'var(--border-slate-200)' }}>
+                    <BarcodeThumb value={barcodeList[0]} height={24} className="w-full h-6" />
+                  </div>
+                  <span className="text-xs text-slate-600 dark:text-slate-400">x{barcodeList.length}</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div> :
 
@@ -330,7 +395,7 @@ const DeliveryRow = memo(({
 
 DeliveryRow.displayName = 'DeliveryRow';
 
-const MOBILE_ROW_HEIGHT = 164;
+const MOBILE_ROW_HEIGHT = 260;
 const DESKTOP_ROW_HEIGHT = 88;
 const DESKTOP_LIST_WIDTH = 1400;
 const DESKTOP_BULK_LIST_WIDTH = 1456;
@@ -600,13 +665,6 @@ const DeliveryListView = ({
       <div className="h-full max-h-full w-full max-w-full min-h-0 min-w-0 flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-white)' }}>
         {/* Table Header */}
         <div className="sticky top-0 flex-shrink-0 border-b z-20" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-          {isMobile &&
-          <div className="grid grid-cols-[2fr_1fr_1fr] px-2 py-1 text-xs font-semibold" style={{ color: 'var(--text-slate-500)' }}>
-              <span>Patient / Address</span>
-              <span className="text-center">Status</span>
-              <span className="text-center">Stop</span>
-            </div>
-          }
           {!isMobile &&
           <div
             ref={headerScrollRef}
