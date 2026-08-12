@@ -46,8 +46,8 @@ import CyclingLocationSearch from './CyclingLocationSearch';
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
     {/* Coerce to a real boolean so the underlying Radix checkbox stays
-       controlled for its entire lifetime (avoids React's
-       "controlled -> uncontrolled" warning when formData fields are undefined). */}
+      controlled for its entire lifetime (avoids React's
+      "controlled -> uncontrolled" warning when formData fields are undefined). */}
     <Checkbox id={id} checked={Boolean(checked)} onCheckedChange={onChange} disabled={disabled} />
     <Label htmlFor={id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
   </div>;
@@ -1212,7 +1212,7 @@ export default function DeliveryFormView({
                             <div className="space-y-2 min-w-0">
                               {formData.care_pros ?
                               <>
-                                  <Label className="text-sm font-semibold hidden" style={{ color: 'var(--text-slate-900)' }}>Care Pro's</Label>
+                                  
                                   <div className="space-y-3">
                                     <div className="space-y-1">
                                       <Label className="text-xs text-slate-500">Care Pro Name</Label>
