@@ -22,8 +22,8 @@ const MONTH_NAMES = [
 
 
 const COLORS = {
-  billable: '#10b981', // Green
-  nonBillable: '#f97316' // Orange
+  billable: 'hsl(var(--accent))', // Green
+  nonBillable: 'hsl(var(--secondary))' // Orange
 };
 
 const EMPTY_METRICS_DATA = {
@@ -842,7 +842,7 @@ export default function AdminMetrics() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
-          <h2 className="text-xl font-bold mb-2" style={{ color: '#ef4444' }}>Error Loading Metrics</h2>
+          <h2 className="text-xl font-bold mb-2" style={{ color: 'hsl(var(--destructive))' }}>Error Loading Metrics</h2>
           <p style={{ color: 'var(--text-slate-600)', marginBottom: '1rem' }}>{error}</p>
           <Button onClick={() => fetchMetrics(selectedYear, selectedCityId, false)}>Retry</Button>
         </Card>
@@ -880,8 +880,8 @@ export default function AdminMetrics() {
             <CardContent className="p-4 pt-3 pb-3 min-w-[75px]">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth || selectedStoreMonth ? `${MONTH_NAMES[(selectedStoreMonth?.month || selectedMonth) - 1]} Billable` : `${selectedYear} Billable`}</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg" style={{ background: '#d1fae5' }}>
-                  <Package className="w-5 h-5" style={{ color: '#059669' }} />
+                <div className="p-2 rounded-lg" style={{ background: 'hsl(var(--secondary-foreground))' }}>
+                  <Package className="w-5 h-5" style={{ color: 'hsl(var(--accent-foreground))' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {(() => {
@@ -902,8 +902,8 @@ export default function AdminMetrics() {
             <CardContent className="p-4 pt-3 pb-3">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Non-Billable` : `${selectedYear} Non-Billable`}</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg" style={{ background: '#fed7aa' }}>
-                  <TrendingUp className="w-5 h-5" style={{ color: '#b45309' }} />
+                <div className="p-2 rounded-lg" style={{ background: 'hsl(var(--muted))' }}>
+                  <TrendingUp className="w-5 h-5" style={{ color: 'hsl(var(--primary-foreground))' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {(() => {
@@ -924,8 +924,8 @@ export default function AdminMetrics() {
             <CardContent className="p-4 pt-3 pb-3">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Active Drivers</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg" style={{ background: '#e9d5ff' }}>
-                  <Truck className="w-5 h-5" style={{ color: '#7e22ce' }} />
+                <div className="p-2 rounded-lg" style={{ background: 'hsl(var(--card-foreground))' }}>
+                  <Truck className="w-5 h-5" style={{ color: 'hsl(var(--card))' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{displayMetricsData.yearTotals?.activeDrivers || 0}</p>
               </div>
@@ -936,8 +936,8 @@ export default function AdminMetrics() {
             <CardContent className="p-4 pt-3 pb-3">
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Stores Paying</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg" style={{ background: '#dbeafe' }}>
-                  <Store className="w-5 h-5" style={{ color: '#1e40af' }} />
+                <div className="p-2 rounded-lg" style={{ background: 'hsl(var(--muted-foreground))' }}>
+                  <Store className="w-5 h-5" style={{ color: 'hsl(var(--primary))' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {feeTotals?.stores_paying_fees || 0} / {feeTotals?.total_stores || feeTotals?.active_stores || feeTotals?.totalStores || 0}
@@ -960,14 +960,14 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card style={{ background: '#fef3c7', borderColor: '#fcd34d' }}>
+          <Card style={{ background: 'hsl(var(--muted))', borderColor: 'hsl(var(--accent))' }}>
             <CardContent className="p-4 pt-3 pb-3">
-              <p className="text-sm mb-2" style={{ color: '#b45309' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
+              <p className="text-sm mb-2" style={{ color: 'hsl(var(--primary-foreground))' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg" style={{ background: '#f59e0b' }}>
+                <div className="p-2 rounded-lg" style={{ background: 'hsl(var(--primary))' }}>
                   <DollarSign className="w-5 h-5" style={{ color: 'white' }} />
                 </div>
-                <p className="text-2xl font-bold" style={{ color: '#78350f' }}>
+                <p className="text-2xl font-bold" style={{ color: 'hsl(var(--primary-foreground))' }}>
                   {formatCurrency(
                     selectedMonth ?
                     feeTotals?.monthly_fees?.[selectedMonth - 1] ?? feeTotals?.monthlyFees?.[selectedMonth - 1] ?? 0 :
@@ -1069,7 +1069,7 @@ export default function AdminMetrics() {
               <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={bottomStoreChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                       dataKey={selectedStoreMonth ? "day" : "abbreviation"}
                       tick={selectedStoreMonth ? (props) => {
@@ -1095,7 +1095,7 @@ export default function AdminMetrics() {
                           return (
                             <g transform={`translate(${x},${y})`}>
                               <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={11}>{payload.value}</text>
-                              <text x={0} y={0} dy={26} textAnchor="middle" fill={metricsViewMode === 'fees' ? '#f59e0b' : '#8b5cf6'} fontSize={10} fontWeight="600">{displayValue}</text>
+                              <text x={0} y={0} dy={26} textAnchor="middle" fill={metricsViewMode === 'fees' ? 'hsl(var(--primary))' : 'hsl(var(--accent))'} fontSize={10} fontWeight="600">{displayValue}</text>
                             </g>
                           );
                         }
@@ -1106,11 +1106,11 @@ export default function AdminMetrics() {
                           <g transform={`translate(${x},${y})`}>
                             <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={11}>{payload.value}</text>
                             <text x={0} y={0} dy={25} textAnchor="middle" fontSize={9} fontWeight="700">
-                              <tspan fill="#10b981">{c}</tspan>
+                              <tspan fill="hsl(var(--accent))">{c}</tspan>
                               <tspan fill="var(--text-slate-400)">/</tspan>
-                              <tspan fill="#ef4444">{f}</tspan>
+                              <tspan fill="hsl(var(--destructive))">{f}</tspan>
                               <tspan fill="var(--text-slate-400)">/</tspan>
-                              <tspan fill="#f97316">{r}</tspan>
+                              <tspan fill="hsl(var(--secondary))">{r}</tspan>
                             </text>
                           </g>
                         );
@@ -1118,7 +1118,7 @@ export default function AdminMetrics() {
                       interval={0}
                       height={50} />
 
-                  <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                  <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
                   <Tooltip
                       contentStyle={{
                         background: 'var(--bg-white)',
@@ -1137,15 +1137,15 @@ export default function AdminMetrics() {
 
                   <Legend />
                   {metricsViewMode === 'fees' ?
-                    <Bar dataKey="fees" fill="#f59e0b" name="App Fees" radius={[4, 4, 0, 0]} /> : metricsViewMode === 'extra_km' ?
-                    <Bar dataKey="extraKm" fill="#8b5cf6" name="Extra KM" radius={[4, 4, 0, 0]} /> :
+                    <Bar dataKey="fees" fill="hsl(var(--primary))" name="App Fees" radius={[4, 4, 0, 0]} /> : metricsViewMode === 'extra_km' ?
+                    <Bar dataKey="extraKm" fill="hsl(var(--accent))" name="Extra KM" radius={[4, 4, 0, 0]} /> :
                     <>
-                      <Bar dataKey="totalCompleted" stackId="completed" fill="#10b981" name="Completed" radius={showEnvelopeAdjustedTotals ? [0, 0, 0, 0] : [4, 4, 0, 0]} />
+                      <Bar dataKey="totalCompleted" stackId="completed" fill="hsl(var(--accent))" name="Completed" radius={showEnvelopeAdjustedTotals ? [0, 0, 0, 0] : [4, 4, 0, 0]} />
                       {showEnvelopeAdjustedTotals &&
-                      <Bar dataKey="envelopeCount" stackId="completed" fill="#3b82f6" name="Envelope" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="envelopeCount" stackId="completed" fill="hsl(var(--primary))" name="Envelope" radius={[4, 4, 0, 0]} />
                       }
-                      <Bar dataKey="totalFailed" stackId="failReturn" fill="#ef4444" name="Failed" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="totalReturned" stackId="failReturn" fill="#f97316" name="Returned" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="totalFailed" stackId="failReturn" fill="hsl(var(--destructive))" name="Failed" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="totalReturned" stackId="failReturn" fill="hsl(var(--secondary))" name="Returned" radius={[4, 4, 0, 0]} />
                     </>
                     }
                 </BarChart>
@@ -1184,7 +1184,7 @@ export default function AdminMetrics() {
                             <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={10}>
                               {payload.value}
                             </text>
-                            <text x={0} y={0} dy={24} textAnchor="middle" fill={metricsViewMode === 'fees' ? '#f59e0b' : metricsViewMode === 'extra_km' ? '#8b5cf6' : '#10b981'} fontSize={9} fontWeight="600">
+                            <text x={0} y={0} dy={24} textAnchor="middle" fill={metricsViewMode === 'fees' ? 'hsl(var(--primary))' : metricsViewMode === 'extra_km' ? 'hsl(var(--accent))' : 'hsl(var(--accent))'} fontSize={9} fontWeight="600">
                               {total > 0 ? metricsViewMode === 'fees' ? `$${Number(total).toFixed(0)}` : metricsViewMode === 'extra_km' ? Number(total).toFixed(2) : total : ''}
                             </text>
                           </g>);
@@ -1197,16 +1197,16 @@ export default function AdminMetrics() {
                     <Tooltip
                         contentStyle={{
                           background: 'white',
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid hsl(var(--border))',
                           borderRadius: '8px'
                         }}
                         labelFormatter={(label) => selectedMonth ? `Day ${label}` : label} />
 
                     <Legend />
                     {metricsViewMode === 'fees' ?
-                      <Bar dataKey="fees" fill="#f59e0b" name="App Fees" radius={[4, 4, 0, 0]} /> : metricsViewMode === 'extra_km' ?
-                      <Bar dataKey="extraKm" fill="#8b5cf6" name="Extra KM" radius={[4, 4, 0, 0]} /> : metricsViewMode === 'deliveries' && showEnvelopeAdjustedTotals ?
-                      <Bar dataKey="adjustedDeliveries" fill="#10b981" name="Adjusted Deliveries" radius={[4, 4, 0, 0]} /> :
+                      <Bar dataKey="fees" fill="hsl(var(--primary))" name="App Fees" radius={[4, 4, 0, 0]} /> : metricsViewMode === 'extra_km' ?
+                      <Bar dataKey="extraKm" fill="hsl(var(--accent))" name="Extra KM" radius={[4, 4, 0, 0]} /> : metricsViewMode === 'deliveries' && showEnvelopeAdjustedTotals ?
+                      <Bar dataKey="adjustedDeliveries" fill="hsl(var(--accent))" name="Adjusted Deliveries" radius={[4, 4, 0, 0]} /> :
                       <>
                         <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[4, 4, 0, 0]} />
@@ -1252,14 +1252,14 @@ export default function AdminMetrics() {
                     <Tooltip
                         contentStyle={{
                           background: 'white',
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid hsl(var(--border))',
                           borderRadius: '8px'
                         }} />
 
                     <Legend wrapperStyle={{ fontSize: '11px' }} />
                     {metricsViewMode === 'fees' ?
-                      <Bar dataKey="fees" fill="#f59e0b" name="App Fees" radius={[2, 2, 0, 0]} /> : metricsViewMode === 'extra_km' ?
-                      <Bar dataKey="extraKm" fill="#8b5cf6" name="Extra KM" radius={[2, 2, 0, 0]} /> :
+                      <Bar dataKey="fees" fill="hsl(var(--primary))" name="App Fees" radius={[2, 2, 0, 0]} /> : metricsViewMode === 'extra_km' ?
+                      <Bar dataKey="extraKm" fill="hsl(var(--accent))" name="Extra KM" radius={[2, 2, 0, 0]} /> :
                       <>
                         <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[2, 2, 0, 0]} />
                         <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[2, 2, 0, 0]} />
