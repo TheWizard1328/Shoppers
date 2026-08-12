@@ -122,9 +122,13 @@ const DeliveryRow = memo(({
         {/* Row 3: Address & Unit */}
         <div className="mt-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            {!isPickup && finalDisplayAddress &&
-              <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{finalDisplayAddress}</span>
-              }
+            {isCyclingMarker
+              ? (store?.name &&
+                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{store.name}</span>
+              )
+              : (finalDisplayAddress &&
+                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{finalDisplayAddress}</span>
+              )}
             {(patient?.unit_number || delivery.unit_number) &&
               <Badge variant="secondary" className="text-xs px-2 py-0.5" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                 Unit {patient?.unit_number || delivery.unit_number}
@@ -215,9 +219,13 @@ const DeliveryRow = memo(({
             <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
               {finalDisplayName}
             </span>
-            {!isPickup && finalDisplayAddress &&
-          <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{finalDisplayAddress}</span>
-          }
+            {isCyclingMarker
+              ? (store?.name &&
+            <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{store.name}</span>
+          )
+              : (finalDisplayAddress &&
+            <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{finalDisplayAddress}</span>
+          )}
           </div>
         </div>
 
