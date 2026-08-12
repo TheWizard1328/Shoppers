@@ -132,6 +132,9 @@ export default function PatientForm({
     ring_bell: false,
     dont_ring_bell: false,
     back_door: false,
+    care_pros: false,
+    cp_name: "",
+    cp_envelopes: 0,
     last_delivery_date: "",
     delivery_history: []
   });
@@ -266,6 +269,9 @@ export default function PatientForm({
         ring_bell: patient.ring_bell || false,
         dont_ring_bell: patient.dont_ring_bell || false,
         back_door: patient.back_door || false,
+        care_pros: patient.care_pros || false,
+        cp_name: patient.cp_name || "",
+        cp_envelopes: patient.cp_envelopes || 0,
         last_delivery_date: "",  // Always clear for duplicate/new-address so first-time delivery checkbox works
         delivery_history: []
       });
@@ -1174,18 +1180,62 @@ export default function PatientForm({
                 </div>
               </div>
 
-              {/* Container 4: Patient Notes */}
+              {/* Container 4: Patient Notes + Care Pro's */}
               <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id || disableOtherFieldsDuringAddressLookup ? '0.5' : '1', pointerEvents: !formData.store_id || disableOtherFieldsDuringAddressLookup ? 'none' : 'auto' }}>
                 <div className="px-2 py-2 space-y-1">
-                  <Label htmlFor="notes" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
-                  <Textarea
-                    id="notes"
-                    value={formData.notes}
-                    disabled={disableOtherFieldsDuringAddressLookup}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Special delivery instructions, preferences, etc."
-                    className="h-24 md:h-32 text-sm resize-none"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="notes" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="care_pros"
+                        checked={formData.care_pros}
+                        disabled={disableOtherFieldsDuringAddressLookup}
+                        onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, care_pros: checked }))} />
+                      <Label htmlFor="care_pros" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                        Care Pro's
+                      </Label>
+                    </div>
+                  </div>
+                  <div className={formData.care_pros ? "grid grid-cols-5 gap-2" : "grid grid-cols-1"}>
+                    <div className={formData.care_pros ? "col-span-3" : "col-span-1"}>
+                      <Textarea
+                        id="notes"
+                        value={formData.notes}
+                        disabled={disableOtherFieldsDuringAddressLookup}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+                        placeholder="Special delivery instructions, preferences, etc."
+                        className="h-24 md:h-32 text-sm resize-none"
+                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                    </div>
+                    {formData.care_pros && (
+                      <div className="col-span-2 space-y-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="cp_name" className="text-xs font-medium" style={{ color: 'var(--text-slate-900)' }}>CP Name</Label>
+                          <Input
+                            id="cp_name"
+                            value={formData.cp_name}
+                            disabled={disableOtherFieldsDuringAddressLookup}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, cp_name: e.target.value }))}
+                            placeholder="Care Pro name"
+                            className="h-9 text-sm"
+                            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="cp_envelopes" className="text-xs font-medium" style={{ color: 'var(--text-slate-900)' }}>CP Envelopes</Label>
+                          <Input
+                            id="cp_envelopes"
+                            type="number"
+                            min="0"
+                            value={formData.cp_envelopes}
+                            disabled={disableOtherFieldsDuringAddressLookup}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, cp_envelopes: Number(e.target.value) }))}
+                            placeholder="0"
+                            className="h-9 text-sm"
+                            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
