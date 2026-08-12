@@ -182,7 +182,7 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick} className="grid w-full h-full overflow-hidden grid-cols-[120px_100px_100px_200px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60 py-1"
+      onClick={handleRowClick} className="grid w-full h-full overflow-hidden grid-cols-[120px_100px_100px_250px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60 py-1"
 
       style={{ borderColor: 'var(--border-slate-200)' }}>
       
