@@ -97,7 +97,10 @@ export default function EndOfDayStatsDialog({
     // Total is always the sum of breakdown values so they're guaranteed to match
     const totalKm = drivingKm + cyclingKm;
     const totalPay = performanceStats?.totalPay ?? null;
-    // For incomplete routes, calculate time from first completed stop to NOW
+    // Time on duty comes from performanceStats (already computed from
+    // DriverDailyActivity segments in useLocalPerformanceStats).  That value
+    // accounts for the full on-duty window — including time before the first
+    // delivery (driving to the store, pickups, etc.) — NOT just first-stop-to-now.
     let timeOnDuty = performanceStats?.totalTimeOnDuty ?? null;
     // Route is complete when nothing is still pending/in-transit.
     // inTransit covers all non-terminal stops (pending, en_route) regardless of type (patient, ISP/ISD, returns).
@@ -107,17 +110,33 @@ export default function EndOfDayStatsDialog({
       (localStats?.inTransit ?? 1) === 0
     );
 
-    if (!routeActuallyComplete) {
-      // Use current time as the end point
-      const completedDeliveries = (deliveries || []).filter(d => d && d.actual_delivery_time && d.status === 'completed');
-      if (completedDeliveries.length > 0) {
-        const times = completedDeliveries.map(d => new Date(d.actual_delivery_time).getTime());
-        const firstTime = Math.min(...times);
-        const nowMs = Date.now();
-        const diffMin = Math.max(0, Math.round((nowMs - firstTime) / 60000));
-        const hh = String(Math.floor(diffMin / 60)).padStart(2, '0');
-        const mm = String(diffMin % 60).padStart(2, '0');
-        timeOnDuty = `${hh}:${mm}`;
+    // Fallback: if performanceStats hasn't loaded yet (async activity-segments
+    // fetch still in flight), estimate from first completed stop to NOW so the
+    // dialog doesn't show blank.  Once the real value arrives the dialog re-renders.
+    if (!timeOnDuty || timeOnDuty === '--:--') {
+      if (!routeActuallyComplete) {
+        const completedDeliveries = (deliveries || []).filter(d => d && d.actual_delivery_time && d.status === 'completed');
+        if (completedDeliveries.length > 0) {
+          const times = completedDeliveries.map(d => new Date(d.actual_delivery_time).getTime());
+          const firstTime = Math.min(...times);
+          const nowMs = Date.now();
+          const diffMin = Math.max(0, Math.round((nowMs - firstTime) / 60000));
+          const hh = String(Math.floor(diffMin / 60)).padStart(2, '0');
+          const mm = String(diffMin % 60).padStart(2, '0');
+          timeOnDuty = `${hh}:${mm}`;
+        }
+      } else {
+        // Route complete but no activity data — use last completed stop time as end
+        const completedDeliveries = (deliveries || []).filter(d => d && d.actual_delivery_time && d.status === 'completed');
+        if (completedDeliveries.length > 0) {
+          const times = completedDeliveries.map(d => new Date(d.actual_delivery_time).getTime());
+          const firstTime = Math.min(...times);
+          const lastTime = Math.max(...times);
+          const diffMin = Math.max(0, Math.round((lastTime - firstTime) / 60000));
+          const hh = String(Math.floor(diffMin / 60)).padStart(2, '0');
+          const mm = String(diffMin % 60).padStart(2, '0');
+          timeOnDuty = `${hh}:${mm}`;
+        }
       }
     }
 
