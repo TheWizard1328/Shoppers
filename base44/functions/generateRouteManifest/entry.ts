@@ -282,8 +282,9 @@ Deno.serve(async (req) => {
       if (finalStoreIds && finalStoreIds.length > 0) deliveryFilter.store_id = { $in: finalStoreIds };
 
       const deliveries = await base44.asServiceRole.entities.Delivery.filter(deliveryFilter);
-      // Exclude cycling marker pseudo-stops — they have no delivery data and corrupt stop/TR# ordering
-      let items = (deliveries || []).filter((d) => d && !d.is_cycling_marker);
+      // Exclude cycling marker pseudo-stops — they have no delivery data and corrupt stop/TR# ordering.
+      // Match by the is_cycling_marker flag OR the BIK- delivery_id prefix carried by every cycling marker.
+      let items = (deliveries || []).filter((d) => d && !d.is_cycling_marker && !String(d.delivery_id || '').startsWith('BIK-'));
 
       // Skip dates with no deliveries for this driver/store combination
       if (items.length === 0) return null;
