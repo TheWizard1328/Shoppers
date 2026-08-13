@@ -1,7 +1,9 @@
 import React, { useCallback, useMemo, useState } from "react"; // useMemo already imported
 import { useDevice } from '@/components/utils/DeviceContext';
-import { PencilLine, Trash2, X, AlertTriangle } from "lucide-react";
+import { PencilLine, Trash2, X, AlertTriangle, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { openRouteInMaps } from "@/components/utils/routeDeepLinker";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,6 +72,22 @@ export default function DashboardBulkEditControls({
   const selectedCount = selectedDeliveries.length;
 
   const hasCyclingMarkerSelected = useMemo(() => selectedDeliveries.some((d) => d?.is_cycling_marker), [selectedDeliveries]);
+
+const orderedSelectedStops = useMemo(() => {
+  return selectedDeliveries
+    .filter((d) => d && !d.is_cycling_marker)
+    .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+}, [selectedDeliveries]);
+
+const handleNavigateToMaps = useCallback(() => {
+  if (orderedSelectedStops.length === 0) return;
+  const url = openRouteInMaps(orderedSelectedStops, { patients, stores });
+  if (!url) {
+    toast.error('Unable to build route — coordinates missing for selected stops.');
+  } else {
+    toast.success(`Sending ${orderedSelectedStops.length} stop${orderedSelectedStops.length !== 1 ? 's' : ''} to Google Maps…`);
+  }
+}, [orderedSelectedStops, patients, stores]);
   const pickupCount = useMemo(() => selectedDeliveries.filter((d) => !d?.patient_id && !d?.is_cycling_marker).length, [selectedDeliveries]);
   const deliveryCount = useMemo(() => selectedDeliveries.filter((d) => !!d?.patient_id).length, [selectedDeliveries]);
 
@@ -353,6 +371,12 @@ export default function DashboardBulkEditControls({
         style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}>
         
           <span className="text-sm font-medium text-foreground px-1">{totalDeleteCount} Stops</span>
+          <Button size="sm" variant="ghost" onClick={handleNavigateToMaps}
+            disabled={isSaving || isDeleting || hasCyclingMarkerSelected || selectedCount === 0}
+            className="gap-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/40">
+            <Navigation className="h-4 w-4" />
+            Navigate
+          </Button>
           <Button size="sm" onClick={openBulkEditPanel} className="gap-2" disabled={isSaving || isDeleting || hasCyclingMarkerSelected}>
             <PencilLine className="h-4 w-4" />
             Edit
