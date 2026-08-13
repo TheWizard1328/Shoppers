@@ -11,7 +11,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Thermometer, Bluetooth, BluetoothSearching, BluetoothOff, RefreshCw, Check } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import { isAdmin, isDriver as checkIsDriver } from '@/components/utils/userRoles';
+import { isAdmin, isDriver as checkIsDriver, isAppOwner } from '@/components/utils/userRoles';
 import { useInkbirdUnified } from '@/components/common/useInkbirdUnified';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
@@ -428,6 +428,9 @@ export default function LiveTempBadge({
   })();
 
   // ── Visibility guard ────────────────────────────────────────────────────
+  // Cold-chain temp capture is still being validated before go-live. Only the
+  // App Owner sees the live cooler temp badge — everyone else gets nothing.
+  if (!isAppOwner(currentUser)) return null;
   const isVisibleRole = adminMode || driverMode;
   if (!isVisibleRole) return null;
   if (driverMode && !adminMode) {

@@ -40,6 +40,7 @@ import {
   hasDebitOrCreditCod,
   resolveTravelDistFallback,
 } from './stopCardActionStatusHelpers';
+import { isAppOwner } from '../utils/userRoles';
 
 export default function useStopCardActions(params) {
   const {
@@ -1505,8 +1506,13 @@ export default function useStopCardActions(params) {
 
   const triggerCoolerLogIfNeeded = useCallback((actionLabel) => {
     if (!delivery?.fridge_item) return;
+    // Cold-chain temp capture is still being validated — only the App Owner
+    // should see the cooler-temp / BLE connection popups. Gate here so the
+    // dialog state never opens for anyone else, regardless of which action
+    // (Start/Complete/Fail/Cancel) fires on a fridge-item stop.
+    if (!isAppOwner(currentUser)) return;
     setPendingCoolerLog({ deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, actionLabel });
-  }, [delivery]);
+  }, [delivery, currentUser]);
 
   const clearCoolerLog = useCallback(() => setPendingCoolerLog(null), []);
 
