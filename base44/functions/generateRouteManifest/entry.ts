@@ -549,10 +549,13 @@ Deno.serve(async (req) => {
         doc.setFont(undefined, 'bold');
         y = snap(y + 4);
         if (y > pageHeight - 20) { doc.addPage(); y = 20; addHeader(); }
-        doc.text(
-          `Total stops: ${s.stops}    Deliveries: ${s.deliveries}    Failed: ${s.failed}    Returns: ${s.returns}    Total COD's: ${s.codCount} - ${FMT_MONEY(s.codAmount)}`,
-          14, y
-        );
+        // Each metric is a separate doc.text() call so none can be dropped/truncated together,
+        // and the full breakdown is always visible (admins, dispatchers, drivers).
+        doc.text(`Total stops: ${s.stops}`, 14, y);
+        doc.text(`Deliveries: ${s.deliveries}`, 70, y);
+        doc.text(`Failed: ${s.failed}`, 115, y);
+        doc.text(`Returns: ${s.returns}`, 150, y);
+        doc.text(`Total COD's: ${s.codCount} - ${FMT_MONEY(s.codAmount)}`, 185, y);
         if (s.cpEnvelopes > 0) {
           y = snap(y + 4);
           if (y > pageHeight - 20) { doc.addPage(); y = 20; addHeader(); }
@@ -1039,10 +1042,11 @@ Deno.serve(async (req) => {
       sharedDoc.text('Overall Totals', 14, gy);
       sharedDoc.setFontSize(11);
       gy += 8;
-      sharedDoc.text(
-        `Total stops: ${totalsAcc.stops}    Deliveries: ${totalsAcc.deliveries}    Failed: ${totalsAcc.failed}    Returns: ${totalsAcc.returned}    Total COD's: ${totalsAcc.codCount} - ${fmtMoney(totalsAcc.codAmount)}`,
-        14, gy
-      );
+      sharedDoc.text(`Total stops: ${totalsAcc.stops}`, 14, gy);
+      sharedDoc.text(`Deliveries: ${totalsAcc.deliveries}`, 70, gy);
+      sharedDoc.text(`Failed: ${totalsAcc.failed}`, 115, gy);
+      sharedDoc.text(`Returns: ${totalsAcc.returned}`, 150, gy);
+      sharedDoc.text(`Total COD's: ${totalsAcc.codCount} - ${fmtMoney(totalsAcc.codAmount)}`, 185, gy);
       if (totalsAcc.cpEnvelopes > 0) {
         gy += 8;
         sharedDoc.setTextColor(59, 130, 246);
