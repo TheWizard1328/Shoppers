@@ -1,3 +1,5 @@
+// Redeployed 2026-08-13 — ensures latest manifest format (store-color swatches, stop-order numbers,
+// multi-row barcodes, per-driver subtotals, temperature graphs, single-store swatch suppression) is live.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { jsPDF } from 'npm:jspdf@2.5.2';
 
