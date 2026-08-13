@@ -124,7 +124,8 @@ Deno.serve(async (req) => {
       datesToProcess.push(deliveryDate);
     }
 
-    if (datesToProcess.length === 0 || (!driverId && (!Array.isArray(storeIds) || storeIds.length === 0))) {
+    // selectedCityId is resolved to storeIds below, so it satisfies the "must filter by something" requirement too
+    if (datesToProcess.length === 0 || (!driverId && (!Array.isArray(storeIds) || storeIds.length === 0) && !selectedCityId)) {
       return Response.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
