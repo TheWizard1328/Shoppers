@@ -257,7 +257,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         endDate: effectiveEndDate,
         manifestType: 'post-route',
         storeIds: isDispatcherOnly ? dispatcherStoreIds : undefined,
-        selectedCityId: isDispatcherOnly ? selectedCityId : undefined,
+        // Admins send selectedCityId so the backend resolves storeIds (otherwise driverId+storeIds both empty = 400)
+        selectedCityId: (isDispatcherOnly || isAdmin) ? selectedCityId : undefined,
         useBarcodes: useBarcodes === true
       };
 
