@@ -286,6 +286,17 @@ Deno.serve(async (req) => {
       // Match by the is_cycling_marker flag OR the BIK- delivery_id prefix carried by every cycling marker.
       let items = (deliveries || []).filter((d) => d && !d.is_cycling_marker && !String(d.delivery_id || '').startsWith('BIK-'));
 
+      // A stop counts as a "delivery" (not a pickup) when it has a patient OR is an inter-store dropoff (ISD).
+      // Store pickups (no patient_id) and inter-store pickups (ISP) are excluded from the Deliveries total.
+      // (Cycling route stops are already filtered out of `items` above.)
+      const isDeliveryCountStop = (d) => {
+        if (!d) return false;
+        const u = String(d.delivery_id || '').toUpperCase();
+        if (u.startsWith('ISP-')) return false; // inter-store pickup
+        if (u.startsWith('ISD-')) return true;  // inter-store dropoff = a delivery
+        return !!d.patient_id;                  // patient delivery
+      };
+
       // Skip dates with no deliveries for this driver/store combination
       if (items.length === 0) return null;
 
@@ -630,7 +641,8 @@ Deno.serve(async (req) => {
         const cpEnvStr = cpEnvCount > 0 ? `Envelopes: ${cpEnvCount}` : '';
         const codAmt = (typeof d?.cod_total_amount_required === 'number' && d.cod_total_amount_required > 0) ? d.cod_total_amount_required : 0;
         currentDriverStops += 1;
-        if (d?.status === 'completed') currentDriverDeliveries += 1;
+        // Deliveries = completed patient/ISD stops only (excludes pickups and cycling markers)
+        if (d?.status === 'completed' && isDeliveryCountStop(d)) currentDriverDeliveries += 1;
         else if (d?.status === 'failed') currentDriverFailed += 1;
         else if (d?.status === 'returned') currentDriverReturned += 1;
         currentDriverCpEnvelopes += cpEnvCount;
@@ -744,7 +756,7 @@ Deno.serve(async (req) => {
       currentDriverCodCount = 0; currentDriverCodAmount = 0; currentDriverCpEnvelopes = 0;
 
       // Accumulate overall totals (across every driver and date) for the grand-total footer
-      const dateDeliveries = items.filter((d) => d?.status === 'completed').length;
+      const dateDeliveries = items.filter((d) => d?.status === 'completed' && isDeliveryCountStop(d)).length;
       const dateFailed = items.filter((d) => d?.status === 'failed').length;
       const dateReturned = items.filter((d) => d?.status === 'returned').length;
       let dateCodCount = 0, dateCodAmount = 0;
