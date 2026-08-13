@@ -286,15 +286,14 @@ Deno.serve(async (req) => {
       // Match by the is_cycling_marker flag OR the BIK- delivery_id prefix carried by every cycling marker.
       let items = (deliveries || []).filter((d) => d && !d.is_cycling_marker && !String(d.delivery_id || '').startsWith('BIK-'));
 
-      // A stop counts as a "delivery" (not a pickup) when it has a patient OR is an inter-store dropoff (ISD).
-      // Store pickups (no patient_id) and inter-store pickups (ISP) are excluded from the Deliveries total.
+      // A stop counts as a "delivery" (not a store pickup) when it has a patient OR is an inter-store stop (ISP/ISD).
+      // Only plain store pickups (no patient_id, no inter-store prefix) are excluded from the Deliveries total.
       // (Cycling route stops are already filtered out of `items` above.)
       const isDeliveryCountStop = (d) => {
         if (!d) return false;
         const u = String(d.delivery_id || '').toUpperCase();
-        if (u.startsWith('ISP-')) return false; // inter-store pickup
-        if (u.startsWith('ISD-')) return true;  // inter-store dropoff = a delivery
-        return !!d.patient_id;                  // patient delivery
+        if (u.startsWith('ISP-') || u.startsWith('ISD-')) return true; // inter-store pickup/dropoff = delivery
+        return !!d.patient_id;                                         // patient delivery (excludes store pickups)
       };
 
       // Skip dates with no deliveries for this driver/store combination
