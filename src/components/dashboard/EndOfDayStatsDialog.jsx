@@ -65,6 +65,15 @@ export default function EndOfDayStatsDialog({
     }
   }, [isOpen]);
 
+  // Broadcast open/close so the Guide Assistant FAB fades out while the dialog is shown.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('eodDialogStateChange', { detail: { open: !!isOpen } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('eodDialogStateChange', { detail: { open: false } }));
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return;
 

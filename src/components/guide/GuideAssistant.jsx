@@ -147,11 +147,19 @@ export default function GuideAssistant() {
     return () => window.removeEventListener('cameraOverlayChange', handler);
   }, []);
 
+  // Hide when the End-of-Day "Route Complete!" stats dialog is shown
+  const [isEodDialogOpen, setIsEodDialogOpen] = useState(false);
+  useEffect(() => {
+    const handler = (e) => setIsEodDialogOpen(!!e?.detail?.open);
+    window.addEventListener('eodDialogStateChange', handler);
+    return () => window.removeEventListener('eodDialogStateChange', handler);
+  }, []);
+
   // FAB should be hidden when a stop card is expanded and no dialog is open,
   // OR when the delivery form is open on mobile (the FAB relocates into the
   // form header next to the close button in that case).
   const deliveryFormRelocateActive = isDeliveryFormOpen && isMobileViewport;
-  const hideFabForExpandedCard = (isStopCardExpanded && !isDialogOpen && !isOpen) || isBulkEditPanelOpen || isCameraOverlayOpen || deliveryFormRelocateActive;
+  const hideFabForExpandedCard = (isStopCardExpanded && !isDialogOpen && !isOpen) || isBulkEditPanelOpen || isCameraOverlayOpen || deliveryFormRelocateActive || isEodDialogOpen;
 
   // ── Dynamic bottom offset — tracks MapViewCycleFAB via getBoundingClientRect ────
   // Uses direct DOM measurement (viewport-accurate regardless of position context).
