@@ -478,7 +478,7 @@ Deno.serve(async (req) => {
       const colSig = colPhotos - (thumbSize + rightGap);
       const colRx = colSig - (thumbSize + rightGap);
       const colReceipts = colRx - (thumbSize + rightGap);
-      const colNotes = colReceipts - 60;
+      const colNotes = colReceipts - 52; // notes column 8mm narrower → name column 8mm wider
       const colCreatedBy = colNotes - 28;
       const colDriver = colCreatedBy - 28;
 
@@ -584,15 +584,15 @@ Deno.serve(async (req) => {
         const barcodeRowHeight = barcodeRowsNeeded > 0 ? barcodeRowsNeeded * (barcodeH + barcodeLabelGap) + 1 : 0;
         const barcodeLineCount = barcodeStr ? 1 : 0;
 
-        const nameLines = doc.splitTextToSize(name, 30);
+        const nameLines = doc.splitTextToSize(name, 38);
         const driverLines = doc.splitTextToSize(driverName, 20);
         const createdByLines = doc.splitTextToSize(createdByName, 20);
         // CP envelope count prepended to Notes (Care Pro deliveries carry cp_envelopes on the Delivery record)
         const cpEnvCount = (typeof d?.cp_envelopes === 'number' && d.cp_envelopes > 0) ? d.cp_envelopes : 0;
         const cpEnvStr = cpEnvCount > 0 ? `Envelopes: ${cpEnvCount}` : '';
-        const fridgeTempLines = fridgeTempStr ? doc.splitTextToSize(fridgeTempStr, 53) : [];
+        const fridgeTempLines = fridgeTempStr ? doc.splitTextToSize(fridgeTempStr, 45) : [];
         const combinedNotesRaw = [cpEnvStr, fridgeTempStr, notes].filter(Boolean).join('\n');
-        const notesLines = doc.splitTextToSize(combinedNotesRaw, 53);
+        const notesLines = doc.splitTextToSize(combinedNotesRaw, 45);
         const textContentLines = Math.max(nameLines.length + barcodeLineCount, driverLines.length, createdByLines.length, notesLines.length, 1);
         const hasPhotos = images?.photos?.length > 0;
         const hasSig = !!images?.signature;
