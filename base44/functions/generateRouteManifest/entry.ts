@@ -271,6 +271,9 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Accumulator for grand totals across every driver and date in this run
+    const totalsAcc = { stops: 0, cpEnvelopes: 0 };
+
     // ─── Generate manifest content for one date into a shared jsPDF doc ────────
     async function generateManifestForDate(doc, dateStr, isFirstDate) {
       // Build a targeted filter — only fetch what this dispatcher needs
@@ -510,11 +513,30 @@ Deno.serve(async (req) => {
 
       // Each driver starts on its own page (items are sorted by driver, so transitions are contiguous)
       let previousDriverId = items[0]?.driver_id ?? null;
+      let currentDriverStops = 0;
+      let currentDriverCpEnvelopes = 0;
       const startDriverPage = (driverNameForTitle) => {
         doc.addPage();
         renderPageTitle(driverNameForTitle);
         y = 36;
         addHeader();
+      };
+
+      // Per-driver subtotal, emitted at the end of that driver's section (before the next driver's page)
+      const renderDriverSubtotal = (stopCount, cpEnvCount) => {
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'bold');
+        y = snap(y + 4);
+        if (y > pageHeight - 20) { doc.addPage(); y = 20; addHeader(); }
+        doc.text(`Total stops: ${stopCount}`, 14, y);
+        if (cpEnvCount > 0) {
+          y = snap(y + 4);
+          if (y > pageHeight - 20) { doc.addPage(); y = 20; addHeader(); }
+          doc.setTextColor(59, 130, 246); // blue accent to distinguish from "Total stops"
+          doc.text(`Total CP Envelopes: ${cpEnvCount}`, 14, y);
+          doc.setTextColor(0);
+        }
+        doc.setFont(undefined, 'normal');
       };
 
       function drawCountCell(x, cellY, count) {
@@ -526,8 +548,11 @@ Deno.serve(async (req) => {
 
       for (let i = 0; i < items.length; i++) {
         const d = items[i];
-        // Driver change → new page (and only the driver runs on it, since the sort keeps a driver's stops contiguous)
+        // Driver change → emit the previous driver's subtotal, then start a new page
         if (i > 0 && d?.driver_id !== previousDriverId) {
+          renderDriverSubtotal(currentDriverStops, currentDriverCpEnvelopes);
+          currentDriverStops = 0;
+          currentDriverCpEnvelopes = 0;
           startDriverPage(driverNameMap.get(d?.driver_id) || String(d?.driver_id || ''));
           previousDriverId = d?.driver_id;
         }
@@ -590,6 +615,8 @@ Deno.serve(async (req) => {
         // CP envelope count prepended to Notes (Care Pro deliveries carry cp_envelopes on the Delivery record)
         const cpEnvCount = (typeof d?.cp_envelopes === 'number' && d.cp_envelopes > 0) ? d.cp_envelopes : 0;
         const cpEnvStr = cpEnvCount > 0 ? `Envelopes: ${cpEnvCount}` : '';
+        currentDriverStops += 1;
+        currentDriverCpEnvelopes += cpEnvCount;
         const fridgeTempLines = fridgeTempStr ? doc.splitTextToSize(fridgeTempStr, 45) : [];
         const combinedNotesRaw = [cpEnvStr, fridgeTempStr, notes].filter(Boolean).join('\n');
         const notesLines = doc.splitTextToSize(combinedNotesRaw, 45);
@@ -690,23 +717,18 @@ Deno.serve(async (req) => {
         doc.line(colStop, rowBottom, pageWidth - 10, rowBottom);
       }
 
-      y = snap(y + 4);
-      if (y > pageHeight - 20) { doc.addPage(); y = 20; }
-      doc.setFontSize(9);
-      doc.text(`Total stops: ${items.length}`, 14, y);
+      // Final driver's subtotal (the last driver's section ends here, before the temp graph)
+      renderDriverSubtotal(currentDriverStops, currentDriverCpEnvelopes);
+      currentDriverStops = 0;
+      currentDriverCpEnvelopes = 0;
 
-      // ── CP Envelope totals footer (only when any Care Pro envelopes were delivered) ──
-      const totalCpEnvelopes = items.reduce((sum, d) => {
+      // Accumulate overall totals (across every driver and date) for the grand-total footer
+      const totalCpEnvelopesDate = items.reduce((sum, d) => {
         const v = (typeof d?.cp_envelopes === 'number' && d.cp_envelopes > 0) ? d.cp_envelopes : 0;
         return sum + v;
       }, 0);
-      if (totalCpEnvelopes > 0) {
-        y = snap(y + 4);
-        if (y > pageHeight - 20) { doc.addPage(); y = 20; }
-        doc.setTextColor(59, 130, 246); // blue accent to distinguish from "Total stops"
-        doc.text(`Total CP Envelopes: ${totalCpEnvelopes}`, 14, y);
-        doc.setTextColor(0);
-      }
+      totalsAcc.stops += items.length;
+      totalsAcc.cpEnvelopes += totalCpEnvelopesDate;
 
       // ─── Temperature Graph ───────────────────────────────────────────────────
       // Only render if there are fridge items AND temp readings exist
@@ -934,6 +956,25 @@ Deno.serve(async (req) => {
 
     if (dateMetadata.length === 0) {
       return Response.json({ error: 'No deliveries found for the selected date range and filters.' }, { status: 404 });
+    }
+
+    // ── Grand totals across every driver and date, at the very end of the output ──
+    if (totalsAcc.stops > 0) {
+      sharedDoc.addPage();
+      let gy = 20;
+      sharedDoc.setFontSize(14);
+      sharedDoc.setFont(undefined, 'bold');
+      sharedDoc.text('Overall Totals', 14, gy);
+      sharedDoc.setFontSize(11);
+      gy += 8;
+      sharedDoc.text(`Total stops: ${totalsAcc.stops}`, 14, gy);
+      if (totalsAcc.cpEnvelopes > 0) {
+        gy += 8;
+        sharedDoc.setTextColor(59, 130, 246);
+        sharedDoc.text(`Total CP Envelopes: ${totalsAcc.cpEnvelopes}`, 14, gy);
+        sharedDoc.setTextColor(0);
+      }
+      sharedDoc.setFont(undefined, 'normal');
     }
 
     const combinedPdfBytes = sharedDoc.output('arraybuffer');
