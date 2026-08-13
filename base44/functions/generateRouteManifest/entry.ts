@@ -389,6 +389,10 @@ Deno.serve(async (req) => {
 
       const patientNameMap = new Map((manifestPatients || []).map((p) => [p.id, p.full_name || p.patient_id || p.id]));
       const storeNameMap = new Map((manifestStores || []).map((s) => [s.id, s.name || s.abbreviation || s.id]));
+      // Store color map — used to color-code manifest rows per store (hex → [r,g,b])
+      const storeColorMap = new Map((manifestStores || []).map((s) => [s.id, s.color || '']).filter(([, c]) => c));
+      // Store abbreviation map for the row color swatch label
+      const storeAbbrMap = new Map((manifestStores || []).map((s) => [s.id, s.abbreviation || '']));
 
       // Care Pro display map — mirrors RouteActionButtons / StopCard: name shows "CP <cp_name>"
       const patientCareProMap = new Map();
@@ -665,6 +669,28 @@ Deno.serve(async (req) => {
 
         const textY = snap(y + textTopOffset + cellPadding);
         const rowBottom = snap(y + rowHeight);
+
+        // ── Store color swatch: a thin colored bar at the left edge of each row ──
+        // Color-codes entries by store color (visible to admins, dispatchers, and drivers).
+        const swatchHex = d?.store_id ? storeColorMap.get(d.store_id) : '';
+        if (swatchHex) {
+          const hexToRgb = (hex) => {
+            const h = String(hex).replace('#', '');
+            if (h.length !== 6) return null;
+            const r = parseInt(h.substring(0, 2), 16);
+            const g = parseInt(h.substring(2, 4), 16);
+            const b = parseInt(h.substring(4, 6), 16);
+            return (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) ? null : [r, g, b];
+          };
+          const rgb = hexToRgb(swatchHex);
+          if (rgb) {
+            // For light store colors, darken slightly so the swatch stays visible on white paper
+            const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+            const dim = (c) => Math.round(c * (lum > 200 ? 0.55 : 1));
+            doc.setFillColor(dim(rgb[0]), dim(rgb[1]), dim(rgb[2]));
+            doc.rect(6, y + 1, 2.5, rowHeight - 2, 'F');
+          }
+        }
 
         doc.setFontSize(9);
         doc.text(stopLabel, colStop, textY + 3);
