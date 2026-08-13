@@ -4,6 +4,7 @@ import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'rea
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Pencil, Undo2, Download, Magnet, Check, X, Brush, Scissors } from 'lucide-react';
 import SnapAnalysisDialog from './SnapAnalysisDialog';
+import ResegmentStopsDialog from './ResegmentStopsDialog';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
@@ -333,6 +334,8 @@ export default function PolylineViewer({ users = [] }) {
   const [isImportingCrumb, setIsImportingCrumb]   = useState(false);
   const [isSnappingMaster, setIsSnappingMaster]   = useState(false);
   const [isResegmenting, setIsResegmenting]       = useState(false);
+  // resegmentDialog: { item } | null — when open, show the stop-selection popup
+  const [resegmentDialog, setResegmentDialog]     = useState(null);
   // snapAnalysis: analysis result from analyze_only call
   const [snapAnalysis, setSnapAnalysis]           = useState(null); // { item, ...analysisData }
   const [isAnalyzing, setIsAnalyzing]             = useState(false);
@@ -1076,17 +1079,33 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   // ── Resegment all stops from master breadcrumb ───────────────────────────
-  const handleResegment = async (item) => {
+  // Opens a dialog listing every stop with checkboxes (unsaved auto-checked).
+  // The actual backend call happens in handleResegmentConfirmed once the user
+  // picks which stops to re-clip.
+  const handleResegment = (item) => {
+    setResegmentDialog({ item });
+  };
+
+  // User confirmed the stop list — re-clip the selected stop_orders.
+  const handleResegmentConfirmed = async (selectedStopOrders) => {
+    const item = resegmentDialog?.item;
+    if (!item || !Array.isArray(selectedStopOrders) || selectedStopOrders.length === 0) {
+      setResegmentDialog(null);
+      return;
+    }
     setIsResegmenting(true);
     try {
       const res = await base44.functions.invoke('consolidateBreadcrumbSegment', {
         driver_id: item.driver_id,
         delivery_date: item.delivery_date,
+        selected_stop_orders: selectedStopOrders,
       });
       const data = res?.data ?? res;
       if (data?.success) {
-        toast.success(`Resegmented — ${data.segments?.length || 0} stop(s) sliced from master trail.`);
-        // Reload breadcrumbs quietly in the background without wiping page state
+        const count = data.segments?.length ?? selectedStopOrders.length;
+        toast.success(`Reclipped ${count} stop${count !== 1 ? 's' : ''} from master trail.`);
+        setResegmentDialog(null);
+        // Refresh breadcrumbs for this driver/date without wiping the rest of the page
         const fresh = await base44.entities.DeliveryBreadcrumbs.filter({
           driver_id: item.driver_id,
           delivery_date: item.delivery_date,
@@ -1099,10 +1118,10 @@ export default function PolylineViewer({ users = [] }) {
           });
         }
       } else {
-        toast.error(`Resegment failed: ${data?.error || 'Unknown error'}`);
+        toast.error(`Reclip failed: ${data?.error || 'Unknown error'}`);
       }
     } catch (e) {
-      toast.error(`Resegment failed: ${e.message}`);
+      toast.error(`Reclip failed: ${e.message}`);
     } finally {
       setIsResegmenting(false);
     }
@@ -1628,6 +1647,18 @@ export default function PolylineViewer({ users = [] }) {
             isSnapping={isSnappingMaster}
             onConfirm={handleSnapConfirmed}
             onCancel={() => setSnapAnalysis(null)}
+          />
+        )}
+
+        {/* Resegment stops dialog — pick which stops to re-clip from the master trail */}
+        {resegmentDialog && (
+          <ResegmentStopsDialog
+            masterItem={resegmentDialog.item}
+            deliveries={deliveries}
+            breadcrumbs={breadcrumbs}
+            isResegmenting={isResegmenting}
+            onConfirm={handleResegmentConfirmed}
+            onCancel={() => setResegmentDialog(null)}
           />
         )}
 

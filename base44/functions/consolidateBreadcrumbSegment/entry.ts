@@ -205,12 +205,23 @@ Deno.serve(async (req) => {
       driver_id,
       delivery_date,
       delivery_id: _triggeredDeliveryId,  // optional, for logging only
-      transport_mode = 'driving'
+      transport_mode = 'driving',
+      // Optional: when provided, ONLY these stop_orders are re-clipped (the user
+      // explicitly selected them in ResegmentStopsDialog), and any saved_to_route
+      // skip is bypassed for them (force re-clip). Unlisted stops are left alone,
+      // and the orphan-cleanup step is skipped so we don't nuke untouched crumbs.
+      selected_stop_orders = null,
     } = body || {};
 
     if (!driver_id || !delivery_date) {
       return Response.json({ success: false, error: 'driver_id and delivery_date are required' }, { status: 400 });
     }
+
+    // Normalize the optional selected_stop_orders into a Set<number> (empty = full route).
+    const selectedSet = Array.isArray(selected_stop_orders) && selected_stop_orders.length > 0
+      ? new Set(selected_stop_orders.map((n) => Number(n)).filter(Number.isFinite))
+      : null;
+    const explicitlySelected = !!selectedSet;
 
     console.log(`🍞 [consolidateBreadcrumbSegment] Proximity slicing for driver=${driver_id}, date=${delivery_date}${_triggeredDeliveryId ? `, triggered by ${_triggeredDeliveryId}` : ''}`);
 
@@ -516,6 +527,14 @@ Deno.serve(async (req) => {
 
     for (const seg of segments) {
       const stopOrder = Number(seg.delivery.stop_order);
+
+      // When the caller passed selected_stop_orders, skip segments for unlisted stops —
+      // we still ran the proximity matching above for ALL stops (to keep the trail
+      // boundaries correct), but we only WRITE the segments the user requested.
+      if (explicitlySelected && !selectedSet.has(stopOrder)) {
+        continue;
+      }
+
       const segCoords = seg.points.map(p => [p[0], p[1]]);
       const segEncoded = encodePolyline(segCoords);
       const segTimestamps = seg.points.map(p => p[2]).join(',');
@@ -549,8 +568,9 @@ Deno.serve(async (req) => {
       let savedRecord;
       if (existing?.id) {
         existingByStopOrder.delete(stopOrder); // mark as handled
-        // Skip overwriting legs that have already been manually saved
-        if (existing.saved_to_route === true) {
+        // Skip overwriting legs that have already been manually saved — UNLESS
+        // the caller explicitly selected this stop (force re-clip on demand).
+        if (!explicitlySelected && existing.saved_to_route === true) {
           console.log(`⏭️ [consolidateBreadcrumbSegment] Skipping stop #${stopOrder} — already saved_to_route`);
           results.push({
             stop_order: stopOrder,
@@ -578,11 +598,16 @@ Deno.serve(async (req) => {
 
     // ── 8. Clean up orphaned segments for stops that no longer exist ──────────
     // (e.g., deliveries were deleted or re-assigned to a different date)
-    const validStopOrders = new Set(stops.map(d => Number(d.stop_order)));
-    for (const [stopOrder, rec] of existingByStopOrder) {
-      if (!validStopOrders.has(stopOrder)) {
-        console.log(`🗑️ [consolidateBreadcrumbSegment] Deleting orphaned segment for stop_order=${stopOrder}`);
-        await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(rec.id).catch(() => null);
+    // Skipped when the caller scoped the run to selected_stop_orders — in that
+    // mode unprocessed stops still appear in existingByStopOrder by design, and
+    // deleting them would silently wipe the user's untouched breadcrumb data.
+    if (!explicitlySelected) {
+      const validStopOrders = new Set(stops.map(d => Number(d.stop_order)));
+      for (const [stopOrder, rec] of existingByStopOrder) {
+        if (!validStopOrders.has(stopOrder)) {
+          console.log(`🗑️ [consolidateBreadcrumbSegment] Deleting orphaned segment for stop_order=${stopOrder}`);
+          await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(rec.id).catch(() => null);
+        }
       }
     }
     // Duplicate records were already deleted in step 7 above.
