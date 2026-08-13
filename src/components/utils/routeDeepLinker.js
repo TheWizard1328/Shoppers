@@ -28,7 +28,7 @@ import { getInterStoreLocationSync } from '@/components/utils/interStoreDisplayN
 // Google Maps `waypoints` URL parameter accepts up to 9 entries (excluding
 // origin & destination). We cap our full waypoint list to this number.
 const MAX_WAYPOINTS = 9;
-const MIN_PER_LEG = 2;
+const MIN_PER_LEG = 1;
 const MAX_PER_LEG = 10;
 
 const TRAVEL_MODE_MAP = {
@@ -75,6 +75,36 @@ export function resolveStopLatLng(delivery, { patients = [], stores = [] } = {})
     }
   }
   return null;
+}
+
+/**
+ * Resolve a human-readable address label for a single stop, mirroring
+ * resolveStopLatLng. Used as the stop-specific label in the Google Maps URL so
+ * clustered units (e.g. multiple suites at the same street address) render as
+ * distinct waypoints instead of collapsing into one entry.
+ */
+export function resolveStopAddress(delivery, { patients = [], stores = [] } = {}) {
+  if (!delivery) return '';
+  if (delivery.is_cycling_marker) return 'Cycling Marker';
+
+  const { isPatientDelivery, isInterStore, isStorePickup } = getDeliveryTypeFlags(delivery);
+
+  if (isPatientDelivery) {
+    const patient = patients.find((p) => p && p.id === delivery.patient_id);
+    if (!patient) return '';
+    let addr = patient.address || '';
+    if (patient.unit_number) addr = addr ? `${addr} #${patient.unit_number}` : `#${patient.unit_number}`;
+    return patient.full_name ? (addr ? `${patient.full_name} — ${addr}` : patient.full_name) : addr;
+  }
+  if (isInterStore) {
+    const loc = getInterStoreLocationSync(delivery.delivery_id);
+    return loc?.store_address || loc?.store_name || delivery._interstore_dest_name || '';
+  }
+  if (isStorePickup) {
+    const store = stores.find((s) => s && s.id === delivery.store_id);
+    return store?.address || store?.name || '';
+  }
+  return '';
 }
 
 function polylineLengthMeters(points) {
@@ -154,17 +184,20 @@ function computePerLegSamples(legLengths, samplingBudget) {
   return perLeg;
 }
 
-function formatCoord(c) {
-  return `${Number(c.lat).toFixed(5)},${Number(c.lng).toFixed(5)}`;
+function formatCoord(c, label) {
+  const base = `${Number(c.lat).toFixed(5)},${Number(c.lng).toFixed(5)}`;
+  if (!label) return base;
+  // Google Maps accepts lat,lng(Label); parens/spaces URL-encode via searchParams
+  return `${base}(${label})`;
 }
 
-function buildGoogleMapsDirUrl(origin, destination, waypoints, travelMode = 'driving') {
+function buildGoogleMapsDirUrl(origin, destination, waypoints, travelMode = 'driving', originLabel = '', destLabel = '') {
   const url = new URL('https://www.google.com/maps/dir/');
   url.searchParams.set('api', '1');
-  url.searchParams.set('origin', formatCoord(origin));
-  url.searchParams.set('destination', formatCoord(destination));
+  url.searchParams.set('origin', formatCoord(origin, originLabel));
+  url.searchParams.set('destination', formatCoord(destination, destLabel));
   if (waypoints.length > 0) {
-    url.searchParams.set('waypoints', waypoints.map(formatCoord).join('|'));
+    url.searchParams.set('waypoints', waypoints.map((w) => formatCoord(w.coord, w.label || '')).join('|'));
   }
   url.searchParams.set('travelmode', TRAVEL_MODE_MAP[travelMode] || 'driving');
   return url.href;
@@ -188,12 +221,12 @@ function buildSingleDestinationUrl(dest, label) {
 export function buildRouteDeepLink(orderedStops, ctx = {}) {
   if (!orderedStops || orderedStops.length === 0) return null;
 
-  // Resolve coordinates for every stop (cycling markers resolve via
-  // cycling_latitude/cycling_longitude inside resolveStopLatLng); drop only
-  // those with no resolvable coordinates.
+  // Resolve coordinates + address labels for every stop (cycling markers
+  // resolve via cycling_latitude/cycling_longitude inside resolveStopLatLng);
+  // drop only those with no resolvable coordinates.
   const resolved = orderedStops
     .filter(Boolean)
-    .map((s) => ({ stop: s, coord: resolveStopLatLng(s, ctx) }))
+    .map((s) => ({ stop: s, coord: resolveStopLatLng(s, ctx), label: resolveStopAddress(s, ctx) }))
     .filter((r) => r.coord);
 
   if (resolved.length === 0) return null;
@@ -208,7 +241,9 @@ export function buildRouteDeepLink(orderedStops, ctx = {}) {
   const intermediateStopCount = numStops - 2;
   const samplingBudget = Math.max(0, MAX_WAYPOINTS - intermediateStopCount);
 
-  // Decode each leg's polyline (delivery[i].encoded_polyline goes from stop[i-1] to stop[i])
+  // Decode each leg's polyline (delivery[i].encoded_polyline goes from
+  // stop[i-1] to stop[i]). Each leg's first point IS the previous stop's
+  // precise GPS coord, and its last point IS the destination stop's coord.
   const legs = [];
   for (let i = 1; i < numStops; i++) {
     const destStop = resolved[i].stop;
@@ -216,32 +251,66 @@ export function buildRouteDeepLink(orderedStops, ctx = {}) {
     legs.push({ points, lengthMeters: polylineLengthMeters(points) });
   }
 
-  // Per-leg sampling allocation
+  // Per-leg sampling allocation (1–10 intermediates per leg, length-weighted)
   const perLegSamples = computePerLegSamples(
     legs.map((l) => l.lengthMeters),
     samplingBudget
   );
 
-  // Build ordered waypoint list:
-  //   For each leg AFTER the first:
-  //     1. Sampled polyline intermediate points (forces navigation along our path)
-  //     2. The stop's coordinates (only if it's not the final destination)
+  // Helpers — prefer the polyline's precise endpoints over the stop's stored
+  // coordinates, with a fallback to the stop's stored coord when no polyline
+  // exists for that leg.
+  const legStartCoord = (i) => {
+    if (legs[i].points.length > 0) {
+      return { lat: legs[i].points[0][0], lng: legs[i].points[0][1] };
+    }
+    return resolved[i].coord;
+  };
+  const legEndCoord = (i) => {
+    if (legs[i].points.length > 0) {
+      const last = legs[i].points[legs[i].points.length - 1];
+      return { lat: last[0], lng: last[1] };
+    }
+    return resolved[i + 1].coord;
+  };
+
+  // Build the ordered waypoint list. Each leg contributes:
+  //   1. 1–10 sampled intermediate points from its decoded polyline
+  //      (forces navigation along our breadcrumb path, not Google's own route)
+  //   2. The leg's destination stop's coord, labeled with the stop's address.
+  //      The leg's START point is implicitly included because it equals the
+  //      previous leg's END point (already pushed) OR, for leg 0, it becomes
+  //      the URL `origin` param. This guarantees each intermediate stop is
+  //      published as a labeled, distinct waypoint so clustered units don't
+  //      collapse into a single address entry on the Maps UI.
   const waypoints = [];
   for (let i = 0; i < numLegs; i++) {
-    waypoints.push(...sampleEvenly(legs[i].points, perLegSamples[i]));
+    const samples = sampleEvenly(legs[i].points, perLegSamples[i]);
+    samples.forEach((c) => waypoints.push({ coord: c }));
+    // Push the leg's destination stop as a labeled intermediate waypoint,
+    // unless this leg ends at the final destination (which becomes the
+    // `destination` URL param separately).
     if (i + 1 < numStops - 1) {
-      waypoints.push(resolved[i + 1].coord);
+      waypoints.push({ coord: legEndCoord(i), label: resolved[i + 1].label });
     }
   }
 
-  // Enforce Google Maps hard cap
+  // Enforce Google Maps' 9-intermediate-waypoint hard cap
   while (waypoints.length > MAX_WAYPOINTS) waypoints.pop();
 
-  const origin = resolved[0].coord;
-  const destination = resolved[numStops - 1].coord;
+  // Origin = leg 0's start; Destination = last leg's end (precise GPS coords)
+  const origin = legStartCoord(0);
+  const destination = legEndCoord(numLegs - 1);
   const travelMode = resolved[0].stop?.transport_mode || 'driving';
 
-  return buildGoogleMapsDirUrl(origin, destination, waypoints, travelMode);
+  return buildGoogleMapsDirUrl(
+    origin,
+    destination,
+    waypoints,
+    travelMode,
+    resolved[0].label,
+    resolved[numStops - 1].label
+  );
 }
 
 /**
