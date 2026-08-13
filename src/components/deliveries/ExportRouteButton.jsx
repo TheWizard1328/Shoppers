@@ -141,7 +141,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
-  const handleDriverEmailExport = async ({ perStoreEmails, exportDate: dialogExportDate, startDate, endDate, useBarcodes }) => {
+  const handleDriverEmailExport = async ({ perStoreEmails, exportDate: dialogExportDate, startDate, endDate, useBarcodes, stores: dialogStores }) => {
     if (isExporting) return;
     setIsExporting(true);
     try {
@@ -149,16 +149,23 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
       const effectiveEndDate = endDate || effectiveStartDate;
       const emailJobs = [];
 
-      driverStoreIds.forEach((storeId) => {
+      // Admins export the dialog's full date-range store list (not just the single dashboard-selected date),
+      // and they export ALL drivers for each store — never the dashboard's driverFilter (which would scope to self).
+      const exportStoreIds = (dialogStores && dialogStores.length > 0)
+        ? dialogStores.map((store) => store.id)
+        : driverStoreIds;
+
+      exportStoreIds.forEach((storeId) => {
         const storeRecipientEmails = [...new Set(((perStoreEmails?.[storeId]) || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
         if (storeRecipientEmails.length === 0) return;
 
-        const storeName = (stores || []).find((store) => store?.id === storeId)?.name || dayDeliveries.find((delivery) => delivery?.store_id === storeId)?.store_name || storeId;
+        const storeName = (stores || []).find((store) => store?.id === storeId)?.name || dialogStores?.find((store) => store?.id === storeId)?.name || dayDeliveries.find((delivery) => delivery?.store_id === storeId)?.store_name || storeId;
 
         // Let the backend auto-detect manifestType based on actual data for each date
         emailJobs.push(
           base44.functions.invoke('generateRouteManifest', {
-            driverId: driverFilter,
+            // Admins: omit driverId so every driver's stops for this store/date are exported
+            driverId: undefined,
             startDate: effectiveStartDate,
             endDate: effectiveEndDate,
             deliveryDate: effectiveStartDate,
@@ -234,9 +241,10 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     if (isExporting) return;
     setIsExporting(true);
     try {
-      const exportAllDispatcherDrivers = isDispatcherOnly;
-      const driverId = exportAllDispatcherDrivers ? undefined : driverFilter;
-      if (!driverId && !exportAllDispatcherDrivers) {alert('Select a driver first');return;}
+      // Admins (like dispatchers) preview ALL drivers for the selected date range — never the dashboard driverFilter (which would scope to self).
+      const exportAllDrivers = isDispatcherOnly || isAdmin;
+      const driverId = exportAllDrivers ? undefined : driverFilter;
+      if (!driverId && !exportAllDrivers) {alert('Select a driver first');return;}
 
       // Use dates from dialog if provided, otherwise fall back to selectedDate
       const effectiveStartDate = dialogStartDate || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
