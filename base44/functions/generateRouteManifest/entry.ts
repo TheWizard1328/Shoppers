@@ -375,6 +375,12 @@ Deno.serve(async (req) => {
       const patientNameMap = new Map((manifestPatients || []).map((p) => [p.id, p.full_name || p.patient_id || p.id]));
       const storeNameMap = new Map((manifestStores || []).map((s) => [s.id, s.name || s.abbreviation || s.id]));
 
+      // Care Pro display map — mirrors RouteActionButtons / StopCard: name shows "CP <cp_name>"
+      const patientCareProMap = new Map();
+      (manifestPatients || []).forEach((p) => {
+        if (p?.id) patientCareProMap.set(p.id, { care_pros: !!p.care_pros, cp_name: p.cp_name || '' });
+      });
+
       // ── Inter-store location lookup (for ISP/ISD display names) ──────────
       // Fetch all ISP/ISD delivery_ids to resolve their InterStoreLocation store names
       const ispIsdDeliveries = items.filter((d) => {
@@ -508,12 +514,16 @@ Deno.serve(async (req) => {
         const isISD = upper.startsWith('ISD-');
         const isInterStoreStop = isISP || isISD;
         const isPickup = !d?.patient_id && !isInterStoreStop;
-        // Resolve display name: ISP/ISD use inter-store naming, regular stops use patient/store
+        const cpMeta = !isInterStoreStop && !isPickup ? patientCareProMap.get(d?.patient_id) : null;
+        const isCareProStop = cpMeta && (cpMeta.care_pros || d?.care_pros) && (cpMeta.cp_name || d?.cp_name);
+        // Resolve display name: ISP/ISD use inter-store naming; Care Pro stops show "CP <cp_name>"; regular stops use patient/store
         const name = isInterStoreStop
           ? (resolveInterStoreDisplayName(d) || (isISP ? 'ISP Pickup' : 'InterStore DropOff'))
           : isPickup
             ? (storeNameMap.get(d?.store_id) || d?.delivery_notes || 'Store Pickup')
-            : (patientNameMap.get(d?.patient_id) || d?.patient_name || '');
+            : isCareProStop
+              ? `CP ${cpMeta.cp_name || d?.cp_name}`
+              : (patientNameMap.get(d?.patient_id) || d?.patient_name || '');
         const driverName = driverNameMap.get(d?.driver_id) || d?.driver_name || d?.driver_id || '';
         const createdByName = creatorNameMap.get(d?.created_by_app_user_id) || creatorNameMap.get(d?.created_by_id) || d?.created_by_id || '';
         // ISP/ISD: use _interstore_notes first, fall back to delivery_notes
@@ -550,8 +560,12 @@ Deno.serve(async (req) => {
         const nameLines = doc.splitTextToSize(name, 30);
         const driverLines = doc.splitTextToSize(driverName, 20);
         const createdByLines = doc.splitTextToSize(createdByName, 20);
+        // CP envelope count prepended to Notes (Care Pro deliveries carry cp_envelopes on the Delivery record)
+        const cpEnvCount = (typeof d?.cp_envelopes === 'number' && d.cp_envelopes > 0) ? d.cp_envelopes : 0;
+        const cpEnvStr = cpEnvCount > 0 ? `CP Env: ${cpEnvCount}` : '';
         const fridgeTempLines = fridgeTempStr ? doc.splitTextToSize(fridgeTempStr, 53) : [];
-        const notesLines = doc.splitTextToSize(fridgeTempStr ? (fridgeTempStr + (notes ? '\n' + notes : '')) : notes, 53);
+        const combinedNotesRaw = [cpEnvStr, fridgeTempStr, notes].filter(Boolean).join('\n');
+        const notesLines = doc.splitTextToSize(combinedNotesRaw, 53);
         const textContentLines = Math.max(nameLines.length + barcodeLineCount, driverLines.length, createdByLines.length, notesLines.length, 1);
         const hasPhotos = images?.photos?.length > 0;
         const hasSig = !!images?.signature;
@@ -650,6 +664,19 @@ Deno.serve(async (req) => {
       if (y > pageHeight - 20) { doc.addPage(); y = 20; }
       doc.setFontSize(9);
       doc.text(`Total stops: ${items.length}`, 14, y);
+
+      // ── CP Envelope totals footer (only when any Care Pro envelopes were delivered) ──
+      const totalCpEnvelopes = items.reduce((sum, d) => {
+        const v = (typeof d?.cp_envelopes === 'number' && d.cp_envelopes > 0) ? d.cp_envelopes : 0;
+        return sum + v;
+      }, 0);
+      if (totalCpEnvelopes > 0) {
+        y = snap(y + 4);
+        if (y > pageHeight - 20) { doc.addPage(); y = 20; }
+        doc.setTextColor(59, 130, 246); // blue accent to distinguish from "Total stops"
+        doc.text(`Total CP Envelopes: ${totalCpEnvelopes}`, 14, y);
+        doc.setTextColor(0);
+      }
 
       // ─── Temperature Graph ───────────────────────────────────────────────────
       // Only render if there are fridge items AND temp readings exist
