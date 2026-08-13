@@ -13,7 +13,7 @@ const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => 
 const offsetCoords = (lat: number, lon: number, km: number, angle: number) => {
   const R = 6371, br = toRad(angle), lr = toRad(lat), ad = km/R;
   const nl = Math.asin(Math.sin(lr)*Math.cos(ad) + Math.cos(lr)*Math.sin(ad)*Math.cos(br));
-  const nlon = lon + Math.atan2(Math.sin(br)*Math.sin(ad)*Math.cos(lr), Math.cos(ad)-Math.sin(lr)*Math.sin(nl));
+  const nlon = toRad(lon) + Math.atan2(Math.sin(br)*Math.sin(ad)*Math.cos(lr), Math.cos(ad)-Math.sin(lr)*Math.sin(nl));
   return { latitude: +(nl*180/Math.PI).toFixed(6), longitude: +(nlon*180/Math.PI).toFixed(6) };
 };
 const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random()*arr.length)];
