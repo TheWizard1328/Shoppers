@@ -37,7 +37,7 @@ export default function ExportRouteEmailDialog({
   const [allDeliveries, setAllDeliveries] = useState([]);
   const [allStoresData, setAllStoresData] = useState([]);
   const [driverNamesByStore, setDriverNamesByStore] = useState({});
-  const [useBarcodes, setUseBarcodes] = useState(false);
+  const [useBarcodes, setUseBarcodes] = useState(true);
 
   // Both date pickers always visible
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
