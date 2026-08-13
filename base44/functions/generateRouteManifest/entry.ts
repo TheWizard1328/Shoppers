@@ -562,7 +562,7 @@ Deno.serve(async (req) => {
         const createdByLines = doc.splitTextToSize(createdByName, 20);
         // CP envelope count prepended to Notes (Care Pro deliveries carry cp_envelopes on the Delivery record)
         const cpEnvCount = (typeof d?.cp_envelopes === 'number' && d.cp_envelopes > 0) ? d.cp_envelopes : 0;
-        const cpEnvStr = cpEnvCount > 0 ? `CP Env: ${cpEnvCount}` : '';
+        const cpEnvStr = cpEnvCount > 0 ? `Envelopes: ${cpEnvCount}` : '';
         const fridgeTempLines = fridgeTempStr ? doc.splitTextToSize(fridgeTempStr, 53) : [];
         const combinedNotesRaw = [cpEnvStr, fridgeTempStr, notes].filter(Boolean).join('\n');
         const notesLines = doc.splitTextToSize(combinedNotesRaw, 53);
