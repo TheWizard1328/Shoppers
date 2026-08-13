@@ -675,7 +675,8 @@ Deno.serve(async (req) => {
 
         // ── Store color swatch: a thin colored bar at the left edge of each row ──
         // Color-codes entries by store color (visible to admins, dispatchers, and drivers).
-        const swatchHex = d?.store_id ? storeColorMap.get(d.store_id) : '';
+        // Only color-swatch rows when the manifest spans multiple stores (single-store exports e.g. dispatcher manifests look cleaner without it)
+        const swatchHex = (manifestStores.length > 1 && d?.store_id) ? storeColorMap.get(d.store_id) : '';
         if (swatchHex) {
           const hexToRgb = (hex) => {
             const h = String(hex).replace('#', '');

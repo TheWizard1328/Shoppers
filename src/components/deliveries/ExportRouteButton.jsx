@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import ExportRouteEmailDialog from "./ExportRouteEmailDialog";
+import DriverRouteExportDialog from "./DriverRouteExportDialog";
 import { format } from "date-fns";
 import { userHasRole } from "../utils/userRoles";
 import { globalFilters } from "@/components/utils/globalFilters";
@@ -197,12 +198,41 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
+  // Driver exports their OWN stops across ALL stores (one PDF / one recipient list)
+  const handleMyRouteEmailExport = async ({ recipientEmails, exportDate: dialogExportDate, startDate, endDate, useBarcodes }) => {
+    if (isExporting || !recipientEmails?.length) return;
+    setIsExporting(true);
+    try {
+      const effectiveStartDate = startDate || dialogExportDate || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+      const effectiveEndDate = endDate || effectiveStartDate;
+      const validRecipientEmails = [...new Set((recipientEmails || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+      if (validRecipientEmails.length === 0) { alert('Please add at least one valid email address.'); return; }
+
+      const res = await base44.functions.invoke('generateRouteManifest', {
+        driverId: currentUser.id,
+        startDate: effectiveStartDate,
+        endDate: effectiveEndDate,
+        deliveryDate: effectiveStartDate,
+        recipientEmails: validRecipientEmails,
+        storeName: 'My Route',
+        useBarcodes: useBarcodes === true
+      });
+      const data = res?.data || res;
+      if (data?.error) { alert(data.error); return; }
+      alert('Route log emailed successfully.');
+    } catch (error) {
+      alert(error?.response?.data?.error || error?.message || 'Route email export failed.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleExport = async (type, ampm) => {
     if (isExporting) return;
     setIsExporting(true);
     try {
       const exportAllDispatcherDrivers = isDispatcherOnly;
-      const driverId = exportAllDispatcherDrivers ? undefined : driverFilter;
+      const driverId = isDriver ? currentUser.id : (exportAllDispatcherDrivers ? undefined : driverFilter);
       if (!driverId && !exportAllDispatcherDrivers) {alert('Select a driver first');return;}
       const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
 
@@ -242,8 +272,9 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     setIsExporting(true);
     try {
       // Admins (like dispatchers) preview ALL drivers for the selected date range — never the dashboard driverFilter (which would scope to self).
+      // Drivers always preview their own stops (all stores).
       const exportAllDrivers = isDispatcherOnly || isAdmin;
-      const driverId = exportAllDrivers ? undefined : driverFilter;
+      const driverId = isDriver ? currentUser.id : (exportAllDrivers ? undefined : driverFilter);
       if (!driverId && !exportAllDrivers) {alert('Select a driver first');return;}
 
       // Use dates from dialog if provided, otherwise fall back to selectedDate
@@ -259,7 +290,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         storeIds: isDispatcherOnly ? dispatcherStoreIds : undefined,
         // Admins send selectedCityId so the backend resolves storeIds (otherwise driverId+storeIds both empty = 400)
         selectedCityId: (isDispatcherOnly || isAdmin) ? selectedCityId : undefined,
-        useBarcodes: useBarcodes === true
+        useBarcodes: useBarcodes === true,
+        // Drivers: driverId is set → all stores, no city filter needed
       };
 
       const res = await base44.functions.invoke('generateRouteManifest', payload);
@@ -336,6 +368,30 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
       </>);
 
+  }
+
+  // === DRIVERS ===
+  if (isDriver) {
+    return (
+      <>
+        <div className="my-2 w-full flex justify-center">
+          <Button
+            onClick={() => setIsEmailDialogOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            disabled={isExporting}>
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {isExporting ? 'Exporting...' : 'Export Route'}
+          </Button>
+        </div>
+
+        <DriverRouteExportDialog
+          open={isEmailDialogOpen}
+          onOpenChange={setIsEmailDialogOpen}
+          isExporting={isExporting}
+          onExportRoute={handleMyRouteEmailExport}
+          onPreviewPdf={handlePreviewPdf} />
+      </>
+    );
   }
 
   return null;
