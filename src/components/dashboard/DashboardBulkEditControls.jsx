@@ -74,8 +74,8 @@ export default function DashboardBulkEditControls({
   const hasCyclingMarkerSelected = useMemo(() => selectedDeliveries.some((d) => d?.is_cycling_marker), [selectedDeliveries]);
 
 const orderedSelectedStops = useMemo(() => {
-  return selectedDeliveries
-    .filter((d) => d && !d.is_cycling_marker)
+  return [...selectedDeliveries]
+    .filter(Boolean)
     .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
 }, [selectedDeliveries]);
 
@@ -372,7 +372,7 @@ const handleNavigateToMaps = useCallback(() => {
         
           <span className="text-sm font-medium text-foreground px-1">{totalDeleteCount} Stops</span>
           <Button size="sm" variant="ghost" onClick={handleNavigateToMaps}
-            disabled={isSaving || isDeleting || hasCyclingMarkerSelected || selectedCount === 0}
+            disabled={isSaving || isDeleting || selectedCount === 0}
             className="gap-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/40">
             <Navigation className="h-4 w-4" />
             Navigate

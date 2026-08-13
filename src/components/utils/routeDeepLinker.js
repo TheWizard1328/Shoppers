@@ -188,9 +188,11 @@ function buildSingleDestinationUrl(dest, label) {
 export function buildRouteDeepLink(orderedStops, ctx = {}) {
   if (!orderedStops || orderedStops.length === 0) return null;
 
-  // Filter out cycling markers and stops with no resolvable coordinates
+  // Resolve coordinates for every stop (cycling markers resolve via
+  // cycling_latitude/cycling_longitude inside resolveStopLatLng); drop only
+  // those with no resolvable coordinates.
   const resolved = orderedStops
-    .filter((s) => s && !s.is_cycling_marker)
+    .filter(Boolean)
     .map((s) => ({ stop: s, coord: resolveStopLatLng(s, ctx) }))
     .filter((r) => r.coord);
 
