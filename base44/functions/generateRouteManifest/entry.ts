@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
     }
 
     // Accumulator for grand totals across every driver and date in this run
-    const totalsAcc = { stops: 0, cpEnvelopes: 0 };
+    const totalsAcc = { stops: 0, deliveries: 0, failed: 0, returned: 0, codCount: 0, codAmount: 0, cpEnvelopes: 0 };
 
     // ─── Generate manifest content for one date into a shared jsPDF doc ────────
     async function generateManifestForDate(doc, dateStr, isFirstDate) {
@@ -514,7 +514,13 @@ Deno.serve(async (req) => {
       // Each driver starts on its own page (items are sorted by driver, so transitions are contiguous)
       let previousDriverId = items[0]?.driver_id ?? null;
       let currentDriverStops = 0;
+      let currentDriverDeliveries = 0;
+      let currentDriverFailed = 0;
+      let currentDriverReturned = 0;
       let currentDriverCpEnvelopes = 0;
+      let currentDriverCodCount = 0;
+      let currentDriverCodAmount = 0;
+      const FMT_MONEY = (n) => `$${Number(n || 0).toFixed(2)}`;
       const startDriverPage = (driverNameForTitle) => {
         doc.addPage();
         renderPageTitle(driverNameForTitle);
@@ -523,17 +529,20 @@ Deno.serve(async (req) => {
       };
 
       // Per-driver subtotal, emitted at the end of that driver's section (before the next driver's page)
-      const renderDriverSubtotal = (stopCount, cpEnvCount) => {
+      const renderDriverSubtotal = (s) => {
         doc.setFontSize(9);
         doc.setFont(undefined, 'bold');
         y = snap(y + 4);
         if (y > pageHeight - 20) { doc.addPage(); y = 20; addHeader(); }
-        doc.text(`Total stops: ${stopCount}`, 14, y);
-        if (cpEnvCount > 0) {
+        doc.text(
+          `Total stops: ${s.stops}    Deliveries: ${s.deliveries}    Failed: ${s.failed}    Returns: ${s.returns}    Total COD's: ${s.codCount} - ${FMT_MONEY(s.codAmount)}`,
+          14, y
+        );
+        if (s.cpEnvelopes > 0) {
           y = snap(y + 4);
           if (y > pageHeight - 20) { doc.addPage(); y = 20; addHeader(); }
           doc.setTextColor(59, 130, 246); // blue accent to distinguish from "Total stops"
-          doc.text(`Total CP Envelopes: ${cpEnvCount}`, 14, y);
+          doc.text(`Total CP Envelopes: ${s.cpEnvelopes}`, 14, y);
           doc.setTextColor(0);
         }
         doc.setFont(undefined, 'normal');
@@ -550,9 +559,12 @@ Deno.serve(async (req) => {
         const d = items[i];
         // Driver change → emit the previous driver's subtotal, then start a new page
         if (i > 0 && d?.driver_id !== previousDriverId) {
-          renderDriverSubtotal(currentDriverStops, currentDriverCpEnvelopes);
-          currentDriverStops = 0;
-          currentDriverCpEnvelopes = 0;
+          renderDriverSubtotal({
+            stops: currentDriverStops, deliveries: currentDriverDeliveries, failed: currentDriverFailed,
+            returns: currentDriverReturned, codCount: currentDriverCodCount, codAmount: currentDriverCodAmount, cpEnvelopes: currentDriverCpEnvelopes,
+          });
+          currentDriverStops = 0; currentDriverDeliveries = 0; currentDriverFailed = 0; currentDriverReturned = 0;
+          currentDriverCodCount = 0; currentDriverCodAmount = 0; currentDriverCpEnvelopes = 0;
           startDriverPage(driverNameMap.get(d?.driver_id) || String(d?.driver_id || ''));
           previousDriverId = d?.driver_id;
         }
@@ -615,8 +627,13 @@ Deno.serve(async (req) => {
         // CP envelope count prepended to Notes (Care Pro deliveries carry cp_envelopes on the Delivery record)
         const cpEnvCount = (typeof d?.cp_envelopes === 'number' && d.cp_envelopes > 0) ? d.cp_envelopes : 0;
         const cpEnvStr = cpEnvCount > 0 ? `Envelopes: ${cpEnvCount}` : '';
+        const codAmt = (typeof d?.cod_total_amount_required === 'number' && d.cod_total_amount_required > 0) ? d.cod_total_amount_required : 0;
         currentDriverStops += 1;
+        if (d?.status === 'completed') currentDriverDeliveries += 1;
+        else if (d?.status === 'failed') currentDriverFailed += 1;
+        else if (d?.status === 'returned') currentDriverReturned += 1;
         currentDriverCpEnvelopes += cpEnvCount;
+        if (codAmt > 0) { currentDriverCodCount += 1; currentDriverCodAmount += codAmt; }
         const fridgeTempLines = fridgeTempStr ? doc.splitTextToSize(fridgeTempStr, 45) : [];
         const combinedNotesRaw = [cpEnvStr, fridgeTempStr, notes].filter(Boolean).join('\n');
         const notesLines = doc.splitTextToSize(combinedNotesRaw, 45);
@@ -718,17 +735,33 @@ Deno.serve(async (req) => {
       }
 
       // Final driver's subtotal (the last driver's section ends here, before the temp graph)
-      renderDriverSubtotal(currentDriverStops, currentDriverCpEnvelopes);
-      currentDriverStops = 0;
-      currentDriverCpEnvelopes = 0;
+      renderDriverSubtotal({
+        stops: currentDriverStops, deliveries: currentDriverDeliveries, failed: currentDriverFailed,
+        returns: currentDriverReturned, codCount: currentDriverCodCount, codAmount: currentDriverCodAmount, cpEnvelopes: currentDriverCpEnvelopes,
+      });
+      currentDriverStops = 0; currentDriverDeliveries = 0; currentDriverFailed = 0; currentDriverReturned = 0;
+      currentDriverCodCount = 0; currentDriverCodAmount = 0; currentDriverCpEnvelopes = 0;
 
       // Accumulate overall totals (across every driver and date) for the grand-total footer
-      const totalCpEnvelopesDate = items.reduce((sum, d) => {
+      const dateDeliveries = items.filter((d) => d?.status === 'completed').length;
+      const dateFailed = items.filter((d) => d?.status === 'failed').length;
+      const dateReturned = items.filter((d) => d?.status === 'returned').length;
+      let dateCodCount = 0, dateCodAmount = 0;
+      items.forEach((d) => {
+        const v = (typeof d?.cod_total_amount_required === 'number' && d.cod_total_amount_required > 0) ? d.cod_total_amount_required : 0;
+        if (v > 0) { dateCodCount += 1; dateCodAmount += v; }
+      });
+      const dateCpEnvelopes = items.reduce((sum, d) => {
         const v = (typeof d?.cp_envelopes === 'number' && d.cp_envelopes > 0) ? d.cp_envelopes : 0;
         return sum + v;
       }, 0);
       totalsAcc.stops += items.length;
-      totalsAcc.cpEnvelopes += totalCpEnvelopesDate;
+      totalsAcc.deliveries += dateDeliveries;
+      totalsAcc.failed += dateFailed;
+      totalsAcc.returned += dateReturned;
+      totalsAcc.codCount += dateCodCount;
+      totalsAcc.codAmount += dateCodAmount;
+      totalsAcc.cpEnvelopes += dateCpEnvelopes;
 
       // ─── Temperature Graph ───────────────────────────────────────────────────
       // Only render if there are fridge items AND temp readings exist
@@ -960,6 +993,7 @@ Deno.serve(async (req) => {
 
     // ── Grand totals across every driver and date, at the very end of the output ──
     if (totalsAcc.stops > 0) {
+      const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
       sharedDoc.addPage();
       let gy = 20;
       sharedDoc.setFontSize(14);
@@ -967,7 +1001,10 @@ Deno.serve(async (req) => {
       sharedDoc.text('Overall Totals', 14, gy);
       sharedDoc.setFontSize(11);
       gy += 8;
-      sharedDoc.text(`Total stops: ${totalsAcc.stops}`, 14, gy);
+      sharedDoc.text(
+        `Total stops: ${totalsAcc.stops}    Deliveries: ${totalsAcc.deliveries}    Failed: ${totalsAcc.failed}    Returns: ${totalsAcc.returned}    Total COD's: ${totalsAcc.codCount} - ${fmtMoney(totalsAcc.codAmount)}`,
+        14, gy
+      );
       if (totalsAcc.cpEnvelopes > 0) {
         gy += 8;
         sharedDoc.setTextColor(59, 130, 246);
