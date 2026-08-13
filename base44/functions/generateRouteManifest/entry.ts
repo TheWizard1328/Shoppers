@@ -326,20 +326,25 @@ Deno.serve(async (req) => {
         if (!creatorNameMap.has(u.id)) creatorNameMap.set(u.id, u.user_name || u.id);
       });
       const driverNameMap = new Map((driverAppUsers || []).map((u) => [u.user_id, u.user_name || u.full_name || u.user_id]));
+      // Driver display order — mirrors the order drivers appear in the app's driver list (AppUser.sort_order)
+      const driverSortOrderMap = new Map((driverAppUsers || []).map((u) => [u.user_id, typeof u.sort_order === 'number' ? u.sort_order : Number.MAX_SAFE_INTEGER]));
 
       // Filter and sort items
       if (manifestType === 'pre-route') {
         const period = effectiveAmpm === 'PM' ? 'PM' : 'AM';
         items = items.filter((d) => d?.ampm_deliveries === period && !finished.includes(d?.status));
       }
-      // Sort by driver first (driver name, then driver_id), sub-sort by stop_order — drives "each driver on a new page"
+      // Sort by driver first (AppUser.sort_order, then name, then driver_id), sub-sort by stop_order — drives "each driver on a new page" in the same order the driver list shows
       items.sort((a, b) => {
+        const dsoA = driverSortOrderMap.get(a?.driver_id) ?? Number.MAX_SAFE_INTEGER;
+        const dsoB = driverSortOrderMap.get(b?.driver_id) ?? Number.MAX_SAFE_INTEGER;
+        if (dsoA !== dsoB) return dsoA - dsoB;
         const dnc = String(driverNameMap.get(a?.driver_id) || a?.driver_id || '').localeCompare(String(driverNameMap.get(b?.driver_id) || b?.driver_id || ''));
         if (dnc !== 0) return dnc;
         const didC = String(a?.driver_id || '').localeCompare(String(b?.driver_id || ''));
         if (didC !== 0) return didC;
-        const soDiff = (a?.stop_order ?? 9999) - (b?.stop_order ?? 9999);
-        if (soDiff !== 0) return soDiff;
+        const stopDiff = (a?.stop_order ?? 9999) - (b?.stop_order ?? 9999);
+        if (stopDiff !== 0) return stopDiff;
         const tA = a?.actual_delivery_time || a?.arrival_time || a?.delivery_time_start || a?.updated_date || '';
         const tB = b?.actual_delivery_time || b?.arrival_time || b?.delivery_time_start || b?.updated_date || '';
         if (tA && tB) return tA.localeCompare(tB);
@@ -546,7 +551,8 @@ Deno.serve(async (req) => {
         const createdByName = creatorNameMap.get(d?.created_by_app_user_id) || creatorNameMap.get(d?.created_by_id) || d?.created_by_id || '';
         // ISP/ISD: use _interstore_notes first, fall back to delivery_notes
         const notes = (isInterStoreStop ? (d?._interstore_notes || d?.delivery_notes) : d?.delivery_notes) || '';
-        const stopLabel = isPickup ? 'P' : (d?.stop_order != null ? String(d.stop_order) : '');
+        // Show the stop order for pickups too (fall back to 'P' only if a pickup has no stop order set)
+        const stopLabel = d?.stop_order != null ? String(d.stop_order) : (isPickup ? 'P' : '');
         const trNum = d?.tracking_number || '';
         const timeStr = extractTime(d?.actual_delivery_time || d?.arrival_time || '');
 
