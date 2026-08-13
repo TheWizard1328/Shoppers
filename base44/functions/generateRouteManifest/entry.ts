@@ -331,26 +331,21 @@ Deno.serve(async (req) => {
       if (manifestType === 'pre-route') {
         const period = effectiveAmpm === 'PM' ? 'PM' : 'AM';
         items = items.filter((d) => d?.ampm_deliveries === period && !finished.includes(d?.status));
-        items.sort((a, b) => {
-          if (!driverId) {
-            const dc = (driverNameMap.get(a?.driver_id) || '').localeCompare(driverNameMap.get(b?.driver_id) || '');
-            if (dc !== 0) return dc;
-          }
-          const soDiff = (a?.stop_order ?? 9999) - (b?.stop_order ?? 9999);
-          if (soDiff !== 0) return soDiff;
-          return (a?.delivery_time_start || '99:99').localeCompare(b?.delivery_time_start || '99:99');
-        });
-      } else {
-        items.sort((a, b) => {
-          const dA = a?.actual_delivery_time || a?.arrival_time || a?.updated_date || '';
-          const dB = b?.actual_delivery_time || b?.arrival_time || b?.updated_date || '';
-          if (dA && dB) { const c = dA.localeCompare(dB); if (c !== 0) return c; }
-          else if (dA || dB) return dA ? -1 : 1;
-          const nc = (driverNameMap.get(a?.driver_id) || '').localeCompare(driverNameMap.get(b?.driver_id) || '');
-          if (nc !== 0) return nc;
-          return (a?.stop_order ?? 9999) - (b?.stop_order ?? 9999);
-        });
       }
+      // Sort by driver first (driver name, then driver_id), sub-sort by stop_order — drives "each driver on a new page"
+      items.sort((a, b) => {
+        const dnc = String(driverNameMap.get(a?.driver_id) || a?.driver_id || '').localeCompare(String(driverNameMap.get(b?.driver_id) || b?.driver_id || ''));
+        if (dnc !== 0) return dnc;
+        const didC = String(a?.driver_id || '').localeCompare(String(b?.driver_id || ''));
+        if (didC !== 0) return didC;
+        const soDiff = (a?.stop_order ?? 9999) - (b?.stop_order ?? 9999);
+        if (soDiff !== 0) return soDiff;
+        const tA = a?.actual_delivery_time || a?.arrival_time || a?.delivery_time_start || a?.updated_date || '';
+        const tB = b?.actual_delivery_time || b?.arrival_time || b?.delivery_time_start || b?.updated_date || '';
+        if (tA && tB) return tA.localeCompare(tB);
+        if (tA || tB) return tA ? -1 : 1;
+        return 0;
+      });
 
       // Fetch patients, stores, and fridge temp logs for this date
       const patientIds = [...new Set(items.map((i) => i?.patient_id).filter(Boolean))];
@@ -458,10 +453,15 @@ Deno.serve(async (req) => {
       if (!isFirstDate) { doc.addPage(); }
 
       const titleType = manifestType === 'pre-route' ? `Pre-Route (${effectiveAmpm})` : 'Post-Route (All)';
-      doc.setFontSize(16);
-      doc.text(`Route Manifest - ${titleType}`, 14, 18);
-      doc.setFontSize(11);
-      doc.text(`Store: ${displayStoreName}    Date: ${dateStr}${driverId ? `    Driver: ${driverNameMap.get(driverId) || driverId}` : ''}`, 14, 26);
+      const renderPageTitle = (driverNameForTitle) => {
+        doc.setFontSize(16);
+        doc.text(`Route Manifest - ${titleType}`, 14, 18);
+        doc.setFontSize(11);
+        const driverSuffix = driverId
+          ? `    Driver: ${driverNameMap.get(driverId) || driverId}`
+          : (driverNameForTitle ? `    Driver: ${driverNameForTitle}` : '');
+        doc.text(`Store: ${displayStoreName}    Date: ${dateStr}${driverSuffix}`, 14, 26);
+      };
 
       let y = 36;
       const colStop = 12;
@@ -498,7 +498,19 @@ Deno.serve(async (req) => {
         y = snap(y + 4);
       };
 
+      // Initial page title — show the first driver's name when no explicit driver filter
+      const firstDriverName = items[0] ? (driverNameMap.get(items[0].driver_id) || String(items[0].driver_id || '')) : '';
+      renderPageTitle(firstDriverName);
       addHeader();
+
+      // Each driver starts on its own page (items are sorted by driver, so transitions are contiguous)
+      let previousDriverId = items[0]?.driver_id ?? null;
+      const startDriverPage = (driverNameForTitle) => {
+        doc.addPage();
+        renderPageTitle(driverNameForTitle);
+        y = 36;
+        addHeader();
+      };
 
       function drawCountCell(x, cellY, count) {
         try {
@@ -509,6 +521,11 @@ Deno.serve(async (req) => {
 
       for (let i = 0; i < items.length; i++) {
         const d = items[i];
+        // Driver change → new page (and only the driver runs on it, since the sort keeps a driver's stops contiguous)
+        if (i > 0 && d?.driver_id !== previousDriverId) {
+          startDriverPage(driverNameMap.get(d?.driver_id) || String(d?.driver_id || ''));
+          previousDriverId = d?.driver_id;
+        }
         const images = allImages[i];
         const upper = String(d?.delivery_id || '').toUpperCase();
         const isISP = upper.startsWith('ISP-');
@@ -549,13 +566,16 @@ Deno.serve(async (req) => {
         const barcodeStr = !useBarcodes && barcodeValues.length > 0
           ? 'Rx: ' + barcodeValues.map((b) => String(b).substring(0, 8)).join(' - Rx: ')
           : '';
-        // Barcode mode: all barcodes on ONE row, side by side
+        // Barcode mode: barcodes wrap — max 6 per row, additional rows stack downward
+        const MAX_BARCODES_PER_ROW = 6;
         const barcodesToDraw = useBarcodes ? barcodeValues.map((b) => String(b).substring(0, 8)) : [];
-        const barcodeH = 6;    // mm tall per barcode
-        const barcodeW = 28;   // mm wide per barcode (fits ~8 across the name column area)
-        const barcodeGap = 3;  // mm gap between barcodes
-        // Only one extra row needed regardless of how many barcodes (they all sit side by side)
-        const barcodeRowHeight = barcodesToDraw.length > 0 ? (barcodeH + 4) : 0; // 4mm for label below
+        const barcodeH = 6;          // mm tall per barcode
+        const barcodeW = 28;         // mm wide per barcode
+        const barcodeGap = 3;        // mm gap between barcodes in a row
+        const barcodeLabelGap = 3;   // mm reserved under each barcode for the value label (= barcodeRowPitch)
+        const barcodeRowsNeeded = barcodesToDraw.length > 0 ? Math.ceil(barcodesToDraw.length / MAX_BARCODES_PER_ROW) : 0;
+        // Each rendered barcode row takes (barcodeH + barcodeLabelGap); +1mm top padding
+        const barcodeRowHeight = barcodeRowsNeeded > 0 ? barcodeRowsNeeded * (barcodeH + barcodeLabelGap) + 1 : 0;
         const barcodeLineCount = barcodeStr ? 1 : 0;
 
         const nameLines = doc.splitTextToSize(name, 30);
@@ -597,15 +617,18 @@ Deno.serve(async (req) => {
           doc.setFont(undefined, 'normal');
           doc.setFontSize(9);
         }
-        // Barcode mode: draw all barcodes side by side on a single row
+        // Barcode mode: draw barcodes wrapped at MAX_BARCODES_PER_ROW per row
         if (barcodesToDraw.length > 0) {
           const barcodeRowY = textY + textContentLines * 4.5 + cellPadding + 1;
           barcodesToDraw.forEach((bval, bi) => {
-            const bx = colName + bi * (barcodeW + barcodeGap);
-            drawBarcode(doc, bval, bx, barcodeRowY, barcodeW, barcodeH);
+            const row = Math.floor(bi / MAX_BARCODES_PER_ROW);
+            const col = bi % MAX_BARCODES_PER_ROW;
+            const bx = colName + col * (barcodeW + barcodeGap);
+            const by = barcodeRowY + row * (barcodeH + barcodeLabelGap);
+            drawBarcode(doc, bval, bx, by, barcodeW, barcodeH);
             doc.setFontSize(6);
             doc.setTextColor(60);
-            doc.text(bval, bx + barcodeW / 2, barcodeRowY + barcodeH + 2, { align: 'center' });
+            doc.text(bval, bx + barcodeW / 2, by + barcodeH + 2, { align: 'center' });
             doc.setTextColor(0);
             doc.setFontSize(9);
           });
