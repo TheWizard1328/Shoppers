@@ -7,6 +7,13 @@ import DriverRouteExportDialog from "./DriverRouteExportDialog";
 import { format } from "date-fns";
 import { userHasRole } from "../utils/userRoles";
 import { globalFilters } from "@/components/utils/globalFilters";
+import {
+  buildManifestPayload,
+  previewRouteManifest,
+  emailRouteManifest,
+  resolveDateRange,
+  normalizeEmails,
+} from "./routeManifestExportHelpers";
 
 export default function ExportRouteButton({ currentUser, driverFilter, selectedDate, driverFilteredDeliveries, stores = [] }) {
   const finishedStatuses = ['completed', 'failed', 'cancelled'];
@@ -28,6 +35,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
   const isAdmin = userHasRole(currentUser, 'admin');
   const isDriver = userHasRole(currentUser, 'driver') && !isAdmin && !userHasRole(currentUser, 'dispatcher');
+  const role = isAdmin ? 'admin' : isDispatcherOnly ? 'dispatcher' : isDriver ? 'driver' : null;
   const selectedCityId = globalFilters.getSelectedCityId();
   const [dispatcherAllDateDeliveries, setDispatcherAllDateDeliveries] = useState([]);
 
@@ -101,123 +109,32 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     return names.length > 0 ? names.join(', ') : 'Unassigned';
   };
 
+  // ─── Unified export flows — all roles funnel through the same generateRouteManifest ──
+
+  // Dispatcher email export: single manifest across all their stores (all drivers).
   const handleDispatcherEmailExport = async ({ recipientEmails, exportDate: dialogExportDate, startDate, endDate, storeName: dialogStoreName, useBarcodes }) => {
     if (isExporting || !recipientEmails?.length) return;
     setIsExporting(true);
     try {
-      const effectiveStartDate = startDate || dialogExportDate || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
-      const effectiveEndDate = endDate || effectiveStartDate;
+      const { startDate: effStart, endDate: effEnd } = resolveDateRange({ dialogStartDate: startDate || dialogExportDate, dialogEndDate: endDate, selectedDate });
       const firstStoreId = dispatcherStoreIds[0];
       const storeName = dialogStoreName || (stores || []).find((store) => store?.id === firstStoreId)?.name || 'Store';
-      const validRecipientEmails = [...new Set((recipientEmails || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
-
-      if (validRecipientEmails.length === 0) {
-        alert('Please add at least one valid email address.');
-        return;
-      }
-
-      // Let the backend auto-detect manifestType based on actual data for each date
-      const res = await base44.functions.invoke('generateRouteManifest', {
-        startDate: effectiveStartDate,
-        endDate: effectiveEndDate,
-        deliveryDate: effectiveStartDate,
-        storeIds: dispatcherStoreIds,
-        selectedCityId,
-        recipientEmails: validRecipientEmails,
-        storeName,
-        useBarcodes: useBarcodes === true
-      });
-      const data = res?.data || res;
-
-      if (data?.error) {
-        alert(data.error);
-        return;
-      }
-
-      alert('Route log emailed successfully.');
-    } catch (error) {
-      alert(error?.response?.data?.error || error?.message || 'Route email export failed.');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleDriverEmailExport = async ({ perStoreEmails, exportDate: dialogExportDate, startDate, endDate, useBarcodes, stores: dialogStores }) => {
-    if (isExporting) return;
-    setIsExporting(true);
-    try {
-      const effectiveStartDate = startDate || dialogExportDate || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
-      const effectiveEndDate = endDate || effectiveStartDate;
-      const emailJobs = [];
-
-      // Admins export the dialog's full date-range store list (not just the single dashboard-selected date),
-      // and they export ALL drivers for each store — never the dashboard's driverFilter (which would scope to self).
-      const exportStoreIds = (dialogStores && dialogStores.length > 0)
-        ? dialogStores.map((store) => store.id)
-        : driverStoreIds;
-
-      exportStoreIds.forEach((storeId) => {
-        const storeRecipientEmails = [...new Set(((perStoreEmails?.[storeId]) || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
-        if (storeRecipientEmails.length === 0) return;
-
-        const storeName = (stores || []).find((store) => store?.id === storeId)?.name || dialogStores?.find((store) => store?.id === storeId)?.name || dayDeliveries.find((delivery) => delivery?.store_id === storeId)?.store_name || storeId;
-
-        // Let the backend auto-detect manifestType based on actual data for each date
-        emailJobs.push(
-          base44.functions.invoke('generateRouteManifest', {
-            // Admins: omit driverId so every driver's stops for this store/date are exported
-            driverId: undefined,
-            startDate: effectiveStartDate,
-            endDate: effectiveEndDate,
-            deliveryDate: effectiveStartDate,
-            storeIds: [storeId],
-            recipientEmails: storeRecipientEmails,
-            storeName,
-            useBarcodes: useBarcodes === true
-          })
-        );
-      });
-
-      if (emailJobs.length === 0) {
-        alert('Please add at least one valid store email address.');
-        return;
-      }
-
-      const results = await Promise.all(emailJobs);
-      const failedResult = results.map((res) => res?.data || res).find((data) => data?.error);
-      if (failedResult?.error) {
-        alert(failedResult.error);
-        return;
-      }
-
-      alert('Store route logs emailed successfully.');
-    } catch (error) {
-      alert(error?.response?.data?.error || error?.message || 'Route email export failed.');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  // Driver exports their OWN stops across ALL stores (one PDF / one recipient list)
-  const handleMyRouteEmailExport = async ({ recipientEmails, exportDate: dialogExportDate, startDate, endDate, useBarcodes }) => {
-    if (isExporting || !recipientEmails?.length) return;
-    setIsExporting(true);
-    try {
-      const effectiveStartDate = startDate || dialogExportDate || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
-      const effectiveEndDate = endDate || effectiveStartDate;
-      const validRecipientEmails = [...new Set((recipientEmails || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+      const validRecipientEmails = normalizeEmails(recipientEmails);
       if (validRecipientEmails.length === 0) { alert('Please add at least one valid email address.'); return; }
 
-      const res = await base44.functions.invoke('generateRouteManifest', {
-        driverId: currentUser.id,
-        startDate: effectiveStartDate,
-        endDate: effectiveEndDate,
-        deliveryDate: effectiveStartDate,
+      const payload = buildManifestPayload({
+        role: 'dispatcher',
+        currentUser,
+        dispatcherStoreIds,
+        selectedCityId,
+        startDate: effStart,
+        endDate: effEnd,
+        useBarcodes,
         recipientEmails: validRecipientEmails,
-        storeName: 'My Route',
-        useBarcodes: useBarcodes === true
+        storeName,
       });
-      const data = res?.data || res;
+
+      const data = await emailRouteManifest(payload);
       if (data?.error) { alert(data.error); return; }
       alert('Route log emailed successfully.');
     } catch (error) {
@@ -227,24 +144,112 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
+  // Admin email export: one manifest per store (per-store recipient lists).
+  const handleDriverEmailExport = async ({ perStoreEmails, exportDate: dialogExportDate, startDate, endDate, useBarcodes, stores: dialogStores }) => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const { startDate: effStart, endDate: effEnd } = resolveDateRange({ dialogStartDate: startDate || dialogExportDate, dialogEndDate: endDate, selectedDate });
+
+      const exportStoreIds = (dialogStores && dialogStores.length > 0)
+        ? dialogStores.map((store) => store.id)
+        : driverStoreIds;
+
+      const emailJobs = [];
+      exportStoreIds.forEach((storeId) => {
+        const storeRecipientEmails = normalizeEmails(perStoreEmails?.[storeId] || []);
+        if (storeRecipientEmails.length === 0) return;
+
+        const storeName = (stores || []).find((store) => store?.id === storeId)?.name
+          || dialogStores?.find((store) => store?.id === storeId)?.name
+          || dayDeliveries.find((delivery) => delivery?.store_id === storeId)?.store_name
+          || storeId;
+
+        const payload = buildManifestPayload({
+          role: 'admin',
+          currentUser,
+          selectedCityId,
+          startDate: effStart,
+          endDate: effEnd,
+          useBarcodes,
+          storeIdsOverride: [storeId],
+          recipientEmails: storeRecipientEmails,
+          storeName,
+        });
+        emailJobs.push(emailRouteManifest(payload));
+      });
+
+      if (emailJobs.length === 0) {
+        alert('Please add at least one valid store email address.');
+        return;
+      }
+
+      const results = await Promise.all(emailJobs);
+      const failedResult = results.find((data) => data?.error);
+      if (failedResult?.error) { alert(failedResult.error); return; }
+
+      alert('Store route logs emailed successfully.');
+    } catch (error) {
+      alert(error?.response?.data?.error || error?.message || 'Route email export failed.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Driver email export: single manifest across all stores for the logged-in driver.
+  const handleMyRouteEmailExport = async ({ recipientEmails, exportDate: dialogExportDate, startDate, endDate, useBarcodes }) => {
+    if (isExporting || !recipientEmails?.length) return;
+    setIsExporting(true);
+    try {
+      const { startDate: effStart, endDate: effEnd } = resolveDateRange({ dialogStartDate: startDate || dialogExportDate, dialogEndDate: endDate, selectedDate });
+      const validRecipientEmails = normalizeEmails(recipientEmails);
+      if (validRecipientEmails.length === 0) { alert('Please add at least one valid email address.'); return; }
+
+      const payload = buildManifestPayload({
+        role: 'driver',
+        currentUser,
+        startDate: effStart,
+        endDate: effEnd,
+        useBarcodes,
+        recipientEmails: validRecipientEmails,
+        storeName: 'My Route',
+      });
+
+      const data = await emailRouteManifest(payload);
+      if (data?.error) { alert(data.error); return; }
+      alert('Route log emailed successfully.');
+    } catch (error) {
+      alert(error?.response?.data?.error || error?.message || 'Route email export failed.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Direct download (button-only export used by legacy quick-export path).
   const handleExport = async (type, ampm) => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-      const exportAllDispatcherDrivers = isDispatcherOnly;
-      const driverId = isDriver ? currentUser.id : (exportAllDispatcherDrivers ? undefined : driverFilter);
-      if (!driverId && !exportAllDispatcherDrivers) {alert('Select a driver first');return;}
-      const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+      if (!role) return;
+      // Driver previews self; dispatcher previews all store drivers; admin previews the selected driver.
+      const driverId = isDriver ? currentUser.id : (isDispatcherOnly ? undefined : driverFilter);
+      if (!driverId && !isDispatcherOnly) { alert('Select a driver first'); return; }
+      const downloadDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
 
-      const payload = {
-        driverId,
-        deliveryDate: dateStr,
-        manifestType: type,
-        ampm: type === 'pre-route' ? ampm : undefined,
-        // Dispatchers: only export their store's stops
-        storeIds: isDispatcherOnly ? dispatcherStoreIds : undefined,
-        selectedCityId: isDispatcherOnly ? selectedCityId : undefined
-      };
+      const payload = buildManifestPayload({
+        role,
+        currentUser,
+        driverFilter,
+        dispatcherStoreIds,
+        selectedCityId,
+        startDate: downloadDateStr,
+        endDate: downloadDateStr,
+        useBarcodes: false,
+      });
+      if (type === 'pre-route' && ampm) {
+        payload.manifestType = 'pre-route';
+        payload.ampm = ampm;
+      }
 
       const res = await base44.functions.invoke('generateRouteManifest', payload);
       const data = res?.data || res;
@@ -257,7 +262,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `RxDeliver Route Manifest ${dateStr}.pdf`;
+      a.download = `RxDeliver Route Manifest ${downloadDateStr}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -267,51 +272,30 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
     }
   };
 
+  // Unified preview: any role — opens PDF(s) in new tab.
   const handlePreviewPdf = async ({ startDate: dialogStartDate, endDate: dialogEndDate, useBarcodes } = {}) => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-      // Admins (like dispatchers) preview ALL drivers for the selected date range — never the dashboard driverFilter (which would scope to self).
-      // Drivers always preview their own stops (all stores).
-      const exportAllDrivers = isDispatcherOnly || isAdmin;
-      const driverId = isDriver ? currentUser.id : (exportAllDrivers ? undefined : driverFilter);
-      if (!driverId && !exportAllDrivers) {alert('Select a driver first');return;}
+      const { startDate: effStart, endDate: effEnd } = resolveDateRange({ dialogStartDate, dialogEndDate, selectedDate });
+      if (!role) return;
 
-      // Use dates from dialog if provided, otherwise fall back to selectedDate
-      const effectiveStartDate = dialogStartDate || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
-      const effectiveEndDate = dialogEndDate || effectiveStartDate;
-
-      const payload = {
-        driverId,
-        deliveryDate: effectiveStartDate,
-        startDate: effectiveStartDate,
-        endDate: effectiveEndDate,
-        manifestType: 'post-route',
-        storeIds: isDispatcherOnly ? dispatcherStoreIds : undefined,
-        // Admins send selectedCityId so the backend resolves storeIds (otherwise driverId+storeIds both empty = 400)
-        selectedCityId: (isDispatcherOnly || isAdmin) ? selectedCityId : undefined,
+      const payload = buildManifestPayload({
+        role,
+        currentUser,
+        driverFilter,
+        dispatcherStoreIds,
+        selectedCityId,
+        driverStoreIds,
+        startDate: effStart,
+        endDate: effEnd,
         useBarcodes: useBarcodes === true,
-        // Drivers: driverId is set → all stores, no city filter needed
-      };
+      });
 
-      const res = await base44.functions.invoke('generateRouteManifest', payload);
-      const data = res?.data || res;
+      const data = await previewRouteManifest(payload);
       if (data?.error) { alert(data.error); return; }
-
-      // Multi-date preview: open each date in its own tab
-      const pdfsToOpen = Array.isArray(data.pdfResults)
-        ? data.pdfResults
-        : [{ pdfBase64: data.pdfBase64 }];
-
-      for (const { pdfBase64 } of pdfsToOpen) {
-        if (!pdfBase64) continue;
-        const binaryStr = atob(pdfBase64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-        const blob = new Blob([bytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-      }
+    } catch (error) {
+      alert(error?.response?.data?.error || error?.message || 'Route preview failed.');
     } finally {
       setIsExporting(false);
     }
