@@ -1,5 +1,6 @@
-// Redeployed 2026-08-13 — ensures latest manifest format (store-color swatches, stop-order numbers,
-// multi-row barcodes, per-driver subtotals, temperature graphs, single-store swatch suppression) is live.
+// Redeployed 2026-08-14 — force fresh deploy so ALL roles (admin/driver/dispatcher) receive the
+// latest manifest format (store-color swatches, stop-order numbers, multi-row barcodes, per-driver
+// subtotals, grand-total footer, temperature graphs). Adds incoming-parameter diagnostics.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { jsPDF } from 'npm:jspdf@2.5.2';
 
@@ -26,6 +27,22 @@ Deno.serve(async (req) => {
       storeName: requestedStoreName,
       useBarcodes
     } = body || {};
+
+    // Diagnostic: log who is calling and what scope they provided — confirms the latest
+    // deploy is live for every role and surfaces the exact params that trigger "Missing parameters".
+    console.log('[generateRouteManifest] invoked', {
+      userId: user?.id,
+      userName: user?.full_name,
+      hasDriverId: !!driverId,
+      hasStoreIds: Array.isArray(storeIds) && storeIds.length > 0,
+      storeIdsCount: Array.isArray(storeIds) ? storeIds.length : 0,
+      hasSelectedCityId: !!selectedCityId,
+      deliveryDate,
+      startDate,
+      endDate,
+      requestedManifestType,
+      hasRecipientEmails: Array.isArray(recipientEmails) && recipientEmails.length > 0
+    });
 
     // ── Code 128B barcode renderer (pure JS, no external lib) ───────────────
     // Returns array of {x, w} bar positions (in units) for the given string.

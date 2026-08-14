@@ -52,18 +52,21 @@ export function buildManifestPayload({
 
   // Driver: always scope to the current user's own stops across all stores.
   // Dispatcher: scope to their assigned stores (all drivers).
-  // Admin: scope to a city (or all stores when no city is selected — backend defaults to no store filter).
-  const driverId = isDriver ? currentUser.id : undefined;
+  // Admin: scope to the selected driver filter when one is chosen (so the manifest matches
+  //   the dashboard's driver selection); otherwise fall back to city-wide (selectedCityId)
+  //   or store-scoped (storeIdsOverride) — the backend requires at least ONE scope.
+  const isValidDriverId = (v) => v && v !== 'all' && v !== 'undefined' && v !== 'null';
+  const driverId = isDriver
+    ? currentUser.id
+    : (isAdmin && isValidDriverId(driverFilter) ? driverFilter : undefined);
 
   let storeIds = null;
   if (storeIdsOverride && storeIdsOverride.length > 0) {
     storeIds = storeIdsOverride;
   } else if (isDispatcherOnly) {
     storeIds = dispatcherStoreIds;
-  } else if (isAdmin && driverStoreIds?.length > 0) {
-    // For per-store admin email exports, callers pass storeIdsOverride instead.
-    storeIds = null;
   }
+  // Admin: no store scope here — driverId or selectedCityId provides the scope.
 
   const payload = {
     driverId,
