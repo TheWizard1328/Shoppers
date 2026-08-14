@@ -52,13 +52,10 @@ export function buildManifestPayload({
 
   // Driver: always scope to the current user's own stops across all stores.
   // Dispatcher: scope to their assigned stores (all drivers).
-  // Admin: scope to the selected driver filter when one is chosen (so the manifest matches
-  //   the dashboard's driver selection); otherwise fall back to city-wide (selectedCityId)
-  //   or store-scoped (storeIdsOverride) — the backend requires at least ONE scope.
-  const isValidDriverId = (v) => v && v !== 'all' && v !== 'undefined' && v !== 'null';
-  const driverId = isDriver
-    ? currentUser.id
-    : (isAdmin && isValidDriverId(driverFilter) ? driverFilter : undefined);
+  // Admin: NEVER scope by the dashboard driver filter — admins export ALL drivers for the
+  //   selected date (scoped by city). The dashboard's driver dropdown is for viewing the
+  //   map, not for constraining the manifest.
+  const driverId = isDriver ? currentUser.id : undefined;
 
   let storeIds = null;
   if (storeIdsOverride && storeIdsOverride.length > 0) {
@@ -75,6 +72,9 @@ export function buildManifestPayload({
     endDate,
     manifestType: "post-route", // backend auto-detects pre-route vs post-route based on actual data
     useBarcodes: useBarcodes === true,
+    // Cache-bust token: ensures any service-worker / HTTP cache that keyed on the request body
+    // never serves a stale manifest from a previous backend version. Ignore on the backend.
+    _v: Date.now(),
   };
 
   if (storeIds && storeIds.length > 0) payload.storeIds = storeIds;
