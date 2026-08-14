@@ -7,6 +7,18 @@ import confetti from 'canvas-confetti';
 
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+// A stop counts toward "deliveries" when it has a patient OR is an inter-store stop
+// (ISP-/ISD- prefix). Plain store pickups and cycling markers (BIK-/is_cycling_marker)
+// are excluded — mirrors the rule used by the route manifest generator.
+const isDeliveryCountStop = (d) => {
+  if (!d) return false;
+  if (d.is_cycling_marker) return false;
+  const u = String(d.delivery_id || '').toUpperCase();
+  if (u.startsWith('BIK-')) return false;
+  if (u.startsWith('ISP-') || u.startsWith('ISD-')) return true;   // inter-store pickup/dropoff
+  return !!d.patient_id;                                          // patient delivery (excludes plain store pickups)
+};
+
 const getEncouragementMessage = ({ routeComplete, completed, total, timeOnDuty, hourlyRate }) => {
   // Route fully done
   if (routeComplete) {
@@ -164,11 +176,12 @@ export default function EndOfDayStatsDialog({
     const yearStr = String(currentYear);
     const driverIdToMatch = driver?.user_id || driver?.id || null;
 
-    // Group all year deliveries by date → count patient stops & sum pay
+    // Group all year deliveries by date → count delivery stops (patient + ISP/ISD),
+    // matching the Total Stops card so the best-day comparison is apples-to-apples.
     const dayMap = new Map();
     (allYearDeliveries || []).forEach(d => {
       if (!d || !d.delivery_date || !d.delivery_date.startsWith(yearStr)) return;
-      if (!d.patient_id) return; // only patient deliveries count
+      if (!isDeliveryCountStop(d)) return; // patient + inter-store; excludes plain pickups & cycling markers
       if (driverIdToMatch && d.driver_id !== driverIdToMatch) return;
       if (!dayMap.has(d.delivery_date)) dayMap.set(d.delivery_date, { stops: 0, pay: 0 });
       const entry = dayMap.get(d.delivery_date);
