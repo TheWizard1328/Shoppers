@@ -139,15 +139,15 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-w-md z-[10001]">
-        <DialogHeader>
+      <DialogContent className="max-w-md z-[10001] max-h-[95vh] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Edit Driver Settings
             <Badge variant="outline">{driver.user_name || driver.full_name}</Badge>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1 min-h-0">
           {/* Status Row - 3 columns */}
           <div className="grid grid-cols-3 gap-3">
             {/* User Status (Active/Inactive) */}
@@ -565,7 +565,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           )}
         </div>
 
-        <div className="flex gap-2 justify-end pt-4 border-t">
+        <div className="flex gap-2 justify-end p-4 border-t flex-shrink-0 bg-background">
           <Button variant="outline" onClick={onCancel} disabled={isSaving}>
             <X className="w-4 h-4 mr-1" />
             Cancel
