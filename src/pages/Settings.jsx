@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   User, Bell, Moon, Smartphone, Monitor, LogOut, ChevronRight,
-  Sun, Check, Ruler, Save, Loader2, ShieldAlert,
+  Sun, Check, Ruler, Save, Loader2, ShieldAlert, Download, Smartphone,
 } from 'lucide-react';
 import { initPushNotifications, resetPushSubscription } from '@/components/utils/pushNotifications';
 import { toast } from 'sonner';
@@ -294,6 +294,69 @@ export function SettingsDialog({ open, onOpenChange, title, description, icon: I
   );
 }
 
+// ── APK Download Panel ────────────────────────────────────────────────────────
+function ApkDownloadPanel() {
+  const [apkUrl, setApkUrl] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    // Fetch the latest APK URL from AppSettings
+    base44.entities.AppSettings.filter({ setting_key: 'apk_download_url' })
+      .then((results) => {
+        if (results && results.length > 0 && results[0].setting_value && results[0].setting_value.url) {
+          setApkUrl(results[0].setting_value.url);
+        } else {
+          setError('No APK available yet. Ask an admin to upload a build.');
+        }
+      })
+      .catch((err) => {
+        setError('Unable to fetch download link.');
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--text-slate-400)' }} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="py-4 text-center">
+        <ShieldAlert className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--text-slate-400)' }} />
+        <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-4 space-y-4">
+      <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#2563EB' }}>
+          <span className="text-white font-bold text-sm">Rx</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>RxDeliver Android App</p>
+          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Blue icon · Native build with background GPS</p>
+        </div>
+      </div>
+      <a href={apkUrl} download="RxDeliver.apk" className="block">
+        <Button className="w-full gap-2" style={{ background: '#2563EB', borderColor: '#2563EB' }}>
+          <Download className="w-4 h-4" />
+          Download APK
+        </Button>
+      </a>
+      <p className="text-xs text-center" style={{ color: 'var(--text-slate-400)' }}>
+        After download, open the file to install. You may need to allow installs from unknown sources.
+      </p>
+    </div>
+  );
+}
+
 // ── Main Settings Page ────────────────────────────────────────────────────────
 export default function Settings() {
   const { logout: authLogout } = useAuth();
@@ -365,6 +428,14 @@ export default function Settings() {
       icon: Smartphone,
       items: [
         { label: 'Manage Devices', description: 'View and manage connected devices', onClick: () => setOpenPanel('devices') },
+      ],
+    },
+    {
+      key: 'app',
+      title: 'Native App',
+      icon: Download,
+      items: [
+        { label: 'Download Android App', description: 'Install the native APK (blue icon)', onClick: () => setOpenPanel('apk') },
       ],
     },
   ];
@@ -455,6 +526,9 @@ export default function Settings() {
 
       <SettingsDialog open={openPanel === 'devices'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Devices" description="View and manage your registered devices." icon={Smartphone}>
         {currentUser && <DevicesPanel currentUser={currentUser} />}
+      </SettingsDialog>
+      <SettingsDialog open={openPanel === 'apk'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Native App" description="Download the Android APK." icon={Download}>
+        <ApkDownloadPanel />
       </SettingsDialog>
     </div>
   );
