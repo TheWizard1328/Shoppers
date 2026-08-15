@@ -456,6 +456,21 @@ class LocationTracker {
             longitude: pos.coords.longitude,
             accuracy: pos.coords.accuracy
           };
+          // CRITICAL: Dispatch driverPositionUpdated so the primary device's own
+          // marker updates. In full tracking mode this comes from handleLocationSuccess
+          // (watchPosition callback), but web-only mode has no watchPosition.
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('driverPositionUpdated', {
+              detail: {
+                userId: this.currentUser?.id,
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+                timestamp: getLocalTimestamp(),
+                source: 'web-only-heartbeat'
+              }
+            }));
+          }
           await this.updateLocationInDatabase(
             pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy,
             false, false, true
@@ -810,9 +825,11 @@ class LocationTracker {
           this.stopTracking();
         }
 
-        try {
-          if (this.appUserId) {
-            // Preserve last known coordinates - only disable visibility flag after repeated upload failures
+        // Only disable location_tracking_enabled when actually stopping tracking.
+        // If keepTrackingAlive is true (web-only or on-duty), the heartbeat continues
+        // and the flag should remain enabled so other devices still show the marker.
+        if (!keepTrackingAlive && this.appUserId) {
+          try {
             const updateData = {
               location_tracking_enabled: false
             };
@@ -827,9 +844,9 @@ class LocationTracker {
             } catch (offlineError) {
               console.warn('⚠️ [LocationTracker] Failed to sync disabled tracking to offline DB:', offlineError.message);
             }
+          } catch (dbError) {
+            console.error('Failed to update database after tracking failure:', dbError);
           }
-        } catch (dbError) {
-          console.error('Failed to update database after tracking failure:', dbError);
         }
 
         window.dispatchEvent(new CustomEvent('locationTrackingError', {
