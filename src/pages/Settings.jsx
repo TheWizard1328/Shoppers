@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   User, Bell, Moon, Smartphone, Monitor, LogOut, ChevronRight,
-  Sun, Check, Ruler, Save, Loader2, ShieldAlert, Download, Smartphone,
+  Sun, Check, Ruler, Save, Loader2, ShieldAlert, Download,
 } from 'lucide-react';
 import { initPushNotifications, resetPushSubscription } from '@/components/utils/pushNotifications';
 import { toast } from 'sonner';
@@ -297,21 +297,29 @@ export function SettingsDialog({ open, onOpenChange, title, description, icon: I
 // ── APK Download Panel ────────────────────────────────────────────────────────
 function ApkDownloadPanel() {
   const [apkUrl, setApkUrl] = React.useState(null);
+  const [apkDate, setApkDate] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
-    // Fetch the latest APK URL from AppSettings
-    base44.entities.AppSettings.filter({ setting_key: 'apk_download_url' })
-      .then((results) => {
-        if (results && results.length > 0 && results[0].setting_value && results[0].setting_value.url) {
-          setApkUrl(results[0].setting_value.url);
+    // Fetch the latest APK from GitHub releases (public repo, no auth needed)
+    fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest')
+      .then((res) => {
+        if (!res.ok) throw new Error('Release not found');
+        return res.json();
+      })
+      .then((data) => {
+        // Find the .apk asset
+        const apkAsset = (data.assets || []).find((a) => a.name && a.name.endsWith('.apk'));
+        if (apkAsset && apkAsset.browser_download_url) {
+          setApkUrl(apkAsset.browser_download_url);
+          setApkDate(data.published_at || data.created_at);
         } else {
-          setError('No APK available yet. Ask an admin to upload a build.');
+          setError('APK file not found in release assets.');
         }
       })
-      .catch((err) => {
-        setError('Unable to fetch download link.');
+      .catch(() => {
+        setError('No APK build available yet. The build runs automatically on code updates.');
       })
       .finally(() => setLoading(false));
   }, []);
@@ -333,6 +341,10 @@ function ApkDownloadPanel() {
     );
   }
 
+  const dateStr = apkDate
+    ? new Date(apkDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
+
   return (
     <div className="py-4 space-y-4">
       <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
@@ -341,7 +353,9 @@ function ApkDownloadPanel() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>RxDeliver Android App</p>
-          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Blue icon · Native build with background GPS</p>
+          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+            Blue icon · Background GPS{dateStr ? ' · Built ' + dateStr : ''}
+          </p>
         </div>
       </div>
       <a href={apkUrl} download="RxDeliver.apk" className="block">
