@@ -527,13 +527,15 @@ self.addEventListener('notificationclick', (event) => {
   if (action === 'stop_tracking') {
     event.notification.close();
     // Post message to any open client to trigger the off-duty transition
-    const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const client of clientList) {
-      if (client.url.startsWith(self.registration.scope)) {
-        client.postMessage({ type: 'stop_tracking_from_notification' });
-        if ('focus' in client) client.focus();
+    event.waitUntil((async () => {
+      const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clientList) {
+        if (client.url.startsWith(self.registration.scope)) {
+          client.postMessage({ type: 'stop_tracking_from_notification' });
+          if ('focus' in client) client.focus();
+        }
       }
-    }
+    })());
     return;
   }
 
