@@ -48,3 +48,11 @@ coverage/ export-ignore
 *.docx filter=lfs diff=lfs merge=lfs -text
 *.xlsx filter=lfs diff=lfs merge=lfs -text
 *.pptx filter=lfs diff=lfs merge=lfs -text
+
+# Capacitor Android resource images (launcher icons, splash screens) must be
+# real git blobs, not LFS pointers. GitHub Actions' checkout step does not
+# fetch LFS content by default, and pushes to the github remote skip LFS
+# objects (GIT_LFS_SKIP_PUSH=1) to avoid re-uploading large unrelated
+# incoming_files/ media. Without this override, AAPT compiles LFS pointer
+# text files as "PNGs", producing a corrupt/placeholder app icon at runtime.
+capacitor/android/**/res/**/*.png -filter -diff -merge -text
