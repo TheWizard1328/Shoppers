@@ -95,50 +95,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     return cleanup;
   }, []);
 
-  // ── Handle "Go Off Duty" from persistent notification ──
-  useEffect(() => {
-    const handler = () => {
-      // Only trigger if currently on_duty or on_break
-      if (status === 'on_duty' || status === 'on_break') {
-        handleStatusChange('off_duty');
-      }
-    };
-    window.addEventListener('triggerOffDutyFromNotification', handler);
-    return () => window.removeEventListener('triggerOffDutyFromNotification', handler);
-  }, [status, handleStatusChange]);
 
-  // ── Update tracking notification when delivery status changes ──
-  // Shows remaining stop count so the notification is a useful progress indicator
-  useEffect(() => {
-    if (!isOwnUser || (status !== 'on_duty' && status !== 'on_break')) return;
-    const handler = async (event) => {
-      try {
-        const detail = event?.detail || {};
-        const driverId = detail.driverId;
-        if (!driverId || driverId !== effectiveUser?.id) return;
-        // Fetch remaining stops for today
-        const today = new Date().toLocaleDateString('en-CA');
-        const routeDate = detail.deliveryDate || today;
-        const deliveries = await base44.entities.Delivery.filter({
-          driver_id: effectiveUser.id,
-          delivery_date: routeDate,
-        });
-        const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
-        const remaining = (deliveries || []).filter(d => !TERMINAL.has(d.status));
-        const nextStop = remaining
-          .filter(d => d.status === 'in_transit' || d.status === 'en_route' || d.status === 'pending')
-          .sort((a, b) => Number(a.stop_order || 999) - Number(b.stop_order || 999))[0];
-        updateTrackingNotification({
-          status,
-          stopCount: remaining.length,
-          nextStop: nextStop?.patient_name || nextStop?.delivery_id || null,
-          canStopTracking: true,
-        }).catch(() => {});
-      } catch (e) { /* non-critical */ }
-    };
-    window.addEventListener('deliveryStatusChanged', handler);
-    return () => window.removeEventListener('deliveryStatusChanged', handler);
-  }, [status, isOwnUser, effectiveUser?.id]);
 
   // ── Init: load AppUser from offline DB (or API fallback), set status + start tracking ──
   useEffect(() => {
@@ -601,6 +558,52 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
 
   const currentConfig = statusConfig[status] || statusConfig.off_duty;
   const pendingConfig = pendingStatus ? statusConfig[pendingStatus] : null;
+
+  // ── Handle "Go Off Duty" from persistent notification ──
+  useEffect(() => {
+    const handler = () => {
+      // Only trigger if currently on_duty or on_break
+      if (status === 'on_duty' || status === 'on_break') {
+        handleStatusChange('off_duty');
+      }
+    };
+    window.addEventListener('triggerOffDutyFromNotification', handler);
+    return () => window.removeEventListener('triggerOffDutyFromNotification', handler);
+  }, [status, handleStatusChange]);
+
+  // ── Update tracking notification when delivery status changes ──
+  // Shows remaining stop count so the notification is a useful progress indicator
+  useEffect(() => {
+    if (!isOwnUser || (status !== 'on_duty' && status !== 'on_break')) return;
+    const handler = async (event) => {
+      try {
+        const detail = event?.detail || {};
+        const driverId = detail.driverId;
+        if (!driverId || driverId !== effectiveUser?.id) return;
+        // Fetch remaining stops for today
+        const today = new Date().toLocaleDateString('en-CA');
+        const routeDate = detail.deliveryDate || today;
+        const deliveries = await base44.entities.Delivery.filter({
+          driver_id: effectiveUser.id,
+          delivery_date: routeDate,
+        });
+        const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
+        const remaining = (deliveries || []).filter(d => !TERMINAL.has(d.status));
+        const nextStop = remaining
+          .filter(d => d.status === 'in_transit' || d.status === 'en_route' || d.status === 'pending')
+          .sort((a, b) => Number(a.stop_order || 999) - Number(b.stop_order || 999))[0];
+        updateTrackingNotification({
+          status,
+          stopCount: remaining.length,
+          nextStop: nextStop?.patient_name || nextStop?.delivery_id || null,
+          canStopTracking: true,
+        }).catch(() => {});
+      } catch (e) { /* non-critical */ }
+    };
+    window.addEventListener('deliveryStatusChanged', handler);
+    return () => window.removeEventListener('deliveryStatusChanged', handler);
+  }, [status, isOwnUser, effectiveUser?.id]);
+
 
   return (
     <div className="flex items-center">
