@@ -19,14 +19,17 @@ const isDeliveryCountStop = (d) => {
   return !!d.patient_id;                                          // patient delivery (excludes plain store pickups)
 };
 
-const getEncouragementMessage = ({ routeComplete, completed, total, timeOnDuty, hourlyRate }) => {
+const getEncouragementMessage = ({ routeComplete, completed, failed, returned, total, timeOnDuty, hourlyRate }) => {
   // Route fully done
   if (routeComplete) {
     return { emoji: '🎉', text: 'Great work today! All deliveries have been completed.', color: 'emerald' };
   }
 
-  const remaining = total - completed;
-  const routeStarted = completed > 0;
+  // "Done" at the bottom = everything already handled (completed + failed + returned).
+  // Pending stops are the only ones still outstanding, so remaining = total − accountedFor.
+  const accountedFor = completed + (failed || 0) + (returned || 0);
+  const remaining = total - accountedFor;
+  const routeStarted = accountedFor > 0;
 
   // Route not yet started (all pending)
   if (!routeStarted) {
@@ -44,11 +47,11 @@ const getEncouragementMessage = ({ routeComplete, completed, total, timeOnDuty, 
   const payStr = hourlyRate ? ` at $${hourlyRate}/hr` : '';
 
   const messages = [
-    { emoji: '🚚', text: `${completed} of ${total} done${timeStr}${payStr} — keep the momentum going, ${remaining} more to go!` },
-    { emoji: '💨', text: `Halfway there! ${completed} stops crushed${timeStr}${payStr}. ${remaining} left — finish strong!` },
-    { emoji: '🔥', text: `${completed} down, ${remaining} to go${timeStr}${payStr}. You're on fire — don't slow down now!` },
-    { emoji: '⚡', text: `Great pace! ${completed} completed${timeStr}${payStr}. Just ${remaining} more stops standing between you and done!` },
-    { emoji: '🏁', text: `${completed} of ${total} in the bag${timeStr}${payStr}. ${remaining} stops left — the finish line is in sight!` },
+    { emoji: '🚚', text: `${accountedFor} of ${total} done${timeStr}${payStr} — keep the momentum going, ${remaining} more to go!` },
+    { emoji: '💨', text: `Halfway there! ${accountedFor} stops crushed${timeStr}${payStr}. ${remaining} left — finish strong!` },
+    { emoji: '🔥', text: `${accountedFor} down, ${remaining} to go${timeStr}${payStr}. You're on fire — don't slow down now!` },
+    { emoji: '⚡', text: `Great pace! ${accountedFor} completed${timeStr}${payStr}. Just ${remaining} more stops standing between you and done!` },
+    { emoji: '🏁', text: `${accountedFor} of ${total} in the bag${timeStr}${payStr}. ${remaining} stops left — the finish line is in sight!` },
   ];
   return { ...pickRandom(messages), color: 'blue' };
 };
@@ -223,6 +226,8 @@ export default function EndOfDayStatsDialog({
       encouragementRef.current = getEncouragementMessage({
         routeComplete: routeActuallyComplete,
         completed,
+        failed,
+        returned,
         total,
         timeOnDuty,
         hourlyRate,
