@@ -22,7 +22,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link for OAuth callback: rxdeliver://auth?access_token=... -->
+            <!-- Verified Android App Link for OAuth callback (primary path).
+                 Requires https://wizardworxx.com/.well-known/assetlinks.json to be
+                 reachable and match this app's signing certificate. When verified,
+                 Android opens THIS APP directly (no browser, no chooser dialog)
+                 the moment the OAuth provider redirects back here — this is what
+                 fixes "stays in the browser after login" on native builds. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="wizardworxx.com"
+                    android:pathPrefix="/oauth-callback" />
+            </intent-filter>
+
+            <!-- Custom-scheme deep link fallback: rxdeliver://auth?access_token=...
+                 Kept for redundancy in case App Link verification hasn't completed
+                 yet on a given device (e.g. right after a fresh install). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

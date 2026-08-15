@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.rxdeliver.driver",
+      "sha256_cert_fingerprints": [
+        "CF:A7:F7:48:DA:84:F5:CA:5A:58:DA:53:4E:58:40:D0:37:EC:D8:56:FD:A2:6F:51:75:3E:47:13:D0:1F:F8:90"
+      ]
+    }
+  }
+]
