@@ -35,6 +35,8 @@ import { globalFilters } from '@/components/utils/globalFilters';
 import { User } from '@/api/entities';
 import { canShowExportRoute, getUserAvatarGradient } from '@/components/layout/sidebarUserUtils';
 import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/lib/AuthContext';
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 import { getEnvironmentLabel } from '@/components/utils/envUtils';
 
 // ── Fridge temp settings cache (loaded once from AppSettings) ─────────────
@@ -365,6 +367,7 @@ export default function SidebarUserFooter({
   const [todayOverrides, setTodayOverrides] = useState([]);
   const [driversExpanded, setDriversExpanded] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const { logout: authLogout } = useAuth();
   const driversExpandedAtRef = useRef(null);
 
   // Auto-collapse the drivers list after 2 minutes of being expanded (same as stop cards)
@@ -637,7 +640,7 @@ export default function SidebarUserFooter({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={() => base44.auth.logout('/')}>
+              onClick={() => authLogout(true)}>
               Log Out
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -8,8 +8,12 @@ import { LogIn, Mail, Lock, Loader2, CheckCircle } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import { initEncryption } from "@/components/utils/idbCrypto";
 import GoogleIcon from "@/components/GoogleIcon";
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
-
+// When running inside the native APK, OAuth must redirect back to the app
+// via a deep link (rxdeliver://auth) instead of a web URL that stays in the
+// system browser. The AndroidManifest has an intent filter for this scheme.
+const OAUTH_REDIRECT = isCapacitorNativeApp() ? "rxdeliver://auth" : "/";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -44,10 +48,10 @@ export default function Login() {
     }
   };
 
-  const handleGoogle = () => base44.auth.loginWithProvider("google", "/");
-  const handleMicrosoft = () => base44.auth.loginWithProvider("microsoft", "/");
-  const handleFacebook = () => base44.auth.loginWithProvider("facebook", "/");
-  const handleApple = () => base44.auth.loginWithProvider("apple", "/");
+  const handleGoogle = () => base44.auth.loginWithProvider("google", OAUTH_REDIRECT);
+  const handleMicrosoft = () => base44.auth.loginWithProvider("microsoft", OAUTH_REDIRECT);
+  const handleFacebook = () => base44.auth.loginWithProvider("facebook", OAUTH_REDIRECT);
+  const handleApple = () => base44.auth.loginWithProvider("apple", OAUTH_REDIRECT);
 
   return (
     <AuthLayout

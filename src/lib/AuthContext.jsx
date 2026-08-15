@@ -1,12 +1,16 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { initEncryption, destroyKey } from '@/components/utils/idbCrypto';
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
 const AuthContext = createContext();
 
 const getAppReturnUrl = () => `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+// Deep link scheme for OAuth callback in native apps
+const NATIVE_AUTH_SCHEME = 'rxdeliver://auth';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -15,10 +19,80 @@ export const AuthProvider = ({ children }) => {
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
+  const deepLinkHandledRef = useRef(false);
 
   useEffect(() => {
     checkAppState();
+    setupDeepLinkHandler();
   }, []);
+
+  // ─── Native OAuth deep link handler ─────────────────────────────
+  // When running inside the Capacitor APK, OAuth providers redirect back
+  // via rxdeliver://auth?access_token=... The AndroidManifest has an
+  // intent filter for this scheme. We listen for appUrlOpen events
+  // (app in background) and check getLaunchUrl (cold start).
+  const setupDeepLinkHandler = async () => {
+    if (!isCapacitorNativeApp()) return;
+
+    try {
+      const { App } = await import('@capacitor/app');
+
+      // Handle cold-start deep links (app was killed, re-opened via intent)
+      try {
+        const launchResult = await App.getLaunchUrl();
+        if (launchResult?.url) {
+          handleDeepLink(launchResult.url);
+        }
+      } catch (e) {
+        // getLaunchUrl may fail if no launch URL — non-fatal
+      }
+
+      // Handle warm deep links (app in background, receives new intent)
+      App.addListener('appUrlOpen', ({ url }) => {
+        handleDeepLink(url);
+      });
+    } catch (e) {
+      console.warn('[Auth] Failed to set up deep link handler:', e?.message || e);
+    }
+  };
+
+  const handleDeepLink = (url) => {
+    if (!url || !url.startsWith('rxdeliver://') || deepLinkHandledRef.current) return;
+
+    deepLinkHandledRef.current = true;
+    console.log('[Auth] Received deep link callback:', url);
+
+    try {
+      const urlObj = new URL(url);
+      const accessToken = urlObj.searchParams.get('access_token');
+      const isNewUser = urlObj.searchParams.get('is_new_user');
+
+      if (accessToken) {
+        // Set the token in the SDK (localStorage + axios headers)
+        base44.auth.setToken(accessToken);
+
+        // Initialize IDB encryption with the new token
+        initEncryption(accessToken).catch((e) =>
+          console.error('[Auth] IDB encryption init failed after deep link:', e)
+        );
+
+        console.log('[Auth] Token set from deep link, redirecting to dashboard...');
+
+        // Navigate to the dashboard — use a full reload to ensure
+        // all SDK state (axios headers, app-params, etc.) is fresh
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 100);
+      } else {
+        // No token in the deep link — might be a logout callback or error
+        console.warn('[Auth] Deep link had no access_token:', url);
+        deepLinkHandledRef.current = false;
+      }
+    } catch (e) {
+      console.error('[Auth] Failed to process deep link:', e);
+      deepLinkHandledRef.current = false;
+    }
+  };
 
   const checkAppState = async () => {
     try {
@@ -126,8 +200,22 @@ export const AuthProvider = ({ children }) => {
     // Destroy the encryption key — IDB data becomes unreadable
     destroyKey();
     
-    if (shouldRedirect) {
-      // Use the SDK's logout method which handles token cleanup and redirect
+    if (isCapacitorNativeApp()) {
+      // In the native app, OAuth happens in the system browser which owns
+      // the session cookie. The WebView has no HTTP-only cookie to clear,
+      // so we skip the server-side logout redirect and just clear locally.
+      try {
+        localStorage.removeItem('base44_access_token');
+        localStorage.removeItem('token');
+      } catch (e) {
+        console.warn('[Auth] Failed to clear token from localStorage:', e);
+      }
+      // Reload to the app's internal login route (stays inside the WebView)
+      if (shouldRedirect) {
+        window.location.href = '/login';
+      }
+    } else if (shouldRedirect) {
+      // Web: use the SDK's logout method which handles token cleanup and redirect
       base44.auth.logout(getAppReturnUrl());
     } else {
       // Just remove the token without redirect
@@ -136,8 +224,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   const navigateToLogin = () => {
-    // Use the SDK's redirectToLogin method
-    base44.auth.redirectToLogin(getAppReturnUrl());
+    if (isCapacitorNativeApp()) {
+      // In the native app, redirect to the app's internal login page
+      // (stays inside the WebView — no system browser)
+      window.location.href = '/login';
+    } else {
+      // Web: use the SDK's redirectToLogin method
+      base44.auth.redirectToLogin(getAppReturnUrl());
+    }
   };
 
   return (
