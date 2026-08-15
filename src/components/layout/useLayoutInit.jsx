@@ -4,6 +4,7 @@ import { globalFilters } from '../utils/globalFilters';
 import { requestThrottler } from '../utils/requestThrottler';
 import { getEffectiveUser, clearUserCache } from '../utils/auth';
 import { base44 } from '@/api/base44Client';
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 import { userHasRole } from '../utils/userRoles';
 import { loadUserSettings, clearSettingsCache, getDeviceType, getDeviceIdentifier } from '../utils/userSettingsManager';
 import { isMobileDeviceForTheme } from '../utils/deviceUtils';
@@ -120,7 +121,7 @@ export function useLayoutInit({
         if (userHasRole(fetchedUser, 'dispatcher') && fetchedUser.status === 'inactive' && !userHasRole(fetchedUser, 'admin')) {
           sessionStorage.clear();clearUserCache();clearSettingsCache();
           alert('Access Denied: Your dispatcher account is currently inactive. Please contact an administrator.');
-          try {await base44.auth.logout();} catch (e) {}
+          if (isCapacitorNativeApp()) { try { localStorage.removeItem('base44_access_token'); localStorage.removeItem('token'); } catch (e) {} } else { try { await base44.auth.logout(); } catch (e) {} }
           window.location.href = '/';return;
         }
         setCurrentUser(fetchedUser);setHasAccess(true);

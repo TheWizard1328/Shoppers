@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/lib/AuthContext';
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -294,6 +296,7 @@ export function SettingsDialog({ open, onOpenChange, title, description, icon: I
 
 // ── Main Settings Page ────────────────────────────────────────────────────────
 export default function Settings() {
+  const { logout: authLogout } = useAuth();
   const { currentUser } = useUser();
   const [openPanel, setOpenPanel] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
@@ -428,7 +431,7 @@ export default function Settings() {
         {/* Sign Out */}
         <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardContent className="p-4">
-            <Button onClick={() => base44.auth.logout()} variant="outline" className="w-full justify-start gap-2 select-none">
+            <Button onClick={() => authLogout(true)} variant="outline" className="w-full justify-start gap-2 select-none">
               <LogOut className="w-4 h-4" /> Sign Out
             </Button>
           </CardContent>

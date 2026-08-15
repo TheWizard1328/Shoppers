@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
+import { useAuth } from '@/lib/AuthContext';
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 import { RefreshCw, FlaskConical, LogOut } from 'lucide-react';
 import DemoModeDialog from '@/components/demo/DemoModeDialog';
 import {
@@ -31,6 +33,7 @@ export default function SettingsMenu({
   isMobile
 }) {
   const { isMobile: isMobileDeviceForUI } = useDevice();
+  const { logout: authLogout } = useAuth();
   const isMobileForTheme = isMobileDeviceForUI;
   
   const [showDemoModeDialog, setShowDemoModeDialog] = useState(false);
@@ -259,7 +262,7 @@ export default function SettingsMenu({
       </DropdownMenuItem>
       <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
       <DropdownMenuItem
-        onClick={() => base44.auth.logout('/')}
+        onClick={() => authLogout(true)}
         className="cursor-pointer text-red-600"
         style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
       >

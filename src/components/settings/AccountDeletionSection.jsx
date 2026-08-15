@@ -15,9 +15,12 @@ import {
 '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/lib/AuthContext';
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 import { deleteMyAccount } from '@/functions/deleteMyAccount';
 
 export default function AccountDeletionSection() {
+  const { logout: authLogout } = useAuth();
   const [open, setOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [confirmationText, setConfirmationText] = React.useState('');
@@ -36,7 +39,7 @@ export default function AccountDeletionSection() {
       toast.success('Your account was deleted.');
       setOpen(false);
       setTimeout(() => {
-        base44.auth.logout('/');
+        authLogout(true);
       }, 300);
     } catch (error) {
       toast.error(error?.response?.data?.error || error?.message || 'Failed to delete account');
