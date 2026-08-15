@@ -15,7 +15,7 @@
  *                         navigating to `data.url` if provided (deep link)
  */
 
-const SW_VERSION = 'v11';
+const SW_VERSION = 'v12';
 const CACHE_PREFIX = 'here-tiles';
 const DEFAULT_CACHE = `${CACHE_PREFIX}-default-${SW_VERSION}`;
 const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -200,6 +200,18 @@ self.addEventListener('message', (event) => {
       }).catch(() => {});
       break;
 
+    case 'SHOW_TRACKING_NOTIFICATION':
+      showTrackingNotification(event.data);
+      break;
+
+    case 'HIDE_TRACKING_NOTIFICATION':
+      hideTrackingNotification();
+      break;
+
+    case 'UPDATE_TRACKING_NOTIFICATION':
+      updateTrackingNotification(event.data);
+      break;
+
     default:
       break;
   }
@@ -268,6 +280,81 @@ async function getCacheStats() {
   }
 }
 
+
+// ─── Persistent Tracking Notification ──────────────────────────────────────────
+// On Android, a visible notification makes the OS less aggressive about killing the
+// PWA's background process. While this doesn't give us a true Android Foreground
+// Service, it significantly improves the survival rate of watchPosition callbacks
+// and setInterval heartbeats when the app is backgrounded.
+//
+// The notification is shown when the driver goes on_duty and removed when they go
+// off_duty. It uses `requireInteraction: true` so it doesn't auto-dismiss, and a
+// unique `tag: 'rxdeliver-tracking'` so it replaces itself on updates.
+//
+// IMPORTANT: This notification is LOCAL (not a push notification). It's triggered
+// by the client page via postMessage to the service worker. No server involvement.
+
+const TRACKING_TAG = 'rxdeliver-tracking';
+
+async function showTrackingNotification(data = {}) {
+  const status = data.status || 'on_duty';
+  const driverName = data.driverName || 'Driver';
+  const stopCount = data.stopCount;
+  const nextStop = data.nextStop;
+
+  let body = 'Location tracking active';
+  if (stopCount != null) body = `${stopCount} stop${stopCount !== 1 ? 's' : ''} remaining`;
+  if (nextStop) body += ` — Next: ${nextStop}`;
+
+  const options = {
+    body,
+    icon: ICON_192,
+    badge: ICON_192,
+    tag: TRACKING_TAG,
+    requireInteraction: true, // Persistent — won't auto-dismiss
+    silent: true, // No sound — this is a status indicator, not an alert
+    data: {
+      url: '/',
+      isTrackingNotification: true,
+      status,
+    },
+  };
+
+  // Add a "Go Off Duty" action button (Android Chrome supports max 2)
+  if (data.canStopTracking) {
+    options.actions = [{
+      action: 'stop_tracking',
+      title: 'Go Off Duty',
+    }];
+  }
+
+  try {
+    await self.registration.showNotification(`RxDeliver — ${status === 'on_duty' ? 'On Duty' : 'Tracking'}`, options);
+    console.log('[TileSW] Tracking notification shown');
+  } catch (err) {
+    console.warn('[TileSW] Failed to show tracking notification:', err.message);
+  }
+}
+
+async function updateTrackingNotification(data = {}) {
+  // showNotification with the same tag replaces the existing notification
+  await showTrackingNotification(data);
+}
+
+async function hideTrackingNotification() {
+  try {
+    const notifications = await self.registration.getNotifications({ tag: TRACKING_TAG });
+    for (const n of notifications) {
+      n.close();
+    }
+    console.log('[TileSW] Tracking notification hidden');
+  } catch (err) {
+    console.warn('[TileSW] Failed to hide tracking notification:', err.message);
+  }
+}
+
+// Handle the "Go Off Duty" action button on the tracking notification
+// (notificationclick for this action is handled in the main notificationclick listener above)
 
 // ─── Web Push ─────────────────────────────────────────────────────────────────
 // This is the SINGLE source of push handling for the PWA. The separate push-sw.js
@@ -436,6 +523,36 @@ self.addEventListener('notificationclick', (event) => {
   const action = event.action; // '' when the notification body is clicked (not a button)
 
   // ─── Action button clicks ─────────────────────────────────────────────────
+  // ─── Tracking notification "Go Off Duty" action ─────────────────────────────
+  if (action === 'stop_tracking') {
+    event.notification.close();
+    // Post message to any open client to trigger the off-duty transition
+    const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clientList) {
+      if (client.url.startsWith(self.registration.scope)) {
+        client.postMessage({ type: 'stop_tracking_from_notification' });
+        if ('focus' in client) client.focus();
+      }
+    }
+    return;
+  }
+
+  // Don't close the notification on body click if it's the tracking indicator
+  if (event.notification.data?.isTrackingNotification && !action) {
+    // Just focus the app — don't close the notification
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        if (clients.openWindow) return clients.openWindow('/');
+      })
+    );
+    return;
+  }
+
   if (action === 'mark_read' || action === 'acknowledge' || action === 'reply' || action === 'update_now') {
     event.notification.close();
 

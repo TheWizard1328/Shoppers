@@ -9,6 +9,11 @@ import { fabControlEvents } from "../utils/fabControlEvents";
 import { loadUserSettings } from "../utils/userSettingsManager";
 import { reconcilePendingBreadcrumbsOnDuty } from "../utils/pendingBreadcrumbReconciliation";
 import { globalFilters } from "../utils/globalFilters";
+import {
+  showTrackingNotification,
+  hideTrackingNotification,
+  onStopTrackingFromNotification,
+} from "../utils/trackingNotification";
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -79,6 +84,27 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
   const lastRequestedStatusRef = useRef(null);
   const lastWebSocketUpdateRef = useRef(0);
   const lastWsStatusRef = useRef(null);
+
+  // ── Listen for "Go Off Duty" from the persistent tracking notification ──
+  useEffect(() => {
+    const cleanup = onStopTrackingFromNotification(() => {
+      console.log('[DriverStatusToggle] Stop tracking requested from notification');
+      window.dispatchEvent(new CustomEvent('triggerOffDutyFromNotification'));
+    });
+    return cleanup;
+  }, []);
+
+  // ── Handle "Go Off Duty" from persistent notification ──
+  useEffect(() => {
+    const handler = () => {
+      // Only trigger if currently on_duty or on_break
+      if (status === 'on_duty' || status === 'on_break') {
+        handleStatusChange('off_duty');
+      }
+    };
+    window.addEventListener('triggerOffDutyFromNotification', handler);
+    return () => window.removeEventListener('triggerOffDutyFromNotification', handler);
+  }, [status, handleStatusChange]);
 
   // ── Init: load AppUser from offline DB (or API fallback), set status + start tracking ──
   useEffect(() => {
@@ -268,6 +294,14 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       if (newStatus === 'on_duty') {
         try { localStorage.setItem('rxdeliver_show_routes', 'true'); } catch (_) {}
         try { window.dispatchEvent(new CustomEvent('forceEnableRoutes')); } catch (_) {}
+        // Show persistent tracking notification (helps keep PWA alive on Android)
+        if (isOwnUser) {
+          showTrackingNotification({
+            status: 'on_duty',
+            driverName: effectiveUser?.user_name || effectiveUser?.full_name,
+            canStopTracking: true,
+          }).catch(() => {});
+        }
       }
 
       // Persist to API + offline DB
@@ -418,9 +452,11 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             locationTracker.stopTracking();
             await locationTracker.startWebOnlyTracking({ ...currentUser, appUserId }).catch(() => {});
           }
+          hideTrackingNotification().catch(() => {});
           window.dispatchEvent(new CustomEvent('locationSharingDisabled'));
         } else if (newStatus === 'on_break') {
           locationTracker.setDriverStatus(newStatus);
+          hideTrackingNotification().catch(() => {});
           window.dispatchEvent(new CustomEvent('locationSharingDisabled'));
           try {
             const settings = await loadUserSettings(currentUser.id);
