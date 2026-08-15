@@ -4,7 +4,20 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 export const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 
 export const isCapacitorNativeApp = () => {
-  return typeof Capacitor?.isNativePlatform === 'function' && Capacitor.isNativePlatform();
+  try {
+    const hasCapacitor = typeof Capacitor !== 'undefined';
+    const hasMethod = hasCapacitor && typeof Capacitor?.isNativePlatform === 'function';
+    const isNative = hasMethod && Capacitor.isNativePlatform();
+    // Log once per page load for diagnostics
+    if (hasCapacitor && !window.__capacitorChecked) {
+      window.__capacitorChecked = true;
+      console.log(`📱 [Capacitor] Detected: hasCapacitor=${hasCapacitor}, hasMethod=${hasMethod}, isNative=${isNative}, platform=${hasCapacitor ? Capacitor.getPlatform?.() : 'N/A'}`);
+    }
+    return isNative;
+  } catch (e) {
+    console.warn('📱 [Capacitor] Detection failed:', e?.message);
+    return false;
+  }
 };
 
 export const getCapacitorPlatform = () => {

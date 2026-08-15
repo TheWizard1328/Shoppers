@@ -111,20 +111,28 @@ class NativeLocationProvider {
 
   async watchPosition(onSuccess, onError, options = {}) {
     if (!this.isAvailable()) {
+      console.warn('📱 [NativeProvider] Not available — isCapacitorNativeApp or addWatcher missing');
       throw new Error('Native background geolocation is not available');
     }
 
     const plugin = getBackgroundGeolocationPlugin();
+    console.log('📱 [NativeProvider] watchPosition called — starting Foreground Service GPS', {
+      backgroundTitle: options.backgroundTitle,
+      backgroundMessage: options.backgroundMessage,
+      distanceFilter: options.distanceFilter,
+    });
 
     // Ensure notification permission BEFORE starting the watcher.
     // Without this, the foreground service notification may be silently blocked
     // on Android 13+ (API 33+), which causes the OS to kill the service.
-    await ensureBackgroundNotificationPermission();
+    const notifPermitted = await ensureBackgroundNotificationPermission();
+    console.log('📱 [NativeProvider] Notification permission:', notifPermitted ? 'granted' : 'DENIED');
 
     // addWatcher with backgroundMessage defined is what tells the plugin to
     // launch the ForegroundService and keep delivering updates in the background.
     // requestPermissions:true ensures it prompts for location if not already granted.
-    return await plugin.addWatcher(
+    console.log('📱 [NativeProvider] Calling plugin.addWatcher()...');
+    const watchId = await plugin.addWatcher(
       {
         requestPermissions: options.requestPermissions ?? true,
         stale: false,
@@ -134,6 +142,7 @@ class NativeLocationProvider {
       },
       (location, error) => {
         if (error) {
+          console.error('📱 [NativeProvider] watchPosition error:', error?.code, error?.message);
           onError?.(normalizeNativeError(error));
           return;
         }
@@ -148,6 +157,8 @@ class NativeLocationProvider {
         }
       }
     );
+    console.log('✅ [NativeProvider] Foreground Service GPS started — watchId:', watchId);
+    return watchId;
   }
 
   async clearWatch(watchId) {
