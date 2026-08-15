@@ -47,6 +47,20 @@ jobs:
         working-directory: capacitor
         run: npx cap sync android
 
+      - name: Bump versionCode/versionName for this build
+        # Android requires versionCode to strictly increase for the system
+        # to treat an install as an "update" instead of a same-version
+        # no-op. github.run_number increments on every workflow run, so
+        # each APK gets a unique, always-increasing versionCode.
+        working-directory: capacitor/android
+        run: |
+          RUN_NUMBER=${{ github.run_number }}
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          sed -i "s/versionCode [0-9]*/versionCode ${RUN_NUMBER}/" app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${RUN_NUMBER} (${SHORT_SHA})\"/" app/build.gradle
+          echo "versionCode set to ${RUN_NUMBER}"
+          grep -E "versionCode|versionName" app/build.gradle
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -76,14 +90,19 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: RxDeliver Android APK (Latest)
+          name: RxDeliver Android APK (Latest) — build ${{ github.run_number }}
           body: |
-            Auto-built debug APK from commit ${{ github.sha }}
+            Auto-built debug APK from commit ${{ github.sha }} (build #${{ github.run_number }})
 
             - Blue icon with "Rx" branding
             - Background GPS via @capgo/background-geolocation
             - Dynamic environment routing (admin=preview, driver=live)
-            - OAuth deep-link callback (rxdeliver://auth)
+            - Verified App Link OAuth callback (falls back to rxdeliver://auth)
+            - Signed with the pinned RxDeliver debug key — updates install
+              in-place over any build from this pipeline going forward. If
+              you have an APK installed from BEFORE this pipeline pinned
+              its signing key, you'll need to uninstall it once; every
+              build after that will update cleanly without uninstalling.
 
             Download the .apk file below and install on your Android device.
           files: capacitor/android/app/build/outputs/apk/debug/app-debug.apk

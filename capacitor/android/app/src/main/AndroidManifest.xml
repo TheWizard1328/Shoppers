@@ -92,6 +92,11 @@
     <!-- Wake lock (keep CPU alive for GPS + BLE during screen off) -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- APK self-update: DownloadManager handles the .apk download (shows the
+         native "Download complete" notification), then the install intent
+         needs this permission to prompt the install screen on tap. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- ==================== Feature Declarations (optional) ==================== -->
     <!-- Declare GPS + BLE as not required so the app installs on devices without them -->
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
