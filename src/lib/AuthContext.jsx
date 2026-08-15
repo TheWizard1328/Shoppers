@@ -70,11 +70,15 @@ export const AuthProvider = ({ children }) => {
     try {
       const urlObj = new URL(url);
       const accessToken = urlObj.searchParams.get('access_token');
+      const refreshToken = urlObj.searchParams.get('refresh_token');
       const isNewUser = urlObj.searchParams.get('is_new_user');
 
       if (accessToken) {
         // Set the token in the SDK (localStorage + axios headers)
         base44.auth.setToken(accessToken);
+        if (refreshToken) {
+          try { base44.auth.setRefreshToken?.(refreshToken); } catch {}
+        }
 
         // Initialize IDB encryption with the new token
         initEncryption(accessToken).catch((e) =>

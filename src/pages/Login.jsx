@@ -10,18 +10,26 @@ import { initEncryption } from "@/components/utils/idbCrypto";
 import GoogleIcon from "@/components/GoogleIcon";
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
-// When running inside the native APK, OAuth must redirect back to the app
-// via the custom deep-link scheme rxdeliver://auth. The AndroidManifest has
-// an intent filter for this scheme, so Android opens our app directly — no
-// browser, no getting stuck on a web page.
+// When running inside the native APK, OAuth must redirect back to the app.
 //
-// We previously tried using a verified Android App Link
-// (https://wizardworxx.com/oauth-callback) but that can't work: wizardworxx.com
-// is a Base44-hosted domain and the platform serves its OWN assetlinks.json
-// listing the Base44 web app package, not our com.rxdeliver.driver package.
-// Android never verifies our app for that URL, so the redirect stays in the
-// browser. The custom scheme is the only reliable path.
-const OAUTH_REDIRECT = isCapacitorNativeApp() ? "rxdeliver://auth" : "/";
+// We tried two approaches that both failed at the platform level:
+// 1. A verified Android App Link (https://wizardworxx.com/oauth-callback) —
+//    can't work because wizardworxx.com is Base44-hosted and its
+//    assetlinks.json lists Base44's own web-app package, not ours.
+// 2. Passing the custom scheme (rxdeliver://auth) directly as from_url to
+//    base44.auth.loginWithProvider() — Base44's OAuth broker
+//    (/api/apps/auth/login, hosted on this same domain) silently rejects
+//    non-http(s) from_url values and falls back to "/", which is exactly
+//    what we observed: login succeeds but lands on the dashboard inside
+//    the external Chrome tab instead of returning to the app.
+//
+// The fix that actually works: send a NORMAL http(s) from_url that Base44's
+// broker accepts (our own /oauth-callback page, tagged ?native=1), and have
+// THAT page — running client-side in Chrome after the redirect completes —
+// perform the hop to rxdeliver://auth itself. Chrome will honor navigation
+// to a custom scheme from an ordinary page load; it's only Base44's own
+// server-side redirect that was rejecting it. See OAuthCallback.jsx.
+const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/oauth-callback?native=1" : "/";
 
 export default function Login() {
   const [email, setEmail] = useState("");
