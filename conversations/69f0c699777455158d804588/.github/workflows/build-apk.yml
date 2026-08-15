@@ -16,6 +16,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -56,10 +58,36 @@ jobs:
         working-directory: capacitor/android
         run: ./gradlew assembleDebug --no-daemon -x test
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: rxdeliver-debug-apk
           path: capacitor/android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
           compression-level: 0
+
+      - name: Delete previous latest release
+        run: |
+          gh release delete apk-latest --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: RxDeliver Android APK (Latest)
+          body: |
+            Auto-built debug APK from commit ${{ github.sha }}
+
+            - Blue icon with "Rx" branding
+            - Background GPS via @capgo/background-geolocation
+            - Dynamic environment routing (admin=preview, driver=live)
+            - OAuth deep-link callback (rxdeliver://auth)
+
+            Download the .apk file below and install on your Android device.
+          files: capacitor/android/app/build/outputs/apk/debug/app-debug.apk
+          prerelease: true
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
