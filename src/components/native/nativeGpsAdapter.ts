@@ -37,7 +37,7 @@ export class NativeGpsAdapter {
   async loadPlugin() {
     if (this.nativePlugin) return this.nativePlugin;
     try {
-      const mod = await import('@capacitor-community/background-geolocation');
+      const mod = await import('@capgo/background-geolocation');
       this.nativePlugin = mod.BackgroundGeolocation;
     } catch {
       this.nativePlugin = null;

@@ -953,11 +953,11 @@ class LocationTracker {
     // Desktop browsers without GPS hardware fail gracefully at checkGPSCapabilities().
 
     if (isCapacitorNativeApp() && getCapacitorPlatform() === 'android') {
-      // NOTE: @capacitor-community/background-geolocation does NOT expose requestPermissions().
-      // Permission prompting is handled internally by addWatcher(requestPermissions: true).
-      // We do NOT block tracking here — the plugin will prompt inline when addWatcher is called.
+      // CapGo @capgo/background-geolocation (v8) exposes checkPermissions()/requestPermissions().
+      // Permission prompting is handled by start(requestPermissions: true).
+      // We do NOT block tracking here — the plugin will prompt inline when start() is called.
       // If the user denies, the watcher error callback fires with code NOT_AUTHORIZED.
-      console.log('📍 [LocationTracker] Native Android — permission will be requested by addWatcher');
+      console.log('📍 [LocationTracker] Native Android — permission will be requested by start()');
     }
 
     if (this.isTracking) {

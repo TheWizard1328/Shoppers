@@ -1,7 +1,10 @@
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { BackgroundGeolocation as CapGoGeolocation } from '@capgo/background-geolocation';
 
-export const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
+// CapGo's background-geolocation plugin (v8) — singleton start()/stop() API.
+// Re-exported as BackgroundGeolocation for compatibility with existing code.
+export const BackgroundGeolocation = CapGoGeolocation;
 
 export const isCapacitorNativeApp = () => {
   try {
@@ -46,13 +49,11 @@ export const ensureBackgroundNotificationPermission = async () => {
 };
 
 // -----------------------------------------------------------------
-// NOTE: @capacitor-community/background-geolocation does NOT expose
-// checkPermissions() or requestPermissions() — the plugin handles
-// permission prompting internally inside addWatcher() when
-// requestPermissions: true is set.
+// CapGo @capgo/background-geolocation (v8) exposes checkPermissions()
+// and requestPermissions() — use the new passthrough functions above.
 //
 // On Android 10+ (API 29+) the OS enforces a two-step flow:
-//   Step 1 — addWatcher() triggers "Allow while using the app"
+//   Step 1 — start(requestPermissions: true) triggers "Allow while using the app"
 //   Step 2 — To get "Allow all the time" (background), the user must
 //             go to Settings > App > Permissions > Location > "Allow
 //             all the time". This CANNOT be triggered by a runtime
@@ -60,8 +61,8 @@ export const ensureBackgroundNotificationPermission = async () => {
 //             them there.
 //
 // We use the standard Geolocation API (navigator.permissions) to
-// check whether background permission was already granted. If it
-// hasn't been, we surface a UI prompt and call openSettings().
+// check whether foreground permission was granted. For background
+// permission, use checkNativeGeolocationPermissions() above.
 // -----------------------------------------------------------------
 
 export const getNativeLocationAuthorization = async () => {
@@ -81,7 +82,7 @@ export const getNativeLocationAuthorization = async () => {
     return { granted, backgroundGranted: null, status, permissions: result };
   } catch (e) {
     console.warn('[capacitorRuntime] navigator.permissions.query failed:', e?.message);
-    // Fallback — assume granted if we can't check (addWatcher will error if not)
+    // Fallback — assume granted if we can't check (start() will error if not)
     return { granted: true, backgroundGranted: null, status: 'unknown' };
   }
 };
@@ -89,9 +90,34 @@ export const getNativeLocationAuthorization = async () => {
 // Opens the app's Android Settings page so the user can manually
 // set Location permission to "Allow all the time".
 export const openAndroidLocationSettings = async () => {
-  const plugin = BackgroundGeolocation;
-  if (isCapacitorNativeApp() && typeof plugin?.openSettings === 'function') {
-    await plugin.openSettings();
+  if (isCapacitorNativeApp() && typeof BackgroundGeolocation?.openSettings === 'function') {
+    await BackgroundGeolocation.openSettings();
+  }
+};
+
+// CapGo v8 exposes checkPermissions()/requestPermissions() — use these for
+// proper background location permission handling on Android 10+.
+export const checkNativeGeolocationPermissions = async () => {
+  if (!isCapacitorNativeApp() || typeof BackgroundGeolocation?.checkPermissions !== 'function') {
+    return { location: 'unknown', backgroundLocation: 'unknown', notification: 'unknown' };
+  }
+  try {
+    return await BackgroundGeolocation.checkPermissions();
+  } catch (e) {
+    console.warn('[capacitorRuntime] checkPermissions failed:', e?.message);
+    return { location: 'unknown', backgroundLocation: 'unknown', notification: 'unknown' };
+  }
+};
+
+export const requestNativeGeolocationPermissions = async (permissions) => {
+  if (!isCapacitorNativeApp() || typeof BackgroundGeolocation?.requestPermissions !== 'function') {
+    return { location: 'unknown', backgroundLocation: 'unknown', notification: 'unknown' };
+  }
+  try {
+    return await BackgroundGeolocation.requestPermissions(permissions ? { permissions } : undefined);
+  } catch (e) {
+    console.warn('[capacitorRuntime] requestPermissions failed:', e?.message);
+    return { location: 'unknown', backgroundLocation: 'unknown', notification: 'unknown' };
   }
 };
 

@@ -14,12 +14,7 @@
     "BackgroundGeolocation": {
       "notificationTitle": "RxDeliver GPS Active",
       "notificationText": "Location tracking is running",
-      "notificationIcon": "ic_notification",
-      "interval": 10000,
-      "fastestInterval": 5000,
-      "locationAccuracy": 100,
-      "startForeground": true,
-      "smallestDisplacement": 10
+      "notificationIcon": "ic_notification"
     },
     "BluetoothLe": {
       "askForPermissions": true
