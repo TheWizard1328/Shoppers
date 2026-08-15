@@ -147,7 +147,8 @@ export default function DeliveryFormView({
   closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false, pickupsAddedCount = 0,
   applyDeliveryChangesLocally, onDriverManuallyChanged,
   scheduledDriverMap = {},
-  statHolidayWarning = null
+  statHolidayWarning = null,
+  autoCommitProgress = 1
 }) {
   const activeFieldScrollFrameRef = useRef(null);
   const barcodeInputRef = useRef(null);
@@ -685,21 +686,40 @@ export default function DeliveryFormView({
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                {useMobileLayout && isMobileDevice &&
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant();else
-                    window.dispatchEvent(new CustomEvent('openGuideAssistant'));
-                  }}
-                  disabled={isSaving}
-                  title="Open guide assistant"
-                  aria-label="Open guide assistant">
-                  
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                  </Button>
-                }
+                {useMobileLayout && isMobileDevice && (() => {
+                  // Only show countdown ring in add_to_route mode
+                  const showRing = openMode === 'add_to_route' && !isInterStoreMode;
+                  return (
+                <div className="relative" style={showRing ? { width: 36, height: 36 } : undefined}>
+                  {showRing && (() => {
+                    const size = 36, stroke = 2.5, r = (size - stroke) / 2;
+                    const circumference = 2 * Math.PI * r;
+                    const dash = circumference * Math.max(0, Math.min(1, autoCommitProgress));
+                    const ringColor = autoCommitProgress < 0.2 ? '#ef4444' : autoCommitProgress < 0.5 ? '#f59e0b' : '#10b981';
+                    return (
+                      <svg width={size} height={size} className="absolute inset-0 pointer-events-none" style={{ transform: 'rotate(-90deg)' }}>
+                        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="opacity-10" />
+                        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={ringColor} strokeWidth={stroke}
+                          strokeDasharray={`${dash} ${circumference - dash}`}
+                          strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s linear, stroke 0.3s ease' }} />
+                      </svg>
+                    );
+                  })()}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant();else
+                      window.dispatchEvent(new CustomEvent('openGuideAssistant'));
+                    }}
+                    disabled={isSaving}
+                    title={showRing ? `Auto-save in ${Math.ceil(autoCommitProgress * 5)} min — tap to reset` : 'Open guide assistant'}
+                    aria-label="Open guide assistant">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                    </Button>
+                </div>
+                  );
+                })()}
                 <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving}><X className="w-4 h-4" /></Button>
               </div>
             </div>

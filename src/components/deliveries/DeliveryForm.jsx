@@ -190,6 +190,8 @@ export default function DeliveryForm({
   const autoCommitInProgressRef = useRef(false);
   // Refs to always call the latest versions after state updates
   const handleBatchSaveRef = useRef(null);
+  // Countdown ring progress: 1.0 = full time remaining, 0.0 = about to auto-commit
+  const [autoCommitProgress, setAutoCommitProgress] = useState(1);
   const [error, setError] = useState(null);
   const [highlightedPatientIndex, setHighlightedPatientIndex] = useState(-1);
   const patientSearchInputRef = useRef(null);
@@ -1290,8 +1292,8 @@ export default function DeliveryForm({
       const elapsed = Date.now() - lastInteractionRef.current;
       if (elapsed < INACTIVITY_TIMEOUT_MS) return;
 
-      // Need staged deliveries (or pending deletes) to auto-commit
-      if (stagedDeliveries.length === 0 && !hasPendingDeletes) return;
+      // Need staged deliveries, pending deletes, OR an in-progress form to auto-commit
+      if (stagedDeliveries.length === 0 && !hasPendingDeletes && !hasFormData) return;
 
       autoCommitInProgressRef.current = true;
       console.log('[AddToRoute] Auto-commit triggered after 5 min inactivity', {
@@ -1324,24 +1326,33 @@ export default function DeliveryForm({
       })();
     };
 
+    // Update countdown ring progress every second
+    const progressId = setInterval(() => {
+      const elapsed = Date.now() - lastInteractionRef.current;
+      const remaining = Math.max(0, INACTIVITY_TIMEOUT_MS - elapsed);
+      setAutoCommitProgress(remaining / INACTIVITY_TIMEOUT_MS);
+    }, 1000);
+
     const intervalId = setInterval(checkInactivity, 10_000); // check every 10s
-    return () => clearInterval(intervalId);
+    return () => { clearInterval(intervalId); clearInterval(progressId); };
   }, [openMode, isInterStoreMode, delivery, isSaving, stagedDeliveries.length, hasPendingDeletes,
       hasFormData, formData.delivery_date, formData.driver_id, formData.store_id,
       handleAddToStaging, handleBatchSave]);
 
   // ── Track user interactions to reset the inactivity clock ──
+  // Scoped to the form container so background dashboard activity doesn't reset the timer.
   useEffect(() => {
     if (openMode !== 'add_to_route' || isInterStoreMode || delivery) return;
 
     const resetClock = () => { lastInteractionRef.current = Date.now(); };
 
-    // Broad set of events — any real user action in the form resets the 5-min clock
+    // Any real user action in the form resets the 5-min clock
     const events = ['input', 'change', 'click', 'keydown', 'touchstart', 'pointerdown', 'scroll', 'wheel'];
-    events.forEach((evt) => window.addEventListener(evt, resetClock, { passive: true, capture: true }));
+    const target = formRef.current || window;
+    events.forEach((evt) => target.addEventListener(evt, resetClock, { passive: true, capture: true }));
 
     return () => {
-      events.forEach((evt) => window.removeEventListener(evt, resetClock, { passive: true, capture: true }));
+      events.forEach((evt) => target.removeEventListener(evt, resetClock, { passive: true, capture: true }));
     };
   }, [openMode, isInterStoreMode, delivery]);
 
@@ -1391,6 +1402,7 @@ export default function DeliveryForm({
       applyDeliveryChangesLocally={applyDeliveryChangesLocally}
       scheduledDriverMap={scheduledDriverMap}
       statHolidayWarning={statHolidayWarning}
+      autoCommitProgress={autoCommitProgress}
     />
   );
 }
