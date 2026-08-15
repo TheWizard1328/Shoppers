@@ -1244,6 +1244,15 @@ class LocationTracker {
   }
 
   stopTracking() {
+    // Stop native off-duty Foreground Service watcher if active
+    if (this._nativeOffDutyWatcher && this.nativeWatchId != null) {
+      const offDutyId = this.nativeWatchId;
+      this.nativeWatchId = null;
+      this._nativeOffDutyWatcher = false;
+      const provider = getLocationProvider();
+      Promise.resolve(provider?.clearWatch?.(offDutyId)).catch(() => {});
+      console.log('📱 [LocationTracker] Stopped native off-duty Foreground Service');
+    }
     if (this.watchId !== null) {
       const activeWatchId = this.watchId;
       this.watchId = null;
@@ -1268,6 +1277,8 @@ class LocationTracker {
     console.log('💓 [LocationTracker] Stopped heartbeat + breadcrumb intervals + watchdog');
     this.isTracking = false;
     this._webOnlyMode = false;
+    this._nativeOffDutyWatcher = false;
+    this.nativeWatchId = null;
     this._dispatcherHeartbeatMode = false;
     this.isPrimaryDevice = false;
     this.userRoles = [];
