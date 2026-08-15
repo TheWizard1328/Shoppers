@@ -348,6 +348,9 @@ class LocationTracker {
   }
 
   shouldKeepNativeTrackingAlive() {
+    // Web-only mode (off-duty) should also survive upload failures — the heartbeat
+    // is lightweight and the driver's shared location marker depends on it.
+    if (this._webOnlyMode) return this.isPrimaryDevice;
     return this.isPrimaryDevice && (this.driverStatus === 'on_duty' || this.driverStatus === 'on_break');
   }
 
@@ -436,6 +439,7 @@ class LocationTracker {
     this.isTracking = true;
     this._webOnlyMode = true;
     const providerName = 'WEB-ONLY';
+    this.failedUpdateCount = 0; // Reset failure count on web-only start
     this.heartbeatInterval = setInterval(async () => {
       if (!this.isTracking || !this._webOnlyMode) return;
       try {
@@ -462,7 +466,13 @@ class LocationTracker {
             this.lastPosition.accuracy, false, true, true
           );
         }
-      } catch (_) {}
+      } catch (err) {
+        // Log but don't increment failedUpdateCount for GPS acquisition failures —
+        // only updateLocationInDatabase increments it for upload failures.
+        // GPS timeouts are transient (especially on resume from background);
+        // silently killing the heartbeat would freeze the driver's location.
+        console.warn('📍 [Web-only heartbeat] GPS fix failed (non-fatal):', err?.message || err);
+      }
     }, this.updateInterval);
 
     console.log(`📍 [LocationTracker] Web-only tracking started (off-duty heartbeat every ${this.updateInterval / 1000}s)`);
@@ -1695,6 +1705,43 @@ if (typeof document !== 'undefined') {
         locationTracker.currentUser.id,
         _focusDate
       ).catch(() => {});
+    }
+
+    // ── Web-only (off-duty) GPS refresh on foreground ──
+    // The browser throttles setInterval when backgrounded. On foreground return,
+    // immediately grab a fresh GPS fix and upload so the driver's shared location
+    // marker is accurate right away — don't wait for the next 15s heartbeat tick.
+    if (
+      locationTracker.isTracking &&
+      locationTracker._webOnlyMode &&
+      locationTracker.isPrimaryDevice &&
+      locationTracker.appUserId
+    ) {
+      console.log('📍 [LocationTracker] Web-only mode — refreshing GPS on foreground return');
+      (async () => {
+        try {
+          const provider = getLocationProvider();
+          if (provider.isAvailable()) {
+            const pos = await provider.getCurrentPosition({
+              enableHighAccuracy: true,
+              timeout: 8000,
+              maximumAge: 0,
+              requestPermissions: false
+            });
+            locationTracker.lastPosition = {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy
+            };
+            await locationTracker.updateLocationInDatabase(
+              pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy,
+              true, false, true  // forceUpdate=true to bypass gates
+            );
+          }
+        } catch (e) {
+          console.warn('📍 [LocationTracker] Web-only foreground refresh failed:', e?.message);
+        }
+      })();
     }
   });
 
