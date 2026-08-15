@@ -11,9 +11,11 @@ import GoogleIcon from "@/components/GoogleIcon";
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
 // When running inside the native APK, OAuth must redirect back to the app
-// via a deep link (rxdeliver://auth) instead of a web URL that stays in the
-// system browser. The AndroidManifest has an intent filter for this scheme.
-const OAUTH_REDIRECT = isCapacitorNativeApp() ? "rxdeliver://auth" : "/";
+// via a verified Android App Link (https://wizardworxx.com/oauth-callback).
+// Android opens the app directly — no browser, no chooser dialog — once
+// assetlinks.json is verified. The custom scheme (rxdeliver://auth) is kept
+// as a fallback for devices where verification hasn't completed yet.
+const OAUTH_REDIRECT = isCapacitorNativeApp() ? "https://wizardworxx.com/oauth-callback" : "/";
 
 export default function Login() {
   const [email, setEmail] = useState("");

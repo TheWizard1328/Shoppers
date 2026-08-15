@@ -17,6 +17,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { lazy as lazyReact, Suspense as SuspenseReact } from 'react';
+const OAuthCallback = lazy(() => import('@/pages/OAuthCallback'));
 
 // Lazy-load pages that are imported directly (not in pages.config.js)
 const SquareSyncAudit = lazyReact(() => import('@/pages/SquareSyncAudit'));
@@ -165,7 +166,8 @@ const AuthenticatedApp = () => {
         />
       </Route>
 
-      <Route path="*" element={<PageNotFound />} />
+      <Route path="/oauth-callback" element={<LazyPageWrapper><OAuthCallback /></LazyPageWrapper>} />
+            <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
 };
