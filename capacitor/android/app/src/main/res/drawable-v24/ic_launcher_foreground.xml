@@ -20,7 +20,7 @@
     <!-- White "R" letter -->
     <path
         android:fillColor="#FFFFFF"
-        android:fillRule="evenOdd"
+        android:fillType="evenOdd"
         android:pathData="M44,36 L48,36 L48,48 L44,48 Z M44,36 L52,36 C54,36 55,37 55,39 C55,41 54,42 52,42 L48,42 L48,40 L52,40 L52,38 L44,38 Z M48,42 L51,42 L55,48 L52,48 Z" />
 
     <!-- White "x" letter -->
