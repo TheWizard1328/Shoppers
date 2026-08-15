@@ -1,5 +1,14 @@
 apply plugin: 'com.android.application'
 
+// Auto-incrementing versionCode computed at build time (minutes since a
+// fixed epoch: 2024-01-01 00:00 UTC). Android requires versionCode to
+// strictly increase for the system to treat a new APK as an "update" to an
+// existing install rather than a same-version no-op. A hardcoded versionCode
+// (it was stuck at 1 forever) combined with a changing debug-keystore
+// signature is why users had to uninstall before every single update.
+def computedVersionCode = ((System.currentTimeMillis() / 1000 / 60) - 28401120L) as int
+def buildDateStr = new Date().format('yyyy-MM-dd HH:mm')
+
 android {
     namespace "com.rxdeliver.driver"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +16,8 @@ android {
         applicationId "com.rxdeliver.driver"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode computedVersionCode
+        versionName "1.0 (${buildDateStr})"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
