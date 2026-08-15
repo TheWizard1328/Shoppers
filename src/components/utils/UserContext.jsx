@@ -35,6 +35,28 @@ export const UserProvider = ({ children, initialUser = null }) => {
     }
   }, [initialUser]);
 
+  // Store environment preference for native APK routing
+  // Owner/admin → preview, everyone else → live
+  useEffect(() => {
+    if (!currentUser) return;
+    const setEnvPreference = async () => {
+      try {
+        const isNative = typeof window !== 'undefined' &&
+          window.Capacitor?.isNativePlatform?.();
+        if (!isNative) return;
+        
+        const { Preferences } = await import('@capacitor/preferences');
+        const isAdmin = currentUser?.role === 'admin';
+        const env = isAdmin ? 'preview' : 'live';
+        await Preferences.set({ key: 'rxdeliver_env', value: env });
+        console.log(`📱 [Capacitor] Stored env preference: ${env}`);
+      } catch (e) {
+        // Not on native or Preferences not available — silently skip
+      }
+    };
+    setEnvPreference();
+  }, [currentUser?.id, currentUser?.role]);
+
   return (
     <UserContext.Provider value={{ currentUser, isLoadingUser, refreshUser }}>
       {children}
