@@ -9,11 +9,10 @@ const AuthContext = createContext();
 
 const getAppReturnUrl = () => `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
 
-// Deep link targets for OAuth callback in native apps.
-// Primary: verified Android App Link (https) — Android opens the app
-// directly with no browser hop or chooser dialog once assetlinks.json is
-// verified. Fallback: custom scheme, used if verification hasn't landed yet.
-const NATIVE_AUTH_HTTPS_URL = 'https://wizardworxx.com/oauth-callback';
+// Deep link target for OAuth callback in native apps.
+// We use the custom scheme rxdeliver://auth because wizardworxx.com's
+// assetlinks.json is controlled by the Base44 platform (lists their own
+// package, not ours), so verified App Links can never resolve to our APK.
 const NATIVE_AUTH_SCHEME = 'rxdeliver://auth';
 
 export const AuthProvider = ({ children }) => {
@@ -62,7 +61,7 @@ export const AuthProvider = ({ children }) => {
 
   const handleDeepLink = (url) => {
     if (!url || deepLinkHandledRef.current) return;
-    const isAuthDeepLink = url.startsWith('rxdeliver://') || url.startsWith(NATIVE_AUTH_HTTPS_URL);
+    const isAuthDeepLink = url.startsWith('rxdeliver://');
     if (!isAuthDeepLink) return;
 
     deepLinkHandledRef.current = true;
