@@ -182,6 +182,14 @@ export default function DeliveryForm({
   const [isCyclingMarkerMode, setIsCyclingMarkerMode] = useState(false);
   const [selectedStoreForPickup, setSelectedStoreForPickup] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  // ── Auto-commit inactivity timer for Add to Route mode ──
+  // After 5 min of no user interaction, if there are staged deliveries,
+  // commit any in-progress form entry, then batch-save everything to Pending.
+  const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  const lastInteractionRef = useRef(Date.now());
+  const autoCommitInProgressRef = useRef(false);
+  // Refs to always call the latest versions after state updates
+  const handleBatchSaveRef = useRef(null);
   const [error, setError] = useState(null);
   const [highlightedPatientIndex, setHighlightedPatientIndex] = useState(-1);
   const patientSearchInputRef = useRef(null);
@@ -870,6 +878,9 @@ export default function DeliveryForm({
     return runHandleBatchSave({ batchSaveLockRef, isSaving, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops, currentUser, patients, appUsers });
   }, [isSaving, stagedDeliveries, hasPendingDeletes, formData, allDeliveries, stores, onCancel, onSave, isNewRouteWithZeroStops, handleClearForm, openMode, delivery, selectedPatient, setStagedDeliveries, setHasChanges]);
 
+  // Keep ref in sync so auto-commit can call the latest version after staged state updates
+  useEffect(() => { handleBatchSaveRef.current = handleBatchSave; }, [handleBatchSave]);
+
   const handleSearchKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -1268,6 +1279,71 @@ export default function DeliveryForm({
       driverManuallyChangedRef.current = false; // date changed — re-derive scheduled driver
     }
   }, [formData.delivery_date]);
+
+  // ── Inactivity auto-commit: only in add_to_route mode, not InterStore, not editing ──
+  // Timer continues even when app is backgrounded — so changes are saved rather than lost.
+  useEffect(() => {
+    if (openMode !== 'add_to_route' || isInterStoreMode || delivery) return;
+
+    const checkInactivity = () => {
+      if (autoCommitInProgressRef.current || isSaving) return;
+      const elapsed = Date.now() - lastInteractionRef.current;
+      if (elapsed < INACTIVITY_TIMEOUT_MS) return;
+
+      // Need staged deliveries (or pending deletes) to auto-commit
+      if (stagedDeliveries.length === 0 && !hasPendingDeletes) return;
+
+      autoCommitInProgressRef.current = true;
+      console.log('[AddToRoute] Auto-commit triggered after 5 min inactivity', {
+        stagedCount: stagedDeliveries.length,
+        hasFormData: hasFormData,
+        hasPendingDeletes
+      });
+
+      (async () => {
+        try {
+          // If there's an in-progress form with enough data, commit it first
+          if (hasFormData && formData.delivery_date && formData.driver_id && formData.store_id) {
+            console.log('[AddToRoute] Auto-committing in-progress form entry before batch save');
+            await handleAddToStaging();
+            // Wait for React to flush the stagedDeliveries state update so the
+            // batch-save closure (recreated via useCallback deps) sees the new item.
+            await new Promise(r => setTimeout(r, 100));
+          }
+
+          // Now batch-save all staged deliveries to Pending.
+          // Use the ref so we always call the latest version with updated state.
+          console.log('[AddToRoute] Auto-commit: firing handleBatchSave');
+          await handleBatchSaveRef.current();
+        } catch (err) {
+          console.error('[AddToRoute] Auto-commit failed:', err);
+        } finally {
+          autoCommitInProgressRef.current = false;
+          lastInteractionRef.current = Date.now();
+        }
+      })();
+    };
+
+    const intervalId = setInterval(checkInactivity, 10_000); // check every 10s
+    return () => clearInterval(intervalId);
+  }, [openMode, isInterStoreMode, delivery, isSaving, stagedDeliveries.length, hasPendingDeletes,
+      hasFormData, formData.delivery_date, formData.driver_id, formData.store_id,
+      handleAddToStaging, handleBatchSave]);
+
+  // ── Track user interactions to reset the inactivity clock ──
+  useEffect(() => {
+    if (openMode !== 'add_to_route' || isInterStoreMode || delivery) return;
+
+    const resetClock = () => { lastInteractionRef.current = Date.now(); };
+
+    // Broad set of events — any real user action in the form resets the 5-min clock
+    const events = ['input', 'change', 'click', 'keydown', 'touchstart', 'pointerdown', 'scroll', 'wheel'];
+    events.forEach((evt) => window.addEventListener(evt, resetClock, { passive: true, capture: true }));
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, resetClock, { passive: true, capture: true }));
+    };
+  }, [openMode, isInterStoreMode, delivery]);
 
   return (
     <DeliveryFormView
