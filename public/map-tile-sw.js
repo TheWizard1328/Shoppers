@@ -303,8 +303,12 @@ async function showTrackingNotification(data = {}) {
   const nextStop = data.nextStop;
 
   let body = 'Location tracking active';
-  if (stopCount != null) body = `${stopCount} stop${stopCount !== 1 ? 's' : ''} remaining`;
-  if (nextStop) body += ` — Next: ${nextStop}`;
+  if (data.paused) {
+    body = 'GPS paused — app minimized. Open to resume tracking.';
+  } else {
+    if (stopCount != null) body = `${stopCount} stop${stopCount !== 1 ? 's' : ''} remaining`;
+    if (nextStop) body += ` — Next: ${nextStop}`;
+  }
 
   const options = {
     body,

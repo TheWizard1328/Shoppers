@@ -27,7 +27,10 @@ export function useWakeLockAndVisibility({
     const requestWakeLock = async () => {
       if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
       try {
-        if ('getBattery' in navigator) {
+        // For on-duty drivers, keep the wake lock active regardless of battery level.
+        // GPS tracking for active deliveries is mission-critical.
+        const isOnDuty = locationTracker?.isTracking && locationTracker?.driverStatus === 'on_duty';
+        if (!isOnDuty && 'getBattery' in navigator) {
           const battery = await navigator.getBattery();
           if (battery.level * 100 < 25 && !battery.charging) return;
         }
@@ -46,8 +49,9 @@ export function useWakeLockAndVisibility({
         batteryRef = await navigator.getBattery();
         const check = () => {
           const level = batteryRef.level * 100;
-          if (level < 25 && !batteryRef.charging && wakeLockRef.current) releaseWakeLock();
-          else if ((level >= 25 || batteryRef.charging) && !wakeLockRef.current && document.visibilityState === 'visible') requestWakeLock();
+          const isOnDuty = locationTracker?.isTracking && locationTracker?.driverStatus === 'on_duty';
+          if (level < 25 && !batteryRef.charging && wakeLockRef.current && !isOnDuty) releaseWakeLock();
+          else if ((level >= 25 || batteryRef.charging || isOnDuty) && !wakeLockRef.current && document.visibilityState === 'visible') requestWakeLock();
         };
         batteryRef.addEventListener('levelchange', check);
         batteryRef.addEventListener('chargingchange', check);

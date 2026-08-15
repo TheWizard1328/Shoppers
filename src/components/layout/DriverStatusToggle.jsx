@@ -15,6 +15,7 @@ import {
   updateTrackingNotification,
   onStopTrackingFromNotification,
 } from "../utils/trackingNotification";
+import { isCapacitorNativeApp } from "../utils/locationProviders/capacitorRuntime";
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -287,11 +288,15 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         try { window.dispatchEvent(new CustomEvent('forceEnableRoutes')); } catch (_) {}
         // Show persistent tracking notification (helps keep PWA alive on Android)
         if (isOwnUser) {
-          showTrackingNotification({
-            status: 'on_duty',
-            driverName: effectiveUser?.user_name || effectiveUser?.full_name,
-            canStopTracking: true,
-          }).catch(() => {});
+          // Skip SW persistent notification when running native APK — the Capacitor
+          // BackgroundGeolocation plugin already shows a Foreground Service notification.
+          if (!isCapacitorNativeApp()) {
+            showTrackingNotification({
+              status: 'on_duty',
+              driverName: effectiveUser?.user_name || effectiveUser?.full_name,
+              canStopTracking: true,
+            }).catch(() => {});
+          }
         }
       }
 
@@ -443,11 +448,11 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             locationTracker.stopTracking();
             await locationTracker.startWebOnlyTracking({ ...currentUser, appUserId }).catch(() => {});
           }
-          hideTrackingNotification().catch(() => {});
+          if (!isCapacitorNativeApp()) hideTrackingNotification().catch(() => {});
           window.dispatchEvent(new CustomEvent('locationSharingDisabled'));
         } else if (newStatus === 'on_break') {
           locationTracker.setDriverStatus(newStatus);
-          hideTrackingNotification().catch(() => {});
+          if (!isCapacitorNativeApp()) hideTrackingNotification().catch(() => {});
           window.dispatchEvent(new CustomEvent('locationSharingDisabled'));
           try {
             const settings = await loadUserSettings(currentUser.id);
@@ -592,18 +597,47 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         const nextStop = remaining
           .filter(d => d.status === 'in_transit' || d.status === 'en_route' || d.status === 'pending')
           .sort((a, b) => Number(a.stop_order || 999) - Number(b.stop_order || 999))[0];
-        updateTrackingNotification({
-          status,
-          stopCount: remaining.length,
-          nextStop: nextStop?.patient_name || nextStop?.delivery_id || null,
-          canStopTracking: true,
-        }).catch(() => {});
+        if (!isCapacitorNativeApp()) {
+          updateTrackingNotification({
+            status,
+            stopCount: remaining.length,
+            nextStop: nextStop?.patient_name || nextStop?.delivery_id || null,
+            canStopTracking: true,
+          }).catch(() => {});
+        }
       } catch (e) { /* non-critical */ }
     };
     window.addEventListener('deliveryStatusChanged', handler);
     return () => window.removeEventListener('deliveryStatusChanged', handler);
   }, [status, isOwnUser, effectiveUser?.id]);
 
+
+  // ── Update notification when app goes to background/foreground ──
+  // On the web PWA path, Android Chrome suspends watchPosition when the page is hidden.
+  // Update the notification so the driver knows GPS is paused vs active.
+  useEffect(() => {
+    if (isCapacitorNativeApp()) return; // Native path has real background GPS
+    if (!isOwnUser || (status !== 'on_duty' && status !== 'on_break')) return;
+
+    const handler = () => {
+      if (document.hidden) {
+        updateTrackingNotification({
+          status,
+          stopCount: 0, // unknown
+          nextStop: null,
+          canStopTracking: true,
+        }).catch(() => {});
+      } else {
+        // App is back in foreground — refresh the notification with real data
+        updateTrackingNotification({
+          status,
+          canStopTracking: true,
+        }).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [status, isOwnUser]);
 
   return (
     <div className="flex items-center">
