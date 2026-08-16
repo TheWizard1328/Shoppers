@@ -63,7 +63,7 @@ npx cap open android
 ### 5. Install on device
 ```bash
 # Debug install (USB debugging enabled)
-adb install android/app/build/outputs/apk/debug/app-debug.apk
+adb install android/app/build/outputs/apk/debug/rxdeliver-debug.apk
 ```
 
 ## Permissions granted at runtime
