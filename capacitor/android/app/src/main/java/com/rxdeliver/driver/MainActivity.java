@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.webkit.WebView;
 import android.widget.Toast;
+import androidx.core.view.WindowCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.CapConfig;
 import java.lang.reflect.Field;
@@ -45,6 +46,15 @@ public class MainActivity extends BridgeActivity {
         }
 
         super.onCreate(savedInstanceState);
+
+        // Android 15 (SDK 35, our targetSdkVersion) enforces edge-to-edge by
+        // default: the WebView draws its content behind the system status
+        // bar AND navigation bar unless the app explicitly opts out. Without
+        // this, the app's own bottom nav / FABs get covered by the phone's
+        // on-screen nav buttons (3-button nav or gesture bar). This restores
+        // the pre-Android-15 behavior where the system automatically insets
+        // (pads) the window so content never draws under the system bars.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
 
         // ── APK self-update download handling ──────────────────────────
         // The Capacitor WebView has no download handling wired up by

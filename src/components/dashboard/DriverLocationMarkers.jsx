@@ -198,6 +198,38 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
   const isPrimaryDeviceRef = useRef(true);
 
+  // ── Live staleness ticker ────────────────────────────────────────────────
+  // _staleness/_ageMinutes used to be computed ONCE by driverLocationPoller
+  // whenever the full appUsers array was reprocessed, then carried around
+  // unchanged inside merged marker state. The WS-driven `driverLocationsUpdated`
+  // path (handleLocationUpdates below) never recomputed those fields at all —
+  // so a marker could receive a brand new location_updated_at (fresh timestamp
+  // shown in the popup) while still displaying a stale "286min old" badge left
+  // over from an earlier computation. This ticker forces a re-render every 15s
+  // so staleness is always recalculated fresh from the actual timestamp, in
+  // sync with the "Updated: h:mm:ss a" text, and keeps counting up smoothly
+  // between WS updates instead of only jumping on new data.
+  const [, setStalenessTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setStalenessTick((t) => t + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  const computeLiveStaleness = (locationUpdatedAt) => {
+    if (!locationUpdatedAt) return { staleness: 'unknown', ageMinutes: 0 };
+    const lastUpdate = new Date(locationUpdatedAt).getTime();
+    if (!Number.isFinite(lastUpdate) || lastUpdate <= 0) return { staleness: 'unknown', ageMinutes: 0 };
+    const ageMs = Date.now() - lastUpdate;
+    const ageSeconds = Math.floor(ageMs / 1000);
+    const ageMinutes = Math.floor(ageMs / 60000);
+    let staleness = 'fresh';
+    if (ageSeconds > 60) staleness = 'heartbeat_stale';
+    if (ageMinutes > 30) staleness = 'very_stale';
+    else if (ageMinutes > 15) staleness = 'stale';
+    else if (ageMinutes > 5) staleness = 'aging';
+    return { staleness, ageMinutes };
+  };
+
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
   const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
   const isDriver = currentUser && userHasRole(currentUser, 'driver');
@@ -615,8 +647,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         // imperatively via setLatLng in the animation effect, preventing Leaflet from
         // destroying and recreating the marker DOM (and triggering tile reloads) on every update.
         const position = initialPositionsRef.current.get(stableKey) || [lat, lng];
-        const staleness = user._staleness || 'fresh';
-        const ageMinutes = user._ageMinutes || 0;
+        // Recompute staleness live from the actual (stable) timestamp every render —
+        // never trust a cached user._staleness/_ageMinutes snapshot, which can go stale
+        // relative to a freshly-merged location_updated_at (see ticker comment above).
+        const { staleness, ageMinutes } = stableUpdatedAt
+          ? computeLiveStaleness(stableUpdatedAt)
+          : { staleness: user._staleness || 'unknown', ageMinutes: user._ageMinutes || 0 };
         const deliveryStatus = user._deliveryStatus || 'incomplete';
         const zIndexValue = isSharedLocation ? 3000 : (isActive ? 2000 : 1000);
         const driverColor = generateDriverColor(displayName);
