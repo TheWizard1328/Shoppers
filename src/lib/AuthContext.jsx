@@ -246,6 +246,10 @@ export const AuthProvider = ({ children }) => {
       try {
         localStorage.removeItem('base44_access_token');
         localStorage.removeItem('token');
+        // Clear the env-redirect guard so the NEXT login (possibly a
+        // different account, e.g. AppOwner vs a driver) can redirect to
+        // the correct domain again instead of being skipped as a "loop".
+        sessionStorage.removeItem('rxdeliver_env_redirect_done');
       } catch (e) {
         console.warn('[Auth] Failed to clear token from localStorage:', e);
       }

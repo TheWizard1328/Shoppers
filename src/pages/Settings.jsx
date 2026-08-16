@@ -6,13 +6,14 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
+import { isCapacitorNativeApp, getCapacitorPlatform } from '@/components/utils/locationProviders/capacitorRuntime';
+import { getUserAgentInfo } from '@/components/utils/deviceUtils';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import {
   User, Bell, Moon, Smartphone, Monitor, LogOut, ChevronRight,
-  Sun, Check, Ruler, Save, Loader2, ShieldAlert, Download,
+  Sun, Check, Ruler, Save, Loader2, ShieldAlert, Download, RefreshCw,
 } from 'lucide-react';
 import { initPushNotifications, resetPushSubscription } from '@/components/utils/pushNotifications';
 import { toast } from 'sonner';
@@ -292,6 +293,50 @@ export function SettingsDialog({ open, onOpenChange, title, description, icon: I
       </DialogContent>
     </Dialog>
   );
+}
+
+// ── Android App Update Check ──────────────────────────────────────────────
+// Compares the installed native app's build date (embedded in versionName by
+// capacitor/android/app/build.gradle as "1.0 (yyyy-MM-dd HH:mm)") against the
+// latest GitHub release's published_at timestamp. Only meaningful inside the
+// native Android APK — web/iOS never show an "update" state.
+function useAndroidAppUpdateCheck() {
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!isCapacitorNativeApp() || getCapacitorPlatform() !== 'android') {
+        setChecked(true);
+        return;
+      }
+      try {
+        const { App } = await import('@capacitor/app');
+        const info = await App.getInfo();
+        // versionName format: "1.0 (2026-08-16 01:23)" — extract the build date
+        const match = /\((\d{4}-\d{2}-\d{2} \d{2}:\d{2})\)/.exec(info?.version || '');
+        const installedBuildDate = match ? new Date(match[1].replace(' ', 'T')) : null;
+
+        const res = await fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest');
+        if (!res.ok) throw new Error('Release not found');
+        const data = await res.json();
+        const releaseDate = data.published_at ? new Date(data.published_at) : null;
+
+        if (!cancelled && installedBuildDate && releaseDate && releaseDate > installedBuildDate) {
+          setUpdateAvailable(true);
+        }
+      } catch (e) {
+        // Silently skip — no update badge shown, not a critical feature
+      } finally {
+        if (!cancelled) setChecked(true);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { updateAvailable, checked };
 }
 
 // ── APK Download Panel ────────────────────────────────────────────────────────
