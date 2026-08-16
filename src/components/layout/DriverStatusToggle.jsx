@@ -273,7 +273,10 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
 
       // Only fetch + persist GPS when going on_duty from the driver's own (primary)
       // device. Off-break / off-duty / admin toggles never relocate the DB marker.
-      const shouldUpdateLocation = newStatus === 'on_duty' && isOwnUser;
+      // CRITICAL: Must also check isPrimaryDevice — non-primary devices (tablets,
+      // secondary phones) must NEVER write GPS coordinates to AppUser, even on
+      // the on_duty toggle. Only the primary device owns the authoritative GPS record.
+      const shouldUpdateLocation = newStatus === 'on_duty' && isOwnUser && locationTracker.isPrimaryDevice;
       let gps = { lat: effectiveUser?.current_latitude, lng: effectiveUser?.current_longitude };
       if (shouldUpdateLocation) {
         const freshGps = await getFreshGPS(8000);

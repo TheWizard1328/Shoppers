@@ -280,10 +280,16 @@ class DriverLocationPoller {
 
        // ========================================
        // RULE 5: Drivers viewing other drivers
+       // Off-duty and on-break markers are hidden from other drivers (only isOwnUser and AppOwner see them).
        // ========================================
        if (isDriver) {
          // Must be in "show all" or "all drivers" mode
          if (!showAllDrivers) {
+           return false;
+         }
+
+         // Other driver must be on_duty — off_duty and on_break are hidden
+         if (user.driver_status !== 'on_duty') {
            return false;
          }
 

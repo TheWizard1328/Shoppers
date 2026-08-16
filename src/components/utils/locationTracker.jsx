@@ -387,6 +387,14 @@ class LocationTracker {
     // CRITICAL: Non-primary devices must not run the web-only heartbeat
     if (!this.isPrimaryDevice) {
       console.log(`🚫 [LocationTracker] Non-primary device — skipping web-only tracking`);
+      // Safety: Stop any lingering native foreground service from a previous session
+      try {
+        const { BackgroundGeolocation } = await import('./locationProviders/capacitorRuntime');
+        if (BackgroundGeolocation?.stop) {
+          await BackgroundGeolocation.stop();
+          console.log('📱 [LocationTracker] Stopped lingering native GPS service (web-only non-primary safety)');
+        }
+      } catch (_) { /* not native or already stopped */ }
       return;
     }
 
@@ -616,6 +624,9 @@ class LocationTracker {
       console.log(`🚫 [LocationTracker] NON-PRIMARY DEVICE — skipping all AppUser writes (no coords, no timestamp)`);
       return;
     }
+    // CRITICAL: Even if isPrimaryDevice was somehow set to true before this check,
+    // double-check the native provider's _active flag — if a non-primary device somehow
+    // has a running native watcher, we should not be processing its GPS callbacks.
 
     if (forceUpdate) {
       console.log(`💓 [LocationTracker] EVENT-DRIVEN UPDATE - uploading coordinates + timestamp`);
@@ -1055,6 +1066,18 @@ class LocationTracker {
     // Abort here so no watchPosition, no heartbeat interval, and no DB writes ever happen.
     if (!this.isPrimaryDevice) {
       console.log(`🚫 [LocationTracker] Non-primary device — GPS tracking aborted. No data will be uploaded.`);
+      // Safety: Stop any lingering native foreground service from a previous session
+      // where this device may have been primary. The CapGo singleton persists across
+      // app restarts — if the service was started before and never explicitly stopped
+      // (e.g. app killed while on_duty), it keeps delivering GPS callbacks that could
+      // leak location data. Force-stop it here.
+      try {
+        const { BackgroundGeolocation } = await import('./locationProviders/capacitorRuntime');
+        if (BackgroundGeolocation?.stop) {
+          await BackgroundGeolocation.stop();
+          console.log('📱 [LocationTracker] Stopped lingering native GPS service (non-primary safety)');
+        }
+      } catch (_) { /* not native or already stopped */ }
       return;
     }
 

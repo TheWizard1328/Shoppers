@@ -284,9 +284,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     }
 
     if (isAdmin) {
-      // Regular admin: show on_duty/on_break only (last known location, no auto-hide when heartbeat stops)
-      const isActiveStatus = user.driver_status === 'on_duty' || user.driver_status === 'on_break';
-      return isActiveStatus;
+      // Regular admin: show on_duty only — off_duty and on_break are hidden (only isOwnUser and AppOwner see them)
+      return user.driver_status === 'on_duty';
     }
 
     // RULE 4: Dispatcher - hide only if assigned driver is off_duty
@@ -325,16 +324,15 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         }
       }
 
-      // Keep marker visible if driver is on_duty/on_break even if heartbeat stopped
-      const isActiveStatus = user.driver_status === 'on_duty' || user.driver_status === 'on_break';
-      return hasDispatcherStoreDelivery && user.status !== 'inactive' && isActiveStatus;
+      // Only show on_duty drivers — off_duty and on_break are hidden from dispatchers
+      return hasDispatcherStoreDelivery && user.status !== 'inactive' && user.driver_status === 'on_duty';
     }
 
-    // RULE 5: Driver sees other drivers ONLY if they are on_duty/on_break AND location sharing is ON.
-    // Markers persist at last known location even if heartbeat stops — hidden only when off_duty.
+    // RULE 5: Driver sees other drivers ONLY if they are on_duty AND location sharing is ON.
+    // Off-duty and on-break markers are hidden from other drivers (only isOwnUser and AppOwner see them).
     if (isDriver && !isSelf) {
       if (currentUser?.status === 'inactive') return false;
-      if (user.driver_status === 'off_duty') return false;
+      if (user.driver_status !== 'on_duty') return false;
       if (!user.location_tracking_enabled) return false;
 
       const currentUserCityId = currentUser?.city_id;
@@ -354,7 +352,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
     const checkPrimary = async () => {
       const device = await getCurrentDevice(currentUser.id);
-      const isPrimary = device === null || (device?.status !== 'inactive' && device?.is_primary_tracker !== false);
+      const isPrimary = device !== null && device?.status !== 'inactive' && device?.is_primary_tracker === true;
       isPrimaryDeviceRef.current = isPrimary;
       setIsPrimaryDevice(isPrimary);
     };

@@ -603,6 +603,9 @@ function DeliveryMap({
       if (!user?.id || user.status === "inactive") return null;
       if (!user.current_latitude || !user.current_longitude) return null;
       const isSelf = user.id === currentUserId || user.user_id === currentUserId;
+      // Off-duty and on-break markers hidden from other users (only isSelf and AppOwner see them)
+      const _isAppOwner = currentUser?.email && (currentUser.email.endsWith('@rxdeliver.com') || currentUser.email === 'dan@dcscripts.ca');
+      if (!isSelf && !_isAppOwner && user.driver_status !== 'on_duty') return null;
       if (!isSelf && user.location_tracking_enabled !== true) return null;
       if (!isAdmin && currentUserCityId && user.city_id && user.city_id !== currentUserCityId) return null;
       if (!showOtherDriverDeliveries && selectedDriverId && selectedDriverId !== "all" && !isSelf && user.id !== selectedDriverId && user.user_id !== selectedDriverId) return null;
