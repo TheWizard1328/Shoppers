@@ -80,7 +80,7 @@ jobs:
           body: |
             Auto-built debug APK from commit ${{ github.sha }}
 
-            - Blue icon with "Rx" branding
+            - Grey icon with "Rx" branding
             - Background GPS via @capgo/background-geolocation
             - Dynamic environment routing (admin=preview, driver=live)
             - OAuth deep-link callback (rxdeliver://auth)
