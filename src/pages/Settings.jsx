@@ -403,7 +403,7 @@ function ApkDownloadPanel({ updateAvailable = false } = {}) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>RxDeliver Android App</p>
           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-            {updateAvailable ? 'Update available' : 'Blue icon · Background GPS'}{dateStr ? ' · Built ' + dateStr : ''}
+            {updateAvailable ? 'Update available' : 'Grey icon · Background GPS'}{dateStr ? ' · Built ' + dateStr : ''}
           </p>
         </div>
       </div>
@@ -520,7 +520,7 @@ export default function Settings() {
             ? 'Not available on iOS'
             : updateAvailable
               ? 'A newer build is available — tap to update'
-              : 'Install the native APK (blue icon)',
+              : 'Install the native APK (Grey Icon)',
           onClick: isIOSDevice ? undefined : () => setOpenPanel('apk'),
           disabled: isIOSDevice,
           showUpdateBadge: updateAvailable,
