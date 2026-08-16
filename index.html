@@ -12,6 +12,28 @@
     <link rel="manifest" href="/manifest.json?v=3" />
     <meta name="description" content="RxDeliver delivery dashboard" />
     <title>RxDeliver</title>
+      <script>
+    // Native OAuth redirect: if we land on the PWA with an access_token
+    // (from Base44's OAuth callback) on a mobile browser, redirect to the
+    // native app via custom scheme BEFORE any modules load. This runs
+    // synchronously in <head>, ahead of <script type="module">, so
+    // app-params.js hasn't stripped the token from the URL yet.
+    (function() {
+      try {
+        var url = new URL(window.location.href);
+        var token = url.searchParams.get('access_token');
+        if (token && url.pathname === '/') {
+          var ua = navigator.userAgent;
+          if (/android/i.test(ua) && /mobile|tablet/i.test(ua)) {
+            var params = new URLSearchParams({ access_token: token });
+            var rt = url.searchParams.get('refresh_token');
+            if (rt) params.set('refresh_token', rt);
+            window.location.replace('rxdeliver://auth?' + params.toString());
+          }
+        }
+      } catch(e) {}
+    })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
