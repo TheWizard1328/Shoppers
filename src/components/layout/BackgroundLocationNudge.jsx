@@ -22,6 +22,7 @@ export default function BackgroundLocationNudge({ isOnDuty }) {
   const [dismissed, setDismissed] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);
   const [bgStatus, setBgStatus] = useState('unknown');
+  const [requesting, setRequesting] = useState(false);
 
   useEffect(() => {
     if (!isOnDuty || dismissed) {
@@ -75,8 +76,6 @@ export default function BackgroundLocationNudge({ isOnDuty }) {
   }, [isOnDuty, dismissed]);
 
   if (!shouldShow) return null;
-
-  const [requesting, setRequesting] = useState(false);
 
   const handleEnable = async () => {
     setRequesting(true);

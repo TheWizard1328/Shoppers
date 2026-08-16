@@ -914,11 +914,18 @@ const subscribeToEntity = (entityName) => {
             // carry only the changed fields (driver_status, location, etc.) and
             // saving a partial record would wipe fields like app_roles, user_name.
             let finalDataToSave = dataToSave;
-            if (entityName === 'AppUser' && type === 'update') {
+            if ((entityName === 'AppUser' || entityName === 'Payroll') && type === 'update') {
               try {
                 const existing = await offlineDB.getById(storeName, dataToSave?.id || id);
                 if (existing) finalDataToSave = { ...existing, ...dataToSave };
               } catch (_) {}
+            }
+            // CRITICAL: Payroll WS payloads are often partial (e.g. only total_deliveries + gross_pay),
+            // written by syncPayrollRecordsWithLiveData / calculateDriverPayroll. Merging with the
+            // existing offline record preserves admin-edited fields (driver_notes, deductions array,
+            // bonus_pay, paid_amount, app_fee_amount, admin_notes) that are NOT in the WS payload.
+            if (entityName === 'Payroll' && type === 'update' && finalDataToSave?.id) {
+              dataToSave = finalDataToSave;
             }
             await offlineDB.save(storeName, finalDataToSave);
             const savedLabel = entityName === 'Patient'
@@ -989,10 +996,11 @@ const subscribeToEntity = (entityName) => {
         isRemoteUpdate = true;
       }
 
-      // CRITICAL: For Delivery updates, use the merged dataToSave (which has patient_name
-      // restored from the offline DB) so the toast and buffer always show the correct name.
-      // For all other entities, use the raw incoming data as before.
-      const bufferData = (entityName === 'Delivery' && type === 'update' && dataToSave && dataToSave !== data)
+      // CRITICAL: For Delivery/Payroll updates, use the merged dataToSave (which preserves
+      // fields missing from the partial WS payload) so the toast and buffer always show the
+      // full record. Without this, a partial Payroll WS event broadcasts a record missing
+      // driver_notes/deductions, which then overrides the page's freshly-fetched server data.
+      const bufferData = ((entityName === 'Delivery' || entityName === 'Payroll') && type === 'update' && dataToSave && dataToSave !== data)
         ? dataToSave
         : data;
 
@@ -1224,12 +1232,13 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           const _isExtended = _existingTs != null && _existingTs > Date.now() + 1000;
           if (!_isExtended) window.__localDeliveryWrites.set(id, Date.now());
         }
-        // CRITICAL: Merge AppUser/Patient/Delivery data with existing offline record before saving.
-        // broadcastMutation is called by DriverStatusToggle with partial finalData (only
-        // driver_status, location fields) — saving that partial record directly via IndexedDB
-        // `put` would REPLACE the full record and lose app_roles, user_name, and all other fields.
+        // CRITICAL: Merge AppUser/Payroll data with existing offline record before saving.
+        // broadcastMutation may be called with a partial payload (e.g. only deductions or only
+        // driver_status + location fields) — saving that partial record directly via IndexedDB
+        // `put` would REPLACE the full record and lose app_roles, user_name (AppUser) or
+        // driver_notes, deductions array, bonus_pay, paid_amount (Payroll).
         let dataToSave = data;
-        if (entity === 'AppUser' && id) {
+        if ((entity === 'AppUser' || entity === 'Payroll') && id) {
           try {
             const existing = await offlineDB.getById(storeName, id);
             if (existing) dataToSave = { ...existing, ...data };

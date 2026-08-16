@@ -31,6 +31,34 @@ export const getActiveDeductions = (deductions, referenceDateStr = null) => {
   return deductions.filter((d) => isDeductionActiveOn(d, referenceDateStr));
 };
 
+/**
+ * Get deductions that are active at ANY point during a pay period (date-range
+ * OVERLAP with [periodStartStr, periodEndStr], inclusive).
+ *
+ * A deduction "applies to this pay period" when its active range overlaps the
+ * period — not when it happens to be active on the period's FIRST day. The
+ * previous behavior (reference = period.start) silently excluded one-time
+ * deductions whose start_date fell mid-period (e.g. a Aug 15 one-time deduction
+ * was filtered out of the Aug 1–31 monthly pay period because "Aug 1 < Aug 15").
+ *
+ * Empty deduction bounds = open-ended (always passes that side).
+ */
+export const getActiveDeductionsForPeriod = (deductions, periodStartStr, periodEndStr) => {
+  if (!Array.isArray(deductions)) return [];
+  const periodStart = normalizeDate(periodStartStr);
+  const periodEnd = normalizeDate(periodEndStr);
+  return deductions.filter((d) => {
+    if (!d) return false;
+    const dStart = normalizeDate(d.start_date);
+    const dEnd = normalizeDate(d.end_date);
+    // Deduction starts AFTER period ends → no overlap
+    if (dStart && periodEnd && dStart > periodEnd) return false;
+    // Deduction ends BEFORE period starts → no overlap
+    if (dEnd && periodStart && dEnd < periodStart) return false;
+    return true;
+  });
+};
+
 export const getTodayDateStr = () => new Date().toISOString().slice(0, 10);
 
 const formatCompactDate = (dateStr) => {

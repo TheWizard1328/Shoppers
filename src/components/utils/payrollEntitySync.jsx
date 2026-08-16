@@ -7,6 +7,7 @@
  * drift and updates the entity so that the database always reflects what the UI shows.
  */
 import { base44 } from '@/api/base44Client';
+import { sumDeductionAmounts } from '@/components/payroll/payrollSummaryCalculations';
 
 // Round currency values to 2 decimals
 const round2 = (v) => Math.round((v || 0) * 100) / 100;
@@ -32,34 +33,77 @@ export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayro
     const record = getDriverPayrollRecord(data.driver.id);
     if (!record) continue; // No persisted record yet — auto-create handles this
 
-    // Only sync records that are still in draft status (don't overwrite finalized records)
-    if (record.status !== 'draft') continue;
+    // 'paid' records are fully locked — skip everything.
+    // 'draft' records sync ALL pay totals + the deductions snapshot.
+    // 'driver_finalized' / 'admin_finalized' records keep their pay totals frozen
+    // but STILL receive the deductions snapshot from AppUser.deductions — that's
+    // the source of truth for recurring deductions, and admins add/adjust them
+    // between driver-confirmation and admin-payment.
+    const recordStatus = record.status || 'draft';
+    if (recordStatus === 'paid') continue;
+    const canSyncTotals = (recordStatus === 'draft');
+    const canSyncDeductions = true; // any non-paid status
 
-    // Build the set of fields we want to keep in sync
-    // IMPORTANT: do not auto-sync custom editable values like paid_amount, bonus_pay,
-    // app_fee_amount, app_fee_percentage, deductions, or total_deductions here.
-    const liveValues = {
-      total_deliveries: data.totalDeliveries,
-      total_extra_km: round2(data.totalExtraKm),
-      total_oversized_deliveries: data.oversizedCount,
-      total_after_hours_deliveries: data.afterHoursCount || 0,
-      gross_pay: round2(data.grossPay),
-      net_pay: round2(data.grandTotal),
-      tax_amount: round2(data.taxAmount),
-      pay_rate_per_delivery: round2(data.payRate),
-      extra_km_rate: round2(data.extraKmRate),
-      extra_km_limit: round2(data.extraKmLimit),
-      oversized_item_rate: round2(data.oversizedRate),
-      gst_hst_enabled: data.gstHstEnabled || false,
-    };
-
-    // Detect drift: compare each live value with the persisted value
     const updates = {};
     let hasDrift = false;
-    for (const [key, liveVal] of Object.entries(liveValues)) {
-      const storedVal = typeof liveVal === 'boolean' ? (record[key] || false) : round2(record[key]);
-      if (liveVal !== storedVal) {
-        updates[key] = liveVal;
+
+    if (canSyncTotals) {
+      // IMPORTANT: paid_amount, bonus_pay, app_fee_amount, app_fee_percentage remain
+      // user-editable and are NOT auto-synced.
+      // deductions + total_deductions ARE synced to AppUser.deductions as the source
+      // of truth — otherwise a newly-added recurring deduction on the driver's
+      // AppUser would never propagate into existing draft Payroll records.
+      const liveValues = {
+        total_deliveries: data.totalDeliveries,
+        total_extra_km: round2(data.totalExtraKm),
+        total_oversized_deliveries: data.oversizedCount,
+        total_after_hours_deliveries: data.afterHoursCount || 0,
+        gross_pay: round2(data.grossPay),
+        net_pay: round2(data.grandTotal),
+        tax_amount: round2(data.taxAmount),
+        pay_rate_per_delivery: round2(data.payRate),
+        extra_km_rate: round2(data.extraKmRate),
+        extra_km_limit: round2(data.extraKmLimit),
+        oversized_item_rate: round2(data.oversizedRate),
+        gst_hst_enabled: data.gstHstEnabled || false,
+      };
+
+      for (const [key, liveVal] of Object.entries(liveValues)) {
+        const storedVal = typeof liveVal === 'boolean' ? (record[key] || false) : round2(record[key]);
+        if (liveVal !== storedVal) {
+          updates[key] = liveVal;
+          hasDrift = true;
+        }
+      }
+    }
+
+    // Sync the deductions snapshot to AppUser.deductions (period-overlap filtered)
+    // for any record that isn't 'paid'. Frozen totals on finalized records aren't
+    // touched — only the deduction list mirrors AppUser.
+    if (canSyncDeductions) {
+      const liveDeductions = Array.isArray(data.deductionsArray) ? data.deductionsArray : [];
+      const storedDeductions = Array.isArray(record.deductions) ? record.deductions : [];
+      const sameDeduction = (a, b) =>
+        (a?.name || '') === (b?.name || '') && (round2(a?.amount) === round2(b?.amount)) &&
+        (a?.start_date || '') === (b?.start_date || '') && (a?.end_date || '') === (b?.end_date || '');
+      const liveHasNew =
+        liveDeductions.some((d) => !storedDeductions.some((s) => sameDeduction(d, s)));
+      const storedMissingLive =
+        storedDeductions.some((s) => !liveDeductions.some((d) => sameDeduction(s, d)));
+      const liveTotal = round2(sumDeductionAmounts(liveDeductions));
+      const storedTotal = round2(record.total_deductions || 0);
+      if (liveDeductions.length > 0 && (liveHasNew || storedMissingLive)) {
+        updates.deductions = liveDeductions;
+        if (storedTotal !== liveTotal) {
+          updates.total_deductions = liveTotal;
+        }
+        hasDrift = true;
+      } else if (liveDeductions.length === 0 && storedDeductions.length > 0) {
+        updates.deductions = [];
+        if (storedTotal !== 0) updates.total_deductions = 0;
+        hasDrift = true;
+      } else if (liveDeductions.length > 0 && storedTotal !== liveTotal) {
+        updates.total_deductions = liveTotal;
         hasDrift = true;
       }
     }

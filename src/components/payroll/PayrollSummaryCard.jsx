@@ -25,7 +25,7 @@ import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 import { exportPayrollPdf } from './payrollPdfExport';
 import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
-import { getActiveDeductions } from '../utils/deductionHelpers';
+import { getActiveDeductionsForPeriod } from '../utils/deductionHelpers';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
@@ -252,7 +252,12 @@ export default function PayrollSummaryCard({
       // Filter recurring deductions to those active for THIS pay period.
       // Reference date = pay period start date; empty start_date/end_date = open bound.
       const allDriverDeductions = Array.isArray(appUser?.deductions) ? appUser.deductions : [];
-      const deductionsArray = periodStartStr ? getActiveDeductions(allDriverDeductions, periodStartStr) : allDriverDeductions;
+      // Use date-range OVERLAP (not period-start reference) so a one-time deduction
+      // whose start_date falls mid-period is still applied to that pay period — e.g.
+      // a Aug 15 one-time deduction applies to the Aug 1–31 monthly period.
+      const deductionsArray = (periodStartStr && periodEndStr)
+        ? getActiveDeductionsForPeriod(allDriverDeductions, periodStartStr, periodEndStr)
+        : allDriverDeductions;
       const totalDeductions = totalPay > 0 ? sumDeductionAmounts(deductionsArray) : 0;
       const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
       const storedPaidAmount = payrollRecord?.paid_amount;
@@ -883,7 +888,14 @@ export default function PayrollSummaryCard({
         const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
         next[k] = {
           ...prev[k],
-          deductions: (pr?.deductions?.length > 0 ? pr.deductions : null) ?? data.deductionsArray ?? [],
+          // CRITICAL: deductions MUST track AppUser.deductions (period-overlap filtered)
+          // as the source of truth. The persisted `pr.deductions` is only a stale
+          // snapshot from when the record was created — if the admin adds a new
+          // deduction to AppUser afterwards, the stale snapshot would mask it.
+          // Any extras the admin added live via the Manage Deductions overlay for
+          // THIS period (and saved to the entity) are still honoured below because
+          // the overlay writes back through savePayrollChanges, which updates pr too.
+          deductions: data.deductionsArray?.length > 0 ? data.deductionsArray : (pr?.deductions ?? []),
           bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
           appFeePercent: pr?.app_fee_percentage ?? 0,
           appFeeAmount: pr?.app_fee_amount ?? 0,

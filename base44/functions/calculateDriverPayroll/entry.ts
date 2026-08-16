@@ -214,15 +214,17 @@ Deno.serve(async (req) => {
     const taxAmount = gstHstEnabled ? round2(grossPay * gstRate) : 0;
 
     // --- Deductions (only applied when creating a new record; existing records keep their own) ---
-    // Filter by date range: a deduction applies to this pay period if the period's
-    // start date is within [start_date, end_date] (inclusive). Empty bounds = open.
+    // A deduction applies to this pay period when its active range OVERLAPS the
+    // period (inclusive). Using period.start as the reference silently excluded
+    // one-time deductions whose start_date fell mid-period (e.g. a Aug 15 one-time
+    // deduction was dropped from the Aug 1–31 monthly period because "Aug 1 < Aug 15").
     const normDate = (v) => (v ? String(v).slice(0, 10) : '');
     const allDriverDeductions = Array.isArray(appUser.deductions) ? appUser.deductions : [];
     const driverDeductions = allDriverDeductions.filter((d) => {
       const start = normDate(d?.start_date);
       const end = normDate(d?.end_date);
-      if (start && period.start < start) return false;
-      if (end && period.start > end) return false;
+      if (start && period.end && start > period.end) return false;   // deduction starts after period ends
+      if (end && period.start && end < period.start) return false;   // deduction ends before period starts
       return true;
     });
     const totalDeductions = round2(driverDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0));
