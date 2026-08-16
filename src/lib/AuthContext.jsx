@@ -103,6 +103,36 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Safety net: if Base44 strips the path from from_url and redirects to
+  // /?access_token=..., the PWA loads and app-params.js stores the token.
+  // On mobile browsers, detect this and show a "Return to app" redirect.
+  // This only triggers when: (1) not inside Capacitor, (2) access_token in URL,
+  // (3) Android mobile browser, (4) path is / (Base44 stripped the path).
+  useEffect(() => {
+    if (isCapacitorNativeApp()) return; // Only for browser, not the WebView itself
+    
+    const url = new URL(window.location.href);
+    const accessToken = url.searchParams.get('access_token');
+    const isRootPath = url.pathname === '/';
+    
+    if (accessToken && isRootPath) {
+      const isAndroid = /android/i.test(navigator.userAgent);
+      const isMobile = /mobile|tablet/i.test(navigator.userAgent);
+      
+      if (isAndroid && isMobile) {
+        // Don't strip the token — build the deep link from it
+        const linkParams = new URLSearchParams({ access_token: accessToken });
+        const refreshToken = url.searchParams.get('refresh_token');
+        if (refreshToken) linkParams.set('refresh_token', refreshToken);
+        const deepLink = `rxdeliver://auth?${linkParams.toString()}`;
+        
+        // Show a redirect page instead of loading the dashboard
+        console.log('[Auth] Safety net: mobile browser with access_token at root, redirecting to app');
+        window.location.replace(deepLink);
+      }
+    }
+  }, []);
+
   const checkAppState = async () => {
     try {
       setIsLoadingPublicSettings(true);
