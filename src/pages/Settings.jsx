@@ -340,7 +340,7 @@ function useAndroidAppUpdateCheck() {
 }
 
 // ── APK Download Panel ────────────────────────────────────────────────────────
-function ApkDownloadPanel() {
+function ApkDownloadPanel({ updateAvailable = false } = {}) {
   const [apkUrl, setApkUrl] = React.useState(null);
   const [apkDate, setApkDate] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -403,7 +403,7 @@ function ApkDownloadPanel() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>RxDeliver Android App</p>
           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-            Blue icon · Background GPS{dateStr ? ' · Built ' + dateStr : ''}
+            {updateAvailable ? 'Update available' : 'Blue icon · Background GPS'}{dateStr ? ' · Built ' + dateStr : ''}
           </p>
         </div>
       </div>
@@ -413,12 +413,14 @@ function ApkDownloadPanel() {
         className="block"
       >
         <Button className="w-full gap-2" style={{ background: '#2563EB', borderColor: '#2563EB' }}>
-          <Download className="w-4 h-4" />
-          Download APK
+          {updateAvailable ? <RefreshCw className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+          {updateAvailable ? 'Update APK' : 'Download APK'}
         </Button>
       </a>
       <p className="text-xs text-center" style={{ color: 'var(--text-slate-400)' }}>
-        After download, open the file to install. You may need to allow installs from unknown sources.
+        {updateAvailable
+          ? 'After download, open the file to install the update. You may need to allow installs from unknown sources.'
+          : 'After download, open the file to install. You may need to allow installs from unknown sources.'}
       </p>
     </div>
   );
@@ -431,6 +433,15 @@ export default function Settings() {
   const [openPanel, setOpenPanel] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
   const [eTransEmail, setETransEmail] = useState('');
+
+  // Detect iOS (iPhone/iPad) to grey out the Native App section.
+  // Windows, macOS, Android — all stay fully interactive.
+  const { os: deviceOS } = getUserAgentInfo();
+  const isIOSDevice = deviceOS === 'iOS';
+
+  // Check if a newer APK build is available on GitHub (only meaningful
+  // when running inside the native Android app).
+  const { updateAvailable } = useAndroidAppUpdateCheck();
 
   useEffect(() => {
     if (currentUser?.id) loadUserSettings(currentUser.id).then(setUserSettings);
@@ -501,8 +512,19 @@ export default function Settings() {
       key: 'app',
       title: 'Native App',
       icon: Download,
+      disabled: isIOSDevice,
       items: [
-        { label: 'Download Android App', description: 'Install the native APK (blue icon)', onClick: () => setOpenPanel('apk') },
+        {
+          label: updateAvailable ? 'Update Android App' : 'Download Android App',
+          description: isIOSDevice
+            ? 'Not available on iOS'
+            : updateAvailable
+              ? 'A newer build is available — tap to update'
+              : 'Install the native APK (blue icon)',
+          onClick: isIOSDevice ? undefined : () => setOpenPanel('apk'),
+          disabled: isIOSDevice,
+          showUpdateBadge: updateAvailable,
+        },
       ],
     },
   ];
@@ -518,7 +540,7 @@ export default function Settings() {
         {sections.map((section) => {
           const SectionIcon = section.icon;
           return (
-            <Card key={section.key} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <Card key={section.key} className={section.disabled ? 'opacity-50' : ''} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
                   <SectionIcon className="w-4 h-4" />
@@ -554,7 +576,15 @@ export default function Settings() {
                       className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors text-left select-none ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 active:bg-slate-100'}`}
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.label}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.label}</p>
+                          {item.showUpdateBadge && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ background: '#2563EB' }}>
+                              <RefreshCw className="w-2.5 h-2.5" />
+                              New
+                            </span>
+                          )}
+                        </div>
                         {item.description && <p className="text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>{item.description}</p>}
                       </div>
                       {!item.disabled && <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 dark:text-slate-400 flex-shrink-0 ml-2" />}
@@ -594,8 +624,8 @@ export default function Settings() {
       <SettingsDialog open={openPanel === 'devices'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Devices" description="View and manage your registered devices." icon={Smartphone}>
         {currentUser && <DevicesPanel currentUser={currentUser} />}
       </SettingsDialog>
-      <SettingsDialog open={openPanel === 'apk'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Native App" description="Download the Android APK." icon={Download}>
-        <ApkDownloadPanel />
+      <SettingsDialog open={openPanel === 'apk'} onOpenChange={(o) => !o && setOpenPanel(null)} title={updateAvailable ? 'Update Android App' : 'Native App'} description={updateAvailable ? 'A newer build is available.' : 'Download the Android APK.'} icon={updateAvailable ? RefreshCw : Download}>
+        <ApkDownloadPanel updateAvailable={updateAvailable} />
       </SettingsDialog>
     </div>
   );
