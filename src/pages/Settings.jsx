@@ -302,6 +302,7 @@ export function SettingsDialog({ open, onOpenChange, title, description, icon: I
 // native Android APK — web/iOS never show an "update" state.
 function useAndroidAppUpdateCheck() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [installedVersion, setInstalledVersion] = useState(null);
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
@@ -314,9 +315,19 @@ function useAndroidAppUpdateCheck() {
       try {
         const { App } = await import('@capacitor/app');
         const info = await App.getInfo();
-        // versionName format: "1.0 (2026-08-16 01:23)" — extract the build date
-        const match = /\((\d{4}-\d{2}-\d{2} \d{2}:\d{2})\)/.exec(info?.version || '');
-        const installedBuildDate = match ? new Date(match[1].replace(' ', 'T')) : null;
+        // versionName format: "1.0.N (yyyy-MM-dd HH:mm)" — extract build date AND build number
+        const versionStr = info?.version || '';
+        const dateMatch = /\((\d{4}-\d{2}-\d{2} \d{2}:\d{2})\)/.exec(versionStr);
+        // Extract build number from "1.0.N" pattern (fallback: extract from versionCode)
+        const buildMatch = /1\.0\.(\d+)/.exec(versionStr);
+        const buildNumber = buildMatch ? buildMatch[1] : null;
+        // CRITICAL: The build.gradle date is UTC (GitHub Actions runs in UTC).
+        // Without 'Z', JavaScript parses it as LOCAL time, shifting it by the
+        // timezone offset and making the installed build appear NEWER than
+        // the GitHub release — so "update available" never triggers.
+        const installedBuildDate = dateMatch ? new Date(dateMatch[1].replace(' ', 'T') + 'Z') : null;
+
+        if (!cancelled) setInstalledVersion({ buildNumber, buildDate: dateMatch ? dateMatch[1] : null, versionStr });
 
         const res = await fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest');
         if (!res.ok) throw new Error('Release not found');
@@ -336,13 +347,14 @@ function useAndroidAppUpdateCheck() {
     return () => { cancelled = true; };
   }, []);
 
-  return { updateAvailable, checked };
+  return { updateAvailable, installedVersion, checked };
 }
 
 // ── APK Download Panel ────────────────────────────────────────────────────────
 function ApkDownloadPanel({ updateAvailable = false } = {}) {
   const [apkUrl, setApkUrl] = React.useState(null);
   const [apkDate, setApkDate] = React.useState(null);
+  const [apkReleaseBody, setApkReleaseBody] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
 
@@ -359,6 +371,7 @@ function ApkDownloadPanel({ updateAvailable = false } = {}) {
         if (apkAsset && apkAsset.browser_download_url) {
           setApkUrl(apkAsset.browser_download_url);
           setApkDate(data.published_at || data.created_at);
+          setApkReleaseBody(data.body || '');
         } else {
           setError('APK file not found in release assets.');
         }
@@ -390,21 +403,36 @@ function ApkDownloadPanel({ updateAvailable = false } = {}) {
     ? new Date(apkDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
 
+  // Parse build number from release body or tag (GitHub Actions puts it in the body)
+  // Also get it from the release name if present
+  const releaseBuildNum = apkReleaseBody ? apkReleaseBody.match(/Build #(\d+)/) : null;
+  const buildNumStr = releaseBuildNum ? releaseBuildNum[1] : '';
+
+  const buildText = buildNumStr
+    ? `Built: v1.0.${buildNumStr} · ${dateStr}`
+    : dateStr
+      ? `Built: ${dateStr}`
+      : '';
+
   return (
     <div className="py-4 space-y-4">
       <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-        <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0" style={{ background: 'rgba(37, 100, 235, 0)' }}>
+        <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#6B7280' }}>
           <img
             src="https://base44.app/api/apps/69f0c6983e41b169cdc3be5b/files/mp/public/69f0c6983e41b169cdc3be5b/ac8712c0b_rxdeliver_icon.png"
             alt="RxDeliver app icon"
             className="w-full h-full object-cover"
+            style={{ filter: 'grayscale(1) brightness(0.95)' }}
           />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>RxDeliver Android App</p>
           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-            {updateAvailable ? 'Update available' : 'Grey icon · Background GPS'}{dateStr ? ' · Built ' + dateStr : ''}
+            {updateAvailable ? 'Update available' : 'Grey icon · Background GPS'}
           </p>
+          {buildText && (
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-400)' }}>{buildText}</p>
+          )}
         </div>
       </div>
       <a
@@ -426,6 +454,52 @@ function ApkDownloadPanel({ updateAvailable = false } = {}) {
   );
 }
 
+// ── Build Info Section ───────────────────────────────────────────────────────
+function BuildInfoSection({ installedVersion }) {
+  const [webBuildInfo, setWebBuildInfo] = useState(null);
+
+  useEffect(() => {
+    // For web users, fetch the latest release info to show the build date
+    if (!isCapacitorNativeApp()) {
+      fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest')
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data) {
+            const dateStr = data.published_at
+              ? new Date(data.published_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+              : '';
+            const buildMatch = (data.body || '').match(/Build #(\d+)/);
+            const buildNum = buildMatch ? buildMatch[1] : '';
+            setWebBuildInfo({ dateStr, buildNum });
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  const buildText = isCapacitorNativeApp() && installedVersion
+    ? installedVersion.buildNumber
+      ? `Built: v1.0.${installedVersion.buildNumber} · ${installedVersion.buildDate || ''}`
+      : installedVersion.buildDate
+        ? `Built: ${installedVersion.buildDate}`
+        : ''
+    : webBuildInfo
+      ? webBuildInfo.buildNum
+        ? `Built: v1.0.${webBuildInfo.buildNum} · ${webBuildInfo.dateStr}`
+        : webBuildInfo.dateStr
+          ? `Built: ${webBuildInfo.dateStr}`
+          : ''
+      : '';
+
+  if (!buildText) return null;
+
+  return (
+    <div className="text-center pt-2 pb-4">
+      <p className="text-xs" style={{ color: 'var(--text-slate-400)' }}>{buildText}</p>
+    </div>
+  );
+}
+
 // ── Main Settings Page ────────────────────────────────────────────────────────
 export default function Settings() {
   const { logout: authLogout } = useAuth();
@@ -441,7 +515,7 @@ export default function Settings() {
 
   // Check if a newer APK build is available on GitHub (only meaningful
   // when running inside the native Android app).
-  const { updateAvailable } = useAndroidAppUpdateCheck();
+  const { updateAvailable, installedVersion } = useAndroidAppUpdateCheck();
 
   useEffect(() => {
     if (currentUser?.id) loadUserSettings(currentUser.id).then(setUserSettings);
@@ -606,6 +680,9 @@ export default function Settings() {
         </Card>
 
         <AccountDeletionSection />
+
+        {/* Build Info */}
+        <BuildInfoSection installedVersion={installedVersion} />
       </div>
 
       {/* ── Dialogs ── */}

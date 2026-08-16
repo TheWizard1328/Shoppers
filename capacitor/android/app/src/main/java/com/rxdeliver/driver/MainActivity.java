@@ -1,17 +1,16 @@
 package com.rxdeliver.driver;
 
 import android.app.DownloadManager;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.core.view.WindowCompat;
+import android.content.SharedPreferences;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.CapConfig;
 import java.lang.reflect.Field;
@@ -54,18 +53,30 @@ public class MainActivity extends BridgeActivity {
         // on-screen nav buttons (3-button nav or gesture bar). This restores
         // the pre-Android-15 behavior where the system automatically insets
         // (pads) the window so content never draws under the system bars.
+        //
+        // We set this AFTER super.onCreate (which is where Capacitor creates
+        // the WebView), and also re-apply in onWindowFocusChanged because
+        // Capacitor's bridge setup can reset window insets behavior.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+        // Also explicitly show system bars in case they were hidden
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (controller != null) {
+            controller.show(WindowInsetsCompat.Type.systemBars());
+            controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        }
 
         // ── APK self-update download handling ──────────────────────────
-        // The Capacitor WebView has no download handling wired up by
-        // default, so tapping "Download APK" (a plain <a href download>
-        // link) inside the in-app WebView silently does nothing — no
-        // progress, no "download complete" notification, nothing to tap
-        // to install. Registering a DownloadListener hands the download
-        // off to Android's own DownloadManager, which shows the native
-        // "Download complete" notification the user expects, and tapping
-        // it opens the system installer for the APK.
         setupDownloadListener();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        // Re-apply decor fits to guard against Capacitor or plugin code
+        // resetting the edge-to-edge behavior during lifecycle changes.
+        if (hasFocus) {
+            WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+        }
     }
 
     private void setupDownloadListener() {
@@ -90,29 +101,17 @@ public class MainActivity extends BridgeActivity {
                 activeDownloadId = dm.enqueue(request);
 
                 Toast.makeText(this, "Downloading update…", Toast.LENGTH_SHORT).show();
-
-                // Tapping the system "Download complete" notification already opens
-                // the installer via the DownloadManager's own content:// URI, so no
-                // extra receiver logic is needed for that path. We still register a
-                // one-shot receiver so we can react (e.g. log) if useful later.
-                registerDownloadCompleteReceiver();
+                // NOTE: We intentionally do NOT register a BroadcastReceiver for
+                // ACTION_DOWNLOAD_COMPLETE here. On Android 14+ (API 34+),
+                // registerReceiver() without RECEIVER_NOT_EXPORTED/EXPORTED flags
+                // throws SecurityException, which would show a false "Download
+                // failed" toast even though the download started successfully.
+                // The DownloadManager already shows its own "Download complete"
+                // notification, and tapping it opens the system installer.
             } catch (Exception e) {
                 Toast.makeText(this, "Download failed to start: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
-    }
-
-    private void registerDownloadCompleteReceiver() {
-        BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                long completedId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                if (completedId == activeDownloadId) {
-                    try { unregisterReceiver(this); } catch (Exception ignored) {}
-                }
-            }
-        };
-        registerReceiver(receiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
     }
 
     private String extractFileName(String url, String contentDisposition) {

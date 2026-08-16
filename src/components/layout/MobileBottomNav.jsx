@@ -63,11 +63,12 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
   return (
     <nav
       data-mobile-bottom-nav
-      className={`relative z-[150] shrink-0 border-t${isIOS ? ' ios-safe-area-bottom' : ''}`}
+      className="relative z-[150] shrink-0 border-t"
       style={{
         background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
         boxShadow: '0 -2px 10px var(--shadow-color)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
       <div className="flex items-center gap-1 px-1">
