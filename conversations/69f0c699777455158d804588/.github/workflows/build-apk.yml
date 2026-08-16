@@ -86,7 +86,7 @@ jobs:
             - OAuth deep-link callback (rxdeliver://auth)
 
             Download the .apk file below and install on your Android device.
-          files: capacitor/android/app/build/outputs/apk/debug/app-debug.apk
+          files: capacitor/android/app/build/outputs/apk/debug/rxdeliver-debug.apk
           prerelease: true
           make_latest: false
         env:
