@@ -79,6 +79,7 @@ import { usePayrollBadge } from './components/layout/usePayrollBadge';
 import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandlers';
 import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
+import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/utils/useBuildInfo';
 import GlobalOverlays from './components/layout/GlobalOverlays';
 
 // App version will be loaded from AppSettings
@@ -212,6 +213,12 @@ export default function Layout({ children, currentPageName }) {
   const [initialConversation, setInitialConversation] = useState(null);
   const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
+
+  // Build version: native apps show the INSTALLED version; web shows the
+  // latest available build from GitHub Actions (same source as Settings page).
+  const installedVersion = useInstalledAppVersion();
+  const latestBuild = useLatestApkBuildInfo();
+  const sidebarVersion = installedVersion?.versionLabel || latestBuild.versionLabel || appVersion;
 
   const [showInviteQRModal, setShowInviteQRModal] = useState(false);
   const [deviceRegistered, setDeviceRegistered] = useState(false);
@@ -1229,7 +1236,7 @@ export default function Layout({ children, currentPageName }) {
                   sidebarOpen={sidebarOpen}
                   setSidebarOpen={setSidebarOpen}
                   branding={branding}
-                  appVersion={appVersion}
+                  appVersion={sidebarVersion}
                   currentUser={currentUser}
                   setCurrentUser={setCurrentUser}
                   currentPageName={currentPageName}

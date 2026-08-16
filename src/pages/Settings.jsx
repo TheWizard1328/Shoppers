@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { isCapacitorNativeApp, getCapacitorPlatform } from '@/components/utils/locationProviders/capacitorRuntime';
+import { useLatestApkBuildInfo } from '@/components/utils/useBuildInfo';
 import { getUserAgentInfo } from '@/components/utils/deviceUtils';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -348,48 +349,6 @@ function useAndroidAppUpdateCheck() {
   }, []);
 
   return { updateAvailable, installedVersion, checked };
-}
-
-// ── Shared Build Info (release date + Actions run number) ─────────────────
-// Build number comes from the GitHub Actions API (latest successful
-// "Build Android APK" run's run_number) rather than the release body, so it
-// works without needing to edit the workflow file (blocked — PAT lacks the
-// `workflow` scope needed to push changes to .github/workflows/*).
-function useLatestApkBuildInfo() {
-  const [buildInfo, setBuildInfo] = useState(null); // { dateStr, buildNumber, apkUrl, rawDate }
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest').then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch('https://api.github.com/repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1').then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]).then(([releaseData, runsData]) => {
-      if (cancelled) return;
-      const rawDate = releaseData?.published_at || releaseData?.created_at || null;
-      const dateStr = rawDate
-        ? new Date(rawDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : '';
-      const buildNumber = runsData?.workflow_runs?.[0]?.run_number || null;
-      const apkAsset = (releaseData?.assets || []).find((a) => a.name && a.name.endsWith('.apk'));
-      setBuildInfo({
-        dateStr,
-        rawDate,
-        buildNumber,
-        apkUrl: apkAsset?.browser_download_url || null,
-      });
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  const buildText = buildInfo
-    ? buildInfo.buildNumber
-      ? `Built: v1.0.${buildInfo.buildNumber} · ${buildInfo.dateStr}`
-      : buildInfo.dateStr
-        ? `Built: ${buildInfo.dateStr}`
-        : ''
-    : '';
-
-  return { ...buildInfo, buildText, loaded: !!buildInfo };
 }
 
 // ── APK Download Panel ────────────────────────────────────────────────────────
