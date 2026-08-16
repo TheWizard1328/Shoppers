@@ -32,7 +32,7 @@ import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capac
 // page load; it's only Base44's own server-side redirect that was rejecting
 // it. The "native" flag is encoded in the PATH, not as a query param, so it
 // survives Base44's callback redirect intact. See OAuthCallback.jsx.
-const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/native-oauth-callback" : "/";
+const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/api/functions/oauthRedirect" : "/";
 
 export default function Login() {
   const [email, setEmail] = useState("");

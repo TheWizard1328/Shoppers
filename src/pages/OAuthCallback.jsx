@@ -48,6 +48,25 @@ export default function OAuthCallback() {
     const isNative = window.location.pathname.includes('/native-oauth-callback');
 
     if (!accessToken) {
+      // Fallback: app-params.js may have already extracted and stored the token.
+      // If we're on the native callback path, check localStorage as a last resort.
+      if (isNative) {
+        const storedToken = localStorage.getItem('base44_access_token');
+        if (storedToken) {
+          // Token was stripped by app-params — use it for the deep link
+          const linkParams = new URLSearchParams({ access_token: storedToken });
+          const storedRefresh = localStorage.getItem('base44_refresh_token');
+          if (storedRefresh) linkParams.set('refresh_token', storedRefresh);
+          const link = `rxdeliver://auth?${linkParams.toString()}`;
+          setDeepLink(link);
+          setStatus('Signed in! Returning to the app…');
+          window.location.href = link;
+          return;
+        }
+        // Clear any token that app-params may have stored — it belongs to the app, not the browser
+        localStorage.removeItem('base44_access_token');
+        localStorage.removeItem('base44_refresh_token');
+      }
       setTimeout(() => { window.location.href = '/login'; }, 200);
       return;
     }

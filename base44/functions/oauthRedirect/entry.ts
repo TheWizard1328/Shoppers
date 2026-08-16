@@ -1,13 +1,13 @@
 // OAuth redirect bridge for native Android app.
 //
-// Base44's OAuth callback redirects to our `from_url` with ?access_token=... appended.
+// Base44's OAuth callback redirects to our from_url with ?access_token=... appended.
 // We set from_url to THIS function's URL. When the callback hits us, we return a
 // minimal HTML page that redirects to rxdeliver://auth?access_token=... — bringing
 // the user back to the native app.
 //
-// This avoids dependency on PWA deployment timing: backend functions deploy
-// instantly via the deploy_backend_function tool, unlike web app rebuilds which
-// can take minutes or fail silently.
+// This avoids the PWA's app-params.js stripping the access_token from the URL
+// before the OAuthCallback component can read it (which was causing users to
+// get logged into the browser session instead of being redirected to the app).
 //
 // Also provides a visible "Return to RxDeliver App" button as a fallback, since
 // Chrome may block automatic custom-scheme navigation without a user gesture.
@@ -31,6 +31,7 @@ Deno.serve(async (req) => {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Returning to RxDeliver...</title>
+  <meta http-equiv="refresh" content="0;url=${deepLink}">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -75,8 +76,10 @@ Deno.serve(async (req) => {
   <a href="${deepLink}" class="btn">Return to RxDeliver App</a>
   <p class="hint">Didn't switch automatically? Tap the button above.</p>
   <script>
-    // Attempt automatic redirect to the custom scheme.
-    // Chrome may block this without a user gesture - the button above is the fallback.
+    // Multiple redirect mechanisms for maximum Chrome compatibility:
+    // 1. meta refresh (in head) — followed by most browsers
+    // 2. window.location.href — may be blocked without user gesture
+    // 3. Visible button — guaranteed to work with user tap
     window.location.href = "${deepLink}";
   </script>
 </body>

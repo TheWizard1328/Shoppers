@@ -37,10 +37,15 @@ const getAppParamValue = (paramName, { defaultValue = undefined, removeFromUrl =
 }
 
 const getAppParams = () => {
+	// On the native OAuth callback path, do NOT extract or strip the access_token.
+	// The OAuthCallback component needs it in the URL to build the rxdeliver://auth
+	// deep link. If we strip it here, the token gets stored in localStorage and the
+	// user is logged into the browser session instead of being redirected to the app.
+	const isNativeOAuthCallback = !isNode && window.location.pathname.includes('/native-oauth-callback');
 	return {
 		appId: getAppParamValue("app_id", { defaultValue: import.meta.env.VITE_BASE44_APP_ID }),
 		serverUrl: getAppParamValue("server_url", { defaultValue: import.meta.env.VITE_BASE44_BACKEND_URL }),
-		token: getAppParamValue("access_token", { removeFromUrl: true, aliases: ["_preview_token"] }),
+		token: isNativeOAuthCallback ? null : getAppParamValue("access_token", { removeFromUrl: true, aliases: ["_preview_token"] }),
 		fromUrl: getAppParamValue("from_url", { defaultValue: window.location.href }),
 		functionsVersion: getAppParamValue("functions_version"),
 	}
