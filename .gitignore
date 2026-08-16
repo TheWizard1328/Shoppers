@@ -37,3 +37,6 @@ node_modules/
 __pycache__/
 .cache/
 blobs/
+conversations/
+icon_work/
+incoming_files/
