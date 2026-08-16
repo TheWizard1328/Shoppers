@@ -403,7 +403,7 @@ function ApkDownloadPanel({ updateAvailable = false } = {}) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>RxDeliver Android App</p>
           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-            {updateAvailable ? 'Update available' : 'Grey icon · Background GPS'}{dateStr ? '/nBuilt ' + dateStr : ''}
+            {updateAvailable ? 'Update available' : 'Grey icon · Background GPS'}{dateStr ? ' · Built ' + dateStr : ''}
           </p>
         </div>
       </div>
