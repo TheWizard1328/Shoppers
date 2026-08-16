@@ -45,7 +45,7 @@ export default function OAuthCallback() {
     const params = new URLSearchParams(window.location.search);
     const accessToken = params.get('access_token');
     const refreshToken = params.get('refresh_token');
-    const isNative = params.get('native') === '1';
+    const isNative = window.location.pathname.includes('/native-oauth-callback');
 
     if (!accessToken) {
       setTimeout(() => { window.location.href = '/login'; }, 200);

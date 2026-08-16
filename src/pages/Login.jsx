@@ -24,12 +24,15 @@ import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capac
 //    the external Chrome tab instead of returning to the app.
 //
 // The fix that actually works: send a NORMAL http(s) from_url that Base44's
-// broker accepts (our own /oauth-callback page, tagged ?native=1), and have
-// THAT page — running client-side in Chrome after the redirect completes —
-// perform the hop to rxdeliver://auth itself. Chrome will honor navigation
-// to a custom scheme from an ordinary page load; it's only Base44's own
-// server-side redirect that was rejecting it. See OAuthCallback.jsx.
-const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/oauth-callback?native=1" : "/";
+// broker accepts (our own /native-oauth-callback page — no query params,
+// since Base44's callback handler strips existing query params when it
+// appends ?access_token=...), and have THAT page — running client-side in
+// Chrome after the redirect completes — perform the hop to rxdeliver://auth
+// itself. Chrome will honor navigation to a custom scheme from an ordinary
+// page load; it's only Base44's own server-side redirect that was rejecting
+// it. The "native" flag is encoded in the PATH, not as a query param, so it
+// survives Base44's callback redirect intact. See OAuthCallback.jsx.
+const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/native-oauth-callback" : "/";
 
 export default function Login() {
   const [email, setEmail] = useState("");

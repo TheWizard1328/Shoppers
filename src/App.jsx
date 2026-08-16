@@ -167,6 +167,7 @@ const AuthenticatedApp = () => {
       </Route>
 
       <Route path="/oauth-callback" element={<LazyPageWrapper><OAuthCallback /></LazyPageWrapper>} />
+      <Route path="/native-oauth-callback" element={<LazyPageWrapper><OAuthCallback /></LazyPageWrapper>} />
             <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
