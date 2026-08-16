@@ -888,7 +888,14 @@ export default function PayrollSummaryCard({
         const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
         next[k] = {
           ...prev[k],
-          deductions: (pr?.deductions?.length > 0 ? pr.deductions : null) ?? data.deductionsArray ?? [],
+          // CRITICAL: deductions MUST track AppUser.deductions (period-overlap filtered)
+          // as the source of truth. The persisted `pr.deductions` is only a stale
+          // snapshot from when the record was created — if the admin adds a new
+          // deduction to AppUser afterwards, the stale snapshot would mask it.
+          // Any extras the admin added live via the Manage Deductions overlay for
+          // THIS period (and saved to the entity) are still honoured below because
+          // the overlay writes back through savePayrollChanges, which updates pr too.
+          deductions: data.deductionsArray?.length > 0 ? data.deductionsArray : (pr?.deductions ?? []),
           bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
           appFeePercent: pr?.app_fee_percentage ?? 0,
           appFeeAmount: pr?.app_fee_amount ?? 0,
