@@ -23,16 +23,27 @@ import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capac
 //    what we observed: login succeeds but lands on the dashboard inside
 //    the external Chrome tab instead of returning to the app.
 //
-// The fix that actually works: send a NORMAL http(s) from_url that Base44's
-// broker accepts (our own /native-oauth-callback page — no query params,
-// since Base44's callback handler strips existing query params when it
-// appends ?access_token=...), and have THAT page — running client-side in
-// Chrome after the redirect completes — perform the hop to rxdeliver://auth
-// itself. Chrome will honor navigation to a custom scheme from an ordinary
-// page load; it's only Base44's own server-side redirect that was rejecting
-// it. The "native" flag is encoded in the PATH, not as a query param, so it
-// survives Base44's callback redirect intact. See OAuthCallback.jsx.
-const OAUTH_REDIRECT = isCapacitorNativeApp() ? "/native-oauth-callback" : "/";
+// Direct custom-scheme approach: pass rxdeliver://auth as the from_url.
+// Base44's /login endpoint preserves custom schemes in Google's state param
+// (confirmed via curl). After Google auth, Base44's callback handler redirects
+// to from_url with ?access_token=... appended. If it preserves the custom scheme,
+// Chrome navigates to rxdeliver://auth?access_token=... and Android's intent
+// filter (AndroidManifest.xml) routes it to our app. AuthContext.jsx's appUrlOpen
+// listener processes the deep link and logs in.
+//
+// Previous approaches that failed:
+// 1. /oauth-callback?native=1 — Base44's callback strips existing query params
+//    when appending ?access_token=..., losing the native=1 flag → OAuthCallback
+//    treated it as a web login → redirected to dashboard in browser.
+// 2. /native-oauth-callback (path-based) — works in theory, but the deployed PWA
+//    at wizardworxx.com hadn't been rebuilt to include the new route, so Chrome
+//    hit the SPA fallback and landed on the dashboard anyway.
+// 3. Backend function (oauthRedirect) — deployed to the Superagent app, not the
+//    RxDeliver app; can't be accessed from wizardworxx.com's domain.
+//
+// The direct custom-scheme approach has ZERO dependency on PWA deployment —
+// the redirect target is a native scheme, not a web page.
+const OAUTH_REDIRECT = isCapacitorNativeApp() ? "rxdeliver://auth" : "/";
 
 export default function Login() {
   const [email, setEmail] = useState("");
