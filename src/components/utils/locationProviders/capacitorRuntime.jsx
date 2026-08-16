@@ -131,3 +131,42 @@ export const requestNativeLocationAuthorization = async () => {
   const current = await getNativeLocationAuthorization();
   return current;
 };
+
+/**
+ * Request "Allow all the time" background location permission.
+ *
+ * On Android 10+ (API 29+), this triggers the system background location
+ * dialog ONLY if foreground location is already granted. If foreground
+ * is not yet granted, it falls back to requesting foreground first, then
+ * background on a subsequent call.
+ *
+ * This is the key function for enabling always-on GPS — it lets the app
+ * programmatically prompt for "Allow all the time" instead of forcing the
+ * user to dig through Settings.
+ */
+export const requestBackgroundLocationPermission = async () => {
+  if (!isCapacitorNativeApp() || typeof BackgroundGeolocation?.requestPermissions !== 'function') {
+    return { location: 'unknown', backgroundLocation: 'unknown' };
+  }
+  try {
+    // First check current state
+    const current = await BackgroundGeolocation.checkPermissions();
+    const fgGranted = current?.location === 'granted';
+    const bgGranted = current?.backgroundLocation === 'granted';
+
+    if (bgGranted) {
+      return { location: 'granted', backgroundLocation: 'granted', alreadyGranted: true };
+    }
+
+    // Request background location — the plugin handles the "foreground must be
+    // granted first" check internally. If foreground isn't granted yet, it
+    // requests that first, then background.
+    const result = await BackgroundGeolocation.requestPermissions({
+      permissions: ['backgroundLocation']
+    });
+    return result || { location: 'unknown', backgroundLocation: 'unknown' };
+  } catch (e) {
+    console.warn('[capacitorRuntime] requestBackgroundLocationPermission failed:', e?.message);
+    return { location: 'unknown', backgroundLocation: 'unknown', error: e?.message };
+  }
+};

@@ -60,12 +60,10 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Background Geolocation foreground service -->
-        <service
-            android:name="com.capacitorjs.community.backgroundgeolocation.BackgroundGeolocationService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="location" />
+        <!-- Background Geolocation foreground service is auto-registered by the
+             @capgo/background-geolocation plugin's own AndroidManifest at build time.
+             Do NOT manually declare it here — a stale reference to the uninstalled
+             @capacitor-community package causes a class-not-found at runtime. -->
 
     </application>
 

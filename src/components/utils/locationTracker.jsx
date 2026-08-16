@@ -1119,8 +1119,12 @@ class LocationTracker {
             maximumAge: 0,
             requestPermissions: true,
             distanceFilter: 0,
-            interval: 15000,
-            fastestInterval: 10000,
+            // CRITICAL: @capgo/background-geolocation reads "minIntervalMs" (NOT "interval")
+            // to set the native LocationManager polling interval. Without this, the
+            // service defaults to 1000ms polling — generating excessive callbacks that
+            // get throttled by the WebView and waste battery. 15000ms matches our
+            // upload cadence so native GPS fires exactly when we need to upload.
+            minIntervalMs: 15000,
             backgroundTitle: 'RxDeliver location tracking',
             backgroundMessage: 'Tracking delivery location in the background.'
           }
@@ -1128,42 +1132,58 @@ class LocationTracker {
 
         const useNativeBackgroundWatcher = this.locationProvider?.backgroundCapable === true;
 
-        if (!useNativeBackgroundWatcher) {
-          this._clearHeartbeat(); // Guard: ensure no stale interval before starting a new one
-          this.heartbeatInterval = setInterval(async () => {
-            if (!this.isTracking) return;
-            // ALWAYS request a fresh GPS fix directly from the antenna — never use stale lastPosition
-            try {
-              const freshPos = await this.locationProvider.getCurrentPosition({
-                enableHighAccuracy: true,
-                timeout: 8000,
-                maximumAge: 0, // Never accept cached position
-                requestPermissions: false
-              });
-              this.lastPosition = {
-                latitude: freshPos.coords.latitude,
-                longitude: freshPos.coords.longitude,
-                accuracy: freshPos.coords.accuracy
-              };
-              console.log(`💓 [${providerName} PROVIDER] Fresh GPS fix — uploading`, {
-                lat: freshPos.coords.latitude.toFixed(6),
-                lng: freshPos.coords.longitude.toFixed(6),
-                accuracy: freshPos.coords.accuracy?.toFixed(0) + 'm'
-              });
-              this._pendingEventUpdate = false;
-              await this.updateLocationInDatabase(
-                freshPos.coords.latitude,
-                freshPos.coords.longitude,
-                freshPos.coords.accuracy,
-                false,
-                false,
-                this.isPrimaryDevice
-              );
-            } catch (err) {
-              console.warn(`⚠️ [${providerName} PROVIDER] Fresh GPS fix failed on heartbeat:`, err.message);
+        // CRITICAL: ALWAYS start the 15s heartbeat setInterval, even when the native
+        // background watcher is active. When the app is backgrounded, Android throttles
+        // the WebView's JS execution — native plugin callbacks (call.resolve()) are
+        // queued and not delivered until the WebView resumes. The setInterval heartbeat
+        // is also throttled (to ~1/min) but NOT killed, so it provides a critical
+        // fallback that ensures at least one coordinate + timestamp upload per minute
+        // even when the native→JS bridge is suspended.
+        //
+        // When the app is in the foreground, both paths fire but the 15s upload gate
+        // in updateLocationInDatabase deduplicates them — whichever arrives first
+        // within the 15s window wins, the other is suppressed.
+        this._clearHeartbeat(); // Guard: ensure no stale interval before starting a new one
+        this.heartbeatInterval = setInterval(async () => {
+          if (!this.isTracking) return;
+          try {
+            // When native background watcher is active, getCurrentPosition returns
+            // the last known position from the native service (no new GPS fix needed).
+            // When web-only, it requests a fresh GPS fix from the antenna.
+            const freshPos = await this.locationProvider.getCurrentPosition({
+              enableHighAccuracy: true,
+              timeout: 8000,
+              maximumAge: useNativeBackgroundWatcher ? 15000 : 0,
+              requestPermissions: false
+            });
+            this.lastPosition = {
+              latitude: freshPos.coords.latitude,
+              longitude: freshPos.coords.longitude,
+              accuracy: freshPos.coords.accuracy
+            };
+            this._pendingEventUpdate = false;
+            await this.updateLocationInDatabase(
+              freshPos.coords.latitude,
+              freshPos.coords.longitude,
+              freshPos.coords.accuracy,
+              false,
+              false,
+              this.isPrimaryDevice
+            );
+          } catch (err) {
+            // Even if GPS fails, upload a timestamp-only update so the marker
+            // stays "fresh" and doesn't show as stale to dispatchers.
+            if (this.isPrimaryDevice && this.appUserId && navigator.onLine) {
+              try {
+                const nowISO = getLocalTimestamp();
+                await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO });
+                console.log(`💓 [${providerName} PROVIDER] Timestamp-only heartbeat (GPS unavailable)`);
+              } catch (e) {
+                console.warn(`⚠️ [${providerName} PROVIDER] Timestamp heartbeat failed:`, e?.message);
+              }
             }
-          }, this.updateInterval);
-        }
+          }
+        }, this.updateInterval);
 
         // Independent 5s breadcrumb collection timer — always grabs a fresh GPS fix
         if (this.breadcrumbInterval) {
