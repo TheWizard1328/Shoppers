@@ -364,16 +364,8 @@ function ApkDownloadPanel() {
       </div>
       <a
         href={apkUrl}
-        download="RxDeliver.apk"
-        target={isCapacitorNativeApp() ? '_blank' : undefined}
-        rel="noopener noreferrer"
+        download={isCapacitorNativeApp() ? undefined : 'RxDeliver.apk'}
         className="block"
-        onClick={(e) => {
-          if (isCapacitorNativeApp() && apkUrl) {
-            e.preventDefault();
-            window.open(apkUrl, '_blank', 'noopener,noreferrer');
-          }
-        }}
       >
         <Button className="w-full gap-2" style={{ background: '#2563EB', borderColor: '#2563EB' }}>
           <Download className="w-4 h-4" />

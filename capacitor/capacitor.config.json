@@ -4,7 +4,12 @@
   "webDir": "dist",
   "server": {
     "url": "https://wizardworxx.com",
-    "cleartext": false
+    "cleartext": false,
+    "allowNavigation": [
+      "github.com",
+      "*.github.com",
+      "*.githubusercontent.com"
+    ]
   },
   "android": {
     "allowMixedContent": false,
