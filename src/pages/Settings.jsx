@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { isCapacitorNativeApp, getCapacitorPlatform } from '@/components/utils/locationProviders/capacitorRuntime';
-import { isNativePushAvailable, checkNativePushPermission, initNativePushNotifications } from '@/components/utils/nativePushNotifications';
+import { isNativePushAvailable, checkNativePushPermission, initNativePushNotifications, forceReRegisterNativePush, runPushDiagnostics, getRegistrationDiagnostics } from "@/components/utils/nativePushNotifications";
 import { useLatestApkBuildInfo } from '@/components/utils/useBuildInfo';
 import { getUserAgentInfo } from '@/components/utils/deviceUtils';
 import {
@@ -230,6 +230,148 @@ function NotificationsPanel({ currentUser, settings }) {
           <Switch checked={row.value} onCheckedChange={(val) => handleToggle(row.key, val, row.setter)} />
         </div>
       ))}
+
+      {/* ── Push Diagnostics (native only) ───────────────────────────── */}
+      {isNativePush && <PushDiagnosticsPanel userId={currentUser.id} />}
+
+      {/* ── Send Test Push ───────────────────────────────────────────── */}
+      {browserPermission === 'granted' && <SendTestPush userId={currentUser.id} />}
+    </div>
+  );
+}
+
+// ── Push Diagnostics Panel (native APK only) ──────────────────────────────────
+function PushDiagnosticsPanel({ userId }) {
+  const [show, setShow] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [report, setReport] = useState(null);
+  const [reRegistering, setReRegistering] = useState(false);
+
+  const handleRun = async () => {
+    setRunning(true);
+    try {
+      const r = await runPushDiagnostics(userId);
+      setReport(r);
+      setShow(true);
+    } catch (e) {
+      toast.error('Diagnostics failed: ' + (e?.message || e));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const handleForceReRegister = async () => {
+    setReRegistering(true);
+    try {
+      const result = await forceReRegisterNativePush(userId);
+      if (result?.ok) {
+        toast.success('Re-registration requested. Tap "Run Diagnostics" in ~10s to see results.');
+        // Wait a moment then auto-run diagnostics
+        setTimeout(() => handleRun(), 10000);
+      } else {
+        toast.error('Re-register failed: ' + (result?.reason || 'unknown') + (result?.error ? ' — ' + result.error : ''));
+        setReport({ registrationResult: result, ...report });
+        setShow(true);
+      }
+    } catch (e) {
+      toast.error('Re-register error: ' + (e?.message || e));
+    } finally {
+      setReRegistering(false);
+    }
+  };
+
+  return (
+    <div className="py-4 border-t border-slate-100 dark:border-slate-800 mt-2">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Push Diagnostics</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>
+            Check FCM registration, token status, and subscriptions
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleRun} disabled={running}>
+            {running ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Run'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleForceReRegister} disabled={reRegistering}>
+            {reRegistering ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Force Re-register'}
+          </Button>
+        </div>
+      </div>
+
+      {show && report && (
+        <div className="mt-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1">
+          <div>Platform: <span className="font-bold">{report.platform || 'unknown'}</span></div>
+          <div>Native push available: <span className={report.isNative ? 'text-green-600' : 'text-red-600'}>{String(report.isNative)}</span></div>
+          <div>Permission: <span className={report.permission === 'granted' ? 'text-green-600' : 'text-red-600'}>{report.permission}</span></div>
+          <div>Plugin loaded: <span className={report.pluginLoaded ? 'text-green-600' : 'text-red-600'}>{String(report.pluginLoaded)}</span></div>
+          {report.hasRegisterMethod !== undefined && (
+            <div>Has register(): <span className={report.hasRegisterMethod ? 'text-green-600' : 'text-red-600'}>{String(report.hasRegisterMethod)}</span></div>
+          )}
+          <div>Subscriptions: {report.subscriptions.total} total ({report.subscriptions.fcm} FCM, {report.subscriptions.web} Web Push)</div>
+          {report.registrationResult && (
+            <div className="pt-1 border-t border-slate-200 dark:border-slate-700 mt-1">
+              <div>Last registration: <span className={report.registrationResult.ok === true ? 'text-green-600' : report.registrationResult.ok === null ? 'text-amber-600' : 'text-red-600'}>
+                {report.registrationResult.reason || 'unknown'}
+              </span></div>
+              {report.registrationResult.error && (
+                <div className="text-red-600">Error: {report.registrationResult.error}</div>
+              )}
+              {report.registrationResult.token && (
+                <div>Token: {report.registrationResult.token}…</div>
+              )}
+            </div>
+          )}
+          {report.errors?.length > 0 && (
+            <div className="pt-1 border-t border-slate-200 dark:border-slate-700 mt-1 text-red-600">
+              {report.errors.map((e, i) => <div key={i}>⚠ {e}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Send Test Push ────────────────────────────────────────────────────────────
+function SendTestPush({ userId }) {
+  const [sending, setSending] = useState(false);
+
+  const handleTest = async () => {
+    setSending(true);
+    try {
+      const result = await base44.functions.invoke('sendPushNotification', {
+        user_id: userId,
+        title: '🧪 RxDeliver Test Push',
+        body: 'If you can see this, push notifications are working!',
+        url: '/',
+        force: true,
+      });
+      if (result?.sent > 0) {
+        toast.success(`✅ ${result.sent} notification(s) sent (${result.fcmSent || 0} FCM, ${result.webSent || 0} Web Push)`);
+      } else if (result?.errors?.length > 0) {
+        toast.error('❌ No notifications sent. Errors: ' + result.errors.map(e => e.error).join('; '));
+      } else {
+        toast.warning('⚠️ No subscriptions found — ensure you have registered and logged in.');
+      }
+    } catch (e) {
+      toast.error('Test push failed: ' + (e?.message || e));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between py-4 border-t border-slate-100 dark:border-slate-800">
+      <div>
+        <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Send Test Push</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>
+          Send a test notification to this device
+        </p>
+      </div>
+      <Button variant="outline" size="sm" onClick={handleTest} disabled={sending}>
+        {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Test'}
+      </Button>
     </div>
   );
 }
