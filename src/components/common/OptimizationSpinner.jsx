@@ -81,7 +81,7 @@ export default function OptimizationSpinner() {
 
   return (
     <div
-      className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-2"
+      className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] right-6 z-[9999] flex flex-col items-end gap-2"
       style={{ pointerEvents: 'none' }}
     >
       {/* KITT scanning bar — visible while optimizer is actively running */}

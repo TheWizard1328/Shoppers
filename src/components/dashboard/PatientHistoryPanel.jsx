@@ -97,7 +97,9 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
             style={{
               width: 'min(400px, 100vw)',
               background: 'var(--bg-white)',
-              borderLeft: '1px solid var(--border-slate-200)'
+              borderLeft: '1px solid var(--border-slate-200)',
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
             }}
           >
             {/* Header */}

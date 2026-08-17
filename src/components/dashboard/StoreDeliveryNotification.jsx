@@ -127,7 +127,7 @@ export default function StoreDeliveryNotification({
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          className="fixed top-4 left-4 z-[9999] max-w-md"
+          className="fixed top-[calc(env(safe-area-inset-top,0px)+1rem)] left-4 z-[9999] max-w-md"
         >
           <div 
             className={`text-white rounded-xl shadow-2xl p-4 border-2 ${

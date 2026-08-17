@@ -63,7 +63,7 @@ export default function RouteNotification({ notification, onDismiss, onNavigate,
           initial={{ opacity: 0, y: -50, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] max-w-md w-[calc(100%-2rem)] rounded-xl border shadow-lg ${getBgColor()}`}
+          className={`fixed top-[calc(env(safe-area-inset-top,0px)+1rem)] left-1/2 -translate-x-1/2 z-[9999] max-w-md w-[calc(100%-2rem)] rounded-xl border shadow-lg ${getBgColor()}`}
         >
           <div className="p-4">
             <div className="flex items-start gap-3">

@@ -177,7 +177,7 @@ export default function AutoRouteOptimizer({
   };
 
   return (
-    <div className="fixed top-20 right-4 z-[140] flex flex-col items-end gap-2">
+    <div className="fixed top-[calc(env(safe-area-inset-top,0px)+5rem)] right-4 z-[140] flex flex-col items-end gap-2">
       {/* Auto-Optimize Toggle */}
       <motion.div
         initial={{ opacity: 0, x: 20 }}

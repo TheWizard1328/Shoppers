@@ -117,7 +117,7 @@ export default function DispatcherFridgeTempNotification({ currentUser, deliveri
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          className="fixed top-4 right-4 z-[9999] max-w-sm w-[calc(100%-2rem)] sm:w-80"
+          className="fixed top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 z-[9999] max-w-sm w-[calc(100%-2rem)] sm:w-80"
         >
           <div className={`rounded-xl border-2 shadow-2xl p-4 ${
             activeNotification.isOutOfRange

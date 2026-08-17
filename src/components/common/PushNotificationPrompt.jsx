@@ -46,7 +46,7 @@ export default function PushNotificationPrompt({ userId }) {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-          className="fixed bottom-20 left-4 right-4 md:left-auto md:right-6 md:bottom-6 md:w-96 z-[10001]"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] left-4 right-4 md:left-auto md:right-6 md:bottom-6 md:w-96 z-[10001]"
         >
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-start gap-4">

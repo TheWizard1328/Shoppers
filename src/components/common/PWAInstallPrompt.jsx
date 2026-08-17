@@ -56,7 +56,7 @@ export default function PWAInstallPrompt({ storageKey = 'pwa_install_dismissed' 
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[10000]"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] left-4 right-4 md:left-auto md:right-4 md:w-96 z-[10000]"
         >
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border-2 border-emerald-500 p-4">
             <div className="flex items-start gap-3">

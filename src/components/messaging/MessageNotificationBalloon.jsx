@@ -105,7 +105,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
           transition={{ duration: 0.2 }}
           onClick={handleClick}
-          className="fixed top-4 right-4 z-[10002] max-w-sm w-full cursor-pointer"
+          className="fixed top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 z-[10002] max-w-sm w-full cursor-pointer"
         >
           <div 
             className="rounded-xl shadow-2xl overflow-hidden hover:shadow-xl transition-shadow"

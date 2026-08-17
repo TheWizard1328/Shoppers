@@ -328,7 +328,8 @@ export default function ConnectionRecoveryBanner() {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -50 }}
         transition={{ duration: 0.3 }}
-        className={`fixed top-0 left-0 right-0 z-[10002] ${config.bgColor} ${config.textColor} px-4 py-2 shadow-lg`}
+        className={`fixed top-0 left-0 right-0 z-[10002] ${config.bgColor} ${config.textColor} px-4 shadow-lg`}
+        style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 0.5rem)`, paddingBottom: `0.5rem` }}
       >
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">

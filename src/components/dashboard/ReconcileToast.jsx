@@ -34,7 +34,7 @@ export default function ReconcileToast() {
   const dismiss = (id) => setToasts(prev => prev.filter(t => t.id !== id));
 
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[640] flex flex-col gap-2 pointer-events-none">
+    <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] left-1/2 -translate-x-1/2 z-[640] flex flex-col gap-2 pointer-events-none">
       <AnimatePresence>
         {toasts.map(t => (
           <motion.div
