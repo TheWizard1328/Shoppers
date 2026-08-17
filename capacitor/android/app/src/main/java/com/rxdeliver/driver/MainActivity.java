@@ -225,8 +225,10 @@ public class MainActivity extends BridgeActivity {
             // ── Stalled download detection ─────────────────────────────
             // On Samsung and other aggressive battery-managed devices,
             // DownloadManager.enqueue() succeeds but the download never
-            // starts (the service gets killed). Poll after 5 seconds —
-            // if still PENDING, warn the user and suggest the browser.
+            // starts (the service gets killed or queued). Two-phase check:
+            //   15s — warn the user it's still queued
+            //   30s — auto-open the GitHub URL in the browser as fallback
+            final String stalledUrl = url;
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 if (activeDownloadId < 0) return;
                 try {
@@ -236,13 +238,34 @@ public class MainActivity extends BridgeActivity {
                         int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
                         if (status == DownloadManager.STATUS_PENDING) {
                             Toast.makeText(this,
-                                "Download seems stalled. Check Downloads or try opening the link in your browser.",
+                                "Download still queued by system — will auto-open browser in 15s if it doesn't start.",
                                 Toast.LENGTH_LONG).show();
                         }
                     }
                     if (cursor != null) cursor.close();
                 } catch (Exception ignored) {}
-            }, 5000);
+            }, 15000);
+
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (activeDownloadId < 0) return;
+                try {
+                    DownloadManager dm2 = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                    Cursor cursor = dm2.query(new DownloadManager.Query().setFilterById(activeDownloadId));
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                        if (status == DownloadManager.STATUS_PENDING) {
+                            // DownloadManager is stuck — open the URL in the browser instead
+                            Toast.makeText(this,
+                                "DownloadManager stuck — opening browser fallback.",
+                                Toast.LENGTH_SHORT).show();
+                            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(stalledUrl));
+                            browserIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(browserIntent);
+                        }
+                    }
+                    if (cursor != null) cursor.close();
+                } catch (Exception ignored) {}
+            }, 30000);
 
             // ── Register download-complete receiver ────────────────────
             downloadCompleteReceiver = new BroadcastReceiver() {

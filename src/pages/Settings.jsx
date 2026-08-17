@@ -526,6 +526,8 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
   const [downloadedUri, setDownloadedUri] = useState('');
   const pollRef = useRef(null);
   const downloadingRef = useRef(false);
+  const pendingSinceRef = useRef(null); // timestamp when we first saw 'pending' status
+  const [, forceTick] = useState(0); // forces re-render for showBrowserFallback computation
 
   // Register native callbacks (called from MainActivity.java via evaluateJavascript)
   useEffect(() => {
@@ -561,15 +563,24 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
             setDownloadState('success');
             setDownloadedUri(result.uri);
             setDownloadProgress(100);
+            pendingSinceRef.current = null;
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
           } else if (result.status === 'failed') {
             downloadingRef.current = false;
             setDownloadState('failed');
             setDownloadError(result.reason || 'Unknown error');
+            pendingSinceRef.current = null;
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
           } else if (result.status === 'running') {
             setDownloadState('running');
             setDownloadProgress(result.progress || 0);
+            pendingSinceRef.current = null; // download started — clear pending
+          } else if (result.status === 'pending') {
+            // DownloadManager queued but not yet started — track how long
+            if (!pendingSinceRef.current) pendingSinceRef.current = Date.now();
+            setDownloadState('running');
+            setDownloadProgress(0);
+            forceTick(t => t + 1); // re-render to update showBrowserFallback
           }
         }
       } catch (e) {
@@ -630,6 +641,14 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
     }
   };
 
+  const handleOpenInBrowser = () => {
+    if (apkUrl) window.open(apkUrl, '_blank');
+  };
+
+  // Show browser fallback if stuck at 0% for more than 15 seconds
+  const showBrowserFallback = downloadState === 'running' && downloadProgress === 0
+    && pendingSinceRef.current && (Date.now() - pendingSinceRef.current) > 15000;
+
   const handleDismissBanner = () => {
     downloadingRef.current = false;
     setDownloadState('idle');
@@ -681,7 +700,9 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
                     {downloadState === 'success' ? 'RxDeliver APK downloaded successfully. Tap "Open" to install.'
                       : downloadState === 'failed' ? `Error: ${downloadError}. Try downloading from your browser.`
                       : downloadState === 'starting' ? 'Contacting download server…'
-                      : downloadProgress > 0 ? `${downloadProgress}% complete` : 'Downloading…'}
+                      : downloadProgress > 0 ? `${downloadProgress}% complete`
+                    : (pendingSinceRef.current && (Date.now() - pendingSinceRef.current) > 5000) ? 'Queued by system — waiting…'
+                    : 'Starting download…'}
                   </p>
                   {downloadState === 'running' && downloadProgress > 0 && (
                     <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: '#dbeafe' }}>
@@ -693,6 +714,16 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
                   <X className="w-4 h-4" />
                 </button>
               </div>
+              {showBrowserFallback && (
+                <div className="mt-2 flex items-center gap-2 px-1">
+                  <p className="text-xs flex-1" style={{ color: '#92400e' }}>
+                    Download seems stuck. Try opening the link directly:
+                  </p>
+                  <a href={apkUrl} target="_blank" rel="noopener" className="text-xs font-medium px-2 py-1 rounded-lg" style={{ background: '#fef3c7', color: '#92400e' }}>
+                    Open in browser
+                  </a>
+                </div>
+              )}
               {downloadState === 'success' && (
                 <div className="mt-3 flex gap-2">
                   <Button onClick={handleOpenDownloadedApk} className="flex-1 gap-2" style={{ background: '#16a34a', borderColor: '#16a34a' }}>
