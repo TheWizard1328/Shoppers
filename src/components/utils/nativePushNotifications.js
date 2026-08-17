@@ -13,9 +13,9 @@ import { base44 } from '@/api/base44Client';
  * The FCM token is stored in the same PushSubscription entity as web push
  * subscriptions, but with:
  *   - endpoint = "fcm://{token}"  (so the backend can distinguish FCM vs Web Push)
- *   - p256dh_key / auth_key omitted entirely for FCM (schema types them as
- *     required-if-present strings — passing null fails validation, so we
- *     must NOT include the key at all rather than sending null)
+ *   - p256dh_key / auth_key sent as empty strings for FCM (schema types them
+ *     as required strings — null/undefined fails validation, empty string is
+ *     accepted and ignored by the FCM send path)
  *
  * The backend sendPushNotification function checks the endpoint prefix to
  * route to either web-push (VAPID) or FCM (Firebase Admin SDK v1 API).
@@ -198,9 +198,10 @@ export async function runPushDiagnostics(userId) {
  *
  * IMPORTANT: PushSubscription schema types p256dh_key, auth_key, and
  * device_identifier as "string" (not nullable). Sending `null` for any of
- * these fails schema validation on create(), which was silently swallowed —
- * this is why FCM subscriptions never actually got created. Fields with no
- * value must be OMITTED from the payload entirely, never set to null.
+ * these fails schema validation. p256dh_key and auth_key are marked as
+ * required by the server schema, so we send empty strings for FCM
+ * subscriptions (they're only used by the Web Push send path, not FCM).
+ * device_identifier is optional and omitted when not available.
  */
 async function persistNativeSubscription(userId, fcmToken) {
   if (!userId || !fcmToken) return null;
@@ -225,17 +226,20 @@ async function persistNativeSubscription(userId, fcmToken) {
     return updated || existing[0];
   }
 
-  // Build create payload — only include optional string fields when they
-  // have an actual value. Never send null/undefined for a schema "string" field.
+  // Build create payload. p256dh_key / auth_key are Web Push-only concepts
+  // but the Base44 schema marks them as required strings. Sending empty
+  // strings satisfies validation without breaking FCM (sendPushNotification
+  // only uses these fields for Web Push endpoints, not fcm:// endpoints).
   const payload = {
     user_id: userId,
     endpoint,
     user_agent: navigator.userAgent,
     last_used_at: new Date().toISOString(),
+    p256dh_key: '',
+    auth_key: '',
   };
   if (deviceIdentifier) payload.device_identifier = deviceIdentifier;
   if (userName) payload.user_name = userName;
-  // p256dh_key / auth_key intentionally omitted — not applicable to FCM
 
   const created = await base44.entities.PushSubscription.create(payload);
   console.log('[NativePush] Created new FCM subscription');
