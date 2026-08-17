@@ -58,6 +58,13 @@ jobs:
         working-directory: capacitor/android
         run: ./gradlew assembleDebug --no-daemon -x test
 
+      - name: Rename APK with build number
+        working-directory: capacitor/android/app/build/outputs/apk/debug
+        run: |
+          BUILD_NUM="${GITHUB_RUN_NUMBER:-unknown}"
+          cp rxdeliver-debug.apk "rxdeliver-v1.0.${BUILD_NUM}.apk"
+          echo "Renamed APK to rxdeliver-v1.0.${BUILD_NUM}.apk"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -86,7 +93,7 @@ jobs:
             - OAuth deep-link callback (rxdeliver://auth)
 
             Download the .apk file below and install on your Android device.
-          files: capacitor/android/app/build/outputs/apk/debug/rxdeliver-debug.apk
+          files: capacitor/android/app/build/outputs/apk/debug/rxdeliver-v1.0.${{ github.run_number }}.apk
           prerelease: true
           make_latest: false
         env:
