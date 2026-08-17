@@ -27,6 +27,8 @@ public class MainActivity extends BridgeActivity {
 
     private long activeDownloadId = -1;
     private BroadcastReceiver downloadCompleteReceiver = null;
+    private Handler pollHandler = null;
+    private Runnable pollRunnable = null;
 
     // JavaScript interface for direct APK download from web app.
     // Bypasses the WebView DownloadListener entirely, which can be
@@ -42,6 +44,62 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isNative() {
             return true;
+        }
+
+        // Web app polls this to check download status without relying on BroadcastReceiver
+        @JavascriptInterface
+        public String getDownloadStatus() {
+            if (activeDownloadId < 0) {
+                return "{\"status\":\"idle\"}";
+            }
+            try {
+                DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                Cursor cursor = dm.query(new DownloadManager.Query().setFilterById(activeDownloadId));
+                if (cursor != null && cursor.moveToFirst()) {
+                    int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                    long totalBytes = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                    long downloadedBytes = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    int progress = totalBytes > 0 ? (int) (downloadedBytes * 100 / totalBytes) : 0;
+                    String localUri = "";
+                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                        localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
+                    }
+                    String statusStr;
+                    switch (status) {
+                        case DownloadManager.STATUS_PENDING: statusStr = "pending"; break;
+                        case DownloadManager.STATUS_RUNNING: statusStr = "running"; break;
+                        case DownloadManager.STATUS_SUCCESSFUL: statusStr = "success"; break;
+                        case DownloadManager.STATUS_FAILED:
+                            int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                            statusStr = "failed";
+                            cursor.close();
+                            activeDownloadId = -1;
+                            return "{\"status\":\"failed\",\"reason\":\"" + downloadErrorReason(reason) + "\"}";
+                        default: statusStr = "unknown"; break;
+                    }
+                    cursor.close();
+                    return "{\"status\":\"" + statusStr + "\",\"progress\":" + progress + \",\"uri\":\"" + localUri + "\"}";
+                }
+                if (cursor != null) cursor.close();
+            } catch (Exception e) {
+                // ignore
+            }
+            return "{\"status\":\"idle\"}";
+        }
+
+        // Web app calls this to open the downloaded APK for installation
+        @JavascriptInterface
+        public void openDownloadedApk(String uri) {
+            runOnUiThread(() -> {
+                try {
+                    Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                    installIntent.setDataAndType(Uri.parse(uri), "application/vnd.android.package-archive");
+                    installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(installIntent);
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Unable to open APK: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            });
         }
     }
 
@@ -196,14 +254,53 @@ public class MainActivity extends BridgeActivity {
                     downloadCompleteReceiver = null;
                 }
             };
+            // Use RECEIVER_EXPORTED for system broadcasts on Android 13+ —
+            // RECEIVER_NOT_EXPORTED can block system broadcasts on some OEM implementations.
             if (android.os.Build.VERSION.SDK_INT >= 33) {
                 registerReceiver(downloadCompleteReceiver,
                     new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                    Context.RECEIVER_NOT_EXPORTED);
+                    Context.RECEIVER_EXPORTED);
             } else {
                 registerReceiver(downloadCompleteReceiver,
                     new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
             }
+
+            // ── Polling fallback ──────────────────────────────────────
+            // BroadcastReceiver can be unreliable on Samsung/other aggressive
+            // battery-managed devices. Poll every 2 seconds as a backup.
+            // Also calls the web-side callback if registered.
+            pollHandler = new Handler(Looper.getMainLooper());
+            pollRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    if (activeDownloadId < 0) return;
+                    try {
+                        DownloadManager dm2 = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                        Cursor cursor = dm2.query(new DownloadManager.Query().setFilterById(activeDownloadId));
+                        if (cursor != null && cursor.moveToFirst()) {
+                            int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                            if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                                String localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
+                                cursor.close();
+                                activeDownloadId = -1;
+                                showDownloadCompleteDialog(Uri.parse(localUri));
+                                notifyWebDownloadComplete(localUri);
+                                return;
+                            } else if (status == DownloadManager.STATUS_FAILED) {
+                                int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                                cursor.close();
+                                activeDownloadId = -1;
+                                Toast.makeText(MainActivity.this, "Download failed: " + downloadErrorReason(reason), Toast.LENGTH_LONG).show();
+                                notifyWebDownloadFailed(downloadErrorReason(reason));
+                                return;
+                            }
+                        }
+                        if (cursor != null) cursor.close();
+                    } catch (Exception ignored) {}
+                    pollHandler.postDelayed(this, 2000);
+                }
+            };
+            pollHandler.postDelayed(pollRunnable, 2000);
         } catch (Exception e) {
             Toast.makeText(this, "Download failed to start: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
@@ -222,6 +319,28 @@ public class MainActivity extends BridgeActivity {
             case DownloadManager.ERROR_UNKNOWN: return "Unknown error";
             default: return "Error " + reason;
         }
+    }
+
+    private void notifyWebDownloadComplete(String apkUri) {
+        try {
+            WebView webView = this.bridge.getWebView();
+            if (webView != null) {
+                webView.evaluateJavascript(
+                    "window.__apkDownloadComplete && window.__apkDownloadComplete('" + apkUri + "');",
+                    null);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void notifyWebDownloadFailed(String reason) {
+        try {
+            WebView webView = this.bridge.getWebView();
+            if (webView != null) {
+                webView.evaluateJavascript(
+                    "window.__apkDownloadFailed && window.__apkDownloadFailed('" + reason + "');",
+                    null);
+            }
+        } catch (Exception ignored) {}
     }
 
     private void showDownloadCompleteDialog(Uri apkUri) {

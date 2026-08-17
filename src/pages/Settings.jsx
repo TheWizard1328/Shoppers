@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   User, Bell, Moon, Smartphone, Monitor, LogOut, ChevronRight,
-  Sun, Check, Ruler, Save, Loader2, ShieldAlert, Download, RefreshCw,
+  Sun, Check, Ruler, Save, Loader2, ShieldAlert, Download, RefreshCw, X,
 } from 'lucide-react';
 import { initPushNotifications, resetPushSubscription } from '@/components/utils/pushNotifications';
 import { toast } from 'sonner';
@@ -519,6 +520,58 @@ function useAndroidAppUpdateCheck() {
 // ── APK Download Panel ────────────────────────────────────────────────────────
 function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
   const { apkUrl, buildText, loaded } = buildInfo;
+  const [downloadState, setDownloadState] = useState('idle'); // idle | starting | running | success | failed
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadError, setDownloadError] = useState('');
+  const [downloadedUri, setDownloadedUri] = useState('');
+  const pollRef = useRef(null);
+
+  // Register native callbacks (called from MainActivity.java via evaluateJavascript)
+  useEffect(() => {
+    window.__apkDownloadComplete = (uri) => {
+      setDownloadState('success');
+      setDownloadedUri(uri);
+      setDownloadProgress(100);
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+    window.__apkDownloadFailed = (reason) => {
+      setDownloadState('failed');
+      setDownloadError(reason);
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+    return () => {
+      delete window.__apkDownloadComplete;
+      delete window.__apkDownloadFailed;
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+  }, []);
+
+  // Poll native download status as a backup to the BroadcastReceiver
+  const startPolling = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => {
+      try {
+        if (window.AndroidNative && typeof window.AndroidNative.getDownloadStatus === 'function') {
+          const result = JSON.parse(window.AndroidNative.getDownloadStatus());
+          if (result.status === 'success') {
+            setDownloadState('success');
+            setDownloadedUri(result.uri);
+            setDownloadProgress(100);
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+          } else if (result.status === 'failed') {
+            setDownloadState('failed');
+            setDownloadError(result.reason || 'Unknown error');
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+          } else if (result.status === 'running') {
+            setDownloadState('running');
+            setDownloadProgress(result.progress || 0);
+          }
+        }
+      } catch (e) {
+        // ignore parse errors
+      }
+    }, 2000);
+  };
 
   if (!loaded) {
     return (
@@ -537,59 +590,132 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
     );
   }
 
-  // MainActivity.java registers WebView.setDownloadListener specifically to
-  // catch this: when the WebView's own navigation hits a response with
-  // Content-Disposition: attachment (which GitHub's release asset URLs send),
-  // Android intercepts it BEFORE rendering and hands it to DownloadManager —
-  // the WebView does not actually navigate away, so the SPA stays put.
-  //
-  // The previous approach tried to force-open an `intent://` URI via
-  // window.open(..., '_system') to hand the download to the system browser.
-  // That doesn't work here: there's no @capacitor/browser plugin (or WebViewClient
-  // override) registered to interpret the `intent:` scheme, so the WebView just
-  // tries to load the literal string "intent://..." as a page and fails with
-  // "Web page not available" (ERR_UNKNOWN_URL_SCHEME) — that's the exact bug
-  // being hit. DownloadManager.Request in MainActivity.onDownloadStart receives
-  // the final resolved URL (after GitHub's redirect to objects.githubusercontent.com),
-  // so no manual redirect handling is needed — direct navigation is sufficient.
-  const [downloading, setDownloading] = useState(false);
-
   const handleNativeDownload = async (e) => {
     e.preventDefault();
-    if (downloading) return;
-    setDownloading(true);
+    if (downloadState === 'starting' || downloadState === 'running') return;
+    setDownloadState('starting');
+    setDownloadProgress(0);
+    setDownloadError('');
+    setDownloadedUri('');
     try {
-      // PRIMARY PATH: use the native JavaScript interface (window.AndroidNative)
-      // which calls DownloadManager directly — bypasses the WebView's
-      // DownloadListener entirely. The DownloadListener can fail
-      // intermittently on Samsung and other aggressive battery-managed
-      // devices (the service gets killed between enqueue and download).
       if (window.AndroidNative && typeof window.AndroidNative.downloadApk === 'function') {
         console.log('[APK Download] Using native JS interface (AndroidNative.downloadApk)');
-        toast.success('Starting download…');
         window.AndroidNative.downloadApk(apkUrl);
+        setDownloadState('running');
+        startPolling();
       } else {
-        // FALLBACK: navigate the WebView to the APK URL and let the
-        // native DownloadListener intercept it. Less reliable but
-        // works on devices where the JS interface isn't registered.
         console.log('[APK Download] Falling back to WebView navigation — DownloadListener will intercept');
         toast.success('Starting download…');
         window.location.href = apkUrl;
+        setDownloadState('running');
       }
     } catch (err) {
       console.error('[APK Download] Failed:', err);
+      setDownloadState('failed');
+      setDownloadError(err.message || 'Unknown error');
       toast.error('Could not start download. Try visiting the link in your browser.');
-    } finally {
-      setTimeout(() => setDownloading(false), 3000);
     }
   };
 
+  const handleOpenDownloadedApk = () => {
+    if (downloadedUri && window.AndroidNative && typeof window.AndroidNative.openDownloadedApk === 'function') {
+      window.AndroidNative.openDownloadedApk(downloadedUri);
+    }
+  };
+
+  const handleDismissBanner = () => {
+    setDownloadState('idle');
+    setDownloadProgress(0);
+    setDownloadError('');
+    setDownloadedUri('');
+  };
+
+  const isDownloading = downloadState === 'starting' || downloadState === 'running';
+
   return (
     <div className="py-4 space-y-4">
+      {/* Download status banner — fixed at top of screen like RouteNotification */}
+      <AnimatePresence>
+        {downloadState !== 'idle' && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] max-w-md w-[calc(100%-2rem)] rounded-xl border shadow-lg"
+            style={{
+              background: downloadState === 'success' ? '#f0fdf4'
+                : downloadState === 'failed' ? '#fef2f2'
+                : '#eff6ff',
+              borderColor: downloadState === 'success' ? '#bbf7d0'
+                : downloadState === 'failed' ? '#fecaca'
+                : '#bfdbfe',
+            }}
+          >
+            <div className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  {downloadState === 'success' ? (
+                    <Check className="w-5 h-5" style={{ color: '#16a34a' }} />
+                  ) : downloadState === 'failed' ? (
+                    <ShieldAlert className="w-5 h-5" style={{ color: '#dc2626' }} />
+                  ) : (
+                    <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#2563eb' }} />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-semibold text-sm" style={{ color: downloadState === 'success' ? '#15803d' : downloadState === 'failed' ? '#b91c1c' : '#1e40af' }}>
+                    {downloadState === 'success' ? 'Download Complete'
+                      : downloadState === 'failed' ? 'Download Failed'
+                      : downloadState === 'starting' ? 'Starting Download…'
+                      : 'Downloading Update…'}
+                  </h4>
+                  <p className="text-sm mt-0.5" style={{ color: downloadState === 'success' ? '#16a34a' : downloadState === 'failed' ? '#dc2626' : '#2563eb' }}>
+                    {downloadState === 'success' ? 'RxDeliver APK downloaded successfully. Tap "Open" to install.'
+                      : downloadState === 'failed' ? `Error: ${downloadError}. Try downloading from your browser.`
+                      : downloadState === 'starting' ? 'Contacting download server…'
+                      : downloadProgress > 0 ? `${downloadProgress}% complete` : 'Downloading…'}
+                  </p>
+                  {downloadState === 'running' && downloadProgress > 0 && (
+                    <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: '#dbeafe' }}>
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${downloadProgress}%`, background: '#2563eb' }} />
+                    </div>
+                  )}
+                </div>
+                <button onClick={handleDismissBanner} className="flex-shrink-0 p-1 rounded-lg hover:bg-black/5" style={{ color: 'var(--text-slate-400)' }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {downloadState === 'success' && (
+                <div className="mt-3 flex gap-2">
+                  <Button onClick={handleOpenDownloadedApk} className="flex-1 gap-2" style={{ background: '#16a34a', borderColor: '#16a34a' }}>
+                    <Check className="w-4 h-4" /> Open & Install
+                  </Button>
+                  <Button onClick={handleDismissBanner} variant="outline" className="px-4">
+                    Later
+                  </Button>
+                </div>
+              )}
+              {downloadState === 'failed' && (
+                <div className="mt-3 flex gap-2">
+                  <a href={apkUrl} className="flex-1">
+                    <Button className="w-full gap-2" style={{ background: '#2563eb', borderColor: '#2563eb' }}>
+                      <Download className="w-4 h-4" /> Open in Browser
+                    </Button>
+                  </a>
+                  <Button onClick={handleDismissBanner} variant="outline" className="px-4">
+                    Dismiss
+                  </Button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-slate-10)' }}>
         <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.08)' }}>
           <img
-            src="https://base44.app/api/apps/69f0c6983e41b169cdc3be5b/files/mp/public/69f0c6983e41b169cdc3be5b/ac8712c0b_rxdeliver_icon.png"
+            src="https://base44.app/api/apps/69f0c6983e41b169cdc3be5b/ac8712c0b_rxdeliver_icon.png"
             alt="RxDeliver app icon"
             className="w-full h-full object-cover"
             style={{ filter: 'grayscale(1) brightness(0.95)' }}
@@ -608,13 +734,13 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
       {isCapacitorNativeApp() ? (
         <button
           onClick={handleNativeDownload}
-          disabled={downloading}
+          disabled={isDownloading}
           className="w-full"
-          style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: downloading ? 'wait' : 'pointer' }}
+          style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: isDownloading ? 'wait' : 'pointer' }}
         >
-          <Button className="w-full gap-2" style={{ background: '#2563EB', borderColor: '#2563EB' }} disabled={downloading}>
-            {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : updateAvailable ? <RefreshCw className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-            {downloading ? 'Opening browser…' : updateAvailable ? 'Update APK' : 'Download APK'}
+          <Button className="w-full gap-2" style={{ background: '#2563EB', borderColor: '#2563EB' }} disabled={isDownloading}>
+            {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : updateAvailable ? <RefreshCw className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+            {isDownloading ? 'Downloading…' : updateAvailable ? 'Update APK' : 'Download APK'}
           </Button>
         </button>
       ) : (
@@ -627,8 +753,8 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
       )}
       <p className="text-xs text-center" style={{ color: 'var(--text-slate-400)' }}>
         {updateAvailable
-          ? 'After download, open the file to install the update. You may need to allow installs from unknown sources.'
-          : 'After download, open the file to install. You may need to allow installs from unknown sources.'}
+          ? 'After download, tap "Open & Install" to update. You may need to allow installs from unknown sources.'
+          : 'After download, tap "Open & Install" to install. You may need to allow installs from unknown sources.'}
       </p>
     </div>
   );
