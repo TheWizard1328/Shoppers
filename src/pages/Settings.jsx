@@ -559,11 +559,25 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
     if (downloading) return;
     setDownloading(true);
     try {
-      console.log('[APK Download] Navigating WebView directly to APK URL — native DownloadListener will intercept');
-      toast.success('Starting download…');
-      window.location.href = apkUrl;
+      // PRIMARY PATH: use the native JavaScript interface (window.AndroidNative)
+      // which calls DownloadManager directly — bypasses the WebView's
+      // DownloadListener entirely. The DownloadListener can fail
+      // intermittently on Samsung and other aggressive battery-managed
+      // devices (the service gets killed between enqueue and download).
+      if (window.AndroidNative && typeof window.AndroidNative.downloadApk === 'function') {
+        console.log('[APK Download] Using native JS interface (AndroidNative.downloadApk)');
+        toast.success('Starting download…');
+        window.AndroidNative.downloadApk(apkUrl);
+      } else {
+        // FALLBACK: navigate the WebView to the APK URL and let the
+        // native DownloadListener intercept it. Less reliable but
+        // works on devices where the JS interface isn't registered.
+        console.log('[APK Download] Falling back to WebView navigation — DownloadListener will intercept');
+        toast.success('Starting download…');
+        window.location.href = apkUrl;
+      }
     } catch (err) {
-      console.error('[APK Download] Direct navigation failed:', err);
+      console.error('[APK Download] Failed:', err);
       toast.error('Could not start download. Try visiting the link in your browser.');
     } finally {
       setTimeout(() => setDownloading(false), 3000);
