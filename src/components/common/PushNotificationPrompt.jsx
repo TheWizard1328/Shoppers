@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { X, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initPushNotifications } from '@/components/utils/pushNotifications';
+import { isNativePushAvailable, checkNativePushPermission } from '@/components/utils/nativePushNotifications';
 
 const STORAGE_KEY = 'push_prompt_dismissed';
 
@@ -11,13 +12,20 @@ export default function PushNotificationPrompt({ userId }) {
 
   useEffect(() => {
     if (!userId) return;
-    if (typeof Notification === 'undefined') return;
-    if (Notification.permission !== 'default') return; // already granted or denied
-    if (localStorage.getItem(STORAGE_KEY) === 'true') return;
 
-    // Show after a short delay so it doesn't compete with the loading screen
-    const timer = setTimeout(() => setShow(true), 3000);
-    return () => clearTimeout(timer);
+    const checkPermission = async () => {
+      if (typeof Notification === 'undefined' && !isNativePushAvailable()) return;
+      const perm = isNativePushAvailable()
+        ? await checkNativePushPermission()
+        : (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
+      if (perm !== 'prompt') return; // already granted, denied, or unsupported
+      if (localStorage.getItem(STORAGE_KEY) === 'true') return;
+
+      // Show after a short delay so it doesn't compete with the loading screen
+      const timer = setTimeout(() => setShow(true), 3000);
+      return () => clearTimeout(timer);
+    };
+    checkPermission();
   }, [userId]);
 
   const handleAllow = async () => {

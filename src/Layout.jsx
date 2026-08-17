@@ -74,6 +74,7 @@ import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisi
 import { mergePatients } from './components/layout/layoutDataHelpers';
 import { initializeAppLoadDataFlow, executeAppLoadDataSync } from './components/layout/AppLoadDataManager';
 import { initPushNotifications } from '@/components/utils/pushNotifications';
+import { isNativePushAvailable, checkNativePushPermission } from '@/components/utils/nativePushNotifications';
 import { initializeGlobalFilters, createMergedUser, hasCurrentUserRefreshImpact } from './components/layout/initializeGlobalFilters';
 import { usePayrollBadge } from './components/layout/usePayrollBadge';
 import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandlers';
@@ -763,7 +764,42 @@ export default function Layout({ children, currentPageName }) {
   //   - if permission is 'default' (never asked), wait for the user's very next
   //     tap anywhere in the app and fire the request from inside that gesture.
   useEffect(() => {
-    if (!currentUser?.id || typeof Notification === 'undefined') return;
+    if (!currentUser?.id) return;
+
+    // ── Native Android (FCM) ──────────────────────────────────────────
+    // In the Capacitor WebView, the Web Notification API may not exist.
+    // Route to native FCM push directly, bypassing the Notification checks.
+    if (isNativePushAvailable()) {
+      (async () => {
+        const perm = await checkNativePushPermission();
+        if (perm === 'granted') {
+          initPushNotifications(currentUser.id).then(r => {
+            if (r && !r.ok) console.warn('[Layout] Native push init result:', r.reason);
+          }).catch(() => {});
+          return;
+        }
+        if (perm !== 'prompt') return; // 'denied' or 'unsupported' — nothing to do
+
+        // Wait for first user gesture to request permission (Android requires this)
+        const handleFirstGesture = () => {
+          document.removeEventListener('pointerdown', handleFirstGesture, true);
+          document.removeEventListener('keydown', handleFirstGesture, true);
+          initPushNotifications(currentUser.id).then(r => {
+            if (r && !r.ok) console.warn('[Layout] Native push init result:', r.reason);
+          }).catch(() => {});
+        };
+        document.addEventListener('pointerdown', handleFirstGesture, true);
+        document.addEventListener('keydown', handleFirstGesture, true);
+        return () => {
+          document.removeEventListener('pointerdown', handleFirstGesture, true);
+          document.removeEventListener('keydown', handleFirstGesture, true);
+        };
+      })();
+      return;
+    }
+
+    // ── Web (browser) ──────────────────────────────────────────────────
+    if (typeof Notification === 'undefined') return;
 
     if (Notification.permission === 'granted') {
       initPushNotifications(currentUser.id).then(r => {
