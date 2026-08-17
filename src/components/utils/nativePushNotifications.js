@@ -86,8 +86,28 @@ export async function initNativePushNotifications(userId) {
         if (_registrationTimeout) { clearTimeout(_registrationTimeout); _registrationTimeout = null; }
       });
 
-      PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log('[NativePush] Notification received in foreground:', notification.title);
+      PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+        console.log('[NativePush] Notification received in foreground:', notification.title, notification.body);
+
+        // When the app is in the foreground, Capacitor does NOT auto-display
+        // FCM messages as system notifications (unlike background/killed state).
+        // We must create a LocalNotification so the user actually sees it.
+        try {
+          const { LocalNotifications } = await import('@capacitor/local-notifications');
+          const notifId = Math.floor(Math.random() * 100000) + 1;
+          const extraData = notification.data || {};
+          await LocalNotifications.schedule({
+            notifications: [{
+              id: notifId,
+              title: notification.title || 'RxDeliver',
+              body: notification.body || '',
+              extra: extraData,
+            }],
+          });
+          console.log('[NativePush] Foreground local notification displayed:', notifId);
+        } catch (err) {
+          console.error('[NativePush] Failed to display foreground notification:', err?.message);
+        }
       });
 
       PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
@@ -97,6 +117,18 @@ export async function initNativePushNotifications(userId) {
           window.location.hash = data.url;
         }
       });
+
+      // Handle taps on foreground-created local notifications
+      try {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+          console.log('[NativePush] Local notif tapped:', action.notification?.extra);
+          const extra = action.notification?.extra;
+          if (extra?.url) {
+            window.location.hash = extra.url;
+          }
+        });
+      } catch (_) { /* non-critical */ }
     }
 
     let permStatus = await PushNotifications.checkPermissions();

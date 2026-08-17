@@ -128,6 +128,12 @@ Deno.serve(async (req) => {
       }
     })();
 
+    console.log('[sendPush] === FCM DIAGNOSTIC ===');
+    console.log('[sendPush] FCM_SERVICE_ACCOUNT_JSON set:', !!fcmServiceAccountJson);
+    console.log('[sendPush] FCM_SERVICE_ACCOUNT_JSON length:', fcmServiceAccountJson?.length || 0);
+    console.log('[sendPush] FCM project_id:', fcmProjectId);
+    console.log('[sendPush] user_id:', user_id);
+
     let deviceProfiles = {};
     let hasAnyExplicitFalse = false;
     if (!force) {
@@ -139,6 +145,9 @@ Deno.serve(async (req) => {
     }
 
     const subscriptions = await base44.asServiceRole.entities.PushSubscription.filter({ user_id });
+    console.log('[sendPush] total subscriptions:', subscriptions?.length || 0);
+    console.log('[sendPush] FCM subscriptions:', subscriptions?.filter(s => s.endpoint?.startsWith('fcm://')).length || 0);
+    console.log('[sendPush] Web Push subscriptions:', subscriptions?.filter(s => !s.endpoint?.startsWith('fcm://')).length || 0);
     if (!subscriptions || subscriptions.length === 0) return Response.json({ sent: 0, message: 'No push subscriptions for this user' });
 
     const notifData = { title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction };
@@ -150,6 +159,9 @@ Deno.serve(async (req) => {
     let fcmAccessToken: string | null = null;
     if (hasFcmSub && fcmServiceAccountJson && fcmProjectId) {
       fcmAccessToken = await getFcmAccessToken(fcmServiceAccountJson);
+      console.log('[sendPush] FCM access token acquired:', !!fcmAccessToken);
+    } else {
+      console.log('[sendPush] FCM access token NOT acquired — hasFcmSub:', hasFcmSub, 'jsonSet:', !!fcmServiceAccountJson, 'projectId:', fcmProjectId);
     }
 
     let sent = 0, removed = 0, skipped = 0, fcmSent = 0, webSent = 0;
@@ -170,9 +182,11 @@ Deno.serve(async (req) => {
 
       if (isFCM) {
         const fcmToken = sub.endpoint.replace('fcm://', '');
-        if (!fcmToken) { skipped++; return; }
+        console.log('[sendPush] FCM send attempt — token prefix:', fcmToken?.substring(0, 20), 'hasAccessToken:', !!fcmAccessToken, 'projectId:', fcmProjectId);
+        if (!fcmToken) { skipped++; console.log('[sendPush] FCM skipped: empty token'); return; }
         if (!fcmAccessToken || !fcmProjectId) {
           errors.push({ endpoint: sub.endpoint, error: 'FCM_SERVICE_ACCOUNT_JSON not configured or token exchange failed' });
+          console.log('[sendPush] FCM FAILED: no access token or project ID');
           return;
         }
         try {
@@ -204,6 +218,7 @@ Deno.serve(async (req) => {
 
           if (fcmResponse.ok) {
             sent++; fcmSent++;
+            console.log('[sendPush] FCM SUCCESS for token prefix:', fcmToken.substring(0, 20));
           } else {
             const errBody = await fcmResponse.json().catch(() => ({}));
             const errStatus = errBody?.error?.status;
@@ -239,6 +254,7 @@ Deno.serve(async (req) => {
       }
     }));
 
+    console.log('[sendPush] === SUMMARY === sent:', sent, 'fcmSent:', fcmSent, 'webSent:', webSent, 'skipped:', skipped, 'removed:', removed, 'errors:', errors.length);
     return Response.json({ sent, removed, skipped, fcmSent, webSent, errors });
   } catch (error) {
     return Response.json({ error: error.message || 'Unknown error' }, { status: 500 });
