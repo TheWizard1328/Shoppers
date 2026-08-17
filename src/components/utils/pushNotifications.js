@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { isNativePushAvailable, initNativePushNotifications, checkNativePushPermission } from './nativePushNotifications';
 
 let _initInFlight = null;
 
@@ -106,7 +107,18 @@ async function persistSubscription(userId, subscription) {
 }
 
 export async function initPushNotifications(userId) {
-  if (!userId || !isPushSupported()) return { ok: false, reason: 'unsupported' };
+  if (!userId) return { ok: false, reason: 'no_user_id' };
+
+  // ── Native Android (FCM) ────────────────────────────────────────────
+  // When running inside the native APK, Web Push doesn't work — the WebView
+  // doesn't support the PushManager / Notification API. Route to native FCM.
+  if (isNativePushAvailable()) {
+    console.log('[pushNotifications] Native app detected — using FCM');
+    return await initNativePushNotifications(userId);
+  }
+
+  // ── Web (browser) ────────────────────────────────────────────────────
+  if (!isPushSupported()) return { ok: false, reason: 'unsupported' };
   if (_initInFlight) return _initInFlight;
 
   _initInFlight = (async () => {
@@ -180,7 +192,15 @@ export async function initPushNotifications(userId) {
  * Force re-subscribe: clears existing subscription and creates a fresh one.
  */
 export async function resetPushSubscription(userId) {
-  if (!userId || !isPushSupported()) return;
+  if (!userId) return;
+
+  // Native: just re-init (FCM token persists at OS level)
+  if (isNativePushAvailable()) {
+    await initNativePushNotifications(userId);
+    return;
+  }
+
+  if (!isPushSupported()) return;
   try {
     const registration = await getPushRegistration();
     const existing = await registration.pushManager.getSubscription();

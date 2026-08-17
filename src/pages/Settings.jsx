@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { isCapacitorNativeApp, getCapacitorPlatform } from '@/components/utils/locationProviders/capacitorRuntime';
+import { isNativePushAvailable, checkNativePushPermission, initNativePushNotifications } from '@/components/utils/nativePushNotifications';
 import { useLatestApkBuildInfo } from '@/components/utils/useBuildInfo';
 import { getUserAgentInfo } from '@/components/utils/deviceUtils';
 import {
@@ -97,10 +98,22 @@ function NotificationsPanel({ currentUser, settings }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notifications_enabled ?? true);
   const [sound, setSound] = useState(settings.notifications_sound ?? true);
   const [vibration, setVibration] = useState(settings.notifications_vibration ?? true);
+  const isNativePush = isNativePushAvailable();
   const [browserPermission, setBrowserPermission] = useState(
-    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+    isNativePush ? 'prompt' : (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
   );
   const [subscribing, setSubscribing] = useState(false);
+
+  // Check native push permission on mount
+  useEffect(() => {
+    if (!isNativePush) return;
+    let cancelled = false;
+    (async () => {
+      const perm = await checkNativePushPermission();
+      if (!cancelled) setBrowserPermission(perm);
+    })();
+    return () => { cancelled = true; };
+  }, [isNativePush]);
 
   const handleToggle = async (key, value, setter) => {
     setter(value);
@@ -110,18 +123,26 @@ function NotificationsPanel({ currentUser, settings }) {
 
   const handleEnableToggle = async (val) => {
     if (val && browserPermission !== 'granted') {
-      // Ask browser for permission and subscribe
+      // Ask for permission and subscribe
       setSubscribing(true);
       try {
-        await initPushNotifications(currentUser.id);
-        const newPermission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+        const result = await initPushNotifications(currentUser.id);
+        // Check new permission
+        let newPermission;
+        if (isNativePush) {
+          newPermission = await checkNativePushPermission();
+        } else {
+          newPermission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+        }
         setBrowserPermission(newPermission);
-        if (newPermission === 'granted') {
+        if (newPermission === 'granted' || result?.ok) {
           setNotificationsEnabled(true);
           await saveSetting(currentUser.id, 'notifications_enabled', true);
           toast.success('Push notifications enabled');
         } else {
-          toast.error('Permission not granted — please allow notifications in your browser settings');
+          toast.error(isNativePush
+            ? 'Permission not granted — please allow notifications in Android Settings → Apps → RxDeliver'
+            : 'Permission not granted — please allow notifications in your browser settings');
         }
       } catch {
         toast.error('Could not enable notifications');
@@ -137,7 +158,7 @@ function NotificationsPanel({ currentUser, settings }) {
     setSubscribing(true);
     try {
       await resetPushSubscription(currentUser.id);
-      const newPermission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+      const newPermission = isNativePush ? await checkNativePushPermission() : (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
       setBrowserPermission(newPermission);
       toast.success('Push subscription refreshed');
     } catch {
@@ -161,7 +182,9 @@ function NotificationsPanel({ currentUser, settings }) {
         <div className="flex items-start gap-2 py-3 px-3 mb-1 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200">
           <ShieldAlert className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-red-700">
-            Notifications are blocked by your browser. Go to your browser's site settings and allow notifications for this site, then re-open this panel.
+            {isNativePush
+              ? 'Notifications are blocked. Go to Android Settings → Apps → RxDeliver → Notifications and enable them, then reopen this panel.'
+              : 'Notifications are blocked by your browser. Go to your browser\'s site settings and allow notifications for this site, then re-open this panel.'}
           </p>
         </div>
       )}
@@ -171,7 +194,7 @@ function NotificationsPanel({ currentUser, settings }) {
         <div>
           <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Enable Push Notifications</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>
-            {browserPermission === 'granted' ? 'Browser permission granted ✓' : 'Receive alerts even when the app is in the background'}
+            {browserPermission === 'granted' ? 'Permission granted ✓' : 'Receive alerts even when the app is in the background'}
           </p>
         </div>
         {subscribing
