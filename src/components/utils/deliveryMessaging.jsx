@@ -53,7 +53,8 @@ export async function sendPushForNotification({ receiverId, senderName, content,
       user_id: receiverId,
       title,
       body: content,
-      url: url || '/'
+      url: url || '/',
+      force: true
     };
     // Pass through optional fields for action buttons and metadata
     if (actions) payload.actions = actions;

@@ -87,24 +87,33 @@ export async function initNativePushNotifications(userId) {
       });
 
       PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-        console.log('[NativePush] Notification received in foreground:', notification.title, notification.body);
+        console.log('[NativePush] Notification received in foreground:', JSON.stringify(notification).substring(0, 200));
 
         // When the app is in the foreground, Capacitor does NOT auto-display
         // FCM messages as system notifications (unlike background/killed state).
         // We must create a LocalNotification so the user actually sees it.
+        // Try multiple property paths — Capacitor's plugin structure varies
+        // between notification-only, data-only, and combined payloads.
+        const notifTitle = notification.title || notification.data?.title || notification.data?.gcm?.notification?.title || 'RxDeliver';
+        const notifBody = notification.body || notification.data?.body || notification.data?.gcm?.notification?.body || '';
+        const extraData = notification.data || {};
+
+        // Store for debugging — user can check window.__receivedPushNotifs
+        if (!window.__receivedPushNotifs) window.__receivedPushNotifs = [];
+        window.__receivedPushNotifs.push({ ts: Date.now(), title: notifTitle, body: notifBody, data: extraData });
+
         try {
           const { LocalNotifications } = await import('@capacitor/local-notifications');
           const notifId = Math.floor(Math.random() * 100000) + 1;
-          const extraData = notification.data || {};
           await LocalNotifications.schedule({
             notifications: [{
               id: notifId,
-              title: notification.title || 'RxDeliver',
-              body: notification.body || '',
+              title: notifTitle,
+              body: notifBody,
               extra: extraData,
             }],
           });
-          console.log('[NativePush] Foreground local notification displayed:', notifId);
+          console.log('[NativePush] Foreground local notification displayed:', notifId, notifTitle);
         } catch (err) {
           console.error('[NativePush] Failed to display foreground notification:', err?.message);
         }

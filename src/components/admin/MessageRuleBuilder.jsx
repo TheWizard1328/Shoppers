@@ -764,6 +764,7 @@ export default function MessageRuleBuilder() {
           actions: ruleActions,
           data: Object.keys(testData).length > 0 ? testData : undefined,
           requireInteraction: true,
+          force: true,
         }).catch((e) => ({ error: e?.message || String(e) }));
         if (pushRes?.error) setTestPushStatus('error');
         else if (pushRes?.sent > 0) setTestPushStatus('sent');

@@ -199,7 +199,13 @@ Deno.serve(async (req) => {
               ),
               android: {
                 priority: 'high',
-                notification: { tag: tag || undefined, click_action: url || '/' },
+                notification: {
+                  tag: tag || undefined,
+                  channel_id: 'default',
+                  // Pass URL via data only — click_action expects an Android
+                  // intent action name, not a URL. Capacitor's tap handler
+                  // reads the URL from notification.data.url instead.
+                },
               },
             },
           };

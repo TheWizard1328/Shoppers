@@ -155,7 +155,7 @@ export default function NotificationFormatPanel({ records, setRecords, currentUs
 
       // 3. Send push notification
       const pushRes = await base44.functions.invoke('sendPushNotification', {
-        user_id: currentUser.id, title: `[TEST] ${eventLabel}`, body: preview, url: '/'
+        user_id: currentUser.id, title: `[TEST] ${eventLabel}`, body: preview, url: '/', force: true
       }).catch(e => ({ error: e?.message || String(e) }));
 
       if (pushRes?.error) {

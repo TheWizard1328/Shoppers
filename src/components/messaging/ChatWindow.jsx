@@ -178,7 +178,8 @@ function ChatWindow({
         tag: `chat-${conversationId}`,
         url: `/?openChat=${encodeURIComponent(currentUser.id)}&openChatName=${encodeURIComponent(senderName)}`,
         actions: [{ action: 'mark_read', title: 'Mark as Read' }],
-        data: { message_id: createdMessage.id }
+        data: { message_id: createdMessage.id },
+        force: true
       }).catch((error) => console.warn('Push notification failed:', error?.message || error));
       setNewMessage('');
       setMessages((prev) => [...prev, createdMessage]);
