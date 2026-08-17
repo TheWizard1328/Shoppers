@@ -451,7 +451,8 @@ export default function LiveTempBadge({
           const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
           const bottom = immersiveHidden
             ? bottomNavHeight + 10
-            : ((hasVisibleCards) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
+            : ((hasVisibleCards) ? stopCardsHeight + bottomNavHeight : bottomNavHeight + 56) + 10;
+          // When no stop cards: sit above the MapViewCycleFAB (~48px tall + 8px gap = 56px offset)
           return { position: fabPosition, bottom: `${bottom}px`,
             left: fabPosition === 'fixed' ? 'var(--sidebar-width)' : 0, right: 0 };
         })()}

@@ -74,6 +74,12 @@ public class MainActivity extends BridgeActivity {
         if (controller != null) {
             controller.show(WindowInsetsCompat.Type.systemBars());
             controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            // Set system bar icon appearance based on system dark mode
+            int nightModeFlags = getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            boolean isDarkMode = nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+            // Light mode: dark icons on grey background. Dark mode: light icons on dark background.
+            controller.setAppearanceLightStatusBars(!isDarkMode);
+            controller.setAppearanceLightNavigationBars(!isDarkMode);
         }
 
         // ── APK self-update download handling ──────────────────────────
@@ -95,6 +101,14 @@ public class MainActivity extends BridgeActivity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+            // Re-apply system bar appearance on focus change
+            WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+            if (controller != null) {
+                int nightModeFlags = getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+                boolean isDarkMode = nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+                controller.setAppearanceLightStatusBars(!isDarkMode);
+                controller.setAppearanceLightNavigationBars(!isDarkMode);
+            }
         }
     }
 

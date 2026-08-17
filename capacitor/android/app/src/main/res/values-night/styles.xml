@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">@drawable/splash</item>
+        <!-- Status bar: dark in dark mode with light icons -->
+        <item name="android:statusBarColor">@color/status_bar_bg</item>
+        <item name="android:navigationBarColor">@color/navigation_bar_bg</item>
+        <!-- Light icons on dark background (dark mode) -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

@@ -174,11 +174,18 @@ export default function GuideAssistant() {
         return;
       }
       const fabEl = document.querySelector('[data-map-cycle-fab]');
-      if (fabEl) {
+      if (fabEl && fabEl.offsetWidth > 0) {
         const rect = fabEl.getBoundingClientRect();
-        // viewport bottom → top of MapCycleFAB + 8px gap
-        const fromBottom = window.innerHeight - rect.top + 8;
-        setGuideBottomPx(fromBottom);
+        // Guard: if rect.top is 0, the FAB hasn't been laid out yet — use fallback
+        if (rect.top > 0 && rect.top < window.innerHeight) {
+          // viewport bottom → top of MapCycleFAB + 8px gap
+          const fromBottom = window.innerHeight - rect.top + 8;
+          setGuideBottomPx(fromBottom);
+        } else {
+          // FAB exists but not laid out — use estimated position above bottom nav
+          const navEl = document.querySelector('[data-mobile-bottom-nav]');
+          setGuideBottomPx((navEl ? navEl.offsetHeight : 0) + 68);
+        }
       } else {
         // No MapCycleFAB (non-Dashboard page) — sit above bottom nav
         const navEl = document.querySelector('[data-mobile-bottom-nav]');
