@@ -11,20 +11,15 @@ Deno.serve(async (req) => {
     const { user_id, title, body, url, tag, requireInteraction, force, actions, data } = await req.json();
     if (!user_id || !title || !body) return Response.json({ error: 'user_id, title, and body are required' }, { status: 400 });
 
+    // ── VAPID config (Web Push) ──────────────────────────────────────
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
     const vapidSubject = Deno.env.get('VAPID_SUBJECT');
-    if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
 
-    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+    // ── FCM config (Native Android) ───────────────────────────────────
+    const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
 
     // Fetch user settings ONCE to get per-device notification preferences.
-    // notifications_enabled is now a DEVICE-SPECIFIC setting — each device
-    // can independently enable/disable its own pushes. We map each
-    // PushSubscription to its device profile via device_identifier.
-    // Legacy subscriptions without device_identifier are conservatively
-    // skipped if the user has explicitly disabled notifications on ANY
-    // device (signals active use of the per-device toggle).
     let deviceProfiles = {};
     let hasAnyExplicitFalse = false;
     if (!force) {
@@ -38,50 +33,85 @@ Deno.serve(async (req) => {
     const subscriptions = await base44.asServiceRole.entities.PushSubscription.filter({ user_id });
     if (!subscriptions || subscriptions.length === 0) return Response.json({ sent: 0, message: 'No push subscriptions for this user' });
 
-    const pushData = { title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction };
-    if (actions) pushData.actions = actions;
-    if (data) pushData.data = data;
-    const payload = JSON.stringify(pushData);
+    const notifData = { title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction };
+    if (actions) notifData.actions = actions;
+    if (data) notifData.data = data;
 
-    let sent = 0, removed = 0, skipped = 0;
+    let sent = 0, removed = 0, skipped = 0, fcmSent = 0, webSent = 0;
     const errors = [];
+
     await Promise.all(subscriptions.map(async (sub) => {
-      // Per-device notification preference check (skip when force=true)
       if (!force) {
-        let deviceEnabled = true; // default: allow unless explicitly disabled
+        let deviceEnabled = true;
         if (sub.device_identifier && deviceProfiles[sub.device_identifier]) {
           deviceEnabled = deviceProfiles[sub.device_identifier].notifications_enabled ?? true;
         } else if (hasAnyExplicitFalse) {
-          // Legacy subscription (no device_identifier) — the user has explicitly
-          // disabled notifications on at least one device, so conservatively skip
-          // this unattributed subscription rather than guessing which device owns it.
           deviceEnabled = false;
         }
-        if (!deviceEnabled) {
-          skipped++;
-          return;
-        }
+        if (!deviceEnabled) { skipped++; return; }
       }
 
-      const pushSubscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } };
-      try {
-        await webpush.sendNotification(pushSubscription, payload);
-        sent++;
-        // NOTE: last_used_at is NOT updated here — the service worker on each
-        // device updates its own PushSubscription last_used_at when the push
-        // event actually fires at that device (see updatePushLastUsed fn).
-        // Updating it here would stamp all subscriptions with the same time.
-      } catch (err) {
-        if (err?.statusCode === 410 || err?.statusCode === 404) {
-          await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
-          removed++;
-        } else {
+      const isFCM = sub.endpoint?.startsWith('fcm://');
+
+      if (isFCM) {
+        const fcmToken = sub.endpoint.replace('fcm://', '');
+        if (!fcmToken) { skipped++; return; }
+        if (!fcmServerKey) {
+          errors.push({ endpoint: sub.endpoint, error: 'FCM_SERVER_KEY not configured' });
+          return;
+        }
+        try {
+          const fcmPayload = {
+            to: fcmToken,
+            notification: { title, body, tag: tag || undefined },
+            data: { url: url || '/', ...(data || {}) },
+            android: { notification: { tag: tag || undefined, click_action: url || '/' }, priority: 'high' },
+          };
+          const fcmResponse = await fetch('https://fcm.googleapis.com/fcm/send', {
+            method: 'POST',
+            headers: { 'Authorization': `key=${fcmServerKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(fcmPayload),
+          });
+          if (fcmResponse.ok) {
+            const fcmResult = await fcmResponse.json();
+            if (fcmResult.success) { sent++; fcmSent++; }
+            else if (fcmResult.results?.[0]?.error === 'InvalidRegistration' || fcmResult.results?.[0]?.error === 'NotRegistered') {
+              await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
+              removed++;
+            } else {
+              errors.push({ endpoint: sub.endpoint, error: fcmResult.results?.[0]?.error || 'FCM send failed' });
+            }
+          } else if (fcmResponse.status === 400 || fcmResponse.status === 404) {
+            await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
+            removed++;
+          } else {
+            errors.push({ endpoint: sub.endpoint, error: `FCM HTTP ${fcmResponse.status}` });
+          }
+        } catch (err) {
           errors.push({ endpoint: sub.endpoint, error: err.message || String(err) });
+        }
+      } else {
+        if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) {
+          errors.push({ endpoint: sub.endpoint, error: 'VAPID keys not configured' });
+          return;
+        }
+        try {
+          webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+          const pushSubscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } };
+          await webpush.sendNotification(pushSubscription, JSON.stringify(notifData));
+          sent++; webSent++;
+        } catch (err) {
+          if (err?.statusCode === 410 || err?.statusCode === 404) {
+            await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
+            removed++;
+          } else {
+            errors.push({ endpoint: sub.endpoint, error: err.message || String(err) });
+          }
         }
       }
     }));
 
-    return Response.json({ sent, removed, skipped, errors });
+    return Response.json({ sent, removed, skipped, fcmSent, webSent, errors });
   } catch (error) {
     return Response.json({ error: error.message || 'Unknown error' }, { status: 500 });
   }

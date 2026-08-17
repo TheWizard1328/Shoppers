@@ -1,37 +1,43 @@
 {
-  "type": "object",
   "properties": {
-    "user_id": {
-      "type": "string",
-      "description": "The app user_id (AppUser.id) this subscription belongs to"
+    "auth_key": {
+      "description": "The auth secret from the PushSubscription.keys object (null for FCM/native subscriptions)",
+      "type": "string"
+    },
+    "device_identifier": {
+      "description": "Links this subscription to its device's per-device notification settings in UserSettings.device_settings_profiles",
+      "type": "string"
     },
     "endpoint": {
-      "type": "string",
-      "description": "The push service endpoint URL for this subscription"
-    },
-    "p256dh_key": {
-      "type": "string",
-      "description": "The p256dh public key from the PushSubscription.keys object"
-    },
-    "auth_key": {
-      "type": "string",
-      "description": "The auth secret from the PushSubscription.keys object"
-    },
-    "user_agent": {
-      "type": "string",
-      "description": "Browser/device user agent string at time of subscription (for debugging stale subscriptions)"
+      "description": "Push service endpoint URL (web push) or fcm://{token} (native FCM)",
+      "type": "string"
     },
     "last_used_at": {
-      "type": "string",
       "format": "date-time",
-      "description": "Timestamp of the last successful push sent to this subscription"
+      "description": "Timestamp of the last successful push sent",
+      "type": "string"
+    },
+    "p256dh_key": {
+      "description": "The p256dh public key from the PushSubscription.keys object (null for FCM/native subscriptions)",
+      "type": "string"
+    },
+    "user_agent": {
+      "description": "Browser/device user agent string at time of subscription",
+      "type": "string"
+    },
+    "user_id": {
+      "description": "The app user_id (auth User.id) this subscription belongs to",
+      "type": "string"
+    },
+    "user_name": {
+      "description": "Display name of the user this subscription belongs to (denormalized from AppUser for easy identification)",
+      "type": "string"
     }
   },
   "required": [
     "user_id",
-    "endpoint",
-    "p256dh_key",
-    "auth_key"
+    "endpoint"
   ],
+  "type": "object",
   "name": "PushSubscription"
 }
