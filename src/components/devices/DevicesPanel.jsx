@@ -161,19 +161,47 @@ export default function DevicesPanel({ currentUser }) {
 
   const handleFormSubmit = async (deviceData, deviceId) => {
     try {
+      // BUGFIX (2026-08-17): DeviceForm sets `unset_other_primary: true` when
+      // the user checks "Primary" on a device that wasn't already primary —
+      // but this handler previously ignored that flag entirely, so the OLD
+      // primary device's is_primary_tracker flag was NEVER cleared. Result:
+      // multiple devices could simultaneously be flagged primary, each one
+      // independently passing the isPrimaryDevice check in locationTracker.jsx
+      // and firing GPS/heartbeat writes — exactly the "phantom location
+      // update from a device that shouldn't be tracking" symptom.
+      const { unset_other_primary, ...cleanDeviceData } = deviceData;
+
+      if (unset_other_primary) {
+        const othersToDemote = devices.filter((d) => d.is_primary_tracker && d.id !== deviceId);
+        if (othersToDemote.length > 0) {
+          await Promise.all(
+            othersToDemote.map((d) => base44.entities.UserDevice.update(d.id, { is_primary_tracker: false }))
+          );
+        }
+      }
+
       if (deviceId) {
-        await base44.entities.UserDevice.update(deviceId, deviceData);
-        setDevices((prev) => prev.map((d) => d.id === deviceId ? { ...d, ...deviceData } : d));
+        await base44.entities.UserDevice.update(deviceId, cleanDeviceData);
+        setDevices((prev) => prev.map((d) => {
+          if (d.id === deviceId) return { ...d, ...cleanDeviceData };
+          if (unset_other_primary && d.is_primary_tracker) return { ...d, is_primary_tracker: false };
+          return d;
+        }));
         toast.success('Device updated');
       } else {
         const newDevice = await base44.entities.UserDevice.create({
-          ...deviceData,
+          ...cleanDeviceData,
           user_id: currentUser.id,
           device_identifier: crypto.randomUUID(),
           last_active_at: new Date().toISOString(),
           status: 'active',
         });
-        setDevices((prev) => [...prev, newDevice]);
+        setDevices((prev) => {
+          const next = unset_other_primary
+            ? prev.map((d) => d.is_primary_tracker ? { ...d, is_primary_tracker: false } : d)
+            : prev;
+          return [...next, newDevice];
+        });
         toast.success('Device created');
       }
       setShowForm(false); setEditingDevice(null);
