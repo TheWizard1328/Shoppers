@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1083303084957",
+    "project_id": "shoppers-deliveries",
+    "storage_bucket": "shoppers-deliveries.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1083303084957:android:4760545c3a7f71a5d8e574",
+        "android_client_info": {
+          "package_name": "com.rxdeliver.driver"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1083303084957-6mqfkl6guq6boeetheasl4hj2lhaui1d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-pK7tYcRwedQzAnBoo88AB_H_dQJZS1c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1083303084957-6mqfkl6guq6boeetheasl4hj2lhaui1d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
