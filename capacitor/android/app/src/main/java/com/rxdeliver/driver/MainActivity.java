@@ -1,14 +1,19 @@
 package com.rxdeliver.driver;
 
+import android.app.AlertDialog;
 import android.app.DownloadManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.core.view.WindowCompat;
-import android.content.SharedPreferences;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
@@ -18,6 +23,7 @@ import java.lang.reflect.Field;
 public class MainActivity extends BridgeActivity {
 
     private long activeDownloadId = -1;
+    private BroadcastReceiver downloadCompleteReceiver = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,6 +85,18 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        // Unregister the download complete receiver to prevent leaks
+        if (downloadCompleteReceiver != null) {
+            try {
+                unregisterReceiver(downloadCompleteReceiver);
+            } catch (Exception ignored) {}
+            downloadCompleteReceiver = null;
+        }
+        super.onDestroy();
+    }
+
     private void setupDownloadListener() {
         WebView webView = this.bridge.getWebView();
         if (webView == null) return;
@@ -101,16 +119,74 @@ public class MainActivity extends BridgeActivity {
                 activeDownloadId = dm.enqueue(request);
 
                 Toast.makeText(this, "Downloading update…", Toast.LENGTH_SHORT).show();
-                // NOTE: We intentionally do NOT register a BroadcastReceiver for
-                // ACTION_DOWNLOAD_COMPLETE here. On Android 14+ (API 34+),
-                // registerReceiver() without RECEIVER_NOT_EXPORTED/EXPORTED flags
-                // throws SecurityException, which would show a false "Download
-                // failed" toast even though the download started successfully.
-                // The DownloadManager already shows its own "Download complete"
-                // notification, and tapping it opens the system installer.
+
+                // Register a one-shot receiver for ACTION_DOWNLOAD_COMPLETE.
+                // On Android 14+ (API 34+), registerReceiver() REQUIRES either
+                // RECEIVER_EXPORTED or RECEIVER_NOT_EXPORTED. Since
+                // ACTION_DOWNLOAD_COMPLETE is a system broadcast (sent by
+                // DownloadManager), RECEIVER_NOT_EXPORTED is correct — it
+                // receives system broadcasts but blocks broadcasts from
+                // other apps.
+                if (downloadCompleteReceiver != null) {
+                    try { unregisterReceiver(downloadCompleteReceiver); } catch (Exception ignored) {}
+                }
+                downloadCompleteReceiver = new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context ctx, Intent intent) {
+                        long receivedId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                        if (receivedId != activeDownloadId) return;
+
+                        DownloadManager dm2 = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                        Cursor cursor = dm2.query(new DownloadManager.Query().setFilterById(activeDownloadId));
+                        if (cursor != null && cursor.moveToFirst()) {
+                            int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                            if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                                String localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
+                                showDownloadCompleteDialog(Uri.parse(localUri));
+                            } else if (status == DownloadManager.STATUS_FAILED) {
+                                Toast.makeText(MainActivity.this, "Download failed", Toast.LENGTH_LONG).show();
+                            }
+                        }
+                        if (cursor != null) cursor.close();
+
+                        // Unregister after handling (one-shot)
+                        try { unregisterReceiver(downloadCompleteReceiver); } catch (Exception ignored) {}
+                        downloadCompleteReceiver = null;
+                    }
+                };
+                // Android 13+ (API 33+) requires the receiver flag; older
+                // versions ignore it. RECEIVER_NOT_EXPORTED = system-only.
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    registerReceiver(downloadCompleteReceiver,
+                        new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                        Context.RECEIVER_NOT_EXPORTED);
+                } else {
+                    registerReceiver(downloadCompleteReceiver,
+                        new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+                }
             } catch (Exception e) {
                 Toast.makeText(this, "Download failed to start: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
+        });
+    }
+
+    private void showDownloadCompleteDialog(Uri apkUri) {
+        runOnUiThread(() -> {
+            new AlertDialog.Builder(this)
+                .setTitle("Download Complete")
+                .setMessage("RxDeliver APK downloaded successfully. Open it to install?")
+                .setPositiveButton("Open", (d, w) -> {
+                    try {
+                        Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                        installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                        installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(installIntent);
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Unable to open APK: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton("Later", null)
+                .show();
         });
     }
 

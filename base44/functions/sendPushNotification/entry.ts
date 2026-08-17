@@ -168,7 +168,13 @@ Deno.serve(async (req) => {
     const errors = [];
 
     await Promise.all(subscriptions.map(async (sub) => {
-      if (!force) {
+      const isFCM = sub.endpoint?.startsWith('fcm://');
+
+      // FCM (APK) subscriptions ALWAYS receive pushes — device profile
+      // filtering only applies to web push subscriptions. This ensures
+      // WEB-to-APK notifications always go through regardless of any
+      // stale device settings profiles from other devices.
+      if (!force && !isFCM) {
         let deviceEnabled = true;
         if (sub.device_identifier && deviceProfiles[sub.device_identifier]) {
           deviceEnabled = deviceProfiles[sub.device_identifier].notifications_enabled ?? true;
@@ -177,8 +183,6 @@ Deno.serve(async (req) => {
         }
         if (!deviceEnabled) { skipped++; return; }
       }
-
-      const isFCM = sub.endpoint?.startsWith('fcm://');
 
       if (isFCM) {
         const fcmToken = sub.endpoint.replace('fcm://', '');
