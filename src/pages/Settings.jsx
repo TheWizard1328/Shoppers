@@ -462,7 +462,7 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
           </Button>
         </button>
       ) : (
-        <a href={apkUrl} download="RxDeliver.apk" className="block">
+        <a href={apkUrl} className="block">
           <Button className="w-full gap-2" style={{ background: '#2563EB', borderColor: '#2563EB' }}>
             {updateAvailable ? <RefreshCw className="w-4 h-4" /> : <Download className="w-4 h-4" />}
             {updateAvailable ? 'Update APK' : 'Download APK'}
