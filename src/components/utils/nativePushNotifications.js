@@ -13,10 +13,12 @@ import { base44 } from '@/api/base44Client';
  * The FCM token is stored in the same PushSubscription entity as web push
  * subscriptions, but with:
  *   - endpoint = "fcm://{token}"  (so the backend can distinguish FCM vs Web Push)
- *   - p256dh_key / auth_key = null (not used for FCM)
+ *   - p256dh_key / auth_key omitted entirely for FCM (schema types them as
+ *     required-if-present strings — passing null fails validation, so we
+ *     must NOT include the key at all rather than sending null)
  *
  * The backend sendPushNotification function checks the endpoint prefix to
- * route to either web-push (VAPID) or FCM (Firebase Admin SDK).
+ * route to either web-push (VAPID) or FCM (Firebase Admin SDK v1 API).
  */
 
 let _nativePushInitialized = false;
@@ -67,12 +69,14 @@ export async function initNativePushNotifications(userId) {
           const persisted = await persistNativeSubscription(userId, token.value);
           if (persisted) {
             console.log('[NativePush] FCM subscription persisted');
+            _lastRegistrationResult = { ok: true, reason: 'persisted', token: token.value?.substring(0, 30), ts: Date.now() };
           } else {
             console.error('[NativePush] FCM token received but persistence returned null');
+            _lastRegistrationResult = { ok: false, reason: 'persist_returned_null', token: token.value?.substring(0, 30), ts: Date.now() };
           }
         } catch (err) {
           console.error('[NativePush] Failed to persist FCM subscription:', err?.message);
-          _lastRegistrationResult = { ok: false, reason: 'persist_failed', error: err?.message, ts: Date.now() };
+          _lastRegistrationResult = { ok: false, reason: 'persist_failed', error: err?.message || String(err), ts: Date.now() };
         }
       });
 
@@ -191,6 +195,12 @@ export async function runPushDiagnostics(userId) {
 /**
  * Persist the FCM token to the PushSubscription entity.
  * Uses endpoint format "fcm://{token}" so the backend can distinguish from web push.
+ *
+ * IMPORTANT: PushSubscription schema types p256dh_key, auth_key, and
+ * device_identifier as "string" (not nullable). Sending `null` for any of
+ * these fails schema validation on create(), which was silently swallowed —
+ * this is why FCM subscriptions never actually got created. Fields with no
+ * value must be OMITTED from the payload entirely, never set to null.
  */
 async function persistNativeSubscription(userId, fcmToken) {
   if (!userId || !fcmToken) return null;
@@ -204,33 +214,32 @@ async function persistNativeSubscription(userId, fcmToken) {
     userName = appUsers?.[0]?.user_name || null;
   } catch (_) { /* non-critical */ }
 
-  try {
-    const existing = await base44.entities.PushSubscription.filter({ user_id: userId, endpoint });
-    if (existing && existing.length > 0) {
-      const patch = { last_used_at: new Date().toISOString() };
-      if (deviceIdentifier && !existing[0].device_identifier) patch.device_identifier = deviceIdentifier;
-      if (userName && !existing[0].user_name) patch.user_name = userName;
-      await base44.entities.PushSubscription.update(existing[0].id, patch).catch(() => {});
-      console.log('[NativePush] Updated existing FCM subscription');
-      return existing[0];
-    }
-
-    const created = await base44.entities.PushSubscription.create({
-      user_id: userId,
-      endpoint,
-      p256dh_key: null,
-      auth_key: null,
-      user_name: userName,
-      user_agent: navigator.userAgent,
-      device_identifier: deviceIdentifier,
-      last_used_at: new Date().toISOString(),
-    });
-    console.log('[NativePush] Created new FCM subscription');
-    return created;
-  } catch (err) {
-    console.error('[NativePush] Persist failed:', err?.message || err);
-    return null;
+  // Check if this FCM token already exists
+  const existing = await base44.entities.PushSubscription.filter({ user_id: userId, endpoint });
+  if (existing && existing.length > 0) {
+    const patch = { last_used_at: new Date().toISOString() };
+    if (deviceIdentifier && !existing[0].device_identifier) patch.device_identifier = deviceIdentifier;
+    if (userName && !existing[0].user_name) patch.user_name = userName;
+    const updated = await base44.entities.PushSubscription.update(existing[0].id, patch);
+    console.log('[NativePush] Updated existing FCM subscription');
+    return updated || existing[0];
   }
+
+  // Build create payload — only include optional string fields when they
+  // have an actual value. Never send null/undefined for a schema "string" field.
+  const payload = {
+    user_id: userId,
+    endpoint,
+    user_agent: navigator.userAgent,
+    last_used_at: new Date().toISOString(),
+  };
+  if (deviceIdentifier) payload.device_identifier = deviceIdentifier;
+  if (userName) payload.user_name = userName;
+  // p256dh_key / auth_key intentionally omitted — not applicable to FCM
+
+  const created = await base44.entities.PushSubscription.create(payload);
+  console.log('[NativePush] Created new FCM subscription');
+  return created;
 }
 
 /**
