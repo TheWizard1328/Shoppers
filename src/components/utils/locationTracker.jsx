@@ -11,6 +11,7 @@ import { getCapacitorPlatform, getNativeLocationAuthorization, isCapacitorNative
 import { getLocalDateString, getLocalTimestamp } from './localTimeHelper';
 import { calculateDistance, calculateDistanceInMeters } from './locationTrackerMath';
 import { syncUpdatedAppUser } from './locationTrackerBroadcast';
+import { remoteLogger } from './remoteLogger';
 import { collectBreadcrumbForTracker } from './locationBreadcrumbService';
 
 class LocationTracker {
@@ -126,6 +127,7 @@ class LocationTracker {
         await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO });
         this.lastHeartbeatAt = Date.now();
         console.log(`💓 [LocationTracker] Dispatcher/Admin heartbeat sent`);
+        this._logLocationRemote('info', 'DISPATCHER-HEARTBEAT', { latitude: null, longitude: null, accuracy: null, timestampOnly: true });
       } catch (err) {
         console.warn('⚠️ [LocationTracker] Dispatcher heartbeat failed:', err?.message);
       }
@@ -349,6 +351,7 @@ class LocationTracker {
   }
 
   shouldKeepNativeTrackingAlive() {
+      this._currentDeviceName = currentDevice?.device_name || 'Unknown';
     // Web-only mode (off-duty) should also survive upload failures — the heartbeat
     // is lightweight and the driver's shared location marker depends on it.
     if (this._webOnlyMode) return this.isPrimaryDevice;
@@ -577,6 +580,28 @@ class LocationTracker {
     }
   }
 
+  _currentDeviceName = null;
+
+  _logLocationRemote(level, source, opts = {}) {
+    const userName = this.currentUser?.user_name || this.currentUser?.full_name || 'Unknown';
+    const isPrimary = this.isPrimaryDevice;
+    const platform = isCapacitorNativeApp() ? 'Native-' + getCapacitorPlatform() : 'Web/PWA';
+    const deviceName = this._currentDeviceName || 'Unknown';
+    const lat = opts.latitude;
+    const lng = opts.longitude;
+    const acc = opts.accuracy;
+    const msg = '[LOC] ' + source + ' | ' + userName + ' | ' + platform + ' | ' + deviceName +
+      ' | isPrimary=' + isPrimary +
+      ' | lat=' + (lat != null ? lat.toFixed(6) : 'N/A') +
+      ' lng=' + (lng != null ? lng.toFixed(6) : 'N/A') +
+      ' acc=' + (acc != null ? Math.round(acc) + 'm' : 'N/A') +
+      ' | tsOnly=' + (!!opts.timestampOnly) +
+      ' | force=' + (!!opts.forceUpdate) +
+      (opts.distance != null ? ' | moved=' + Math.round(opts.distance) + 'm' : '') +
+      (opts.error ? ' | error=' + opts.error : '');
+    remoteLogger[level](msg);
+  }
+
   async updateLocationInDatabase(latitude, longitude, accuracy, forceUpdate = false, timestampOnly = false, isPrimaryDevice = false) {
     const now = Date.now();
 
@@ -623,6 +648,7 @@ class LocationTracker {
     // The primary device is the sole owner of the authoritative GPS record.
     if (!this.isPrimaryDevice) {
       console.log(`🚫 [LocationTracker] NON-PRIMARY DEVICE — skipping all AppUser writes (no coords, no timestamp)`);
+      this._logLocationRemote('warn', 'SKIP-NON-PRIMARY', { latitude, longitude, accuracy, timestampOnly });
       return;
     }
     // CRITICAL: Even if isPrimaryDevice was somehow set to true before this check,
@@ -688,6 +714,7 @@ class LocationTracker {
         appUserId: this.appUserId,
         uploadedData: updateData
       });
+      this._logLocationRemote('info', 'UPLOAD-SUCCESS', { latitude, longitude, accuracy, timestampOnly, forceUpdate, distance });
 
       // Step 2: Build the broadcast record from what we just wrote (no extra fetch round-trip).
       // Merge with cached currentUser fields so the record is complete for offline DB + WebSocket.
@@ -816,6 +843,7 @@ class LocationTracker {
 
     } catch (error) {
       this.failedUpdateCount++;
+      this._logLocationRemote('error', 'UPLOAD-FAILED', { latitude, longitude, accuracy, error: error?.message });
 
       // Implement exponential backoff
       if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
@@ -1010,6 +1038,7 @@ class LocationTracker {
       // Unregistered devices (null) are NOT primary — they have no UserDevice record at all.
       this.isPrimaryDevice = currentDevice !== null && currentDevice?.status !== 'inactive' && currentDevice?.is_primary_tracker === true;
 
+      this._currentDeviceName = currentDevice?.device_name || 'Unknown';
       console.log(`✅ [LocationTracker] Device status:`, {
         deviceId: currentDevice?.device_identifier || 'NOT REGISTERED',
         isPrimaryTracker: this.isPrimaryDevice,
