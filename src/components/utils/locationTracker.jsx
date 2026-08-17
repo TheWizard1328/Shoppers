@@ -18,6 +18,8 @@ class LocationTracker {
     constructor() {
         this.watchId = null;
         this.heartbeatInterval = null; // Poll GPS every 15 seconds (drivers) or timestamp-only every 60s (dispatchers/admins)
+        this._tokenWatchInterval = null; // Checks every 60s if access token changed → updateHeaders
+        this._lastTokenUsed = null; // Last token sent to the native POST plugin
         this.isTracking = false;
         this.lastPosition = null;
         this.lastUpdate = 0;
