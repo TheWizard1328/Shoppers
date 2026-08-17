@@ -1,4 +1,4 @@
-export const getLayoutStyles = ({ branding, sidebarWidth, isNative = false }) => `
+export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           /* FORCE light mode color-scheme */
           html {
           }
@@ -95,7 +95,7 @@ export const getLayoutStyles = ({ branding, sidebarWidth, isNative = false }) =>
             --bottom-nav-height: 0px;
           }
 
-          .app-container { display:flex; flex-direction:row; height:100%; min-height:100vh; min-height:100dvh; width:100%; overflow:hidden; background:var(--bg-slate-50); padding-top:${isNative ? '0px' : 'env(safe-area-inset-top, 0px)'}; padding-bottom:${isNative ? '0px' : 'env(safe-area-inset-bottom, 0px)'}; padding-left:${isNative ? '0px' : 'env(safe-area-inset-left, 0px)'}; padding-right:${isNative ? '0px' : 'env(safe-area-inset-right, 0px)'}; box-sizing:border-box; }
+          .app-container { display:flex; flex-direction:row; height:100%; min-height:100vh; min-height:100dvh; width:100%; overflow:hidden; background:var(--bg-slate-50); padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px); padding-left:env(safe-area-inset-left, 0px); padding-right:env(safe-area-inset-right, 0px); box-sizing:border-box; }
           main { overscroll-behavior-y: contain !important; -webkit-overflow-scrolling: touch !important; max-height:100%; }
           .leaflet-container, .leaflet-tile-pane, .leaflet-map-pane { background: var(--bg-slate-50) !important; }
           .leaflet-container { z-index:1 !important; height:100% !important; width:100% !important; }
