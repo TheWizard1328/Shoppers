@@ -85,18 +85,6 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        // Unregister the download complete receiver to prevent leaks
-        if (downloadCompleteReceiver != null) {
-            try {
-                unregisterReceiver(downloadCompleteReceiver);
-            } catch (Exception ignored) {}
-            downloadCompleteReceiver = null;
-        }
-        super.onDestroy();
-    }
-
     private void setupDownloadListener() {
         WebView webView = this.bridge.getWebView();
         if (webView == null) return;
