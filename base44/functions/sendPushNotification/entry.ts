@@ -1,7 +1,110 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import webpush from 'npm:web-push@3.6.7';
 
-// Payload: user_id (required), title (required), body (required), url (optional, default '/'), tag (optional), requireInteraction (optional), force (optional — bypass per-device push preference, used for app update broadcasts)
+// ── FCM HTTP v1 API — OAuth2 access token via service account JWT ──────
+// Google deprecated the legacy FCM server-key API (June 2024). The v1 API
+// requires a short-lived OAuth2 access token, obtained by signing a JWT
+// with the service account's private key (RS256) and exchanging it at
+// Google's token endpoint. Token is cached in-memory for ~50 minutes
+// (tokens are valid 1hr) to avoid re-signing on every request within the
+// same function instance.
+let _cachedFcmToken: { token: string; expiresAt: number } | null = null;
+
+function base64UrlEncode(input: ArrayBuffer | string): string {
+  let bytes: Uint8Array;
+  if (typeof input === 'string') {
+    bytes = new TextEncoder().encode(input);
+  } else {
+    bytes = new Uint8Array(input);
+  }
+  let str = '';
+  for (const b of bytes) str += String.fromCharCode(b);
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function pemToArrayBuffer(pem: string): ArrayBuffer {
+  const b64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s+/g, '');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function getFcmAccessToken(serviceAccountJson: string): Promise<string | null> {
+  const now = Math.floor(Date.now() / 1000);
+
+  // Return cached token if still valid (with 60s buffer)
+  if (_cachedFcmToken && _cachedFcmToken.expiresAt - 60 > now) {
+    return _cachedFcmToken.token;
+  }
+
+  let creds;
+  try {
+    creds = JSON.parse(serviceAccountJson);
+  } catch {
+    console.error('[sendPush] FCM_SERVICE_ACCOUNT_JSON is not valid JSON');
+    return null;
+  }
+
+  const { client_email, private_key } = creds;
+  if (!client_email || !private_key) {
+    console.error('[sendPush] Service account JSON missing client_email or private_key');
+    return null;
+  }
+
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const claimSet = {
+    iss: client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+  };
+
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedClaimSet = base64UrlEncode(JSON.stringify(claimSet));
+  const signingInput = `${encodedHeader}.${encodedClaimSet}`;
+
+  const keyData = pemToArrayBuffer(private_key);
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    keyData,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    new TextEncoder().encode(signingInput)
+  );
+
+  const jwt = `${signingInput}.${base64UrlEncode(signature)}`;
+
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+  });
+
+  if (!tokenResponse.ok) {
+    const errText = await tokenResponse.text();
+    console.error('[sendPush] FCM token exchange failed:', tokenResponse.status, errText);
+    return null;
+  }
+
+  const tokenData = await tokenResponse.json();
+  _cachedFcmToken = { token: tokenData.access_token, expiresAt: now + (tokenData.expires_in || 3600) };
+  return tokenData.access_token;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -11,15 +114,20 @@ Deno.serve(async (req) => {
     const { user_id, title, body, url, tag, requireInteraction, force, actions, data } = await req.json();
     if (!user_id || !title || !body) return Response.json({ error: 'user_id, title, and body are required' }, { status: 400 });
 
-    // ── VAPID config (Web Push) ──────────────────────────────────────
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
     const vapidSubject = Deno.env.get('VAPID_SUBJECT');
 
-    // ── FCM config (Native Android) ───────────────────────────────────
-    const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
+    // FCM v1 config
+    const fcmServiceAccountJson = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON');
+    const fcmProjectId = (() => {
+      try {
+        return fcmServiceAccountJson ? JSON.parse(fcmServiceAccountJson).project_id : null;
+      } catch {
+        return null;
+      }
+    })();
 
-    // Fetch user settings ONCE to get per-device notification preferences.
     let deviceProfiles = {};
     let hasAnyExplicitFalse = false;
     if (!force) {
@@ -36,6 +144,13 @@ Deno.serve(async (req) => {
     const notifData = { title, body, url: url || '/', tag: tag || undefined, requireInteraction: !!requireInteraction };
     if (actions) notifData.actions = actions;
     if (data) notifData.data = data;
+
+    // Pre-fetch FCM access token ONCE if we have any FCM subscriptions
+    const hasFcmSub = subscriptions.some((s: any) => s.endpoint?.startsWith('fcm://'));
+    let fcmAccessToken: string | null = null;
+    if (hasFcmSub && fcmServiceAccountJson && fcmProjectId) {
+      fcmAccessToken = await getFcmAccessToken(fcmServiceAccountJson);
+    }
 
     let sent = 0, removed = 0, skipped = 0, fcmSent = 0, webSent = 0;
     const errors = [];
@@ -56,36 +171,49 @@ Deno.serve(async (req) => {
       if (isFCM) {
         const fcmToken = sub.endpoint.replace('fcm://', '');
         if (!fcmToken) { skipped++; return; }
-        if (!fcmServerKey) {
-          errors.push({ endpoint: sub.endpoint, error: 'FCM_SERVER_KEY not configured' });
+        if (!fcmAccessToken || !fcmProjectId) {
+          errors.push({ endpoint: sub.endpoint, error: 'FCM_SERVICE_ACCOUNT_JSON not configured or token exchange failed' });
           return;
         }
         try {
           const fcmPayload = {
-            to: fcmToken,
-            notification: { title, body, tag: tag || undefined },
-            data: { url: url || '/', ...(data || {}) },
-            android: { notification: { tag: tag || undefined, click_action: url || '/' }, priority: 'high' },
+            message: {
+              token: fcmToken,
+              notification: { title, body },
+              data: Object.fromEntries(
+                Object.entries({ url: url || '/', ...(data || {}) }).map(([k, v]) => [k, String(v)])
+              ),
+              android: {
+                priority: 'high',
+                notification: { tag: tag || undefined, click_action: url || '/' },
+              },
+            },
           };
-          const fcmResponse = await fetch('https://fcm.googleapis.com/fcm/send', {
-            method: 'POST',
-            headers: { 'Authorization': `key=${fcmServerKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(fcmPayload),
-          });
+
+          const fcmResponse = await fetch(
+            `https://fcm.googleapis.com/v1/projects/${fcmProjectId}/messages:send`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${fcmAccessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(fcmPayload),
+            }
+          );
+
           if (fcmResponse.ok) {
-            const fcmResult = await fcmResponse.json();
-            if (fcmResult.success) { sent++; fcmSent++; }
-            else if (fcmResult.results?.[0]?.error === 'InvalidRegistration' || fcmResult.results?.[0]?.error === 'NotRegistered') {
+            sent++; fcmSent++;
+          } else {
+            const errBody = await fcmResponse.json().catch(() => ({}));
+            const errStatus = errBody?.error?.status;
+            if (errStatus === 'NOT_FOUND' || errStatus === 'INVALID_ARGUMENT' || fcmResponse.status === 404) {
+              // Stale/invalid token — remove subscription
               await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
               removed++;
             } else {
-              errors.push({ endpoint: sub.endpoint, error: fcmResult.results?.[0]?.error || 'FCM send failed' });
+              errors.push({ endpoint: sub.endpoint, error: `FCM v1 HTTP ${fcmResponse.status}: ${JSON.stringify(errBody)}` });
             }
-          } else if (fcmResponse.status === 400 || fcmResponse.status === 404) {
-            await base44.asServiceRole.entities.PushSubscription.delete(sub.id).catch(() => {});
-            removed++;
-          } else {
-            errors.push({ endpoint: sub.endpoint, error: `FCM HTTP ${fcmResponse.status}` });
           }
         } catch (err) {
           errors.push({ endpoint: sub.endpoint, error: err.message || String(err) });
