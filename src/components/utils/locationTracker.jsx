@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { appParams } from '@/lib/app-params';
 import { format } from 'date-fns';
 import { isMobileDevice as checkIsMobileDevice, getUserAgentInfo } from './deviceUtils';
 import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
@@ -1136,21 +1137,53 @@ class LocationTracker {
               reject(result);
             }
           },
-          {
-            enableHighAccuracy: true,
-            timeout: 30000,
-            maximumAge: 0,
-            requestPermissions: true,
-            distanceFilter: 0,
-            // CRITICAL: @capgo/background-geolocation reads "minIntervalMs" (NOT "interval")
-            // to set the native LocationManager polling interval. Without this, the
-            // service defaults to 1000ms polling — generating excessive callbacks that
-            // get throttled by the WebView and waste battery. 15000ms matches our
-            // upload cadence so native GPS fires exactly when we need to upload.
-            minIntervalMs: 15000,
-            backgroundTitle: 'RxDeliver location tracking',
-            backgroundMessage: 'Tracking delivery location in the background.'
-          }
+          (() => {
+            const startOpts = {
+              enableHighAccuracy: true,
+              timeout: 30000,
+              maximumAge: 0,
+              requestPermissions: true,
+              distanceFilter: 0,
+              // CRITICAL: @capgo/background-geolocation reads "minIntervalMs" (NOT "interval")
+              // to set the native LocationManager polling interval. Without this, the
+              // service defaults to 1000ms polling — generating excessive callbacks that
+              // get throttled by the WebView and waste battery. 15000ms matches our
+              // upload cadence so native GPS fires exactly when we need to upload.
+              minIntervalMs: 15000,
+              backgroundTitle: 'RxDeliver location tracking',
+              backgroundMessage: 'Tracking delivery location in the background.'
+            };
+
+            // ── NATIVE BACKGROUND GPS POST ──────────────────────────────────────
+            // Configure the plugin to POST location updates directly from native
+            // code to our backend function, bypassing the WebView entirely. This
+            // is the fix for "driver location not updating while app is minimized":
+            // when Android throttles/suspends the WebView's JS execution, the
+            // native foreground service continues making HTTP requests on its own.
+            //
+            // The plugin persists these headers on Android (START_STICKY), so even
+            // after the OS kills and restarts the app process, the foreground
+            // service resumes POSTs with the stored URL + headers.
+            try {
+              const accessToken = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+              const { serverUrl, appId } = appParams;
+              if (accessToken && serverUrl && appId && this.appUserId) {
+                const baseUrl = serverUrl.replace(/\/$/, '');
+                startOpts.url = `${baseUrl}/api/apps/${appId}/functions/nativeLocationUpdate`;
+                startOpts.headers = {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'X-AppUser-Id': this.appUserId,
+                };
+                console.log(`📡 [LocationTracker] Native POST configured: ${startOpts.url}`);
+              } else {
+                console.warn('⚠️ [LocationTracker] Missing token/serverUrl/appId — native POST disabled, falling back to JS-only uploads');
+              }
+            } catch (cfgErr) {
+              console.warn('⚠️ [LocationTracker] Native POST config failed:', cfgErr?.message);
+            }
+
+            return startOpts;
+          })()
         );
 
         const useNativeBackgroundWatcher = this.locationProvider?.backgroundCapable === true;
@@ -1284,6 +1317,34 @@ class LocationTracker {
         reject(this.handleLocationError(error));
       }
     });
+  }
+
+  /**
+   * Update the Authorization header used by the native background GPS POST.
+   * Call this after the user's auth token refreshes (e.g., after re-login,
+   * token rotation, or page reload with a new session).
+   *
+   * The @capgo/background-geolocation plugin persists headers on Android,
+   * so this update survives process death (START_STICKY restart).
+   */
+  async updateNativePostHeaders() {
+    try {
+      const { BackgroundGeolocation } = await import('./locationProviders/capacitorRuntime');
+      if (!BackgroundGeolocation?.updateHeaders) return;
+
+      const accessToken = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+      if (!accessToken || !this.appUserId) return;
+
+      await BackgroundGeolocation.updateHeaders({
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'X-AppUser-Id': this.appUserId,
+        }
+      });
+      console.log('📡 [LocationTracker] Native POST headers updated (token refresh)');
+    } catch (e) {
+      console.warn('⚠️ [LocationTracker] Failed to update native POST headers:', e?.message);
+    }
   }
 
   stopTracking() {
