@@ -1,37 +1,37 @@
 {
   "properties": {
-    "auth_key": {
-      "description": "The auth secret from the PushSubscription.keys object (null for FCM/native subscriptions)",
-      "type": "string"
-    },
-    "device_identifier": {
-      "description": "Links this subscription to its device's per-device notification settings in UserSettings.device_settings_profiles",
-      "type": "string"
-    },
-    "endpoint": {
-      "description": "Push service endpoint URL (web push) or fcm://{token} (native FCM)",
-      "type": "string"
-    },
-    "last_used_at": {
-      "format": "date-time",
-      "description": "Timestamp of the last successful push sent",
-      "type": "string"
-    },
-    "p256dh_key": {
-      "description": "The p256dh public key from the PushSubscription.keys object (null for FCM/native subscriptions)",
-      "type": "string"
-    },
-    "user_agent": {
-      "description": "Browser/device user agent string at time of subscription",
-      "type": "string"
-    },
     "user_id": {
-      "description": "The app user_id (auth User.id) this subscription belongs to",
-      "type": "string"
+      "type": "string",
+      "description": "The app user_id (auth User.id) this subscription belongs to"
     },
     "user_name": {
-      "description": "Display name of the user this subscription belongs to (denormalized from AppUser for easy identification)",
-      "type": "string"
+      "type": "string",
+      "description": "Display name of the user this subscription belongs to (denormalized from AppUser for easy identification)"
+    },
+    "endpoint": {
+      "type": "string",
+      "description": "Push service endpoint URL (web push) or fcm://{token} (native FCM)"
+    },
+    "p256dh_key": {
+      "type": "string",
+      "description": "The p256dh public key from the PushSubscription.keys object (omitted for FCM/native subscriptions \u2014 Web Push only)"
+    },
+    "auth_key": {
+      "type": "string",
+      "description": "The auth secret from the PushSubscription.keys object (omitted for FCM/native subscriptions \u2014 Web Push only)"
+    },
+    "device_identifier": {
+      "type": "string",
+      "description": "Links this subscription to its device's per-device notification settings in UserSettings.device_settings_profiles"
+    },
+    "user_agent": {
+      "type": "string",
+      "description": "Browser/device user agent string at time of subscription"
+    },
+    "last_used_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the last successful push sent"
     }
   },
   "required": [

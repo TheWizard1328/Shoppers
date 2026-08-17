@@ -12,15 +12,15 @@
     },
     "endpoint": {
       "type": "string",
-      "description": "The push service endpoint URL for this subscription"
+      "description": "Push service endpoint URL (web push) or fcm://{token} (native FCM)"
     },
     "p256dh_key": {
       "type": "string",
-      "description": "The p256dh public key from the PushSubscription.keys object"
+      "description": "The p256dh public key from the PushSubscription.keys object (omitted for FCM/native subscriptions — Web Push only)"
     },
     "auth_key": {
       "type": "string",
-      "description": "The auth secret from the PushSubscription.keys object"
+      "description": "The auth secret from the PushSubscription.keys object (omitted for FCM/native subscriptions — Web Push only)"
     },
     "device_identifier": {
       "type": "string",
@@ -38,8 +38,6 @@
   },
   "required": [
     "user_id",
-    "endpoint",
-    "p256dh_key",
-    "auth_key"
+    "endpoint"
   ]
 }
