@@ -215,7 +215,7 @@ export const AppDataProvider = ({ children, value }) => {
         const currentAppUsers = appUsersRef.current || [];
         const deleteSet = new Set(appUserDeletes);
         const ts = (item) => {
-          const v = item?.location_updated_at || item?.updated_date || item?.created_date;
+          const v = item?.last_seen_at || item?.location_updated_at || item?.updated_date || item?.created_date;
           return v ? new Date(v).getTime() : 0;
         };
         const appUserById = new Map(
@@ -259,7 +259,7 @@ export const AppDataProvider = ({ children, value }) => {
 
     if (appUsersChanged && !nextAppUsers.length && appUsersRef.current?.length) {
       const ts = (item) => {
-        const value = item?.location_updated_at || item?.updated_date || item?.created_date;
+        const value = item?.last_seen_at || item?.location_updated_at || item?.updated_date || item?.created_date;
         return value ? new Date(value).getTime() : 0;
       };
 
@@ -847,7 +847,7 @@ export const AppDataProvider = ({ children, value }) => {
     const byId = new Map(existing.map(u => [u?.id, u]).filter(([id]) => !!id));
 
     const ts = (u) => {
-      const t = u?.location_updated_at || u?.updated_date || u?.created_date;
+      const t = u?.last_seen_at || u?.location_updated_at || u?.updated_date || u?.created_date;
       return t ? new Date(t).getTime() : 0;
     };
 

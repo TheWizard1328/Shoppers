@@ -124,7 +124,7 @@ class LocationTracker {
       if (!navigator.onLine || !this.appUserId) return;
       try {
         const nowISO = getLocalTimestamp();
-        await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO });
+        await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO, last_seen_at: nowISO });
         this.lastHeartbeatAt = Date.now();
         console.log(`💓 [LocationTracker] Dispatcher/Admin heartbeat sent`);
         this._logLocationRemote('info', 'DISPATCHER-HEARTBEAT', { latitude: null, longitude: null, accuracy: null, timestampOnly: true });

@@ -227,9 +227,14 @@ export const getEffectiveUser = async () => {
                 if (!isDriver && (!currentStatus || currentStatus === 'off_duty') && appUser) {
                   try {
                     console.log(`🟢 [auth.js] Setting online status for non-driver user: ${mergedUser.user_name}`);
-                    await base44.entities.AppUser.update(appUser.id, { driver_status: 'online' });
+                    const nowIso = new Date().toISOString();
+                    await base44.entities.AppUser.update(appUser.id, {
+                      driver_status: 'online',
+                      last_seen_at: nowIso,
+                    });
+                    mergedUser.last_seen_at = nowIso;
                     mergedUser.driver_status = 'online';
-                    await offlineDB.save(offlineDB.STORES.APP_USERS, { ...appUser, driver_status: 'online' });
+                    await offlineDB.save(offlineDB.STORES.APP_USERS, { ...appUser, driver_status: 'online', last_seen_at: nowIso });
                     persistEffectiveUser(mergedUser);
                   } catch (statusError) {
                     console.warn('⚠️ [auth.js] Failed to set online status:', statusError.message);

@@ -111,7 +111,16 @@
     "location_updated_at": {
       "type": "string",
       "format": "date-time",
-      "description": "When the driver's location was last updated"
+      "description": "When the driver's GPS location was last updated (primary device only)"
+    },
+    "last_seen_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Presence timestamp — written by ALL logged-in devices (primary and non-primary) every 5 minutes. Used to determine if a user has an active session (is at their device). Separate from location_updated_at which is GPS-specific and primary-device-only."
+    },
+    "last_seen_device": {
+      "type": "string",
+      "description": "Name of the device that sent the most recent presence heartbeat (for debugging which session is active)"
     },
     "preferred_travel_mode": {
       "type": "string",

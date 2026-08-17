@@ -108,7 +108,7 @@ class DriverLocationPoller {
    // Last-write-wins: if duplicates by id exist with different timestamps, keep the freshest
    const byId = new Map();
    const ts = (u) => {
-     const t = u?.location_updated_at || u?.updated_date || u?.created_date;
+     const t = u?.last_seen_at || u?.location_updated_at || u?.updated_date || u?.created_date;
      return t ? new Date(t).getTime() : 0;
    };
    for (const u of usersData) {
