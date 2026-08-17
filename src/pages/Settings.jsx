@@ -525,16 +525,19 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
   const [downloadError, setDownloadError] = useState('');
   const [downloadedUri, setDownloadedUri] = useState('');
   const pollRef = useRef(null);
+  const downloadingRef = useRef(false);
 
   // Register native callbacks (called from MainActivity.java via evaluateJavascript)
   useEffect(() => {
     window.__apkDownloadComplete = (uri) => {
+      downloadingRef.current = false;
       setDownloadState('success');
       setDownloadedUri(uri);
       setDownloadProgress(100);
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     };
     window.__apkDownloadFailed = (reason) => {
+      downloadingRef.current = false;
       setDownloadState('failed');
       setDownloadError(reason);
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -554,11 +557,13 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
         if (window.AndroidNative && typeof window.AndroidNative.getDownloadStatus === 'function') {
           const result = JSON.parse(window.AndroidNative.getDownloadStatus());
           if (result.status === 'success') {
+            downloadingRef.current = false;
             setDownloadState('success');
             setDownloadedUri(result.uri);
             setDownloadProgress(100);
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
           } else if (result.status === 'failed') {
+            downloadingRef.current = false;
             setDownloadState('failed');
             setDownloadError(result.reason || 'Unknown error');
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -592,7 +597,8 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
 
   const handleNativeDownload = async (e) => {
     e.preventDefault();
-    if (downloadState === 'starting' || downloadState === 'running') return;
+    if (downloadingRef.current || downloadState === 'starting' || downloadState === 'running') return;
+    downloadingRef.current = true;
     setDownloadState('starting');
     setDownloadProgress(0);
     setDownloadError('');
@@ -611,6 +617,7 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
       }
     } catch (err) {
       console.error('[APK Download] Failed:', err);
+      downloadingRef.current = false;
       setDownloadState('failed');
       setDownloadError(err.message || 'Unknown error');
       toast.error('Could not start download. Try visiting the link in your browser.');
@@ -624,6 +631,7 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
   };
 
   const handleDismissBanner = () => {
+    downloadingRef.current = false;
     setDownloadState('idle');
     setDownloadProgress(0);
     setDownloadError('');

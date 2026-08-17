@@ -184,6 +184,26 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void startApkDownload(String url, String userAgent) {
+        // ── Cancel any previous download + cleanup its listeners ──────
+        // Prevents duplicate downloads when the user taps the button
+        // multiple times or when both the DownloadListener and JS
+        // interface fire for the same URL.
+        if (pollHandler != null && pollRunnable != null) {
+            pollHandler.removeCallbacks(pollRunnable);
+            pollRunnable = null;
+        }
+        if (downloadCompleteReceiver != null) {
+            try { unregisterReceiver(downloadCompleteReceiver); } catch (Exception ignored) {}
+            downloadCompleteReceiver = null;
+        }
+        if (activeDownloadId >= 0) {
+            try {
+                DownloadManager dm0 = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                dm0.remove(activeDownloadId);
+            } catch (Exception ignored) {}
+            activeDownloadId = -1;
+        }
+
         try {
             String fileName = extractFileName(url, null);
 
@@ -225,9 +245,6 @@ public class MainActivity extends BridgeActivity {
             }, 5000);
 
             // ── Register download-complete receiver ────────────────────
-            if (downloadCompleteReceiver != null) {
-                try { unregisterReceiver(downloadCompleteReceiver); } catch (Exception ignored) {}
-            }
             downloadCompleteReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context ctx, Intent intent) {
@@ -240,18 +257,26 @@ public class MainActivity extends BridgeActivity {
                         int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
                         if (status == DownloadManager.STATUS_SUCCESSFUL) {
                             String localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
+                            activeDownloadId = -1;
                             showDownloadCompleteDialog(Uri.parse(localUri));
+                            notifyWebDownloadComplete(localUri);
                         } else if (status == DownloadManager.STATUS_FAILED) {
                             int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                            activeDownloadId = -1;
                             Toast.makeText(MainActivity.this,
                                 "Download failed: " + downloadErrorReason(reason),
                                 Toast.LENGTH_LONG).show();
+                            notifyWebDownloadFailed(downloadErrorReason(reason));
                         }
                     }
                     if (cursor != null) cursor.close();
 
                     try { unregisterReceiver(downloadCompleteReceiver); } catch (Exception ignored) {}
                     downloadCompleteReceiver = null;
+                    if (pollHandler != null && pollRunnable != null) {
+                        pollHandler.removeCallbacks(pollRunnable);
+                        pollRunnable = null;
+                    }
                 }
             };
             // Use RECEIVER_EXPORTED for system broadcasts on Android 13+ —
@@ -283,6 +308,10 @@ public class MainActivity extends BridgeActivity {
                                 String localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
                                 cursor.close();
                                 activeDownloadId = -1;
+                                if (downloadCompleteReceiver != null) {
+                                    try { unregisterReceiver(downloadCompleteReceiver); } catch (Exception ignored) {}
+                                    downloadCompleteReceiver = null;
+                                }
                                 showDownloadCompleteDialog(Uri.parse(localUri));
                                 notifyWebDownloadComplete(localUri);
                                 return;
@@ -290,6 +319,10 @@ public class MainActivity extends BridgeActivity {
                                 int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
                                 cursor.close();
                                 activeDownloadId = -1;
+                                if (downloadCompleteReceiver != null) {
+                                    try { unregisterReceiver(downloadCompleteReceiver); } catch (Exception ignored) {}
+                                    downloadCompleteReceiver = null;
+                                }
                                 Toast.makeText(MainActivity.this, "Download failed: " + downloadErrorReason(reason), Toast.LENGTH_LONG).show();
                                 notifyWebDownloadFailed(downloadErrorReason(reason));
                                 return;
