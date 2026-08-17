@@ -372,13 +372,21 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
     );
   }
 
-  // CRITICAL: In the native Capacitor WebView, direct navigation to GitHub
-  // download URLs does NOT reliably trigger the WebView's setDownloadListener
-  // (the redirect chain from github.com → objects.githubusercontent.com can
-  // fail silently inside the WebView). Instead, we build an Android intent
-  // URI that forces the system browser (Chrome) to handle the download.
-  // Chrome handles GitHub redirects natively and shows its own download
-  // progress + completion notifications — which is what the user sees.
+  // MainActivity.java registers WebView.setDownloadListener specifically to
+  // catch this: when the WebView's own navigation hits a response with
+  // Content-Disposition: attachment (which GitHub's release asset URLs send),
+  // Android intercepts it BEFORE rendering and hands it to DownloadManager —
+  // the WebView does not actually navigate away, so the SPA stays put.
+  //
+  // The previous approach tried to force-open an `intent://` URI via
+  // window.open(..., '_system') to hand the download to the system browser.
+  // That doesn't work here: there's no @capacitor/browser plugin (or WebViewClient
+  // override) registered to interpret the `intent:` scheme, so the WebView just
+  // tries to load the literal string "intent://..." as a page and fails with
+  // "Web page not available" (ERR_UNKNOWN_URL_SCHEME) — that's the exact bug
+  // being hit. DownloadManager.Request in MainActivity.onDownloadStart receives
+  // the final resolved URL (after GitHub's redirect to objects.githubusercontent.com),
+  // so no manual redirect handling is needed — direct navigation is sufficient.
   const [downloading, setDownloading] = useState(false);
 
   const handleNativeDownload = async (e) => {
@@ -386,25 +394,12 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
     if (downloading) return;
     setDownloading(true);
     try {
-      const url = new URL(apkUrl);
-      // intent://<host><path><query>#Intent;scheme=https;action=VIEW;end
-      // Android resolves this to opening Chrome (or the user's default browser)
-      // with the full HTTPS URL. Chrome then follows GitHub's 302 redirect to
-      // objects.githubusercontent.com and downloads the file with full
-      // progress + completion notifications.
-      const intentUrl = `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
-      console.log('[APK Download] Opening in system browser via intent URI');
-      window.open(intentUrl, '_system');
-      toast.success('Opening download in your browser…');
+      console.log('[APK Download] Navigating WebView directly to APK URL — native DownloadListener will intercept');
+      toast.success('Starting download…');
+      window.location.href = apkUrl;
     } catch (err) {
-      console.error('[APK Download] Intent URI failed:', err);
-      // Fallback: try opening the raw URL in the system browser
-      try {
-        window.open(apkUrl, '_system');
-        toast.success('Opening download in your browser…');
-      } catch {
-        toast.error('Could not open download. Try visiting the link in your browser.');
-      }
+      console.error('[APK Download] Direct navigation failed:', err);
+      toast.error('Could not start download. Try visiting the link in your browser.');
     } finally {
       setTimeout(() => setDownloading(false), 3000);
     }
