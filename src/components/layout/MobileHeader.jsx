@@ -80,7 +80,8 @@ export default function MobileHeader({
       style={{ 
         borderColor: 'var(--border-slate-200)', 
         background: 'var(--bg-white)',
-        paddingTop: 'env(safe-area-inset-top, 0px)'
+        // No safe-area-inset-top here — the .app-container already handles it.
+        // Adding it here too creates a double-padding dead bar at the top.
       }}
     >
       <div className="w-full min-h-[56px] flex items-center justify-between gap-2 px-4 py-2">

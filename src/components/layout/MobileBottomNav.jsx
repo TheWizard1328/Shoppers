@@ -68,7 +68,8 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
         background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
         boxShadow: '0 -2px 10px var(--shadow-color)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        // No safe-area-inset-bottom here — the .app-container already handles it.
+        // Adding it here too creates a double-padding dead bar at the bottom.
       }}
     >
       <div className="flex items-center gap-1 px-1">

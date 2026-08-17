@@ -70,6 +70,7 @@ import SidebarDivider from './components/layout/SidebarDivider';
 import SidebarSectionLabel from './components/layout/SidebarSectionLabel';
 import getAdminNavigationItems from './components/layout/getAdminNavigationItems';
 import { getLayoutStyles } from './components/layout/layoutStyles';
+import { isCapacitorNativeApp } from './components/utils/locationProviders/capacitorRuntime';
 import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisibility';
 import { mergePatients } from './components/layout/layoutDataHelpers';
 import { initializeAppLoadDataFlow, executeAppLoadDataSync } from './components/layout/AppLoadDataManager';
@@ -1165,7 +1166,7 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <AppErrorBoundary>
-      <style>{getLayoutStyles({ branding, sidebarWidth })}</style>
+      <style>{getLayoutStyles({ branding, sidebarWidth, isNative: isCapacitorNativeApp() })}</style>
 
       {/* Connection Recovery Banner - auto-shows on connection issues */}
       {/* ─── Global Overlays (modals, panels, banners) ────────────────────── */}
