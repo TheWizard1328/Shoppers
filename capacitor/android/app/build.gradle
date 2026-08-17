@@ -8,9 +8,11 @@ apply plugin: 'com.android.application'
 // signature is why users had to uninstall before every single update.
 def computedVersionCode = ((System.currentTimeMillis() / 1000 / 60) - 28401120L) as int
 def buildDateStr = new Date().format('yyyy-MM-dd HH:mm')
-// Build number: passed from GitHub Actions (-PbuildNumber=N), falls back to
-// the computedVersionCode for local builds so it always increments.
-def buildNumber = project.hasProperty('buildNumber') ? project.getProperty('buildNumber') : String.valueOf(computedVersionCode)
+// Build number: GitHub Actions automatically sets GITHUB_RUN_NUMBER env var.
+// For local builds, falls back to computedVersionCode so it always increments.
+// We check env first (works without modifying the workflow YAML), then -P flag,
+// then computedVersionCode as last resort.
+def buildNumber = System.env.GITHUB_RUN_NUMBER ?: (project.hasProperty('buildNumber') ? project.getProperty('buildNumber') : String.valueOf(computedVersionCode))
 
 android {
     namespace "com.rxdeliver.driver"
