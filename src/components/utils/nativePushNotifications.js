@@ -21,12 +21,21 @@ import { base44 } from '@/api/base44Client';
 
 let _nativePushInitialized = false;
 let _registrationListenerAdded = false;
+let _lastRegistrationResult = null;
+let _registrationTimeout = null;
 
 /**
  * Check if native FCM push is available (Capacitor native + Android).
  */
 export function isNativePushAvailable() {
   return isCapacitorNativeApp() && getCapacitorPlatform() === 'android';
+}
+
+/**
+ * Get the last registration result for diagnostics.
+ */
+export function getRegistrationDiagnostics() {
+  return _lastRegistrationResult;
 }
 
 /**
@@ -49,55 +58,134 @@ export async function initNativePushNotifications(userId) {
       _registrationListenerAdded = true;
 
       PushNotifications.addListener('registration', async (token) => {
-        console.log('🔔 [NativePush] FCM token received:', token.value?.substring(0, 20) + '…');
+        console.log('[NativePush] FCM token received:', token.value?.substring(0, 20) + '...');
+        _lastRegistrationResult = { ok: true, reason: 'token_received', token: token.value?.substring(0, 30), ts: Date.now() };
+
+        if (_registrationTimeout) { clearTimeout(_registrationTimeout); _registrationTimeout = null; }
+
         try {
-          await persistNativeSubscription(userId, token.value);
+          const persisted = await persistNativeSubscription(userId, token.value);
+          if (persisted) {
+            console.log('[NativePush] FCM subscription persisted');
+          } else {
+            console.error('[NativePush] FCM token received but persistence returned null');
+          }
         } catch (err) {
           console.error('[NativePush] Failed to persist FCM subscription:', err?.message);
+          _lastRegistrationResult = { ok: false, reason: 'persist_failed', error: err?.message, ts: Date.now() };
         }
       });
 
       PushNotifications.addListener('registrationError', (err) => {
         console.error('[NativePush] FCM registration failed:', err);
+        _lastRegistrationResult = { ok: false, reason: 'registration_error', error: JSON.stringify(err), ts: Date.now() };
+        if (_registrationTimeout) { clearTimeout(_registrationTimeout); _registrationTimeout = null; }
       });
 
-      // Handle notification tap when app is in foreground or background
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('[NativePush] Notification received in foreground:', notification.title);
       });
 
-      // Handle notification tap (app opened from notification)
       PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
         console.log('[NativePush] Notification tapped:', action.notification?.data);
         const data = action.notification?.data;
         if (data?.url) {
-          // Navigate within the SPA
           window.location.hash = data.url;
         }
       });
     }
 
-    // Request permission
     let permStatus = await PushNotifications.checkPermissions();
+    console.log('[NativePush] Permission status:', permStatus.receive);
     if (permStatus.receive === 'prompt') {
       permStatus = await PushNotifications.requestPermissions();
+      console.log('[NativePush] After request:', permStatus.receive);
     }
 
     if (permStatus.receive !== 'granted') {
       console.warn('[NativePush] Permission not granted');
+      _lastRegistrationResult = { ok: false, reason: 'permission_denied', ts: Date.now() };
       return { ok: false, reason: 'permission_denied' };
     }
 
-    // Register with FCM — this triggers the 'registration' listener
     await PushNotifications.register();
     _nativePushInitialized = true;
 
-    console.log('[NativePush] Registration requested — waiting for FCM token…');
+    _lastRegistrationResult = { ok: null, reason: 'waiting_for_token', ts: Date.now() };
+    if (_registrationTimeout) clearTimeout(_registrationTimeout);
+    _registrationTimeout = setTimeout(() => {
+      if (_lastRegistrationResult?.reason === 'waiting_for_token') {
+        _lastRegistrationResult = { ok: false, reason: 'token_timeout', error: 'FCM did not return a token within 15 seconds', ts: Date.now() };
+        console.error('[NativePush] FCM token timeout - registration did not complete within 15s');
+      }
+    }, 15000);
+
+    console.log('[NativePush] Registration requested - waiting for FCM token...');
     return { ok: true, reason: 'registered' };
   } catch (err) {
     console.error('[NativePush] Init failed:', err?.message || err);
+    _lastRegistrationResult = { ok: false, reason: 'init_error', error: err?.message, ts: Date.now() };
     return { ok: false, reason: 'init_error', error: err?.message };
   }
+}
+
+/**
+ * Force re-register (bypasses the _nativePushInitialized flag).
+ */
+export async function forceReRegisterNativePush(userId) {
+  _nativePushInitialized = false;
+  return await initNativePushNotifications(userId);
+}
+
+/**
+ * Run full push notification diagnostics.
+ */
+export async function runPushDiagnostics(userId) {
+  const report = {
+    timestamp: new Date().toISOString(),
+    isNative: isNativePushAvailable(),
+    platform: null,
+    permission: null,
+    pluginLoaded: false,
+    hasRegisterMethod: false,
+    hasCheckPermissionsMethod: false,
+    registrationResult: _lastRegistrationResult,
+    subscriptions: { total: 0, fcm: 0, web: 0 },
+    errors: [],
+  };
+
+  try {
+    report.platform = getCapacitorPlatform();
+  } catch (e) {
+    report.errors.push('Platform check: ' + e.message);
+  }
+
+  try {
+    report.permission = await checkNativePushPermission();
+  } catch (e) {
+    report.permission = 'error';
+    report.errors.push('Permission check: ' + e.message);
+  }
+
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    report.pluginLoaded = !!PushNotifications;
+    report.hasRegisterMethod = typeof PushNotifications.register === 'function';
+    report.hasCheckPermissionsMethod = typeof PushNotifications.checkPermissions === 'function';
+  } catch (e) {
+    report.errors.push('Plugin load: ' + e.message);
+  }
+
+  try {
+    const subs = await base44.entities.PushSubscription.filter({ user_id: userId });
+    report.subscriptions.total = subs?.length || 0;
+    report.subscriptions.fcm = subs?.filter(s => s.endpoint?.startsWith('fcm://')).length || 0;
+    report.subscriptions.web = subs?.filter(s => !s.endpoint?.startsWith('fcm://')).length || 0;
+  } catch (e) {
+    report.errors.push('Subscription check: ' + e.message);
+  }
+
+  return report;
 }
 
 /**
@@ -110,7 +198,6 @@ async function persistNativeSubscription(userId, fcmToken) {
   const endpoint = `fcm://${fcmToken}`;
   const deviceIdentifier = localStorage.getItem('rxdeliver_device_identifier') || null;
 
-  // Get user_name for the PushSubscription record
   let userName = null;
   try {
     const appUsers = await base44.entities.AppUser.filter({ user_id: userId });
@@ -118,10 +205,8 @@ async function persistNativeSubscription(userId, fcmToken) {
   } catch (_) { /* non-critical */ }
 
   try {
-    // Check if this FCM token already exists
     const existing = await base44.entities.PushSubscription.filter({ user_id: userId, endpoint });
     if (existing && existing.length > 0) {
-      // Update last_used_at and backfill fields
       const patch = { last_used_at: new Date().toISOString() };
       if (deviceIdentifier && !existing[0].device_identifier) patch.device_identifier = deviceIdentifier;
       if (userName && !existing[0].user_name) patch.user_name = userName;
@@ -130,12 +215,11 @@ async function persistNativeSubscription(userId, fcmToken) {
       return existing[0];
     }
 
-    // Create new subscription
     const created = await base44.entities.PushSubscription.create({
       user_id: userId,
       endpoint,
-      p256dh_key: null,  // Not used for FCM
-      auth_key: null,    // Not used for FCM
+      p256dh_key: null,
+      auth_key: null,
       user_name: userName,
       user_agent: navigator.userAgent,
       device_identifier: deviceIdentifier,
@@ -170,7 +254,7 @@ export async function checkNativePushPermission() {
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
     const status = await PushNotifications.checkPermissions();
-    return status.receive; // 'granted', 'denied', 'prompt'
+    return status.receive;
   } catch (_) {
     return 'unsupported';
   }
