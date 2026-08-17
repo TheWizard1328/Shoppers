@@ -201,9 +201,7 @@ public class MainActivity extends BridgeActivity {
             case DownloadManager.ERROR_DEVICE_NOT_FOUND: return "Storage not found";
             case DownloadManager.ERROR_FILE_ALREADY_EXISTS: return "File already exists";
             case DownloadManager.ERROR_FILE_ERROR: return "File error";
-            case DownloadManager.ERROR_HTTP_BAD_REQUEST: return "Bad URL (400)";
-            case DownloadManager.ERROR_HTTP_DATA_ERROR: return "Data error (404)";
-            case DownloadManager.ERROR_HTTP_TOO_MANY_REDIRECTS: return "Too many redirects";
+            case DownloadManager.ERROR_HTTP_DATA_ERROR: return "Data error";
             case DownloadManager.ERROR_INSUFFICIENT_SPACE: return "Not enough storage";
             case DownloadManager.ERROR_TOO_MANY_REDIRECTS: return "Too many redirects";
             case DownloadManager.ERROR_UNHANDLED_HTTP_CODE: return "HTTP error";
