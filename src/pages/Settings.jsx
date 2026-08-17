@@ -391,8 +391,8 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
 
   return (
     <div className="py-4 space-y-4">
-      <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-        <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#6B7280' }}>
+      <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-slate-10)' }}>
+        <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.08)' }}>
           <img
             src="https://base44.app/api/apps/69f0c6983e41b169cdc3be5b/files/mp/public/69f0c6983e41b169cdc3be5b/ac8712c0b_rxdeliver_icon.png"
             alt="RxDeliver app icon"
