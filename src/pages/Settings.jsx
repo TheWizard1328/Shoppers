@@ -354,7 +354,6 @@ function useAndroidAppUpdateCheck() {
 // ── APK Download Panel ────────────────────────────────────────────────────────
 function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
   const { apkUrl, buildText, loaded } = buildInfo;
-  const [downloading, setDownloading] = useState(false);
 
   if (!loaded) {
     return (
@@ -373,37 +372,21 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
     );
   }
 
-  // CRITICAL: In the native Capacitor WebView, <a href> / window.open to GitHub
-  // download URLs do NOT trigger the Android download manager — the WebView
-  // tries to navigate internally and fails silently. We must use an Android
-  // intent URI to force the system browser (Chrome) to handle the download.
-  const handleDownload = async (e) => {
+  // CRITICAL: The native Android app (MainActivity.java) already registers a
+  // WebView.setDownloadListener that intercepts APK downloads and hands them
+  // to Android's DownloadManager. That listener only fires when the WebView
+  // itself navigates to the URL (a real in-WebView navigation), NOT for
+  // window.open() with a custom target or an "intent://" URI — those bypass
+  // the WebView entirely and either do nothing or throw ERR_UNKNOWN_URL_SCHEME.
+  // So: a plain <a href> click (which triggers a genuine WebView navigation)
+  // is the correct and only mechanism here. github.com / githubusercontent.com
+  // must be present in allowNavigation (capacitor.config.json) so the WebView
+  // is permitted to load the URL internally instead of blocking it.
+  const handleNativeDownloadClick = (e) => {
     e.preventDefault();
-    if (downloading) return;
-
-    if (isCapacitorNativeApp() && getCapacitorPlatform() === 'android') {
-      setDownloading(true);
-      try {
-        // Build an Android intent URI that forces the system browser to open
-        // the GitHub download URL. This bypasses the WebView entirely.
-        const url = new URL(apkUrl);
-        const intentUrl = `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
-        console.log('[APK Download] Opening in system browser:', intentUrl);
-        window.open(intentUrl, '_system');
-        toast.success('Opening download in your browser...');
-      } catch (err) {
-        console.error('[APK Download] Intent failed:', err);
-        // Fallback: try opening the raw URL directly
-        try {
-          window.open(apkUrl, '_system');
-        } catch (err2) {
-          toast.error('Could not open download. Try visiting the link in your browser.');
-        }
-      } finally {
-        setTimeout(() => setDownloading(false), 3000);
-      }
-    }
-    // For web users, the <a> tag handles the download natively (see below)
+    // Force a real navigation (not a new window) so the native download
+    // listener intercepts it — matches how the listener is registered.
+    window.location.href = apkUrl;
   };
 
   return (
@@ -427,26 +410,17 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
           )}
         </div>
       </div>
-      {isCapacitorNativeApp() ? (
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className="w-full"
-          style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: downloading ? 'wait' : 'pointer' }}
-        >
-          <Button className="w-full gap-2" style={{ background: '#2563EB', borderColor: '#2563EB' }} disabled={downloading}>
-            {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : updateAvailable ? <RefreshCw className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-            {downloading ? 'Opening browser...' : updateAvailable ? 'Update APK' : 'Download APK'}
-          </Button>
-        </button>
-      ) : (
-        <a href={apkUrl} download="RxDeliver.apk" className="block">
-          <Button className="w-full gap-2" style={{ background: '#2563EB', borderColor: '#2563EB' }}>
-            {updateAvailable ? <RefreshCw className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-            {updateAvailable ? 'Update APK' : 'Download APK'}
-          </Button>
-        </a>
-      )}
+      <a
+        href={apkUrl}
+        download={isCapacitorNativeApp() ? undefined : 'RxDeliver.apk'}
+        onClick={isCapacitorNativeApp() ? handleNativeDownloadClick : undefined}
+        className="block"
+      >
+        <Button className="w-full gap-2" style={{ background: '#2563EB', borderColor: '#2563EB' }}>
+          {updateAvailable ? <RefreshCw className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+          {updateAvailable ? 'Update APK' : 'Download APK'}
+        </Button>
+      </a>
       <p className="text-xs text-center" style={{ color: 'var(--text-slate-400)' }}>
         {updateAvailable
           ? 'After download, open the file to install the update. You may need to allow installs from unknown sources.'
