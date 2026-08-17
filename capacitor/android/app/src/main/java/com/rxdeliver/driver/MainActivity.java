@@ -78,7 +78,7 @@ public class MainActivity extends BridgeActivity {
                         default: statusStr = "unknown"; break;
                     }
                     cursor.close();
-                    return "{\"status\":\"" + statusStr + "\",\"progress\":" + progress + \",\"uri\":\"" + localUri + "\"}";
+                    return "{\"status\":\"" + statusStr + "\",\"progress\":" + progress + "\",\"uri\":\"" + localUri + "\"}";
                 }
                 if (cursor != null) cursor.close();
             } catch (Exception e) {
