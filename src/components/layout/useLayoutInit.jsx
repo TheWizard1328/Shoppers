@@ -132,7 +132,7 @@ export function useLayoutInit({
           const appUserRecord = appUserRecords?.[0];
           if (appUserRecord?.id) {
             const isDispatcherRole = userHasRole(fetchedUser, 'dispatcher') && !userHasRole(fetchedUser, 'driver');
-            heartbeatService.start(appUserRecord.id, isDispatcherRole);
+            heartbeatService.start(appUserRecord.id, isDispatcherRole, fetchedUser.id);
           }
         } catch { /* non-critical */ }
         if (fetchedUser?.company_id) {try {const b = await getCompanyBranding(fetchedUser.company_id);setBranding(b);const { applyBrandingStyles } = await import('../utils/brandingManager');applyBrandingStyles(b);} catch {}}

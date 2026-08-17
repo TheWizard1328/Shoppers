@@ -14,6 +14,9 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { getCurrentDevice } from './deviceManager';
+import { isCapacitorNativeApp, getCapacitorPlatform } from './locationProviders/capacitorRuntime';
+import { remoteLogger } from './remoteLogger';
 
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;    // 5 minutes — same threshold
@@ -21,9 +24,20 @@ const STALE_THRESHOLD_MS = 5 * 60 * 1000;    // 5 minutes — same threshold
 let intervalId = null;
 let currentAppUserId = null;
 let isDispatcher = false;
+let isPrimaryDevice = false;
+let currentDeviceName = null;
 
 const sendHeartbeat = async () => {
   if (!currentAppUserId) return;
+
+  // CRITICAL: Non-primary devices must NOT write location_updated_at.
+  // Only the primary device (phone/tablet APK) owns the authoritative timestamp.
+  // Without this check, every logged-in browser tab, PWA instance, and desktop
+  // session writes to the same AppUser record, creating phantom timestamp updates.
+  if (!isPrimaryDevice) {
+    return;
+  }
+
   try {
     const now = new Date();
     const nowIso = now.toISOString();
@@ -56,11 +70,13 @@ const sendHeartbeat = async () => {
       }
       await base44.entities.AppUser.update(currentAppUserId, update);
       console.log(`💓 [HeartbeatService] Dispatcher heartbeat sent [${now.toLocaleTimeString('en-CA', { hour12: false })}]`);
+      remoteLogger.info('[HEARTBEAT] DISPATCHER | ' + (currentDeviceName || 'Unknown') + ' | isPrimary=' + isPrimaryDevice + ' | ts=' + nowIso);
     } else {
       // Non-dispatcher (driver) — just update timestamp, location tracker owns status
       await base44.entities.AppUser.update(currentAppUserId, {
         location_updated_at: nowIso,
       });
+      remoteLogger.info('[HEARTBEAT] DRIVER | ' + (currentDeviceName || 'Unknown') + ' | isPrimary=' + isPrimaryDevice + ' | ts=' + nowIso);
     }
   } catch (e) {
     // Silent — non-critical
@@ -73,7 +89,7 @@ export const heartbeatService = {
    * Pass isDispatcherRole=true for dispatchers so the 5-min stale check runs.
    * Safe to call multiple times — only one interval runs at a time.
    */
-  start(appUserId, isDispatcherRole = false) {
+  async start(appUserId, isDispatcherRole = false, userId = null) {
     if (!appUserId) return;
     if (intervalId && currentAppUserId === appUserId) return; // already running for same user
 
@@ -81,6 +97,27 @@ export const heartbeatService = {
 
     currentAppUserId = appUserId;
     isDispatcher = isDispatcherRole;
+
+    // CRITICAL: Check if this is the primary device BEFORE starting heartbeat.
+    // Non-primary devices (desktop browsers, secondary tablets, PWA on non-primary)
+    // must NOT write location_updated_at — only the primary device owns the timestamp.
+    if (userId) {
+      try {
+        const currentDevice = await getCurrentDevice(userId);
+        isPrimaryDevice = currentDevice !== null && currentDevice?.status !== 'inactive' && currentDevice?.is_primary_tracker === true;
+        currentDeviceName = currentDevice?.device_name || 'Unknown';
+        const platform = isCapacitorNativeApp() ? 'Native-' + getCapacitorPlatform() : 'Web/PWA';
+        if (!isPrimaryDevice) {
+          console.log('[HeartbeatService] Non-primary device (' + (currentDeviceName || 'unregistered') + ') — heartbeat disabled (no timestamp writes)');
+          remoteLogger.warn('[HEARTBEAT] SKIP-NON-PRIMARY | ' + platform + ' | ' + (currentDeviceName || 'Unknown') + ' | isPrimary=false');
+          return; // Don't start the interval at all
+        }
+      } catch (err) {
+        console.warn('[HeartbeatService] Device check failed — defaulting to non-primary (safe):', err?.message);
+        isPrimaryDevice = false;
+        return;
+      }
+    }
 
     // Send immediately on start, then on interval
     sendHeartbeat();
@@ -108,5 +145,7 @@ export const heartbeatService = {
     }
     currentAppUserId = null;
     isDispatcher = false;
+    isPrimaryDevice = false;
+    currentDeviceName = null;
   },
 };
