@@ -1341,6 +1341,27 @@ class LocationTracker {
         }, 3000);
 
         console.log(`✅ [${providerName} PROVIDER] Location tracking started${useNativeBackgroundWatcher ? ' - streaming native updates' : ` - uploads every ${this.updateInterval/1000}s`} | Breadcrumbs every ${this.breadcrumbSaveInterval/1000}s + 3s watchdog`);
+
+        // ── Token-watch interval ──────────────────────────────────────────
+        // The Base44 SDK refreshes access tokens internally via axios interceptors.
+        // When the token in localStorage changes, we must update the native POST
+        // headers so the @capgo foreground service keeps authenticating after the
+        // old token expires. This is critical for background GPS: if the token
+        // rotates while the app is backgrounded and the JS heartbeat is throttled,
+        // the native POSTs would silently fail with 401 until the app foregrounds.
+        if (useNativeBackgroundWatcher && !this._tokenWatchInterval) {
+          this._lastTokenUsed = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+          this._tokenWatchInterval = setInterval(() => {
+            if (!this.isTracking) return;
+            const currentToken = localStorage.getItem('base44_access_token') || localStorage.getItem('token');
+            if (currentToken && currentToken !== this._lastTokenUsed) {
+              console.log('🔑 [LocationTracker] Access token changed — updating native POST headers');
+              this._lastTokenUsed = currentToken;
+              this.updateNativePostHeaders().catch(() => {});
+            }
+          }, 60000); // Check every 60s
+          console.log('🔑 [LocationTracker] Token-watch interval started (60s)');
+        }
       } catch (error) {
         console.error('❌ Failed to start location provider:', error);
         reject(this.handleLocationError(error));
@@ -1394,6 +1415,13 @@ class LocationTracker {
       });
     }
     this._clearHeartbeat();
+    // Stop the token-watch interval
+    if (this._tokenWatchInterval) {
+      clearInterval(this._tokenWatchInterval);
+      this._tokenWatchInterval = null;
+      this._lastTokenUsed = null;
+      console.log('🔑 [LocationTracker] Token-watch interval stopped');
+    }
     if (this.breadcrumbInterval) {
       clearInterval(this.breadcrumbInterval);
       this.breadcrumbInterval = null;

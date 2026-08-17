@@ -85,6 +85,14 @@ export const AuthProvider = ({ children }) => {
           console.error('[Auth] IDB encryption init failed after deep link:', e)
         );
 
+        // Update native GPS POST headers with the fresh token so the
+        // @capgo foreground service keeps authenticating after token rotation.
+        if (isCapacitorNativeApp()) {
+          import('@/components/utils/locationTracker').then(({ locationTracker }) => {
+            locationTracker.updateNativePostHeaders?.().catch(() => {});
+          }).catch(() => {});
+        }
+
         console.log('[Auth] Token set from deep link, redirecting to dashboard...');
 
         // Navigate to the dashboard — use a full reload to ensure
@@ -216,6 +224,14 @@ export const AuthProvider = ({ children }) => {
       const token = appParams.token || localStorage.getItem('base44_access_token');
       if (token) {
         initEncryption(token).catch((e) => console.error('[Auth] IDB encryption init failed:', e));
+        // Refresh native GPS POST headers on app startup in case the token
+        // was refreshed while the app was killed (START_STICKY restart uses
+        // the old persisted header until we call updateHeaders).
+        if (isCapacitorNativeApp()) {
+          import('@/components/utils/locationTracker').then(({ locationTracker }) => {
+            locationTracker.updateNativePostHeaders?.().catch(() => {});
+          }).catch(() => {});
+        }
       }
     } catch (error) {
       console.error('User auth check failed:', error);
