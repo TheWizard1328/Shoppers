@@ -108,7 +108,9 @@ export function useLocalPerformanceStats({
         return false;
       });
 
-      totalPay += paidDeliveries.length * payRatePerDelivery;
+      // N/C deliveries skip BASE pay only — oversized and extra km are still payable.
+      const noChargeCount = paidDeliveries.filter((d) => d?.no_charge === true).length;
+      totalPay += (paidDeliveries.length - noChargeCount) * payRatePerDelivery;
       totalPay += paidDeliveries.filter((delivery) => delivery?.oversized === true).length * oversizedRate;
 
       paidDeliveries.forEach((delivery) => {
