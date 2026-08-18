@@ -304,6 +304,7 @@ export function useLayoutInit({
     if (!currentUser || !dataLoaded || currentPageName !== 'Dashboard') return backgroundSyncManager.stop();
     const startBackgroundSync = async () => {
       try {
+        backgroundSyncManager.setCurrentUser(currentUser);
         await backgroundSyncManager.loadConfig();
         backgroundSyncManager.start();
       } catch (error) {

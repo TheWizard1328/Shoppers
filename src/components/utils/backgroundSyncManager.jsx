@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { format } from 'date-fns';
+import { syncHistoricalDateCityScoped, loadHistoricalCursor, saveHistoricalCursor, getCityIdsHash } from './historicalDeliverySync';
 
 /**
  * Background Sync Manager
@@ -34,20 +35,20 @@ class BackgroundSyncManager {
     // Default configuration
     this.config = {
       enabled: true,
-      syncInterval: 60 * 60 * 1000, // 60 minutes (increased from 30)
+      syncInterval: 3 * 60 * 1000, // 3 minutes — daytime trickle backfill (1 date/cycle)
       historicalDaysToSync: 90, // Sync past 90 days
       batchSize: 50, // Number of records per batch
       maxAPICallsPerCycle: 70, // Allow up to 70 API calls per cycle (off-peak historical backfill)
-      // Historical sync: 10 PM to 8 AM only, up to 60 dates per cycle (light payload <100 stops/date)
+      // Historical sync: daytime trickle (1 date/cycle) + fast off-peak batch (60 dates/cycle)
       deferHistoricalOnLoad: true,
       historicalDeferMinutes: 15,
       offPeakWindows: [
-        // 10 PM until 8 AM local time
+        // 10 PM until 8 AM local time — fast batch window
         { start: '22:00', end: '08:00' }
       ],
-      historicalMaxDatesPerCycleDaytime: 0,   // Never run during daytime
-      historicalMaxDatesPerCycleOffpeak: 60,  // 60 dates per cycle off-peak (~1 date/sec with 500ms throttle)
-      throttleBetweenCallsMsDaytime: 5000,
+      historicalMaxDatesPerCycleDaytime: 1,   // 1 date per cycle during daytime (gentle trickle)
+      historicalMaxDatesPerCycleOffpeak: 60,  // 60 dates per cycle off-peak (fast overnight backfill)
+      throttleBetweenCallsMsDaytime: 2000,
       throttleBetweenCallsMsOffpeak: 500,
       priorities: {
         deliveries: 1, // Highest priority
@@ -60,7 +61,9 @@ class BackgroundSyncManager {
     this.currentCycleAPICalls = 0;
     this.appStartTime = Date.now();
     this.subscribers = new Set();
-    this.historicalSyncDateCursor = null; // Persisted across cycles for sequential day-by-day backfill
+    this.historicalSyncDateCursor = null; // Persisted in IndexedDB — resumes across app restarts
+    this.currentUser = null;
+    this.cityIdsHash = '';
   }
 
   /**
@@ -117,6 +120,17 @@ class BackgroundSyncManager {
       }
       this.scheduleNextSync();
     }
+  }
+
+  /**
+   * Set the current user — needed for city-scoped historical backfill.
+   * Called from useLayoutInit when the user is confirmed and data is loaded.
+   */
+  setCurrentUser(user) {
+    this.currentUser = user;
+    this.cityIdsHash = getCityIdsHash(user);
+    // Reset in-memory cursor so the new user's persisted cursor loads on next cycle
+    this.historicalSyncDateCursor = null;
   }
 
   /**
@@ -241,34 +255,57 @@ class BackgroundSyncManager {
   }
 
   /**
-   * Sync historical deliveries incrementally
+   * Sync historical deliveries incrementally (city-scoped, runs day and night).
+   * Daytime: 1 date per cycle (gentle trickle). Off-peak: 60 dates per cycle (fast batch).
+   * Cursor persisted to IndexedDB keyed by the user's city assignment.
    */
   async syncHistoricalDeliveries() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
-
-    // Only run historical delivery sync during off-peak hours (10 PM – 8 AM local time)
-    if (!this.isOffPeakNow()) {
-      console.log('⏸️ [BackgroundSync] Historical deliveries sync skipped (off-peak only)');
+    if (!this.currentUser) {
+      console.log('⏭️ [BackgroundSync] Historical sync skipped — no current user set');
       return;
     }
 
-    // CRITICAL: NEVER sync today's date — active edits happen on today's deliveries
-    // and a background replace would wipe in-progress changes. Start from yesterday.
-    if (this.historicalSyncDateCursor == null) {
-      const today = new Date();
-      today.setDate(today.getDate() - 1);
-      this.historicalSyncDateCursor = today;
+    // Load latest stores from offline DB (cheap local read — ensures fresh city→store mapping)
+    const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
+    if (!stores || stores.length === 0) {
+      console.log('⏭️ [BackgroundSync] Historical sync skipped — no stores loaded');
+      return;
     }
 
-    // 365-day window — sync one full year of delivery history
-    const cutoffDate = new Date();
+    // Rate: fast batch off-peak, gentle trickle during the day
+    const isOffPeak = this.isOffPeakNow();
+    const maxDatesPerCycle = isOffPeak
+      ? (this.config.historicalMaxDatesPerCycleOffpeak || 60)
+      : (this.config.historicalMaxDatesPerCycleDaytime || 1);
+    const throttleMs = isOffPeak
+      ? (this.config.throttleBetweenCallsMsOffpeak || 500)
+      : (this.config.throttleBetweenCallsMsDaytime || 2000);
+
+    // CRITICAL: NEVER sync today — active edits happen on today's deliveries.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // 365-day backfill window
+    const cutoffDate = new Date(today);
     cutoffDate.setDate(cutoffDate.getDate() - 365);
 
-    const maxDatesPerCycle = this.config.historicalMaxDatesPerCycleOffpeak || 1;
+    // Load persisted cursor (city-scoped) — resume from where we left off across restarts
+    if (this.historicalSyncDateCursor == null) {
+      const persisted = await loadHistoricalCursor(this.cityIdsHash);
+      if (persisted && persisted >= cutoffDate && persisted <= yesterday) {
+        this.historicalSyncDateCursor = persisted;
+      } else {
+        this.historicalSyncDateCursor = yesterday;
+      }
+    }
+
     let syncedCount = 0;
     let cursor = new Date(this.historicalSyncDateCursor);
+    cursor.setHours(0, 0, 0, 0);
 
-    // Work backwards one day at a time (slow & steady). Stop after 1 API call.
     while (cursor >= cutoffDate && syncedCount < maxDatesPerCycle) {
       if (this.isPaused || !this.isRunning) break;
       if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) break;
@@ -276,30 +313,24 @@ class BackgroundSyncManager {
       const dateStr = format(cursor, 'yyyy-MM-dd');
 
       try {
-        const offlineRecords = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-        const offlineCount = (offlineRecords || []).length;
-
-        const onlineDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr }, '-updated_date', 5000);
-        const onlineCount = (onlineDeliveries || []).length;
+        const result = await syncHistoricalDateCityScoped(dateStr, this.currentUser, stores);
         this.currentCycleAPICalls++;
 
-        if (onlineCount === offlineCount && offlineCount > 0) {
-          console.log(`✅ [BackgroundSync] ${dateStr} already synced (${offlineCount} records) — skipping`);
-        } else {
-          // Historical date — safe to replace (no active edits expected here)
-          await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, onlineDeliveries || []);
-          console.log(`🔄 [BackgroundSync] Synced ${onlineCount} deliveries for ${dateStr} (was ${offlineCount})`);
+        if (result.synced) {
+          console.log(`🔄 [BackgroundSync] Synced ${result.onlineCount} deliveries for ${dateStr} (was ${result.offlineCount}, pruned ${result.pruned})`);
           syncedCount++;
           this.lastSyncTimes.deliveries = new Date().toISOString();
+        } else {
+          console.log(`✅ [BackgroundSync] ${dateStr} already synced (${result.offlineCount} records match) — skipping`);
         }
 
-        // Advance cursor so the next cycle picks up the prior day
+        // Advance cursor + persist so restarts resume here
         cursor.setDate(cursor.getDate() - 1);
         this.historicalSyncDateCursor = new Date(cursor);
+        await saveHistoricalCursor(this.historicalSyncDateCursor, this.cityIdsHash);
 
-        // Throttle between off-peak API calls to respect 429 rate limits
-        if ((this.config.throttleBetweenCallsMsOffpeak || 0) > 0) {
-          await new Promise((resolve) => setTimeout(resolve, this.config.throttleBetweenCallsMsOffpeak));
+        if (throttleMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, throttleMs));
         }
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429')) {
@@ -307,20 +338,18 @@ class BackgroundSyncManager {
         } else {
           console.warn(`⚠️ [BackgroundSync] Failed to sync deliveries for ${dateStr}:`, error.message);
         }
-        break; // Stop on error for this cycle — try again next cycle
+        break;
       }
     }
 
-    // If we've reached the 365-day cutoff, reset cursor to yesterday so future
-    // runs re-validate the most recent history instead of stalling.
+    // Reached the 365-day floor → reset cursor to yesterday for re-validation pass
     if (this.historicalSyncDateCursor < cutoffDate) {
-      const resetDate = new Date();
-      resetDate.setDate(resetDate.getDate() - 1);
-      this.historicalSyncDateCursor = resetDate;
+      this.historicalSyncDateCursor = yesterday;
+      await saveHistoricalCursor(yesterday, this.cityIdsHash);
       console.log('🔄 [BackgroundSync] Historical sync reached 365-day cutoff — resetting cursor to yesterday');
     }
 
-    // Purge deliveries older than 1 year to keep IndexedDB from growing unbounded
+    // Purge deliveries older than 1 year to keep IndexedDB bounded
     try {
       const pruneResult = await offlineDB.pruneOldDeliveries();
       if (pruneResult?.removed > 0) {
