@@ -211,14 +211,33 @@ class NativeLocationProvider {
       }
     };
 
+    // ── Build the full options object, forwarding native POST config ──────────
+    // CRITICAL: url, headers, and minIntervalMs must be forwarded to the native
+    // plugin. Without these, the plugin runs GPS in the foreground service but
+    // has no native HTTP POST target — so when the WebView is throttled in the
+    // background, GPS callbacks queue up in the Capacitor bridge but never reach
+    // the server. With url+headers, the plugin POSTs each fix directly from
+    // native code, bypassing the WebView entirely.
+    const startOpts = {
+      requestPermissions: options.requestPermissions ?? true,
+      stale: false,
+      distanceFilter: options.distanceFilter ?? 0,
+      backgroundTitle: options.backgroundTitle || 'RxDeliver — Active Delivery',
+      backgroundMessage: options.backgroundMessage || 'Location is being tracked for your active deliveries.',
+    };
+    // Forward native POST configuration if provided
+    if (options.url) startOpts.url = options.url;
+    if (options.headers) startOpts.headers = options.headers;
+    if (options.minIntervalMs) startOpts.minIntervalMs = options.minIntervalMs;
+
+    console.log('📱 [NativeProvider] start() options:', {
+      ...startOpts,
+      url: startOpts.url ? startOpts.url.replace(/\/functions\/.*$/, '/functions/***') : undefined,
+      headers: startOpts.headers ? { ...startOpts.headers, Authorization: 'Bearer ***' } : undefined,
+    });
+
     await CapGoGeolocation.start(
-      {
-        requestPermissions: options.requestPermissions ?? true,
-        stale: false,
-        distanceFilter: options.distanceFilter ?? 0,
-        backgroundTitle: options.backgroundTitle || 'RxDeliver — Active Delivery',
-        backgroundMessage: options.backgroundMessage || 'Location is being tracked for your active deliveries.',
-      },
+      startOpts,
       this._callback
     );
 
