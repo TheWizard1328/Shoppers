@@ -65,7 +65,7 @@ export default function PickupMarkers({
     const icon = pickup.useSimpleCircle
       ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, pickup.isNextDelivery, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished, markerStoreColor)
       : pickup.isInterStorePickup
-        ? createDeliveryIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, false, pickup.duplicateCount, currentZoom, pickup.isNextDelivery, isHighlighted, hasIncompleteStops, false, false, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished)
+        ? createDeliveryIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, false, pickup.duplicateCount, currentZoom, pickup.isNextDelivery, isHighlighted, hasIncompleteStops, pickup.ampm_deliveries === 'PM', false, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished)
         : createStoreIcon(pickup.status, pickup.pinColor, isFanned, pickup.status === 'pending' ? null : pickup.number, currentZoom, pickup.duplicateCount, isHighlighted, pickup.isNextDelivery, hasIncompleteStops, false, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished, pickup.after_hours_pickup === true);
 
     const handlers = pickup.isOtherDriver ? {
