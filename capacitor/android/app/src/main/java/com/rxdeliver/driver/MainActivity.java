@@ -1,6 +1,5 @@
 package com.rxdeliver.driver;
 
-import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -16,11 +15,13 @@ import android.os.Looper;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.widget.Toast;
+import androidx.core.content.FileProvider;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.CapConfig;
+import java.io.File;
 import java.lang.reflect.Field;
 
 public class MainActivity extends BridgeActivity {
@@ -92,15 +93,36 @@ public class MainActivity extends BridgeActivity {
         public void openDownloadedApk(String uri) {
             runOnUiThread(() -> {
                 try {
+                    Uri installableUri = resolveInstallableUri(uri);
                     Intent installIntent = new Intent(Intent.ACTION_VIEW);
-                    installIntent.setDataAndType(Uri.parse(uri), "application/vnd.android.package-archive");
-                    installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    installIntent.setDataAndType(installableUri, "application/vnd.android.package-archive");
+                    installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     startActivity(installIntent);
                 } catch (Exception e) {
                     Toast.makeText(MainActivity.this, "Unable to open APK: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 }
             });
         }
+    }
+
+    // Since Android 7.0 (API 24), passing a raw file:// URI to another app's
+    // Intent (e.g. the Package Installer) throws FileUriExposedException —
+    // this was the actual root cause of "Unable to open APK: file://..." on
+    // both the web banner's "Open & Install" button AND the native dialog's
+    // "Open" button. DownloadManager's COLUMN_LOCAL_URI returns a file:// URI,
+    // so it must be re-resolved through the FileProvider (declared in
+    // AndroidManifest.xml with authority "${applicationId}.fileprovider") to
+    // get an installable content:// URI with a granted read permission.
+    private Uri resolveInstallableUri(String rawUri) {
+        Uri parsed = Uri.parse(rawUri);
+        if ("content".equals(parsed.getScheme())) {
+            // Already a content:// URI (some OEMs/API levels return this directly) — use as-is.
+            return parsed;
+        }
+        String path = parsed.getPath();
+        if (path == null) path = rawUri; // fallback: treat the raw string as a filesystem path
+        File apkFile = new File(path);
+        return FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", apkFile);
     }
 
     @Override
@@ -281,7 +303,6 @@ public class MainActivity extends BridgeActivity {
                         if (status == DownloadManager.STATUS_SUCCESSFUL) {
                             String localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
                             activeDownloadId = -1;
-                            showDownloadCompleteDialog(Uri.parse(localUri));
                             notifyWebDownloadComplete(localUri);
                         } else if (status == DownloadManager.STATUS_FAILED) {
                             int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
@@ -335,7 +356,6 @@ public class MainActivity extends BridgeActivity {
                                     try { unregisterReceiver(downloadCompleteReceiver); } catch (Exception ignored) {}
                                     downloadCompleteReceiver = null;
                                 }
-                                showDownloadCompleteDialog(Uri.parse(localUri));
                                 notifyWebDownloadComplete(localUri);
                                 return;
                             } else if (status == DownloadManager.STATUS_FAILED) {
@@ -397,26 +417,6 @@ public class MainActivity extends BridgeActivity {
                     null);
             }
         } catch (Exception ignored) {}
-    }
-
-    private void showDownloadCompleteDialog(Uri apkUri) {
-        runOnUiThread(() -> {
-            new AlertDialog.Builder(this)
-                .setTitle("Download Complete")
-                .setMessage("RxDeliver APK downloaded successfully. Open it to install?")
-                .setPositiveButton("Open", (d, w) -> {
-                    try {
-                        Intent installIntent = new Intent(Intent.ACTION_VIEW);
-                        installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-                        installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(installIntent);
-                    } catch (Exception e) {
-                        Toast.makeText(this, "Unable to open APK: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    }
-                })
-                .setNegativeButton("Later", null)
-                .show();
-        });
     }
 
     private String extractFileName(String url, String contentDisposition) {
