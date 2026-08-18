@@ -5,6 +5,8 @@ export function useLocalPerformanceStats({
   currentUser,
   isDataLoaded,
   isDispatcher,
+  isAdmin,
+  isDriver,
   selectedDriverId,
   filteredDeliveries,
   patients,
@@ -16,6 +18,19 @@ export function useLocalPerformanceStats({
     if (!currentUser?.id || !isDataLoaded || isDispatcher) {
       setPerformanceStats(null);
       setIsLoadingPayrollStats(false);
+      return;
+    }
+
+    // When a pure admin views a DIFFERENT driver, the authoritative payroll is the
+    // backend getDriverPayrollStats function (already handles N/C correctly). Defer to
+    // that hook — don't clobber its result with a local computation that may miss the
+    // remote driver's pay rate in React appUsers state (which causes StatsCard to flash $0).
+    const isPureAdmin = isAdmin && !isDriver;
+    const deferToBackend = isPureAdmin
+      && selectedDriverId
+      && selectedDriverId !== 'all'
+      && selectedDriverId !== currentUser?.id;
+    if (deferToBackend) {
       return;
     }
 
@@ -296,6 +311,8 @@ export function useLocalPerformanceStats({
     currentUser?.id,
     isDataLoaded,
     isDispatcher,
+    isAdmin,
+    isDriver,
     selectedDriverId,
     filteredDeliveries,
     patients,

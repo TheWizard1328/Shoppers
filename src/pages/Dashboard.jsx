@@ -33,7 +33,7 @@ import { notifyDriverRetry } from "@/components/utils/deliveryMessaging";
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 import { toast } from 'sonner';
 import SkippedStopsDialog from '../components/dashboard/SkippedStopsDialog';
-import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
+import { useDashboardPerformanceStats } from "@/components/dashboard/useDashboardPerformanceStats";
 import { calculateDistance, populateTemporaryStartTimes, buildMapPadding } from "@/components/dashboard/DashboardHelpers";
 import { getFabTargetDriverMapLocation, isDriverOffDuty } from "@/components/dashboard/mapViewPhaseHelpers";
 import { getInterStoreLocationSync, isInterStoreDelivery } from "@/components/utils/interStoreDisplayName";
@@ -617,7 +617,7 @@ function Dashboard() {
   useEffect(() => { if (!isMobile || !isDataLoaded) return; const t = setTimeout(() => { if (!isExpanded) setStatsPanelOpacity(0.5); }, 5000); return () => clearTimeout(t); }, [isDataLoaded, isExpanded, isMobile]);
   const handleReoptimizeRouteRef = useRef(null);
   useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, mapUserUnlockedRef, lastUserInteractionRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger, onOnDutyFromToggle: () => handleReoptimizeRouteRef.current?.() });
-  useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, selectedDriverId, selectedDate, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
+  useDashboardPerformanceStats({ currentUser, isDataLoaded, isDispatcher, isAdmin, isDriver, selectedDriverId, selectedDate, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({ currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally });
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });
   useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, isPrimaryDevice, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker, pendingPhaseRef, driverLocationRef, selectedDriverId, setMapViewPhase, setIsMapViewLocked, mapUserUnlockedRef });

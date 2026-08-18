@@ -65,7 +65,16 @@ export default function usePayrollStats({
     }
   }, [isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate, setPerformanceStats, setIsLoadingPayrollStats]);
 
-  const schedulePayrollFetch = useCallback((reason = 'manual') => {
+  const schedulePayrollFetch = useCallback((reason = 'manual', opts = {}) => {
+    // Explicit user action (admin switching drivers in the dashboard) bypasses
+    // the throttle so the StatsCard refreshes immediately rather than showing $0
+    // for up to MIN_INTERVAL after each switch.
+    if (opts.bypassThrottle) {
+      clearTimer();
+      fetchNow();
+      return;
+    }
+
     const now = Date.now();
     const inProgress = !!sessionStorage.getItem('driver_status_change_in_progress');
     const baseDelay = inProgress ? 1500 : 0; // cushion for bursty toggle flows
