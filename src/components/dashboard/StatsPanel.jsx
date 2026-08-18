@@ -198,8 +198,7 @@ export default function StatsPanel({
       const driverAppUser = (appUsers || []).find((appUser) => appUser?.user_id === driverId);
       const driverListUser = driversList.find((driver) => driver?.id === driverId);
       const driverName = route?.driverName || driverAppUser?.user_name || driverListUser?.user_name || driverListUser?.full_name || 'Unknown';
-      const totalStops = countLegendStops(driverDeliveries);
-      const afterHoursCount = countAfterHoursPickups(driverDeliveries);
+      const totalStops = countLegendStops(driverDeliveries) + countAfterHoursPickups(driverDeliveries);
       const status = driverAppUser?.driver_status || 'offline';
       const heartbeatAgeMs = driverAppUser?.location_updated_at ? Date.now() - new Date(driverAppUser.location_updated_at).getTime() : Infinity;
       const hasHeartbeat = heartbeatAgeMs <= 120000;
@@ -208,7 +207,6 @@ export default function StatsPanel({
         driverId,
         driverName,
         totalStops,
-        afterHoursCount,
         color: route?.color || getDriverColor({ id: driverId, user_name: driverName }),
         driverStatus: status,
         hasHeartbeat,
@@ -735,9 +733,7 @@ export default function StatsPanel({
                 
                   </div>
                   <span className="text-sm font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
-                  <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>
-                    ({route.totalStops}{route.afterHoursCount > 0 && <span style={{ color: '#c2410c', fontWeight: 600 }}> +{route.afterHoursCount}</span>})
-                  </span>
+                  <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
                 </button>
                 )}
             </div>
