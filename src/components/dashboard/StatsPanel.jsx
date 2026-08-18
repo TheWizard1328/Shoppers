@@ -32,7 +32,7 @@ import { saveSetting } from "@/components/utils/userSettingsManager";
 import { getDriverColor } from "@/components/utils/driverUtils";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { sortUsers } from "@/components/utils/sorting";
-import { countLegendStops } from "@/components/dashboard/legendStopCounter";
+import { countLegendStops, countAfterHoursPickups } from "@/components/dashboard/legendStopCounter";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -199,6 +199,7 @@ export default function StatsPanel({
       const driverListUser = driversList.find((driver) => driver?.id === driverId);
       const driverName = route?.driverName || driverAppUser?.user_name || driverListUser?.user_name || driverListUser?.full_name || 'Unknown';
       const totalStops = countLegendStops(driverDeliveries);
+      const afterHoursCount = countAfterHoursPickups(driverDeliveries);
       const status = driverAppUser?.driver_status || 'offline';
       const heartbeatAgeMs = driverAppUser?.location_updated_at ? Date.now() - new Date(driverAppUser.location_updated_at).getTime() : Infinity;
       const hasHeartbeat = heartbeatAgeMs <= 120000;
@@ -207,6 +208,7 @@ export default function StatsPanel({
         driverId,
         driverName,
         totalStops,
+        afterHoursCount,
         color: route?.color || getDriverColor({ id: driverId, user_name: driverName }),
         driverStatus: status,
         hasHeartbeat,
@@ -733,7 +735,9 @@ export default function StatsPanel({
                 
                   </div>
                   <span className="text-sm font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
-                  <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
+                  <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>
+                    ({route.totalStops}{route.afterHoursCount > 0 && <span style={{ color: '#c2410c', fontWeight: 600 }}> +{route.afterHoursCount}</span>})
+                  </span>
                 </button>
                 )}
             </div>

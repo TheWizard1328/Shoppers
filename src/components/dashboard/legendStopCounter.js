@@ -41,3 +41,41 @@ export function isCountableLegendStop(item, { requireMarkerTypeDelivery = false 
 export function countLegendStops(items, opts = {}) {
   return (items || []).filter((item) => isCountableLegendStop(item, opts)).length;
 }
+
+/**
+ * Returns true if a delivery is an inter-store transfer (ISD or ISP) by id prefix.
+ * @param {object} item
+ * @returns {boolean}
+ */
+const isInterStoreItem = (item) => {
+  const did = item?.delivery_id || '';
+  return did.startsWith('ISD') || did.startsWith('ISP');
+};
+
+/**
+ * Returns true for a countable After-Hours pickup.
+ * Mirrors the payroll convention (calculateDriverPayroll):
+ *   - no patient_id          (it is a store pickup, not a patient delivery)
+ *   - NOT an inter-store     (ISD/ISP are paid as inter-store, not after-hours)
+ *   - after_hours_pickup === true
+ *   - status completed or cancelled
+ *
+ * @param {object} item
+ * @returns {boolean}
+ */
+export function isAfterHoursPickup(item) {
+  if (!item) return false;
+  if (item.patient_id) return false;
+  if (isInterStoreItem(item)) return false;
+  if (item.after_hours_pickup !== true) return false;
+  return item.status === 'completed' || item.status === 'cancelled';
+}
+
+/**
+ * Counts how many of the given items are countable After-Hours pickups.
+ * @param {Array} items
+ * @returns {number}
+ */
+export function countAfterHoursPickups(items) {
+  return (items || []).filter((item) => isAfterHoursPickup(item)).length;
+}
