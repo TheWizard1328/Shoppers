@@ -37,8 +37,8 @@ class BackgroundSyncManager {
       syncInterval: 60 * 60 * 1000, // 60 minutes (increased from 30)
       historicalDaysToSync: 90, // Sync past 90 days
       batchSize: 50, // Number of records per batch
-      maxAPICallsPerCycle: 1, // Single API call per cycle to avoid 429s
-      // Historical sync: 10 PM to 8 AM only, one date at a time (slow & steady)
+      maxAPICallsPerCycle: 70, // Allow up to 70 API calls per cycle (off-peak historical backfill)
+      // Historical sync: 10 PM to 8 AM only, up to 60 dates per cycle (light payload <100 stops/date)
       deferHistoricalOnLoad: true,
       historicalDeferMinutes: 15,
       offPeakWindows: [
@@ -46,7 +46,7 @@ class BackgroundSyncManager {
         { start: '22:00', end: '08:00' }
       ],
       historicalMaxDatesPerCycleDaytime: 0,   // Never run during daytime
-      historicalMaxDatesPerCycleOffpeak: 1,   // 1 date per cycle off-peak (slow & steady)
+      historicalMaxDatesPerCycleOffpeak: 60,  // 60 dates per cycle off-peak (~1 date/sec with 500ms throttle)
       throttleBetweenCallsMsDaytime: 5000,
       throttleBetweenCallsMsOffpeak: 500,
       priorities: {
@@ -296,6 +296,11 @@ class BackgroundSyncManager {
         // Advance cursor so the next cycle picks up the prior day
         cursor.setDate(cursor.getDate() - 1);
         this.historicalSyncDateCursor = new Date(cursor);
+
+        // Throttle between off-peak API calls to respect 429 rate limits
+        if ((this.config.throttleBetweenCallsMsOffpeak || 0) > 0) {
+          await new Promise((resolve) => setTimeout(resolve, this.config.throttleBetweenCallsMsOffpeak));
+        }
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429')) {
           console.log('⏰ [BackgroundSync] Rate limited - stopping delivery sync');
