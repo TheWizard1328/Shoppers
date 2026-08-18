@@ -909,7 +909,17 @@ class LocationTracker {
     // CRITICAL: Always update lastPosition so the heartbeat interval has a fresh fix.
     this.lastPosition = { latitude, longitude, accuracy };
 
-    if (typeof window !== 'undefined') {
+    // ── UI event dispatch — SKIP when app is backgrounded ──────────────────
+    // When the app is hidden (document.hidden), nobody is looking at the marker.
+    // Dispatching driverPositionUpdated triggers React state updates (setDriverLocation)
+    // and map re-renders — pure waste of CPU/GPU when backgrounded. We still keep
+    // lastPosition fresh (above) for the 15s heartbeat, breadcrumb collection, and
+    // instant marker snap on foreground return (via _resumeAfterAbsence).
+    //
+    // The native foreground service (CapGo) continues POSTing to the server every ~1s
+    // regardless of WebView visibility, so other devices/dispatchers still see live
+    // coordinates. This throttle only affects the LOCAL UI on the driver's own device.
+    if (typeof window !== 'undefined' && (typeof document === 'undefined' || !document.hidden)) {
       const detail = {
         userId: this.currentUser?.id,
         latitude,
@@ -919,7 +929,6 @@ class LocationTracker {
         source: this.locationProvider?.name || 'web'
       };
       window.dispatchEvent(new CustomEvent('driverPositionUpdated', { detail }));
-      window.dispatchEvent(new CustomEvent('driverLocationChanged', { detail }));
     }
 
     if (!this.isTracking) return;
@@ -1727,13 +1736,27 @@ class LocationTracker {
         this.isPrimaryDevice
       );
 
-      // (c) Dispatch driverLocationFocusRefresh so useDriverLocationSync pipes this into React state
+      // (c) Dispatch driverLocationFocusRefresh so StopCard range checks fire immediately
       window.dispatchEvent(new CustomEvent('driverLocationFocusRefresh', {
         detail: {
           userId: this.currentUser?.id,
           latitude,
           longitude,
           accuracy,
+          source: 'resume'
+        }
+      }));
+
+      // (c1) Dispatch driverPositionUpdated so the map marker (useDriverLocationSync)
+      //      snaps to the fresh GPS position instantly on foreground return — don't
+      //      wait ~1s for the next watchPosition callback.
+      window.dispatchEvent(new CustomEvent('driverPositionUpdated', {
+        detail: {
+          userId: this.currentUser?.id,
+          latitude,
+          longitude,
+          accuracy,
+          timestamp: getLocalTimestamp(),
           source: 'resume'
         }
       }));
@@ -1901,6 +1924,19 @@ if (typeof document !== 'undefined') {
         locationTracker.currentUser.id,
         _focusDate
       ).catch(() => {});
+
+      // Snap the map marker to the last known position immediately — we suppressed
+      // driverPositionUpdated while backgrounded, so the marker may be stale.
+      window.dispatchEvent(new CustomEvent('driverPositionUpdated', {
+        detail: {
+          userId: locationTracker.currentUser.id,
+          latitude: locationTracker.lastPosition.latitude,
+          longitude: locationTracker.lastPosition.longitude,
+          accuracy: locationTracker.lastPosition.accuracy,
+          timestamp: getLocalTimestamp(),
+          source: 'foreground_snap'
+        }
+      }));
     }
 
     // ── Web-only (off-duty) GPS refresh on foreground ──
