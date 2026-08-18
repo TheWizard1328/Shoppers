@@ -1175,11 +1175,17 @@ class LocationTracker {
               requestPermissions: true,
               distanceFilter: 0,
               // CRITICAL: @capgo/background-geolocation reads "minIntervalMs" (NOT "interval")
-              // to set the native LocationManager polling interval. Without this, the
-              // service defaults to 1000ms polling — generating excessive callbacks that
-              // get throttled by the WebView and waste battery. 15000ms matches our
-              // upload cadence so native GPS fires exactly when we need to upload.
-              minIntervalMs: 15000,
+              // to set the native LocationManager polling interval. This controls BOTH
+              // the GPS hardware firing rate AND the native POST throttle (shouldPost).
+              //
+              // Set to 1000ms (1 second) so the driver's own marker moves smoothly on
+              // every GPS fix. The 15-second DB upload throttle is handled by TWO layers:
+              //   1. JS layer: updateLocationInDatabase() has a 15s upload gate
+              //   2. Server layer: nativeLocationUpdate backend function throttles to 15s
+              // The native POST fires every 1s but the server ignores most, only writing
+              // to the DB every 15s. This wastes lightweight HTTP calls but ensures the
+              // local marker updates smoothly while keeping DB writes throttled.
+              minIntervalMs: 1000,
               backgroundTitle: 'RxDeliver location tracking',
               backgroundMessage: 'Tracking delivery location in the background.'
             };

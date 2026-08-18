@@ -8,17 +8,17 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
  * The plugin POSTs location JSON directly from native code (bypassing the WebView),
  * so location updates reach the server even when Android throttles/suspends JS.
  *
+ * GPS hardware fires every ~1 second (minIntervalMs: 1000 in the plugin config).
+ * This function throttles DB writes to every 15 seconds by checking the AppUser's
+ * location_updated_at timestamp. POSTs that arrive within the throttle window
+ * are acknowledged with 200 OK but skip the DB writes entirely.
+ *
  * Request body (from the plugin):
  *   { latitude, longitude, accuracy, altitude, bearing, speed, time, simulated, source: "native" }
  *
  * Headers:
  *   Authorization: Bearer <access_token>
  *   X-AppUser-Id: <app_user_id>
- *
- * This function does TWO things per POST:
- *   1. Updates the AppUser record with new coordinates + timestamp (+ WS broadcast)
- *   2. Appends the GPS point to the breadcrumb master trail (DeliveryBreadcrumbs, stop_order=-1)
- *      so other devices see the driver's trail even when the WebView is suspended.
  */
 
 // ── Polyline encoding (1e5 precision, pure arithmetic — no bitwise ops) ──────
@@ -82,6 +82,12 @@ function getEdmontonDateString() {
   return edmontonTime.toISOString().slice(0, 10);
 }
 
+// ── Server-side throttle ──────────────────────────────────────────────────
+// The native GPS fires every ~1 second. We only write to the DB every 15 seconds
+// to match the JS-layer upload cadence. POSTs within the throttle window are
+// acknowledged with 200 OK but skip all DB writes.
+const DB_WRITE_THROTTLE_MS = 15000;
+
 export default async function(req) {
   try {
     // ── Parse headers ──────────────────────────────────────────────────────
@@ -130,6 +136,48 @@ export default async function(req) {
 
     // ── Create authenticated Base44 client ─────────────────────────────────
     const base44 = createClientFromRequest(req);
+
+    // ── 15-second server-side throttle ──────────────────────────────────────
+    // The native GPS fires every ~1 second (minIntervalMs: 1000). We only
+    // want to write to the DB every 15 seconds. Check the AppUser's
+    // location_updated_at — if < 15 seconds ago, skip ALL writes and return 200.
+    // This keeps the local marker smooth (every 1s via JS callbacks) while
+    // preventing excessive DB writes from the native POST path.
+    try {
+      let existingAppUser = null;
+      try {
+        existingAppUser = await base44.entities.AppUser.get(appUserId);
+      } catch (_) {
+        try { existingAppUser = await base44.asServiceRole.entities.AppUser.get(appUserId); } catch (__) {}
+      }
+
+      const lastUpdatedAt = existingAppUser?.location_updated_at;
+      if (lastUpdatedAt) {
+        const elapsed = Date.now() - new Date(lastUpdatedAt).getTime();
+        if (elapsed < DB_WRITE_THROTTLE_MS) {
+          // Throttled — acknowledge the POST but skip DB writes
+          return new Response(JSON.stringify({
+            success: true,
+            throttled: true,
+            appUserId,
+            latitude,
+            longitude,
+            timestamp: new Date().toISOString(),
+            source: 'native',
+            appUserUpdated: false,
+            breadcrumbAppended: false,
+            throttleMsRemaining: DB_WRITE_THROTTLE_MS - elapsed,
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    } catch (throttleErr) {
+      // If throttle check fails, proceed with the write — better to write
+      // too often than to stop writing entirely
+      console.warn('⚠️ [nativeLocationUpdate] Throttle check failed, proceeding:', throttleErr?.message);
+    }
 
     // ── Build update data ──────────────────────────────────────────────────
     const nowISO = new Date().toISOString();
