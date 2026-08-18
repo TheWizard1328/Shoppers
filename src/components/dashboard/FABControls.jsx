@@ -56,7 +56,7 @@ export default function FABControls({
   const { isMobile } = useDevice();
   const hasVisibleCards = deliveriesWithStopOrder.length > 0 && cardsReadyForFAB;
 
-  const fabPosition = isMobile ? 'absolute' : 'fixed';
+  const fabPosition = 'absolute';
   const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
   const tempBadgeBottom = (hasVisibleCards && !immersiveHidden ? stopCardsBaseHeight + bottomNavHeight : bottomNavHeight) + 10;
 

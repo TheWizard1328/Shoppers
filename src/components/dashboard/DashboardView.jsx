@@ -548,7 +548,7 @@ function DashboardView({
           selectedDate={selectedDateStr}
           immersiveHidden={immersiveHidden}
           immersiveTopOffset={statsCardBaseHeight}
-          fabPosition={isMobile ? 'absolute' : 'fixed'}
+          fabPosition="absolute"
           hasVisibleCards={deliveriesWithStopOrder.length > 0 && cardsReadyForFAB}
           stopCardsHeight={stopCardsBaseHeight}
         />

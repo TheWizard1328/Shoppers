@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useDevice } from '@/components/utils/DeviceContext';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
@@ -8,7 +7,6 @@ import { fabControlEvents } from '@/components/utils/fabControlEvents';
 
 export default function MapViewCycleFAB({
   currentUser = null, filteredDeliveries = [], onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false, immersiveHidden = false, bottomNavHeight = 0 }) {
-  const { isMobile } = useDevice();
   const [isFlashing, setIsFlashing] = useState(false);
   const [isTemporarilyDeactivated, setIsTemporarilyDeactivated] = useState(false);
   const flashTimeoutRef = useRef(null);
@@ -157,7 +155,7 @@ export default function MapViewCycleFAB({
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
   // Must also account for bottomNavHeight since stop cards sit above it
   const bottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
-  const fabPosition = isMobile ? 'absolute' : 'fixed';
+  const fabPosition = 'absolute';
   const rightPixels = immersiveHidden ? 12 : 16;
 
   // No longer needed — GuideAssistant uses getBoundingClientRect directly.

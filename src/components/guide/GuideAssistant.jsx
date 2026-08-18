@@ -169,10 +169,6 @@ export default function GuideAssistant() {
 
   useEffect(() => {
     const compute = () => {
-      if (window.innerWidth >= 850) {
-        setGuideBottomPx(24);
-        return;
-      }
       const fabEl = document.querySelector('[data-map-cycle-fab]');
       if (fabEl && fabEl.offsetWidth > 0) {
         const rect = fabEl.getBoundingClientRect();

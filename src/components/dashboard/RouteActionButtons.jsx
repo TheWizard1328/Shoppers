@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useDevice } from '@/components/utils/DeviceContext';
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -69,7 +68,6 @@ export default function RouteActionButtons({
   immersiveHidden,
   updateDeliveriesLocally,
 }) {
-  const { isMobile } = useDevice();
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareRows, setCompareRows] = useState([]);
   const [cyclingLocations, setCyclingLocations] = useState([]);
@@ -215,7 +213,7 @@ export default function RouteActionButtons({
 
   if (!isAppOwner(currentUser) || selectedDriverId === 'all') return null;
 
-  const fabPosition = isMobile ? 'absolute' : 'fixed';
+  const fabPosition = 'absolute';
 
   return (
     <>

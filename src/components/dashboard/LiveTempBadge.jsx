@@ -454,7 +454,7 @@ export default function LiveTempBadge({
             : ((hasVisibleCards) ? stopCardsHeight + bottomNavHeight : bottomNavHeight + 56) + 10;
           // When no stop cards: sit above the MapViewCycleFAB (~48px tall + 8px gap = 56px offset)
           return { position: fabPosition, bottom: `${bottom}px`,
-            left: fabPosition === 'fixed' ? 'var(--sidebar-width)' : 0, right: 0 };
+            left: 0, right: 0 };
         })()}
       >
         <div
