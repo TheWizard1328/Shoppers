@@ -1029,15 +1029,15 @@ export default function AdminMetrics() {
                 `${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} (Day-by-Day)` :
                 `Store ${metricsViewMode === 'fees' ? 'App Fees' : 'Breakdown'} (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
                 }
-                {isAppOwner(currentUser) && selectedMonth && metricsViewMode === 'deliveries' && (
+                {isAppOwner(currentUser) && selectedMonth && !selectedStoreMonth && metricsViewMode === 'deliveries' && (
                   <span className="ml-2 text-[11px] font-normal text-amber-600 dark:text-amber-400 whitespace-nowrap" title="Reminder: the + next to each daily total marks each After Hours pickup.">
                     + = After Hours pickup
                   </span>
                 )}
                 </CardTitle>
 
-            {/* View Mode Toggle Buttons - show only when a month is selected */}
-            {selectedMonth &&
+            {/* View Mode Toggle Buttons - show only when a month is selected (not a specific store) */}
+            {selectedMonth && !selectedStoreMonth &&
               <div className="flex items-center gap-2">
                 <Button
                   onClick={() => setShowDayByDay(true)}
