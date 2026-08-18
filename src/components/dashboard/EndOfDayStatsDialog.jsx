@@ -179,17 +179,25 @@ export default function EndOfDayStatsDialog({
     const yearStr = String(currentYear);
     const driverIdToMatch = driver?.user_id || driver?.id || null;
 
-    // Group all year deliveries by date → count delivery stops (patient + ISP/ISD),
-    // matching the Total Stops card so the best-day comparison is apples-to-apples.
+    // Group all year deliveries by date → count patient deliveries only,
+    // matching the Total Stops card (patient_id present) so the best-day
+    // comparison is apples-to-apples.
     const dayMap = new Map();
     (allYearDeliveries || []).forEach(d => {
       if (!d || !d.delivery_date || !d.delivery_date.startsWith(yearStr)) return;
-      if (!isDeliveryCountStop(d)) return; // patient + inter-store; excludes plain pickups & cycling markers
+      if (!d.patient_id) return; // patient deliveries only — matches Total Stops card
       if (driverIdToMatch && d.driver_id !== driverIdToMatch) return;
       if (!dayMap.has(d.delivery_date)) dayMap.set(d.delivery_date, { stops: 0, pay: 0 });
       const entry = dayMap.get(d.delivery_date);
       entry.stops += 1;
     });
+
+    // Override today's entry with the live Total Stops card value so the
+    // best-day record reflects the exact same count shown in the dialog.
+    // (allYearDeliveries can lag behind the freshly-computed card total.)
+    if (deliveryDate && deliveryDate.startsWith(yearStr) && total > 0) {
+      dayMap.set(deliveryDate, { stops: total, pay: 0 });
+    }
 
     let bestDayByStops = null;
     let bestDayByEarned = null;

@@ -4,7 +4,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
 const CACHE_VERSION = '6';
-const SUMMARY_VERSION = '4';
+const SUMMARY_VERSION = '5';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
 const CACHE_DISABLED = false;
@@ -1030,10 +1030,13 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   });
   metrics.driverData = Array.from(uniqueDriverMap.values());
 
-  const isCountableCompletedDelivery = (d) => d?.no_charge !== true && isStandardOrInterStoreDelivery(d) && isCompletedStatus(d) && !isReturnDelivery(d);
-  const isCountableReturnDelivery = (d) => d?.no_charge !== true && isStandardOrInterStoreDelivery(d) && isCompletedStatus(d) && isReturnDelivery(d);
-  const isCountableFailedDelivery = (d) => d?.no_charge !== true && isStandardOrInterStoreDelivery(d) && isFailedStatus(d);
-  const isCountableAfterHoursPickup = (d) => d?.no_charge !== true && isAfterHoursPickupDelivery(d) && (isCompletedStatus(d) || isCancelledStatus(d));
+  // N/C (no_charge) deliveries still count toward store/daily totals (and earn
+  // oversized + extra km) — only driver BASE pay excludes N/C. The no_charge
+  // filter is intentionally removed from these countable-delivery checks.
+  const isCountableCompletedDelivery = (d) => isStandardOrInterStoreDelivery(d) && isCompletedStatus(d) && !isReturnDelivery(d);
+  const isCountableReturnDelivery = (d) => isStandardOrInterStoreDelivery(d) && isCompletedStatus(d) && isReturnDelivery(d);
+  const isCountableFailedDelivery = (d) => isStandardOrInterStoreDelivery(d) && isFailedStatus(d);
+  const isCountableAfterHoursPickup = (d) => isAfterHoursPickupDelivery(d) && (isCompletedStatus(d) || isCancelledStatus(d));
 
   const isBillableDelivery = (d, storePaysFees) => isAdminBillableDelivery(d, storePaysFees);
 
@@ -1052,7 +1055,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const isDriverPayable = isDriverPayableDelivery(delivery);
     const isBillable = isBillableDelivery(delivery, wasPayingOnDeliveryDate);
     const isNonBillable = isNonBillableDelivery(delivery, wasPayingOnDeliveryDate);
-    const countsTowardMonthlySplit = isDriverPayable && delivery.no_charge !== true;
+    const countsTowardMonthlySplit = isDriverPayable;
 
     if (countsTowardMonthlySplit) {
       metrics.monthlyData[monthIndex].total++;

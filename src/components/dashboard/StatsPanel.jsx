@@ -200,6 +200,7 @@ export default function StatsPanel({
       const driverName = route?.driverName || driverAppUser?.user_name || driverListUser?.user_name || driverListUser?.full_name || 'Unknown';
       const totalStops = driverDeliveries.filter((delivery) => {
         if (!delivery) return false;
+        if (delivery.is_cycling_marker === true) return false; // cycling markers are not delivery stops
         if (!finishedStatuses.has(delivery.status)) return false;
         if (!!delivery.patient_id) return true; // regular delivery
         if (!isDispatcher && delivery.after_hours_pickup === true) return true; // after-hours pickup (hidden from dispatchers)

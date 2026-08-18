@@ -353,7 +353,6 @@ class LocationTracker {
   }
 
   shouldKeepNativeTrackingAlive() {
-      this._currentDeviceName = currentDevice?.device_name || 'Unknown';
     // Web-only mode (off-duty) should also survive upload failures — the heartbeat
     // is lightweight and the driver's shared location marker depends on it.
     if (this._webOnlyMode) return this.isPrimaryDevice;

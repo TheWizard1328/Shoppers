@@ -154,9 +154,8 @@ export default function PayrollSummaryCard({
       const periodDeliveries = deliveries.filter((d) => {
         if (!d || !d.delivery_date || d.driver_id !== driverId) return false;
 
-        // Exclude no-charge deliveries — not driver payable
-        if (d.no_charge) return false;
-
+        // N/C (no_charge) deliveries are INCLUDED here so their oversized and
+        // extra km pay count. Only the BASE delivery pay is excluded (below).
         const matchedPatient = d.patient_id ?
         patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
         null;
@@ -197,19 +196,21 @@ export default function PayrollSummaryCard({
       const deliveryCount = periodDeliveries.length;
       // If driver has rate history, compute pay per-delivery using each delivery's date.
       // Otherwise use the period-start rate for all deliveries (fast path).
+      // N/C deliveries earn NO base pay — skip them here. Oversized/extra km
+      // (computed below) still include N/C deliveries.
       let basePay;
       if (hasRateHistory && periodDeliveries.length > 0) {
         basePay = periodDeliveries.reduce((sum, d) => {
+          if (d.no_charge) return sum;
           const r = getEffectiveRates(appUser, d.delivery_date);
           return sum + r.pay_rate_per_delivery;
         }, 0);
       } else {
-        basePay = deliveryCount * payRate;
+        basePay = periodDeliveries.filter((d) => !d.no_charge).length * payRate;
       }
 
       let extraKmPay = 0,totalExtraKm = 0;
       periodDeliveries.forEach((d) => {
-        if (d.no_charge) return;
         const r = hasRateHistory ? getEffectiveRates(appUser, d.delivery_date) : effectiveRates;
         const dExtraKmRate = r.extra_km_rate;
         const dExtraKmLimit = r.extra_km_limit;
@@ -277,10 +278,10 @@ export default function PayrollSummaryCard({
       let graphBasePay, graphExtraKmPay = 0, graphOversizedPay = 0;
       if (hasRateHistory && graphDeliveryCount > 0) {
         graphBasePay = graphPayableDeliveries.reduce((sum, d) => {
+          if (d.no_charge) return sum;
           return sum + getEffectiveRates(appUser, d.delivery_date).pay_rate_per_delivery;
         }, 0);
         graphPayableDeliveries.forEach((d) => {
-          if (d.no_charge) return;
           const r = getEffectiveRates(appUser, d.delivery_date);
           const dExtraKmRate = r.extra_km_rate;
           const dExtraKmLimit = r.extra_km_limit;
@@ -296,9 +297,8 @@ export default function PayrollSummaryCard({
           return sum + getEffectiveRates(appUser, d.delivery_date).oversized_item_rate;
         }, 0);
       } else {
-        graphBasePay = graphDeliveryCount * payRate;
+        graphBasePay = graphPayableDeliveries.filter((d) => !d.no_charge).length * payRate;
         graphPayableDeliveries.forEach((d) => {
-          if (d.no_charge) return;
           let dist = d.paid_km_override ?? 0;
           if (!dist && d.patient_id && patients) {
             dist = patients.find((p) => p && (p.id === d.patient_id))?.distance_from_store || 0;

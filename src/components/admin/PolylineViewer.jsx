@@ -4,6 +4,7 @@ import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'rea
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers, Save, Pencil, Undo2, Download, Magnet, Check, X, Brush, Scissors } from 'lucide-react';
 import SnapAnalysisDialog from './SnapAnalysisDialog';
+import ImportConfirmInline from './ImportConfirmInline';
 import ResegmentStopsDialog from './ResegmentStopsDialog';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
@@ -310,7 +311,14 @@ export default function PolylineViewer({ users = [] }) {
   // filters
   const [driverFilter, setDriverFilter] = useState('all');
   const [dateFrom, setDateFrom]         = useState('');
-  const [dateTo, setDateTo]             = useState('');
+  // Default the "To" date picker to today's LOCAL date so the filter starts scoped to the current day.
+  const [dateTo, setDateTo]             = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
 
   // HERE api key
   const [hereApiKey, setHereApiKey]     = useState(null);
@@ -332,6 +340,8 @@ export default function PolylineViewer({ users = [] }) {
   const [undoStack, setUndoStack]                 = useState([]); // up to 5 previous states
   const [isSavingCrumb, setIsSavingCrumb]         = useState(false);
   const [isImportingCrumb, setIsImportingCrumb]   = useState(false);
+  // Item awaiting inline import confirmation (replaces the native confirm dialog)
+  const [pendingImportItem, setPendingImportItem] = useState(null);
   const [isSnappingMaster, setIsSnappingMaster]   = useState(false);
   const [isResegmenting, setIsResegmenting]       = useState(false);
   // resegmentDialog: { item } | null — when open, show the stop-selection popup
@@ -1043,8 +1053,6 @@ export default function PolylineViewer({ users = [] }) {
       toast.error('No polyline found on the matching Delivery record.');
       return;
     }
-    if (!window.confirm(`Import the Delivery polyline for Stop #${item.stop_order} into this breadcrumb? This will overwrite the existing breadcrumb path.`)) return;
-
     setIsImportingCrumb(true);
     const newPoly = matchingDelivery.encoded_polyline;
     const pts = decodePolyline(newPoly);
@@ -1075,6 +1083,7 @@ export default function PolylineViewer({ users = [] }) {
       toast.error(`Import failed: ${e.message}`);
     } finally {
       setIsImportingCrumb(false);
+      setPendingImportItem(null);
     }
   };
 
@@ -1286,7 +1295,7 @@ export default function PolylineViewer({ users = [] }) {
                   <Badge className="text-xs flex-shrink-0 ml-auto bg-purple-100 text-purple-700 border-0">↓ Imported</Badge>
                 )}
                 {isBreadcrumb && item.saved_to_route && (
-                  <Badge className="text-xs flex-shrink-0 ml-auto bg-green-100 text-green-700 border-0">✓ Saved</Badge>
+                  <Badge className="text-xs flex-shrink-0 ml-auto bg-green-600 text-slate-600 border-0">✓ Saved</Badge>
                 )}
                 <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className={`text-xs flex-shrink-0 ${!item.saved_to_route && !item.imported_from_delivery ? 'ml-auto' : ''}`}>
                   {isBreadcrumb ? '🛤 BC' : '🗺 Poly'}
@@ -1365,14 +1374,24 @@ export default function PolylineViewer({ users = [] }) {
                           ) : null}
                           {/* Import — only when NOT in cleaning mode */}
                           {!(isCleaningMode && focusedItem?.id === item.id) && (
-                            <button
-                              title="Import Delivery polyline → Breadcrumb"
-                              onClick={e => { e.stopPropagation(); handleImportDeliveryToCrumb(item); }}
-                              disabled={isImportingCrumb}
-                              className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors"
-                            >
-                              {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                            </button>
+                            pendingImportItem?.id === item.id ? (
+                              <ImportConfirmInline
+                                show
+                                stopOrder={item.stop_order}
+                                onConfirm={() => { handleImportDeliveryToCrumb(item); }}
+                                onCancel={() => setPendingImportItem(null)}
+                                isImporting={isImportingCrumb}
+                              />
+                            ) : (
+                              <button
+                                title="Import Delivery polyline → Breadcrumb"
+                                onClick={e => { e.stopPropagation(); setPendingImportItem(item); }}
+                                disabled={isImportingCrumb}
+                                className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors"
+                              >
+                                {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                              </button>
+                            )
                           )}
                           {item.stop_order === -1 && (
                             snapPreview?.itemId === item.id ? (
@@ -1482,7 +1501,7 @@ export default function PolylineViewer({ users = [] }) {
             <div className="flex items-center gap-1 flex-shrink-0">
               {hasPoly && <Badge variant="outline" className="text-xs py-0 px-1.5">🗺 Poly</Badge>}
               {hasCrumb && (
-                <Badge variant="secondary" className={`text-xs py-0 px-1.5 ${crumb.saved_to_route ? 'bg-green-100 text-green-700' : crumb.imported_from_delivery ? 'bg-purple-100 text-purple-700' : ''}`}>
+                <Badge variant="secondary" className={`text-xs py-0 px-1.5 ${crumb.saved_to_route ? 'bg-green-600 text-slate-600' : crumb.imported_from_delivery ? 'bg-purple-600 text-slate-600' : ''}`}>
                   {crumb.saved_to_route ? '✓ BC' : crumb.imported_from_delivery ? '↓ BC' : '🛤 BC'}
                 </Badge>
               )}
@@ -1537,9 +1556,19 @@ export default function PolylineViewer({ users = [] }) {
               {isSavingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             </button>
             {!isEditingCrumb && (
-              <button title="Import Delivery polyline → Breadcrumb" onClick={e => { e.stopPropagation(); handleImportDeliveryToCrumb(crumb); }} disabled={isImportingCrumb} className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors">
-                {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              </button>
+              pendingImportItem?.id === crumb.id ? (
+                <ImportConfirmInline
+                  show
+                  stopOrder={crumb.stop_order}
+                  onConfirm={() => { handleImportDeliveryToCrumb(crumb); }}
+                  onCancel={() => setPendingImportItem(null)}
+                  isImporting={isImportingCrumb}
+                />
+              ) : (
+                <button title="Import Delivery polyline → Breadcrumb" onClick={e => { e.stopPropagation(); setPendingImportItem(crumb); }} disabled={isImportingCrumb} className="p-1 rounded hover:bg-purple-100 text-purple-700 disabled:opacity-50 transition-colors">
+                  {isImportingCrumb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                </button>
+              )
             )}
             {crumb.stop_order === -1 && (
               snapPreview?.itemId === crumb.id ? (
@@ -1805,12 +1834,13 @@ export default function PolylineViewer({ users = [] }) {
               </div>
 
               {/* Map */}
-              <div className={`flex-1 border rounded-lg overflow-hidden min-h-[380px] md:min-h-0 ${isBrushPickMode ? 'ring-2 ring-amber-400' : ''}`}
-                style={isBrushPickMode ? { cursor: 'crosshair' } : {}}>
+              <div className={`polyline-viewer-map flex-1 border rounded-lg overflow-hidden min-h-[380px] md:min-h-0 ${isBrushPickMode ? 'is-brush-mode ring-2 ring-amber-400' : ''}`}>
                 {mapSegments.length > 0 ? (
                   <MapContainer
                     center={mapSegments[0]?.coords?.[0] || [53.5, -113.5]}
                     zoom={13}
+                    maxZoom={18}
+                    zoomDelta={0.5}
                     style={{ height: '100%', width: '100%' }}
                     key={`map-${viewMode}-${mapSegments.map(s => s.id).join('-')}-${tileKey}`}
                     doubleClickZoom={false}
