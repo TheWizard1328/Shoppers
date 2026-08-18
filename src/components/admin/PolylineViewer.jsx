@@ -1840,6 +1840,8 @@ export default function PolylineViewer({ users = [] }) {
                   <MapContainer
                     center={mapSegments[0]?.coords?.[0] || [53.5, -113.5]}
                     zoom={13}
+                    maxZoom={19}
+                    zoomDelta={0.5}
                     style={{ height: '100%', width: '100%' }}
                     key={`map-${viewMode}-${mapSegments.map(s => s.id).join('-')}-${tileKey}`}
                     doubleClickZoom={false}

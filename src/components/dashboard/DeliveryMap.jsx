@@ -1395,7 +1395,7 @@ function DeliveryMap({
         // GPS tick in Phase 2/3, instead of only when the target crosses a
         // snap boundary (which made zoom feel like it only changed at whole numbers).
         zoomSnap={0}
-        zoomDelta={0.25}
+        zoomDelta={0.5}
         style={{ height: "100%", width: "100%" }}
         zoomControl={false}
         doubleClickZoom={false}
