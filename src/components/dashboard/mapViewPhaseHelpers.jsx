@@ -55,10 +55,12 @@ export function getFabTargetDriverMapLocation({
   // and Phase 2/3 map follow should continue during breaks.
   const isOnDuty = activeStatus === 'on_duty' || activeStatus === 'on_break';
 
-  // 1. Live GPS — primary device always wins regardless of async isPrimaryDevice resolution.
-  //    locationTracker only runs on confirmed primary devices, so if driverLocation is set
-  //    and this is the driver's own route, trust it unconditionally.
-  if (isOwnDriver && driverLocation?.latitude && driverLocation?.longitude) {
+  // 1. Live GPS — ONLY on primary device. Non-primary devices (tablets, secondary
+  //    phones, dispatcher screens) must use the shared location from the AppUser record
+  //    (updated via WebSocket from the primary device). Using local GPS on a non-primary
+  //    device causes the map to center on the tablet's own position instead of following
+  //    the driver's moving shared marker.
+  if (isOwnDriver && isPrimaryDevice && driverLocation?.latitude && driverLocation?.longitude) {
     return { latitude: driverLocation.latitude, longitude: driverLocation.longitude };
   }
 
@@ -103,8 +105,10 @@ export function getFabTargetDriverMapLocation({
     };
   }
 
-  // 4. Live GPS fallback for non-primary devices (e.g. secondary phone/tablet with GPS active)
-  if (isOwnDriver && driverLocation?.latitude && driverLocation?.longitude) {
+  // 4. Live GPS fallback — primary device only (non-primary already tried shared above).
+  //    Non-primary devices should NOT use their local GPS for Phase 2/3 bounds because
+  //    the shared marker (from WS) represents the primary device's actual position.
+  if (isOwnDriver && isPrimaryDevice && driverLocation?.latitude && driverLocation?.longitude) {
     return { latitude: driverLocation.latitude, longitude: driverLocation.longitude };
   }
 
