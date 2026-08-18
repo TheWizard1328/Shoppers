@@ -311,7 +311,14 @@ export default function PolylineViewer({ users = [] }) {
   // filters
   const [driverFilter, setDriverFilter] = useState('all');
   const [dateFrom, setDateFrom]         = useState('');
-  const [dateTo, setDateTo]             = useState('');
+  // Default the "To" date picker to today's LOCAL date so the filter starts scoped to the current day.
+  const [dateTo, setDateTo]             = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
 
   // HERE api key
   const [hereApiKey, setHereApiKey]     = useState(null);
