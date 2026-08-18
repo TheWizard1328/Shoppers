@@ -32,6 +32,7 @@ import { saveSetting } from "@/components/utils/userSettingsManager";
 import { getDriverColor } from "@/components/utils/driverUtils";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { sortUsers } from "@/components/utils/sorting";
+import { countLegendStops, countAfterHoursPickups } from "@/components/dashboard/legendStopCounter";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -190,7 +191,6 @@ export default function StatsPanel({
 
     const routeMap = new Map((driverRoutes || []).map((route) => [route.driverId, route]));
     const driverIdsWithStops = new Set(legendDeliveries.map((delivery) => delivery.driver_id));
-    const finishedStatuses = new Set(['completed', 'failed', 'cancelled']);
 
     return sortUsers(Array.from(driverIdsWithStops).map((driverId) => {
       const route = routeMap.get(driverId);
@@ -198,16 +198,7 @@ export default function StatsPanel({
       const driverAppUser = (appUsers || []).find((appUser) => appUser?.user_id === driverId);
       const driverListUser = driversList.find((driver) => driver?.id === driverId);
       const driverName = route?.driverName || driverAppUser?.user_name || driverListUser?.user_name || driverListUser?.full_name || 'Unknown';
-      const totalStops = driverDeliveries.filter((delivery) => {
-        if (!delivery) return false;
-        if (delivery.is_cycling_marker === true) return false; // cycling markers are not delivery stops
-        if (!finishedStatuses.has(delivery.status)) return false;
-        if (!!delivery.patient_id) return true; // regular delivery
-        if (!isDispatcher && delivery.after_hours_pickup === true) return true; // after-hours pickup (hidden from dispatchers)
-        // ISD / ISP inter-store deliveries (no patient_id but have a delivery_id with ISD/ISP)
-        if (delivery.delivery_id && /ISD|ISP/i.test(delivery.delivery_id)) return true;
-        return false;
-      }).length;
+      const totalStops = countLegendStops(driverDeliveries) + countAfterHoursPickups(driverDeliveries);
       const status = driverAppUser?.driver_status || 'offline';
       const heartbeatAgeMs = driverAppUser?.location_updated_at ? Date.now() - new Date(driverAppUser.location_updated_at).getTime() : Infinity;
       const hasHeartbeat = heartbeatAgeMs <= 120000;
