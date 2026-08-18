@@ -1,4 +1,6 @@
 {
+  "name": "PushSubscription",
+  "type": "object",
   "properties": {
     "user_id": {
       "type": "string",
@@ -14,11 +16,11 @@
     },
     "p256dh_key": {
       "type": "string",
-      "description": "The p256dh public key from the PushSubscription.keys object (omitted for FCM/native subscriptions \u2014 Web Push only)"
+      "description": "The p256dh public key from the PushSubscription.keys object (omitted for FCM/native subscriptions — Web Push only)"
     },
     "auth_key": {
       "type": "string",
-      "description": "The auth secret from the PushSubscription.keys object (omitted for FCM/native subscriptions \u2014 Web Push only)"
+      "description": "The auth secret from the PushSubscription.keys object (omitted for FCM/native subscriptions — Web Push only)"
     },
     "device_identifier": {
       "type": "string",
@@ -37,7 +39,5 @@
   "required": [
     "user_id",
     "endpoint"
-  ],
-  "type": "object",
-  "name": "PushSubscription"
+  ]
 }

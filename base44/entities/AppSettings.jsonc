@@ -1,0 +1,22 @@
+{
+  "name": "AppSettings",
+  "type": "object",
+  "properties": {
+    "setting_key": {
+      "type": "string",
+      "description": "Unique key for the setting (e.g., 'refresh_intervals')"
+    },
+    "setting_value": {
+      "type": "object",
+      "description": "JSON object containing the setting values",
+      "additionalProperties": true
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the setting"
+    }
+  },
+  "required": [
+    "setting_key"
+  ]
+}

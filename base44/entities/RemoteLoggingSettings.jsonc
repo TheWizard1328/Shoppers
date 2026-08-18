@@ -1,0 +1,60 @@
+{
+  "name": "RemoteLoggingSettings",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "type": "string",
+      "description": "Settings scope",
+      "enum": [
+        "global"
+      ],
+      "default": "global"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether remote logging is enabled"
+    },
+    "capture_levels": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "log",
+          "info",
+          "warn",
+          "error",
+          "debug"
+        ]
+      },
+      "description": "Console levels to capture"
+    },
+    "included_user_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Only capture logs for these users when not empty"
+    },
+    "excluded_user_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Never capture logs for these users"
+    },
+    "batch_size": {
+      "type": "number",
+      "default": 20,
+      "description": "How many logs to send per batch"
+    },
+    "flush_interval_ms": {
+      "type": "number",
+      "default": 15000,
+      "description": "Flush interval in milliseconds"
+    }
+  },
+  "required": [
+    "scope"
+  ]
+}

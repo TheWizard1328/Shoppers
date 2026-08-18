@@ -1,0 +1,37 @@
+{
+  "name": "City",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the city"
+    },
+    "province_state": {
+      "type": "string",
+      "description": "Province or state where the city is located"
+    },
+    "country": {
+      "type": "string",
+      "description": "Country where the city is located"
+    },
+    "latitude": {
+      "type": "number",
+      "description": "City center latitude"
+    },
+    "longitude": {
+      "type": "number",
+      "description": "City center longitude"
+    },
+    "sort_order": {
+      "type": "number",
+      "description": "A number to manually sort the city list."
+    }
+  },
+  "required": [
+    "name",
+    "province_state",
+    "country",
+    "latitude",
+    "longitude"
+  ]
+}

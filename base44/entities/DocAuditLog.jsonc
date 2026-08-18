@@ -1,54 +1,53 @@
 {
+  "name": "DocAuditLog",
+  "type": "object",
   "properties": {
+    "viewer_id": {
+      "type": "string",
+      "description": "User ID of the person who performed the action"
+    },
+    "viewer_name": {
+      "type": "string",
+      "description": "Display name of the person who performed the action"
+    },
     "action": {
+      "type": "string",
       "enum": [
         "viewed",
+        "uploaded",
+        "deleted",
         "requested",
         "approved",
-        "denied",
-        "revoked",
-        "expired",
-        "uploaded"
+        "denied"
       ],
-      "type": "string"
+      "description": "The action that was performed"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "User ID of the driver whose document was affected"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Display name of the driver"
     },
     "doc_ids": {
+      "type": "array",
       "items": {
         "type": "string"
       },
-      "type": "array"
-    },
-    "driver_id": {
-      "type": "string"
-    },
-    "driver_name": {
-      "type": "string"
-    },
-    "ip_address": {
-      "type": "string"
-    },
-    "target_driver_id": {
-      "type": "string"
-    },
-    "user_agent": {
-      "type": "string"
-    },
-    "viewer_id": {
-      "type": "string"
-    },
-    "viewer_name": {
-      "type": "string"
+      "description": "IDs of the documents involved"
     },
     "viewed_at": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "description": "Timestamp of the action"
+    },
+    "user_agent": {
+      "type": "string",
+      "description": "Browser user agent string"
     }
   },
   "required": [
-    "viewer_id",
-    "action",
-    "driver_id"
-  ],
-  "type": "object",
-  "name": "DocAuditLog"
+    "action"
+  ]
 }

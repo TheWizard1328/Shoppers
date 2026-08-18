@@ -1,62 +1,77 @@
 {
+  "name": "DriverDocument",
+  "type": "object",
   "properties": {
-    "document_expiry_date": {
-      "format": "date",
-      "type": "string"
+    "driver_id": {
+      "type": "string",
+      "description": "The user ID of the driver this document belongs to"
     },
-    "document_scope": {
-      "enum": [
-        "driver",
-        "store"
-      ],
-      "type": "string"
+    "driver_name": {
+      "type": "string",
+      "description": "Display name of the driver"
     },
     "document_type": {
+      "type": "string",
       "enum": [
         "license",
         "background_check",
         "contract",
         "vehicle_registration",
-        "vehicle_insurance"
+        "vehicle_insurance",
+        "other"
       ],
-      "type": "string"
+      "description": "Type of document"
     },
-    "driver_id": {
-      "type": "string"
-    },
-    "driver_name": {
-      "type": "string"
-    },
-    "file_size": {
-      "type": "number"
-    },
-    "file_uri": {
-      "type": "string"
-    },
-    "mime_type": {
-      "type": "string"
+    "document_scope": {
+      "type": "string",
+      "enum": [
+        "driver",
+        "store"
+      ],
+      "default": "driver",
+      "description": "Whether this document belongs to a driver or a store"
     },
     "store_id": {
-      "type": "string"
+      "type": "string",
+      "description": "Store ID if document_scope is store"
     },
     "store_name": {
-      "type": "string"
+      "type": "string",
+      "description": "Store name if document_scope is store"
+    },
+    "file_uri": {
+      "type": "string",
+      "description": "Private storage URI for the document file"
+    },
+    "mime_type": {
+      "type": "string",
+      "description": "MIME type of the uploaded file"
+    },
+    "file_size": {
+      "type": "number",
+      "description": "File size in bytes"
     },
     "uploaded_at": {
+      "type": "string",
       "format": "date-time",
-      "type": "string"
+      "description": "When the document was uploaded"
     },
     "uploaded_by": {
-      "type": "string"
+      "type": "string",
+      "description": "User ID of the person who uploaded the document"
     },
     "uploaded_by_name": {
-      "type": "string"
+      "type": "string",
+      "description": "Display name of the person who uploaded the document"
+    },
+    "document_expiry_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Expiry date of the document (e.g. license expiry)"
     }
   },
   "required": [
     "document_type",
-    "file_uri"
-  ],
-  "type": "object",
-  "name": "DriverDocument"
+    "document_scope"
+  ]
 }

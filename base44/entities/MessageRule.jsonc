@@ -1,90 +1,84 @@
 {
+  "name": "MessageRule",
+  "type": "object",
   "properties": {
-    "channels": {
-      "items": {
-        "type": "string",
-        "enum": [
-          "in_app",
-          "push"
-        ]
-      },
-      "type": "array",
-      "description": "THEN channels \u2014 which delivery methods to use"
+    "event_name": {
+      "type": "string",
+      "description": "The trigger event name (e.g. driver_accepted, delivery_completed)"
     },
-    "conditions": {
-      "items": {
-        "properties": {
-          "field": {
-            "type": "string"
-          },
-          "operator": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "type": "array",
-      "description": "IF conditions \u2014 array of {field, operator, value} objects, ALL must pass (AND logic)"
+    "rule_label": {
+      "type": "string",
+      "description": "Human-readable name for this rule"
     },
-    "cooldown_seconds": {
-      "description": "Minimum seconds between duplicate fires of this rule for the same event (dedup/throttle)",
-      "type": "number"
+    "priority": {
+      "type": "number",
+      "description": "Lower number = evaluated first"
     },
     "enabled": {
-      "default": true,
       "type": "boolean",
       "description": "Whether this rule is active"
     },
-    "event_name": {
-      "description": "Trigger event key (e.g. driver_completed, driver_failed, app_update_available)",
-      "type": "string"
+    "conditions": {
+      "type": "array",
+      "description": "Array of IF conditions (AND logic). Each item: {field, operator, value}",
+      "items": {
+        "type": "object"
+      }
     },
-    "message_template": {
-      "description": "Message text with {{variable}} support",
-      "type": "string"
-    },
-    "priority": {
-      "description": "Evaluation order \u2014 lower number = evaluated first",
-      "type": "number"
-    },
-    "recipients": {
-      "description": "THEN recipients \u2014 who gets the message",
-      "examples": [
-        "role:admin",
-        "role:dispatcher",
-        "role:driver",
-        "relation:driver",
-        "relation:dispatchers",
-        "relation:appowner",
-        "user:USER_ID"
-      ],
+    "channels": {
+      "type": "array",
+      "description": "Delivery channels: in_app, push",
       "items": {
         "type": "string"
-      },
-      "type": "array"
+      }
     },
-    "rule_label": {
-      "description": "User-given name for this rule",
-      "type": "string"
+    "message_template": {
+      "type": "string",
+      "description": "Message body with {{variable}} placeholders"
     },
-    "shadow_mode": {
-      "default": false,
-      "description": "If true, log what would be sent but don't actually send",
-      "type": "boolean"
+    "recipients": {
+      "type": "array",
+      "description": "Who receives the message: all_admins, all_dispatchers, all_drivers, assigned_driver, store_dispatchers, app_owner",
+      "items": {
+        "type": "string"
+      }
+    },
+    "actions": {
+      "type": "array",
+      "description": "Push notification action buttons. Each item: {action, title}. Max 2 buttons are shown (Chrome Android limit). Configurable per rule so action buttons are no longer hard-coded.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Action identifier used by the service worker to route the click (e.g. mark_read, reply, acknowledge, update_now)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Button label shown on the push notification"
+          }
+        },
+        "required": [
+          "action",
+          "title"
+        ]
+      }
     },
     "stop_on_match": {
-      "default": true,
-      "description": "If true, stop evaluating further rules for this event once this one fires",
-      "type": "boolean"
+      "type": "boolean",
+      "description": "Stop evaluating further rules after this one fires"
+    },
+    "cooldown_seconds": {
+      "type": "number",
+      "description": "Minimum seconds between firings of this rule per recipient"
+    },
+    "shadow_mode": {
+      "type": "boolean",
+      "description": "Log the rule firing without actually sending \u2014 dry-run mode"
     }
   },
   "required": [
     "event_name",
     "rule_label"
-  ],
-  "type": "object",
-  "name": "MessageRule"
+  ]
 }
