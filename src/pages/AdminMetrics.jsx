@@ -1029,10 +1029,10 @@ export default function AdminMetrics() {
                 `${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} (Day-by-Day)` :
                 `Store ${metricsViewMode === 'fees' ? 'App Fees' : 'Breakdown'} (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
                 }
-                {isAppOwner(currentUser) && metricsViewMode === 'deliveries' && (
-                <span className="ml-2 text-[11px] font-normal text-amber-600 dark:text-amber-400 whitespace-nowrap" title="Reminder: the + next to each daily total marks each After Hours pickup.">
-                + = After Hours pickup
-                </span>
+                {isAppOwner(currentUser) && selectedMonth && metricsViewMode === 'deliveries' && (
+                  <span className="ml-2 text-[11px] font-normal text-amber-600 dark:text-amber-400 whitespace-nowrap" title="Reminder: the + next to each daily total marks each After Hours pickup.">
+                    + = After Hours pickup
+                  </span>
                 )}
                 </CardTitle>
 
