@@ -1286,7 +1286,7 @@ export default function PolylineViewer({ users = [] }) {
                   <Badge className="text-xs flex-shrink-0 ml-auto bg-purple-100 text-purple-700 border-0">↓ Imported</Badge>
                 )}
                 {isBreadcrumb && item.saved_to_route && (
-                  <Badge className="text-xs flex-shrink-0 ml-auto bg-green text-white border-0">✓ Saved</Badge>
+                  <Badge className="text-xs flex-shrink-0 ml-auto bg-green-600 text-white-600 border-0">✓ Saved</Badge>
                 )}
                 <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className={`text-xs flex-shrink-0 ${!item.saved_to_route && !item.imported_from_delivery ? 'ml-auto' : ''}`}>
                   {isBreadcrumb ? '🛤 BC' : '🗺 Poly'}
