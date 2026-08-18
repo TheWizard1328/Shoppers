@@ -192,6 +192,13 @@ export default function EndOfDayStatsDialog({
       entry.stops += 1;
     });
 
+    // Override today's entry with the live Total Stops card value so the
+    // best-day record reflects the exact same count shown in the dialog.
+    // (allYearDeliveries can lag behind the freshly-computed card total.)
+    if (deliveryDate && deliveryDate.startsWith(yearStr) && total > 0) {
+      dayMap.set(deliveryDate, { stops: total, pay: 0 });
+    }
+
     let bestDayByStops = null;
     let bestDayByEarned = null;
 
