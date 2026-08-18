@@ -856,10 +856,10 @@ export default function Settings() {
   const [userSettings, setUserSettings] = useState(null);
   const [eTransEmail, setETransEmail] = useState('');
 
-  // Detect iOS (iPhone/iPad) to grey out the Native App section.
-  // Windows, macOS, Android — all stay fully interactive.
+  // Grey out the Native App section on any non-Android device (iOS, Windows,
+  // macOS, Linux, etc.) — the APK is Android-only.
   const { os: deviceOS } = getUserAgentInfo();
-  const isIOSDevice = deviceOS === 'iOS';
+  const isNonAndroidDevice = deviceOS !== 'Android';
 
   // Single shared fetch for build number (GitHub Actions run_number) + build
   // date, used by the Native App row, the download dialog, and the bottom
@@ -946,18 +946,18 @@ export default function Settings() {
       key: 'app',
       title: 'Native App',
       icon: Download,
-      disabled: isIOSDevice,
+      disabled: isNonAndroidDevice,
       items: [
         {
           label: updateAvailable ? 'Update Android App' : 'Download Android App',
-          description: isIOSDevice
-            ? 'Not available on iOS'
+          description: isNonAndroidDevice
+            ? 'Not available on this device'
             : updateAvailable
               ? 'A newer build is available — tap to update'
               : 'Install the native APK (Grey Icon)',
-          subDescription: isIOSDevice ? undefined : apkBuildInfo.buildText,
-          onClick: isIOSDevice ? undefined : () => setOpenPanel('apk'),
-          disabled: isIOSDevice,
+          subDescription: isNonAndroidDevice ? undefined : apkBuildInfo.buildText,
+          onClick: isNonAndroidDevice ? undefined : () => setOpenPanel('apk'),
+          disabled: isNonAndroidDevice,
           showUpdateBadge: updateAvailable,
         },
       ],
