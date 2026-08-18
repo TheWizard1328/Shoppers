@@ -468,7 +468,11 @@ export function SettingsDialog({ open, onOpenChange, title, description, icon: I
 // capacitor/android/app/build.gradle as "1.0 (yyyy-MM-dd HH:mm)") against the
 // latest GitHub release's published_at timestamp. Only meaningful inside the
 // native Android APK — web/iOS never show an "update" state.
-function useAndroidAppUpdateCheck() {
+// Compares the installed native app's build number against the latest build
+// number from GitHub Actions (passed in from useLatestApkBuildInfo, which now
+// polls every 5 min — so updateAvailable re-evaluates live). Only meaningful
+// inside the native Android APK — web/iOS never show an "update" state.
+function useAndroidAppUpdateCheck(latestBuildNumber) {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [installedVersion, setInstalledVersion] = useState(null);
   const [checked, setChecked] = useState(false);
@@ -483,29 +487,22 @@ function useAndroidAppUpdateCheck() {
       try {
         const { App } = await import('@capacitor/app');
         const info = await App.getInfo();
-        // versionName format: "1.0.N (yyyy-MM-dd HH:mm)" — extract build date AND build number
         const versionStr = info?.version || '';
-        const dateMatch = /\((\d{4}-\d{2}-\d{2} \d{2}:\d{2})\)/.exec(versionStr);
-        // Extract build number from "1.0.N" pattern (fallback: extract from versionCode)
         const buildMatch = /1\.0\.(\d+)/.exec(versionStr);
-        const buildNumber = buildMatch ? buildMatch[1] : null;
-        // CRITICAL: The build.gradle date is UTC (GitHub Actions runs in UTC).
-        // Without 'Z', JavaScript parses it as LOCAL time, shifting it by the
-        // timezone offset and making the installed build appear NEWER than
-        // the GitHub release — so "update available" never triggers.
-        const installedBuildDate = dateMatch ? new Date(dateMatch[1].replace(' ', 'T') + 'Z') : null;
+        const installedNum = buildMatch ? parseInt(buildMatch[1], 10) : null;
 
-        if (!cancelled) setInstalledVersion({ buildNumber, buildDate: dateMatch ? dateMatch[1] : null, versionStr });
+        if (!cancelled) setInstalledVersion({ buildNumber: installedNum, versionStr });
 
-        const res = await fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest');
-        if (!res.ok) throw new Error('Release not found');
-        const data = await res.json();
-        const releaseDate = data.published_at ? new Date(data.published_at) : null;
-
-        if (!cancelled && installedBuildDate && releaseDate && releaseDate > installedBuildDate) {
-          setUpdateAvailable(true);
+        const latestNum = latestBuildNumber != null ? parseInt(latestBuildNumber, 10) : null;
+        // New badge shows ONLY when the latest build number is strictly greater than the installed one.
+        if (!cancelled) {
+          if (installedNum != null && latestNum != null && latestNum > installedNum) {
+            setUpdateAvailable(true);
+          } else {
+            setUpdateAvailable(false);
+          }
         }
-      } catch (e) {
+      } catch {
         // Silently skip — no update badge shown, not a critical feature
       } finally {
         if (!cancelled) setChecked(true);
@@ -513,7 +510,7 @@ function useAndroidAppUpdateCheck() {
     };
     run();
     return () => { cancelled = true; };
-  }, []);
+  }, [latestBuildNumber]);
 
   return { updateAvailable, installedVersion, checked };
 }
@@ -864,13 +861,16 @@ export default function Settings() {
   const { os: deviceOS } = getUserAgentInfo();
   const isIOSDevice = deviceOS === 'iOS';
 
-  // Check if a newer APK build is available on GitHub (only meaningful
-  // when running inside the native Android app).
-  const { updateAvailable } = useAndroidAppUpdateCheck();
   // Single shared fetch for build number (GitHub Actions run_number) + build
   // date, used by the Native App row, the download dialog, and the bottom
   // build info line — so we don't triple-fetch the same GitHub API calls.
+  // Now polls every 5 min so the build number/date and "New" badge update live.
   const apkBuildInfo = useLatestApkBuildInfo();
+  // Check if a newer APK build is available on GitHub (only meaningful
+  // when running inside the native Android app). Compares the latest build
+  // number against the installed build number — re-evaluates whenever the
+  // polled latest build number changes.
+  const { updateAvailable } = useAndroidAppUpdateCheck(apkBuildInfo?.buildNumber ?? null);
   // Download state lives here (Settings page level) — NOT inside the dialog —
   // so the status banner survives the dialog being closed immediately when
   // the download starts, and so the banner portal always renders relative to

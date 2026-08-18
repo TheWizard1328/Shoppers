@@ -19,26 +19,41 @@ export function useLatestApkBuildInfo() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest')
-        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch('https://api.github.com/repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1')
-        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]).then(([releaseData, runsData]) => {
+    let timer = null;
+
+    const fetchData = async () => {
+      const [releaseData, runsData] = await Promise.all([
+        fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest')
+          .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch('https://api.github.com/repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1')
+          .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
       if (cancelled) return;
       const rawDate = releaseData?.published_at || releaseData?.created_at || null;
       const dateStr = rawDate
         ? new Date(rawDate).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
         : '';
       const buildNumber = runsData?.workflow_runs?.[0]?.run_number || null;
-      const apkAsset = (releaseData?.assets || []).find((a) => a.name && a.name.endsWith('.apk'));
-      setBuildInfo({
-        dateStr,
-        buildNumber,
-        apkUrl: apkAsset?.browser_download_url || null,
+      const apkUrl = (releaseData?.assets || []).find((a) => a.name && a.name.endsWith('.apk'))?.browser_download_url || null;
+      // Skip the state update when nothing changed — prevents needless re-renders each poll tick.
+      setBuildInfo((prev) => {
+        if (prev && prev.buildNumber === buildNumber && prev.dateStr === dateStr && prev.apkUrl === apkUrl) {
+          return prev;
+        }
+        return { dateStr, buildNumber, apkUrl };
       });
-    });
-    return () => { cancelled = true; };
+    };
+
+    fetchData();
+    // Re-poll every 5 minutes so the build number/date (and "New" badge) update live,
+    // without requiring a page refresh. ~24 req/hr per open tab — well within GitHub's
+    // 60/hr unauthenticated limit.
+    timer = setInterval(fetchData, 5 * 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
   }, []);
 
   const buildText = buildInfo
