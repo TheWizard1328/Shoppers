@@ -7,15 +7,24 @@ import { base44 } from '@/api/base44Client';
 import { Copy, Download } from 'lucide-react';
 import { userHasRole } from '@/components/utils/userRoles';
 import { toast } from 'sonner';
+import { useLatestApkBuildInfo } from '@/components/utils/useBuildInfo';
 
 const PRODUCTION_DOMAIN = 'https://wizardworxx.com';
+
+// Sentinel "role" value for the Download Native App flow — not an actual user role,
+// just a special entry in the same dropdown per the requested UX.
+const DOWNLOAD_APP_VALUE = 'download_app';
 
 export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores = [] }) {
   const [selectedRole, setSelectedRole] = useState('driver');
   const [selectedStores, setSelectedStores] = useState([]);
+  const [selectedPlatform, setSelectedPlatform] = useState('android');
   const [qrUrl, setQrUrl] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [inviteUrl, setInviteUrl] = useState(null);
+
+  // Latest Android APK build info (GitHub Releases) — used for the "Download Native App" QR.
+  const { apkUrl, versionLabel, loaded: apkInfoLoaded } = useLatestApkBuildInfo();
 
   // Determine available roles and stores based on user role
   const isAdmin = userHasRole(currentUser, 'admin');
@@ -31,6 +40,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
 
     setQrUrl(null);
     setInviteUrl(null);
+    setSelectedPlatform('android');
 
     if (isDispatcher && !isAdmin) {
       setSelectedRole('dispatcher');
@@ -80,6 +90,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
   const handleRoleChange = (role) => {
     setSelectedRole(role);
     setSelectedStores([]);
+    setSelectedPlatform('android');
   };
 
   const availableRoles = isAdmin
@@ -90,9 +101,35 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
         ? ['dispatcher', 'driver', 'patient']
         : ['driver', 'patient'];
 
+  const roleLabels = {
+    admin: 'Admin',
+    dispatcher: 'Dispatcher',
+    driver: 'Driver',
+    patient: 'Patient',
+    [DOWNLOAD_APP_VALUE]: 'Download Native App'
+  };
+
+  const isDownloadAppFlow = selectedRole === DOWNLOAD_APP_VALUE;
+
   const handleGenerateQR = async () => {
     if (!selectedRole) {
       toast.error('Please select a role');
+      return;
+    }
+
+    // Download Native App flow — build a direct link to the APK (Android) or
+    // show a "coming soon" message (iOS — no build exists yet).
+    if (isDownloadAppFlow) {
+      if (selectedPlatform === 'ios') {
+        toast.error('The iOS app is coming soon — not available for download yet');
+        return;
+      }
+      if (!apkUrl) {
+        toast.error(apkInfoLoaded ? 'No APK build available yet' : 'Still loading the latest APK build — try again in a moment');
+        return;
+      }
+      setInviteUrl(apkUrl);
+      setQrUrl(apkUrl);
       return;
     }
 
@@ -149,16 +186,6 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     }
   };
 
-  const handleDownloadQR = () => {
-    const qrCanvas = document.querySelector('canvas');
-    if (qrCanvas) {
-      const link = document.createElement('a');
-      link.href = qrCanvas.toDataURL('image/png');
-      link.download = 'invite-qr-code.png';
-      link.click();
-    }
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-full max-w-md">
@@ -178,15 +205,46 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
                 <SelectContent className="z-[10010]">
                   {availableRoles.map((role) => (
                     <SelectItem key={role} value={role}>
-                      {role.charAt(0).toUpperCase() + role.slice(1)}
+                      {roleLabels[role] || (role.charAt(0).toUpperCase() + role.slice(1))}
                     </SelectItem>
                   ))}
+                  <SelectItem value={DOWNLOAD_APP_VALUE}>
+                    {roleLabels[DOWNLOAD_APP_VALUE]}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Platform Selection — only for Download Native App */}
+            {isDownloadAppFlow && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">Platform</label>
+                <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a platform" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10010]">
+                    <SelectItem value="android">
+                      Android{apkInfoLoaded && versionLabel ? ` (${versionLabel})` : ''}
+                    </SelectItem>
+                    <SelectItem value="ios">iOS</SelectItem>
+                  </SelectContent>
+                </Select>
+                {selectedPlatform === 'ios' && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                    The iOS app is coming soon — not available for download yet.
+                  </p>
+                )}
+                {selectedPlatform === 'android' && !apkUrl && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                    {apkInfoLoaded ? 'No APK build available yet.' : 'Loading latest APK build…'}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Store Selection */}
-            {(selectedRole === 'driver' || selectedRole === 'dispatcher') && (
+            {!isDownloadAppFlow && (selectedRole === 'driver' || selectedRole === 'dispatcher') && (
               <div>
                 <label className="text-sm font-medium mb-2 block">
                   Assign Stores {isDispatcher && !isAdmin ? '(Your Stores)' : ''}
@@ -214,7 +272,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
 
             <Button
               onClick={handleGenerateQR}
-              disabled={isGenerating}
+              disabled={isGenerating || (isDownloadAppFlow && selectedPlatform === 'ios')}
               className="w-full bg-emerald-600 hover:bg-emerald-700"
             >
               {isGenerating ? 'Generating...' : 'Generate QR Code'}
@@ -231,11 +289,13 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
             </div>
 
             <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">
-              {selectedRole === 'patient'
-                ? <>Scan to open the <span className="font-semibold">Patient Portal</span> login page.</>
-                : isExistingUserOnly && selectedRole === 'driver'
-                  ? <>Scan to log in with your existing account on another device.</>
-                  : <>Invite role: <span className="font-semibold">{selectedRole}</span></>
+              {isDownloadAppFlow
+                ? <>Scan to download the <span className="font-semibold">Android APK{versionLabel ? ` (${versionLabel})` : ''}</span>.</>
+                : selectedRole === 'patient'
+                  ? <>Scan to open the <span className="font-semibold">Patient Portal</span> login page.</>
+                  : isExistingUserOnly && selectedRole === 'driver'
+                    ? <>Scan to log in with your existing account on another device.</>
+                    : <>Invite role: <span className="font-semibold">{selectedRole}</span></>
               }
             </p>
 
