@@ -279,6 +279,19 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
 .ios-safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px) !important;
 }
+/* Polyline Viewer map — use an arrow pointer instead of Leaflet's grab/hand cursor.
+   Brush-pick mode overrides to a crosshair for precise point removal. */
+.polyline-viewer-map .leaflet-container,
+.polyline-viewer-map .leaflet-grab,
+.polyline-viewer-map .leaflet-interactive {
+  cursor: default !important;
+}
+.polyline-viewer-map.is-brush-mode .leaflet-container,
+.polyline-viewer-map.is-brush-mode .leaflet-grab,
+.polyline-viewer-map.is-brush-mode .leaflet-interactive {
+  cursor: crosshair !important;
+}
+
 /* KITT scanner animation for route optimizer — bounces left ↔ right */
 @keyframes kitt-scan {
   from { left: 0%; }

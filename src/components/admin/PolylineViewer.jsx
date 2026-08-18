@@ -1834,8 +1834,7 @@ export default function PolylineViewer({ users = [] }) {
               </div>
 
               {/* Map */}
-              <div className={`flex-1 border rounded-lg overflow-hidden min-h-[380px] md:min-h-0 ${isBrushPickMode ? 'ring-2 ring-amber-400' : ''}`}
-                style={isBrushPickMode ? { cursor: 'crosshair' } : {}}>
+              <div className={`polyline-viewer-map flex-1 border rounded-lg overflow-hidden min-h-[380px] md:min-h-0 ${isBrushPickMode ? 'is-brush-mode ring-2 ring-amber-400' : ''}`}>
                 {mapSegments.length > 0 ? (
                   <MapContainer
                     center={mapSegments[0]?.coords?.[0] || [53.5, -113.5]}
