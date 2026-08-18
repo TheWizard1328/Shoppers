@@ -33,7 +33,7 @@ const ImportConfirmInline = ({ show, stopOrder, onConfirm, onCancel, isImporting
             <X className="w-3.5 h-3.5" />
           </button>
           <span className="text-xs text-slate-700 dark:text-slate-200 font-medium whitespace-nowrap pr-1">
-            Import Stop #{stopOrder}?
+            Stop #{stopOrder}?
           </span>
         </motion.div>
       )}
