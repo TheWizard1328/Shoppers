@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -517,9 +518,14 @@ function useAndroidAppUpdateCheck() {
   return { updateAvailable, installedVersion, checked };
 }
 
-// ── APK Download Panel ────────────────────────────────────────────────────────
-function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
-  const { apkUrl, buildText, loaded } = buildInfo;
+// ── APK Download — state hook ───────────────────────────────────────────────
+// Lives outside the SettingsDialog's transformed containing block so the
+// status banner (rendered via portal below) survives the dialog closing and
+// is never trapped by the dialog's CSS transform (translate-x/y creates a new
+// containing block for `position: fixed` descendants — that's what caused the
+// old banner to render pinned to a corner of the dialog instead of the
+// viewport's top-center).
+function useApkDownloadState(apkUrl) {
   const [downloadState, setDownloadState] = useState('idle'); // idle | starting | running | success | failed
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadError, setDownloadError] = useState('');
@@ -589,25 +595,8 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
     }, 2000);
   };
 
-  if (!loaded) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--text-slate-400)' }} />
-      </div>
-    );
-  }
-
-  if (!apkUrl) {
-    return (
-      <div className="py-4 text-center">
-        <ShieldAlert className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--text-slate-400)' }} />
-        <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>No APK build available yet. The build runs automatically on code updates.</p>
-      </div>
-    );
-  }
-
   const handleNativeDownload = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (downloadingRef.current || downloadState === 'starting' || downloadState === 'running') return;
     downloadingRef.current = true;
     setDownloadState('starting');
@@ -641,14 +630,6 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
     }
   };
 
-  const handleOpenInBrowser = () => {
-    if (apkUrl) window.open(apkUrl, '_blank');
-  };
-
-  // Show browser fallback if stuck at 0% for more than 15 seconds
-  const showBrowserFallback = downloadState === 'running' && downloadProgress === 0
-    && pendingSinceRef.current && (Date.now() - pendingSinceRef.current) > 15000;
-
   const handleDismissBanner = () => {
     downloadingRef.current = false;
     setDownloadState('idle');
@@ -657,104 +638,162 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
     setDownloadedUri('');
   };
 
+  const showBrowserFallback = downloadState === 'running' && downloadProgress === 0
+    && pendingSinceRef.current && (Date.now() - pendingSinceRef.current) > 15000;
+
   const isDownloading = downloadState === 'starting' || downloadState === 'running';
+
+  return {
+    downloadState, downloadProgress, downloadError, downloadedUri,
+    pendingSinceRef, showBrowserFallback, isDownloading,
+    handleNativeDownload, handleOpenDownloadedApk, handleDismissBanner,
+  };
+}
+
+// ── APK Download Status Banner ──────────────────────────────────────────────
+// Portaled directly to document.body so it always renders relative to the true
+// viewport — never trapped inside a transformed ancestor (e.g. the Settings
+// dialog's `translate-x/y` centering, which creates a new containing block for
+// `position: fixed` descendants). This also means the banner survives the
+// dialog being closed, since it's mounted at the Settings page level, not
+// inside the (unmounting) dialog content.
+function ApkDownloadBanner({ apkUrl, download }) {
+  const { downloadState, downloadProgress, downloadError, pendingSinceRef, showBrowserFallback, handleOpenDownloadedApk, handleDismissBanner } = download;
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {downloadState !== 'idle' && (
+        <motion.div
+          initial={{ opacity: 0, y: -50, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -20, scale: 0.95 }}
+          className="fixed top-[calc(env(safe-area-inset-top,0px)+1rem)] left-1/2 -translate-x-1/2 z-[10002] max-w-md w-[calc(100%-2rem)] rounded-xl border shadow-lg"
+          style={{
+            background: downloadState === 'success' ? '#f0fdf4'
+              : downloadState === 'failed' ? '#fef2f2'
+              : '#eff6ff',
+            borderColor: downloadState === 'success' ? '#bbf7d0'
+              : downloadState === 'failed' ? '#fecaca'
+              : '#bfdbfe',
+          }}
+        >
+          <div className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                {downloadState === 'success' ? (
+                  <Check className="w-5 h-5" style={{ color: '#16a34a' }} />
+                ) : downloadState === 'failed' ? (
+                  <ShieldAlert className="w-5 h-5" style={{ color: '#dc2626' }} />
+                ) : (
+                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#2563eb' }} />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-sm" style={{ color: downloadState === 'success' ? '#15803d' : downloadState === 'failed' ? '#b91c1c' : '#1e40af' }}>
+                  {downloadState === 'success' ? 'Download Complete'
+                    : downloadState === 'failed' ? 'Download Failed'
+                    : downloadState === 'starting' ? 'Starting Download…'
+                    : 'Downloading Update…'}
+                </h4>
+                <p className="text-sm mt-0.5" style={{ color: downloadState === 'success' ? '#16a34a' : downloadState === 'failed' ? '#dc2626' : '#2563eb' }}>
+                  {downloadState === 'success' ? 'RxDeliver APK downloaded successfully. Tap "Open" to install.'
+                    : downloadState === 'failed' ? `Error: ${downloadError}. Try downloading from your browser.`
+                    : downloadState === 'starting' ? 'Contacting download server…'
+                    : downloadProgress > 0 ? `${downloadProgress}% complete`
+                  : (pendingSinceRef.current && (Date.now() - pendingSinceRef.current) > 5000) ? 'Queued by system — waiting…'
+                  : 'Starting download…'}
+                </p>
+                {downloadState === 'running' && downloadProgress > 0 && (
+                  <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: '#dbeafe' }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${downloadProgress}%`, background: '#2563eb' }} />
+                  </div>
+                )}
+              </div>
+              <button onClick={handleDismissBanner} className="flex-shrink-0 p-1 rounded-lg hover:bg-black/5" style={{ color: 'var(--text-slate-400)' }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {showBrowserFallback && (
+              <div className="mt-2 flex items-center gap-2 px-1">
+                <p className="text-xs flex-1" style={{ color: '#92400e' }}>
+                  Download seems stuck. Try opening the link directly:
+                </p>
+                <a href={apkUrl} target="_blank" rel="noopener" className="text-xs font-medium px-2 py-1 rounded-lg" style={{ background: '#fef3c7', color: '#92400e' }}>
+                  Open in browser
+                </a>
+              </div>
+            )}
+            {downloadState === 'success' && (
+              <div className="mt-3 flex gap-2">
+                <Button onClick={handleOpenDownloadedApk} className="flex-1 gap-2" style={{ background: '#16a34a', borderColor: '#16a34a' }}>
+                  <Check className="w-4 h-4" /> Open & Install
+                </Button>
+                <Button onClick={handleDismissBanner} variant="outline" className="px-4">
+                  Later
+                </Button>
+              </div>
+            )}
+            {downloadState === 'failed' && (
+              <div className="mt-3 flex gap-2">
+                <a href={apkUrl} className="flex-1">
+                  <Button className="w-full gap-2" style={{ background: '#2563eb', borderColor: '#2563eb' }}>
+                    <Download className="w-4 h-4" /> Open in Browser
+                  </Button>
+                </a>
+                <Button onClick={handleDismissBanner} variant="outline" className="px-4">
+                  Dismiss
+                </Button>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
+}
+
+// ── APK Download Panel ────────────────────────────────────────────────────────
+// Presentational only — the actual download state lives in useApkDownloadState()
+// at the Settings page level (see ApkDownloadBanner above) so it survives this
+// panel's dialog being closed immediately when the download starts.
+function ApkDownloadPanel({ updateAvailable = false, buildInfo = {}, onClose, download } = {}) {
+  const { apkUrl, buildText, loaded } = buildInfo;
+  const { isDownloading, handleNativeDownload } = download;
+
+  if (!loaded) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--text-slate-400)' }} />
+      </div>
+    );
+  }
+
+  if (!apkUrl) {
+    return (
+      <div className="py-4 text-center">
+        <ShieldAlert className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--text-slate-400)' }} />
+        <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>No APK build available yet. The build runs automatically on code updates.</p>
+      </div>
+    );
+  }
+
+  const handleClick = (e) => {
+    // Close the dialog immediately — the download status banner lives at the
+    // Settings page level (portaled to document.body), so it stays visible
+    // and keeps tracking progress independent of this dialog's open state.
+    onClose?.();
+    handleNativeDownload(e);
+  };
 
   return (
     <div className="py-4 space-y-4">
-      {/* Download status banner — fixed at top of screen like RouteNotification */}
-      <AnimatePresence>
-        {downloadState !== 'idle' && (
-          <motion.div
-            initial={{ opacity: 0, y: -50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-[calc(env(safe-area-inset-top,0px)+1rem)] left-1/2 -translate-x-1/2 z-[9999] max-w-md w-[calc(100%-2rem)] rounded-xl border shadow-lg"
-            style={{
-              background: downloadState === 'success' ? '#f0fdf4'
-                : downloadState === 'failed' ? '#fef2f2'
-                : '#eff6ff',
-              borderColor: downloadState === 'success' ? '#bbf7d0'
-                : downloadState === 'failed' ? '#fecaca'
-                : '#bfdbfe',
-            }}
-          >
-            <div className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 mt-0.5">
-                  {downloadState === 'success' ? (
-                    <Check className="w-5 h-5" style={{ color: '#16a34a' }} />
-                  ) : downloadState === 'failed' ? (
-                    <ShieldAlert className="w-5 h-5" style={{ color: '#dc2626' }} />
-                  ) : (
-                    <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#2563eb' }} />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-sm" style={{ color: downloadState === 'success' ? '#15803d' : downloadState === 'failed' ? '#b91c1c' : '#1e40af' }}>
-                    {downloadState === 'success' ? 'Download Complete'
-                      : downloadState === 'failed' ? 'Download Failed'
-                      : downloadState === 'starting' ? 'Starting Download…'
-                      : 'Downloading Update…'}
-                  </h4>
-                  <p className="text-sm mt-0.5" style={{ color: downloadState === 'success' ? '#16a34a' : downloadState === 'failed' ? '#dc2626' : '#2563eb' }}>
-                    {downloadState === 'success' ? 'RxDeliver APK downloaded successfully. Tap "Open" to install.'
-                      : downloadState === 'failed' ? `Error: ${downloadError}. Try downloading from your browser.`
-                      : downloadState === 'starting' ? 'Contacting download server…'
-                      : downloadProgress > 0 ? `${downloadProgress}% complete`
-                    : (pendingSinceRef.current && (Date.now() - pendingSinceRef.current) > 5000) ? 'Queued by system — waiting…'
-                    : 'Starting download…'}
-                  </p>
-                  {downloadState === 'running' && downloadProgress > 0 && (
-                    <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: '#dbeafe' }}>
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${downloadProgress}%`, background: '#2563eb' }} />
-                    </div>
-                  )}
-                </div>
-                <button onClick={handleDismissBanner} className="flex-shrink-0 p-1 rounded-lg hover:bg-black/5" style={{ color: 'var(--text-slate-400)' }}>
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              {showBrowserFallback && (
-                <div className="mt-2 flex items-center gap-2 px-1">
-                  <p className="text-xs flex-1" style={{ color: '#92400e' }}>
-                    Download seems stuck. Try opening the link directly:
-                  </p>
-                  <a href={apkUrl} target="_blank" rel="noopener" className="text-xs font-medium px-2 py-1 rounded-lg" style={{ background: '#fef3c7', color: '#92400e' }}>
-                    Open in browser
-                  </a>
-                </div>
-              )}
-              {downloadState === 'success' && (
-                <div className="mt-3 flex gap-2">
-                  <Button onClick={handleOpenDownloadedApk} className="flex-1 gap-2" style={{ background: '#16a34a', borderColor: '#16a34a' }}>
-                    <Check className="w-4 h-4" /> Open & Install
-                  </Button>
-                  <Button onClick={handleDismissBanner} variant="outline" className="px-4">
-                    Later
-                  </Button>
-                </div>
-              )}
-              {downloadState === 'failed' && (
-                <div className="mt-3 flex gap-2">
-                  <a href={apkUrl} className="flex-1">
-                    <Button className="w-full gap-2" style={{ background: '#2563eb', borderColor: '#2563eb' }}>
-                      <Download className="w-4 h-4" /> Open in Browser
-                    </Button>
-                  </a>
-                  <Button onClick={handleDismissBanner} variant="outline" className="px-4">
-                    Dismiss
-                  </Button>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-slate-10)' }}>
         <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(0, 0, 0, 0.08)' }}>
           <img
-            src="https://base44.app/api/apps/69f0c6983e41b169cdc3be5b/ac8712c0b_rxdeliver_icon.png"
+            src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/0aeae1e24_renametoicon-192.png"
             alt="RxDeliver app icon"
             className="w-full h-full object-cover"
             style={{ filter: 'grayscale(1) brightness(0.95)' }}
@@ -772,7 +811,7 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {} } = {}) {
       </div>
       {isCapacitorNativeApp() ? (
         <button
-          onClick={handleNativeDownload}
+          onClick={handleClick}
           disabled={isDownloading}
           className="w-full"
           style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: isDownloading ? 'wait' : 'pointer' }}
@@ -832,6 +871,11 @@ export default function Settings() {
   // date, used by the Native App row, the download dialog, and the bottom
   // build info line — so we don't triple-fetch the same GitHub API calls.
   const apkBuildInfo = useLatestApkBuildInfo();
+  // Download state lives here (Settings page level) — NOT inside the dialog —
+  // so the status banner survives the dialog being closed immediately when
+  // the download starts, and so the banner portal always renders relative to
+  // the true viewport (never trapped by the dialog's transform).
+  const apkDownload = useApkDownloadState(apkBuildInfo?.apkUrl);
 
   useEffect(() => {
     if (currentUser?.id) loadUserSettings(currentUser.id).then(setUserSettings);
@@ -1020,8 +1064,11 @@ export default function Settings() {
         {currentUser && <DevicesPanel currentUser={currentUser} />}
       </SettingsDialog>
       <SettingsDialog open={openPanel === 'apk'} onOpenChange={(o) => !o && setOpenPanel(null)} title={updateAvailable ? 'Update Android App' : 'Native App'} description={updateAvailable ? 'A newer build is available.' : 'Download the Android APK.'} icon={updateAvailable ? RefreshCw : Download}>
-        <ApkDownloadPanel updateAvailable={updateAvailable} buildInfo={apkBuildInfo} />
+        <ApkDownloadPanel updateAvailable={updateAvailable} buildInfo={apkBuildInfo} onClose={() => setOpenPanel(null)} download={apkDownload} />
       </SettingsDialog>
+      {/* Portaled to document.body — renders at true viewport top-center regardless
+          of dialog open/closed state or any transformed ancestor. */}
+      <ApkDownloadBanner apkUrl={apkBuildInfo?.apkUrl} download={apkDownload} />
     </div>
   );
 }
