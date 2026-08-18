@@ -290,12 +290,32 @@ export default function useDriverLocationSync({
       const resolvedTargetId = isSelfOrAll ? currentUser?.id : targetId;
       if (!resolvedTargetId) return;
 
-      const targetAppUser = updatedAppUsers.find(
-        (au) => au?.user_id === resolvedTargetId || au?.id === resolvedTargetId
+      // CRITICAL: WebSocket AppUser updates are often PARTIAL — they may carry only
+      // { id, current_latitude, current_longitude, location_updated_at } without
+      // user_id. To match the target driver, we need to resolve the AppUser entity
+      // record ID from the known appUsers (which have full records from initial load)
+      // and match it against the incoming data's `id` field.
+      const knownAppUserForTarget = (appUsersRef.current || []).find(
+        (au) => au?.user_id === resolvedTargetId
       );
+      const knownEntityId = knownAppUserForTarget?.id;
+
+      const targetAppUser = updatedAppUsers.find((au) => {
+        if (!au) return false;
+        // Direct user_id match
+        if (au.user_id === resolvedTargetId) return true;
+        // Match by entity record ID (resolved from known appUsers)
+        if (knownEntityId && au.id === knownEntityId) return true;
+        // Match by driver_id / driverId fields
+        if (au.driver_id === resolvedTargetId || au.driverId === resolvedTargetId) return true;
+        // Last resort: match by entity id against the resolved targetId itself
+        if (au.id === resolvedTargetId) return true;
+        return false;
+      });
       if (!targetAppUser?.current_latitude || !targetAppUser?.current_longitude) return;
 
       // Fire the map trigger — same as primary device path but driven by WS cadence.
+      console.log(`[useDriverLocationSync] Effect 2 firing setMapViewTrigger for driver ${resolvedTargetId} (phase ${phase}) — WS location update`);
       lastProgrammaticMapMoveRef.current = now;
       window._lastProgrammaticMapMove = now;
       pendingPhaseRef.current = phase;
