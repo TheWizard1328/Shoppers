@@ -224,8 +224,8 @@ export default function DriverPayrollGrid({
       // Filter by driver ID(s)
       if (!driverIdsToInclude.includes(d.driver_id)) return false;
 
-      // Exclude no-charge deliveries — not driver payable
-      if (d.no_charge) return false;
+      // N/C (no_charge) deliveries are still counted here so they appear in the
+      // grid and show a "+" for oversized — only BASE pay is excluded (in payroll calc).
       // Exclude bare pickups — keep patient deliveries, ISD/ISP inter-store, and after_hours_pickup
       const isInterStore = String(d.delivery_id || '').toUpperCase().startsWith('ISD-') || String(d.delivery_id || '').toUpperCase().startsWith('ISP-');
       if (!d.patient_id && !d.after_hours_pickup && !isInterStore) return false;
@@ -257,8 +257,7 @@ export default function DriverPayrollGrid({
   // Calculate extra km for a delivery
   const calculateExtraKm = (delivery) => {
     if (!delivery) return 0;
-    // Exclude no-charge deliveries from extra KM calculations
-    if (delivery.no_charge) return 0;
+    // N/C deliveries still earn extra km — do not skip them here.
 
     // Use paid_km_override if set, otherwise get distance_from_store from patient
     let distance = delivery.paid_km_override;
