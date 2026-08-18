@@ -1,6 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { base44 } from '@/api/base44Client';
 
+/**
+ * Computes performance stats (pay, km, extra km, duty time) for the currently
+ * selected driver using the SAME calculation path for every role — driver
+ * self-view, admin viewing any driver, or all-drivers aggregation.
+ *
+ * Per the user's request: the pay values come straight from the AppUser record of
+ * the selected driver. If that driver's pay rates are missing from the React
+ * `appUsers` snapshot (which only ~5min later is fully populated by the smart
+ * refresh poll), the hook calls AppUser.filter({ user_id }) to fetch them so
+ * StatsCard Total Pay never falls back to $0.
+ */
 export function useLocalPerformanceStats({
   currentUser,
   isDataLoaded,
@@ -14,23 +25,14 @@ export function useLocalPerformanceStats({
   setPerformanceStats,
   setIsLoadingPayrollStats
 }) {
+  // Cached fresh AppUser record(s) fetched on demand when pay rates are missing.
+  // Keyed by user_id so multiple selections are remembered within the session.
+  const [freshAppUserMap, setFreshAppUserMap] = useState({});
+
   useEffect(() => {
     if (!currentUser?.id || !isDataLoaded || isDispatcher) {
       setPerformanceStats(null);
       setIsLoadingPayrollStats(false);
-      return;
-    }
-
-    // When a pure admin views a DIFFERENT driver, the authoritative payroll is the
-    // backend getDriverPayrollStats function (already handles N/C correctly). Defer to
-    // that hook — don't clobber its result with a local computation that may miss the
-    // remote driver's pay rate in React appUsers state (which causes StatsCard to flash $0).
-    const isPureAdmin = isAdmin && !isDriver;
-    const deferToBackend = isPureAdmin
-      && selectedDriverId
-      && selectedDriverId !== 'all'
-      && selectedDriverId !== currentUser?.id;
-    if (deferToBackend) {
       return;
     }
 
@@ -72,171 +74,193 @@ export function useLocalPerformanceStats({
       return !isReturnStop(delivery);
     };
 
-    const driverIds = selectedDriverId && selectedDriverId !== "all"
-      ? [selectedDriverId]
-      : [...new Set((filteredDeliveries || []).map((d) => d?.driver_id).filter(Boolean))];
+    // TRUE if the AppUser record we just resolved has pay rate data present.
+    // Used to decide whether we need an async fetch to enrich it.
+    const hasPayRates = (au) =>
+      au != null && (au.pay_rate_per_delivery != null || au.extra_km_rate != null || au.oversized_item_rate != null);
 
-    if (driverIds.length === 0) {
-      setPerformanceStats({
-        totalPay: 0,
-        totalKm: 0,
-        totalExtraKm: 0,
-        totalTimeOnDuty: "00:00",
-        extraKmLimit: 0
-      });
-      setIsLoadingPayrollStats(false);
-      return;
-    }
-
-    let totalPay = 0;
-    let totalKm = 0;
-    let totalExtraKm = 0;
-    let totalDutyMinutes = 0;
-    let singleDriverExtraKmLimit = 0;
-
-    // For "all drivers" mode we track the earliest and latest finished-stop times
-    // across all drivers so the duty window is overall span, not a sum.
-    let allDriversEarliestMinutes = null;
-    let allDriversLatestMinutes = null;
-    const isAllDrivers = driverIds.length > 1;
-
-    driverIds.forEach((driverId) => {
-      const driverAppUser = driverAppUserMap.get(driverId);
-      const payRatePerDelivery = driverAppUser?.pay_rate_per_delivery || 0;
-      const extraKmRate = driverAppUser?.extra_km_rate || 0;
-      const extraKmLimit = driverAppUser?.extra_km_limit || 0;
-      const oversizedRate = driverAppUser?.oversized_item_rate || 0;
-      const driverStatus = driverAppUser?.driver_status;
-      const driverDeliveries = (filteredDeliveries || []).filter((d) => d?.driver_id === driverId);
-
-      if (driverIds.length === 1) {
-        singleDriverExtraKmLimit = extraKmLimit;
-      }
-
-      const isInterStore = (d) => { const id = String(d?.delivery_id || '').toUpperCase(); return id.startsWith('ISD-') || id.startsWith('ISP-'); };
-
-      const paidDeliveries = driverDeliveries.filter((delivery) => {
-        if (!delivery) return false;
-        if (delivery.patient_id) return isCompletedStop(delivery) || isFailedStop(delivery) || isReturnStop(delivery);
-        if (delivery.after_hours_pickup) return delivery.status === "completed" || delivery.status === "cancelled";
-        if (isInterStore(delivery)) return delivery.status === "completed" || delivery.status === "failed";
-        return false;
-      });
-
-      // N/C deliveries skip BASE pay only — oversized and extra km are still payable.
-      const noChargeCount = paidDeliveries.filter((d) => d?.no_charge === true).length;
-      totalPay += (paidDeliveries.length - noChargeCount) * payRatePerDelivery;
-      totalPay += paidDeliveries.filter((delivery) => delivery?.oversized === true).length * oversizedRate;
-
-      paidDeliveries.forEach((delivery) => {
-        const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
-        const distance = delivery.paid_km_override !== null && delivery.paid_km_override !== undefined
-          ? parseFloat(delivery.paid_km_override)
-          : patient?.distance_from_store;
-
-        if (typeof distance === "number" && !Number.isNaN(distance) && distance > extraKmLimit) {
-          const extraKm = distance - extraKmLimit;
-          totalExtraKm += extraKm;
-          totalPay += extraKm * extraKmRate;
-        }
-      });
-
-      const finishedDeliveries = driverDeliveries.filter((delivery) => {
-        if (!delivery?.actual_delivery_time) return false;
-        return isCompletedStop(delivery) || isFailedStop(delivery) || isReturnStop(delivery);
-      });
-
-      // Active (isNextDelivery) delivery - use estimated_distance_km as a non-accumulating
-      // estimate so we never double-count GPS increments written by liveDistanceTracker.
-      const activeDelivery = driverDeliveries.find((d) => d?.isNextDelivery === true && !finishedStatuses.includes(d.status));
-
-      finishedDeliveries.forEach((delivery) => {
-        // Prefer travel_dist when it has been set (actual measured distance from GPS breadcrumbs
-        // or live tracking). Fall back to estimated_distance_km (HERE route estimate) and then
-        // patient distance_from_store as a last resort.
-        const distToUse =
-          typeof delivery?.travel_dist === "number" ? delivery.travel_dist
-          : typeof delivery?.estimated_distance_km === "number" ? delivery.estimated_distance_km
-          : (() => {
-              const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
-              return typeof patient?.distance_from_store === "number" ? patient.distance_from_store : 0;
-            })();
-        totalKm += distToUse;
-      });
-
-      // Add the active leg as its route estimate (not the live GPS value).
-      if (activeDelivery) {
-        const activeLegKm =
-          typeof activeDelivery.estimated_distance_km === "number" ? activeDelivery.estimated_distance_km
-          : typeof activeDelivery.travel_dist === "number" ? activeDelivery.travel_dist
-          : 0;
-        totalKm += activeLegKm;
-      }
-
-      const finishedStopsWithTimes = driverDeliveries
-        .filter((delivery) => delivery?.actual_delivery_time)
-        .map((delivery) => ({
-          ...delivery,
-          localMinutes: extractLocalTimeMinutes(delivery.actual_delivery_time)
-        }))
-        .filter((delivery) => delivery.localMinutes !== null)
-        .sort((a, b) => a.localMinutes - b.localMinutes);
-
-      if (finishedStopsWithTimes.length > 0) {
-        const firstMinutes = finishedStopsWithTimes[0].localMinutes;
-        const patientDeliveriesOnly = driverDeliveries.filter((delivery) => delivery?.patient_id);
-        const routeComplete = patientDeliveriesOnly.length > 0 && patientDeliveriesOnly.every((delivery) => finishedStatuses.includes(delivery.status));
-        let endMinutes = finishedStopsWithTimes[finishedStopsWithTimes.length - 1].localMinutes;
-
-        if (!routeComplete && driverStatus === "on_duty") {
-          const now = new Date();
-          endMinutes = now.getHours() * 60 + now.getMinutes();
-        }
-        // Note: totalDutyMinutes will be overridden below if activity_segments are available
-
-        if (isAllDrivers) {
-          // Track overall span across all drivers
-          if (allDriversEarliestMinutes === null || firstMinutes < allDriversEarliestMinutes) {
-            allDriversEarliestMinutes = firstMinutes;
-          }
-          if (allDriversLatestMinutes === null || endMinutes > allDriversLatestMinutes) {
-            allDriversLatestMinutes = endMinutes;
-          }
+    const resolveSelectedAppUserMapSync = () => {
+      const map = new Map();
+      // Prefer freshly fetched records; fall back to the React appUsers snapshot.
+      Object.entries(freshAppUserMap).forEach(([uid, au]) => { if (au) map.set(uid, au); });
+      (appUsers || []).forEach((au) => {
+        if (!au?.user_id) return;
+        if (map.has(au.user_id)) {
+          // Fresh single-driver record wins on pay fields only — keep the rest.
+          const fresh = map.get(au.user_id);
+          map.set(au.user_id, { ...au, ...fresh });
         } else {
-          let rawDurationMinutes = endMinutes - firstMinutes;
-          if (rawDurationMinutes < 0) rawDurationMinutes += 24 * 60;
-          totalDutyMinutes += Math.max(0, rawDurationMinutes);
+          map.set(au.user_id, au);
         }
+      });
+      return map;
+    };
+
+    // We run the calculation synchronously whenever we have *some* AppUser data;
+    // if pay rates are missing for the selected driver, we fetch fresh and re-run.
+    const compute = (resolvedMap) => {
+      const driverIds = selectedDriverId && selectedDriverId !== "all"
+        ? [selectedDriverId]
+        : [...new Set((filteredDeliveries || []).map((d) => d?.driver_id).filter(Boolean))];
+
+      if (driverIds.length === 0) {
+        return {
+          totalPay: 0,
+          totalKm: 0,
+          totalExtraKm: 0,
+          totalTimeOnDuty: "00:00",
+          extraKmLimit: 0,
+          _driverId: selectedDriverId || null
+        };
       }
-    });
 
-    // For all-drivers mode, compute duty span from earliest first stop to latest last stop
-    if (isAllDrivers && allDriversEarliestMinutes !== null && allDriversLatestMinutes !== null) {
-      let span = allDriversLatestMinutes - allDriversEarliestMinutes;
-      if (span < 0) span += 24 * 60;
-      totalDutyMinutes = Math.max(0, span);
-    }
+      let totalPay = 0;
+      let totalKm = 0;
+      let totalExtraKm = 0;
+      let totalDutyMinutes = 0;
+      let singleDriverExtraKmLimit = 0;
 
-    // ── Single-driver: always use DriverDailyActivity segments, never the legacy span ──
-    // For single-driver view, fetch activity_segments and use their sum as the
-    // authoritative on-duty time. Only fall back to the legacy span if no segments exist.
-    if (!isAllDrivers && driverIds.length === 1 && isDataLoaded) {
-      const segDriverId = driverIds[0];
+      let allDriversEarliestMinutes = null;
+      let allDriversLatestMinutes = null;
+      const isAllDrivers = driverIds.length > 1;
+
+      driverIds.forEach((driverId) => {
+        const driverAppUser = resolvedMap.get(driverId);
+        const payRatePerDelivery = driverAppUser?.pay_rate_per_delivery || 0;
+        const extraKmRate = driverAppUser?.extra_km_rate || 0;
+        const extraKmLimit = driverAppUser?.extra_km_limit || 0;
+        const oversizedRate = driverAppUser?.oversized_item_rate || 0;
+        const driverStatus = driverAppUser?.driver_status;
+        const driverDeliveries = (filteredDeliveries || []).filter((d) => d?.driver_id === driverId);
+
+        if (driverIds.length === 1) {
+          singleDriverExtraKmLimit = extraKmLimit;
+        }
+
+        const isInterStore = (d) => { const id = String(d?.delivery_id || '').toUpperCase(); return id.startsWith('ISD-') || id.startsWith('ISP-'); };
+
+        const paidDeliveries = driverDeliveries.filter((delivery) => {
+          if (!delivery) return false;
+          if (delivery.patient_id) return isCompletedStop(delivery) || isFailedStop(delivery) || isReturnStop(delivery);
+          if (delivery.after_hours_pickup) return delivery.status === "completed" || delivery.status === "cancelled";
+          if (isInterStore(delivery)) return delivery.status === "completed" || delivery.status === "failed";
+          return false;
+        });
+
+        // N/C deliveries skip BASE pay only — oversized and extra km are still payable.
+        const noChargeCount = paidDeliveries.filter((d) => d?.no_charge === true).length;
+        totalPay += (paidDeliveries.length - noChargeCount) * payRatePerDelivery;
+        totalPay += paidDeliveries.filter((delivery) => delivery?.oversized === true).length * oversizedRate;
+
+        paidDeliveries.forEach((delivery) => {
+          const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
+          const distance = delivery.paid_km_override !== null && delivery.paid_km_override !== undefined
+            ? parseFloat(delivery.paid_km_override)
+            : patient?.distance_from_store;
+
+          if (typeof distance === "number" && !Number.isNaN(distance) && distance > extraKmLimit) {
+            const extraKm = distance - extraKmLimit;
+            totalExtraKm += extraKm;
+            totalPay += extraKm * extraKmRate;
+          }
+        });
+
+        const finishedDeliveries = driverDeliveries.filter((delivery) => {
+          if (!delivery?.actual_delivery_time) return false;
+          return isCompletedStop(delivery) || isFailedStop(delivery) || isReturnStop(delivery);
+        });
+
+        const activeDelivery = driverDeliveries.find((d) => d?.isNextDelivery === true && !finishedStatuses.includes(d.status));
+
+        finishedDeliveries.forEach((delivery) => {
+          const distToUse =
+            typeof delivery?.travel_dist === "number" ? delivery.travel_dist
+            : typeof delivery?.estimated_distance_km === "number" ? delivery.estimated_distance_km
+            : (() => {
+                const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
+                return typeof patient?.distance_from_store === "number" ? patient.distance_from_store : 0;
+              })();
+          totalKm += distToUse;
+        });
+
+        if (activeDelivery) {
+          const activeLegKm =
+            typeof activeDelivery.estimated_distance_km === "number" ? activeDelivery.estimated_distance_km
+            : typeof activeDelivery.travel_dist === "number" ? activeDelivery.travel_dist
+            : 0;
+          totalKm += activeLegKm;
+        }
+
+        const finishedStopsWithTimes = driverDeliveries
+          .filter((delivery) => delivery?.actual_delivery_time)
+          .map((delivery) => ({
+            ...delivery,
+            localMinutes: extractLocalTimeMinutes(delivery.actual_delivery_time)
+          }))
+          .filter((delivery) => delivery.localMinutes !== null)
+          .sort((a, b) => a.localMinutes - b.localMinutes);
+
+        if (finishedStopsWithTimes.length > 0) {
+          const firstMinutes = finishedStopsWithTimes[0].localMinutes;
+          const patientDeliveriesOnly = driverDeliveries.filter((delivery) => delivery?.patient_id);
+          const routeComplete = patientDeliveriesOnly.length > 0 && patientDeliveriesOnly.every((delivery) => finishedStatuses.includes(delivery.status));
+          let endMinutes = finishedStopsWithTimes[finishedStopsWithTimes.length - 1].localMinutes;
+
+          if (!routeComplete && driverStatus === "on_duty") {
+            const now = new Date();
+            endMinutes = now.getHours() * 60 + now.getMinutes();
+          }
+
+          if (isAllDrivers) {
+            if (allDriversEarliestMinutes === null || firstMinutes < allDriversEarliestMinutes) {
+              allDriversEarliestMinutes = firstMinutes;
+            }
+            if (allDriversLatestMinutes === null || endMinutes > allDriversLatestMinutes) {
+              allDriversLatestMinutes = endMinutes;
+            }
+          } else {
+            let rawDurationMinutes = endMinutes - firstMinutes;
+            if (rawDurationMinutes < 0) rawDurationMinutes += 24 * 60;
+            totalDutyMinutes += Math.max(0, rawDurationMinutes);
+          }
+        }
+      });
+
+      if (isAllDrivers && allDriversEarliestMinutes !== null && allDriversLatestMinutes !== null) {
+        let span = allDriversLatestMinutes - allDriversEarliestMinutes;
+        if (span < 0) span += 24 * 60;
+        totalDutyMinutes = Math.max(0, span);
+      }
+
+      return {
+        totalPay,
+        totalKm,
+        totalExtraKm,
+        totalTimeOnDuty: isAllDrivers ? formatMinutes(totalDutyMinutes) : undefined,
+        totalDutyMinutesRaw: totalDutyMinutes, // used by single-driver branch below
+        extraKmLimit: isAllDrivers ? 0 : singleDriverExtraKmLimit,
+        _singleDriver: !isAllDrivers,
+        _singleDriverId: !isAllDrivers ? driverIds[0] : null
+      };
+    };
+
+    // Single-driver path: always use DriverDailyActivity segments for duty time.
+    const finalizeSingleDriverDuty = (stats, totalDutyMinutes) => {
+      setPerformanceStats(prev => ({
+        totalPay: stats.totalPay,
+        totalKm: stats.totalKm,
+        totalExtraKm: stats.totalExtraKm,
+        totalTimeOnDuty: prev?.totalTimeOnDuty ?? '--:--',
+        extraKmLimit: stats.extraKmLimit
+      }));
+      setIsLoadingPayrollStats(false);
+
+      if (!stats._singleDriverId) return;
+      const segDriverId = stats._singleDriverId;
       const segDate = (() => {
         const anyDelivery = (filteredDeliveries || []).find(d => d?.driver_id === segDriverId && d?.delivery_date);
         return anyDelivery?.delivery_date || new Date().toISOString().split('T')[0];
       })();
-
-      // Set stats immediately — preserve existing totalTimeOnDuty while the async
-      // activity-segments fetch is in flight so the display never flickers to blank.
-      setPerformanceStats(prev => ({
-        totalPay,
-        totalKm,
-        totalExtraKm,
-        totalTimeOnDuty: prev?.totalTimeOnDuty ?? '--:--',
-        extraKmLimit: singleDriverExtraKmLimit
-      }));
-      setIsLoadingPayrollStats(false);
 
       (async () => {
         try {
@@ -247,11 +271,6 @@ export function useLocalPerformanceStats({
           const segments = recs?.[0]?.activity_segments;
           if (Array.isArray(segments) && segments.length > 0) {
             const nowMs = Date.now();
-
-            // ── Deduplicate overlapping segments ──
-            // Multiple devices (phone + tablet) may have opened concurrent segments
-            // for the same on-duty window. Merge overlapping time ranges so the total
-            // duty time reflects actual elapsed wall-clock, not the sum of N devices.
             const ranges = segments
               .filter(s => s?.start_time)
               .map(s => ({
@@ -274,39 +293,54 @@ export function useLocalPerformanceStats({
               return sum + Math.max(0, Math.round((r.end - r.start) / 60000));
             }, 0);
 
-            // Cap at 24 hours — a single day cannot have more than 1440 min of duty
             const cappedMinutes = Math.min(segMinutes, 1440);
-
-            setPerformanceStats(prev => prev
-              ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) }
-              : null
-            );
+            setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(cappedMinutes) } : null);
           } else {
-            // No activity segments — fall back to legacy span calculation
-            setPerformanceStats(prev => prev
-              ? { ...prev, totalTimeOnDuty: formatMinutes(totalDutyMinutes) }
-              : null
-            );
+            setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(totalDutyMinutes) } : null);
           }
         } catch (_) {
-          // On error, fall back to legacy span
-          setPerformanceStats(prev => prev
-            ? { ...prev, totalTimeOnDuty: formatMinutes(totalDutyMinutes) }
-            : null
-          );
+          setPerformanceStats(prev => prev ? { ...prev, totalTimeOnDuty: formatMinutes(totalDutyMinutes) } : null);
         }
       })();
-      return; // Don't fall through to the multi-driver setPerformanceStats below
-    }
+    };
 
-    setPerformanceStats({
-      totalPay,
-      totalKm,
-      totalExtraKm,
-      totalTimeOnDuty: formatMinutes(totalDutyMinutes),
-      extraKmLimit: driverIds.length === 1 ? singleDriverExtraKmLimit : 0
-    });
-    setIsLoadingPayrollStats(false);
+    const run = () => {
+      const resolvedMap = resolveSelectedAppUserMapSync();
+      const stats = compute(resolvedMap);
+
+      if (stats._singleDriver) {
+        finalizeSingleDriverDuty(stats, stats.totalDutyMinutesRaw);
+      } else {
+        // Multi-driver / all
+        setPerformanceStats({
+          totalPay: stats.totalPay,
+          totalKm: stats.totalKm,
+          totalExtraKm: stats.totalExtraKm,
+          totalTimeOnDuty: stats.totalTimeOnDuty,
+          extraKmLimit: stats.extraKmLimit
+        });
+        setIsLoadingPayrollStats(false);
+      }
+
+      // Whether the single selected driver is missing pay rates — if so, fetch & recompute.
+      if (selectedDriverId && selectedDriverId !== 'all') {
+        const existing = resolvedMap.get(selectedDriverId);
+        if (!hasPayRates(existing)) {
+          (async () => {
+            try {
+              const fresh = await base44.entities.AppUser.filter({ user_id: selectedDriverId });
+              const freshAu = fresh?.[0];
+              if (!freshAu) return;
+              setFreshAppUserMap(prev => ({ ...prev, [selectedDriverId]: freshAu }));
+            } catch (_) {
+              // Ignore — leave current calc (best-effort) in place
+            }
+          })();
+        }
+      }
+    };
+
+    run();
   }, [
     currentUser?.id,
     isDataLoaded,
@@ -317,6 +351,7 @@ export function useLocalPerformanceStats({
     filteredDeliveries,
     patients,
     appUsers,
+    freshAppUserMap,
     setPerformanceStats,
     setIsLoadingPayrollStats
   ]);
