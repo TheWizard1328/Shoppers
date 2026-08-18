@@ -17,7 +17,7 @@
     "instructions": null
   },
   "voice_config": {
-    "voice_id": null
+    "voice_id": "Charon"
   },
   "allow_anonymous_access": false,
   "name": "your_agent"
