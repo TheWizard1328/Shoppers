@@ -283,12 +283,17 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
    Brush-pick mode overrides to a crosshair for precise point removal. */
 .polyline-viewer-map .leaflet-container,
 .polyline-viewer-map .leaflet-grab,
-.polyline-viewer-map .leaflet-interactive {
+.polyline-viewer-map .leaflet-interactive,
+.polyline-viewer-map .leaflet-marker-icon,
+.polyline-viewer-map .leaflet-marker-icon *,
+.polyline-viewer-map .leaflet-interactive.leaflet-drag-target {
   cursor: default !important;
 }
 .polyline-viewer-map.is-brush-mode .leaflet-container,
 .polyline-viewer-map.is-brush-mode .leaflet-grab,
-.polyline-viewer-map.is-brush-mode .leaflet-interactive {
+.polyline-viewer-map.is-brush-mode .leaflet-interactive,
+.polyline-viewer-map.is-brush-mode .leaflet-marker-icon,
+.polyline-viewer-map.is-brush-mode .leaflet-marker-icon * {
   cursor: crosshair !important;
 }
 
