@@ -975,7 +975,7 @@ function DeliveryMap({
         if (!bounds.isValid()) return;
 
         const opts = request.options || {};
-        const requestedMaxZoom = typeof opts.maxZoom === 'number' ? opts.maxZoom : 17.5;
+        const requestedMaxZoom = typeof opts.maxZoom === 'number' ? opts.maxZoom : 18;
         const paddingTopLeft    = opts.paddingTopLeft    || [60, 60];
         const paddingBottomRight= opts.paddingBottomRight|| [60, 60];
         const currentZoom = map.getZoom();
@@ -1035,8 +1035,8 @@ function DeliveryMap({
         // from a zoomed-out state, or when the driver+stop pair get far enough
         // apart that a higher zoom is required.
         //
-        // The old code split on `alreadyAtOrAboveMaxZoom` (currentZoom >= 17.5
-        // AND targetZoom >= 17.5), which meant at any typical Phase 2 zoom
+        // The old code split on `alreadyAtOrAboveMaxZoom` (currentZoom >= 18
+        // AND targetZoom >= 18), which meant at any typical Phase 2 zoom
         // (14–16) the map took the slow fitBounds path.  That path also called
         // a redundant setZoom(fittedZoom) that cancelled the fitBounds animation
         // and fired moveend prematurely — leaving the map in a broken state
@@ -1052,10 +1052,10 @@ function DeliveryMap({
         // markers) — fall through to fitBounds which adjusts zoom + pan together.
         const zoomDiff = currentZoom - targetZoomForBounds;
         // CRITICAL: When the user has manually zoomed in PAST the requestedMaxZoom
-        // (e.g. map maxZoom is 18 but Phase 2 caps at 17.5), we must NOT take the
+        // (e.g. map maxZoom is 18 but Phase 2 caps at 18), we must NOT take the
         // fast-pan shortcut — the map needs to zoom OUT to at least requestedMaxZoom
         // so both markers are visible.  Without this, completing a stop while at
-        // zoom 18 leaves the map stuck at 18 even though the bounds need 17.5 or less.
+        // zoom 18 leaves the map stuck at 18 even though the bounds need 18 or less.
         const userOverZoomed = currentZoom > requestedMaxZoom + 0.01;
         // ── THREE-TIER ZOOM DECISION ──────────────────────────────────────────
         // Tier 1 (|zoomDiff| ≤ 0.08): FAST PAN — keep current zoom, just pan.
@@ -1107,8 +1107,8 @@ function DeliveryMap({
               );
               if (latestB.isValid() && reqB.isValid()) {
                 const centerDiff = latestB.getCenter().distanceTo(reqB.getCenter());
-                const latestMaxZoom = (latest.options || {}).maxZoom ?? 17.5;
-                const reqMaxZoom = (request.options || {}).maxZoom ?? 17.5;
+                const latestMaxZoom = (latest.options || {}).maxZoom ?? 18;
+                const reqMaxZoom = (request.options || {}).maxZoom ?? 18;
                 // Span comparison: if the bounds span has changed by more than 15%,
                 // the optimal zoom has changed enough to warrant a re-fit, even if
                 // the center hasn't moved. This catches the converging-markers case.
