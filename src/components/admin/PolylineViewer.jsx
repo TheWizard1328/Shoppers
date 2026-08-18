@@ -1482,7 +1482,7 @@ export default function PolylineViewer({ users = [] }) {
             <div className="flex items-center gap-1 flex-shrink-0">
               {hasPoly && <Badge variant="outline" className="text-xs py-0 px-1.5">🗺 Poly</Badge>}
               {hasCrumb && (
-                <Badge variant="secondary" className={`text-xs py-0 px-1.5 ${crumb.saved_to_route ? 'bg-green-100 text-green-700' : crumb.imported_from_delivery ? 'bg-purple-100 text-purple-700' : ''}`}>
+                <Badge variant="secondary" className={`text-xs py-0 px-1.5 ${crumb.saved_to_route ? 'bg-green-600 text-slate-600' : crumb.imported_from_delivery ? 'bg-purple-100 text-purple-700' : ''}`}>
                   {crumb.saved_to_route ? '✓ BC' : crumb.imported_from_delivery ? '↓ BC' : '🛤 BC'}
                 </Badge>
               )}
