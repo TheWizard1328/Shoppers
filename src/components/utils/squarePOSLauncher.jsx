@@ -157,11 +157,37 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   remoteLogger.info(`[Square POS] (Android) Intent URL built (bare=${bare})`, squareUrl);
   console.log('[Square POS] (Android) Launching URL:', squareUrl);
 
+  // ── Native Capacitor WebView path ──────────────────────────────────────
+  // Capacitor doesn't implement onCreateWindow in its WebChromeClient, so
+  // window.open() silently fails for intent:// URLs. And Bridge.launchIntent()
+  // uses Intent.ACTION_VIEW with the raw URI instead of Intent.parseUri(),
+  // so anchor-click navigation also doesn't work. Use the native JavascriptInterface
+  // to parse and launch the intent directly from Java.
+  if (typeof window !== 'undefined' && window.AndroidNative && typeof window.AndroidNative.launchSquareIntent === 'function') {
+    try {
+      const result = window.AndroidNative.launchSquareIntent(squareUrl);
+      remoteLogger.info(`[Square POS] (Android) Native launch dispatched (result=${result})`);
+    } catch (err) {
+      remoteLogger.error('[Square POS] (Android) Native launch FAILED', String(err));
+      console.error('[Square POS] Native launch error:', err);
+    }
+    return;
+  }
+
+  // ── Regular browser fallback — anchor click ────────────────────────────
+  // In a regular Chrome browser (not inside the Capacitor WebView), use an
+  // anchor click which lets Chrome's shouldOverrideUrlLoading handle the
+  // intent:// URI natively.
   try {
-    window.open(squareUrl);
-    remoteLogger.info('[Square POS] (Android) window.open dispatched successfully');
+    const a = document.createElement('a');
+    a.href = squareUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} }, 1000);
+    remoteLogger.info('[Square POS] (Android) Anchor click dispatched (browser fallback)');
   } catch (err) {
-    remoteLogger.error('[Square POS] (Android) window.open FAILED', String(err));
+    remoteLogger.error('[Square POS] (Android) Anchor click FAILED', String(err));
     console.error('[Square POS] Launch error:', err);
   }
 }

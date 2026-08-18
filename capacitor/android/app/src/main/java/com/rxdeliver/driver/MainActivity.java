@@ -105,6 +105,45 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    // ── Square POS native intent launcher ──────────────────────────────────
+    // Capacitor's WebView doesn't implement onCreateWindow, so window.open()
+    // silently fails for intent:// URLs. And Bridge.launchIntent() uses
+    // Intent.ACTION_VIEW with the raw URI instead of Intent.parseUri(), so
+    // even anchor-click navigation doesn't properly parse intent:// URIs.
+    //
+    // This method receives the full intent:// URI string from JS, parses it
+    // with Intent.parseUri() (which correctly extracts action, package, extras),
+    // and launches it via startActivity(). Works for both bare launches (MAIN)
+    // and payment charges (CHARGE) with all Square POS extras.
+    @JavascriptInterface
+    public boolean launchSquareIntent(String intentUrl) {
+        try {
+            Intent intent = Intent.parseUri(intentUrl, Intent.URI_INTENT_SCHEME);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            runOnUiThread(() -> {
+                try {
+                    startActivity(intent);
+                } catch (Exception e) {
+                    // Square POS not installed — open Play Store
+                    try {
+                        Intent playStoreIntent = new Intent(Intent.ACTION_VIEW,
+                            Uri.parse("market://details?id=com.squareup"));
+                        playStoreIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(playStoreIntent);
+                    } catch (Exception e2) {
+                        Toast.makeText(MainActivity.this,
+                            "Square POS app not installed", Toast.LENGTH_LONG).show();
+                    }
+                }
+            });
+            return true;
+        } catch (Exception e) {
+            Toast.makeText(MainActivity.this,
+                "Unable to launch Square POS: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            return false;
+        }
+    }
+
     // Since Android 7.0 (API 24), passing a raw file:// URI to another app's
     // Intent (e.g. the Package Installer) throws FileUriExposedException —
     // this was the actual root cause of "Unable to open APK: file://..." on
