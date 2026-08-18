@@ -15,6 +15,17 @@ export const isCapacitorNativeApp = () => {
     if (hasCapacitor && !window.__capacitorChecked) {
       window.__capacitorChecked = true;
       console.log(`📱 [Capacitor] Detected: hasCapacitor=${hasCapacitor}, hasMethod=${hasMethod}, isNative=${isNative}, platform=${hasCapacitor ? Capacitor.getPlatform?.() : 'N/A'}`);
+      // Log app identity (bundle ID, version, build) to help diagnose which APK is installed
+      // com.rxdeliver.driver = GitHub Actions build (correct), com.rxdeliver.app = stale Base44 builder
+      if (isNative && !window.__appIdentityLogged) {
+        window.__appIdentityLogged = true;
+        import('@capacitor/app').then(({ App }) => {
+          App.getInfo().then((info) => {
+            console.log(`📱 [Capacitor] App Identity: id=${info.id}, version=${info.version}, build=${info.build}, name=${info.name}`);
+            console.log(`📱 [Capacitor] Native download interface: ${typeof window.AndroidNative !== 'undefined' ? 'present (com.rxdeliver.driver)' : 'absent (com.rxdeliver.app?)'}`);
+          }).catch((e) => console.warn('📱 [Capacitor] App.getInfo() failed:', e?.message));
+        }).catch((e) => console.warn('📱 [Capacitor] @capacitor/app not available:', e?.message));
+      }
     }
     return isNative;
   } catch (e) {
