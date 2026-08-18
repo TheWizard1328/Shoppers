@@ -612,9 +612,9 @@ function Dashboard() {
     });
   }, [isMobile, stopCardsBaseHeight, statsCardBaseHeight, statsContainerBaseHeight]);
   const handleCardInteraction = useCallback((show) => { if (fadeTimeoutRef.current) { clearTimeout(fadeTimeoutRef.current); fadeTimeoutRef.current = null; } setAreCardsVisible(show); if (show && !isExpanded && !isRouteComplete) fadeTimeoutRef.current = setTimeout(() => setAreCardsVisible(false), 3000); }, [isExpanded, isRouteComplete]);
-  const handleStatsPanelInteraction = useCallback((isHovering) => { if (!isMobile) return; if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } if (isHovering || isExpanded) setStatsPanelOpacity(1); else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
-  useEffect(() => { if (!isMobile) { setStatsPanelOpacity(1); return; } if (isExpanded) { setStatsPanelOpacity(1); if (statsPanelFadeTimeoutRef.current) { clearTimeout(statsPanelFadeTimeoutRef.current); statsPanelFadeTimeoutRef.current = null; } } else statsPanelFadeTimeoutRef.current = setTimeout(() => setStatsPanelOpacity(0.5), 5000); }, [isExpanded, isMobile]);
-  useEffect(() => { if (!isMobile || !isDataLoaded) return; const t = setTimeout(() => { if (!isExpanded) setStatsPanelOpacity(0.5); }, 5000); return () => clearTimeout(t); }, [isDataLoaded, isExpanded, isMobile]);
+  // Stats card + driver legend stay fully opaque at all times — no auto fade-out.
+  const handleStatsPanelInteraction = useCallback(() => {}, []);
+  useEffect(() => { setStatsPanelOpacity(1); }, []);
   const handleReoptimizeRouteRef = useRef(null);
   useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, mapUserUnlockedRef, lastUserInteractionRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger, onOnDutyFromToggle: () => handleReoptimizeRouteRef.current?.() });
   useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, isAdmin, isDriver, selectedDriverId, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
