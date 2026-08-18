@@ -18,10 +18,12 @@ const isInterStoreDelivery = (delivery_id) => {
 
 export const calculateDeliveryPay = (delivery, driver, patient = null) => {
   if (!delivery || !driver) return 0;
-  if (delivery.no_charge) return 0; // No-charge deliveries are not driver payable
   if (!delivery.patient_id && !delivery.after_hours_pickup && !isInterStoreDelivery(delivery.delivery_id)) return 0;
 
-  let totalPay = driver.pay_rate_per_delivery || 0;
+  // No-charge (N/C) deliveries only skip the BASE delivery pay — oversized and
+  // extra km pay are still payable for N/C deliveries.
+  const isNoCharge = delivery.no_charge === true;
+  let totalPay = isNoCharge ? 0 : (driver.pay_rate_per_delivery || 0);
 
   if (delivery.patient_id || isInterStoreDelivery(delivery.delivery_id)) {
     const extraKmRate = driver.extra_km_rate || 0;

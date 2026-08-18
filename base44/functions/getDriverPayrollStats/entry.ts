@@ -84,12 +84,14 @@ Deno.serve(async (req) => {
     // CRITICAL: Patient deliveries count when completed OR failed
     // ISD/ISP inter-store deliveries are also driver-payable (completed or failed)
     // Pickups count ONLY when they have after_hours_pickup = true AND (completed OR cancelled)
+    // N/C (no_charge) deliveries are still counted as deliveries — they keep
+    // oversized and extra km pay — only the BASE delivery pay is excluded.
     const completedPatientDeliveries = deliveries.filter(d => 
-      (d.patient_id || isInterStore(d)) && !d.no_charge && ((d.status === 'completed' || d.status === 'failed') || (d.status === 'cancelled' && isPatientReturn(d)))
+      (d.patient_id || isInterStore(d)) && ((d.status === 'completed' || d.status === 'failed') || (d.status === 'cancelled' && isPatientReturn(d)))
     );
 
     const completedAfterHoursPickups = deliveries.filter(d => 
-      !d.patient_id && !isInterStore(d) && d.after_hours_pickup === true && !d.no_charge && (d.status === 'completed' || d.status === 'cancelled')
+      !d.patient_id && !isInterStore(d) && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
     );
 
     const completedDeliveries = [...completedPatientDeliveries, ...completedAfterHoursPickups];
@@ -143,10 +145,7 @@ Deno.serve(async (req) => {
       // Total km = actual distance traveled (travel_dist)
       totalKm += (d.travel_dist || 0);
 
-      // Do not award extra km for No Charge deliveries
-      if (d.no_charge) {
-        return;
-      }
+      // N/C deliveries still earn extra km — do not skip them here.
 
       // Extra km = based on paid_km_override or patient.distance_from_store
       let paidDistance = 0;
@@ -165,7 +164,10 @@ Deno.serve(async (req) => {
     });
 
     // Calculate total pay
-    const deliveryPay = completedDeliveries.length * payRatePerDelivery;
+    // Base delivery pay excludes N/C deliveries; oversized and extra km
+    // (computed above) already include N/C deliveries.
+    const basePayableCount = completedDeliveries.filter(d => !d.no_charge).length;
+    const deliveryPay = basePayableCount * payRatePerDelivery;
     const extraKmPay = totalExtraKm * extraKmRate;
     const oversizedPay = oversizedCount * oversizedRate;
     const totalPay = deliveryPay + extraKmPay + oversizedPay;

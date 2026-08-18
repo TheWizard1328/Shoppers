@@ -154,15 +154,17 @@ Deno.serve(async (req) => {
     // --- Count countable deliveries (same logic as getDriverPayrollStats) ---
     // Patient deliveries: completed or failed (or cancelled if it's a return)
     // Also includes ISD/ISP inter-store deliveries (they have no patient_id but are payable)
+    // N/C (no_charge) deliveries are still counted as deliveries — they keep
+    // oversized and extra km pay — only the BASE delivery pay is excluded.
     const countablePatientDeliveries = periodDeliveries.filter(d =>
-      (d.patient_id || isInterStore(d)) && !d.no_charge &&
+      (d.patient_id || isInterStore(d)) &&
       ((d.status === 'completed' || d.status === 'failed') ||
        (d.status === 'cancelled' && isPatientReturn(d)))
     );
 
     // After-hours pickups: no patient_id, NOT inter-store, after_hours_pickup=true, completed or cancelled
     const countableAfterHoursPickups = periodDeliveries.filter(d =>
-      !d.patient_id && !isInterStore(d) && d.after_hours_pickup === true && !d.no_charge &&
+      !d.patient_id && !isInterStore(d) && d.after_hours_pickup === true &&
       (d.status === 'completed' || d.status === 'cancelled')
     );
 
@@ -189,7 +191,7 @@ Deno.serve(async (req) => {
     let totalExtraKm = 0;
     countableDeliveries.forEach((d, i) => {
       if (i > 0 && getTimeDiffMinutes(countableDeliveries[i - 1], d) > 90) return;
-      if (d.no_charge) return;
+      // N/C deliveries still earn extra km — do not skip them here.
       let paidDistance = 0;
       if (d.paid_km_override != null) {
         paidDistance = d.paid_km_override;
@@ -203,7 +205,10 @@ Deno.serve(async (req) => {
     });
 
     // --- Calculate gross pay ---
-    const deliveryPay = countableDeliveries.length * payRatePerDelivery;
+    // Base delivery pay excludes N/C deliveries; oversized and extra km
+    // (computed above) already include N/C deliveries.
+    const basePayableCount = countableDeliveries.filter(d => !d.no_charge).length;
+    const deliveryPay = basePayableCount * payRatePerDelivery;
     const extraKmPay = round2(totalExtraKm * extraKmRate);
     const oversizedPay = round2(oversizedCount * oversizedRate);
     const afterHoursPay = round2(afterHoursCount * afterHoursRate);

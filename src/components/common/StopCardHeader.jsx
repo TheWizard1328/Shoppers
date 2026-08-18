@@ -262,7 +262,9 @@ export default function StopCardHeader({
     const isAfterHours = delivery?.after_hours_pickup === true;
     const hasExtraPay = pay > baseRate && !isAfterHours;
     const isNoCharge = delivery?.no_charge === true;
-    const payDisplay = isNoCharge ? 'N/C' : formatPay(pay);
+    // N/C deliveries may still earn oversized/extra km pay — only show 'N/C'
+    // when there is genuinely no payable amount.
+    const payDisplay = (isNoCharge && pay === 0) ? 'N/C' : formatPay(pay);
 
     return !isAfterHours && !hasExtraPay ?
       <div className="text-emerald-600 pt-1 text-xs font-bold">{payDisplay}</div> :
