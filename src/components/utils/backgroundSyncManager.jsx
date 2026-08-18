@@ -38,15 +38,15 @@ class BackgroundSyncManager {
       historicalDaysToSync: 90, // Sync past 90 days
       batchSize: 50, // Number of records per batch
       maxAPICallsPerCycle: 1, // Single API call per cycle to avoid 429s
-      // Historical sync: after 8 PM only, incremental count-based
+      // Historical sync: 10 PM to 8 AM only, one date at a time (slow & steady)
       deferHistoricalOnLoad: true,
       historicalDeferMinutes: 15,
       offPeakWindows: [
-        // After 8 PM until 9 AM local time
-        { start: '20:00', end: '09:00' }
+        // 10 PM until 8 AM local time
+        { start: '22:00', end: '08:00' }
       ],
       historicalMaxDatesPerCycleDaytime: 0,   // Never run during daytime
-      historicalMaxDatesPerCycleOffpeak: 3,   // 3 dates per cycle off-peak (conservative)
+      historicalMaxDatesPerCycleOffpeak: 1,   // 1 date per cycle off-peak (slow & steady)
       throttleBetweenCallsMsDaytime: 5000,
       throttleBetweenCallsMsOffpeak: 500,
       priorities: {
@@ -60,6 +60,7 @@ class BackgroundSyncManager {
     this.currentCycleAPICalls = 0;
     this.appStartTime = Date.now();
     this.subscribers = new Set();
+    this.historicalSyncDateCursor = null; // Persisted across cycles for sequential day-by-day backfill
   }
 
   /**
@@ -245,63 +246,83 @@ class BackgroundSyncManager {
   async syncHistoricalDeliveries() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
-    // CRITICAL: Disable background sync of deliveries during user sessions
-    // Background sync was overwriting user edits (e.g., changing selected dates back to today)
-    // Users can manually pull-to-sync or wait for smartRefreshManager on filter changes
-    console.log('⏭️ [BackgroundSync] Historical deliveries sync disabled to prevent overwrites of user edits');
-    return;
-
-    // Build list of historical dates: yesterday back to Jan 1 of current year
-    const today = new Date();
-    const jan1 = new Date(today.getFullYear(), 0, 1);
-    const allDates = [];
-    let cursor = new Date(today);
-    cursor.setDate(cursor.getDate() - 1); // start from yesterday
-    while (cursor >= jan1) {
-      allDates.push(format(cursor, 'yyyy-MM-dd'));
-      cursor.setDate(cursor.getDate() - 1);
+    // Only run historical delivery sync during off-peak hours (10 PM – 8 AM local time)
+    if (!this.isOffPeakNow()) {
+      console.log('⏸️ [BackgroundSync] Historical deliveries sync skipped (off-peak only)');
+      return;
     }
 
-    // Find next date that needs syncing using count-based validation
-    let syncedCount = 0;
-    const maxDatesPerCycle = this.config.historicalMaxDatesPerCycleOffpeak || 3;
+    // CRITICAL: NEVER sync today's date — active edits happen on today's deliveries
+    // and a background replace would wipe in-progress changes. Start from yesterday.
+    if (this.historicalSyncDateCursor == null) {
+      const today = new Date();
+      today.setDate(today.getDate() - 1);
+      this.historicalSyncDateCursor = today;
+    }
 
-    for (const dateStr of allDates) {
+    // 365-day window — sync one full year of delivery history
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 365);
+
+    const maxDatesPerCycle = this.config.historicalMaxDatesPerCycleOffpeak || 1;
+    let syncedCount = 0;
+    let cursor = new Date(this.historicalSyncDateCursor);
+
+    // Work backwards one day at a time (slow & steady). Stop after 1 API call.
+    while (cursor >= cutoffDate && syncedCount < maxDatesPerCycle) {
       if (this.isPaused || !this.isRunning) break;
-      if (syncedCount >= maxDatesPerCycle) break;
       if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) break;
 
+      const dateStr = format(cursor, 'yyyy-MM-dd');
+
       try {
-        // Count offline records for this date
         const offlineRecords = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
         const offlineCount = (offlineRecords || []).length;
 
-        // Fetch online records (also reused for save if counts differ)
         const onlineDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr }, '-updated_date', 5000);
         const onlineCount = (onlineDeliveries || []).length;
         this.currentCycleAPICalls++;
 
-        // Skip if counts match and we have data — already synced
         if (onlineCount === offlineCount && offlineCount > 0) {
           console.log(`✅ [BackgroundSync] ${dateStr} already synced (${offlineCount} records) — skipping`);
-          continue;
+        } else {
+          // Historical date — safe to replace (no active edits expected here)
+          await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, onlineDeliveries || []);
+          console.log(`🔄 [BackgroundSync] Synced ${onlineCount} deliveries for ${dateStr} (was ${offlineCount})`);
+          syncedCount++;
+          this.lastSyncTimes.deliveries = new Date().toISOString();
         }
 
-        // Counts differ — save the online data to offline DB
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, onlineDeliveries || []);
-        console.log(`🔄 [BackgroundSync] Synced ${onlineCount} deliveries for ${dateStr} (was ${offlineCount})`);
-        syncedCount++;
-        this.lastSyncTimes.deliveries = new Date().toISOString();
+        // Advance cursor so the next cycle picks up the prior day
+        cursor.setDate(cursor.getDate() - 1);
+        this.historicalSyncDateCursor = new Date(cursor);
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429')) {
           console.log('⏰ [BackgroundSync] Rate limited - stopping delivery sync');
-          break;
+        } else {
+          console.warn(`⚠️ [BackgroundSync] Failed to sync deliveries for ${dateStr}:`, error.message);
         }
-        console.warn(`⚠️ [BackgroundSync] Failed to sync deliveries for ${dateStr}:`, error.message);
+        break; // Stop on error for this cycle — try again next cycle
       }
+    }
 
-      // Throttle between dates to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, this.config.throttleBetweenCallsMsOffpeak || 500));
+    // If we've reached the 365-day cutoff, reset cursor to yesterday so future
+    // runs re-validate the most recent history instead of stalling.
+    if (this.historicalSyncDateCursor < cutoffDate) {
+      const resetDate = new Date();
+      resetDate.setDate(resetDate.getDate() - 1);
+      this.historicalSyncDateCursor = resetDate;
+      console.log('🔄 [BackgroundSync] Historical sync reached 365-day cutoff — resetting cursor to yesterday');
+    }
+
+    // Purge deliveries older than 1 year to keep IndexedDB from growing unbounded
+    try {
+      const pruneResult = await offlineDB.pruneOldDeliveries();
+      if (pruneResult?.removed > 0) {
+        console.log(`🧹 [BackgroundSync] Purged ${pruneResult.removed} deliveries older than 1 year`);
+      }
+    } catch (e) {
+      console.warn('⚠️ [BackgroundSync] Purge failed:', e.message);
     }
 
     this.notifySubscribers({ type: 'deliveries_synced', count: syncedCount });

@@ -1229,11 +1229,11 @@ const deduplicateDeliveries = async () => {
 };
 
 /**
- * Prune historical deliveries - keeps max 60 days per user
- * CRITICAL: Reduces mobile database size by removing old routes
- * CRITICAL: Only runs on mobile devices
+ * Prune historical deliveries older than 1 year (365 days).
+ * Keeps IndexedDB from growing unbounded during the historical backfill.
+ * Runs on every device type as part of the off-peak historical sync cycle.
  */
-const pruneDeliveriesOlderThan60Days = async () => {
+const pruneOldDeliveries = async () => {
   try {
     const allDeliveries = await getAll(STORES.DELIVERIES);
 
@@ -1241,19 +1241,10 @@ const pruneDeliveriesOlderThan60Days = async () => {
       return { success: true, removed: 0 };
     }
 
-    // Match prune window to sync window: mobile=90 days, desktop=Jan 1 of current year
-    const { getUserAgentInfo } = await import('./deviceUtils');
-    const { deviceType } = getUserAgentInfo();
-    const isMobile = deviceType === 'Mobile' || deviceType === 'Tablet';
-
+    // 1-year retention window — matches the historical sync backfill range
     const now = new Date();
-    let cutoffDateStr;
-    if (isMobile) {
-      const cutoffDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); // 90 days
-      cutoffDateStr = cutoffDate.toISOString().split('T')[0];
-    } else {
-      cutoffDateStr = `${now.getFullYear()}-01-01`; // Jan 1 of current year for desktop
-    }
+    const cutoffDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
 
     // Group deliveries by driver_id
     const deliveriesByDriver = new Map();
@@ -1268,7 +1259,7 @@ const pruneDeliveriesOlderThan60Days = async () => {
     let removedCount = 0;
     const deliveriesToKeep = [];
 
-    // For each driver, remove deliveries older than 60 days
+    // For each driver, keep deliveries within the 1-year window, remove older
     deliveriesByDriver.forEach((driverDeliveries, driverId) => {
       driverDeliveries.forEach(delivery => {
         if (delivery.delivery_date && delivery.delivery_date >= cutoffDateStr) {
@@ -1289,7 +1280,7 @@ const pruneDeliveriesOlderThan60Days = async () => {
     if (removedCount > 0) {
       await clearStore(STORES.DELIVERIES);
       await bulkSave(STORES.DELIVERIES, deliveriesToKeep);
-      console.log(`[OfflineDB] Pruned ${removedCount} deliveries older than 60 days`);
+      console.log(`[OfflineDB] Pruned ${removedCount} deliveries older than 1 year`);
       return { success: true, removed: removedCount };
     }
 
@@ -1298,6 +1289,9 @@ const pruneDeliveriesOlderThan60Days = async () => {
     return { success: false, error: error.message };
   }
 };
+
+// Backward-compat alias — older callers reference the legacy name
+const pruneDeliveriesOlderThan60Days = pruneOldDeliveries;
 
 
 export const offlineDB = {
@@ -1332,6 +1326,7 @@ export const offlineDB = {
   deduplicateDeliveries,
   deleteDeliveriesByDate,
   pruneDeliveriesOlderThan60Days,
+  pruneOldDeliveries,
   getSyncMetadata,
   updateSyncMetadata,
   getCacheValidation,
