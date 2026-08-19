@@ -187,8 +187,6 @@ export default function StatsPanel({
   }, [selectedDateStr, stores, deliveries]);
 
   const legendData = (() => {
-    if (!isAdmin && !isDispatcher) return [];
-
     const routeMap = new Map((driverRoutes || []).map((route) => [route.driverId, route]));
     const driverIdsWithStops = new Set(legendDeliveries.map((delivery) => delivery.driver_id));
 
@@ -707,7 +705,7 @@ export default function StatsPanel({
           </AnimatePresence>
         </motion.div>
 
-            {!isAllDriversMode && !isAdmin && !isDispatcher ? null : legendData.length > 0 &&
+            {legendData.length > 0 &&
             <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full" style={{ background: 'var(--bg-white)', opacity: 1, borderColor: 'var(--border-slate-200)' }}
             onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
             <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
@@ -733,7 +731,9 @@ export default function StatsPanel({
                 
                   </div>
                   <span className="text-sm font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
-                  <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
+                  {!(isDriver && !isAdmin) &&
+                    <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
+                  }
                 </button>
                 )}
             </div>
