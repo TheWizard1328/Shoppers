@@ -71,7 +71,19 @@ export default function useImmersiveMode({
   // doesn't have to rely on a stale Date.now() ref check.
   const [isCooldownActive, setIsCooldownActive] = useState(false);
 
+  // ── App-owner TEST MODE ──────────────────────────────────────────────────────
+  // Tapping the user badge on the mobile header forces immersiveHidden=true,
+  // bypassing motion/proximity/role checks. ANY action that would normally
+  // disable regular immersive mode clears the flag, leaving immersiveHidden
+  // under normal logic until the badge is tapped again.
+  const [testImmersiveActive, setTestImmersiveActive] = useState(false);
+
   const locationHistoryRef = useRef([]);
+  // Track the previous values of deactivation conditions so we only clear test
+  // mode when a transition happens (e.g. proximity false→true, motion true→false),
+  // not on every render where the condition is simply true from the start.
+  const prevIsNearStopForTestRef = useRef(false);
+  const prevIsMovingForTestRef = useRef(false);
   const stoppedTimeoutRef = useRef(null);
   const overrideTimeoutRef = useRef(null);
   const cooldownTimeoutRef = useRef(null);
@@ -164,6 +176,7 @@ export default function useImmersiveMode({
       if (cooldownTimeoutRef.current) { clearTimeout(cooldownTimeoutRef.current); cooldownTimeoutRef.current = null; }
       setIsDriverMoving(false);
       setIsOverrideActive(false);
+      setTestImmersiveActive(false);
       // Reactively set cooldown active so immersiveHidden updates immediately
       setIsCooldownActive(true);
       cooldownTimeoutRef.current = setTimeout(() => {
@@ -210,8 +223,24 @@ export default function useImmersiveMode({
     if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
   }, []);
 
+  // ── App-owner TEST MODE: toggle listener + state broadcast ──────────────────
+  useEffect(() => {
+    const onToggle = () => setTestImmersiveActive((prev) => !prev);
+    window.addEventListener('app-owner-immersive-test-toggle', onToggle);
+    return () => window.removeEventListener('app-owner-immersive-test-toggle', onToggle);
+  }, []);
+
+  // Broadcast the test-mode flag so the mobile-header avatar can reflect it.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('app-owner-immersive-test-state', {
+      detail: { active: testImmersiveActive }
+    }));
+  }, [testImmersiveActive]);
+
   // ── Deactivation condition 2: double-tap override ───────────────────────────
   const forceShowUI = useCallback(() => {
+    // App-owner test mode is cleared by this explicit user gesture.
+    setTestImmersiveActive(false);
     setIsOverrideActive(true);
     // CRITICAL: User-initiated tap must exit immersive mode INSTANTLY. The 3-second
     // IMMERSIVE_TOGGLE_DEBOUNCE_MS is meant for GPS-jitter proximity flips, not for
@@ -261,19 +290,39 @@ export default function useImmersiveMode({
     nextStopLocation,
   ]);
 
+  // ── App-owner TEST MODE: clear on normal deactivation transitions ────────────
+  // Any of these "I would normally disable immersive" transitions (entering the
+  // proximity radius, coming to a stop after moving) clears test mode so the
+  // UI reappears and stays disabled until the badge is tapped again.
+  useEffect(() => {
+    if (testImmersiveActive && isNearNextStop && !prevIsNearStopForTestRef.current) {
+      setTestImmersiveActive(false);
+    }
+    prevIsNearStopForTestRef.current = isNearNextStop;
+  }, [testImmersiveActive, isNearNextStop]);
+
+  useEffect(() => {
+    if (testImmersiveActive && prevIsMovingForTestRef.current && !isDriverMoving) {
+      setTestImmersiveActive(false);
+    }
+    prevIsMovingForTestRef.current = isDriverMoving;
+  }, [testImmersiveActive, isDriverMoving]);
+
   // ── Debounce immersiveHidden state changes ──────────────────────────────────
   // Prevents rapid toggling caused by GPS jitter at the proximity boundary.
   // When the computed value flips, we wait IMMERSIVE_TOGGLE_DEBOUNCE_MS before
   // committing the change. If it flips back within that window, the change is
   // cancelled — the driver never sees the oscillation.
   const rawImmersiveHidden = useMemo(() => {
+    // TEST MODE forces immersiveHidden on, bypassing role/motion/proximity gates.
+    if (testImmersiveActive) return true;
     if (!enabled || !isDriver || !isMobile) return false;
     if (isCooldownActive) return false;
     if (!nextStopLocation) return false;
     if (isOverrideActive) return false;
     if (isNearNextStop) return false;
     return isDriverMoving;
-  }, [enabled, isDriver, isMobile, isCooldownActive, nextStopLocation, isOverrideActive, isNearNextStop, isDriverMoving]);
+  }, [testImmersiveActive, enabled, isDriver, isMobile, isCooldownActive, nextStopLocation, isOverrideActive, isNearNextStop, isDriverMoving]);
 
   const pendingImmersiveRef = useRef(null);
   const immersiveToggleTimerRef = useRef(null);
@@ -301,6 +350,22 @@ export default function useImmersiveMode({
       pendingImmersiveRef.current = null;
     }, IMMERSIVE_TOGGLE_DEBOUNCE_MS);
   }, [rawImmersiveHidden, immersiveHidden]);
+
+  // ── App-owner TEST MODE: commit immediately, bypassing the 3s debounce ──────
+  // Tapping the badge (or being cleared by a deactivation transition) should
+  // show/hide the UI instantly — the debounce exists for GPS jitter, not user
+  // gestures.
+  useEffect(() => {
+    if (testImmersiveActive !== immersiveHidden) {
+      if (immersiveToggleTimerRef.current) {
+        clearTimeout(immersiveToggleTimerRef.current);
+        immersiveToggleTimerRef.current = null;
+      }
+      pendingImmersiveRef.current = null;
+      setImmersiveHidden(testImmersiveActive);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testImmersiveActive]);
 
   // ── Notify FAB on immersive toggle ─────────────────────────────────────────
   const previousImmersiveHiddenRef = useRef(immersiveHidden);

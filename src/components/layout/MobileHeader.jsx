@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ArrowLeft, MoreVertical, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -31,6 +31,24 @@ export default function MobileHeader({
   users,
 }) {
   const { canGoBack: canGoBackInTab, goBack } = useMobileNavigation();
+
+  // ── App-owner TEST MODE for immersive mode ──────────────────────────────────
+  // Reflects the immersive test-mode flag (broadcast by useImmersiveMode) so the
+  // user badge visibly glows while test mode is engaged. Tapping the badge toggles
+  // the flag — but ONLY for the App Owner (the platform admin), as requested.
+  const isOwner = isAppOwner(currentUser);
+  const [immersiveTestActive, setImmersiveTestActive] = useState(false);
+
+  useEffect(() => {
+    const onState = (e) => setImmersiveTestActive(!!e?.detail?.active);
+    window.addEventListener('app-owner-immersive-test-state', onState);
+    return () => window.removeEventListener('app-owner-immersive-test-state', onState);
+  }, []);
+
+  const handleAvatarClick = () => {
+    if (!isOwner) return;
+    window.dispatchEvent(new CustomEvent('app-owner-immersive-test-toggle'));
+  };
 
   // Resolve the currently selected driver so the toggle targets them (admin only)
   const selectedDriverTarget = useMemo(() => {
@@ -204,11 +222,30 @@ export default function MobileHeader({
               </button>
             )}
             <BatteryIndicator vertical={true} />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getUserAvatarGradient(currentUser)}`}>
+            <button
+              type="button"
+              onClick={handleAvatarClick}
+              disabled={!isOwner}
+              aria-label={isOwner ? 'Toggle immersive test mode' : undefined}
+              title={isOwner ? 'Immersive test mode' : undefined}
+              className={`relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-shadow ${
+                getUserAvatarGradient(currentUser)
+              } ${
+                isOwner
+                  ? `cursor-pointer ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ${
+                      immersiveTestActive
+                        ? 'ring-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]'
+                        : 'ring-transparent'
+                    }`
+                  : 'cursor-default'
+              }`}>
               <span className="text-white font-bold text-xs">
                 {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
               </span>
-            </div>
+              {isOwner && immersiveTestActive && (
+                <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900" />
+              )}
+            </button>
           </div>
         )}
       </div>
