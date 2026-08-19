@@ -225,7 +225,13 @@ function DeliveryMarkers({
     const markerLatitude = gpsOverride?.latitude ?? delivery.latitude;
     const markerLongitude = gpsOverride?.longitude ?? delivery.longitude;
     if (!Number.isFinite(markerLatitude) || !Number.isFinite(markerLongitude)) return null;
-    const locationKey = `${markerLatitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${markerLongitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
+    // Cluster key is computed in DeliveryMap (Step 2) — it's pending-aware (coarser
+    // precision so pending markers stay clustered at high zoom). Read it directly so
+    // grouped-map lookups below match the upstream counts. Fall back to recomputing
+    // with the same pending-cap rule for safety if the field is absent.
+    const fallbackPrecision = currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2;
+    const cappedPrecision = delivery.status === 'pending' && fallbackPrecision > 4 ? 4 : fallbackPrecision;
+    const locationKey = delivery.locationKey || `${markerLatitude.toFixed(cappedPrecision)},${markerLongitude.toFixed(cappedPrecision)}`;
     const isClustered = delivery.duplicateCount > 1;
     const isFanned = fannedLocationKey === locationKey;
     const isHighlighted = highlightedDeliveryId === delivery.id;

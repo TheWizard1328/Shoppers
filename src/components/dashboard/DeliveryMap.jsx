@@ -90,10 +90,17 @@ export const getDriverColor = (driver) => {
   return DRIVER_COLORS[index] || "#607D8B";
 };
 
-const getLocationKey = (lat, lng, zoom) => {
-  const precision = zoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : zoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : zoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2;
+const getLocationKey = (lat, lng, zoom, capPrecision = null) => {
+  let precision = zoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : zoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : zoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2;
+  // PENDING markers use a coarser cap (~10m tolerance) so multiple pending markers in
+  // the same building/area stay clustered even when zoomed in past FULL_DETAIL.
+  if (capPrecision != null && precision > capPrecision) precision = capPrecision;
   return `${Number(lat).toFixed(precision)},${Number(lng).toFixed(precision)}`;
 };
+// Helper: pending markers cap at precision 4 so they stay clustered at high zoom,
+// matching the active/finished visual rule (which naturally overlaps due to size).
+const LOCATION_KEY_CAP_FOR_PENDING = 4;
+const getLocationKeyCapForStatus = (status) => (status === 'pending' ? LOCATION_KEY_CAP_FOR_PENDING : null);
 
 const dedupeById = (items) => {
   const map = new Map();
@@ -561,7 +568,8 @@ function DeliveryMap({
     const allMarkers = [...rawPickupMarkers, ...rawDeliveryMarkers];
     const counts = new Map();
     allMarkers.forEach((marker) => {
-      const key = getLocationKey(marker.latitude, marker.longitude, currentZoom);
+      const cap = getLocationKeyCapForStatus(marker.status);
+      const key = getLocationKey(marker.latitude, marker.longitude, currentZoom, cap);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
@@ -569,17 +577,22 @@ function DeliveryMap({
     const groupedDeliveriesMap = new Map();
 
     const pickupMarkersWithCounts = rawPickupMarkers.map((marker) => {
-      const key = getLocationKey(marker.latitude, marker.longitude, currentZoom);
+      const cap = getLocationKeyCapForStatus(marker.status);
+      const key = getLocationKey(marker.latitude, marker.longitude, currentZoom, cap);
       if (!groupedPickupsMap.has(key)) groupedPickupsMap.set(key, []);
-      const withCount = { ...marker, duplicateCount: counts.get(key) || 1 };
+      const withCount = { ...marker, duplicateCount: counts.get(key) || 1, locationKey: key };
       groupedPickupsMap.get(key).push(withCount);
       return withCount;
     });
 
     const deliveryMarkersWithCounts = rawDeliveryMarkers.map((marker) => {
-      const key = getLocationKey(marker.latitude, marker.longitude, currentZoom);
+      // Cycling markers use their own grouping logic and must NOT join the
+      // pending-cap precision cluster (they share exact lat/lng by design).
+      const isCycling = marker.is_cycling_marker || marker.markerType === 'cycling';
+      const cap = isCycling ? null : getLocationKeyCapForStatus(marker.status);
+      const key = getLocationKey(marker.latitude, marker.longitude, currentZoom, cap);
       if (!groupedDeliveriesMap.has(key)) groupedDeliveriesMap.set(key, []);
-      const withCount = { ...marker, duplicateCount: counts.get(key) || 1 };
+      const withCount = { ...marker, duplicateCount: counts.get(key) || 1, locationKey: key };
       groupedDeliveriesMap.get(key).push(withCount);
       return withCount;
     });

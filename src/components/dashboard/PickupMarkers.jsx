@@ -22,7 +22,12 @@ export default function PickupMarkers({
 }) {
   return pickupMarkers.map((pickup) => {
     if (!Number.isFinite(pickup.latitude) || !Number.isFinite(pickup.longitude)) return null;
-    const lk = `${pickup.latitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)},${pickup.longitude.toFixed(currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2)}`;
+    // Cluster key is computed in DeliveryMap (Step 2) — pending-aware (coarser precision
+    // keeps pending markers clustered at high zoom). Read it from the marker so group
+    // lookups match. Fall back to recomputing with the same pending-cap for safety.
+    const fallbackPrecision = currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 6 : currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES ? 4 : currentZoom >= ZOOM_LEVELS.HIDE_NUMBERS ? 3 : 2;
+    const cappedPrecision = pickup.status === 'pending' && fallbackPrecision > 4 ? 4 : fallbackPrecision;
+    const lk = pickup.locationKey || `${pickup.latitude.toFixed(cappedPrecision)},${pickup.longitude.toFixed(cappedPrecision)}`;
     const isClustered = pickup.duplicateCount > 1;
     const isFanned = fannedLocationKey === lk;
     const isHighlighted = highlightedDeliveryId === pickup.id;
