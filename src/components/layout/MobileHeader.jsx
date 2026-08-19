@@ -228,7 +228,7 @@ export default function MobileHeader({
               disabled={!isOwner}
               aria-label={isOwner ? 'Toggle immersive test mode' : undefined}
               title={isOwner ? 'Immersive test mode' : undefined}
-              className={`relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-shadow ${
+              className={`relative w-8 h-8 p-0 border-0 aspect-square rounded-full flex items-center justify-center flex-shrink-0 transition-shadow outline-none ${
                 getUserAvatarGradient(currentUser)
               } ${
                 isOwner
