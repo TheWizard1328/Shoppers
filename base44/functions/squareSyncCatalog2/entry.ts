@@ -101,6 +101,14 @@ function flattenOrderItems(orders) {
   return items;
 }
 const buildComparableLocationSignature = (n, c, lid) => `${normalizeText(lid)}::${normalizeMatchName(n)}::${toAmountCents(c)}`;
+// Collection detection — mirrors the rule used by syncSquareCods' event trigger.
+// A delivery is considered "already collected" when it has been completed AND at least
+// one payment was recorded (offline: cash/check/other, or card: debit/credit).
+const PAYMENT_TYPE_LOWERCASE_OFFLINE = new Set(['cash', 'check', 'other']);
+const PAYMENT_TYPE_EXACT_CARD = new Set(['Debit', 'Credit', 'card', 'debit', 'credit']);
+function hasOfflinePayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => PAYMENT_TYPE_LOWERCASE_OFFLINE.has(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0); }
+function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => PAYMENT_TYPE_EXACT_CARD.has(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
+const isDeliveryAlreadyCollected = (d) => d?.status === 'completed' && (hasOfflinePayment(d) || hasCardPayment(d));
 
 async function handleSyncCatalog(base44, payload={}) {
   const accessToken=ensureSquareToken();
@@ -129,7 +137,12 @@ async function handleSyncCatalog(base44, payload={}) {
   const endDateStr=formatLocalDate(new Date());
   const deliveries=await base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:startDateStr,$lte:endDateStr}},'-updated_date',5000).catch(()=>[]);
   const safeDeliveries=(Array.isArray(deliveries)?deliveries:[]).map(unwrapEntityRecord).filter(Boolean);
-  const deliveriesWithCod=safeDeliveries.filter((d)=>Number(d?.cod_total_amount_required||0)>0&&d?.status!=='failed'&&d?.status!=='cancelled');
+  // CRITICAL: exclude deliveries whose COD has already been collected. Without this,
+  // the sync recreates a Square catalog item for every completed+collected delivery on
+  // every run (because the previous cleanup correctly deleted its catalog item + DB
+  // record), creating a recreate→delete cycle that pollutes the Square Catalog API with
+  // "already collected" items the user keeps seeing.
+  const deliveriesWithCod=safeDeliveries.filter((d)=>Number(d?.cod_total_amount_required||0)>0&&d?.status!=='failed'&&d?.status!=='cancelled'&&!isDeliveryAlreadyCollected(d));
 
   // Create missing COD items via squareCreateCodItem
   const createResults=[];
