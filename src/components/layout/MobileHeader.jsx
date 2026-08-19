@@ -32,11 +32,12 @@ export default function MobileHeader({
 }) {
   const { canGoBack: canGoBackInTab, goBack } = useMobileNavigation();
 
-  // ── App-owner TEST MODE for immersive mode ──────────────────────────────────
+  // ── Immersive TEST MODE toggle badge ─────────────────────────────────────────
   // Reflects the immersive test-mode flag (broadcast by useImmersiveMode) so the
   // user badge visibly glows while test mode is engaged. Tapping the badge toggles
-  // the flag — but ONLY for the App Owner (the platform admin), as requested.
-  const isOwner = isAppOwner(currentUser);
+  // the flag. Available to all users on primary mobile devices (where MobileHeader
+  // renders). Kept as a div badge (not a <button>) to preserve the original circular
+  // avatar styling — tap gesture is wired via onClick + role/keyboard handlers.
   const [immersiveTestActive, setImmersiveTestActive] = useState(false);
 
   useEffect(() => {
@@ -46,7 +47,6 @@ export default function MobileHeader({
   }, []);
 
   const handleAvatarClick = () => {
-    if (!isOwner) return;
     window.dispatchEvent(new CustomEvent('app-owner-immersive-test-toggle'));
   };
 
@@ -222,30 +222,32 @@ export default function MobileHeader({
               </button>
             )}
             <BatteryIndicator vertical={true} />
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={handleAvatarClick}
-              disabled={!isOwner}
-              aria-label={isOwner ? 'Toggle immersive test mode' : undefined}
-              title={isOwner ? 'Immersive test mode' : undefined}
-              className={`relative w-8 h-8 p-0 border-0 aspect-square rounded-full flex items-center justify-center flex-shrink-0 transition-shadow outline-none ${
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleAvatarClick();
+                }
+              }}
+              aria-label="Toggle immersive test mode"
+              title="Immersive test mode"
+              className={`relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer select-none transition-shadow ${
                 getUserAvatarGradient(currentUser)
-              } ${
-                isOwner
-                  ? `cursor-pointer ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ${
-                      immersiveTestActive
-                        ? 'ring-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]'
-                        : 'ring-transparent'
-                    }`
-                  : 'cursor-default'
+              } ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ${
+                immersiveTestActive
+                  ? 'ring-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]'
+                  : 'ring-transparent'
               }`}>
-              <span className="text-white font-bold text-xs">
+              <span className="text-white font-bold text-xs pointer-events-none">
                 {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
               </span>
-              {isOwner && immersiveTestActive && (
-                <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900" />
+              {immersiveTestActive && (
+                <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900 pointer-events-none" />
               )}
-            </button>
+            </div>
           </div>
         )}
       </div>
