@@ -31,6 +31,14 @@ public class MainActivity extends BridgeActivity {
     private Handler pollHandler = null;
     private Runnable pollRunnable = null;
 
+    // Request code for Square POS startActivityForResult(). Square's POS API
+    // requires this call pattern (see launchSquareIntent below) — the actual
+    // result extras aren't consumed here because the web app receives the
+    // transaction outcome via the WEB_CALLBACK_URI deep link instead, but
+    // Android still requires an onActivityResult override to complete the
+    // same-task contract Square validates against.
+    private static final int SQUARE_POS_REQUEST_CODE = 7284;
+
     // JavaScript interface for direct APK download from web app.
     // Bypasses the WebView DownloadListener entirely, which can be
     // unreliable on some devices (Samsung battery optimization kills
@@ -112,16 +120,25 @@ public class MainActivity extends BridgeActivity {
         //
         // This method receives the full intent:// URI string from JS, parses it
         // with Intent.parseUri() (which correctly extracts action, package, extras),
-        // and launches it via startActivity(). Works for both bare launches (MAIN)
-        // and payment charges (CHARGE) with all Square POS extras.
+        // and launches it via startActivityForResult(). Works for both bare launches
+        // (MAIN) and payment charges (CHARGE) with all Square POS extras.
+        //
+        // IMPORTANT: Square's POS API REQUIRES startActivityForResult() in the SAME
+        // task — it validates this via getCallingActivity(), which is only non-null
+        // when launched with startActivityForResult() and WITHOUT
+        // FLAG_ACTIVITY_NEW_TASK. The original code used startActivity() +
+        // FLAG_ACTIVITY_NEW_TASK, which "worked" the first time a fresh Square task
+        // was created, but failed with "Unexpected developer error... must be started
+        // with startActivityForResult()" on subsequent launches once Android reused
+        // Square's existing task/activity instance and the stricter caller-identity
+        // check kicked in. Do NOT re-add FLAG_ACTIVITY_NEW_TASK here.
         @JavascriptInterface
         public boolean launchSquareIntent(String intentUrl) {
             try {
                 Intent intent = Intent.parseUri(intentUrl, Intent.URI_INTENT_SCHEME);
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 runOnUiThread(() -> {
                     try {
-                        startActivity(intent);
+                        startActivityForResult(intent, SQUARE_POS_REQUEST_CODE);
                     } catch (Exception e) {
                         // Square POS not installed — open Play Store
                         try {
@@ -229,6 +246,18 @@ public class MainActivity extends BridgeActivity {
                 controller.setAppearanceLightStatusBars(!isDarkMode);
                 controller.setAppearanceLightNavigationBars(!isDarkMode);
             }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == SQUARE_POS_REQUEST_CODE) {
+            // Square POS returns here after the transaction sheet closes. The web
+            // app's payment outcome is delivered via the WEB_CALLBACK_URI deep link
+            // (see squarePOSLauncher.jsx), so we don't need to relay `data` back to
+            // JS — this override's presence + startActivityForResult() upstream is
+            // what satisfies Square's same-task caller validation.
         }
     }
 
