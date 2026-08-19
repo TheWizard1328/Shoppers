@@ -16,7 +16,7 @@ export default function MapSection({
   selectedDate, selectedDateStr, selectedDriverId,
   mapCenter, mapZoom, shouldFitBounds, setShouldFitBounds, setMapCenter, setMapZoom,
   mapMode, setMapMode, driverLocation, allDriverLocations, currentToNextPolyline,
-  showRoutes, setShowRoutes, showAllDriverMarkers, showBreadcrumbs, setShowBreadcrumbs: setShowBreadcrumbsProp, setBreadcrumbsData: setBreadcrumbsDataProp, breadcrumbsData,
+  showRoutes, setShowRoutes, showAllDriverMarkers, overlayDriverId, showBreadcrumbs, setShowBreadcrumbs: setShowBreadcrumbsProp, setBreadcrumbsData: setBreadcrumbsDataProp, breadcrumbsData,
   highlightedCardId, retractClustersRef,
   setDriverRoutes, renderSequence, setRenderSequence,
   stopCardsBaseHeight, handleMarkerClick, handleCardInteraction,
@@ -121,6 +121,7 @@ export default function MapSection({
           preferredTravelMode={preferredTravelMode}
           onTravelModeChange={onTravelModeChange}
           selectedDriverId={selectedDriverId}
+          overlayDriverId={overlayDriverId}
           selectedDate={format(selectedDate, 'yyyy-MM-dd')}
           patients={patients}
           stores={stores}

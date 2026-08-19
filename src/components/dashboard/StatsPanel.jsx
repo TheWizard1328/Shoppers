@@ -41,7 +41,8 @@ export default function StatsPanel({
   selectedDate, selectedDateStr, selectedDriverId, calendarMonth, setCalendarMonth,
   isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,
   isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
-  showAllDriverMarkers, setShowAllDriverMarkers, showBreadcrumbs, setShowBreadcrumbs, setBreadcrumbsData,
+  showAllDriverMarkers, setShowAllDriverMarkers, overlayDriverId, setOverlayDriverId, handleDriverLegendClick,
+  showBreadcrumbs, setShowBreadcrumbs, setBreadcrumbsData,
   showRoutes, setShowRoutes, driverRoutes,
   statsCardRef, statsContainerRef, retractClustersRef,
   mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef,
@@ -512,6 +513,10 @@ export default function StatsPanel({
                           const checked = !showAllDriverMarkers;
                           setShowAllDriverMarkers(checked);
                           if (currentUser?.id) saveSetting(currentUser.id, 'show_all_driver_markers', checked);
+                          // Binoculars toggle is independent of the legend overlay — clear any leftover overlay
+                          // so toggling Show All produces a clean Full Show All (on) or active-only (off) view.
+                          setOverlayDriverId?.(null);
+                          if (currentUser?.id) saveSetting(currentUser.id, 'overlay_driver_id', null);
                           setIsExpanded(false);
                           if (checked) {
                             setIsEntityUpdating(true);
@@ -709,14 +714,25 @@ export default function StatsPanel({
             <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full" style={{ background: 'var(--bg-white)', opacity: 1, borderColor: 'var(--border-slate-200)' }}
             onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
             <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
-              {legendData.map((route) =>
+              {legendData.map((route) => {
+                const isActiveDriver = selectedDriverId === route.driverId;
+                // Underline BOTH the active (selected) driver AND the overlaid (extra) driver — only 1 extra at a time.
+                const isOverlaidDriver = !!(overlayDriverId === route.driverId && showAllDriverMarkers && isDriver && !isAdmin);
+                const shouldUnderline = isActiveDriver || isOverlaidDriver;
+                const useLegacyClick = isAdmin || isDispatcher;
+                return (
                 <button
                   key={route.driverId}
-                  type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors px-0.5 py-0 h-[20px]    ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
+                  type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors px-0.5 py-0 h-[20px]    ${shouldUnderline ? 'underline underline-offset-2 font-semibold' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Toggle: clicking the already-selected driver switches back to "All Drivers"
-                    handleDriverChange(selectedDriverId === route.driverId ? 'all' : route.driverId);
+                    if (useLegacyClick) {
+                      // Admins/Dispatchers: toggle selectedDriverId (legacy behavior)
+                      handleDriverChange(selectedDriverId === route.driverId ? 'all' : route.driverId);
+                    } else {
+                      // Non-admin drivers: overlay state machine (active-only ↔ overlay ↔ Full Show All)
+                      handleDriverLegendClick?.(route.driverId);
+                    }
                   }}>
                   <div className="relative flex items-center justify-center w-2.5 h-2.5 flex-shrink-0">
                     {route.hasHeartbeat &&
@@ -728,14 +744,15 @@ export default function StatsPanel({
                     <div
                       className="relative w-2.5 h-2.5 rounded-full shadow-sm"
                       style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
-                
+
                   </div>
                   <span className="text-sm font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
                   {!(isDriver && !isAdmin) &&
                     <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
                   }
                 </button>
-                )}
+                );
+              })}
             </div>
           </div>
             }

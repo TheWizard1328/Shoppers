@@ -143,6 +143,7 @@ function DeliveryMap({
   deliveries = [],
   allDeliveriesForDate = [],
   selectedDriverId = null,
+  overlayDriverId = null,
   selectedDate = null,
   patients = [],
   stores = [],
@@ -363,12 +364,18 @@ function DeliveryMap({
           rows = await base44.entities.Delivery.filter({ delivery_date: selectedDate });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, rows || []);
         }
-        setOtherDriverDeliveries((rows || []).filter((row) => row?.driver_id && row.driver_id !== selectedDriverId));
+        let others = (rows || []).filter((row) => row?.driver_id && row.driver_id !== selectedDriverId);
+        // Overlay state (B): when an overlay driver is selected, restrict the "other drivers"
+        // markers/routes to ONLY that driver's stops, instead of all other drivers.
+        if (overlayDriverId) {
+          others = others.filter((row) => row.driver_id === overlayDriverId);
+        }
+        setOtherDriverDeliveries(others);
       } catch {
         setOtherDriverDeliveries([]);
       }
     })();
-  }, [selectedDate, selectedDriverId, showOtherDriverDeliveries]);
+  }, [selectedDate, selectedDriverId, showOtherDriverDeliveries, overlayDriverId]);
 
   const safeUsers = useMemo(() => {
     const mergedUsers = Array.isArray(realtimeAppUsers) && realtimeAppUsers.length > 0 ? [...realtimeAppUsers] : [...(Array.isArray(users) ? users : [])];
@@ -611,6 +618,13 @@ function DeliveryMap({
       if (!isAdmin && currentUserCityId && user.city_id && user.city_id !== currentUserCityId) return null;
       if (!showOtherDriverDeliveries && selectedDriverId && selectedDriverId !== "all" && !isSelf && user.id !== selectedDriverId && user.user_id !== selectedDriverId) return null;
       if (!showOtherDriverDeliveries && selectedDriverId && selectedDriverId !== "all" && isSelf && selectedDriverId !== currentUserId) return null;
+      // Overlay state (B): when an overlay driver is selected, only show the active driver's,
+      // the overlay driver's, and the current user's own location markers (skip all others).
+      if (showOtherDriverDeliveries && overlayDriverId && selectedDriverId && selectedDriverId !== "all") {
+        const matchesActive = user.id === selectedDriverId || user.user_id === selectedDriverId;
+        const matchesOverlay = user.id === overlayDriverId || user.user_id === overlayDriverId;
+        if (!isSelf && !matchesActive && !matchesOverlay) return null;
+      }
       const resolvedDriverName = driverNameLookupMap.get(user.id) || driverNameLookupMap.get(user.user_id) || user.user_name || user.full_name || "Driver";
 
       if (isDispatcher) {
@@ -650,7 +664,7 @@ function DeliveryMap({
       return markers;
     }
     return prevDriverLocationMarkersRef.current;
-  }, [safeUsers, currentUser, deliveriesForLocationFilter, selectedDate, isMobile, driverNameLookupMap]);
+  }, [safeUsers, currentUser, deliveriesForLocationFilter, selectedDate, isMobile, driverNameLookupMap, overlayDriverId, selectedDriverId, showOtherDriverDeliveries]);
 
   const currentDriverMarker = useMemo(() => {
     if (!isMobile || !currentUser) return null;

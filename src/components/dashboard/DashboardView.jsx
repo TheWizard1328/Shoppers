@@ -6,6 +6,7 @@ import { useInterStoreLocation, isInterStoreDelivery } from '@/components/utils/
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
 import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
+import { useDriverOverlayLegend } from "@/components/dashboard/useDriverOverlayLegend";
 import StopCardsSection from "@/components/dashboard/StopCardsSection";
 import DashboardBulkEditControls from "@/components/dashboard/DashboardBulkEditControls";
 import ApiUsageBadge from "@/components/dashboard/ApiUsageBadge";
@@ -76,6 +77,15 @@ function DashboardView({
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
+  // Driver-legend overlay state machine (active-only ↔ overlay ↔ Full Show All) for non-admin drivers.
+  // Admins/dispatchers keep the legacy click → handleDriverChange behavior.
+  const { overlayDriverId, setOverlayDriverId, handleDriverLegendClick } = useDriverOverlayLegend({
+    currentUser, isAdmin, isDispatcher, selectedDriverId, selectedDate, dataSource,
+    deliveries, appUsers, drivers, stores,
+    updateDeliveriesLocally, setIsEntityUpdating, handleDriverChange,
+    showAllDriverMarkers, setShowAllDriverMarkers,
+  });
+
   // Block map pan/zoom whenever the stats card or a stop card is expanded
   const prevPanZoomBlockedRef = useRef(false);
   useEffect(() => {
@@ -353,6 +363,7 @@ function DashboardView({
           handleDateChange={handleDateChange} handleDriverChange={handleDriverChange}
           isDriverDropdownDisabled={isDriverDropdownDisabled} isAllDriversMode={isAllDriversMode} isDateFinished={isDateFinished}
           showAllDriverMarkers={showAllDriverMarkers} setShowAllDriverMarkers={setShowAllDriverMarkers}
+          overlayDriverId={overlayDriverId} setOverlayDriverId={setOverlayDriverId} handleDriverLegendClick={handleDriverLegendClick}
           showBreadcrumbs={showBreadcrumbs} setShowBreadcrumbs={setShowBreadcrumbs} setBreadcrumbsData={setBreadcrumbsData}
           showRoutes={showRoutes} setShowRoutes={setShowRoutes} driverRoutes={driverRoutes}
           statsCardRef={statsCardRef} statsContainerRef={statsContainerRef} retractClustersRef={retractClustersRef}
@@ -381,6 +392,7 @@ function DashboardView({
           deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers} cities={cities}
           filteredDeliveries={filteredDeliveries} deliveriesWithStopOrder={deliveriesWithStopOrder}
           selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
+          overlayDriverId={overlayDriverId}
           mapCenter={mapCenter} mapZoom={mapZoom} shouldFitBounds={shouldFitBounds}
           setShouldFitBounds={setShouldFitBounds} setMapCenter={setMapCenter} setMapZoom={setMapZoom}
           mapMode={mapMode} setMapMode={setMapMode}
