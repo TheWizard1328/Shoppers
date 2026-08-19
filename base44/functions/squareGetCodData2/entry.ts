@@ -586,8 +586,10 @@ async function handleGetCodData(base44, payload={}) {
 
   let deletedCatalogIds = [];
   let cleanupDbCount = 0;
+  let attemptedDeleteObjectIds = new Set();
   if (toDelete.length > 0) {
     const objectIds = toDelete.map((i) => i.id).filter(Boolean);
+    attemptedDeleteObjectIds = new Set(objectIds);
     const deleteResult = await deleteCatalogObjects(objectIds, accessToken);
     deletedCatalogIds = deleteResult.deleted || [];
     // Clean up DB records for deleted objects — batch in parallel
@@ -599,6 +601,17 @@ async function handleGetCodData(base44, payload={}) {
     });
     await Promise.all(dbCleanupPromises);
   }
+
+  // ── CRITICAL: strip deleted items out of catalogRecords ──────────────
+  // catalogRecords was built in step 4 from the PRE-deletion liveCatalogItems
+  // snapshot, so without this filter, every item we just deleted from Square
+  // above would be written straight back into SquareCatalogItems (step 5b)
+  // and returned to the frontend — undoing the deletion within the same
+  // sync call. Filter by attempted deletion (not just confirmed deletedCatalogIds)
+  // since a 404 during delete already means the object is gone in Square.
+  const filteredCatalogRecords = attemptedDeleteObjectIds.size > 0 ?
+    catalogRecords.filter((cr) => !attemptedDeleteObjectIds.has(cr?.square_catalog_object_id)) :
+    catalogRecords;
 
   console.log('[squareGetCodData2] Cleanup done:', { deleted: deletedCatalogIds.length, dbCleaned: cleanupDbCount, elapsed: Date.now() - t0 });
 
@@ -625,7 +638,7 @@ async function handleGetCodData(base44, payload={}) {
       if (r?.square_catalog_object_id) existingCatalogByObjId.set(r.square_catalog_object_id, r);
     }
     const catalogOps = [];
-    for (const cr of catalogRecords) {
+    for (const cr of filteredCatalogRecords) {
       const existing = existingCatalogByObjId.get(cr.square_catalog_object_id);
       if (existing) {
         const changed = existing.item_name !== cr.item_name || existing.amount !== cr.amount || existing.delivery_id !== cr.delivery_id || existing.status !== cr.status;
@@ -652,7 +665,7 @@ async function handleGetCodData(base44, payload={}) {
     deliveries: strippedDeliveries,
     shouldRefreshDeliveries: refreshDeliveries,
     deliverySyncWindow: { startDate: formatLocalDate(new Date(Date.now() - daysBack * 86400000)), endDate: formatLocalDate(new Date()), daysBack, refreshedAt: refreshDeliveries ? new Date().toISOString() : null },
-    catalogRecords,
+    catalogRecords: filteredCatalogRecords,
     transactionRecords,
     deletedCatalogIds,
     cleanupDbCount,
