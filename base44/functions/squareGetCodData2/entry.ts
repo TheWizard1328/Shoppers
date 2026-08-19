@@ -532,6 +532,29 @@ async function handleGetCodData(base44, payload={}) {
       .filter(Boolean)
   );
 
+  // Drain the recreated-item backlog. When a previous sync run recreated a catalog
+  // item (after a prior cleanup deleted the original), the recreated item carries a
+  // brand-new catalog_object_id that no longer matches the historical Square order
+  // line item catalog_object_ids — so the paidCatalogObjectIds match silently misses
+  // them and they linger in the Square Catalog API as "already collected" items.
+  // The catalog item's description carries our own stable delivery_id
+  // ("COD for <patient> | Delivery <deliveryId>"), so we use it here to finally
+  // delete catalog items whose referenced delivery is already completed+collected.
+  // Mirrors the collection rule from syncSquareCods' event trigger.
+  const COLLECTED_PAYMENT_TYPES = new Set(['Cash', 'Check', 'Other', 'Debit', 'Credit', 'cash', 'check', 'other', 'debit', 'credit', 'card']);
+  const deliveryHasRecordedCodPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => Number(p?.amount || 0) > 0 && COLLECTED_PAYMENT_TYPES.has(String(p?.type || '')));
+  const collectedDeliveryIds = new Set(
+    (deliveriesWithAmounts || [])
+      .filter((d) => d?.status === 'completed' && deliveryHasRecordedCodPayment(d))
+      .map((d) => d?.id)
+      .filter(Boolean)
+  );
+  const extractDeliveryIdFromCatalog = (item) => {
+    const desc = String(item?.item_data?.description || '').toLowerCase();
+    const m = desc.match(/delivery\s+([a-f0-9]{24})/i);
+    return m ? m[1] : null;
+  };
+
   const toDelete = (liveCatalogItems || []).filter((item) => {
     if (!item?.id) return false;
     // Delete catalog items for failed deliveries (orphan cleanup)
@@ -539,6 +562,9 @@ async function handleGetCodData(base44, payload={}) {
     const varIds = (item?.item_data?.variations || []).map((v) => v?.id).filter(Boolean);
     if (paidCatalogObjectIds.has(item.id)) return true;
     if (varIds.some((v) => paidCatalogObjectIds.has(v))) return true;
+    // Recreated-item backlog: description → delivery_id → already collected
+    const descDeliveryId = extractDeliveryIdFromCatalog(item);
+    if (descDeliveryId && collectedDeliveryIds.has(descDeliveryId)) return true;
     return false;
   });
 
