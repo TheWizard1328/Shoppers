@@ -188,7 +188,7 @@ const mergeDriversWithCache = (current = [], incoming = [], cacheMap = new Map()
 
 const MARKER_CACHE_TTL_MS = 3 * 60 * 1000;
 
-const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null }) => {
+const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null, selectedDriverId = null, showOtherDriverDeliveries = false, overlayDriverId = null }) => {
   const { isMobile } = useDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const lastPropUpdateRef = useRef(0);
@@ -345,6 +345,38 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
     return false;
   };
+  // ── Driver-selection filter ───────────────────────────────────────────
+  // Mirrors the selectedDriverId / showOtherDriverDeliveries / overlayDriverId
+  // filtering that DeliveryMap.jsx applies to the `users` prop.  The WS event
+  // handler (driverLocationsUpdated) must respect the SAME rules — otherwise
+  // markers filtered out by the prop path get re-added by WS events, then
+  // evicted again after the 90s grace period, causing visible flicker.
+  const passesDriverSelectionFilter = (user) => {
+    if (!user) return false;
+    const currentUserId = currentUser?.id;
+    const userId = user.id || user.user_id;
+    const isSelf = userId === currentUserId || user.user_id === currentUserId;
+
+    // No specific driver selected or "all" mode → show everything that passes shouldShowMarker
+    if (!selectedDriverId || selectedDriverId === 'all') return true;
+
+    if (!showOtherDriverDeliveries) {
+      // Only the selected driver + self (when viewing own route) should be visible
+      if (!isSelf && user.id !== selectedDriverId && user.user_id !== selectedDriverId) return false;
+      if (isSelf && selectedDriverId !== currentUserId) return false;
+      return true;
+    }
+
+    // showOtherDriverDeliveries is true — overlay mode
+    if (overlayDriverId && selectedDriverId !== 'all') {
+      const matchesActive = user.id === selectedDriverId || user.user_id === selectedDriverId;
+      const matchesOverlay = user.id === overlayDriverId || user.user_id === overlayDriverId;
+      if (!isSelf && !matchesActive && !matchesOverlay) return false;
+    }
+
+    return true;
+  };
+
 
   // Check if current device is primary tracker
   useEffect(() => {
@@ -416,20 +448,20 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
       setVisibleDrivers((prev) => {
         const prevList = Array.isArray(prev) ? prev : [];
-        const visibleIncoming = normalizedIncoming.filter(shouldShowMarker);
+        const visibleIncoming = normalizedIncoming.filter(u => shouldShowMarker(u) && passesDriverSelectionFilter(u));
 
         // CRITICAL: ALWAYS merge incoming into existing state — never replace.
         // Whether this comes from a WebSocket targeted update or SmartRefresh poll,
         // replacing the full list can momentarily show stale positions for drivers
         // not included in the incoming batch, causing the flicker/jump effect.
         const merged = mergeVisibleDriversByFreshness(prevList, visibleIncoming);
-        return dedupeVisibleDrivers(merged.filter(shouldShowMarker));
+        return dedupeVisibleDrivers(merged.filter(u => shouldShowMarker(u) && passesDriverSelectionFilter(u)));
       });
     };
 
     window.addEventListener('driverLocationsUpdated', handleLocationUpdates);
     return () => window.removeEventListener('driverLocationsUpdated', handleLocationUpdates);
-  }, [currentUser, selectedDate, isAdmin, isDispatcher, isDriver, deliveries]);
+  }, [currentUser, selectedDate, isAdmin, isDispatcher, isDriver, deliveries, selectedDriverId, showOtherDriverDeliveries, overlayDriverId]);
 
   useEffect(() => {
     // Normalize and filter the incoming users prop
@@ -440,7 +472,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const selectedDateStr = selectedDate instanceof Date ? selectedDate.toISOString().split('T')[0] : selectedDate;
         if (selectedDateStr < todayStr) return false;
       }
-      return shouldShowMarker(user);
+      return shouldShowMarker(user) && passesDriverSelectionFilter(user);
     });
 
     const incomingDrivers = dedupeVisibleDrivers(validDrivers);
@@ -458,10 +490,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       const WS_GRACE_MS = 90 * 1000;
       const result = merged.filter(d => {
         const key = getDriverIdentityKey(d) || d.id;
-        if (incomingKeys.has(key)) return shouldShowMarker(d);
+        if (incomingKeys.has(key)) return shouldShowMarker(d) && passesDriverSelectionFilter(d);
         // Not in prop — keep briefly if WS delivered a fresh update we shouldn't discard yet
         const ts = new Date(d.location_updated_at || d.updated_date || 0).getTime();
-        return (Date.now() - ts < WS_GRACE_MS) && shouldShowMarker(d);
+        return (Date.now() - ts < WS_GRACE_MS) && shouldShowMarker(d) && passesDriverSelectionFilter(d);
       });
 
       return dedupeVisibleDrivers(result);

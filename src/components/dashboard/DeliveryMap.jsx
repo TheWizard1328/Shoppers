@@ -1528,7 +1528,7 @@ function DeliveryMap({
         )}
 
         {mapReady && (
-          <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />
+          <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} selectedDriverId={selectedDriverId} showOtherDriverDeliveries={showOtherDriverDeliveries} overlayDriverId={overlayDriverId} />
         )}
 
         {mapReady && !showBreadcrumbs && (showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
