@@ -119,6 +119,9 @@ export default function DevicesPanel({ currentUser }) {
     try {
       const pending = deviceSettings[device.id] || {};
       if (!Object.keys(pending).length) { toast.info('No changes to save'); return; }
+      if (pending.device_name !== undefined && !pending.device_name.trim()) {
+        toast.error('Device name cannot be empty'); return;
+      }
       const updates = { ...pending, ...(pending.status === 'inactive' ? { is_primary_tracker: false } : {}) };
       await base44.entities.UserDevice.update(device.id, updates);
       setDevices((prev) => prev.map((d) => d.id === device.id ? { ...d, ...updates } : d));
@@ -306,17 +309,30 @@ export default function DevicesPanel({ currentUser }) {
             </CardHeader>
             <CardContent className="space-y-3">
               {editingSettings[device.id] ? (
-                <div className="flex items-center justify-between p-2 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-                  <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Status</label>
-                  <select
-                    value={deviceSettings[device.id]?.status ?? device.status}
-                    onChange={(e) => setDeviceSettings((p) => ({ ...p, [device.id]: { ...p[device.id], status: e.target.value } }))}
-                    className="px-2 py-1 rounded text-sm border"
-                    style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3 p-2 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
+                    <label className="text-sm font-medium flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>Name</label>
+                    <input
+                      type="text"
+                      value={deviceSettings[device.id]?.device_name ?? device.device_name}
+                      onChange={(e) => setDeviceSettings((p) => ({ ...p, [device.id]: { ...p[device.id], device_name: e.target.value } }))}
+                      placeholder={device.device_name}
+                      className="flex-1 px-2 py-1 rounded text-sm border min-w-0"
+                      style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
+                    <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Status</label>
+                    <select
+                      value={deviceSettings[device.id]?.status ?? device.status}
+                      onChange={(e) => setDeviceSettings((p) => ({ ...p, [device.id]: { ...p[device.id], status: e.target.value } }))}
+                      className="px-2 py-1 rounded text-sm border"
+                      style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
                 </div>
               ) : (
                 <div className="text-sm px-2 py-1.5 rounded-lg" style={{ background: 'var(--bg-slate-50)', color: 'var(--text-slate-600)' }}>
