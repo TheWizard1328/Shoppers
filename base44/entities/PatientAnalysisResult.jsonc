@@ -1,0 +1,103 @@
+{
+  "name": "PatientAnalysisResult",
+  "type": "object",
+  "properties": {
+    "patient_id": {
+      "type": "string",
+      "description": "ID of the patient that was analyzed"
+    },
+    "patient_name": {
+      "type": "string",
+      "description": "Patient's full name (denormalized)"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store this patient belongs to"
+    },
+    "store_name": {
+      "type": "string",
+      "description": "Store name (denormalized)"
+    },
+    "analysis_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the analysis was run"
+    },
+    "result_type": {
+      "type": "string",
+      "enum": [
+        "inactivity_flagged",
+        "pattern_ambiguous",
+        "pattern_detected"
+      ],
+      "description": "Type of result from the analysis"
+    },
+    "last_delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of patient's most recent delivery"
+    },
+    "total_deliveries_analyzed": {
+      "type": "number",
+      "description": "Number of deliveries used in the analysis"
+    },
+    "suggested_patterns": {
+      "type": "array",
+      "description": "List of possible recurring patterns detected, ordered by confidence",
+      "items": {
+        "type": "object",
+        "properties": {
+          "pattern_key": {
+            "type": "string",
+            "description": "Pattern identifier (e.g. 'recurring_weekly_mon', 'recurring_monthly', etc.)"
+          },
+          "pattern_label": {
+            "type": "string",
+            "description": "Human-readable label for the pattern"
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence score 0-100"
+          },
+          "supporting_data": {
+            "type": "string",
+            "description": "Brief explanation of why this pattern was detected"
+          },
+          "x4_day": {
+            "type": "string",
+            "description": "For weekly_x4 patterns, the day of week"
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending_review",
+        "applied",
+        "dismissed"
+      ],
+      "default": "pending_review",
+      "description": "Admin review status"
+    },
+    "applied_pattern": {
+      "type": "string",
+      "description": "The pattern key that was applied by the admin"
+    },
+    "reviewed_by": {
+      "type": "string",
+      "description": "User ID who reviewed this result"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the result was reviewed"
+    }
+  },
+  "required": [
+    "patient_id",
+    "patient_name",
+    "analysis_date",
+    "result_type"
+  ]
+}

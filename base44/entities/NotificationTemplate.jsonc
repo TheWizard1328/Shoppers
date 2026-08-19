@@ -1,0 +1,114 @@
+{
+  "name": "NotificationTemplate",
+  "type": "object",
+  "properties": {
+    "event_name": {
+      "type": "string",
+      "description": "The notification event key (e.g. driver_completed)",
+      "enum": [
+        "driver_accepted_all",
+        "driver_accepted_one",
+        "dispatcher_assigned_all",
+        "driver_started",
+        "driver_completed",
+        "driver_failed",
+        "driver_retry",
+        "driver_return",
+        "payroll_driver_confirmed",
+        "payroll_admin_approved"
+      ]
+    },
+    "label": {
+      "type": "string",
+      "description": "Human-readable label shown in admin UI"
+    },
+    "message_template": {
+      "type": "string",
+      "description": "Message template string using {{driverName}}, {{patientName}}, {{storeName}}, {{deliveryList}} variables"
+    },
+    "in_app_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to send an in-app message for this event. Push notifications are automatically sent to recipients whose device push settings are enabled."
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Master toggle \u2014 disabling this skips all channels for this event"
+    },
+    "recipients": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "dispatchers",
+          "driver",
+          "appowner",
+          "admins"
+        ]
+      },
+      "description": "Who receives this notification"
+    },
+    "actions": {
+      "type": "array",
+      "description": "Push notification action buttons. Each item: {action, title}. Max 2 buttons are shown (Chrome Android limit). Configurable per template so action buttons are no longer hard-coded.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Action identifier used by the service worker to route the click (e.g. mark_read, reply, acknowledge, update_now)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Button label shown on the push notification"
+          }
+        },
+        "required": [
+          "action",
+          "title"
+        ]
+      }
+    },
+    "trigger_conditions": {
+      "type": "array",
+      "description": "Optional conditions that must ALL pass for this notification to fire. Empty = always fire.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "Delivery field to evaluate (e.g. store_id, signature_needed, cod_total_amount_required, first_delivery, fridge_item, oversized)"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "less_than",
+              "is_true",
+              "is_false",
+              "in_list",
+              "not_in_list"
+            ],
+            "description": "Comparison operator"
+          },
+          "value": {
+            "type": "string",
+            "description": "Value to compare against (store ID, number as string, etc.)"
+          }
+        },
+        "required": [
+          "field",
+          "operator"
+        ]
+      }
+    }
+  },
+  "required": [
+    "event_name",
+    "label",
+    "message_template"
+  ]
+}

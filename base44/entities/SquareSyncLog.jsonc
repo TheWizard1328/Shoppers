@@ -1,0 +1,41 @@
+{
+  "name": "SquareSyncLog",
+  "type": "object",
+  "properties": {
+    "sync_run_id": {
+      "type": "string",
+      "description": "Related SquareSyncHealth record id"
+    },
+    "level": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warn",
+        "error"
+      ],
+      "description": "Log severity"
+    },
+    "step": {
+      "type": "string",
+      "description": "Sync step name"
+    },
+    "message": {
+      "type": "string",
+      "description": "Log message"
+    },
+    "details": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Additional structured details"
+    },
+    "logged_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this log entry was created"
+    }
+  },
+  "required": [
+    "level",
+    "message"
+  ]
+}

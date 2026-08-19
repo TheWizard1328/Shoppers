@@ -1,0 +1,50 @@
+{
+  "name": "DriverScheduleOverride",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "The specific date for this schedule override (YYYY-MM-DD)"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "The ID of the store this override applies to"
+    },
+    "slot_key": {
+      "type": "string",
+      "enum": [
+        "weekday_am",
+        "weekday_pm",
+        "saturday_am",
+        "saturday_pm",
+        "sunday_am",
+        "sunday_pm"
+      ],
+      "description": "The specific time slot being overridden"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "The AppUser user_id of the driver assigned for this date and slot"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Driver display name (denormalized for quick reads)"
+    },
+    "overridden_by": {
+      "type": "string",
+      "description": "user_id of whoever made this schedule change"
+    },
+    "overridden_by_name": {
+      "type": "string",
+      "description": "Display name of whoever made this schedule change"
+    }
+  },
+  "required": [
+    "date",
+    "store_id",
+    "slot_key",
+    "driver_id"
+  ],
+  "rls": {}
+}

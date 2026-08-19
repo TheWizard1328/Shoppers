@@ -1,0 +1,102 @@
+{
+  "name": "RxTempLogs",
+  "type": "object",
+  "properties": {
+    "delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "The route date this reading was recorded for (YYYY-MM-DD)"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "The AppUser ID of the driver"
+    },
+    "latest_reading": {
+      "type": "object",
+      "description": "Cached copy of the most recent temperature reading \u2014 updated on every write for fast O(1) access",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "description": "Local device ISO timestamp of the reading (YYYY-MM-DDTHH:MM:SS)"
+        },
+        "temperature_celsius": {
+          "type": "number",
+          "description": "Temperature in Celsius"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "arrived",
+            "completed",
+            "failed",
+            "heartbeat",
+            "manual"
+          ],
+          "description": "What triggered this reading"
+        },
+        "input_method": {
+          "type": "string",
+          "enum": [
+            "ble",
+            "manual"
+          ],
+          "description": "BLE or manual entry"
+        },
+        "sensor_mac": {
+          "type": "string",
+          "description": "BLE device MAC address, if applicable"
+        }
+      }
+    },
+    "temperature_readings": {
+      "type": "array",
+      "description": "All cooler temperature readings for this driver on this date",
+      "items": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "description": "Local device ISO timestamp when the reading was taken (YYYY-MM-DDTHH:MM:SS)"
+          },
+          "temperature_celsius": {
+            "type": "number",
+            "description": "Cooler temperature reading in Celsius"
+          },
+          "recorded_by_driver_id": {
+            "type": "string",
+            "description": "Driver user ID who recorded this reading"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "arrived",
+              "completed",
+              "failed"
+            ],
+            "description": "What action triggered this reading"
+          },
+          "input_method": {
+            "type": "string",
+            "enum": [
+              "ble",
+              "manual"
+            ],
+            "description": "Whether the reading was captured via Bluetooth or entered manually"
+          },
+          "sensor_mac": {
+            "type": "string",
+            "description": "BLE device ID / MAC address of the Inkbird sensor (null for manual entry)"
+          }
+        },
+        "required": [
+          "timestamp",
+          "temperature_celsius"
+        ]
+      }
+    }
+  },
+  "required": [
+    "delivery_date",
+    "driver_id"
+  ]
+}

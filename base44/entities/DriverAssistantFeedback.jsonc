@@ -1,0 +1,87 @@
+{
+  "name": "DriverAssistantFeedback",
+  "type": "object",
+  "properties": {
+    "driver_id": {
+      "type": "string",
+      "description": "Reference to the driver who gave feedback"
+    },
+    "suggestion_type": {
+      "type": "string",
+      "enum": [
+        "reroute",
+        "prioritize",
+        "delay_warning",
+        "traffic_alert",
+        "weather_alert",
+        "time_window_alert",
+        "general_advice"
+      ],
+      "description": "Type of suggestion provided"
+    },
+    "suggestion_text": {
+      "type": "string",
+      "description": "The actual suggestion given by the AI"
+    },
+    "driver_feedback": {
+      "type": "string",
+      "enum": [
+        "helpful",
+        "not_helpful",
+        "followed",
+        "ignored"
+      ],
+      "description": "Driver's feedback on the suggestion"
+    },
+    "context": {
+      "type": "object",
+      "description": "Context when suggestion was made",
+      "properties": {
+        "delivery_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "stops_remaining": {
+          "type": "number"
+        },
+        "current_location": {
+          "type": "object",
+          "properties": {
+            "latitude": {
+              "type": "number"
+            },
+            "longitude": {
+              "type": "number"
+            }
+          }
+        },
+        "weather_conditions": {
+          "type": "string"
+        },
+        "traffic_level": {
+          "type": "string"
+        }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "description": "Result after following or ignoring suggestion",
+      "properties": {
+        "action_taken": {
+          "type": "string"
+        },
+        "time_saved_minutes": {
+          "type": "number"
+        },
+        "deliveries_completed_on_time": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "required": [
+    "driver_id",
+    "suggestion_type",
+    "suggestion_text"
+  ]
+}
