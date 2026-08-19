@@ -408,11 +408,84 @@ export default function SquareManagement() {
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
-        if (deletedCount > 0) {
-          toast.success(`Sync complete — ${transactionRecords.length} transactions, removed ${deletedCount} collected item(s)`);
-        } else {
-          toast.success(`Sync complete — ${transactionRecords.length} transactions synced`);
+        // ── STEP 3.5: Auto-create missing catalog items for uncollected deliveries ──
+        // After the sync deletes collected items and mirrors the catalog, check if
+        // there are uncollected deliveries that still need catalog items created in
+        // Square. This merges the "Update Catalog" action into the Sync flow so one
+        // button reconciles in both directions (delete collected + create missing).
+        const catalogDeliveryIds = new Set((catalogRecords || []).map((r) => r?.delivery_id).filter(Boolean));
+        const collectedTxDeliveryIds = new Set(
+          (transactionRecords || [])
+            .filter((t) => t?.status === 'completed' || t?.transaction_status === 'completed')
+            .map((t) => t?.delivery_id)
+            .filter(Boolean)
+        );
+        const _hasCardPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : [])
+          .some((p) => ['Debit', 'Credit', 'debit', 'credit', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
+
+        const itemsToCreate = (strippedDeliveries || [])
+          .filter((d) => {
+            if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
+            if (d?.status === 'failed' || d?.status === 'cancelled') return false;
+            if (catalogDeliveryIds.has(d.id)) return false;
+            if (_hasCardPayment(d)) return false;
+            if (collectedTxDeliveryIds.has(d.id)) return false;
+            return true;
+          })
+          .map((d) => ({
+            deliveryId: d.id,
+            patientName: null,
+            storeId: d.store_id,
+            codAmount: d.cod_total_amount_required,
+            deliveryDate: d.delivery_date,
+          }));
+
+        let autoAddedCount = 0;
+        let autoFailedCount = 0;
+        if (itemsToCreate.length > 0) {
+          try {
+            const createRes = await base44.functions.invoke('syncSquareCods', {
+              items: itemsToCreate,
+              deletions: [],
+            });
+            const createResults = createRes?.data?.results || createRes?.results || [];
+            autoAddedCount = createResults.filter((r) => r.status === 'ok').length;
+            autoFailedCount = createResults.filter((r) => r.status === 'error').length;
+            if (autoFailedCount > 0) {
+              const errs = createResults.filter((r) => r.status === 'error').map((r) => r.error).slice(0, 3).join('; ');
+              console.warn('[SquareManagement] Auto-create partial failure:', autoFailedCount, 'errors:', errs);
+            }
+
+            // Re-fetch catalog from Square to pick up the newly created items
+            if (autoAddedCount > 0) {
+              const refreshRes = await base44.functions.invoke('squareGetCodData2', {
+                forceDeliveryRefresh: false,
+                daysBack: 90,
+              });
+              const refreshData = refreshRes?.data || refreshRes || {};
+              const refreshedCatalog = refreshData.catalogRecords || [];
+              const refreshedTransactions = refreshData.transactionRecords || [];
+              await squareCODOfflineManager.saveCatalogItemsOffline(refreshedCatalog);
+              await squareCODOfflineManager.savePaymentTransactionsOffline(refreshedTransactions);
+              const [refreshedUiCatalog, refreshedUiTx] = await Promise.all([
+                squareCODOfflineManager.getCatalogItemsOffline(),
+                squareCODOfflineManager.getPaymentTransactionsOffline()
+              ]);
+              setCatalogItems([...(refreshedUiCatalog || [])]);
+              setAllTransactions([...(refreshedUiTx || [])]);
+              setSoldCatalogItems([...(refreshedUiTx || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
+            }
+          } catch (createErr) {
+            console.error('[SquareManagement] Auto-create missing items failed:', createErr);
+          }
         }
+
+        // ── Toast with combined results ──
+        const parts = [`${transactionRecords.length} transactions`];
+        if (autoAddedCount > 0) parts.push(`${autoAddedCount} item(s) created`);
+        if (deletedCount > 0) parts.push(`removed ${deletedCount} collected item(s)`);
+        if (autoFailedCount > 0) parts.push(`${autoFailedCount} failed`);
+        toast.success(`Sync complete — ${parts.join(', ')}`);
       } else if (syncError) {
         console.error('[SquareManagement] Sync failed', { error: syncError?.message });
         setError(syncError.message);
