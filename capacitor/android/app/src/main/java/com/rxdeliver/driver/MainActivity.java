@@ -39,6 +39,17 @@ public class MainActivity extends BridgeActivity {
     // same-task contract Square validates against.
     private static final int SQUARE_POS_REQUEST_CODE = 7284;
 
+    // Timestamp of the most recent CHARGE (payment) launch to Square POS. Used by
+    // onActivityResult()'s fallback heuristic: Square's "Unexpected developer error"
+    // dialog (wrong-launch-mechanism error) returns control to us almost immediately
+    // after the driver taps OK — much faster than a real payment flow (entering card
+    // info, tapping through screens) or even a deliberate manual cancel. If the result
+    // comes back within FALLBACK_WINDOW_MS of a CHARGE launch, we treat it as a failed
+    // payload launch and auto-retry with a bare (no-payload) launch so the driver isn't
+    // stuck — this is the safety net on top of the primary startActivityForResult fix.
+    private long lastSquareChargeLaunchAtMs = 0;
+    private static final long FALLBACK_WINDOW_MS = 4000;
+
     // JavaScript interface for direct APK download from web app.
     // Bypasses the WebView DownloadListener entirely, which can be
     // unreliable on some devices (Samsung battery optimization kills
@@ -120,36 +131,47 @@ public class MainActivity extends BridgeActivity {
         //
         // This method receives the full intent:// URI string from JS, parses it
         // with Intent.parseUri() (which correctly extracts action, package, extras),
-        // and launches it via startActivity() — exactly what Chrome does in its
-        // shouldOverrideUrlLoading handler for intent:// URIs.
+        // and launches it with the mechanism Square's own POS API requires per its
+        // OWN error dialog: "Point of Sale API must be started with
+        // startActivityForResult() in the same task."
         //
-        // KEY: Do NOT add FLAG_ACTIVITY_NEW_TASK. When the intent launches in the
-        // same task (no NEW_TASK flag), Android keeps the calling activity in the
-        // back stack, and Square POS can properly identify the caller. Adding
-        // FLAG_ACTIVITY_NEW_TASK was the root cause of "Unexpected developer error"
-        // on 2nd+ launches — it puts Square POS in a separate task where the caller
-        // identity is lost. Using startActivityForResult() caused bare launches (MAIN
-        // action) to bounce back immediately with RESULT_CANCELED.
+        //   • CHARGE (payment): startActivityForResult() WITHOUT FLAG_ACTIVITY_NEW_TASK.
+        //     This is the exact contract Square validates — confirmed directly by their
+        //     error message when it's violated.
         //
-        // startActivity() without FLAG_ACTIVITY_NEW_TASK works for BOTH bare (MAIN)
-        // and CHARGE launches — this is the exact mechanism Chrome uses on the web.
+        //   • MAIN (bare launch): startActivity() with no flags. No result is expected
+        //     for a bare open, and startActivityForResult() here causes an immediate
+        //     RESULT_CANCELED bounce-back since MAIN doesn't "return a result."
         @JavascriptInterface
         public boolean launchSquareIntent(String intentUrl) {
             try {
                 Intent intent = Intent.parseUri(intentUrl, Intent.URI_INTENT_SCHEME);
+                String action = intent.getAction();
+                boolean isCharge = "com.squareup.pos.action.CHARGE".equals(action);
                 runOnUiThread(() -> {
                     try {
-                        startActivity(intent);
+                        if (isCharge) {
+                            lastSquareChargeLaunchAtMs = System.currentTimeMillis();
+                            startActivityForResult(intent, SQUARE_POS_REQUEST_CODE);
+                        } else {
+                            startActivity(intent);
+                        }
                     } catch (Exception e) {
-                        // Square POS not installed — open Play Store
-                        try {
-                            Intent playStoreIntent = new Intent(Intent.ACTION_VIEW,
-                                Uri.parse("market://details?id=com.squareup"));
-                            playStoreIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(playStoreIntent);
-                        } catch (Exception e2) {
-                            Toast.makeText(MainActivity.this,
-                                "Square POS app not installed", Toast.LENGTH_LONG).show();
+                        // Launch itself threw (e.g. Square POS not installed) — try Play Store,
+                        // and if this was a CHARGE attempt, also fall back to a bare launch so
+                        // the driver at least gets Square open to select their location.
+                        if (isCharge) {
+                            launchBareSquarePOS();
+                        } else {
+                            try {
+                                Intent playStoreIntent = new Intent(Intent.ACTION_VIEW,
+                                    Uri.parse("market://details?id=com.squareup"));
+                                playStoreIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                startActivity(playStoreIntent);
+                            } catch (Exception e2) {
+                                Toast.makeText(MainActivity.this,
+                                    "Square POS app not installed", Toast.LENGTH_LONG).show();
+                            }
                         }
                     }
                 });
@@ -158,6 +180,33 @@ public class MainActivity extends BridgeActivity {
                 Toast.makeText(MainActivity.this,
                     "Unable to launch Square POS: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 return false;
+            }
+        }
+
+        // Fallback: open Square POS with no payment payload (main-screen launch).
+        // Used when a CHARGE (payload) launch fails outright, or bounces back almost
+        // immediately with Square's "wrong launch mechanism" error dialog (see
+        // onActivityResult below). Lets the driver at least open Square manually
+        // and pick the right location/collect payment themselves, instead of the
+        // button doing nothing.
+        private void launchBareSquarePOS() {
+            try {
+                Intent bareIntent = new Intent(Intent.ACTION_MAIN);
+                bareIntent.setPackage("com.squareup");
+                startActivity(bareIntent);
+                Toast.makeText(MainActivity.this,
+                    "Opened Square POS — please confirm your location and collect payment manually.",
+                    Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                try {
+                    Intent playStoreIntent = new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("market://details?id=com.squareup"));
+                    playStoreIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(playStoreIntent);
+                } catch (Exception e2) {
+                    Toast.makeText(MainActivity.this,
+                        "Square POS app not installed", Toast.LENGTH_LONG).show();
+                }
             }
         }
 
@@ -253,10 +302,20 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        // Square POS launches use startActivity() (not startActivityForResult), so
-        // onActivityResult is not triggered for Square. This override is kept for
-        // Capacitor's BridgeActivity which needs super.onActivityResult() for its
-        // own plugin callbacks.
+        if (requestCode == SQUARE_POS_REQUEST_CODE) {
+            // Fallback safety net: if Square POS bounces back almost immediately after a
+            // CHARGE (payload) launch, it's very likely showing its "Unexpected developer
+            // error" dialog rather than a real payment attempt (entering card info takes
+            // several seconds; even a deliberate manual cancel isn't usually this fast).
+            // Auto-retry with a bare (no-payload) launch so the driver still gets Square
+            // open and can collect payment/select location manually instead of the button
+            // doing nothing.
+            long elapsed = System.currentTimeMillis() - lastSquareChargeLaunchAtMs;
+            if (lastSquareChargeLaunchAtMs > 0 && elapsed < FALLBACK_WINDOW_MS) {
+                lastSquareChargeLaunchAtMs = 0;
+                launchBareSquarePOS();
+            }
+        }
     }
 
     private void setupDownloadListener() {
