@@ -230,9 +230,9 @@ async function handleSyncCatalog(base44, payload={}) {
   const collectedDeliveryIds = new Set(
     safeDeliveries.filter((d) => d?.status === 'completed' && deliveryHasRecordedCodPayment(d)).map((d) => d?.id).filter(Boolean)
   );
-  // Also include deliveries with completed Square transactions
+  // Also include deliveries with ANY Square transaction (pending or completed)
   for (const pi of paidOrderItems) {
-    if (pi?.transaction_status === 'completed') {
+    if (pi?.transaction_status === 'completed' || pi?.transaction_status === 'pending') {
       // Try to match to a delivery by amount + patient name
       const abbrStore = safeStores.find((s) => itemNameContainsStore(pi.item_name, s));
       const locationStore = resolveStoreForItem(pi.item_name, pi.location_id, storesByLocationId);

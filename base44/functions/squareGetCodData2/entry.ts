@@ -555,12 +555,13 @@ async function handleGetCodData(base44, payload={}) {
       .map((d) => d?.id)
       .filter(Boolean)
   );
-  // Also include deliveries that have completed Square transactions — the payment
-  // was collected via Square POS even if the driver didn't record cod_payments
-  // in the app. The transactionRecords are already matched to deliveries via
-  // amount + patient name + date proximity in step 3.
+  // Also include deliveries that have ANY Square transaction record (pending or
+  // completed). A pending transaction means the item was already rung up in the
+  // Square POS (order is OPEN), so the catalog item has been used and should be
+  // deleted. A completed transaction means the payment was collected. Either way,
+  // the catalog item should not persist in the active catalog.
   for (const tx of transactionRecords) {
-    if (tx?.delivery_id && (tx?.status === 'completed' || tx?.transaction_status === 'completed')) {
+    if (tx?.delivery_id) {
       collectedDeliveryIds.add(tx.delivery_id);
     }
   }

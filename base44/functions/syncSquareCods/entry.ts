@@ -127,10 +127,12 @@ async function handleCreateCodItem(b44, payload) {
   if (dr?.status === 'completed' && hasCardPayment(dr)) {
     return { success: true, skipped: true, reason: 'delivery_already_collected_card' };
   }
-  // Also check for completed Square transactions (collected via POS even if cod_payments not recorded)
-  const completedTxs = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'completed' }).catch(() => []);
-  if (completedTxs?.length > 0) {
-    return { success: true, skipped: true, reason: 'completed_transaction_exists', transactionId: completedTxs[0]?.id };
+  // Also check for ANY Square transaction (pending or completed). A pending
+  // transaction means the item was already rung up in Square POS — don't create
+  // a duplicate catalog item.
+  const existingTxs = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId }).catch(() => []);
+  if (existingTxs?.length > 0) {
+    return { success: true, skipped: true, reason: 'transaction_exists', transactionId: existingTxs[0]?.id };
   }
   const { pById, pByPid } = await buildPMaps(b44, dr ? [dr] : []);
   const pr = dr ? await resolvePatient(b44, dr, pById, pByPid) : null;

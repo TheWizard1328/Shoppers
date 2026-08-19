@@ -414,9 +414,11 @@ export default function SquareManagement() {
         // Square. This merges the "Update Catalog" action into the Sync flow so one
         // button reconciles in both directions (delete collected + create missing).
         const catalogDeliveryIds = new Set((catalogRecords || []).map((r) => r?.delivery_id).filter(Boolean));
+        // Any delivery with a transaction record (pending OR completed) means the
+        // catalog item was already used in a Square sale — don't re-create it.
         const collectedTxDeliveryIds = new Set(
           (transactionRecords || [])
-            .filter((t) => t?.status === 'completed' || t?.transaction_status === 'completed')
+            .filter((t) => t?.delivery_id && t?.square_transaction_id)
             .map((t) => t?.delivery_id)
             .filter(Boolean)
         );
