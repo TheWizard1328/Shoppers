@@ -752,78 +752,6 @@ function ApkDownloadBanner({ apkUrl, download }) {
   );
 }
 
-// ── App Identity Diagnostic ──────────────────────────────────────────────────
-// Shows the installed app's bundle ID, version, and build number so we can
-// tell whether the device is running com.rxdeliver.driver (GitHub Actions)
-// or com.rxdeliver.app (stale Base44 builder). Also checks for the native
-// AndroidNative JS interface (only present in the GitHub Actions build).
-function AppIdentityDiagnostic() {
-  const [appInfo, setAppInfo] = useState(null);
-  const [hasNativeInterface, setHasNativeInterface] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!isCapacitorNativeApp() || getCapacitorPlatform() !== 'android') {
-        setLoaded(true);
-        return;
-      }
-      try {
-        const { App } = await import('@capacitor/app');
-        const info = await App.getInfo();
-        if (!cancelled) {
-          setAppInfo(info);
-          setHasNativeInterface(typeof window.AndroidNative !== 'undefined' && !!window.AndroidNative.downloadApk);
-          setLoaded(true);
-        }
-      } catch (e) {
-        if (!cancelled) setLoaded(true);
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, []);
-
-  if (!loaded || !appInfo) return null;
-
-  const isCorrectApp = appInfo.id === 'com.rxdeliver.driver';
-
-  return (
-    <div className="mt-4 p-3 rounded-lg border text-xs space-y-1.5" style={{
-      background: isCorrectApp ? '#f0fdf4' : '#fef2f2',
-      borderColor: isCorrectApp ? '#bbf7d0' : '#fecaca',
-    }}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className="font-semibold" style={{ color: isCorrectApp ? '#15803d' : '#b91c1c' }}>
-          {isCorrectApp ? '✓ Correct Build' : '⚠ Wrong Build ID'}
-        </span>
-      </div>
-      <div className="flex justify-between">
-        <span style={{ color: 'var(--text-slate-500)' }}>App ID</span>
-        <span className="font-mono font-semibold" style={{ color: isCorrectApp ? '#16a34a' : '#dc2626' }}>{appInfo.id}</span>
-      </div>
-      <div className="flex justify-between">
-        <span style={{ color: 'var(--text-slate-500)' }}>Version</span>
-        <span className="font-mono">{appInfo.version}</span>
-      </div>
-      <div className="flex justify-between">
-        <span style={{ color: 'var(--text-slate-500)' }}>Build</span>
-        <span className="font-mono">{appInfo.build}</span>
-      </div>
-      <div className="flex justify-between">
-        <span style={{ color: 'var(--text-slate-500)' }}>Native Interface</span>
-        <span style={{ color: hasNativeInterface ? '#16a34a' : '#dc2626' }}>{hasNativeInterface ? 'Present' : 'Missing'}</span>
-      </div>
-      {!isCorrectApp && (
-        <div className="mt-1.5 pt-1.5 border-t text-[11px]" style={{ borderColor: '#fecaca', color: '#991b1b' }}>
-          This APK was built from the stale src/android/ project (Base44 builder), not the active capacitor/android/ project (GitHub Actions). Background GPS and push notifications will not work. Download and install the correct APK from the link above.
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── APK Download Panel ────────────────────────────────────────────────────────
 // Presentational only — the actual download state lives in useApkDownloadState()
 // at the Settings page level (see ApkDownloadBanner above) so it survives this
@@ -903,7 +831,6 @@ function ApkDownloadPanel({ updateAvailable = false, buildInfo = {}, onClose, do
           ? 'After download, tap "Open & Install" to update. You may need to allow installs from unknown sources.'
           : 'After download, tap "Open & Install" to install. You may need to allow installs from unknown sources.'}
       </p>
-      <AppIdentityDiagnostic />
     </div>
   );
 }

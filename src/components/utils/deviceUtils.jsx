@@ -100,12 +100,18 @@ export const getUserAgentInfo = () => {
   }
 
   // Detect OS
+  // CRITICAL: Android must be checked BEFORE Linux — every Android user agent
+  // also contains the string "Linux" (e.g. "Mozilla/5.0 (Linux; Android 13; ...)"),
+  // so checking Linux first misdetects real Android phones (browsing the web/PWA,
+  // not the native Capacitor app) as os: 'Linux'. That caused the Native App /
+  // APK download section in Settings to incorrectly grey out for Android web/PWA
+  // users (isNonAndroidDevice was true because deviceOS came back 'Linux').
   let os = 'Unknown OS';
-  if (/Windows/i.test(ua)) os = 'Windows';
+  if (/Android/i.test(ua)) os = 'Android';
+  else if (/iOS|iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+  else if (/Windows/i.test(ua)) os = 'Windows';
   else if (/Mac OS X/i.test(ua)) os = 'macOS';
   else if (/Linux/i.test(ua)) os = 'Linux';
-  else if (/Android/i.test(ua)) os = 'Android';
-  else if (/iOS|iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
 
   return { deviceType, os };
 };
