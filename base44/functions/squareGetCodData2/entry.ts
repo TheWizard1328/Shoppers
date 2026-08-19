@@ -565,6 +565,23 @@ async function handleGetCodData(base44, payload={}) {
       collectedDeliveryIds.add(tx.delivery_id);
     }
   }
+
+  // Catalog items that are already linked to a SquareTransaction record (i.e. they
+  // show a "Transaction ID" in the UI). The link is the same the catalog builder's
+  // `mt` lookup uses: direct catalog_object_id match OR name+amount signature match.
+  // The direct-ID check covers the catalog-tap POS path; the signature check covers
+  // the custom-line-item path. Both must be drained — paidCatalogObjectIds alone
+  // only sees historical Square orders' line-item catalog_object_ids, which miss
+  // items whose catalog_object_id was recreated since the original payment.
+  const txCatalogObjectIds = new Set();
+  const txSignatureSet = new Set();
+  for (const t of (existingTransactions || [])) {
+    const cid = normalizeText(t?.square_catalog_object_id);
+    if (cid && cid !== '') txCatalogObjectIds.add(cid);
+    const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
+    if (sig && sig !== '::0') txSignatureSet.add(sig);
+  }
+
   const extractDeliveryIdFromCatalog = (item) => {
     const desc = String(item?.item_data?.description || '').toLowerCase();
     const m = desc.match(/delivery\s+([a-f0-9]{24})/i);
@@ -578,6 +595,15 @@ async function handleGetCodData(base44, payload={}) {
     const varIds = (item?.item_data?.variations || []).map((v) => v?.id).filter(Boolean);
     if (paidCatalogObjectIds.has(item.id)) return true;
     if (varIds.some((v) => paidCatalogObjectIds.has(v))) return true;
+    // Catalog item already linked to a SquareTransaction in our DB by direct ID
+    // ("has a Transaction ID" via catalog-tap path).
+    if (txCatalogObjectIds.has(item.id)) return true;
+    if (varIds.some((v) => txCatalogObjectIds.has(v))) return true;
+    // Catalog item linked by name+amount signature (custom-line-item path).
+    const liveItemName = item?.item_data?.name || '';
+    const liveItemAmountCents = getCatalogItemAmountCents(item);
+    const liveItemSig = buildItemSignature(liveItemName, liveItemAmountCents);
+    if (liveItemSig && liveItemSig !== '::0' && txSignatureSet.has(liveItemSig)) return true;
     // Recreated-item backlog: description → delivery_id → already collected
     const descDeliveryId = extractDeliveryIdFromCatalog(item);
     if (descDeliveryId && collectedDeliveryIds.has(descDeliveryId)) return true;
@@ -609,11 +635,71 @@ async function handleGetCodData(base44, payload={}) {
   // and returned to the frontend — undoing the deletion within the same
   // sync call. Filter by attempted deletion (not just confirmed deletedCatalogIds)
   // since a 404 during delete already means the object is gone in Square.
-  const filteredCatalogRecords = attemptedDeleteObjectIds.size > 0 ?
+  let filteredCatalogRecords = attemptedDeleteObjectIds.size > 0 ?
     catalogRecords.filter((cr) => !attemptedDeleteObjectIds.has(cr?.square_catalog_object_id)) :
     catalogRecords;
 
   console.log('[squareGetCodData2] Cleanup done:', { deleted: deletedCatalogIds.length, dbCleaned: cleanupDbCount, elapsed: Date.now() - t0 });
+
+  // ── 5c) Auto-create missing catalog items (drain the Reconcile backlog) ──
+  // Each Sync run also backfills catalog items for COD deliveries that should
+  // have one but never got one (the event-driven syncSquareCods trigger missed
+  // the transition — pre-trigger imports, completions done outside the
+  // dashboard, sync timeouts). Mirrors the UI's "NEW CATALOG ITEMS" rule:
+  // cod_total > 0, Square-configured store, not failed/cancelled/pending, not a
+  // card-only completion (cards bypass Square), and no live catalog item or
+  // existing SquareTransaction already linked by delivery_id.
+  const deliveryNeedsCatalogItem = (d) => {
+    if (!d?.id || Number(d?.cod_total_amount_required || 0) <= 0) return false;
+    if (['failed', 'cancelled', 'pending'].includes(d?.status)) return false;
+    if (d?.delivery_date && d.delivery_date > formatLocalDate(new Date())) return false;
+    const store = (safeStores || []).find((s) => s?.id === d?.store_id);
+    if (!store?.square_location_config_id) return false;
+    const cfg = activeConfigById.get(store.square_location_config_id);
+    if (!cfg?.square_location_id || cfg.status !== 'active') return false;
+    const cps = Array.isArray(d?.cod_payments) ? d.cod_payments : [];
+    const hasCardPayment = cps.some((p) => ['Debit', 'Credit', 'card', 'debit', 'credit'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0);
+    if (d?.status === 'completed' && hasCardPayment) return false; // card bypasses Square catalog
+    return true;
+  };
+  const existingTxDeliveryIds = new Set(
+    (existingTransactions || []).map((t) => normalizeText(t?.delivery_id)).filter(Boolean)
+  );
+  const liveCatalogDeliveryIds = new Set();
+  for (const item of (liveCatalogItems || [])) {
+    const did = extractDeliveryIdFromCatalog(item);
+    if (did) liveCatalogDeliveryIds.add(did);
+  }
+  const createdCatalogRecords = [];
+  for (const d of (activeDeliveriesWithAmounts || [])) {
+    if (!deliveryNeedsCatalogItem(d)) continue;
+    if (existingTxDeliveryIds.has(d.id)) continue;
+    if (liveCatalogDeliveryIds.has(d.id)) continue;
+    try {
+      const store = (safeStores || []).find((s) => s?.id === d?.store_id);
+      const cfg = activeConfigById.get(store?.square_location_config_id);
+      const locationId = cfg?.square_location_id || null;
+      const pat = patientsById.get(d.patient_id);
+      const epn = normalizeText(pat?.full_name || d?.patient_name) || `Delivery ${d.id.slice(-6)}`;
+      const rsa = getPreferredStoreAbbreviation(store);
+      const ac = Math.round(Number(d.cod_total_amount_required) * 100);
+      const iname = formatItemName(d.delivery_date, rsa, epn);
+      const catItem = await squareFetch('/v2/catalog/batch-upsert', 'POST', accessToken, { idempotency_key: crypto.randomUUID(), batches: [{ objects: [{ type: 'ITEM', id: `#item-${d.id}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_data: { name: iname, description: `COD for ${epn} | Delivery ${d.id}`, is_taxable: true, product_type: 'REGULAR', variations: [{ type: 'ITEM_VARIATION', id: `#variation-${d.id}`, present_at_all_locations: false, present_at_location_ids: locationId ? [locationId] : [], item_variation_data: { name: 'Default', pricing_type: 'FIXED_PRICING', price_money: { amount: ac, currency: 'CAD' }, sellable: true, stockable: true } }] } }] }] });
+      const createdItem = (catItem.objects || []).find((o) => o.type === 'ITEM') || null;
+      if (createdItem?.id) {
+        createdCatalogRecords.push({
+          id: createdItem.id, square_catalog_object_id: createdItem.id, square_catalog_version: createdItem.version || null,
+          item_name: iname, description: `COD for ${epn} | Delivery ${d.id}`, amount: ac / 100, amount_cents: ac,
+          delivery_id: d.id, delivery_date: d.delivery_date, patient_id: pat?.id || d.patient_id || null,
+          store_id: d.store_id, location_id: locationId, status: 'active',
+        });
+      }
+    } catch (e) { console.warn('[squareGetCodData2] auto-create failed for', d.id, ':', e?.message); }
+  }
+  if (createdCatalogRecords.length > 0) {
+    filteredCatalogRecords = [...filteredCatalogRecords, ...createdCatalogRecords];
+    console.log('[squareGetCodData2] auto-created', createdCatalogRecords.length, 'missing catalog items, elapsed:', Date.now() - t0);
+  }
 
   // ── 5b) Write transactions + catalog items to online DB ─────────────
   // Non-blocking: errors are caught so they never fail the sync. The IDB
