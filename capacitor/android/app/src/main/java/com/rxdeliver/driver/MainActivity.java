@@ -120,25 +120,36 @@ public class MainActivity extends BridgeActivity {
         //
         // This method receives the full intent:// URI string from JS, parses it
         // with Intent.parseUri() (which correctly extracts action, package, extras),
-        // and launches it via startActivityForResult(). Works for both bare launches
-        // (MAIN) and payment charges (CHARGE) with all Square POS extras.
+        // and launches it with the correct mechanism depending on the action:
         //
-        // IMPORTANT: Square's POS API REQUIRES startActivityForResult() in the SAME
-        // task — it validates this via getCallingActivity(), which is only non-null
-        // when launched with startActivityForResult() and WITHOUT
-        // FLAG_ACTIVITY_NEW_TASK. The original code used startActivity() +
-        // FLAG_ACTIVITY_NEW_TASK, which "worked" the first time a fresh Square task
-        // was created, but failed with "Unexpected developer error... must be started
-        // with startActivityForResult()" on subsequent launches once Android reused
-        // Square's existing task/activity instance and the stricter caller-identity
-        // check kicked in. Do NOT re-add FLAG_ACTIVITY_NEW_TASK here.
+        //   • MAIN (bare launch): startActivity() + FLAG_ACTIVITY_NEW_TASK.
+        //     No caller validation needed — just opens Square POS to its main screen.
+        //     Using startActivityForResult() here causes Android to immediately deliver
+        //     RESULT_CANCELED because the MAIN activity doesn't "return a result,"
+        //     making it look like Square "bounces right back" without opening.
+        //
+        //   • CHARGE (payment): startActivityForResult() WITHOUT FLAG_ACTIVITY_NEW_TASK.
+        //     Square's POS API validates this via getCallingActivity(), which is only
+        //     non-null when launched with startActivityForResult() and WITHOUT
+        //     FLAG_ACTIVITY_NEW_TASK. Using startActivity()+NEW_TASK here causes
+        //     "Unexpected developer error... must be started with startActivityForResult()"
+        //     on the 2nd+ launch once Android reuses Square's existing task instance.
         @JavascriptInterface
         public boolean launchSquareIntent(String intentUrl) {
             try {
                 Intent intent = Intent.parseUri(intentUrl, Intent.URI_INTENT_SCHEME);
+                String action = intent.getAction();
+                boolean isCharge = "com.squareup.pos.action.CHARGE".equals(action);
                 runOnUiThread(() -> {
                     try {
-                        startActivityForResult(intent, SQUARE_POS_REQUEST_CODE);
+                        if (isCharge) {
+                            // CHARGE: Square POS requires startActivityForResult in same task
+                            startActivityForResult(intent, SQUARE_POS_REQUEST_CODE);
+                        } else {
+                            // MAIN (bare launch): just open Square POS, no result expected
+                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        }
                     } catch (Exception e) {
                         // Square POS not installed — open Play Store
                         try {
