@@ -223,15 +223,7 @@ export default function MobileHeader({
             )}
             <BatteryIndicator vertical={true} />
             <div
-              role="button"
-              tabIndex={0}
               onClick={handleAvatarClick}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleAvatarClick();
-                }
-              }}
               aria-label="Toggle immersive test mode"
               title="Immersive test mode"
               className={`relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer select-none transition-shadow ${
