@@ -132,7 +132,7 @@ export default function DeliveryFormStaged({
 
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium truncate flex-1 min-w-0">{staged.patient_name}</span>
+                    <span className="font-medium truncate flex-1 min-w-0">{staged.care_pros && staged.cp_name ? `CP ${staged.cp_name}` : staged.patient_name}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
                     <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
@@ -185,7 +185,7 @@ export default function DeliveryFormStaged({
                     </div>
                   </div>
                   <div className="text-slate-700 dark:text-slate-300 text-[10px] truncate pr-1 leading-none min-h-0">
-                    {staged.care_pros && staged.cp_name ? staged.cp_name : (staged.patient_phone ? formatPhoneNumber(staged.patient_phone) : '')}
+                    {staged.patient_phone ? formatPhoneNumber(staged.patient_phone) : ''}
                   </div>
                 </div>
 
@@ -247,7 +247,7 @@ export default function DeliveryFormStaged({
 
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium truncate flex-1 min-w-0">{staged.patient_name}</span>
+                    <span className="font-medium truncate flex-1 min-w-0">{staged.care_pros && staged.cp_name ? `CP ${staged.cp_name}` : staged.patient_name}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
                     <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
@@ -300,7 +300,7 @@ export default function DeliveryFormStaged({
                     </div>
                   </div>
                   <div className="text-slate-700 dark:text-slate-300 text-[10px] truncate pr-1 leading-none min-h-0">
-                    {staged.care_pros && staged.cp_name ? staged.cp_name : (staged.patient_phone ? formatPhoneNumber(staged.patient_phone) : '')}
+                    {staged.patient_phone ? formatPhoneNumber(staged.patient_phone) : ''}
                   </div>
                 </div>
 
@@ -358,8 +358,7 @@ export default function DeliveryFormStaged({
         const projectedUnitNumber = projected.unit_number || projectedPatient?.unit_number || '';
         const projectedRecurrence = [
         projected.frequency || projected.reason,
-        formatLastDelivered(getLastDeliveryDate(projectedPatient) || projected.last_delivery_date, projected.frequency),
-        projectedPatient?.care_pros && projectedPatient?.cp_name ? `${projectedPatient.cp_name}` : null].
+        formatLastDelivered(getLastDeliveryDate(projectedPatient) || projected.last_delivery_date, projected.frequency)].
         filter(Boolean).join(' • ');
 
         // Border/fill color: green = on/exact due date, red = overdue, bright yellow = early/upcoming
@@ -379,7 +378,7 @@ export default function DeliveryFormStaged({
 
             <div className="flex-1 min-w-0 flex flex-col gap-[1px] leading-none">
               <div className="flex items-center gap-1.5 min-h-0">
-                <span className="font-medium truncate flex-1 min-w-0 text-slate-900 dark:text-slate-50 leading-none">{projected.patient_name}</span>
+                <span className="font-medium truncate flex-1 min-w-0 text-slate-900 dark:text-slate-50 leading-none">{projectedPatient?.care_pros && projectedPatient?.cp_name ? `CP ${projectedPatient.cp_name}` : projected.patient_name}</span>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {projectedStore?.abbreviation && shouldShowStoreBadges(currentUser) &&
                   <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
