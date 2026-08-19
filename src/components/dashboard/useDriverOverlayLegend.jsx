@@ -5,6 +5,7 @@ import { offlineDB } from "@/components/utils/offlineDatabase";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { saveSetting } from "@/components/utils/userSettingsManager";
+import { fabControlEvents } from "@/components/utils/fabControlEvents";
 
 /**
  * Driver-legend overlay state machine (non-admin drivers only).
@@ -44,6 +45,14 @@ export function useDriverOverlayLegend({
     if (currentUser?.id) saveSetting(currentUser.id, "overlay_driver_id", null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDriverId]);
+
+  // Whenever an overlay is added or switched (becomes truthy), briefly lock the
+  // mapCycle FAB to phase 1 for 500ms so the map refits to the active driver +
+  // the newly overlaid driver's route. Fires only on overlay add/change, not on removal.
+  useEffect(() => {
+    if (!overlayDriverId) return;
+    fabControlEvents.notifyDriverOverlayChanged();
+  }, [overlayDriverId]);
 
   const handleDriverLegendClick = useCallback(async (routeDriverId) => {
     if (!currentUser) return;

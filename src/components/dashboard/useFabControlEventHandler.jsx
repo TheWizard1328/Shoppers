@@ -312,6 +312,16 @@ export function useFabControlEventHandler({
           }
           break;
         }
+        case 'DRIVER_OVERLAY_CHANGED': {
+          // A driver overlay was added or switched in the legend.
+          // Briefly lock Phase 1 (500ms) so the map refits to show the active
+          // driver + the newly overlaid driver's route, then auto-unlock.
+          if (mapUserUnlockedRef) mapUserUnlockedRef.current = false;
+          clearTimer();
+          setFabPhase(1, true);
+          armTimer(500);
+          break;
+        }
         case 'ON_DUTY_FROM_TOGGLE': {
           // Driver went on_duty via the toggle (not the Start button).
           // Use the ref so the stable closure always calls the latest callback.

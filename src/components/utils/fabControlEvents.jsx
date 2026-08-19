@@ -315,6 +315,21 @@ export const fabControlEvents = {
   },
 
   /**
+   * Notify that a driver-overlay was added or changed in the legend.
+   * FAB locks into phase 1 for 500ms (brief lock/unlock) to re-fit the map
+   * to the newly overlaid driver's route alongside the active one.
+   */
+  notifyDriverOverlayChanged: () => {
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'DRIVER_OVERLAY_CHANGED' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
+  },
+
+  /**
    * Notify that the user has manually panned or zoomed the map.
    * Dashboard listens for this and clears the FAB lock (turns it gray).
    * FAB phase is preserved — a double-tap re-locks it.
