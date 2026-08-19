@@ -506,7 +506,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       if (!incomingKeys.has(userId)) delete markerRefs.current[userId];
     });
 
-  }, [users, currentUser, isMobile, deliveries, selectedDate, isAdmin, isDispatcher, isDriver]);
+  }, [users, currentUser, isMobile, deliveries, selectedDate, isAdmin, isDispatcher, isDriver, selectedDriverId, showOtherDriverDeliveries, overlayDriverId]);
 
   // Listen for location cleared events
   useEffect(() => {
