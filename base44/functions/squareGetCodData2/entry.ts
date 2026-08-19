@@ -667,8 +667,15 @@ async function handleGetCodData(base44, payload={}) {
     if (d?.status === 'completed' && hasCardPayment) return false; // card bypasses Square catalog
     return true;
   };
+  // Only skip auto-create for deliveries that have an actual Square POS transaction
+  // (has square_transaction_id — matched from a real Square order). Pending
+  // transactions without a square_transaction_id are just our own bookkeeping
+  // records from a prior catalog creation and may be stale.
   const existingTxDeliveryIds = new Set(
-    (existingTransactions || []).map((t) => normalizeText(t?.delivery_id)).filter(Boolean)
+    (existingTransactions || [])
+      .filter((t) => normalizeText(t?.delivery_id) && normalizeText(t?.square_transaction_id))
+      .map((t) => normalizeText(t?.delivery_id))
+      .filter(Boolean)
   );
   const liveCatalogDeliveryIds = new Set();
   for (const item of (liveCatalogItems || [])) {
