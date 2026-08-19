@@ -14,7 +14,7 @@ const iei = (v) => /^[a-f0-9]{24}$/i.test(String(v || ''));
 const ru = async (b) => { const u = await b.auth.me().catch(() => null); if (!u) throw new HE(401, 'Unauthorized'); return u; };
 
 function hasOfflinePayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['cash', 'check', 'other'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0); }
-function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Debit', 'Credit'].includes(p?.type) && Number(p?.amount || 0) > 0); }
+function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Debit', 'Credit', 'debit', 'credit', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
 
 function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   const [,month,day] = String(deliveryDate||'').split('-');
@@ -114,6 +114,21 @@ async function handleCreateCodItem(b44, payload) {
   const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = payload || {};
   if (!deliveryId || codAmount == null || Number(codAmount) <= 0) throw new HE(400, 'Missing: deliveryId, codAmount');
   const dr = await b44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
+  // Skip creating/updating catalog items for deliveries that are already collected
+  // (completed with payment) or in a terminal status. Without this, the function
+  // finds existing catalog items in the live catalog and "refreshes" them — keeping
+  // collected items alive in the Square Catalog API indefinitely.
+  if (dr?.status === 'failed' || dr?.status === 'cancelled') {
+    return { success: true, skipped: true, reason: `delivery_status_${dr.status}` };
+  }
+  if (dr?.status === 'completed' && (hasOfflinePayment(dr) || hasCardPayment(dr))) {
+    return { success: true, skipped: true, reason: 'delivery_already_collected' };
+  }
+  // Also check for completed Square transactions (collected via POS even if cod_payments not recorded)
+  const completedTxs = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'completed' }).catch(() => []);
+  if (completedTxs?.length > 0) {
+    return { success: true, skipped: true, reason: 'completed_transaction_exists', transactionId: completedTxs[0]?.id };
+  }
   const { pById, pByPid } = await buildPMaps(b44, dr ? [dr] : []);
   const pr = dr ? await resolvePatient(b44, dr, pById, pByPid) : null;
   const effStoreId = storeId || dr?.store_id;
@@ -211,8 +226,12 @@ Deno.serve(async (req) => {
           const r = await handleDeleteCodItem(b, { deliveryId: delivery.id, reason: newStatus });
           return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result: r }] });
         }
-        if (newStatus === 'completed' && (hasOfflinePayment(delivery) || hasCardPayment(delivery))) {
-          const r = await handleDeleteCodItem(b, { deliveryId: delivery.id, reason: hasOfflinePayment(delivery) ? 'offline_payment_collected' : 'card_payment_collected' });
+        if (newStatus === 'completed' && Number(delivery?.cod_total_amount_required || 0) > 0) {
+          // Always delete the catalog item when a COD delivery is completed.
+          // The payment may have been collected via Square POS separately (not
+          // recorded in cod_payments), so we can't rely on hasOfflinePayment/hasCardPayment.
+          const reason = hasOfflinePayment(delivery) ? 'offline_payment_collected' : (hasCardPayment(delivery) ? 'card_payment_collected' : 'completed_cod_delivery');
+          const r = await handleDeleteCodItem(b, { deliveryId: delivery.id, reason });
           return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result: r }] });
         }
         const wasActive = oldStatus === 'in_transit' || oldStatus === 'en_route';

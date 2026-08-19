@@ -549,6 +549,15 @@ async function handleGetCodData(base44, payload={}) {
       .map((d) => d?.id)
       .filter(Boolean)
   );
+  // Also include deliveries that have completed Square transactions — the payment
+  // was collected via Square POS even if the driver didn't record cod_payments
+  // in the app. The transactionRecords are already matched to deliveries via
+  // amount + patient name + date proximity in step 3.
+  for (const tx of transactionRecords) {
+    if (tx?.delivery_id && (tx?.status === 'completed' || tx?.transaction_status === 'completed')) {
+      collectedDeliveryIds.add(tx.delivery_id);
+    }
+  }
   const extractDeliveryIdFromCatalog = (item) => {
     const desc = String(item?.item_data?.description || '').toLowerCase();
     const m = desc.match(/delivery\s+([a-f0-9]{24})/i);
