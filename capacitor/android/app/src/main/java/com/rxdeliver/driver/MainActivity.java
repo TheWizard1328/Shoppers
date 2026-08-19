@@ -120,36 +120,26 @@ public class MainActivity extends BridgeActivity {
         //
         // This method receives the full intent:// URI string from JS, parses it
         // with Intent.parseUri() (which correctly extracts action, package, extras),
-        // and launches it with the correct mechanism depending on the action:
+        // and launches it via startActivity() — exactly what Chrome does in its
+        // shouldOverrideUrlLoading handler for intent:// URIs.
         //
-        //   • MAIN (bare launch): startActivity() + FLAG_ACTIVITY_NEW_TASK.
-        //     No caller validation needed — just opens Square POS to its main screen.
-        //     Using startActivityForResult() here causes Android to immediately deliver
-        //     RESULT_CANCELED because the MAIN activity doesn't "return a result,"
-        //     making it look like Square "bounces right back" without opening.
+        // KEY: Do NOT add FLAG_ACTIVITY_NEW_TASK. When the intent launches in the
+        // same task (no NEW_TASK flag), Android keeps the calling activity in the
+        // back stack, and Square POS can properly identify the caller. Adding
+        // FLAG_ACTIVITY_NEW_TASK was the root cause of "Unexpected developer error"
+        // on 2nd+ launches — it puts Square POS in a separate task where the caller
+        // identity is lost. Using startActivityForResult() caused bare launches (MAIN
+        // action) to bounce back immediately with RESULT_CANCELED.
         //
-        //   • CHARGE (payment): startActivityForResult() WITHOUT FLAG_ACTIVITY_NEW_TASK.
-        //     Square's POS API validates this via getCallingActivity(), which is only
-        //     non-null when launched with startActivityForResult() and WITHOUT
-        //     FLAG_ACTIVITY_NEW_TASK. Using startActivity()+NEW_TASK here causes
-        //     "Unexpected developer error... must be started with startActivityForResult()"
-        //     on the 2nd+ launch once Android reuses Square's existing task instance.
+        // startActivity() without FLAG_ACTIVITY_NEW_TASK works for BOTH bare (MAIN)
+        // and CHARGE launches — this is the exact mechanism Chrome uses on the web.
         @JavascriptInterface
         public boolean launchSquareIntent(String intentUrl) {
             try {
                 Intent intent = Intent.parseUri(intentUrl, Intent.URI_INTENT_SCHEME);
-                String action = intent.getAction();
-                boolean isCharge = "com.squareup.pos.action.CHARGE".equals(action);
                 runOnUiThread(() -> {
                     try {
-                        if (isCharge) {
-                            // CHARGE: Square POS requires startActivityForResult in same task
-                            startActivityForResult(intent, SQUARE_POS_REQUEST_CODE);
-                        } else {
-                            // MAIN (bare launch): just open Square POS, no result expected
-                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
-                        }
+                        startActivity(intent);
                     } catch (Exception e) {
                         // Square POS not installed — open Play Store
                         try {
@@ -263,13 +253,10 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == SQUARE_POS_REQUEST_CODE) {
-            // Square POS returns here after the transaction sheet closes. The web
-            // app's payment outcome is delivered via the WEB_CALLBACK_URI deep link
-            // (see squarePOSLauncher.jsx), so we don't need to relay `data` back to
-            // JS — this override's presence + startActivityForResult() upstream is
-            // what satisfies Square's same-task caller validation.
-        }
+        // Square POS launches use startActivity() (not startActivityForResult), so
+        // onActivityResult is not triggered for Square. This override is kept for
+        // Capacitor's BridgeActivity which needs super.onActivityResult() for its
+        // own plugin callbacks.
     }
 
     private void setupDownloadListener() {

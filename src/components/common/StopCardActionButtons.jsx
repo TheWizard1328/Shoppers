@@ -201,9 +201,15 @@ export default function StopCardActionButtons(props) {
       return;
     }
 
-    // Bare launch (no amount) on first COD of day or location mismatch —
-    // opens Square POS so driver can confirm/set their location before the real charge.
-    const launchBare = squareLocationStatus === 'mismatch' || isFirstCodOfDay;
+    // Bare launch (no amount) when the peek hasn't confirmed the driver's Square
+    // location matches this delivery's store. The peek (useSquareLocationCheck) is the
+    // SOLE authority — isFirstCodOfDay is redundant because if it's truly the first COD
+    // of the day, the peek returns 'no_data' (no transactions found). Using isFirstCodOfDay
+    // alongside caused a bare launch even when the peek verified the location (e.g. driver
+    // processed payment in Square POS but hadn't recorded cod_payments in RxDeliver yet).
+    // 'verified' = peek found a matching transaction on the expected location → CHARGE.
+    // Anything else ('mismatch', 'no_data', 'idle', 'loading') → bare launch (safe default).
+    const launchBare = squareLocationStatus !== 'verified';
     if (launchBare) {
       launchSquarePOS({ squareAppId: effectiveAppId });
       return;
