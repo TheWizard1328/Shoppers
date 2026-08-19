@@ -596,8 +596,13 @@ async function handleGetCodData(base44, payload={}) {
     const dbCleanupPromises = objectIds.map(async (objId) => {
       const dbMatches = await base44.asServiceRole.entities.SquareCatalogItems.filter({ square_catalog_object_id: objId }).catch(() => []);
       for (const r of dbMatches) { await base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null); cleanupDbCount++; }
-      // Transaction status update skipped — transactions are no longer written to the online DB
-      // (the frontend manages them in IDB). This was causing 429 timeouts for driver devices.
+      // Also delete stale PENDING SquareTransaction records for this catalog object.
+      // These were created as bookkeeping when the catalog item was first created, but
+      // the catalog item is now being deleted from Square. Leaving them would cause
+      // handleCreateCodItem to skip re-creation with a false "transaction_exists" —
+      // trapping the delivery in a state where it can never get a new catalog item.
+      const staleTxs = await base44.asServiceRole.entities.SquareTransaction.filter({ square_catalog_object_id: objId, status: 'pending' }).catch(() => []);
+      for (const r of staleTxs) { await base44.asServiceRole.entities.SquareTransaction.delete(r.id).catch(() => null); }
     });
     await Promise.all(dbCleanupPromises);
   }
