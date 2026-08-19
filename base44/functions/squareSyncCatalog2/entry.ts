@@ -224,7 +224,8 @@ async function handleSyncCatalog(base44, payload={}) {
   const liveCatalogItems = await listActiveCatalogItems(accessToken).catch(() => []);
 
   // Build collected delivery IDs (from delivery status + cod_payments)
-  const COLLECTED_PAYMENT_TYPES = new Set(['Cash', 'Check', 'Other', 'Debit', 'Credit', 'cash', 'check', 'other', 'debit', 'credit', 'card']);
+  // Only card payments count as 'collected' for cleanup — Cash/Check items must stay in Square for register reconciliation
+  const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'debit', 'credit', 'card']);
   const deliveryHasRecordedCodPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => Number(p?.amount || 0) > 0 && COLLECTED_PAYMENT_TYPES.has(String(p?.type || '')));
   const collectedDeliveryIds = new Set(
     safeDeliveries.filter((d) => d?.status === 'completed' && deliveryHasRecordedCodPayment(d)).map((d) => d?.id).filter(Boolean)
