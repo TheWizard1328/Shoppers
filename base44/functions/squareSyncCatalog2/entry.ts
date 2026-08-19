@@ -103,7 +103,10 @@ const PAYMENT_TYPE_LOWERCASE_OFFLINE = new Set(['cash', 'check', 'other']);
 const PAYMENT_TYPE_EXACT_CARD = new Set(['Debit', 'Credit', 'card', 'debit', 'credit', 'Card']);
 function hasOfflinePayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => PAYMENT_TYPE_LOWERCASE_OFFLINE.has(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0); }
 function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => PAYMENT_TYPE_EXACT_CARD.has(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
-const isDeliveryAlreadyCollected = (d) => d?.status === 'completed' && (hasOfflinePayment(d) || hasCardPayment(d));
+// Only card payments (Debit/Credit) count as "already collected" for skip
+// purposes — those bypass Square entirely via the card machine. Cash/Check
+// completions still need a catalog item created for register reconciliation.
+const isDeliveryAlreadyCollected = (d) => d?.status === 'completed' && hasCardPayment(d);
 
 // ── Inline Square API helpers (replaces base44.functions.invoke calls) ──
 async function createCatalogItem({ itemName, amountCents, locationId, deliveryId, patientName, token }) {

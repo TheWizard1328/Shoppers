@@ -541,7 +541,13 @@ async function handleGetCodData(base44, payload={}) {
   // ("COD for <patient> | Delivery <deliveryId>"), so we use it here to finally
   // delete catalog items whose referenced delivery is already completed+collected.
   // Mirrors the collection rule from syncSquareCods' event trigger.
-  const COLLECTED_PAYMENT_TYPES = new Set(['Cash', 'Check', 'Other', 'Debit', 'Credit', 'cash', 'check', 'other', 'debit', 'credit', 'card']);
+  // IMPORTANT: Only card payments (Debit/Credit) count as "collected" here — those
+  // bypass Square entirely via the card machine, so any lingering catalog item is
+  // stale and safe to delete. Cash/Check completions must NOT be treated as
+  // collected just because cod_payments has an entry: those are exactly the items
+  // that need to STAY in the Square catalog until the store actually rings them
+  // through the register (tracked via a completed SquareTransaction below).
+  const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'debit', 'credit', 'card']);
   const deliveryHasRecordedCodPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => Number(p?.amount || 0) > 0 && COLLECTED_PAYMENT_TYPES.has(String(p?.type || '')));
   const collectedDeliveryIds = new Set(
     (deliveriesWithAmounts || [])

@@ -114,15 +114,18 @@ async function handleCreateCodItem(b44, payload) {
   const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = payload || {};
   if (!deliveryId || codAmount == null || Number(codAmount) <= 0) throw new HE(400, 'Missing: deliveryId, codAmount');
   const dr = await b44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
-  // Skip creating/updating catalog items for deliveries that are already collected
-  // (completed with payment) or in a terminal status. Without this, the function
-  // finds existing catalog items in the live catalog and "refreshes" them — keeping
-  // collected items alive in the Square Catalog API indefinitely.
+  // Skip terminal-status deliveries, and completed deliveries paid by card
+  // (Debit/Credit go through the card machine directly — no Square catalog
+  // item is ever needed for those). Cash/Check completions are NOT skipped:
+  // those are exactly the COD collections that still need a Square catalog
+  // item created so the store can ring them through the register for
+  // reconciliation. Only a completed SquareTransaction (checked below) means
+  // a Cash/Check item has actually been processed through Square and is done.
   if (dr?.status === 'failed' || dr?.status === 'cancelled') {
     return { success: true, skipped: true, reason: `delivery_status_${dr.status}` };
   }
-  if (dr?.status === 'completed' && (hasOfflinePayment(dr) || hasCardPayment(dr))) {
-    return { success: true, skipped: true, reason: 'delivery_already_collected' };
+  if (dr?.status === 'completed' && hasCardPayment(dr)) {
+    return { success: true, skipped: true, reason: 'delivery_already_collected_card' };
   }
   // Also check for completed Square transactions (collected via POS even if cod_payments not recorded)
   const completedTxs = await b44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId, status: 'completed' }).catch(() => []);
@@ -227,10 +230,14 @@ Deno.serve(async (req) => {
           return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result: r }] });
         }
         if (newStatus === 'completed' && Number(delivery?.cod_total_amount_required || 0) > 0) {
-          // Always delete the catalog item when a COD delivery is completed.
-          // The payment may have been collected via Square POS separately (not
-          // recorded in cod_payments), so we can't rely on hasOfflinePayment/hasCardPayment.
-          const reason = hasOfflinePayment(delivery) ? 'offline_payment_collected' : (hasCardPayment(delivery) ? 'card_payment_collected' : 'completed_cod_delivery');
+          // Cash/Check completions must NOT delete the catalog item here — those need
+          // to stay in Square for register reconciliation until an actual Square
+          // transaction collects them. Only card payments (bypass Square) and the
+          // generic completed_cod_delivery fallback (e.g. no payment info) delete.
+          if (hasOfflinePayment(delivery) && !hasCardPayment(delivery)) {
+            return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'noop', status: 'skipped', reason: 'offline_payment_needs_catalog_item' }] });
+          }
+          const reason = hasCardPayment(delivery) ? 'card_payment_collected' : 'completed_cod_delivery';
           const r = await handleDeleteCodItem(b, { deliveryId: delivery.id, reason });
           return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result: r }] });
         }
