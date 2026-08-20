@@ -212,6 +212,12 @@ class ArrivalTimeDetector {
 
               this.stationaryStartTime = Date.now();
               console.log(`💾 [ARRIVAL] Saved arrival_time for pickup ${target.id} — UI notified`);
+
+              // ── InterStore Dropoff (ISD) pickup prompt ───────────────────────────
+              // When a driver arrives at a store, check their route for ISD deliveries
+              // where this store's phone number is the ORIGINATING (from) phone in the
+              // delivery_id. If found, fire an event so the UI can prompt the driver.
+              this._checkInterStoreDropoffPickups(target, stores);
             } catch (error) {
               console.error('❌ [ARRIVAL] Failed to save pickup arrival_time:', error);
             }
@@ -477,6 +483,71 @@ class ArrivalTimeDetector {
     this.stationaryStartTime = null;
     this.lastLocationCoords = null;
     this.currentTargetId = null;
+  }
+
+  /**
+   * InterStore Dropoff (ISD) pickup detection.
+   *
+   * When a driver arrives at a store, searches their route for ISD-prefixed
+   * deliveries where the store's phone number appears as the "from" (originating)
+   * phone in the delivery_id. ISD delivery_ids have the format:
+   *   ISD-{timestamp}-{fromPhone}-{toPhone}
+   *
+   * If matches are found, dispatches a window event so the UI can prompt the
+   * driver: "You have InterStore items to pick up from this store."
+   */
+  _checkInterStoreDropoffPickups(arrivedDelivery, stores) {
+    try {
+      if (!arrivedDelivery?.store_id) return;
+
+      const store = stores.find(s => s?.id === arrivedDelivery.store_id);
+      if (!store?.phone) return;
+
+      const storePhoneDigits = store.phone.replace(/\D/g, '');
+      if (!storePhoneDigits) return;
+
+      // Search all cached deliveries for ISD-prefixed IDs where the store's
+      // phone appears as the "from" phone (the 2nd phone segment after timestamp)
+      const deliveries = this._cachedDeliveries || [];
+      const matchedISDs = deliveries.filter(d => {
+        const did = String(d?.delivery_id || '');
+        if (!did.toUpperCase().startsWith('ISD-')) return false;
+
+        // Parse: ISD-{timestamp}-{fromPhone}-{toPhone}
+        const parts = did.split('-');
+        // parts[0] = 'ISD', parts[1] = timestamp, parts[2] = fromPhone, parts[3] = toPhone
+        if (parts.length < 3) return false;
+
+        const fromPhone = parts[2].replace(/\D/g, '');
+        // Match if the store's phone digits are a suffix of or equal to the from phone
+        // (accounts for country code prefixes like 1 for North America)
+        return fromPhone === storePhoneDigits ||
+               fromPhone.endsWith(storePhoneDigits) ||
+               storePhoneDigits.endsWith(fromPhone);
+      });
+
+      if (matchedISDs.length === 0) return;
+
+      console.log(`📦 [ISD] Found ${matchedISDs.length} InterStore dropoff(s) to pick up at store ${store.name}`);
+
+      window.dispatchEvent(new CustomEvent('interStoreDropoffPickupNeeded', {
+        detail: {
+          storeId: store.id,
+          storeName: store.name,
+          storePhone: store.phone,
+          arrivedDeliveryId: arrivedDelivery.id,
+          isdDeliveries: matchedISDs.map(d => ({
+            id: d.id,
+            delivery_id: d.delivery_id,
+            delivery_notes: d.delivery_notes,
+            stop_order: d.stop_order,
+            status: d.status,
+          })),
+        }
+      }));
+    } catch (e) {
+      console.warn('[ISD] Failed to check InterStore dropoff pickups:', e.message);
+    }
   }
 
   /**
