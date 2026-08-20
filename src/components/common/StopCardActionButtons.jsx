@@ -11,6 +11,7 @@ import { launchSquarePOS } from "../utils/squarePOSLauncher";
 import { remoteLogger } from "../utils/remoteLogger";
 import { useSquareLocationCheck } from "../dashboard/useSquareLocationCheck";
 import RestartConfirmDialog from "./RestartConfirmDialog";
+import { shouldUseRegularTiming } from '../utils/timeRoundingHelper';
 
 // Generate the Square item name: "MM/DD(StoreAbbr)-PatientName"
 const generateSquareItemName = (delivery, patient, store) => {
@@ -78,6 +79,20 @@ export default function StopCardActionButtons(props) {
   } = props;
 
   const [showRestartDialog, setShowRestartDialog] = useState(false);
+
+  // ── Retro timing indicator ──────────────────────────────────────────────
+  // When the time crosses 21:00 (9 PM) for a TODAY delivery, the app switches
+  // from "regular" stop-timing to "retroactive" backdated timing. Visually flag
+  // that mode on the Start/Complete buttons so the driver knows times will be
+  // rounded/backdated if they complete now.
+  const now = new Date();
+  const _todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const _nowTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const isRetroTiming = !shouldUseRegularTiming({
+    deliveryDate: delivery?.delivery_date,
+    todayDateString: _todayStr,
+    currentTimeString: _nowTimeStr,
+  });
 
   const handleRestartClick = useCallback((e) => {
     e.stopPropagation();
@@ -336,12 +351,12 @@ export default function StopCardActionButtons(props) {
         }
         {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
         isNextDelivery ?
-        <Button data-stopcard-action="complete" type="button" onClickCapture={blockCardToggle} onPointerDownCapture={handleCompleteAction} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className={`rounded-md px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white ${isFailing ? 'bg-red-600 hover:bg-red-700 border-red-500' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'}`}>
+        <Button data-stopcard-action="complete" type="button" onClickCapture={blockCardToggle} onPointerDownCapture={handleCompleteAction} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className={`rounded-md px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white ${isFailing ? 'bg-red-600 hover:bg-red-700 border-red-500' : isRetroTiming ? 'bg-purple-500 hover:bg-purple-600 border-purple-400' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'}`}>
               {isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
               <span className="text-white">Complete</span>
             </Button> :
         onStartDelivery &&
-        <Button data-stopcard-action="start" type="button" onPointerDownCapture={handleStartAction} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCurrentCardStartLocked || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting} className="bg-blue-600 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" title="Start this delivery">
+        <Button data-stopcard-action="start" type="button" onPointerDownCapture={handleStartAction} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCurrentCardStartLocked || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting} className={`${isRetroTiming ? 'bg-sky-300 hover:bg-sky-400 border-sky-200' : 'bg-blue-600 hover:bg-blue-700 border-blue-500'} px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white`} title="Start this delivery">
               {isCurrentCardStartLocked ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
               <span className="text-white">Start</span>
             </Button>)
