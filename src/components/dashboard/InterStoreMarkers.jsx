@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import { Phone, Store, Navigation } from 'lucide-react';
 import { useAppData } from '@/components/utils/AppDataContext';
@@ -9,6 +9,7 @@ import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 import { userHasRole } from '@/components/utils/userRoles';
 import { getInterStoreMode, subscribeInterStore } from './interStoreToggleStore';
 import { createInterStoreIcon } from './MapIcons';
+import { fabControlEvents } from '@/components/utils/fabControlEvents';
 
 /** Haversine distance in km between two [lat,lng] points. */
 const kmBetween = (aLat, aLng, bLat, bLng) => {
@@ -198,6 +199,26 @@ export default function InterStoreMarkers() {
 
     return () => { cancelled = true; };
   }, [active, isDispatcher, sessionStore]);
+
+  // Once all InterStore markers have mounted for this active session, briefly
+  // activate MapViewCycleFAB phase 1 (locked for 500ms) so the map refits its
+  // bounds to show every InterStore marker. Fires exactly once per active
+  // session — resets when the toggle flips off or the location set empties.
+  const didRefitRef = useRef(false);
+  useEffect(() => {
+    if (!active || !locations.length) {
+      didRefitRef.current = false;
+      return;
+    }
+    if (didRefitRef.current) return;
+    didRefitRef.current = true;
+    // Defer one tick so react-leaflet has actually placed the markers on the
+    // map before the phase-1 refit reads the marker layer bounds.
+    const t = setTimeout(() => {
+      fabControlEvents.resetToPhaseOneAfterDone(500);
+    }, 100);
+    return () => clearTimeout(t);
+  }, [active, locations.length]);
 
   if (!active || !isDispatcher || !locations.length || !sessionStore) return null;
 
