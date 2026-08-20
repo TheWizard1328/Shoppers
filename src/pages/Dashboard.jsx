@@ -17,7 +17,7 @@ import { locationTracker } from "@/components/utils/locationTracker";
 import { getCurrentDevice } from '@/components/utils/deviceManager';
 import { liveDistanceTracker } from "@/components/utils/liveDistanceTracker";
 import { globalFilters } from "@/components/utils/globalFilters";
-import { userHasRole } from '@/components/utils/userRoles';
+import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { useUser } from '@/components/utils/UserContext';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
@@ -1077,10 +1077,12 @@ function Dashboard() {
 
     switch (activePhase) {
       case 1: { // "Show All Stops"
-        // Completed route → zoom OUT to the city-center 30km overview instead of
-        // fitting all (finished) markers. The accompanying setMaxZoom lock in
-        // DeliveryMap prevents the user zooming back in past this level.
-        if (isRouteCompleteRef.current && completedRouteCity) {
+        // Completed route → zoom OUT to the city-center overview instead of
+        // fitting all (finished) markers. Drivers-only: AppOwners, admins, and
+        // dispatchers fall through to the normal fit-all-markers Phase 1 below so
+        // they can review completed stops up close, the same as an unfinished route.
+        const completedRouteRadiusEligible = isDriver && !isAdmin && !isDispatcher && !isAppOwner(currentUser);
+        if (isRouteCompleteRef.current && completedRouteCity && completedRouteRadiusEligible) {
           const radiusBounds = getCityRadiusBounds({ latitude: completedRouteCity.latitude, longitude: completedRouteCity.longitude, radiusKm: COMPLETED_ROUTE_RADIUS_KM });
           const padding = getMapPadding(immersiveHiddenRef.current);
           setShouldFitBounds({ bounds: radiusBounds, options: { ...padding, maxZoom: 18, animate: true } });
