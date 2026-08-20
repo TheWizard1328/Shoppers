@@ -106,7 +106,7 @@ export function resolveCityDrivers(appUsers, cityId) {
 }
 
 export default function InterStoreMarkers() {
-  const { currentUser, appUsers, stores } = useAppData();
+  const { currentUser, appUsers, stores, deliveries } = useAppData();
   const [mode, setMode] = useState(getInterStoreMode());
   const [locations, setLocations] = useState([]);
   const [dispatcherLoc, setDispatcherLoc] = useState(null);
@@ -134,6 +134,24 @@ export default function InterStoreMarkers() {
     () => resolveSessionStore(currentUser, stores),
     [currentUser, stores]
   );
+
+  // Incomplete pickup stop coordinates. When an InterStore candidate marker sits on
+  // top of an incomplete Store Pickup, the pickup must win z priority (lowest
+  // stop_order in its tier ⇒ rendered on top, receives hover). We detect overlap by
+  // matching the candidate's geocoded store coords against the pickup's store coords.
+  const isIncompletePickupAt = useMemo(() => {
+    const FINISHED = ['completed', 'failed', 'cancelled'];
+    const storeMap = new Map((stores || []).filter(Boolean).map((s) => [s.id, s]));
+    const coords = (deliveries || [])
+      .filter((d) => d && !d.patient_id && !FINISHED.includes(d.status))
+      .map((d) => {
+        const s = storeMap.get(d.store_id);
+        return s && s.latitude && s.longitude ? [+s.latitude, +s.longitude] : null;
+      })
+      .filter(Boolean);
+    return (lat, lng, eps = 0.0005) =>
+      coords.some(([pLat, pLng]) => Math.abs(pLat - lat) < eps && Math.abs(pLng - lng) < eps);
+  }, [deliveries, stores]);
 
   // Load InterStore locations within a 20km radius of the dispatcher's store.
   useEffect(() => {
@@ -208,6 +226,10 @@ export default function InterStoreMarkers() {
     const lng = +loc.store_longitude;
     if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
 
+    // Yield z priority to an incomplete pickup stop at the same location so the
+    // pickup (lowest stop_order in its tier) renders on top and receives hover.
+    const overlapsIncompletePickup = isIncompletePickupAt(lat, lng);
+
     const distFromSession = sessionStore
       ? kmBetween(sessionStore.lat, sessionStore.lng, lat, lng)
       : null;
@@ -226,7 +248,7 @@ export default function InterStoreMarkers() {
         key={loc.id || `${loc.store_name}-${lat},${lng}`}
         position={[lat, lng]}
         icon={icon}
-        zIndexOffset={20000}
+        zIndexOffset={overlapsIncompletePickup ? 4000 : 20000}
         eventHandlers={{
           mouseover: (e) => e.target.openPopup(),
           mouseout: (e) => e.target.closePopup(),

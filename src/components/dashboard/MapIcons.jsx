@@ -227,7 +227,7 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
       </div>
       <style>
         .store-marker { transition: transform 0.15s ease-out; will-change: transform; }
-        .leaflet-marker-icon:has(.store-marker:hover) { z-index: 9999 !important; transform: scale(1.15); }
+        .leaflet-marker-icon:has(.store-marker:hover) { z-index: 30000 !important; transform: scale(1.15); }
       </style>
     `,
     className: 'custom-store-icon',
@@ -329,7 +329,7 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
       </div>
       <style>
         .delivery-marker { transition: transform 0.15s ease-out; will-change: transform; }
-        .leaflet-marker-icon:has(.delivery-marker:hover) { z-index: 9999 !important; transform: scale(1.15); }
+        .leaflet-marker-icon:has(.delivery-marker:hover) { z-index: 30000 !important; transform: scale(1.15); }
       </style>
     `,
     className: 'custom-delivery-icon',
@@ -483,7 +483,7 @@ export const createHomeIcon = (color = '#10B981') => {
       </div>
       <style>
         .home-marker { transition: transform 0.2s ease; }
-        .leaflet-marker-icon:has(.home-marker:hover) { z-index: 9999 !important; transform: scale(1.15); }
+        .leaflet-marker-icon:has(.home-marker:hover) { z-index: 30000 !important; transform: scale(1.15); }
       </style>
     `,
     className: 'custom-home-icon',
@@ -519,7 +519,7 @@ export const createInterStoreIcon = (mode = 'off') => {
       </div>
       <style>
         .inter-store-marker { transition: transform 0.15s ease; }
-        .leaflet-marker-icon:has(.inter-store-marker:hover) { z-index: 9999 !important; transform: scale(1.25); }
+        .leaflet-marker-icon:has(.inter-store-marker:hover) { z-index: 30000 !important; transform: scale(1.25); }
       </style>
     `,
     className: 'custom-inter-store-icon',
