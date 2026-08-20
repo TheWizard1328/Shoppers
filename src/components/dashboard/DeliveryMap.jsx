@@ -1417,7 +1417,7 @@ function DeliveryMap({
     if (!map) return;
     if (isRouteComplete && completedRouteCity?.latitude != null) {
       const size = map.getSize();
-      const padX = (crosshairPadding.leftPadding || 0) + (crosshairPadding.rightPadding || 0);
+      const padX = ((crosshairPadding.paddingTopLeft?.[0]) || 0) + ((crosshairPadding.paddingBottomRight?.[0]) || 0);
       const padY = (crosshairPadding.topPadding || 0) + (crosshairPadding.bottomPadding || 0);
       const lockZoom = getRadiusFitZoom({ latitude: completedRouteCity.latitude, radiusKm: COMPLETED_ROUTE_RADIUS_KM, mapSize: size, padX, padY });
       map.setMaxZoom(Number.isFinite(lockZoom) ? lockZoom : DEFAULT_MAP_MAX_ZOOM);
