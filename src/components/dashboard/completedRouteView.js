@@ -1,7 +1,7 @@
 // Completed-route overview helpers.
 // When a driver's route is finished the dashboard zooms OUT to a city-center
-// "30 km radius" overview and locks the map so it cannot zoom back IN past
-// that level (the driver can still zoom further out).
+// "20 km radius" overview and locks the map so it cannot zoom back IN past
+// that level (the driver can still zoom further out). Applies to drivers only.
 
 export const COMPLETED_ROUTE_RADIUS_KM = 20;
 const DEFAULT_MAX_ZOOM = 18;
