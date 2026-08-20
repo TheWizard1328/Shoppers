@@ -62,7 +62,7 @@ export default function StatsPanel({
   preferredTravelMode,
   onTravelModeChange,
   mapStyle,
-  setMapStyle,
+  setMapStyle
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
@@ -192,11 +192,11 @@ export default function StatsPanel({
     loadLegendDeliveries();
     // Consolidated: all 3 events trigger the same handler — single add/remove batch
     const legendEvents = ['smartRefreshComplete', 'deliveriesUpdated', 'deliveriesImported'];
-    legendEvents.forEach(evt => window.addEventListener(evt, loadLegendDeliveries));
+    legendEvents.forEach((evt) => window.addEventListener(evt, loadLegendDeliveries));
 
     return () => {
       active = false;
-      legendEvents.forEach(evt => window.removeEventListener(evt, loadLegendDeliveries));
+      legendEvents.forEach((evt) => window.removeEventListener(evt, loadLegendDeliveries));
     };
   }, [selectedDateStr, stores, deliveries]);
 
@@ -247,7 +247,7 @@ export default function StatsPanel({
 
   // Collapse when a stop card is expanded/collapsed (mutual exclusion)
   useEffect(() => {
-    const handleCollapse = () => { if (isExpanded) setIsExpanded(false); };
+    const handleCollapse = () => {if (isExpanded) setIsExpanded(false);};
     window.addEventListener('collapseStatsCard', handleCollapse);
     return () => window.removeEventListener('collapseStatsCard', handleCollapse);
   }, [isExpanded, setIsExpanded]);
@@ -267,12 +267,12 @@ export default function StatsPanel({
     <div ref={statsContainerRef} className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 20 : 40, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
       {/* OfflineSyncIndicator: absolutely positioned beside the stats card container on desktop, not inside it */}
       {!isMobile && !isStatsCardCentered &&
-        <div style={{ position: 'absolute', left: `${StatsCardMinWidth + 8}px`, top: 0, pointerEvents: 'auto', width: '240px' }}>
+      <div style={{ position: 'absolute', left: `${StatsCardMinWidth + 8}px`, top: 0, pointerEvents: 'auto', width: '240px' }}>
           <OfflineSyncIndicator inline={true} />
         </div>
       }
       <div ref={statsCardRef} className="flex flex-col items-start gap-1 relative"
-      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile ? (window.innerWidth < 625 ? `${Math.round(window.innerWidth * 0.95)}px` : '370px') : `${StatsCardMinWidth}px`, minWidth: isMobile ? undefined : `${StatsCardMinWidth}px`, maxWidth: isMobile ? undefined : `${StatsCardMinWidth}px` }}
+      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile ? window.innerWidth < 625 ? `${Math.round(window.innerWidth * 0.95)}px` : '370px' : `${StatsCardMinWidth}px`, minWidth: isMobile ? undefined : `${StatsCardMinWidth}px`, maxWidth: isMobile ? undefined : `${StatsCardMinWidth}px` }}
       onMouseEnter={() => handleStatsPanelInteraction(true)}
       onMouseLeave={() => handleStatsPanelInteraction(false)}>
 
@@ -308,32 +308,32 @@ export default function StatsPanel({
 
         <div className="flex flex-col items-stretch gap-1" style={{ pointerEvents: 'auto', width: '100%' }}>
         <motion.div
-              data-stats-card="true"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              onMouseEnter={() => handleCardInteraction(true)}
-              onMouseLeave={() => handleCardInteraction(false)}
-              onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border cursor-pointer w-full"
+            data-stats-card="true"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            onMouseEnter={() => handleCardInteraction(true)}
+            onMouseLeave={() => handleCardInteraction(false)}
+            onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border cursor-pointer w-full"
 
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
+            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
 
           <div className="mb-0 flex items-center mt-0.25">
             {/* Left: title + status indicators — tapping anywhere here triggers manual refresh */}
             <div
-              className="flex items-center gap-1 flex-shrink-0 cursor-pointer"
-              onClick={(e) => {
-                // Avoid double-trigger when user taps the sync button itself
-                if (e.target.closest('[data-offline-sync-button]')) return;
-                const syncButton = document.querySelector('[data-offline-sync-button]');
-                if (syncButton) syncButton.click();
-              }}>
+                className="flex items-center gap-1 flex-shrink-0 cursor-pointer"
+                onClick={(e) => {
+                  // Avoid double-trigger when user taps the sync button itself
+                  if (e.target.closest('[data-offline-sync-button]')) return;
+                  const syncButton = document.querySelector('[data-offline-sync-button]');
+                  if (syncButton) syncButton.click();
+                }}>
               <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
 
               {currentUser && <SmartRefreshIndicator inline={true} onManualRefresh={async () => {
-                     const syncButton = document.querySelector('[data-offline-sync-button]');
-                     if (syncButton) syncButton.click();
-                   }} />}
+                  const syncButton = document.querySelector('[data-offline-sync-button]');
+                  if (syncButton) syncButton.click();
+                }} />}
 
               {currentUser && <div className="flex items-center gap-1.5 ml-0">
                 <ConnectionIndicator />
@@ -343,17 +343,17 @@ export default function StatsPanel({
 
             {/* Center: booked-off badge (mobile only) */}
             {isMobile && (isAdmin || isDriver) && bookedOffCount > 0 &&
-                <div className="flex-1 flex justify-center">
+              <div className="flex-1 flex justify-center">
                 <Link
-                    to="/DriverScheduleCalendar"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ textDecoration: 'none' }}>
+                  to="/DriverScheduleCalendar"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ textDecoration: 'none' }}>
                   <Badge variant="secondary" className="px-2 rounded-[10px]" style={{ background: '#fff7ed', color: '#c2410c' }}>
                     🚫 {bookedOffCount}
                   </Badge>
                 </Link>
               </div>
-                }
+              }
             {/* Spacer when no badge so right side stays pushed right */}
             {!(isMobile && (isAdmin || isDriver) && bookedOffCount > 0) && <div className="flex-1" />}
 
@@ -367,110 +367,110 @@ export default function StatsPanel({
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                  {(() => {
-                   const todayStr = format(new Date(), 'yyyy-MM-dd');
-                   // Build per-date info: has any delivery, has failed delivery, has active delivery
-                   const dateInfo = {};
-                   (deliveries || []).forEach((d) => {
-                     if (!d?.delivery_date || !d.driver_id) return;
-                     if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return;
-                     const ds = d.delivery_date;
-                     if (!dateInfo[ds]) dateInfo[ds] = { hasAny: false, hasFailed: false, hasCompleted: false };
-                     dateInfo[ds].hasAny = true;
-                     if (d.status === 'failed') dateInfo[ds].hasFailed = true;
-                     if (d.status === 'completed') dateInfo[ds].hasCompleted = true;
-                   });
-                   const DayContent = ({ date }) => {
-                     const dateStr = format(date, 'yyyy-MM-dd');
-                     const info = dateInfo[dateStr];
-                     if (!info?.hasAny) return <span>{date.getDate()}</span>;
-                     const isPast = dateStr <= todayStr;
-                     const hasFinishedStops = info.hasCompleted || info.hasFailed;
-                     // Future/today with no finished stops yet: just blue dot
-                     // Past or dates with finished stops: green dot + optional red dot
-                     const showBlue = !hasFinishedStops;
-                     const showGreen = hasFinishedStops && info.hasCompleted;
-                     const showRed = hasFinishedStops && info.hasFailed;
-                     return (
-                       <div className="flex flex-col items-center justify-center gap-0.5">
+                      const todayStr = format(new Date(), 'yyyy-MM-dd');
+                      // Build per-date info: has any delivery, has failed delivery, has active delivery
+                      const dateInfo = {};
+                      (deliveries || []).forEach((d) => {
+                        if (!d?.delivery_date || !d.driver_id) return;
+                        if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return;
+                        const ds = d.delivery_date;
+                        if (!dateInfo[ds]) dateInfo[ds] = { hasAny: false, hasFailed: false, hasCompleted: false };
+                        dateInfo[ds].hasAny = true;
+                        if (d.status === 'failed') dateInfo[ds].hasFailed = true;
+                        if (d.status === 'completed') dateInfo[ds].hasCompleted = true;
+                      });
+                      const DayContent = ({ date }) => {
+                        const dateStr = format(date, 'yyyy-MM-dd');
+                        const info = dateInfo[dateStr];
+                        if (!info?.hasAny) return <span>{date.getDate()}</span>;
+                        const isPast = dateStr <= todayStr;
+                        const hasFinishedStops = info.hasCompleted || info.hasFailed;
+                        // Future/today with no finished stops yet: just blue dot
+                        // Past or dates with finished stops: green dot + optional red dot
+                        const showBlue = !hasFinishedStops;
+                        const showGreen = hasFinishedStops && info.hasCompleted;
+                        const showRed = hasFinishedStops && info.hasFailed;
+                        return (
+                          <div className="flex flex-col items-center justify-center gap-0.5">
                          <span>{date.getDate()}</span>
                          <span className="flex gap-px">
                            {showBlue && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#3b82f6' }} />}
                            {showGreen && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#16a34a' }} />}
                            {showRed && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#ef4444' }} />}
                          </span>
-                       </div>
-                     );
-                   };
-                   return (
-                 <Calendar
-                       mode="single"
-                       selected={selectedDate}
-                       onSelect={(date) => {
-                         if (!date) return;
-                         if (format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')) {setIsCalendarOpen(false);return;}
-                         handleDateChange(date);
-                       }}
-                       month={calendarMonth}
-                       onMonthChange={setCalendarMonth}
-                       components={{ DayContent }}
-                       footer={
-                        <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                       </div>);
+
+                      };
+                      return (
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(date) => {
+                            if (!date) return;
+                            if (format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')) {setIsCalendarOpen(false);return;}
+                            handleDateChange(date);
+                          }}
+                          month={calendarMonth}
+                          onMonthChange={setCalendarMonth}
+                          components={{ DayContent }}
+                          footer={
+                          <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                         <TooltipProvider><Tooltip>
                           <TooltipTrigger asChild>
                             <button type="button" onClick={() => {const d = new Date();setCalendarMonth(d);handleDateChange(d);}}
-                                className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs"
-                                style={{ color: 'var(--text-slate-600)' }}
-                                onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-100)';e.currentTarget.style.color = 'var(--text-slate-800)';}}
-                                onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent';e.currentTarget.style.color = 'var(--text-slate-600)';}}>
+                                  className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs"
+                                  style={{ color: 'var(--text-slate-600)' }}
+                                  onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-100)';e.currentTarget.style.color = 'var(--text-slate-800)';}}
+                                  onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent';e.currentTarget.style.color = 'var(--text-slate-600)';}}>
                               <Clock className="w-3 h-3" />Today
                             </button>
                           </TooltipTrigger>
                           <TooltipContent><p>Go to today</p></TooltipContent>
                         </Tooltip></TooltipProvider>
                       </div>
-                        }
-                        className="rdp p-3" style={{ color: 'var(--text-slate-900)' }} />
-                    );
-                  })()}
+                          }
+                          className="rdp p-3" style={{ color: 'var(--text-slate-900)' }} />);
+
+                    })()}
                 </PopoverContent>
               </Popover>
 
               <Button
-                    onClick={() => {if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;setEditingDelivery(null);setShowDeliveryForm(true);}}
-                    size="sm"
-                    className={`relative h-8 w-8 p-0 transition-colors ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'bg-slate-300 cursor-not-allowed' : hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : isDemoModeActive ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
-                    disabled={isDateFinished && !isAdmin || currentUser?.status === 'inactive' && isDriver && !isAdmin}
-                    title={currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'Inactive drivers cannot add deliveries' : hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
+                  onClick={() => {if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;setEditingDelivery(null);setShowDeliveryForm(true);}}
+                  size="sm"
+                  className={`relative h-8 w-8 p-0 transition-colors ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'bg-slate-300 cursor-not-allowed' : hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : isDemoModeActive ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                  disabled={isDateFinished && !isAdmin || currentUser?.status === 'inactive' && isDriver && !isAdmin}
+                  title={currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'Inactive drivers cannot add deliveries' : hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
                 <Plus className="w-4 h-4" />
                 {isDemoModeActive && !hasRateLimitError &&
-                    <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white dark:bg-slate-900 text-[8px] font-bold leading-none text-blue-600">
+                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white dark:bg-slate-900 text-[8px] font-bold leading-none text-blue-600">
                     D
                   </span>
-                    }
+                  }
               </Button>
             </div>
           </div>
 
           <div className="flex items-center justify-between gap-1.5">
             <ActivePayStats
-                  deliveryStats={deliveryStats}
-                  localStats={stats}
-                  isDispatcher={isDispatcher}
-                  isDriver={isDriver}
-                  isAdmin={isAdmin}
-                  performanceStats={performanceStats}
-                  liveDistance={liveDistance}
-                  liveTimeOnDuty={finalizedDutyTime ?? liveTimeOnDuty}
-                  isLoadingPayrollStats={isLoadingPayrollStats}
-                  onStatsClick={(isDriver || isAdmin) && !isDispatcher && setShowEndOfDayStats ? () => {
-                    setEndOfDayDriver?.(null);
-                    setShowEndOfDayStats(true);
-                  } : undefined} />
+                deliveryStats={deliveryStats}
+                localStats={stats}
+                isDispatcher={isDispatcher}
+                isDriver={isDriver}
+                isAdmin={isAdmin}
+                performanceStats={performanceStats}
+                liveDistance={liveDistance}
+                liveTimeOnDuty={finalizedDutyTime ?? liveTimeOnDuty}
+                isLoadingPayrollStats={isLoadingPayrollStats}
+                onStatsClick={(isDriver || isAdmin) && !isDispatcher && setShowEndOfDayStats ? () => {
+                  setEndOfDayDriver?.(null);
+                  setShowEndOfDayStats(true);
+                } : undefined} />
                 
             <Button variant="ghost" size="sm"
-                onClick={isDispatcherLockedExpanded ? undefined : (e) => {e.stopPropagation();if (!isExpanded) window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));setIsExpanded(!isExpanded);}}
-                disabled={isDispatcherLockedExpanded || (currentUser?.status === 'inactive' && isDriver && !isAdmin)}
-                className={`h-8 w-8 p-0 flex-shrink-0 ${isDispatcherLockedExpanded ? 'opacity-0 cursor-default' : currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              onClick={isDispatcherLockedExpanded ? undefined : (e) => {e.stopPropagation();if (!isExpanded) window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));setIsExpanded(!isExpanded);}}
+              disabled={isDispatcherLockedExpanded || currentUser?.status === 'inactive' && isDriver && !isAdmin}
+              className={`h-8 w-8 p-0 flex-shrink-0 ${isDispatcherLockedExpanded ? 'opacity-0 cursor-default' : currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {!isDispatcherLockedExpanded && (isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
               </Button>
           </div>
@@ -499,79 +499,79 @@ export default function StatsPanel({
                   </SelectTrigger>
                   <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                     {/* "All Drivers" is only useful when more than 1 driver has stops for the
-                        selected date. Otherwise it's redundant (1 driver) or meaningless (0). */}
-                    {(!isDispatcher || driversList.length > 1) && (
+                           selected date. Otherwise it's redundant (1 driver) or meaningless (0). */}
+                    {(!isDispatcher || driversList.length > 1) &&
                       <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
-                    )}
+                      }
                     {/* Empty dispatcher list — show a disabled placeholder so the dropdown
-                        isn't blank. */}
-                    {isDispatcher && driversList.length === 0 && (
+                           isn't blank. */}
+                    {isDispatcher && driversList.length === 0 &&
                       <SelectItem value="__none__" disabled style={{ color: 'var(--text-slate-400)' }}>No Drivers</SelectItem>
-                    )}
+                      }
                     {driversList.map((driver) =>
-                        <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
+                      <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
                         {driver.user_name || driver.full_name}
                       </SelectItem>
-                        )}
+                      )}
                   </SelectContent>
                 </Select>
 
                 {isDriver && !isAllDriversMode &&
-                    <div className="flex items-center flex-shrink-0">
+                  <div className="flex items-center flex-shrink-0">
                     <div className="flex flex-col items-center gap-1">
                       <Button variant="outline" size="icon"
-                        disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin}
-                        onClick={async () => {
-                          if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;
-                          const checked = !showAllDriverMarkers;
-                          setShowAllDriverMarkers(checked);
-                          if (currentUser?.id) saveSetting(currentUser.id, 'show_all_driver_markers', checked);
-                          // Binoculars toggle is independent of the legend overlay — clear any leftover overlay
-                          // so toggling Show All produces a clean Full Show All (on) or active-only (off) view.
-                          setOverlayDriverId?.(null);
-                          if (currentUser?.id) saveSetting(currentUser.id, 'overlay_driver_id', null);
-                          setIsExpanded(false);
-                          if (checked) {
-                            setIsEntityUpdating(true);
-                            try {
-                              const selDateStr = format(selectedDate, 'yyyy-MM-dd');
-                              let allDateDeliveries;
-                              if (dataSource === 'online') {
+                      disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin}
+                      onClick={async () => {
+                        if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;
+                        const checked = !showAllDriverMarkers;
+                        setShowAllDriverMarkers(checked);
+                        if (currentUser?.id) saveSetting(currentUser.id, 'show_all_driver_markers', checked);
+                        // Binoculars toggle is independent of the legend overlay — clear any leftover overlay
+                        // so toggling Show All produces a clean Full Show All (on) or active-only (off) view.
+                        setOverlayDriverId?.(null);
+                        if (currentUser?.id) saveSetting(currentUser.id, 'overlay_driver_id', null);
+                        setIsExpanded(false);
+                        if (checked) {
+                          setIsEntityUpdating(true);
+                          try {
+                            const selDateStr = format(selectedDate, 'yyyy-MM-dd');
+                            let allDateDeliveries;
+                            if (dataSource === 'online') {
+                              allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selDateStr });
+                              offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
+                            } else {
+                              allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selDateStr);
+                              if (!allDateDeliveries || allDateDeliveries.length === 0) {
                                 allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selDateStr });
-                                offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
-                              } else {
-                                allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selDateStr);
-                                if (!allDateDeliveries || allDateDeliveries.length === 0) {
-                                  allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selDateStr });
-                                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
-                                }
+                                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
                               }
-                              if (updateDeliveriesLocally) {
-                                const other = deliveries.filter((d) => d && d.delivery_date !== selDateStr);
-                                updateDeliveriesLocally([...other, ...allDateDeliveries], true);
-                              }
-                              await new Promise((r) => setTimeout(r, 300));
-                              const locUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
-                              if (locUpdates?.hasChanges) driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locUpdates.appUsers, selectedDate);
-                              const showAllLocUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
-                              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: showAllLocUpdates?.appUsers || appUsers, forceAll: true } }));
-                            } catch (e) {console.error(e);} finally {setIsEntityUpdating(false);}
-                          }
-                          if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
-                          mapLockExpiresAtRef.current = null;
-                          if (setMapViewPhase && setIsMapViewLocked && setMapViewTrigger) {
-                            if (window.__fabFlashUpdate && (window.__currentMapViewPhase ?? 1) === 1) {
-                              window.__fabFlashUpdate();
-                              setIsMapViewLocked(true);
-                              lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();
-                              setMapViewTrigger((p) => p + 1);
-                              const lockDuration = 500;const expiresAt = Date.now() + lockDuration;mapLockExpiresAtRef.current = expiresAt;
-                              mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === expiresAt) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, lockDuration);
                             }
+                            if (updateDeliveriesLocally) {
+                              const other = deliveries.filter((d) => d && d.delivery_date !== selDateStr);
+                              updateDeliveriesLocally([...other, ...allDateDeliveries], true);
+                            }
+                            await new Promise((r) => setTimeout(r, 300));
+                            const locUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                            if (locUpdates?.hasChanges) driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locUpdates.appUsers, selectedDate);
+                            const showAllLocUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
+                            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: showAllLocUpdates?.appUsers || appUsers, forceAll: true } }));
+                          } catch (e) {console.error(e);} finally {setIsEntityUpdating(false);}
+                        }
+                        if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
+                        mapLockExpiresAtRef.current = null;
+                        if (setMapViewPhase && setIsMapViewLocked && setMapViewTrigger) {
+                          if (window.__fabFlashUpdate && (window.__currentMapViewPhase ?? 1) === 1) {
+                            window.__fabFlashUpdate();
+                            setIsMapViewLocked(true);
+                            lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();
+                            setMapViewTrigger((p) => p + 1);
+                            const lockDuration = 500;const expiresAt = Date.now() + lockDuration;mapLockExpiresAtRef.current = expiresAt;
+                            mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === expiresAt) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, lockDuration);
                           }
-                        }}
-                        className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                        style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
+                        }
+                      }}
+                      className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                      style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
                         <Binoculars className="w-4 h-4" />
                       </Button>
                     </div>
@@ -579,57 +579,57 @@ export default function StatsPanel({
                     <div className="flex flex-col items-center gap-1">
                       {/* Combined polylines/breadcrumbs toggle button */}
                       <Button variant="outline" size="icon"
-                        disabled={false}
-                        title={!showRoutes && !showBreadcrumbs ? 'Click to show polylines' : showRoutes && !showBreadcrumbs ? 'Polylines only' : 'Polylines + Breadcrumbs'}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          // Guard against double-fire (onTouchEnd + onClick on mobile PWA).
-                          // We handle this with a simple module-level flag rather than a ref
-                          // since this button is not always mounted.
-                          if (window.__breadcrumbToggleBusy) return;
-                          window.__breadcrumbToggleBusy = true;
-                          const release = () => { window.__breadcrumbToggleBusy = false; };
-                          if (showBreadcrumbs) {
-                            // Currently showing breadcrumbs → back to polylines only
-                            setShowBreadcrumbs(false);
-                            setBreadcrumbsData({ historical: [], current: [] });
-                            setShowRoutes(true);
-                            release();
-                          } else {
-                            // Load breadcrumbs — keep async work inside .then() so onClick stays sync
-                            const selDateStr = format(selectedDate, 'yyyy-MM-dd');
-                            const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                            loadBreadcrumbsForDriver(driverIdToFetch, selDateStr, appUsers)
-                              .then((loadedBreadcrumbs) => {
-                                if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
-                                  toast.info('No breadcrumb trails available', { description: 'GPS trails appear after a stop is finished with tracking on' });
-                                  return;
-                                }
-                                setBreadcrumbsData(loadedBreadcrumbs);
-                                setShowBreadcrumbs(true);
-                                // Completed route: show breadcrumbs only (no polyline overlap)
-                                // In-progress route: show both breadcrumbs + incomplete-stop polylines
-                                if (isDateFinished) {
-                                  setShowRoutes(false);
-                                } else {
-                                  setShowRoutes(true);
-                                }
-                              })
-                              .catch(() => {
-                                toast.error('Failed to load breadcrumbs');
-                              })
-                              .finally(release);
-                          }
-                        }}
-                        className={`h-9 w-9 p-0 text-white ${
-                        showBreadcrumbs ?
-                        'bg-emerald-600 hover:bg-emerald-700' :
-                        showRoutes ?
-                        'bg-blue-600 hover:bg-blue-700' :
-                        'text-slate-700 dark:text-slate-300'}`
+                      disabled={false}
+                      title={!showRoutes && !showBreadcrumbs ? 'Click to show polylines' : showRoutes && !showBreadcrumbs ? 'Polylines only' : 'Polylines + Breadcrumbs'}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Guard against double-fire (onTouchEnd + onClick on mobile PWA).
+                        // We handle this with a simple module-level flag rather than a ref
+                        // since this button is not always mounted.
+                        if (window.__breadcrumbToggleBusy) return;
+                        window.__breadcrumbToggleBusy = true;
+                        const release = () => {window.__breadcrumbToggleBusy = false;};
+                        if (showBreadcrumbs) {
+                          // Currently showing breadcrumbs → back to polylines only
+                          setShowBreadcrumbs(false);
+                          setBreadcrumbsData({ historical: [], current: [] });
+                          setShowRoutes(true);
+                          release();
+                        } else {
+                          // Load breadcrumbs — keep async work inside .then() so onClick stays sync
+                          const selDateStr = format(selectedDate, 'yyyy-MM-dd');
+                          const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                          loadBreadcrumbsForDriver(driverIdToFetch, selDateStr, appUsers).
+                          then((loadedBreadcrumbs) => {
+                            if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
+                              toast.info('No breadcrumb trails available', { description: 'GPS trails appear after a stop is finished with tracking on' });
+                              return;
+                            }
+                            setBreadcrumbsData(loadedBreadcrumbs);
+                            setShowBreadcrumbs(true);
+                            // Completed route: show breadcrumbs only (no polyline overlap)
+                            // In-progress route: show both breadcrumbs + incomplete-stop polylines
+                            if (isDateFinished) {
+                              setShowRoutes(false);
+                            } else {
+                              setShowRoutes(true);
+                            }
+                          }).
+                          catch(() => {
+                            toast.error('Failed to load breadcrumbs');
+                          }).
+                          finally(release);
                         }
-                        style={!showRoutes && !showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
+                      }}
+                      className={`h-9 w-9 p-0 text-white ${
+                      showBreadcrumbs ?
+                      'bg-emerald-600 hover:bg-emerald-700' :
+                      showRoutes ?
+                      'bg-blue-600 hover:bg-blue-700' :
+                      'text-slate-700 dark:text-slate-300'}`
+                      }
+                      style={!showRoutes && !showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle cx="8" cy="3" r="1.5" fill="currentColor" />
                           <circle cx="4" cy="8" r="1.5" fill="currentColor" />
@@ -642,21 +642,21 @@ export default function StatsPanel({
                       </Button>
                     </div>
                   </div>
-                    }
+                  }
 
                 {isDispatcherLockedExpanded && <div className="flex-1" />}
 
                 {!isDispatcherLockedExpanded &&
-                    <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                     <Settings className="w-3.5 h-3.5" />
                   </Button>
-                    }
+                  }
 
-                {isPureDispatcher ? (
-                  <div className="flex items-stretch rounded-md overflow-hidden border flex-shrink-0 h-8 select-none" style={{ borderColor: 'var(--border-slate-300)' }}>
+                {isPureDispatcher ?
+                  <div className="flex items-stretch rounded-md overflow-hidden border flex-shrink-0 select-none h-11" style={{ borderColor: 'var(--border-slate-300)' }}>
                     <button
                       type="button"
-                      onClick={() => { setInterStorePickup(); setIsExpanded(false); }}
+                      onClick={() => {setInterStorePickup();setIsExpanded(false);}}
                       title="InterStore Pickup — click to add a pickup"
                       className={`flex-1 flex items-center justify-between px-2 gap-1 h-full transition-colors text-xs font-semibold ${interStoreMode === 'pickup' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                       <ArrowUp className="w-3.5 h-3.5" />
@@ -664,27 +664,27 @@ export default function StatsPanel({
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setInterStoreDropoff(); setIsExpanded(false); }}
+                      onClick={() => {setInterStoreDropoff();setIsExpanded(false);}}
                       title="InterStore Dropoff — click to add a dropoff"
                       className={`flex-1 flex items-center justify-between px-2 gap-1 h-full transition-colors text-xs font-semibold ${interStoreMode === 'dropoff' ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                       <span className="whitespace-nowrap pl-0.5">Store</span>
                       <ArrowDown className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-                ) : (
+                  </div> :
+
                   <Button variant="default" size="sm" onClick={() => {
-                      const nextShowRoutes = !showRoutes;
-                      setShowRoutes(nextShowRoutes);
-                      localStorage.setItem('rxdeliver_show_routes', String(nextShowRoutes));
-                      if (nextShowRoutes) {
-                        setShowBreadcrumbs(false);
-                        setBreadcrumbsData({ historical: [], current: [] });
-                      }
-                      setIsExpanded(false);
-                    }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
+                    const nextShowRoutes = !showRoutes;
+                    setShowRoutes(nextShowRoutes);
+                    localStorage.setItem('rxdeliver_show_routes', String(nextShowRoutes));
+                    if (nextShowRoutes) {
+                      setShowBreadcrumbs(false);
+                      setBreadcrumbsData({ historical: [], current: [] });
+                    }
+                    setIsExpanded(false);
+                  }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
                   <Truck className="w-3.5 h-3.5" />{showRoutes ? 'Hide' : 'Show'}
                   </Button>
-                )}
+                  }
               </div>
 
               {isDriver && !isDispatcher && <>
@@ -701,22 +701,22 @@ export default function StatsPanel({
                   </>}
                   <div className="ml-auto">
                     {!isAllDriversMode &&
-                        <TravelModeControl
-                          currentUser={currentUser}
-                          appUsers={appUsers}
-                          value={preferredTravelMode}
-                          onChange={onTravelModeChange}
-                          selectedDriverId={selectedDriverId}
-                          dialogOpen={travelModeDialogOpen}
-                          onDialogOpenChange={(open) => {setTravelModeDialogOpen(open);if (open) setIsExpanded(false);}}
-                          nearbyStops={[]}
-                          selectedStopIds={cyclingSelectedStopIds}
-                          onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
-                          onOptimize={handleCyclingModeConfirm}
-                          isSubmitting={isOptimizingCyclingMode}
-                          renderDialogOutside={true} />
+                      <TravelModeControl
+                        currentUser={currentUser}
+                        appUsers={appUsers}
+                        value={preferredTravelMode}
+                        onChange={onTravelModeChange}
+                        selectedDriverId={selectedDriverId}
+                        dialogOpen={travelModeDialogOpen}
+                        onDialogOpenChange={(open) => {setTravelModeDialogOpen(open);if (open) setIsExpanded(false);}}
+                        nearbyStops={[]}
+                        selectedStopIds={cyclingSelectedStopIds}
+                        onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                        onOptimize={handleCyclingModeConfirm}
+                        isSubmitting={isOptimizingCyclingMode}
+                        renderDialogOutside={true} />
 
-                        }
+                      }
                   </div>
                 </div>
               </>}
@@ -745,8 +745,8 @@ export default function StatsPanel({
         </motion.div>
 
             {legendData.length > 0 && !(isDriver && !isAdmin && !isDispatcher && isDateFinished) &&
-            <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full" style={{ background: 'var(--bg-white)', opacity: 1, borderColor: 'var(--border-slate-200)' }}
-            onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
+          <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full" style={{ background: 'var(--bg-white)', opacity: 1, borderColor: 'var(--border-slate-200)' }}
+          onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
             <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
               {legendData.map((route) => {
                 const isActiveDriver = selectedDriverId === route.driverId;
@@ -755,41 +755,41 @@ export default function StatsPanel({
                 const shouldUnderline = isActiveDriver || isOverlaidDriver;
                 const useLegacyClick = isAdmin || isDispatcher;
                 return (
-                <button
-                  key={route.driverId}
-                  type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors px-0.5 py-0 h-[20px]    ${shouldUnderline ? 'underline underline-offset-2 font-semibold' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (useLegacyClick) {
-                      // Admins/Dispatchers: toggle selectedDriverId (legacy behavior)
-                      handleDriverChange(selectedDriverId === route.driverId ? 'all' : route.driverId);
-                    } else {
-                      // Non-admin drivers: overlay state machine (active-only ↔ overlay ↔ Full Show All)
-                      handleDriverLegendClick?.(route.driverId);
-                    }
-                  }}>
+                  <button
+                    key={route.driverId}
+                    type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors px-0.5 py-0 h-[20px]    ${shouldUnderline ? 'underline underline-offset-2 font-semibold' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (useLegacyClick) {
+                        // Admins/Dispatchers: toggle selectedDriverId (legacy behavior)
+                        handleDriverChange(selectedDriverId === route.driverId ? 'all' : route.driverId);
+                      } else {
+                        // Non-admin drivers: overlay state machine (active-only ↔ overlay ↔ Full Show All)
+                        handleDriverLegendClick?.(route.driverId);
+                      }
+                    }}>
                   <div className="relative flex items-center justify-center w-2.5 h-2.5 flex-shrink-0">
                     {route.hasHeartbeat &&
-                    <div
-                      className="absolute inset-0 rounded-full animate-ping opacity-75"
-                      style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
+                      <div
+                        className="absolute inset-0 rounded-full animate-ping opacity-75"
+                        style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
 
-                    }
+                      }
                     <div
-                      className="relative w-2.5 h-2.5 rounded-full shadow-sm"
-                      style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
+                        className="relative w-2.5 h-2.5 rounded-full shadow-sm"
+                        style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
 
                   </div>
                   <span className="text-sm font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
                   {!(isDriver && !isAdmin) &&
                     <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
-                  }
-                </button>
-                );
+                    }
+                </button>);
+
               })}
             </div>
           </div>
-            }
+          }
         </div>{/* end stats card + legend */}
 
         {/* TravelModeDialog rendered OUTSIDE AnimatePresence so it survives StatsCard collapse */}
