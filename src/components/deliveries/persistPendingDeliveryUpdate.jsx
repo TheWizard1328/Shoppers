@@ -1,4 +1,5 @@
-import { updateDeliveryLocal, updatePatientLocal } from '../utils/entityMutations';
+import { updateDeliveryLocal } from '../utils/offlineMutations';
+import { updatePatientLocal } from '../utils/entityMutations';
 import { buildPatientUpdatePayload } from '../utils/patientUpdateHelper';
 
 export async function persistPendingDeliveryUpdate({
@@ -9,12 +10,13 @@ export async function persistPendingDeliveryUpdate({
   editingStagedId,
   distanceFromStore
 }) {
+  // CRITICAL: Fire patient update as fire-and-forget — it does a blocking
+  // base44.entities.Patient.update() call that takes 1-3s on mobile.  The
+  // IDB write + notifyMutation inside updatePatientLocal happen instantly;
+  // the server sync runs in the background without blocking the UI thread.
   if (formData.patient_id) {
-    try {
-      await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
-    } catch (error) {
-      console.error('Failed to update patient:', error);
-    }
+    updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData))
+      .catch(error => console.error('Failed to update patient (background):', error));
   }
 
   const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
@@ -52,12 +54,15 @@ export async function persistPendingDeliveryUpdate({
     paid_km_override: formData.paid_km_override !== null && formData.paid_km_override !== undefined
       ? parseFloat(formData.paid_km_override.toFixed(2))
       : null,
-    // Care Pro envelope count is stored on the Delivery entity (editable per delivery)
     cp_envelopes: formData.cp_envelopes || 0
   };
 
+  // CRITICAL: offlineMutations.updateDeliveryLocal does fire-and-forget server
+  // sync — the IDB write + notifyMutation (instant UI update) happen immediately,
+  // and base44.entities.Delivery.update() runs in a background .then() promise.
+  // This eliminates the 3-7s blocking that entityMutations.updateDelivery caused
+  // by awaiting the backend write + broadcastMutation synchronously.
   const updatedDelivery = await updateDeliveryLocal(selectedStaged.id, immediateUpdateData, {
-    deferPolylineRefresh: true,
     skipSmartRefresh: true
   });
 
@@ -73,8 +78,6 @@ export async function persistPendingDeliveryUpdate({
       store_abbreviation: store.abbreviation,
       distanceFromStore: distanceFromStore,
       delivery_address: patient?.address || store.address,
-      // Reflect the latest Care Pro flag/name from the form on the staged card
-      // (these fields live on the Patient entity, updated via buildPatientUpdatePayload above)
       care_pros: formData.care_pros || false,
       cp_name: formData.cp_name || ''
     },

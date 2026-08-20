@@ -840,8 +840,13 @@ export default function DeliveryForm({
       const { persistPendingDeliveryUpdate } = await import('./persistPendingDeliveryUpdate.jsx');
       const { stagedDelivery, deliveryId } = await persistPendingDeliveryUpdate({ selectedStaged, formData, patient, store, editingStagedId, distanceFromStore });
       setStagedDeliveries((prev) => prev.map((staged) => staged._tempId === editingStagedId ? stagedDelivery : staged)); setHasChanges(true);
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'pendingDeliveryImmediateUpdate', preserveLocalState: true, freshDeliveries: [stagedDelivery] } }));
+      // CRITICAL: Do NOT dispatch refreshDeliveryStats or deliveriesUpdated here.
+      // updateDeliveryLocal already called notifyMutation() which updated the
+      // Layout's deliveries state.  The extra events were triggering a full
+      // DeliveryMap re-render (setRouteRenderKey), DashboardQuickStats 3× IDB
+      // getAll + heavy filtering, and useLiveBreadcrumbsSync IDB reload —
+      // all for a single staged-delivery field edit.  Stats refresh naturally
+      // on the next smartRefresh cycle.
     } else {
       const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
       if (formData.patient_id) { try { await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData)); } catch (error) { console.error('Failed to update patient:', error); setError('Failed to update patient data. Delivery will still be updated.'); } }
