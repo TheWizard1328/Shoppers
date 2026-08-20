@@ -498,15 +498,19 @@ export const createHomeIcon = (color = '#10B981') => {
  * markers but large enough to stay clickable. Low z-index keeps it under
  * stop markers but above polylines.
  */
-export const createInterStoreIcon = () => {
-  const size = 12;
+export const createInterStoreIcon = (mode = 'off') => {
+  const size = 14;
+  // Match the toggle button: pickup = green, dropoff = red.
+  const isPickup = mode === 'pickup';
+  const fillColor = isPickup ? '#16A34A' : '#DC2626';
+  const borderColor = isPickup ? '#14532D' : '#991B1B';
   return L.divIcon({
     html: `
       <div class="inter-store-marker" style="
         width: ${size}px;
         height: ${size}px;
-        background-color: #DC2626;
-        border: 2px solid #991B1B;
+        background-color: ${fillColor};
+        border: 2px solid ${borderColor};
         border-radius: 50%;
         box-shadow: 0 1px 3px rgba(0,0,0,0.4);
         cursor: pointer;

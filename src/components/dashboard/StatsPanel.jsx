@@ -658,7 +658,7 @@ export default function StatsPanel({
                       type="button"
                       onClick={() => { setInterStorePickup(); setIsExpanded(false); }}
                       title="InterStore Pickup — click a marker to add a pickup"
-                      className={`flex items-center justify-center px-2.5 h-full transition-colors ${interStoreMode === 'pickup' ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                      className={`flex items-center justify-center px-2.5 h-full transition-colors ${interStoreMode === 'pickup' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                       style={interStoreMode === 'pickup' ? undefined : { background: 'var(--bg-white)', color: 'var(--text-slate-700)' }}>
                       <ArrowUp className="w-3.5 h-3.5" />
                     </button>
@@ -669,7 +669,7 @@ export default function StatsPanel({
                       type="button"
                       onClick={() => { setInterStoreDropoff(); setIsExpanded(false); }}
                       title="InterStore Dropoff — click a marker to add a dropoff"
-                      className={`flex items-center justify-center px-2.5 h-full transition-colors ${interStoreMode === 'dropoff' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                      className={`flex items-center justify-center px-2.5 h-full transition-colors ${interStoreMode === 'dropoff' ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                       style={interStoreMode === 'dropoff' ? undefined : { background: 'var(--bg-white)', color: 'var(--text-slate-700)' }}>
                       <ArrowDown className="w-3.5 h-3.5" />
                     </button>

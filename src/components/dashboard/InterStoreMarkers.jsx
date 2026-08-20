@@ -172,7 +172,9 @@ export default function InterStoreMarkers() {
   if (!active || !isDispatcher || !locations.length || !sessionStore) return null;
 
   const drivers = resolveCityDrivers(appUsers, selectedCityId);
-  const icon = createInterStoreIcon();
+  // Marker fill color matches the active toggle half (pickup = green, dropoff = red).
+  const icon = createInterStoreIcon(mode);
+  const headerIconColor = mode === 'pickup' ? 'text-emerald-600' : 'text-red-600';
 
   // The InterStoreLocation matching the dispatcher's own store — used as the
   // other half of the From/To prefill when a marker is clicked.
@@ -212,8 +214,7 @@ export default function InterStoreMarkers() {
         // leg2 (marker → session store) is always exact; leg1 (driver → marker)
         // is estimated only when the driver's own position is an estimate.
         const leg1 = kmBetween(d.lat, d.lng, lat, lng);
-        const leg2 = sessionStore ? kmBetween(lat, lng, sessionStore.lat, sessionStore.lng) : null;
-        return { id: d.id, name: d.name, leg1, leg2, estimated: d.estimated, statusNote: d.statusNote };
+        return { id: d.id, name: d.name, leg1, estimated: d.estimated, statusNote: d.statusNote };
       })
       .sort((a, b) => (a.leg1 ?? Infinity) - (b.leg1 ?? Infinity));
 
@@ -222,7 +223,7 @@ export default function InterStoreMarkers() {
         key={loc.id || `${loc.store_name}-${lat},${lng}`}
         position={[lat, lng]}
         icon={icon}
-        zIndexOffset={-2000}
+        zIndexOffset={5000}
         eventHandlers={{
           mouseover: (e) => e.target.openPopup(),
           mouseout: (e) => e.target.closePopup(),
@@ -235,20 +236,21 @@ export default function InterStoreMarkers() {
         <Popup closeButton={false} autoPan={false} offset={[0, -10]} className="custom-popup">
           <div className="min-w-[180px] text-slate-900 dark:text-slate-100">
             <div className="flex items-center gap-1.5">
-              <Store className="w-3.5 h-3.5 text-red-600" />
+              <Store className={`w-3.5 h-3.5 ${headerIconColor}`} />
               <h3 className="font-semibold text-xs">{loc.store_name || 'InterStore Location'}</h3>
             </div>
 
-            {loc.store_phone && (
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <Phone className="w-3 h-3 text-slate-500" />
-                <span className="text-[11px]">{formatPhoneNumber(loc.store_phone)}</span>
-              </div>
-            )}
-
-            {loc.store_number && (
-              <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
-                SDM #: {loc.store_number}
+            {(loc.store_phone || loc.store_number) && (
+              <div className="flex items-center gap-3 mt-1.5">
+                {loc.store_phone && (
+                  <span className="flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-slate-500" />
+                    <span className="text-[11px]">{formatPhoneNumber(loc.store_phone)}</span>
+                  </span>
+                )}
+                {loc.store_number && (
+                  <span className="text-[11px] text-slate-600 dark:text-slate-400">SDM #: {loc.store_number}</span>
+                )}
               </div>
             )}
 
@@ -266,9 +268,7 @@ export default function InterStoreMarkers() {
                 {driverLines.map((d) => (
                   <div key={d.id} className="text-[11px] flex justify-between gap-2" title={d.statusNote}>
                     <span className="truncate">{d.name}</span>
-                    <span className="whitespace-nowrap font-medium">
-                      → {formatKm(d.leg1, d.estimated)} → {formatKm(d.leg2)}
-                    </span>
+                    <span className="whitespace-nowrap font-medium">{formatKm(d.leg1, d.estimated)}</span>
                   </div>
                 ))}
               </>
