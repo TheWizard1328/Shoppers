@@ -240,6 +240,22 @@ export default function InterStoreMarkers() {
     return () => { window.__mapInterStoreMarkers = []; };
   }, [active, locations]);
 
+  // When the InterStore toggle deactivates, refit phase-1 bounds again so the
+  // map drops the wide InterStore-inclusive view and returns to the driver/stop
+  // bounds. Tracks the previous `active` so it only fires on a real transition.
+  const prevActiveRef = useRef(active);
+  useEffect(() => {
+    const wasActive = prevActiveRef.current;
+    prevActiveRef.current = active;
+    if (wasActive && !active) {
+      window.__mapInterStoreMarkers = [];
+      const t = setTimeout(() => {
+        fabControlEvents.resetToPhaseOneAfterDone(500);
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [active]);
+
   if (!active || !isDispatcher || !locations.length || !sessionStore) return null;
 
   const drivers = resolveCityDrivers(appUsers, selectedCityId);
