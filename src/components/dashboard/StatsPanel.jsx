@@ -499,12 +499,12 @@ export default function StatsPanel({
                   </SelectTrigger>
                   <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                     {/* "All Drivers" is only useful when more than 1 driver has stops for the
-                                 selected date. Otherwise it's redundant (1 driver) or meaningless (0). */}
+                                    selected date. Otherwise it's redundant (1 driver) or meaningless (0). */}
                     {(!isDispatcher || driversList.length > 1) &&
                       <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
                       }
                     {/* Empty dispatcher list — show a disabled placeholder so the dropdown
-                                 isn't blank. */}
+                                    isn't blank. */}
                     {isDispatcher && driversList.length === 0 &&
                       <SelectItem value="__none__" disabled style={{ color: 'var(--text-slate-400)' }}>No Drivers</SelectItem>
                       }
@@ -666,7 +666,7 @@ export default function StatsPanel({
                       type="button"
                       onClick={() => {setInterStoreDropoff();setIsExpanded(false);}}
                       title="InterStore Dropoff — click to add a dropoff"
-                      className={`flex-1 flex items-center justify-between gap-1 h-full transition-colors text-xs font-semibold pr-2 pl-1 ${interStoreMode === 'dropoff' ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                      className={`flex-1 flex items-center justify-between gap-1 h-full transition-colors text-xs font-semibold pr-4 ${interStoreMode === 'dropoff' ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                       <span className="whitespace-nowrap pl-0.5">Store</span>
                       <ArrowDown className="w-3.5 h-3.5" />
                     </button>
