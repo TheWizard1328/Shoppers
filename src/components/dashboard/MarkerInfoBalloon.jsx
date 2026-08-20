@@ -1,6 +1,8 @@
 import React from 'react';
 import { Clock, Home, MapPin, Truck } from 'lucide-react';
 import { isInterStoreDelivery, getInterStoreLocationSync } from '../utils/interStoreDisplayName';
+import { useUser } from '../utils/UserContext';
+import { shouldRedactDeliveryInfo, redactPatientName } from '../common/deliveryRedaction';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -67,6 +69,11 @@ export default function MarkerInfoBalloon({
   };
   const patientLabel = getPlaceholderLabel();
 
+  // Redact patient names on finished stops for drivers — same rule as stop cards.
+  const { currentUser } = useUser();
+  const shouldRedact = shouldRedactDeliveryInfo({ delivery, patient, currentUser });
+  const displayPatientLabel = shouldRedact ? redactPatientName(patient) : patientLabel;
+
   // For ISP: show the source store name; for ISD: show the destination store name from ispLoc
   const displayStoreName = isISD
     ? (ispLoc?.store_name || 'Inter-Store')
@@ -110,10 +117,10 @@ export default function MarkerInfoBalloon({
               className="truncate text-left"
               style={{ color: 'var(--text-slate-900)' }}
             >
-              {patientLabel}
+              {displayPatientLabel}
             </button>
           ) : (
-            <span className="truncate">{patientLabel}</span>
+            <span className="truncate">{displayPatientLabel}</span>
           )}
         </div>
         <div className={`shrink-0 text-right ${timeLabel ? 'flex items-center gap-1' : ''} ${getTimeColor(delivery?.status)}`}>
