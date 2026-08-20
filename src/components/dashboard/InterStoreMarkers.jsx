@@ -7,7 +7,7 @@ import { getAllLocations } from '@/components/utils/interStoreDisplayName';
 import { calculateHaversineDistance } from '@/components/utils/distanceCalculator';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 import { userHasRole } from '@/components/utils/userRoles';
-import { isInterStoreActive, subscribeInterStore } from './interStoreToggleStore';
+import { getInterStoreMode, subscribeInterStore } from './interStoreToggleStore';
 import { createInterStoreIcon } from './MapIcons';
 
 /** Haversine distance in km between two [lat,lng] points. */
@@ -107,12 +107,13 @@ export function resolveCityDrivers(appUsers, cityId) {
 
 export default function InterStoreMarkers() {
   const { currentUser, appUsers, stores } = useAppData();
-  const [active, setActive] = useState(isInterStoreActive());
+  const [mode, setMode] = useState(getInterStoreMode());
   const [locations, setLocations] = useState([]);
+  const active = mode !== 'off';
 
   // Subscribe to the toggle store so the button flip re-renders this layer.
   useEffect(() => {
-    const unsubscribe = subscribeInterStore(setActive);
+    const unsubscribe = subscribeInterStore(setMode);
     return unsubscribe;
   }, []);
 
@@ -144,9 +145,18 @@ export default function InterStoreMarkers() {
     getAllLocations()
       .then((all) => {
         if (cancelled) return;
+        // Hide the dispatcher's own store from the marker layer.
+        const isOwnStore = (loc) => {
+          if (!sessionStore || !loc) return false;
+          const nm = (loc.store_name || '').toLowerCase();
+          const sn = (sessionStore.name || '').toLowerCase();
+          if (nm && sn && (nm === sn || nm.includes(sn) || sn.includes(nm))) return true;
+          const km = kmBetween(sessionStore.lat, sessionStore.lng, +loc.store_latitude, +loc.store_longitude);
+          return km != null && km < 0.05;
+        };
         const filtered = (all || []).filter((loc) => {
-          if (!loc) return false;
-          if (loc.store_latitude == null || loc.store_longitude == null) return false;
+          if (!loc || loc.store_latitude == null || loc.store_longitude == null) return false;
+          if (isOwnStore(loc)) return false;
           const km = kmBetween(sessionStore.lat, sessionStore.lng, +loc.store_latitude, +loc.store_longitude);
           return km != null && km <= RADIUS_KM;
         });
@@ -159,10 +169,34 @@ export default function InterStoreMarkers() {
     return () => { cancelled = true; };
   }, [active, isDispatcher, sessionStore]);
 
-  if (!active || !isDispatcher || !locations.length) return null;
+  if (!active || !isDispatcher || !locations.length || !sessionStore) return null;
 
   const drivers = resolveCityDrivers(appUsers, selectedCityId);
   const icon = createInterStoreIcon();
+
+  // The InterStoreLocation matching the dispatcher's own store — used as the
+  // other half of the From/To prefill when a marker is clicked.
+  const dispatcherLoc = locations.find((l) => {
+    if (!l || !l.store_name || !sessionStore?.name) return false;
+    const nm = l.store_name.toLowerCase();
+    const sn = sessionStore.name.toLowerCase();
+    return nm === sn || nm.includes(sn) || sn.includes(nm);
+  }) || null;
+
+  const buildPrefill = (clickedLoc) => {
+    const src = mode === 'pickup' ? clickedLoc : dispatcherLoc;
+    const dst = mode === 'pickup' ? dispatcherLoc : clickedLoc;
+    return {
+      mode,
+      sourceId: src?.id || '',
+      sourceName: src?.store_name || '',
+      sourceNumber: src?.store_number || src?.store_name || '',
+      destId: dst?.id || '',
+      destName: dst?.store_name || '',
+      destNumber: dst?.store_number || dst?.store_name || '',
+      storeId: sessionStore?.id || '',
+    };
+  };
 
   return locations.map((loc) => {
     const lat = +loc.store_latitude;
@@ -173,13 +207,15 @@ export default function InterStoreMarkers() {
       ? kmBetween(sessionStore.lat, sessionStore.lng, lat, lng)
       : null;
 
-    const driverLines = drivers.map((d) => {
-      // leg2 (marker → session store) is always exact; leg1 (driver → marker)
-      // is estimated only when the driver's own position is an estimate.
-      const leg1 = kmBetween(d.lat, d.lng, lat, lng);
-      const leg2 = sessionStore ? kmBetween(lat, lng, sessionStore.lat, sessionStore.lng) : null;
-      return { id: d.id, name: d.name, leg1, leg2, estimated: d.estimated, statusNote: d.statusNote };
-    });
+    const driverLines = drivers
+      .map((d) => {
+        // leg2 (marker → session store) is always exact; leg1 (driver → marker)
+        // is estimated only when the driver's own position is an estimate.
+        const leg1 = kmBetween(d.lat, d.lng, lat, lng);
+        const leg2 = sessionStore ? kmBetween(lat, lng, sessionStore.lat, sessionStore.lng) : null;
+        return { id: d.id, name: d.name, leg1, leg2, estimated: d.estimated, statusNote: d.statusNote };
+      })
+      .sort((a, b) => (a.leg1 ?? Infinity) - (b.leg1 ?? Infinity));
 
     return (
       <Marker
@@ -190,7 +226,11 @@ export default function InterStoreMarkers() {
         eventHandlers={{
           mouseover: (e) => e.target.openPopup(),
           mouseout: (e) => e.target.closePopup(),
-        }}
+          click: () => {
+            if (!dispatcherLoc) return;
+            window.dispatchEvent(new CustomEvent('openInterStoreAddRoute', { detail: buildPrefill(loc) }));
+          },
+          }}
       >
         <Popup closeButton={false} autoPan={false} offset={[0, -10]} className="custom-popup">
           <div className="min-w-[180px] text-slate-900 dark:text-slate-100">

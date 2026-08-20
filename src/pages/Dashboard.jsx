@@ -76,6 +76,20 @@ function Dashboard() {
   const [selectedCardId, setSelectedCardId] = useState(null);
   const [showDeliveryForm, setShowDeliveryForm] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
+  // InterStore Add-to-Route prefill — set when a dispatcher clicks an InterStore
+  // map marker while the InterStore toggle is active. Opens the delivery form
+  // pre-seeded with the From/To InterStore locations and direction.
+  const [interstorePrefill, setInterstorePrefill] = useState(null);
+  useEffect(() => {
+    const handler = (e) => {
+      setEditingDelivery(null);
+      setInterstorePrefill(e.detail || null);
+      setShowDeliveryForm(true);
+    };
+    window.addEventListener('openInterStoreAddRoute', handler);
+    return () => window.removeEventListener('openInterStoreAddRoute', handler);
+  }, []);
+  useEffect(() => { if (!showDeliveryForm) setInterstorePrefill(null); }, [showDeliveryForm]);
   const [mapCenter, setMapCenter] = useState([53.5461, -113.4938]);
   const [mapZoom, setMapZoom] = useState(11);
   const [shouldFitBounds, setShouldFitBounds] = useState(null);
@@ -2428,7 +2442,7 @@ function Dashboard() {
     showRoutes: _effectiveShowRoutes, showBreadcrumbs, showAllDriverMarkers, breadcrumbsData, driverLocation, allDriverLocations,
     currentToNextPolyline, driverRoutes, selectedCardId, highlightedCardId, isExpanded,
     areCardsVisible, statsPanelOpacity, stopCardsBaseHeight, statsCardBaseHeight, statsContainerBaseHeight, cardsReadyForFAB, isReoptimizing,
-    optimizationMessage, showDeliveryForm, editingDelivery, showPatientForm, editingPatient,
+    optimizationMessage, showDeliveryForm, editingDelivery, interstorePrefill, showPatientForm, editingPatient,
     patientFormMode, setPatientFormMode, patientFormCallback, setPatientFormCallback,
     showOptimizationSettings, showAIAssistant, isAIEnabled, hasUnreadAIAlerts,
     showQuickAdjustments, showEndOfDayStats, endOfDayDriver, skippedStopsDialogData,

@@ -112,7 +112,8 @@ export default function DeliveryForm({
   closeOnSave = false,
   onCreatePatient,
   openMode = null,
-  forceOpenDriverOnLoad = false
+  forceOpenDriverOnLoad = false,
+  interStorePrefill = null
 }) {
   const { setIsFormOverlayOpen, appUsers, applyDeliveryChangesLocally } = useAppData();
   const freshStores = useFreshStores(stores);
@@ -152,7 +153,7 @@ export default function DeliveryForm({
   const [selectedPickupOption, setSelectedPickupOption] = useState('');
   const [selectedRoutePickup, setSelectedRoutePickup] = useState(null);
   const [pendingRoutePickup, setPendingRoutePickup] = useState(null);
-  const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode); const [isInterStoreMode, setIsInterStoreMode] = useState(openMode === 'interstore_edit');
+  const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode); const [isInterStoreMode, setIsInterStoreMode] = useState(openMode === 'interstore_edit' || openMode === 'interstore_add');
 
   // Auto-select "in_transit" status when switching to InterStore mode on a new form,
   // OR when editing an existing interstore that has 'en_route' in the DB (a legacy
@@ -169,6 +170,28 @@ export default function DeliveryForm({
       setFormData((prev) => ({ ...prev, status: 'in_transit' }));
     }
   }, [isInterStoreMode, delivery?.id, delivery?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Apply the From/To prefill when opening from the InterStore map layer.
+  // Only applies for new (add) interstore forms triggered by a marker click.
+  useEffect(() => {
+    if (!isInterStoreMode || delivery || !interStorePrefill) return;
+    const p = interStorePrefill;
+    setFormData((prev) => ({
+      ...prev,
+      _interstore_stop_type: p.mode || prev._interstore_stop_type || 'pickup',
+      ...(p.sourceId ? {
+        _interstore_source_id: p.sourceId,
+        _interstore_source_name: p.sourceName,
+        _interstore_source_number: p.sourceNumber,
+      } : {}),
+      ...(p.destId ? {
+        _interstore_dest_id: p.destId,
+        _interstore_dest_name: p.destName,
+        _interstore_dest_number: p.destNumber,
+      } : {}),
+      ...(p.storeId ? { store_id: p.storeId } : {}),
+    }));
+  }, [isInterStoreMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync completionTime when InterStore form sets actual_delivery_time directly
   useEffect(() => {

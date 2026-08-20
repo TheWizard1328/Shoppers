@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Binoculars, Map as MapIcon, Store } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Binoculars, Map as MapIcon, Store, ArrowUp, ArrowDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 
@@ -33,7 +33,7 @@ import { getDriverColor } from "@/components/utils/driverUtils";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { sortUsers } from "@/components/utils/sorting";
 import { countLegendStops, countAfterHoursPickups } from "@/components/dashboard/legendStopCounter";
-import { isInterStoreActive, subscribeInterStore, toggleInterStore } from "@/components/dashboard/interStoreToggleStore";
+import { getInterStoreMode, subscribeInterStore, setInterStorePickup, setInterStoreDropoff } from "@/components/dashboard/interStoreToggleStore";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -69,11 +69,14 @@ export default function StatsPanel({
   const [bookedOffOverrides, setBookedOffOverrides] = useState([]);
 
   // InterStore markers toggle (dispatchers only). Pure dispatcher accounts
-  // replace the legacy Show/Hide polylines button with this toggle.
+  // replace the legacy Show/Hide polylines button with this segmented toggle.
+  // 'pickup'  (red, up arrow)   → click a marker to add a pickup FROM that store.
+  // 'dropoff' (green, down arrow) → click a marker to add a dropoff TO that store.
+  // Both halves begin neutral; the active half is colored, clicking it again turns off.
   const isPureDispatcher = isDispatcher && !isAdmin;
-  const [showInterStore, setShowInterStore] = useState(isInterStoreActive());
+  const [interStoreMode, setInterStoreModeLocal] = useState(getInterStoreMode());
   useEffect(() => {
-    const unsubscribe = subscribeInterStore(setShowInterStore);
+    const unsubscribe = subscribeInterStore(setInterStoreModeLocal);
     return unsubscribe;
   }, []);
 
@@ -650,13 +653,27 @@ export default function StatsPanel({
                     }
 
                 {isPureDispatcher ? (
-                  <Button variant="default" size="sm"
-                    onClick={() => { toggleInterStore(); setIsExpanded(false); }}
-                    title="Toggle InterStore location markers"
-                    className={`gap-2 h-8 flex-shrink-0 ${showInterStore ? 'bg-red-600 hover:bg-red-700' : ''} text-white`}
-                    style={showInterStore ? undefined : { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}>
-                    <Store className="w-3.5 h-3.5" />InterStore
-                  </Button>
+                  <div className="flex rounded-md overflow-hidden border flex-shrink-0 h-8" style={{ borderColor: 'var(--border-slate-300)' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setInterStorePickup(); setIsExpanded(false); }}
+                      title="InterStore Pickup — click a marker to add a pickup"
+                      className={`flex items-center justify-center px-2.5 h-full transition-colors ${interStoreMode === 'pickup' ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                      style={interStoreMode === 'pickup' ? undefined : { background: 'var(--bg-white)', color: 'var(--text-slate-700)' }}>
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="flex items-center px-2 h-full text-xs font-semibold select-none" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderLeft: '1px solid var(--border-slate-300)', borderRight: '1px solid var(--border-slate-300)' }}>
+                      InterStore
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setInterStoreDropoff(); setIsExpanded(false); }}
+                      title="InterStore Dropoff — click a marker to add a dropoff"
+                      className={`flex items-center justify-center px-2.5 h-full transition-colors ${interStoreMode === 'dropoff' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                      style={interStoreMode === 'dropoff' ? undefined : { background: 'var(--bg-white)', color: 'var(--text-slate-700)' }}>
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 ) : (
                   <Button variant="default" size="sm" onClick={() => {
                       const nextShowRoutes = !showRoutes;

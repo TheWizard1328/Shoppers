@@ -27,7 +27,7 @@ export default function DashboardDialogs({
   selectedDate, selectedDateStr, selectedDriverId,
   driverLocation,
   // Forms
-  showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery,
+  showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery, interstorePrefill,
   showPatientForm, setShowPatientForm, editingPatient, setEditingPatient,
   patientFormCallback, setPatientFormCallback, patientFormMode, setPatientFormMode,
   showOptimizationSettings, setShowOptimizationSettings,
@@ -87,7 +87,7 @@ export default function DashboardDialogs({
   return (
     <>
       <AnimatePresence>
-        {showDeliveryForm && <DeliveryForm delivery={editingDelivery} patients={patients} stores={stores} drivers={drivers} cities={cities} onSave={handleSaveDelivery} onCancel={() => { setShowDeliveryForm(false); setEditingDelivery(null); }} suggestedDate={format(selectedDate, 'yyyy-MM-dd')} currentUser={currentUser} allDeliveries={deliveries} onCreatePatient={handleCreatePatientFromDelivery} defaultToPickupMode={!!editingDelivery && !editingDelivery.patient_id} openMode={editingDelivery && isInterStoreDelivery(editingDelivery.delivery_id) ? 'interstore_edit' : null} />}
+        {showDeliveryForm && <DeliveryForm delivery={editingDelivery} patients={patients} stores={stores} drivers={drivers} cities={cities} onSave={handleSaveDelivery} onCancel={() => { setShowDeliveryForm(false); setEditingDelivery(null); }} suggestedDate={format(selectedDate, 'yyyy-MM-dd')} currentUser={currentUser} allDeliveries={deliveries} onCreatePatient={handleCreatePatientFromDelivery} defaultToPickupMode={!!editingDelivery && !editingDelivery.patient_id} openMode={interstorePrefill ? 'interstore_add' : (editingDelivery && isInterStoreDelivery(editingDelivery.delivery_id) ? 'interstore_edit' : null)} interStorePrefill={interstorePrefill} />}
       </AnimatePresence>
 
       <AnimatePresence>

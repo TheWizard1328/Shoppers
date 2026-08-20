@@ -224,7 +224,12 @@ export default function DeliveryFormView({
         const { driverId } = getDefaultDriverForStoreSlot(storeToUse.id, 'AM', deliveryDate);
         if (driverId) {
           const driver = allDrivers.find((d) => d.id === driverId);
-          if (driver) {
+          // Off-duty guard: if the store's default driver is off duty (or has no
+          // recorded status), leave the field blank and force the dispatcher to
+          // choose a driver manually.
+          const driverAu = (appUsers || []).find((au) => au && (au.user_id === driverId || au.id === driverId));
+          const isOffDuty = !driverAu || driverAu.driver_status === 'off_duty';
+          if (driver && !isOffDuty) {
             setFormData((prev) => ({ ...prev, driver_id: driverId, driver_name: getDriverNameForStorage(driver) }));
             return;
           }

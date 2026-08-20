@@ -48,7 +48,7 @@ function DashboardView({
   // Cards
   selectedCardId, handleCardClick, handleMarkerClick,
   // Forms
-  showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery,
+  showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery, interstorePrefill,
   showPatientForm, setShowPatientForm, editingPatient, setEditingPatient,
   patientFormCallback, setPatientFormCallback, patientFormMode, setPatientFormMode,
   showOptimizationSettings, setShowOptimizationSettings,
@@ -576,6 +576,7 @@ function DashboardView({
         driverLocation={driverLocation}
         showDeliveryForm={showDeliveryForm} setShowDeliveryForm={setShowDeliveryForm}
         editingDelivery={editingDelivery} setEditingDelivery={setEditingDelivery}
+        interstorePrefill={interstorePrefill}
         showPatientForm={showPatientForm} setShowPatientForm={setShowPatientForm}
         editingPatient={editingPatient} setEditingPatient={setEditingPatient}
         patientFormCallback={patientFormCallback} setPatientFormCallback={setPatientFormCallback}

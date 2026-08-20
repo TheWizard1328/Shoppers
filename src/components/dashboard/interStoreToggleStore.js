@@ -1,35 +1,50 @@
 /**
  * interStoreToggleStore.js
  * Tiny pub/sub store for the InterStore markers toggle (dispatchers only).
- * Kept outside React state so the toggle button (StatsPanel) and the map
+ * Kept outside React state so the segmented button (StatsPanel) and the map
  * layer (InterStoreMarkers) stay in sync without prop drilling through the
  * deep Dashboard → DashboardView → MapSection → DeliveryMap chain.
+ *
+ * The toggle has three states:
+ *   - 'off'      → no InterStore markers, both button halves neutral
+ *   - 'pickup'   → left (up-arrow) half active (red). Click a marker to add
+ *                  a pickup FROM that InterStore location TO the dispatcher's store.
+ *   - 'dropoff'  → right (down-arrow) half active (green). Click a marker to add
+ *                  a dropoff TO that InterStore location FROM the dispatcher's store.
  *
  * Persisted to localStorage so the preference survives reloads.
  */
 
-const LS_KEY = 'rxdeliver_show_interstore';
+const LS_KEY = 'rxdeliver_interstore_mode';
 
-let _active = (() => {
+const isValid = (v) => v === 'pickup' || v === 'dropoff' || v === 'off';
+
+let _mode = (() => {
   try {
-    return localStorage.getItem(LS_KEY) === 'true';
+    const v = localStorage.getItem(LS_KEY);
+    return isValid(v) ? v : 'off';
   } catch {
-    return false;
+    return 'off';
   }
 })();
 
 const listeners = new Set();
 
-export function isInterStoreActive() {
-  return _active;
+export function getInterStoreMode() {
+  return _mode;
 }
 
-export function setInterStoreActive(value) {
-  const next = !!value;
-  if (next === _active) return;
-  _active = next;
+/** Backward-compat boolean getter used by older callers. */
+export function isInterStoreActive() {
+  return _mode !== 'off';
+}
+
+export function setInterStoreMode(mode) {
+  const next = isValid(mode) ? mode : 'off';
+  if (next === _mode) return;
+  _mode = next;
   try {
-    localStorage.setItem(LS_KEY, String(next));
+    localStorage.setItem(LS_KEY, next);
   } catch {
     /* ignore quota errors */
   }
@@ -42,8 +57,19 @@ export function setInterStoreActive(value) {
   });
 }
 
+/** Toggle the pickup (left) half. Clicking it again turns the whole toggle off. */
+export function setInterStorePickup() {
+  setInterStoreMode(_mode === 'pickup' ? 'off' : 'pickup');
+}
+
+/** Toggle the dropoff (right) half. Clicking it again turns the whole toggle off. */
+export function setInterStoreDropoff() {
+  setInterStoreMode(_mode === 'dropoff' ? 'off' : 'dropoff');
+}
+
+/** Legacy single toggle — kept for any older callers. Defaults to pickup when off. */
 export function toggleInterStore() {
-  setInterStoreActive(!_active);
+  setInterStoreMode(_mode === 'off' ? 'pickup' : 'off');
 }
 
 export function subscribeInterStore(fn) {
