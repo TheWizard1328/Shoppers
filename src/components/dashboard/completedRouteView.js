@@ -3,7 +3,7 @@
 // "30 km radius" overview and locks the map so it cannot zoom back IN past
 // that level (the driver can still zoom further out).
 
-export const COMPLETED_ROUTE_RADIUS_KM = 30;
+export const COMPLETED_ROUTE_RADIUS_KM = 25;
 const DEFAULT_MAX_ZOOM = 18;
 const METERS_PER_PX_AT_Z0_EQUATOR = 156543.03392;
 
