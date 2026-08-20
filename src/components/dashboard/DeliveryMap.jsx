@@ -26,7 +26,6 @@ import { sortUsers } from "../utils/sorting";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
 import MapCrosshair from "./MapCrosshair";
 import { buildMapPadding } from "./DashboardHelpers";
-import { getRadiusFitZoom, DEFAULT_MAP_MAX_ZOOM, COMPLETED_ROUTE_RADIUS_KM } from "./completedRouteView";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
 import HereTileUsageTracker from "./HereTileUsageTracker";
@@ -1410,29 +1409,9 @@ function DeliveryMap({
     [isMobile, immersiveHidden, topOverlayHeight, stopCardsHeight, isStatsCardExpanded, statsContainerBaseHeight]
   );
 
-  // Completed route → lock the map's maxZoom to the 20km-radius overview so the
-  // driver can pan/zoom OUT freely but cannot zoom back IN past the overview.
-  // Restores the default (18) when the route is no longer finished.
-  // Drivers-only: AppOwners, admins, and dispatchers keep full free zoom on
-  // any finished route so they can review stops up close.
-  const driverZoomLockEligible =
-    userHasRole(currentUser, "driver") &&
-    !isAppOwner(currentUser) &&
-    !userHasRole(currentUser, "admin") &&
-    !userHasRole(currentUser, "dispatcher");
-  useEffect(() => {
-    if (!map) return;
-    if (driverZoomLockEligible && isRouteComplete && completedRouteCity?.latitude != null) {
-      const size = map.getSize();
-      const padX = ((crosshairPadding.paddingTopLeft?.[0]) || 0) + ((crosshairPadding.paddingBottomRight?.[0]) || 0);
-      const padY = (crosshairPadding.topPadding || 0) + (crosshairPadding.bottomPadding || 0);
-      const lockZoom = getRadiusFitZoom({ latitude: completedRouteCity.latitude, radiusKm: COMPLETED_ROUTE_RADIUS_KM, mapSize: size, padX, padY });
-      map.setMaxZoom(Number.isFinite(lockZoom) ? lockZoom : DEFAULT_MAP_MAX_ZOOM);
-    } else {
-      map.setMaxZoom(DEFAULT_MAP_MAX_ZOOM);
-    }
-  }, [map, isRouteComplete, completedRouteCity, crosshairPadding, driverZoomLockEligible]);
-
+  // NOTE: Completed routes no longer trigger the 20km-radius overview lock.
+  // A finished route now zooms freely exactly like an in-progress route
+  // (map maxZoom stays at the default 18 set on the MapContainer above).
   return (
     <div className="absolute inset-0">
       <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} />
