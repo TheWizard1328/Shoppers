@@ -3,6 +3,7 @@ import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressC
 import { userHasRole } from '../utils/userRoles';
 import { useInterStoreDisplayName, useInterStoreLocation } from '../utils/interStoreDisplayName';
 import { getDeliveryTypeFlags, getCyclingMarkerDisplayInfo } from '../utils/deliveryTypeUtils';
+import { isReturnAddress } from '../utils/returnDeliveryUtils';
 
 /**
  * Custom hook that encapsulates all patient data redaction logic for StopCard.
@@ -60,6 +61,9 @@ export function useDeliveryDisplayInfo({
   const shouldRedact = useMemo(() => {
     if (!delivery || !currentUser) return false;
     if (isPickup || isInterStore || isInterStorePickup) return false;
+    // Return deliveries point at a store (the "patient" is a store return address),
+    // not a real patient — never redact the store name.
+    if (isReturnAddress(patient?.address) || isReturnAddress(delivery?.patient_name)) return false;
     // Redact for all finished deliveries (completed, failed, cancelled) for drivers
     const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
     if (
@@ -71,7 +75,7 @@ export function useDeliveryDisplayInfo({
       return true;
     }
     return false;
-  }, [delivery?.status, isPickup, isInterStore, isInterStorePickup, currentUser]);
+  }, [delivery?.status, isPickup, isInterStore, isInterStorePickup, currentUser, patient?.address, delivery?.patient_name]);
 
   const finalDisplayName = useMemo(() => {
     if (isISP && ispDisplayName) return ispDisplayName;
