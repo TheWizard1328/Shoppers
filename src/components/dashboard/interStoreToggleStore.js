@@ -19,14 +19,10 @@ const LS_KEY = 'rxdeliver_interstore_mode';
 
 const isValid = (v) => v === 'pickup' || v === 'dropoff' || v === 'off';
 
-let _mode = (() => {
-  try {
-    const v = localStorage.getItem(LS_KEY);
-    return isValid(v) ? v : 'off';
-  } catch {
-    return 'off';
-  }
-})();
+// ALWAYS start in the 'off' state on page load/refresh — ignore any persisted
+// value so both InterStore button halves render neutral every time the app boots.
+// The user opts back in each session by tapping a half.
+let _mode = 'off';
 
 const listeners = new Set();
 

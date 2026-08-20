@@ -774,12 +774,24 @@ export default function DeliveryForm({
       // CRITICAL: Reset the force-open flag after a successful InterStore save so the
       // driver dropdown doesn't auto-open on the blank form that follows.
       setForceOpenDriverSelectOnLoad(false);
+
+      // Auto-close the Add To Route form once the InterStore stop has been added
+      // to the driver's route — but ONLY when there are no other staged edits or
+      // changes in this form session. If the dispatcher staged other stops too,
+      // keep the form open so they can finish those before Done.
+      const noOtherEdits = !delivery && openMode === 'add_to_route' &&
+        (stagedDeliveries?.length || 0) === 0 && !hasChanges && !hasPendingDeletes;
+      if (noOtherEdits) {
+        flushPendingInterStoreOptimizations();
+        closeDeliveryFormAfterSave({ handleClearForm, onCancel });
+      }
     } catch (err) {
       setError(err.message || 'Failed to create inter-store transfer.');
     } finally {
       setIsSaving(false);
     }
-  }, [formData, allDrivers, allDeliveries, appUsers, currentUser, getDriverNameForStorage, applyDeliveryChangesLocally, onCancel]);
+  }, [formData, allDrivers, allDeliveries, appUsers, currentUser, getDriverNameForStorage, applyDeliveryChangesLocally, onCancel,
+      delivery, openMode, stagedDeliveries, hasChanges, hasPendingDeletes, handleClearForm]);
 
   const handleClearForm = useCallback(() => {
     void cleanupDetachedAutoCreatedPickups({ stagedDeliveries, deleteDeliveryLocal, autoCreatedPickupsRef, setStagedDeliveries });
