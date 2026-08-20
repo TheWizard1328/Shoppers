@@ -112,12 +112,21 @@ export async function createInterStoreTransfer({
   const matchedDestStore = findStoreByPhone(dstPhone) || findStoreByName(formData._interstore_dest_name || '');
   const matchedSrcStore = findStoreByPhone(srcPhone) || findStoreByName(formData._interstore_source_name || '');
 
-  // ISD: assign to To Store (destination); if not in DB, fall back to From Store.
-  // ISP: assign to From Store (source/originating) — driver picks up FROM this store.
-  //       The ISP's routing coordinates must be the source store, not the destination.
-  const assignedStore = isDropOff
-    ? (matchedDestStore || matchedSrcStore)
-    : (matchedSrcStore || matchedDestStore);
+  // Assign BOTH ISP and ISD to the To Store when it is an active store belonging to
+  // a company in the app. If the To Store is not part of any company (e.g. an external
+  // InterStoreLocation with no matching Store record, or an inactive/unassigned store),
+  // fall back to the From Store so the stop is owned by the company-side store.
+  //   e.g. ISP Bonnie Doon -> Callingwood      → Callingwood  (To in company)
+  //        ISD Bonnie Doon -> Callingwood      → Callingwood  (To in company)
+  //        ISD Callingwood  -> Bonnie Doon     → Bonnie Doon  (To in company)
+  //        ISP Bonnie Doon -> Riverbend        → Bonnie Doon  (To NOT in company → From)
+  //        ISD Bonnie Doon -> Riverbend        → Bonnie Doon  (To NOT in company → From)
+  //        ISD Riverbend    -> Bonnie Doon     → Bonnie Doon  (To in company)
+  const destStoreInCompany =
+    !!matchedDestStore &&
+    !!matchedDestStore.company_id &&
+    matchedDestStore.status !== 'inactive';
+  const assignedStore = destStoreInCompany ? matchedDestStore : matchedSrcStore;
   const store_id = assignedStore?.id || matchedSrcStore?.id || '';
 
   // ── puid ──────────────────────────────────────────────────────────────
@@ -176,8 +185,10 @@ export async function createInterStoreTransfer({
     const finishedPickup = findPickupForStore(lookupStoreId, true);
     puid = finishedPickup?.stop_id || stop_id; // new puid = this delivery's own stop_id
   } else {
-    // ISP: look for any pickup stop on the To Store in the driver's route
-    const pickupForDest = findPickupForStore(matchedDestStore?.id, false);
+    // ISP: look for any pickup stop on the assigned store in the driver's route.
+    // (When the To store is not in a company, the ISP is owned by the From store,
+    // so look there rather than at a non-existent To store.)
+    const pickupForDest = findPickupForStore(assignedStore?.id, false);
     puid = pickupForDest?.stop_id || '';
   }
 
