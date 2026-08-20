@@ -64,6 +64,7 @@ import { handleBatchSave as runHandleBatchSave } from './handleBatchSave';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
 import { createInterStoreTransfer } from './interStoreTransferHandler';
+import { setInterStoreMode } from '../dashboard/interStoreToggleStore';
 import DeliveryFormView from './DeliveryFormView';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={!!checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400 dark:text-slate-500 dark:text-slate-400' : ''}`}>{label}</Label></div>);
@@ -775,16 +776,20 @@ export default function DeliveryForm({
       // driver dropdown doesn't auto-open on the blank form that follows.
       setForceOpenDriverSelectOnLoad(false);
 
-      // Auto-close the Add To Route form once the InterStore stop has been added
-      // to the driver's route — but ONLY when there are no other staged edits or
-      // changes in this form session. If the dispatcher staged other stops too,
-      // keep the form open so they can finish those before Done.
+      // Auto-close the form once the InterStore stop has been added.
+      // The new marker-prefill flow (openMode === 'interstore_add') always closes
+      // so the dispatcher returns to the map. The legacy Add-to-Route flow only
+      // closes when there are no other staged edits/changes pending.
+      const isMarkerPrefillFlow = !delivery && openMode === 'interstore_add';
       const noOtherEdits = !delivery && openMode === 'add_to_route' &&
         (stagedDeliveries?.length || 0) === 0 && !hasChanges && !hasPendingDeletes;
-      if (noOtherEdits) {
+      if (isMarkerPrefillFlow || noOtherEdits) {
         flushPendingInterStoreOptimizations();
         closeDeliveryFormAfterSave({ handleClearForm, onCancel });
       }
+      // Always reset the InterStore pickup/dropoff toggle on the stats card back
+      // to 'off' after a transfer is saved so both buttons are neutral next time.
+      setInterStoreMode('off');
     } catch (err) {
       setError(err.message || 'Failed to create inter-store transfer.');
     } finally {
