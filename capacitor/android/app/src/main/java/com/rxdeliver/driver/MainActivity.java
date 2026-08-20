@@ -183,33 +183,6 @@ public class MainActivity extends BridgeActivity {
             }
         }
 
-        // Fallback: open Square POS with no payment payload (main-screen launch).
-        // Used when a CHARGE (payload) launch fails outright, or bounces back almost
-        // immediately with Square's "wrong launch mechanism" error dialog (see
-        // onActivityResult below). Lets the driver at least open Square manually
-        // and pick the right location/collect payment themselves, instead of the
-        // button doing nothing.
-        private void launchBareSquarePOS() {
-            try {
-                Intent bareIntent = new Intent(Intent.ACTION_MAIN);
-                bareIntent.setPackage("com.squareup");
-                startActivity(bareIntent);
-                Toast.makeText(MainActivity.this,
-                    "Opened Square POS — please confirm your location and collect payment manually.",
-                    Toast.LENGTH_LONG).show();
-            } catch (Exception e) {
-                try {
-                    Intent playStoreIntent = new Intent(Intent.ACTION_VIEW,
-                        Uri.parse("market://details?id=com.squareup"));
-                    playStoreIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(playStoreIntent);
-                } catch (Exception e2) {
-                    Toast.makeText(MainActivity.this,
-                        "Square POS app not installed", Toast.LENGTH_LONG).show();
-                }
-            }
-        }
-
     }
 
     // Since Android 7.0 (API 24), passing a raw file:// URI to another app's
@@ -295,6 +268,33 @@ public class MainActivity extends BridgeActivity {
                 boolean isDarkMode = nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES;
                 controller.setAppearanceLightStatusBars(!isDarkMode);
                 controller.setAppearanceLightNavigationBars(!isDarkMode);
+            }
+        }
+    }
+
+    // Fallback: open Square POS with no payment payload (main-screen launch).
+    // Used when a CHARGE (payload) launch fails outright, or bounces back almost
+    // immediately with Square's "wrong launch mechanism" error dialog (see
+    // onActivityResult below). Lets the driver at least open Square manually
+    // and pick the right location/collect payment themselves, instead of the
+    // button doing nothing.
+    private void launchBareSquarePOS() {
+        try {
+            Intent bareIntent = new Intent(Intent.ACTION_MAIN);
+            bareIntent.setPackage("com.squareup");
+            startActivity(bareIntent);
+            Toast.makeText(this,
+                "Opened Square POS — please confirm your location and collect payment manually.",
+                Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            try {
+                Intent playStoreIntent = new Intent(Intent.ACTION_VIEW,
+                    Uri.parse("market://details?id=com.squareup"));
+                playStoreIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(playStoreIntent);
+            } catch (Exception e2) {
+                Toast.makeText(this,
+                    "Square POS app not installed", Toast.LENGTH_LONG).show();
             }
         }
     }
