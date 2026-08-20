@@ -191,7 +191,7 @@ export default function DeliveryForm({
       } : {}),
       ...(p.storeId ? { store_id: p.storeId } : {}),
     }));
-  }, [isInterStoreMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isInterStoreMode, interStorePrefill]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync completionTime when InterStore form sets actual_delivery_time directly
   useEffect(() => {
