@@ -113,6 +113,10 @@ export default function StopCardFooterMenu(props) {
   const [showRestartDialog, setShowRestartDialog] = useState(false);
   const closeMenu = () => setOpen(false);
 
+  // Drivers: once the whole route is finished, hide the popup menu button entirely
+  // (instead of only hiding Restart/Delete). Admins/owners/dispatchers still get it.
+  if (isDriverOnly && routeCompleted) return null;
+
   if (isCurrentDispatcherStopFinished && areAllDispatcherStoreStopsFinished) return null;
 
   const handleRestartMenuClick = (e) => {
