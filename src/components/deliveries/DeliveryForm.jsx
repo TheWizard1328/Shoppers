@@ -791,7 +791,7 @@ export default function DeliveryForm({
       setIsSaving(false);
     }
   }, [formData, allDrivers, allDeliveries, appUsers, currentUser, getDriverNameForStorage, applyDeliveryChangesLocally, onCancel,
-      delivery, openMode, stagedDeliveries, hasChanges, hasPendingDeletes, handleClearForm]);
+      delivery, openMode, stagedDeliveries, hasChanges, hasPendingDeletes]);
 
   const handleClearForm = useCallback(() => {
     void cleanupDetachedAutoCreatedPickups({ stagedDeliveries, deleteDeliveryLocal, autoCreatedPickupsRef, setStagedDeliveries });
