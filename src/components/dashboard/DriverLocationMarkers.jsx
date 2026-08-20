@@ -14,7 +14,7 @@ const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
 import L from 'leaflet';
 import { Circle, Marker, Popup } from 'react-leaflet';
 import { formatDistanceToNow, format } from 'date-fns';
-import { userHasRole } from '../utils/userRoles';
+import { userHasRole, isAppOwner } from '../utils/userRoles';
 
 import { getCurrentDevice } from '../utils/deviceManager';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
@@ -235,6 +235,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const isDriver = currentUser && userHasRole(currentUser, 'driver');
 
   // CONSOLIDATED VISIBILITY LOGIC - Single source of truth for marker filtering
+  const _isAppOwner = isAppOwner(currentUser);
   const shouldShowMarker = (user) => {
     if (!user) return false;
 
@@ -248,14 +249,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                    user.user_id === currentUserId;
 
     // Self-marker: drivers should ALWAYS see their own location, even when off duty.
-    // The coordinate check is deferred to the individual rules below — off-duty
-    // drivers may have stale but valid last-known coordinates from before going off.
     if (isSelf && isDriver) {
       if (!user.current_latitude || !user.current_longitude) return false;
-      // Primary device: blue GPS dot is the authoritative self-marker, so suppress
-      // the shared AppUser marker to avoid duplication.
       if (isPrimaryDeviceRef.current) return false;
-      // Non-primary device: show shared self-marker as long as coordinates exist.
       return true;
     }
 
@@ -268,71 +264,49 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     // Non-self markers require coordinates
     if (!user.current_latitude || !user.current_longitude) return false;
 
-    // RULE 2: Admin/AppOwner can see ALL drivers as long as there is ANY heartbeat
-    // (regardless of driver_status — off_duty/on_break included).
-    // Non-AppOwner admins see on_duty/on_break only at their last known location.
-    const isAppOwner = currentUser?.email && 
-                      (currentUser.email.endsWith('@rxdeliver.com') || 
-                       currentUser.email === 'dan@dcscripts.ca');
     const updatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
     const hasAnyHeartbeat = updatedAt > 0;
-    const hasRecentHeartbeat = updatedAt > 0 && (Date.now() - updatedAt) <= 62 * 1000;
 
-    if (isAppOwner) {
-      // App Owner: show any driver that has EVER sent a heartbeat (coords must exist)
-      return hasAnyHeartbeat;
+    // ── ROLE-BASED VISIBILITY RULES ──
+    // App Owner: sees ALL drivers on_duty or on_break, regardless of location_tracking_enabled
+    if (_isAppOwner) {
+      return hasAnyHeartbeat && (user.driver_status === 'on_duty' || user.driver_status === 'on_break');
     }
 
+    // Admin: sees all on_duty drivers (for selected city — city filter applied in DeliveryMap.jsx)
     if (isAdmin) {
-      // Regular admin: show on_duty only — off_duty and on_break are hidden (only isOwnUser and AppOwner see them)
-      return user.driver_status === 'on_duty';
+      return hasAnyHeartbeat && user.driver_status === 'on_duty';
     }
 
-    // RULE 4: Dispatcher - hide only if assigned driver is off_duty
+    // Dispatcher: sees all on_duty drivers from their stores
     if (isDispatcher && !isSelf) {
-      if (user.driver_status === 'off_duty') return false;
+      if (user.driver_status !== 'on_duty') return false;
+      if (user.status === 'inactive') return false;
 
-      // Dispatcher must have assigned stores
       const rawDispatcherStoreIds = currentUser?.store_ids || [];
       if (rawDispatcherStoreIds.length === 0) return false;
 
-      // CRITICAL: Normalize store IDs to strings for consistent comparison
       const dispatcherStoreIds = new Set(rawDispatcherStoreIds.map(id => String(id)));
-
       const selectedDateStr = selectedDate instanceof Date 
         ? selectedDate.toISOString().split('T')[0]
         : selectedDate;
-
-      // All possible ID formats for this driver AppUser
       const allDriverIdFormats = [user.id, user.user_id, userId].filter(Boolean);
 
-      // Driver must have at least 1 delivery from dispatcher's stores on selected date
       const hasDispatcherStoreDelivery = deliveries?.some(d => {
         if (!d) return false;
         const driverMatch = allDriverIdFormats.some(fmt => d.driver_id === fmt);
         const dateMatch = d.delivery_date === selectedDateStr;
-        // CRITICAL: Normalize delivery store_id to string before comparing
         const storeMatch = dispatcherStoreIds.has(String(d.store_id || ''));
-
         return driverMatch && dateMatch && storeMatch;
       });
 
-      if (!hasDispatcherStoreDelivery) {
-        const driverDeliveries = deliveries?.filter(d => d && allDriverIdFormats.some(fmt => d.driver_id === fmt) && d.delivery_date === selectedDateStr) || [];
-        if (driverDeliveries.length > 0) {
-          const deliveryStoreIds = [...new Set(driverDeliveries.map(d => String(d.store_id)))];
-        }
-      }
-
-      // Only show on_duty drivers — off_duty and on_break are hidden from dispatchers
-      return hasDispatcherStoreDelivery && user.status !== 'inactive' && user.driver_status === 'on_duty';
+      return hasDispatcherStoreDelivery;
     }
 
-    // RULE 5: Driver sees other drivers ONLY if they are on_duty AND location sharing is ON.
-    // Off-duty and on-break markers are hidden from other drivers (only isOwnUser and AppOwner see them).
+    // Driver: sees same-city drivers who are on_duty or on_break with location sharing ON
     if (isDriver && !isSelf) {
       if (currentUser?.status === 'inactive') return false;
-      if (user.driver_status !== 'on_duty') return false;
+      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
       if (!user.location_tracking_enabled) return false;
 
       const currentUserCityId = currentUser?.city_id;
@@ -356,6 +330,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const currentUserId = currentUser?.id;
     const userId = user.id || user.user_id;
     const isSelf = userId === currentUserId || user.user_id === currentUserId;
+
+    // Admins, app owner, and dispatchers always see ALL eligible driver location markers
+    // regardless of which driver is selected. The selectedDriverId filter only restricts
+    // delivery stop markers (stops, routes, polylines), NOT live GPS location dots.
+    if (isAdmin || _isAppOwner || isDispatcher) return true;
 
     // No specific driver selected or "all" mode → show everything that passes shouldShowMarker
     if (!selectedDriverId || selectedDriverId === 'all') return true;

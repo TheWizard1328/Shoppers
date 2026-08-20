@@ -617,31 +617,61 @@ function DeliveryMap({
     }
 
     const isAdmin = currentUser && userHasRole(currentUser, "admin");
+    const _isAppOwner = isAppOwner(currentUser);
     const isDriver = currentUser && userHasRole(currentUser, "driver");
     const isDispatcher = currentUser && userHasRole(currentUser, "dispatcher") && !isAdmin && !isDriver;
     const currentUserId = currentUser?.id;
     const currentUserCityId = currentUser?.city_id;
     const now = Date.now();
     const fiveMinutesMs = 5 * 60 * 1000;
+    // Location markers should NOT be filtered by selectedDriverId for admins,
+    // app owner, or dispatchers — they always see all eligible drivers' live GPS dots.
+    // The selectedDriverId filter only applies to delivery stop markers (stops, routes, polylines).
+    const skipDriverSelectionFilter = isAdmin || _isAppOwner || isDispatcher;
 
     const markers = safeUsers.map((user) => {
       if (!user?.id || user.status === "inactive") return null;
       if (!user.current_latitude || !user.current_longitude) return null;
       const isSelf = user.id === currentUserId || user.user_id === currentUserId;
-      // Off-duty and on-break markers hidden from other users (only isSelf and AppOwner see them)
-      const _isAppOwner = currentUser?.email && (currentUser.email.endsWith('@rxdeliver.com') || currentUser.email === 'dan@dcscripts.ca');
-      if (!isSelf && !_isAppOwner && user.driver_status !== 'on_duty') return null;
-      if (!isSelf && user.location_tracking_enabled !== true) return null;
-      if (!isAdmin && currentUserCityId && user.city_id && user.city_id !== currentUserCityId) return null;
-      if (!showOtherDriverDeliveries && selectedDriverId && selectedDriverId !== "all" && !isSelf && user.id !== selectedDriverId && user.user_id !== selectedDriverId) return null;
-      if (!showOtherDriverDeliveries && selectedDriverId && selectedDriverId !== "all" && isSelf && selectedDriverId !== currentUserId) return null;
-      // Overlay state (B): when an overlay driver is selected, only show the active driver's,
-      // the overlay driver's, and the current user's own location markers (skip all others).
-      if (showOtherDriverDeliveries && overlayDriverId && selectedDriverId && selectedDriverId !== "all") {
-        const matchesActive = user.id === selectedDriverId || user.user_id === selectedDriverId;
-        const matchesOverlay = user.id === overlayDriverId || user.user_id === overlayDriverId;
-        if (!isSelf && !matchesActive && !matchesOverlay) return null;
+
+      // ── VISIBILITY RULES (single source of truth for location marker visibility) ──
+      // App Owner: sees ALL drivers on_duty or on_break, regardless of location_tracking_enabled toggle
+      if (_isAppOwner && !isSelf) {
+        if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return null;
+        // No location_tracking_enabled check — app owner sees all active drivers
+      } else if (isAdmin && !isSelf) {
+        // Admin: sees all on_duty drivers for the selected city
+        if (user.driver_status !== 'on_duty') return null;
+      } else if (isDispatcher && !isSelf) {
+        // Dispatcher: sees all on_duty drivers from their stores
+        if (user.driver_status !== 'on_duty') return null;
+      } else if (isDriver && !isSelf) {
+        // Driver: sees same-city drivers who are on_duty or on_break with location sharing ON
+        if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return null;
+        if (!user.location_tracking_enabled) return null;
+        // Same-city check for drivers
+        if (currentUserCityId && user.city_id && user.city_id !== currentUserCityId) return null;
+      } else if (!isSelf) {
+        return null; // Unknown role — no visibility
       }
+
+      // City filter for admins (not app owner — app owner sees all regardless of city)
+      if (isAdmin && !_isAppOwner && currentUserCityId && user.city_id && user.city_id !== currentUserCityId) return null;
+
+      // Driver selection filter — only applies to non-admin/app-owner/dispatcher viewers
+      // (admins, app owner, dispatchers always see ALL eligible driver location markers)
+      if (!skipDriverSelectionFilter) {
+        if (!showOtherDriverDeliveries && selectedDriverId && selectedDriverId !== "all" && !isSelf && user.id !== selectedDriverId && user.user_id !== selectedDriverId) return null;
+        if (!showOtherDriverDeliveries && selectedDriverId && selectedDriverId !== "all" && isSelf && selectedDriverId !== currentUserId) return null;
+        // Overlay state: when an overlay driver is selected, only show the active driver's,
+        // the overlay driver's, and the current user's own location markers.
+        if (showOtherDriverDeliveries && overlayDriverId && selectedDriverId && selectedDriverId !== "all") {
+          const matchesActive = user.id === selectedDriverId || user.user_id === selectedDriverId;
+          const matchesOverlay = user.id === overlayDriverId || user.user_id === overlayDriverId;
+          if (!isSelf && !matchesActive && !matchesOverlay) return null;
+        }
+      }
+
       const resolvedDriverName = driverNameLookupMap.get(user.id) || driverNameLookupMap.get(user.user_id) || user.user_name || user.full_name || "Driver";
 
       if (isDispatcher) {
@@ -650,7 +680,7 @@ function DeliveryMap({
         if (!hasVisibleDelivery) return null;
       }
 
-      if (!isAdmin && !isDriver && !isDispatcher) return null;
+      if (!isAdmin && !isDriver && !isDispatcher && !_isAppOwner) return null;
 
       return {
         id: user.id,
