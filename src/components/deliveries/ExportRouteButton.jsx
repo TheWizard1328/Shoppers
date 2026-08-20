@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import ExportRouteEmailDialog from "./ExportRouteEmailDialog";
-import DriverRouteExportDialog from "./DriverRouteExportDialog";
 import { format } from "date-fns";
 import { userHasRole } from "../utils/userRoles";
 import { globalFilters } from "@/components/utils/globalFilters";
@@ -354,28 +353,9 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
 
   }
 
-  // === DRIVERS ===
+  // === DRIVERS === Export Route is admin/dispatcher only; drivers never see it.
   if (isDriver) {
-    return (
-      <>
-        <div className="my-2 w-full flex justify-center">
-          <Button
-            onClick={() => setIsEmailDialogOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-            disabled={isExporting}>
-            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {isExporting ? 'Exporting...' : 'Export Route'}
-          </Button>
-        </div>
-
-        <DriverRouteExportDialog
-          open={isEmailDialogOpen}
-          onOpenChange={setIsEmailDialogOpen}
-          isExporting={isExporting}
-          onExportRoute={handleMyRouteEmailExport}
-          onPreviewPdf={handlePreviewPdf} />
-      </>
-    );
+    return null;
   }
 
   return null;

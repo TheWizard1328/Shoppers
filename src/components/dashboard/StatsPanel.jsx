@@ -710,7 +710,7 @@ export default function StatsPanel({
           </AnimatePresence>
         </motion.div>
 
-            {legendData.length > 0 &&
+            {legendData.length > 0 && !(isDriver && !isAdmin && !isDispatcher && isDateFinished) &&
             <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full" style={{ background: 'var(--bg-white)', opacity: 1, borderColor: 'var(--border-slate-200)' }}
             onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
             <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
