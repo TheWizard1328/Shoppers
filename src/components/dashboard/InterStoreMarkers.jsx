@@ -10,8 +10,6 @@ import { userHasRole } from '@/components/utils/userRoles';
 import { isInterStoreActive, subscribeInterStore } from './interStoreToggleStore';
 import { createInterStoreIcon } from './MapIcons';
 
-const toRad = (v) => (v * Math.PI) / 180;
-
 /** Haversine distance in km between two [lat,lng] points. */
 const kmBetween = (aLat, aLng, bLat, bLng) => {
   if (
@@ -24,7 +22,8 @@ const kmBetween = (aLat, aLng, bLat, bLng) => {
   return meters / 1000;
 };
 
-const formatKm = (km) => (km == null ? '—' : `${km.toFixed(1)} km`);
+const formatKm = (km, estimated = false) =>
+  km == null ? '—' : `${estimated ? '~' : ''}${km.toFixed(1)} km`;
 
 /**
  * Resolves the dispatcher's "session store" — the store distance legs are
@@ -57,27 +56,57 @@ export function resolveSessionStore(currentUser, stores) {
   return { id: store.id, name: store.name || 'Your store', lat: +store.latitude, lng: +store.longitude };
 }
 
+const RADIUS_KM = 20;
+
 /**
- * Active, on-duty drivers with a current GPS fix.
+ * All drivers for the given city, regardless of duty status.
+ *  - on_duty / online → current GPS fix (exact distance)
+ *  - on_break         → last known GPS fix from AppUser (~ estimated distance)
+ *  - off_duty         → home location (~ estimated distance)
+ * Drivers with no resolvable coordinates for their status are skipped.
  */
-export function resolveActiveDrivers(appUsers) {
-  if (!appUsers?.length) return [];
+export function resolveCityDrivers(appUsers, cityId) {
+  if (!appUsers?.length || !cityId) return [];
   return appUsers
     .filter((au) => au && Array.isArray(au.app_roles) && au.app_roles.includes('driver'))
     .filter((au) => au.status === 'active')
-    .filter((au) => au.driver_status === 'on_duty' || au.driver_status === 'online')
-    .filter((au) => au.current_latitude != null && au.current_longitude != null)
-    .map((au) => ({
-      id: au.user_id || au.id,
-      name: au.user_name || 'Unknown',
-      lat: +au.current_latitude,
-      lng: +au.current_longitude,
-    }))
-    .filter((d) => !Number.isNaN(d.lat) && !Number.isNaN(d.lng));
+    .filter((au) => Array.isArray(au.city_ids) ? au.city_ids.includes(cityId) : au.city_id === cityId)
+    .map((au) => {
+      const status = au.driver_status || 'off_duty';
+      let lat = null;
+      let lng = null;
+      let estimated = false;
+      let statusNote = '';
+
+      if (status === 'on_duty' || status === 'online') {
+        lat = au.current_latitude;
+        lng = au.current_longitude;
+        statusNote = 'on duty';
+      } else if (status === 'on_break') {
+        // last known GPS fix — estimated, prefixed with ~
+        lat = au.current_latitude;
+        lng = au.current_longitude;
+        estimated = true;
+        statusNote = 'on break';
+      } else {
+        // off_duty — use home location, estimated
+        lat = au.home_latitude;
+        lng = au.home_longitude;
+        estimated = true;
+        statusNote = 'off duty (home)';
+      }
+
+      if (lat == null || lng == null) return null;
+      lat = +lat;
+      lng = +lng;
+      if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+      return { id: au.user_id || au.id, name: au.user_name || 'Unknown', lat, lng, status, statusNote, estimated };
+    })
+    .filter(Boolean);
 }
 
 export default function InterStoreMarkers() {
-  const { currentUser, appUsers, stores, cities } = useAppData();
+  const { currentUser, appUsers, stores } = useAppData();
   const [active, setActive] = useState(isInterStoreActive());
   const [locations, setLocations] = useState([]);
 
@@ -91,17 +120,22 @@ export default function InterStoreMarkers() {
   const isDispatcher =
     currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
 
-  const cityName = useMemo(() => {
-    if (!cities?.length) return null;
+  const selectedCityId = useMemo(() => {
     const cityId = globalFilters.getSelectedCityId?.();
-    if (!cityId || cityId === 'all') return null;
-    const city = cities.find((c) => c && c.id === cityId);
-    return city?.name || null;
-  }, [cities]);
+    return cityId && cityId !== 'all' ? cityId : null;
+  }, []);
 
-  // Load InterStore locations (offline-first, cached) when the layer is on.
+  // The dispatcher's session store — the origin for both the 20km InterStore
+  // radius filter and the driver leg distance calculations. Computed once per
+  // render so the location-loading effect can depend on a stable value.
+  const sessionStore = useMemo(
+    () => resolveSessionStore(currentUser, stores),
+    [currentUser, stores]
+  );
+
+  // Load InterStore locations within a 20km radius of the dispatcher's store.
   useEffect(() => {
-    if (!active || !isDispatcher || !cityName) {
+    if (!active || !isDispatcher || !sessionStore) {
       setLocations([]);
       return;
     }
@@ -110,13 +144,11 @@ export default function InterStoreMarkers() {
     getAllLocations()
       .then((all) => {
         if (cancelled) return;
-        const target = cityName.trim().toLowerCase();
         const filtered = (all || []).filter((loc) => {
           if (!loc) return false;
           if (loc.store_latitude == null || loc.store_longitude == null) return false;
-          const locCity = (loc.city || '').trim().toLowerCase();
-          if (!locCity) return false;
-          return locCity === target;
+          const km = kmBetween(sessionStore.lat, sessionStore.lng, +loc.store_latitude, +loc.store_longitude);
+          return km != null && km <= RADIUS_KM;
         });
         setLocations(filtered);
       })
@@ -125,12 +157,11 @@ export default function InterStoreMarkers() {
       });
 
     return () => { cancelled = true; };
-  }, [active, isDispatcher, cityName]);
+  }, [active, isDispatcher, sessionStore]);
 
   if (!active || !isDispatcher || !locations.length) return null;
 
-  const sessionStore = resolveSessionStore(currentUser, stores);
-  const drivers = resolveActiveDrivers(appUsers);
+  const drivers = resolveCityDrivers(appUsers, selectedCityId);
   const icon = createInterStoreIcon();
 
   return locations.map((loc) => {
@@ -143,9 +174,11 @@ export default function InterStoreMarkers() {
       : null;
 
     const driverLines = drivers.map((d) => {
+      // leg2 (marker → session store) is always exact; leg1 (driver → marker)
+      // is estimated only when the driver's own position is an estimate.
       const leg1 = kmBetween(d.lat, d.lng, lat, lng);
       const leg2 = sessionStore ? kmBetween(lat, lng, sessionStore.lat, sessionStore.lng) : null;
-      return { id: d.id, name: d.name, leg1, leg2 };
+      return { id: d.id, name: d.name, leg1, leg2, estimated: d.estimated, statusNote: d.statusNote };
     });
 
     return (
@@ -191,10 +224,10 @@ export default function InterStoreMarkers() {
                 <div className="border-t border-slate-200 dark:border-slate-700 mt-2 mb-1.5" />
                 <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-0.5">Driver legs</div>
                 {driverLines.map((d) => (
-                  <div key={d.id} className="text-[11px] flex justify-between gap-2">
+                  <div key={d.id} className="text-[11px] flex justify-between gap-2" title={d.statusNote}>
                     <span className="truncate">{d.name}</span>
                     <span className="whitespace-nowrap font-medium">
-                      → {formatKm(d.leg1)} → {formatKm(d.leg2)}
+                      → {formatKm(d.leg1, d.estimated)} → {formatKm(d.leg2)}
                     </span>
                   </div>
                 ))}
@@ -202,7 +235,7 @@ export default function InterStoreMarkers() {
             )}
 
             {driverLines.length === 0 && (
-              <div className="text-[10px] text-slate-400 mt-2">No active drivers on duty</div>
+              <div className="text-[10px] text-slate-400 mt-2">No drivers in this city</div>
             )}
           </div>
         </Popup>
