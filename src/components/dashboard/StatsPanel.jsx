@@ -653,22 +653,21 @@ export default function StatsPanel({
                     }
 
                 {isPureDispatcher ? (
-                  <div className="flex items-center rounded-md overflow-hidden border flex-shrink-0 h-8 select-none" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-700)' }}>
+                  <div className="flex items-stretch rounded-md overflow-hidden border flex-shrink-0 h-8 select-none" style={{ borderColor: 'var(--border-slate-300)' }}>
                     <button
                       type="button"
                       onClick={() => { setInterStorePickup(); setIsExpanded(false); }}
-                      title="InterStore Pickup — click a marker to add a pickup"
-                      className={`flex items-center justify-center px-2 h-full transition-colors ${interStoreMode === 'pickup' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                      title="InterStore Pickup — click to add a pickup"
+                      className={`flex-1 flex items-center justify-between px-2 gap-1 h-full transition-colors text-xs font-semibold ${interStoreMode === 'pickup' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                       <ArrowUp className="w-3.5 h-3.5" />
+                      <span className="whitespace-nowrap pr-0.5">Inter</span>
                     </button>
-                    <span className="flex items-center px-2 h-full text-xs font-semibold whitespace-nowrap">
-                      InterStore
-                    </span>
                     <button
                       type="button"
                       onClick={() => { setInterStoreDropoff(); setIsExpanded(false); }}
-                      title="InterStore Dropoff — click a marker to add a dropoff"
-                      className={`flex items-center justify-center px-2 h-full transition-colors ${interStoreMode === 'dropoff' ? 'bg-red-600 hover:bg-red-700 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                      title="InterStore Dropoff — click to add a dropoff"
+                      className={`flex-1 flex items-center justify-between px-2 gap-1 h-full transition-colors text-xs font-semibold ${interStoreMode === 'dropoff' ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                      <span className="whitespace-nowrap pl-0.5">Store</span>
                       <ArrowDown className="w-3.5 h-3.5" />
                     </button>
                   </div>
