@@ -223,7 +223,7 @@ export default function InterStoreMarkers() {
         key={loc.id || `${loc.store_name}-${lat},${lng}`}
         position={[lat, lng]}
         icon={icon}
-        zIndexOffset={5000}
+        zIndexOffset={20000}
         eventHandlers={{
           mouseover: (e) => e.target.openPopup(),
           mouseout: (e) => e.target.closePopup(),
