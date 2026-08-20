@@ -28,6 +28,7 @@ export default function MapSection({
   mapStyle,
   immersiveHidden, isDriverMoving, immersiveOverrideActive, onImmersiveMapTap,
   mapViewPhase = 1, isMapViewLocked = false,
+  isRouteComplete = false, completedRouteCity = null,
   isAdmin = false,
   topOverlayHeight = 0,
   immersiveOverlayDelivery = null,
@@ -162,6 +163,8 @@ export default function MapSection({
           statsContainerBaseHeight={statsContainerBaseHeight}
           isStatsCardExpanded={isExpanded}
           mapStyle={mapStyle}
+          isRouteComplete={isRouteComplete}
+          completedRouteCity={completedRouteCity}
           preferredTravelMode={preferredTravelMode}
           onTravelModeChange={onTravelModeChange}
           onMapReady={useCallback(() => {

@@ -24,7 +24,7 @@ function DashboardView({
   // Date & driver selection
   selectedDate, selectedDateStr, selectedDriverId, calendarMonth, setCalendarMonth,
   isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,
-  isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
+  isDriverDropdownDisabled, isAllDriversMode, isDateFinished, isRouteComplete, completedRouteCity,
   // Map state
   mapCenter, mapZoom, shouldFitBounds, setShouldFitBounds, setMapCenter, setMapZoom,
   mapMode, setMapMode, mapViewPhase, setMapViewPhase, isMapViewLocked, setIsMapViewLocked,
@@ -423,6 +423,8 @@ function DashboardView({
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
           mapStyle={mapStyle}
+          isRouteComplete={isRouteComplete}
+          completedRouteCity={completedRouteCity}
         />
 
         <div

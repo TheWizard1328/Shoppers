@@ -26,6 +26,7 @@ import { sortUsers } from "../utils/sorting";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
 import MapCrosshair from "./MapCrosshair";
 import { buildMapPadding } from "./DashboardHelpers";
+import { getRadiusFitZoom, DEFAULT_MAP_MAX_ZOOM, COMPLETED_ROUTE_RADIUS_KM } from "./completedRouteView";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
 import HereTileUsageTracker from "./HereTileUsageTracker";
@@ -190,6 +191,8 @@ function DeliveryMap({
   onMapReady = () => {},
   mapViewPhase = 1,
   isMapViewLocked = false,
+  isRouteComplete = false,
+  completedRouteCity = null,
   topOverlayHeight = 0,
   statsContainerBaseHeight = 0,
   immersiveHidden = false,
@@ -1406,6 +1409,22 @@ function DeliveryMap({
     }),
     [isMobile, immersiveHidden, topOverlayHeight, stopCardsHeight, isStatsCardExpanded, statsContainerBaseHeight]
   );
+
+  // Completed route → lock the map's maxZoom to the 30km-radius overview so the
+  // driver can pan/zoom OUT freely but cannot zoom back IN past the overview.
+  // Restores the default (18) when the route is no longer finished.
+  useEffect(() => {
+    if (!map) return;
+    if (isRouteComplete && completedRouteCity?.latitude != null) {
+      const size = map.getSize();
+      const padX = (crosshairPadding.leftPadding || 0) + (crosshairPadding.rightPadding || 0);
+      const padY = (crosshairPadding.topPadding || 0) + (crosshairPadding.bottomPadding || 0);
+      const lockZoom = getRadiusFitZoom({ latitude: completedRouteCity.latitude, radiusKm: COMPLETED_ROUTE_RADIUS_KM, mapSize: size, padX, padY });
+      map.setMaxZoom(Number.isFinite(lockZoom) ? lockZoom : DEFAULT_MAP_MAX_ZOOM);
+    } else {
+      map.setMaxZoom(DEFAULT_MAP_MAX_ZOOM);
+    }
+  }, [map, isRouteComplete, completedRouteCity, crosshairPadding]);
 
   return (
     <div className="absolute inset-0">
