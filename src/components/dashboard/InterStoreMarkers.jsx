@@ -109,6 +109,7 @@ export default function InterStoreMarkers() {
   const { currentUser, appUsers, stores } = useAppData();
   const [mode, setMode] = useState(getInterStoreMode());
   const [locations, setLocations] = useState([]);
+  const [dispatcherLoc, setDispatcherLoc] = useState(null);
   const active = mode !== 'off';
 
   // Subscribe to the toggle store so the button flip re-renders this layer.
@@ -138,6 +139,7 @@ export default function InterStoreMarkers() {
   useEffect(() => {
     if (!active || !isDispatcher || !sessionStore) {
       setLocations([]);
+      setDispatcherLoc(null);
       return;
     }
 
@@ -154,6 +156,16 @@ export default function InterStoreMarkers() {
           const km = kmBetween(sessionStore.lat, sessionStore.lng, +loc.store_latitude, +loc.store_longitude);
           return km != null && km < 0.05;
         };
+        // The dispatcher's own store — resolved from the FULL list (before the
+        // isOwnStore filter removes it) so it can prefill the other half of the
+        // From/To when a marker is clicked.
+        const ownLoc = (all || []).find((l) => {
+          if (!l || !l.store_name || !sessionStore?.name) return false;
+          const nm = l.store_name.toLowerCase();
+          const sn = sessionStore.name.toLowerCase();
+          return nm === sn || nm.includes(sn) || sn.includes(nm);
+        }) || null;
+        setDispatcherLoc(ownLoc);
         const filtered = (all || []).filter((loc) => {
           if (!loc || loc.store_latitude == null || loc.store_longitude == null) return false;
           if (isOwnStore(loc)) return false;
@@ -163,7 +175,7 @@ export default function InterStoreMarkers() {
         setLocations(filtered);
       })
       .catch(() => {
-        if (!cancelled) setLocations([]);
+        if (!cancelled) { setLocations([]); setDispatcherLoc(null); }
       });
 
     return () => { cancelled = true; };
@@ -175,15 +187,6 @@ export default function InterStoreMarkers() {
   // Marker fill color matches the active toggle half (pickup = green, dropoff = red).
   const icon = createInterStoreIcon(mode);
   const headerIconColor = mode === 'pickup' ? 'text-emerald-600' : 'text-red-600';
-
-  // The InterStoreLocation matching the dispatcher's own store — used as the
-  // other half of the From/To prefill when a marker is clicked.
-  const dispatcherLoc = locations.find((l) => {
-    if (!l || !l.store_name || !sessionStore?.name) return false;
-    const nm = l.store_name.toLowerCase();
-    const sn = sessionStore.name.toLowerCase();
-    return nm === sn || nm.includes(sn) || sn.includes(nm);
-  }) || null;
 
   const buildPrefill = (clickedLoc) => {
     const src = mode === 'pickup' ? clickedLoc : dispatcherLoc;
@@ -228,7 +231,6 @@ export default function InterStoreMarkers() {
           mouseover: (e) => e.target.openPopup(),
           mouseout: (e) => e.target.closePopup(),
           click: () => {
-            if (!dispatcherLoc) return;
             window.dispatchEvent(new CustomEvent('openInterStoreAddRoute', { detail: buildPrefill(loc) }));
           },
           }}
