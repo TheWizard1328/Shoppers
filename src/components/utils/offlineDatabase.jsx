@@ -1246,45 +1246,34 @@ const pruneOldDeliveries = async () => {
     const cutoffDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
 
-    // Group deliveries by driver_id
-    const deliveriesByDriver = new Map();
-    allDeliveries.forEach(delivery => {
-      if (!delivery?.driver_id) return;
-      if (!deliveriesByDriver.has(delivery.driver_id)) {
-        deliveriesByDriver.set(delivery.driver_id, []);
-      }
-      deliveriesByDriver.get(delivery.driver_id).push(delivery);
-    });
-
-    let removedCount = 0;
-    const deliveriesToKeep = [];
-
-    // For each driver, keep deliveries within the 1-year window, remove older
-    deliveriesByDriver.forEach((driverDeliveries, driverId) => {
-      driverDeliveries.forEach(delivery => {
-        if (delivery.delivery_date && delivery.delivery_date >= cutoffDateStr) {
-          deliveriesToKeep.push(delivery);
-        } else {
-          removedCount++;
+    // Identify only the expired records — those with delivery_date older than 365 days.
+    // Records without a delivery_date are kept (may be in-progress, temp, or legacy).
+    // Records without a driver_id are also kept (shouldn't happen, but safety).
+    const expiredIds = [];
+    for (const delivery of allDeliveries) {
+      if (!delivery?.driver_id) continue;
+      if (delivery.delivery_date && delivery.delivery_date < cutoffDateStr) {
+        if (delivery.id) {
+          expiredIds.push(delivery.id);
         }
-      });
-    });
-
-    // Also keep deliveries without driver_id (shouldn't happen, but safety)
-    allDeliveries.forEach(delivery => {
-      if (!delivery?.driver_id) {
-        deliveriesToKeep.push(delivery);
       }
-    });
-
-    if (removedCount > 0) {
-      await clearStore(STORES.DELIVERIES);
-      await bulkSave(STORES.DELIVERIES, deliveriesToKeep);
-      console.log(`[OfflineDB] Pruned ${removedCount} deliveries older than 1 year`);
-      return { success: true, removed: removedCount };
     }
 
-    return { success: true, removed: 0 };
+    if (expiredIds.length === 0) {
+      return { success: true, removed: 0 };
+    }
+
+    // Per-record deletion — NO full-store wipe/rewrite.
+    // Each delete is an O(1) IDB key removal, so total cost is O(expired) not O(all).
+    // Batch in chunks of 50 to avoid opening too many transactions simultaneously.
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < expiredIds.length; i += BATCH_SIZE) {
+      const batch = expiredIds.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(id => deleteRecord(STORES.DELIVERIES, id).catch(() => {})));
+    }
+
+    console.log(`[OfflineDB] Pruned ${expiredIds.length} deliveries older than 1 year (per-record delete)`);
+    return { success: true, removed: expiredIds.length };
   } catch (error) {
     return { success: false, error: error.message };
   }

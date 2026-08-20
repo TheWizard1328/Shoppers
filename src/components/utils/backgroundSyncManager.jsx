@@ -102,14 +102,18 @@ class BackgroundSyncManager {
 
   /**
    * Resume background syncs
-   * CRITICAL: Clear any existing timeout and schedule a fresh sync immediately.
+   * CRITICAL: Clear any existing timeout and schedule a fresh sync with a
+   * deferred delay so we don't jank the UI immediately after a dialog/form closes.
    * The old code only scheduled if !currentSyncInterval, which meant if a timeout
    * was already pending (set before the pause), resume would NOT schedule a new one.
    * With a 60-minute default interval, this meant the next sync could be up to
    * 60 minutes after resume — leaving the manager effectively "paused" to the user.
+   *
+   * Fix: resume() now schedules the next sync after a 60-second grace period,
+   * giving the UI time to settle after dialog/form interactions.
    */
   resume() {
-    console.log('▶️ [BackgroundSync] Resumed');
+    console.log('▶️ [BackgroundSync] Resumed (next sync in 60s)');
     this.isPaused = false;
     // Always clear pause regardless of isRunning state — if the manager isn't
     // running yet, the pause flag is still correctly cleared for when it does start.
@@ -118,7 +122,11 @@ class BackgroundSyncManager {
         clearTimeout(this.currentSyncInterval);
         this.currentSyncInterval = null;
       }
-      this.scheduleNextSync();
+      // Deferred resume — 60s grace period to avoid janking the UI
+      // immediately after a dialog/form close.
+      this.currentSyncInterval = setTimeout(() => {
+        this.runSyncCycle();
+      }, 60 * 1000);
     }
   }
 
@@ -166,6 +174,20 @@ class BackgroundSyncManager {
       console.log('⏭️ [BackgroundSync] Skipping cycle - disabled, paused, or stopped');
       this.scheduleNextSync();
       return;
+    }
+
+    // Gate on user activity — don't run background sync while user is actively
+    // interacting with the app. This prevents IDB contention and UI jank.
+    // The 2-minute idle threshold matches userActivityMonitor.isBackgroundSyncIdle().
+    try {
+      const { userActivityMonitor } = await import('./userActivityMonitor');
+      if (!userActivityMonitor.isBackgroundSyncIdle()) {
+        console.log('⏭️ [BackgroundSync] Skipping cycle - user is active (not idle for 2 min)');
+        this.scheduleNextSync();
+        return;
+      }
+    } catch (_) {
+      // userActivityMonitor not available — proceed without idle check
     }
 
     console.log('🔄 [BackgroundSync] Starting sync cycle...');
@@ -343,20 +365,25 @@ class BackgroundSyncManager {
     }
 
     // Reached the 365-day floor → reset cursor to yesterday for re-validation pass
-    if (this.historicalSyncDateCursor < cutoffDate) {
+    const reachedFloor = this.historicalSyncDateCursor < cutoffDate;
+    if (reachedFloor) {
       this.historicalSyncDateCursor = yesterday;
       await saveHistoricalCursor(yesterday, this.cityIdsHash);
       console.log('🔄 [BackgroundSync] Historical sync reached 365-day cutoff — resetting cursor to yesterday');
     }
 
-    // Purge deliveries older than 1 year to keep IndexedDB bounded
-    try {
-      const pruneResult = await offlineDB.pruneOldDeliveries();
-      if (pruneResult?.removed > 0) {
-        console.log(`🧹 [BackgroundSync] Purged ${pruneResult.removed} deliveries older than 1 year`);
+    // Only purge expired deliveries when we've completed a full backfill pass
+    // (cursor reached the 365-day floor). Running prune on every 3-minute
+    // cycle is wasteful and causes unnecessary IDB churn.
+    if (reachedFloor) {
+      try {
+        const pruneResult = await offlineDB.pruneOldDeliveries();
+        if (pruneResult?.removed > 0) {
+          console.log(`🧹 [BackgroundSync] Purged ${pruneResult.removed} deliveries older than 1 year`);
+        }
+      } catch (e) {
+        console.warn('⚠️ [BackgroundSync] Purge failed:', e.message);
       }
-    } catch (e) {
-      console.warn('⚠️ [BackgroundSync] Purge failed:', e.message);
     }
 
     this.notifySubscribers({ type: 'deliveries_synced', count: syncedCount });
