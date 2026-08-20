@@ -220,6 +220,26 @@ export default function InterStoreMarkers() {
     return () => clearTimeout(t);
   }, [active, locations.length]);
 
+  // Mirror the rendered InterStore marker positions into a window global so the
+  // Dashboard's phase-1 bounds fit can union these candidate positions with the
+  // driver/stop markers — otherwise phase 1 fits only the selected driver's
+  // stops and excludes the InterStore candidates from the bounds.
+  useEffect(() => {
+    if (!active || !locations.length) {
+      window.__mapInterStoreMarkers = [];
+      return;
+    }
+    window.__mapInterStoreMarkers = locations
+      .map((loc) => {
+        const lat = +loc.store_latitude;
+        const lng = +loc.store_longitude;
+        if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+        return { latitude: lat, longitude: lng, id: loc.id };
+      })
+      .filter(Boolean);
+    return () => { window.__mapInterStoreMarkers = []; };
+  }, [active, locations]);
+
   if (!active || !isDispatcher || !locations.length || !sessionStore) return null;
 
   const drivers = resolveCityDrivers(appUsers, selectedCityId);

@@ -1294,6 +1294,18 @@ function Dashboard() {
           });
         }
 
+        // 6. INTER-STORE CANDIDATE MARKERS: union any visible InterStore markers
+        //    (dispatcher toggle on) so the phase-1 bounds fit shows them alongside
+        //    the driver/stop markers — otherwise phase 1 fits only the selected
+        //    driver's stops and clips the InterStore candidates off-screen.
+        const interStoreWindowMarkers = window.__mapInterStoreMarkers || [];
+        interStoreWindowMarkers.forEach((m) => {
+          if (m?.latitude && m?.longitude) {
+            allCoordinates.push([m.latitude, m.longitude]);
+            hasStopMarkers = true;
+          }
+        });
+
         // Get current city center
         const selectedCityId = globalFilters.getSelectedCityId();
         const currentCity = cities?.find((c) => c && c.id === selectedCityId);
