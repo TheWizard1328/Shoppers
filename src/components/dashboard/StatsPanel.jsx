@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Binoculars, Map as MapIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Binoculars, Map as MapIcon, Store } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 
@@ -33,6 +33,7 @@ import { getDriverColor } from "@/components/utils/driverUtils";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { sortUsers } from "@/components/utils/sorting";
 import { countLegendStops, countAfterHoursPickups } from "@/components/dashboard/legendStopCounter";
+import { isInterStoreActive, subscribeInterStore, toggleInterStore } from "@/components/dashboard/interStoreToggleStore";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -66,6 +67,15 @@ export default function StatsPanel({
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
   const [bookedOffOverrides, setBookedOffOverrides] = useState([]);
+
+  // InterStore markers toggle (dispatchers only). Pure dispatcher accounts
+  // replace the legacy Show/Hide polylines button with this toggle.
+  const isPureDispatcher = isDispatcher && !isAdmin;
+  const [showInterStore, setShowInterStore] = useState(isInterStoreActive());
+  useEffect(() => {
+    const unsubscribe = subscribeInterStore(setShowInterStore);
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -639,7 +649,16 @@ export default function StatsPanel({
                   </Button>
                     }
 
-                <Button variant="default" size="sm" onClick={() => {
+                {isPureDispatcher ? (
+                  <Button variant="default" size="sm"
+                    onClick={() => { toggleInterStore(); setIsExpanded(false); }}
+                    title="Toggle InterStore location markers"
+                    className={`gap-2 h-8 flex-shrink-0 ${showInterStore ? 'bg-red-600 hover:bg-red-700' : ''} text-white`}
+                    style={showInterStore ? undefined : { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}>
+                    <Store className="w-3.5 h-3.5" />InterStore
+                  </Button>
+                ) : (
+                  <Button variant="default" size="sm" onClick={() => {
                       const nextShowRoutes = !showRoutes;
                       setShowRoutes(nextShowRoutes);
                       localStorage.setItem('rxdeliver_show_routes', String(nextShowRoutes));
@@ -650,7 +669,8 @@ export default function StatsPanel({
                       setIsExpanded(false);
                     }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
                   <Truck className="w-3.5 h-3.5" />{showRoutes ? 'Hide' : 'Show'}
-                </Button>
+                  </Button>
+                )}
               </div>
 
               {isDriver && !isDispatcher && <>

@@ -491,3 +491,35 @@ export const createHomeIcon = (color = '#10B981') => {
     iconAnchor: [w / 2, h]
   });
 };
+
+/**
+ * Solid bright red circle marker for InterStore locations.
+ * Red fill + red border, sized smaller than the regular delivery/store
+ * markers but large enough to stay clickable. Low z-index keeps it under
+ * stop markers but above polylines.
+ */
+export const createInterStoreIcon = () => {
+  const size = 12;
+  return L.divIcon({
+    html: `
+      <div class="inter-store-marker" style="
+        width: ${size}px;
+        height: ${size}px;
+        background-color: #DC2626;
+        border: 2px solid #991B1B;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        cursor: pointer;
+        position: relative;
+      ">
+      </div>
+      <style>
+        .inter-store-marker { transition: transform 0.15s ease; }
+        .leaflet-marker-icon:has(.inter-store-marker:hover) { z-index: 9999 !important; transform: scale(1.25); }
+      </style>
+    `,
+    className: 'custom-inter-store-icon',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
+  });
+};

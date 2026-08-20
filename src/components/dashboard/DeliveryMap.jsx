@@ -34,6 +34,7 @@ import UnifiedRoutePolylines from "./UnifiedRoutePolylines";
 import PickupMarkers from "./PickupMarkers";
 import DeliveryMarkers from "./DeliveryMarkers";
 import HomeMarkers from "./HomeMarkers";
+import InterStoreMarkers from "./InterStoreMarkers";
 import MapBreadcrumbs from "./MapBreadcrumbs";
 import { createLiveLocationDot } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
@@ -1574,6 +1575,10 @@ function DeliveryMap({
 
         {mapReady && (
           <HomeMarkers driverHomeMarkers={driverHomeMarkers} map={map} isMobile={isMobile} onMarkerClick={onMarkerClick} />
+        )}
+
+        {mapReady && (
+          <InterStoreMarkers />
         )}
 
         {/* Fan lines: draw lines from cluster origin to each fanned marker */}
