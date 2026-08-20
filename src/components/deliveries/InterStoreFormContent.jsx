@@ -88,12 +88,14 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
     if (el) el.scrollIntoView({ block: 'nearest' });
   }, [matchedId]);
 
-  // Scroll selected item into view whenever selectedId changes (e.g. on edit load)
+  // Scroll selected item into view whenever selectedId changes OR the list
+  // finishes loading (selectedId may be set from a marker prefill before the
+  // list items are rendered, so we must retry once they appear).
   useEffect(() => {
-    if (!selectedId || !listRef.current) return;
+    if (!selectedId || loading || !listRef.current) return;
     const el = listRef.current.querySelector(`[data-loc-id="${selectedId}"]`);
     if (el) el.scrollIntoView({ block: 'center' });
-  }, [selectedId]);
+  }, [selectedId, loading, locations]);
 
   const isFrom = color === 'emerald';
   const selectedStyle = isFrom ?

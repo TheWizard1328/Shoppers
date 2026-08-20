@@ -17,7 +17,7 @@ import { locationTracker } from "@/components/utils/locationTracker";
 import { getCurrentDevice } from '@/components/utils/deviceManager';
 import { liveDistanceTracker } from "@/components/utils/liveDistanceTracker";
 import { globalFilters } from "@/components/utils/globalFilters";
-import { userHasRole } from '@/components/utils/userRoles';
+import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { useUser } from '@/components/utils/UserContext';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
@@ -47,7 +47,7 @@ import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboar
 import { handleStatusUpdate as _handleStatusUpdateImpl } from '@/components/dashboard/handleStatusUpdate';
 import { useFabControlEventHandler } from '@/components/dashboard/useFabControlEventHandler';
 import { useStopCardsBaseHeight } from '@/components/dashboard/useStopCardsBaseHeight';
-import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';
+import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';import { useKittOptimizationMessages } from '@/components/dashboard/useKittOptimizationMessages';import { runAddDelay } from '@/components/dashboard/handleAddDelay';import { runDualDriverOptimization } from '@/components/dashboard/handleDualDriverOptimization';import { usePullToSyncDataReadyEffect } from '@/components/dashboard/usePullToSyncDataReadyEffect';import { useDataSourceChangedEffect } from '@/components/dashboard/useDataSourceChangedEffect';import { COMPLETED_ROUTE_RADIUS_KM, getCityRadiusBounds, resolveCompletedRouteCity } from '@/components/dashboard/completedRouteView';
 
 const getEdmDate=()=>{const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Edmonton',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return`${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`;};const centerNextDeliveryCard=()=>{window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));};
 function Dashboard() {
@@ -76,6 +76,20 @@ function Dashboard() {
   const [selectedCardId, setSelectedCardId] = useState(null);
   const [showDeliveryForm, setShowDeliveryForm] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
+  // InterStore Add-to-Route prefill — set when a dispatcher clicks an InterStore
+  // map marker while the InterStore toggle is active. Opens the delivery form
+  // pre-seeded with the From/To InterStore locations and direction.
+  const [interstorePrefill, setInterstorePrefill] = useState(null);
+  useEffect(() => {
+    const handler = (e) => {
+      setEditingDelivery(null);
+      setInterstorePrefill(e.detail || null);
+      setShowDeliveryForm(true);
+    };
+    window.addEventListener('openInterStoreAddRoute', handler);
+    return () => window.removeEventListener('openInterStoreAddRoute', handler);
+  }, []);
+  useEffect(() => { if (!showDeliveryForm) setInterstorePrefill(null); }, [showDeliveryForm]);
   const [mapCenter, setMapCenter] = useState([53.5461, -113.4938]);
   const [mapZoom, setMapZoom] = useState(11);
   const [shouldFitBounds, setShouldFitBounds] = useState(null);
@@ -231,6 +245,9 @@ function Dashboard() {
   const isPrimaryDeviceRef = useRef(false);
   const pendingPhaseRef = useRef(1);
   const isMapViewLockedRef = useRef(false);
+  // True when every patient stop on the selected driver/date is finished — used to
+  // drive the completed-route overview (30km city center fit + max-zoom lock).
+  const isRouteCompleteRef = useRef(false);
   // CRITICAL: Ref mirror of immersiveHidden state — the mapViewTrigger effect below
   // only depends on [mapViewTrigger] and reads other live values via refs (same
   // pattern as mapViewPhaseRef, driverLocationRef, etc.) to avoid a stale closure.
@@ -494,6 +511,7 @@ function Dashboard() {
   }, [patients]);
 
   const isRouteComplete = useMemo(() => { if (!filteredDeliveries || filteredDeliveries.length === 0) return false; const pds = filteredDeliveries.filter((d) => d && d.patient_id); const isRtn = (d) => (patientById.get(d.patient_id)?.address || '').toUpperCase().includes('(RTN)'); return pds.length > 0 && pds.every((d) => ['completed','failed','cancelled'].includes(d.status) || isRtn(d)); }, [filteredDeliveries, patientById]);
+  const completedRouteCity = useMemo(() => resolveCompletedRouteCity({ cities, currentUser, selectedCityId: globalFilters.getSelectedCityId() }), [cities, currentUser]);
   // activeDriverIdsOnDate and driversList are declared above filteredDeliveries
   const isDriverDropdownDisabled = useMemo(() => !currentUser || userHasRole(currentUser,'admin') ? false : userHasRole(currentUser,'dispatcher') ? false : !!userHasRole(currentUser,'driver'), [currentUserRoles]);
   const statsCardPositioning = useMemo(() => { const snapshotOffset = isSnapshotModeActive ? 'left-24' : 'left-2'; return (screenWidth / cardWidth) < 2 ? 'absolute top-2 left-1/2 -translate-x-1/2' : `absolute top-2 ${snapshotOffset}`; }, [screenWidth, cardWidth, isSnapshotModeActive]);
@@ -730,6 +748,16 @@ function Dashboard() {
     completedRouteNotificationsRef.current.add(key);
     window.dispatchEvent(new CustomEvent('routeShiftCompleted', { detail: { driverId, deliveryDate } }));
   }, [currentUser?.id, isRouteComplete, selectedDriverId, selectedDate]);
+
+  // Completed route → overview: keep the FAB on Phase 1 (and lock the map to
+  // the 30km overview) on load/refresh whenever the route is finished. Re-syncs
+  // the ref so the Phase-1 case-of-mapViewTrigger can read the live value.
+  useEffect(() => { isRouteCompleteRef.current = !!isRouteComplete; }, [isRouteComplete]);
+  useEffect(() => {
+    if (!isRouteComplete || !completedRouteCity) return;
+    if (mapViewPhaseRef.current === 1 && !mapLockTimeoutRef.current) return;
+    window.dispatchEvent(new CustomEvent('routeFinishedResetToPhase1'));
+  }, [isRouteComplete, completedRouteCity]);
   useEffect(() => {
     if (!currentUser || !selectedDriverId) {
       setCurrentToNextPolyline(null);
@@ -1063,6 +1091,19 @@ function Dashboard() {
 
     switch (activePhase) {
       case 1: { // "Show All Stops"
+        // Completed route → zoom OUT to the city-center overview instead of
+        // fitting all (finished) markers. Drivers-only: AppOwners, admins, and
+        // dispatchers fall through to the normal fit-all-markers Phase 1 below so
+        // they can review completed stops up close, the same as an unfinished route.
+        const completedRouteRadiusEligible = isDriver && !isAdmin && !isDispatcher && !isAppOwner(currentUser);
+        if (isRouteCompleteRef.current && completedRouteCity && completedRouteRadiusEligible) {
+          const radiusBounds = getCityRadiusBounds({ latitude: completedRouteCity.latitude, longitude: completedRouteCity.longitude, radiusKm: COMPLETED_ROUTE_RADIUS_KM });
+          const padding = getMapPadding(immersiveHiddenRef.current);
+          setShouldFitBounds({ bounds: radiusBounds, options: { ...padding, maxZoom: 18, animate: true } });
+          setMapCenter(null);
+          setMapZoom(null);
+          break;
+        }
         const allCoordinates = [];
         let hasStopMarkers = false;
         let hasDriverMarkers = false;
@@ -1252,6 +1293,18 @@ function Dashboard() {
             }
           });
         }
+
+        // 6. INTER-STORE CANDIDATE MARKERS: union any visible InterStore markers
+        //    (dispatcher toggle on) so the phase-1 bounds fit shows them alongside
+        //    the driver/stop markers — otherwise phase 1 fits only the selected
+        //    driver's stops and clips the InterStore candidates off-screen.
+        const interStoreWindowMarkers = window.__mapInterStoreMarkers || [];
+        interStoreWindowMarkers.forEach((m) => {
+          if (m?.latitude && m?.longitude) {
+            allCoordinates.push([m.latitude, m.longitude]);
+            hasStopMarkers = true;
+          }
+        });
 
         // Get current city center
         const selectedCityId = globalFilters.getSelectedCityId();
@@ -1637,7 +1690,11 @@ function Dashboard() {
     const hasData = deliveriesWithStopOrder.length > 0 ||
       hasDeliveryDataForSelection({ deliveries, selectedDateStr: dateStr, selectedDriverId });
     if (!hasData) return;
-    const _sp = ([1,2,3].includes(Number(initialFabPhase))) ? Number(initialFabPhase) : 1;
+    // Completed route → always start the FAB on Phase 1 (overview) regardless of
+    // the saved phase. Phase 2/3 are unavailable when every stop is finished, so
+    // restoring a saved phase 2/3 would leave the FAB visually stuck.
+    const routeDone = !!isRouteComplete && !!completedRouteCity;
+    const _sp = routeDone ? 1 : (([1,2,3].includes(Number(initialFabPhase))) ? Number(initialFabPhase) : 1);
     if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
     mapLockExpiresAtRef.current = null;
     // Phases 2 & 3: restore locked so map positions to saved phase and next FAB click cycles forward.
@@ -1864,64 +1921,8 @@ function Dashboard() {
     }
   }, [currentUserId, selectedDate, refreshData, setIsEntityUpdating, appUsers, showAllDriverMarkers, mapViewTrigger]);
 
-  // KITT bar phased messages: activate on button click, show 3 phases, clear on done
-  const kittTimeoutRef = useRef(null);
-  useEffect(() => {
-    const handleOptStart = (e) => {
-      // All sources now fire through the coordinator — no source filter needed
-      if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
-      setOptimizationMessage('Optimizing Route…');
-    };
-    const handleOptPhase = (e) => {
-      const { phase } = e.detail || {};
-      if (phase === 'polylines') {
-        setOptimizationMessage('Generating Route Lines…');
-      }
-    };
-    // Listen for the coordinator/debouncer's optimizationRunning event to show/hide the KITT bar
-    const handleOptRunning = (e) => {
-      const { active } = e.detail || {};
-      if (active) {
-        if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
-        setOptimizationMessage('Optimizing Route…');
-      } else {
-        // active=false means the debouncer finished — clear if coordinator didn't already
-        if (kittTimeoutRef.current) { clearTimeout(kittTimeoutRef.current); kittTimeoutRef.current = null; }
-        setOptimizationMessage(null);
-      }
-    };
-    const handleOptComplete = (e) => {
-      const { source, optimizedCount } = e.detail || {};
-      // If optimizedCount is present, this is from the coordinator (success) — show final message
-      // If not present, this is a safety-net from the call site's finally block — just clear
-      if (optimizedCount != null) {
-        const count = optimizedCount || 0;
-        setOptimizationMessage(`${count} Stops Optimized`);
-      // Clear after 3 seconds
-        if (kittTimeoutRef.current) clearTimeout(kittTimeoutRef.current);
-        kittTimeoutRef.current = setTimeout(() => {
-          setOptimizationMessage(null);
-          kittTimeoutRef.current = null;
-        }, 3000);
-      } else {
-        // Safety-net: coordinator threw, just clear the bar
-        if (kittTimeoutRef.current) clearTimeout(kittTimeoutRef.current);
-        setOptimizationMessage(null);
-        kittTimeoutRef.current = null;
-      }
-    };
-    window.addEventListener('routeOptimizationStarted', handleOptStart);
-    window.addEventListener('routeOptimizationPhase', handleOptPhase);
-    window.addEventListener('routeOptimizationComplete', handleOptComplete);
-    window.addEventListener('optimizationRunning', handleOptRunning);
-    return () => {
-      window.removeEventListener('routeOptimizationStarted', handleOptStart);
-      window.removeEventListener('routeOptimizationPhase', handleOptPhase);
-      window.removeEventListener('routeOptimizationComplete', handleOptComplete);
-      window.removeEventListener('optimizationRunning', handleOptRunning);
-      if (kittTimeoutRef.current) clearTimeout(kittTimeoutRef.current);
-    };
-  }, []);
+  // KITT bar phased optimization messages — extracted to useKittOptimizationMessages
+  useKittOptimizationMessages(setOptimizationMessage);
 
   useEffect(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -2092,35 +2093,8 @@ function Dashboard() {
     });
   };
 
-  const handleDualDriverOptimization = async (originalDriverId, newDriverId, deliveryDate) => {
-    const fin = ['completed', 'failed', 'cancelled'];
-    for (const driverId of [originalDriverId, newDriverId].filter(Boolean)) {
-      const driver = drivers.find((d) => d && d.id === driverId);
-      if (!driver) continue;
-      const driverDeliveries = await base44.entities.Delivery.filter({ delivery_date: deliveryDate, driver_id: driverId }, null, null, null, 'id,driver_id,delivery_date,status,stop_order,isNextDelivery,patient_id,patient_name,store_id,store_name,actual_delivery_time,delivery_time_eta,delivery_time_start,encoded_polyline,travel_dist,puid,delivery_notes,cycling_latitude,cycling_longitude');
-      const completed = (driverDeliveries || []).filter((d) => d && fin.includes(d.status));
-      const incomplete = (driverDeliveries || []).filter((d) => d && !fin.includes(d.status));
-      const sortedCompleted = [...completed].sort((a, b) => { const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; return ta - tb; });
-      if (incomplete.length === 0) { for (let i = 0; i < sortedCompleted.length; i++) if (sortedCompleted[i]) await updateDeliveryLocal(sortedCompleted[i].id, { stop_order: i + 1 }); continue; }
-      const cyclingMarkersIncomplete = incomplete.filter((d) => d && d.is_cycling_marker);
-      const regularIncomplete = incomplete.filter((d) => d && !d.is_cycling_marker);
-      const enriched = regularIncomplete.map((d) => { if (!d) return null; const e = { ...d }; if (d.patient_id) { const p = patients.find((x) => x && x.id === d.patient_id); if (p?.latitude) { e.latitude = p.latitude; e.longitude = p.longitude; } } else { const s = stores.find((x) => x && x.id === d.store_id); if (s?.latitude) { e.latitude = s.latitude; e.longitude = s.longitude; } } return e; }).filter((d) => d && d.latitude && d.longitude);
-      const optimized = optimizeRoute(populateTemporaryStartTimes(enriched, stores), stores, patients, { useAdvancedOptimization: true, respectManualOrder: false, driverHome: driver.home_latitude ? { lat: driver.home_latitude, lon: driver.home_longitude } : null });
-      // Merge optimized regular stops with cycling markers, sorted by stop_order.
-      // Cycling markers have their own stop_order values from the mode dialog —
-      // respect them so they land in the correct position (between driving legs).
-      const incompleteWithCycling = [...optimized, ...cyclingMarkersIncomplete].sort((a, b) => {
-        const ao = Number(a.stop_order) || 99999;
-        const bo = Number(b.stop_order) || 99999;
-        // Cycling markers with no stop_order go last (shouldn't happen, but defensive)
-        if (a.is_cycling_marker && !a.stop_order) return 1;
-        if (b.is_cycling_marker && !b.stop_order) return -1;
-        return ao - bo;
-      });
-      const final = [...sortedCompleted, ...incompleteWithCycling];
-      for (let i = 0; i < final.length; i++) { const s = final[i]; if (!s) continue; const upd = { stop_order: i + 1 }; if (!fin.includes(s.status)) { upd.delivery_time_eta = s.estimated_arrival || s.delivery_time_start; upd.delivery_time_start = s.delivery_time_start; upd.delivery_time_end = s.delivery_time_end; upd.ampm_deliveries = s.ampm_deliveries; if (!s.tracking_number || s.tracking_number === '99') upd.tracking_number = s.tracking_number; } await updateDeliveryLocal(s.id, upd); }
-    }
-  };
+  const handleDualDriverOptimization = (originalDriverId, newDriverId, deliveryDate) =>
+    runDualDriverOptimization({ originalDriverId, newDriverId, deliveryDate, drivers, patients, stores, appUsers, deliveriesWithStopOrder, updateDeliveryLocal, updateDeliveriesLocally });
 
   const handleEditDelivery = useCallback((delivery) => {
     // Pause any pending debounced optimization for this driver+date
@@ -2350,48 +2324,9 @@ function Dashboard() {
     }
   }, [selectedDate, currentUserId, appUsers, setIsEntityUpdating, setShowQuickAdjustments]);
 
-  const handleAddDelay = useCallback(async (deliveryId, delayMinutes) => {
-    try {
-      setIsEntityUpdating(true);
-
-      const delivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
-      if (!delivery) return;
-
-      // Add delay to this stop's ETA and all subsequent stops
-      const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
-      const allDriverDeliveries = await base44.entities.Delivery.filter({
-        driver_id: currentUser.id,
-        delivery_date: deliveryDate
-      }, 'stop_order');
-
-      const targetStopOrder = delivery.stop_order;
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'pending'];
-
-      for (const d of allDriverDeliveries) {
-        if (!d || finishedStatuses.includes(d.status)) continue;
-        if ((d.stop_order || 0) < targetStopOrder) continue;
-
-        // Add delay to ETA
-        const currentETA = d.delivery_time_eta || d.delivery_time_start;
-        if (currentETA) {
-          const [hours, mins] = currentETA.split(':').map(Number);
-          const totalMinutes = hours * 60 + mins + delayMinutes;
-          const newETA = `${String(Math.floor(totalMinutes / 60) % 24).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
-
-          await base44.entities.Delivery.update(d.id, { delivery_time_eta: newETA });
-        }
-      }
-
-      invalidate('Delivery');
-      await refreshData();
-
-    } catch (error) {
-      console.error('❌ [Add Delay] Error:', error);
-      alert('Failed to add delay. Please try again.');
-    } finally {
-      setIsEntityUpdating(false);
-    }
-  }, [deliveriesWithStopOrder, selectedDate, currentUserId, setIsEntityUpdating, refreshData]);
+  const handleAddDelay = useCallback((deliveryId, delayMinutes) =>
+    runAddDelay({ deliveryId, delayMinutes, selectedDate, currentUser, setIsEntityUpdating, refreshData, invalidate, deliveriesWithStopOrder }),
+    [deliveriesWithStopOrder, selectedDate, currentUserId, setIsEntityUpdating, refreshData]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -2420,103 +2355,10 @@ function Dashboard() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
   // Listen for pullToSyncDataReady events - full update regardless of current state
-  useEffect(() => {
-    const handlePullToSyncDataReady = async (event) => {
-      const {
-        deliveries: freshDeliveries,
-        appUsers: freshAppUsers,
-        cities: freshCities,
-        stores: freshStores,
-        patients: freshPatients
-      } = event.detail || {};
-
-      try {
-        setCurrentToNextPolyline(null);
-        setDriverRoutes([]);
-        if (updateDeliveriesLocally && freshDeliveries) {
-          const _sd = freshDeliveries[0]?.delivery_date,_si = new Set(freshDeliveries.map((d) => d?.id).filter(Boolean));
-          updateDeliveriesLocally([...deliveries.filter((d) => d && (d.delivery_date !== _sd || !_si.has(d.id))), ...freshDeliveries], true);
-        }
-        if (updateAppUsersLocally && freshAppUsers) {updateAppUsersLocally(freshAppUsers, true);}
-
-        // CRITICAL: Validate freshAppUsers — offline DB may return junk records with user_id=undefined
-        const validAppUsers = (freshAppUsers || []).filter((u) => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined');
-        const appUsersForPoller = validAppUsers.length > 0 ? validAppUsers : appUsers;
-
-        if (appUsersForPoller && appUsersForPoller.length > 0) {
-          driverLocationPoller.processLocationData(currentUser, freshDeliveries || [], drivers, stores, appUsersForPoller, selectedDate, true, 'Dashboard', showAllDriverMarkers || selectedDriverId === 'all');
-        }
-
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: format(selectedDate, 'yyyy-MM-dd'), triggeredBy: 'pullToSyncDataReady', forceFullUpdate: true } }));
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        // INTENTIONALLY no setMapViewTrigger here.
-        // Pull-to-sync only refreshes data — it must never reposition the map.
-        // Map repositioning is exclusively owned by FAB click, GPS updates, date/driver changes.
-      } catch (error) { console.error('❌ [Dashboard] Pull to sync update failed:', error); }
-    };
-    window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
-    return () => window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
-  }, [updateDeliveriesLocally, updateAppUsersLocally, selectedDate, currentUserId, drivers, stores, showAllDriverMarkers]);
+  usePullToSyncDataReadyEffect({ selectedDate, updateDeliveriesLocally, updateAppUsersLocally, deliveries, drivers, stores, showAllDriverMarkers, selectedDriverId, currentUser, currentUserId, setCurrentToNextPolyline, setDriverRoutes });
 
   // Listen for data source changes and reload deliveries for ALL drivers
-  useEffect(() => {
-    const handleDataSourceChange = async (event) => {
-      const { source } = event.detail || {};
-
-      setIsEntityUpdating(true);
-
-      try {
-        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        let freshDeliveries = [];
-
-        if (source === 'online') {
-          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-          // Update offline DB in background
-          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
-        } else {
-          freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-
-          if (!freshDeliveries || freshDeliveries.length === 0) {
-            freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-          }
-        }
-
-        // Update context with fresh data
-        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-        const allDeliveries = [...otherDateDeliveries, ...freshDeliveries];
-        updateDeliveriesLocally(allDeliveries, true);
-
-        // Force stats refresh with new data
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
-        // Force map update with new data
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: {
-            deliveryDate: selectedDateStr,
-            triggeredBy: 'dataSourceChange',
-            deliveryCount: freshDeliveries.length
-          }
-        }));
-
-        // Show success notification
-        toast.success(`Loaded from ${source === 'online' ? 'Online' : 'Offline'} source`, {
-          description: `${freshDeliveries.length} deliveries for ${format(selectedDate, 'MMM dd')}`
-        });
-
-      } catch (error) {
-        console.error('❌ [Data Source Change] Failed:', error);
-        toast.error('Failed to reload data', {
-          description: error.message
-        });
-      } finally {
-        setIsEntityUpdating(false);
-      }
-    };
-
-    window.addEventListener('dataSourceChanged', handleDataSourceChange);
-    return () => window.removeEventListener('dataSourceChanged', handleDataSourceChange);
-  }, [selectedDate, updateDeliveriesLocally, deliveries]);
+  useDataSourceChangedEffect({ selectedDate, deliveries, updateDeliveriesLocally, setIsEntityUpdating });
 
   // CRITICAL: STEP 0 - ALWAYS fetch fresh AppUser data on app load
   const hasPreRenderSyncRef = useRef(false);
@@ -2606,13 +2448,13 @@ function Dashboard() {
   const dashboardProps = {
     currentUser, selectedDate, selectedDateStr, selectedDriverId, deliveriesWithStopOrder, filteredDeliveries,
     deliveries, patients, stores, drivers, driversList, users, appUsers, cities, stats,
-    isDataLoaded, isEntityUpdating, isDateFinished, isRouteComplete, isDriver, isAdmin,
+    isDataLoaded, isEntityUpdating, isDateFinished, isRouteComplete, completedRouteCity, isDriver, isAdmin,
     isDispatcher, isDriverDropdownDisabled, isAllDriversMode, mapCenter, mapZoom,
     shouldFitBounds, mapViewPhase, mapViewTrigger, isMapViewLocked, mapStyle, mapMode, setMapMode,
     showRoutes: _effectiveShowRoutes, showBreadcrumbs, showAllDriverMarkers, breadcrumbsData, driverLocation, allDriverLocations,
     currentToNextPolyline, driverRoutes, selectedCardId, highlightedCardId, isExpanded,
     areCardsVisible, statsPanelOpacity, stopCardsBaseHeight, statsCardBaseHeight, statsContainerBaseHeight, cardsReadyForFAB, isReoptimizing,
-    optimizationMessage, showDeliveryForm, editingDelivery, showPatientForm, editingPatient,
+    optimizationMessage, showDeliveryForm, editingDelivery, interstorePrefill, showPatientForm, editingPatient,
     patientFormMode, setPatientFormMode, patientFormCallback, setPatientFormCallback,
     showOptimizationSettings, showAIAssistant, isAIEnabled, hasUnreadAIAlerts,
     showQuickAdjustments, showEndOfDayStats, endOfDayDriver, skippedStopsDialogData,

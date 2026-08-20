@@ -24,7 +24,7 @@ function DashboardView({
   // Date & driver selection
   selectedDate, selectedDateStr, selectedDriverId, calendarMonth, setCalendarMonth,
   isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,
-  isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
+  isDriverDropdownDisabled, isAllDriversMode, isDateFinished, isRouteComplete, completedRouteCity,
   // Map state
   mapCenter, mapZoom, shouldFitBounds, setShouldFitBounds, setMapCenter, setMapZoom,
   mapMode, setMapMode, mapViewPhase, setMapViewPhase, isMapViewLocked, setIsMapViewLocked,
@@ -48,7 +48,7 @@ function DashboardView({
   // Cards
   selectedCardId, handleCardClick, handleMarkerClick,
   // Forms
-  showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery,
+  showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery, interstorePrefill,
   showPatientForm, setShowPatientForm, editingPatient, setEditingPatient,
   patientFormCallback, setPatientFormCallback, patientFormMode, setPatientFormMode,
   showOptimizationSettings, setShowOptimizationSettings,
@@ -423,6 +423,8 @@ function DashboardView({
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
           mapStyle={mapStyle}
+          isRouteComplete={isRouteComplete}
+          completedRouteCity={completedRouteCity}
         />
 
         <div
@@ -574,6 +576,7 @@ function DashboardView({
         driverLocation={driverLocation}
         showDeliveryForm={showDeliveryForm} setShowDeliveryForm={setShowDeliveryForm}
         editingDelivery={editingDelivery} setEditingDelivery={setEditingDelivery}
+        interstorePrefill={interstorePrefill}
         showPatientForm={showPatientForm} setShowPatientForm={setShowPatientForm}
         editingPatient={editingPatient} setEditingPatient={setEditingPatient}
         patientFormCallback={patientFormCallback} setPatientFormCallback={setPatientFormCallback}

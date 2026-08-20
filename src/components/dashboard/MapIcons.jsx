@@ -227,7 +227,7 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
       </div>
       <style>
         .store-marker { transition: transform 0.15s ease-out; will-change: transform; }
-        .leaflet-marker-icon:has(.store-marker:hover) { z-index: 9999 !important; transform: scale(1.15); }
+        .leaflet-marker-icon:has(.store-marker:hover) { z-index: 30000 !important; transform: scale(1.15); }
       </style>
     `,
     className: 'custom-store-icon',
@@ -329,7 +329,7 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
       </div>
       <style>
         .delivery-marker { transition: transform 0.15s ease-out; will-change: transform; }
-        .leaflet-marker-icon:has(.delivery-marker:hover) { z-index: 9999 !important; transform: scale(1.15); }
+        .leaflet-marker-icon:has(.delivery-marker:hover) { z-index: 30000 !important; transform: scale(1.15); }
       </style>
     `,
     className: 'custom-delivery-icon',
@@ -483,11 +483,47 @@ export const createHomeIcon = (color = '#10B981') => {
       </div>
       <style>
         .home-marker { transition: transform 0.2s ease; }
-        .leaflet-marker-icon:has(.home-marker:hover) { z-index: 9999 !important; transform: scale(1.15); }
+        .leaflet-marker-icon:has(.home-marker:hover) { z-index: 30000 !important; transform: scale(1.15); }
       </style>
     `,
     className: 'custom-home-icon',
     iconSize: [w, h],
     iconAnchor: [w / 2, h]
+  });
+};
+
+/**
+ * Solid bright red circle marker for InterStore locations.
+ * Red fill + red border, sized smaller than the regular delivery/store
+ * markers but large enough to stay clickable. Low z-index keeps it under
+ * stop markers but above polylines.
+ */
+export const createInterStoreIcon = (mode = 'off') => {
+  const size = 14;
+  // Match the toggle button: pickup = green, dropoff = red.
+  const isPickup = mode === 'pickup';
+  const fillColor = isPickup ? '#16A34A' : '#DC2626';
+  const borderColor = isPickup ? '#14532D' : '#991B1B';
+  return L.divIcon({
+    html: `
+      <div class="inter-store-marker" style="
+        width: ${size}px;
+        height: ${size}px;
+        background-color: ${fillColor};
+        border: 2px solid ${borderColor};
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        cursor: pointer;
+        position: relative;
+      ">
+      </div>
+      <style>
+        .inter-store-marker { transition: transform 0.15s ease; }
+        .leaflet-marker-icon:has(.inter-store-marker:hover) { z-index: 30000 !important; transform: scale(1.25); }
+      </style>
+    `,
+    className: 'custom-inter-store-icon',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
   });
 };

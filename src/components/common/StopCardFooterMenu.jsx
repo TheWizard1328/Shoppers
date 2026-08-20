@@ -96,9 +96,9 @@ export default function StopCardFooterMenu(props) {
     isActivePickup || (isActiveDelivery && (isNextDelivery || canShowComplete))
   ) && !isInterStore);
 
-  const canShowDelete = !!(!isDispatcherOnly && canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
+  const canShowDelete = !!(!isDispatcherOnly && canManageStop && !(isDriverOnly && routeCompleted) && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
 
-  const canShowRestart = !!(routeCompleted && onRestart && delivery?.status !== 'failed' && ['completed', 'cancelled'].includes(delivery?.status));
+  const canShowRestart = !!(routeCompleted && !isDriverOnly && onRestart && delivery?.status !== 'failed' && ['completed', 'cancelled'].includes(delivery?.status));
 
   const dispatcherStoreIds = Array.isArray(currentUser?.store_ids) ? currentUser.store_ids : [];
   const selectedDate = delivery?.delivery_date;
@@ -112,6 +112,10 @@ export default function StopCardFooterMenu(props) {
   const [open, setOpen] = useState(false);
   const [showRestartDialog, setShowRestartDialog] = useState(false);
   const closeMenu = () => setOpen(false);
+
+  // Drivers: once the whole route is finished, hide the popup menu button entirely
+  // (instead of only hiding Restart/Delete). Admins/owners/dispatchers still get it.
+  if (isDriverOnly && routeCompleted) return null;
 
   if (isCurrentDispatcherStopFinished && areAllDispatcherStoreStopsFinished) return null;
 

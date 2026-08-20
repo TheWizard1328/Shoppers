@@ -21,11 +21,12 @@ const buildHereHybridOverlayTileUrl = (apiKey) => `https://maps.hereapi.com/v3/b
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getHereApiKey } from "../utils/hereApiKeyStore";
 import { getStoreColor } from "../utils/colorGenerator";
-import { userHasRole } from "../utils/userRoles";
+import { userHasRole, isAppOwner } from "../utils/userRoles";
 import { sortUsers } from "../utils/sorting";
 import { getPolylineColorForDriver } from "../utils/polylineColors";
 import MapCrosshair from "./MapCrosshair";
 import { buildMapPadding } from "./DashboardHelpers";
+import { getRadiusFitZoom, DEFAULT_MAP_MAX_ZOOM, COMPLETED_ROUTE_RADIUS_KM } from "./completedRouteView";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
 import HereTileUsageTracker from "./HereTileUsageTracker";
@@ -33,6 +34,7 @@ import UnifiedRoutePolylines from "./UnifiedRoutePolylines";
 import PickupMarkers from "./PickupMarkers";
 import DeliveryMarkers from "./DeliveryMarkers";
 import HomeMarkers from "./HomeMarkers";
+import InterStoreMarkers from "./InterStoreMarkers";
 import MapBreadcrumbs from "./MapBreadcrumbs";
 import { createLiveLocationDot } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
@@ -190,6 +192,8 @@ function DeliveryMap({
   onMapReady = () => {},
   mapViewPhase = 1,
   isMapViewLocked = false,
+  isRouteComplete = false,
+  completedRouteCity = null,
   topOverlayHeight = 0,
   statsContainerBaseHeight = 0,
   immersiveHidden = false,
@@ -1407,6 +1411,29 @@ function DeliveryMap({
     [isMobile, immersiveHidden, topOverlayHeight, stopCardsHeight, isStatsCardExpanded, statsContainerBaseHeight]
   );
 
+  // Completed route → lock the map's maxZoom to the 20km-radius overview so the
+  // driver can pan/zoom OUT freely but cannot zoom back IN past the overview.
+  // Restores the default (18) when the route is no longer finished.
+  // Drivers-only: AppOwners, admins, and dispatchers keep full free zoom on
+  // any finished route so they can review stops up close.
+  const driverZoomLockEligible =
+    userHasRole(currentUser, "driver") &&
+    !isAppOwner(currentUser) &&
+    !userHasRole(currentUser, "admin") &&
+    !userHasRole(currentUser, "dispatcher");
+  useEffect(() => {
+    if (!map) return;
+    if (driverZoomLockEligible && isRouteComplete && completedRouteCity?.latitude != null) {
+      const size = map.getSize();
+      const padX = ((crosshairPadding.paddingTopLeft?.[0]) || 0) + ((crosshairPadding.paddingBottomRight?.[0]) || 0);
+      const padY = (crosshairPadding.topPadding || 0) + (crosshairPadding.bottomPadding || 0);
+      const lockZoom = getRadiusFitZoom({ latitude: completedRouteCity.latitude, radiusKm: COMPLETED_ROUTE_RADIUS_KM, mapSize: size, padX, padY });
+      map.setMaxZoom(Number.isFinite(lockZoom) ? lockZoom : DEFAULT_MAP_MAX_ZOOM);
+    } else {
+      map.setMaxZoom(DEFAULT_MAP_MAX_ZOOM);
+    }
+  }, [map, isRouteComplete, completedRouteCity, crosshairPadding, driverZoomLockEligible]);
+
   return (
     <div className="absolute inset-0">
       <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} />
@@ -1548,6 +1575,10 @@ function DeliveryMap({
 
         {mapReady && (
           <HomeMarkers driverHomeMarkers={driverHomeMarkers} map={map} isMobile={isMobile} onMarkerClick={onMarkerClick} />
+        )}
+
+        {mapReady && (
+          <InterStoreMarkers />
         )}
 
         {/* Fan lines: draw lines from cluster origin to each fanned marker */}

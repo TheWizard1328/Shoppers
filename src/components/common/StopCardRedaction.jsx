@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
-import { userHasRole } from '../utils/userRoles';
 import { useInterStoreDisplayName, useInterStoreLocation } from '../utils/interStoreDisplayName';
 import { getDeliveryTypeFlags, getCyclingMarkerDisplayInfo } from '../utils/deliveryTypeUtils';
+import { shouldRedactDeliveryInfo } from './deliveryRedaction';
 
 /**
  * Custom hook that encapsulates all patient data redaction logic for StopCard.
@@ -57,21 +57,10 @@ export function useDeliveryDisplayInfo({
     return patient?.phone || '';
   }, [delivery, isISP, isISD, ispLocation, isPickup, isInterStore, store, patient]);
 
-  const shouldRedact = useMemo(() => {
-    if (!delivery || !currentUser) return false;
-    if (isPickup || isInterStore || isInterStorePickup) return false;
-    // Redact for all finished deliveries (completed, failed, cancelled) for drivers
-    const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
-    if (
-      FINISHED_STATUSES.includes(delivery.status) &&
-      !userHasRole(currentUser, 'admin') &&
-      !userHasRole(currentUser, 'dispatcher') &&
-      userHasRole(currentUser, 'driver')
-    ) {
-      return true;
-    }
-    return false;
-  }, [delivery?.status, isPickup, isInterStore, isInterStorePickup, currentUser]);
+  const shouldRedact = useMemo(
+    () => shouldRedactDeliveryInfo({ delivery, patient, currentUser }),
+    [delivery, patient, currentUser]
+  );
 
   const finalDisplayName = useMemo(() => {
     if (isISP && ispDisplayName) return ispDisplayName;
