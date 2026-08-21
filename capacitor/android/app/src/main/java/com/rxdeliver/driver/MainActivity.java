@@ -13,6 +13,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.core.content.FileProvider;
@@ -21,8 +22,12 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.CapConfig;
+import com.getcapacitor.WebViewListener;
 import java.io.File;
 import java.lang.reflect.Field;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends BridgeActivity {
 
@@ -254,6 +259,73 @@ public class MainActivity extends BridgeActivity {
         if (webView != null) {
             webView.addJavascriptInterface(new NativeDownloadInterface(), "AndroidNative");
         }
+
+        // ── WebView renderer crash recovery ──────────────────────────
+        // CRITICAL FIX: Chrome WebView runs its rendering engine in a separate
+        // process. Under memory pressure (common on shared-use tablets running
+        // all day with maps, GPS, camera, BLE, and image-heavy stop cards) that
+        // renderer process can be killed by the OS. Android's WebViewClient
+        // contract is explicit: if onRenderProcessGone() is NOT overridden (or
+        // is overridden but returns false with no recovery), the framework
+        // kills the ENTIRE app process outright — no exception is thrown, no
+        // JS error fires, no React error boundary catches anything. This is
+        // exactly the "taskbar disappears, screen goes white, app closes,
+        // taskbar reappears" symptom reported on the dispatcher/driver tablets.
+        //
+        // Fix: register a WebViewListener on the Capacitor bridge, destroy the
+        // dead WebView, persist a crash marker into the SAME SharedPreferences
+        // file ("CapacitorStorage") backing @capacitor/preferences (group
+        // default), so the JS side can read it via Preferences.get() right
+        // after reboot and log/report it — then recreate() the Activity so
+        // Capacitor reinitializes a fresh WebView + bridge instead of the
+        // whole app being killed to the home screen.
+        this.bridge.addWebViewListener(new WebViewListener() {
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                boolean didCrash = detail != null && detail.didCrash();
+                try {
+                    SharedPreferences crashPrefs = getSharedPreferences("CapacitorStorage", MODE_PRIVATE);
+                    SharedPreferences.Editor editor = crashPrefs.edit();
+                    String nowIso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(new Date());
+                    int prevCount = 0;
+                    try {
+                        prevCount = Integer.parseInt(crashPrefs.getString("rxdeliver_native_crash_count", "0"));
+                    } catch (Exception ignored) {}
+                    editor.putString("rxdeliver_native_crash_last", nowIso);
+                    editor.putString("rxdeliver_native_crash_did_crash", String.valueOf(didCrash));
+                    editor.putString("rxdeliver_native_crash_count", String.valueOf(prevCount + 1));
+                    editor.apply();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                // The dead renderer's WebView instance is unusable — destroy it,
+                // then restart the Activity so Capacitor builds a brand-new
+                // WebView + bridge and reloads the app fresh. This keeps the
+                // app process (and thus the user's session) alive instead of
+                // Android silently killing it.
+                try {
+                    if (view != null) {
+                        view.destroy();
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    try {
+                        recreate();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+
+                // Returning true tells Android WE handled the renderer loss —
+                // this is what prevents the framework's default "kill the app"
+                // behavior from kicking in.
+                return true;
+            }
+        });
     }
 
     @Override

@@ -1,6 +1,7 @@
 import '@/components/utils/storageQuotaGuard'
 import ChunkErrorBoundary from '@/components/utils/ChunkErrorBoundary'
 import '@/components/utils/remoteLoggerInit'
+import '@/components/utils/nativeCrashReporter'
 import './App.css'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
