@@ -8,7 +8,7 @@ import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capac
 import { userHasRole } from '../utils/userRoles';
 import { loadUserSettings, clearSettingsCache, getDeviceType, getDeviceIdentifier } from '../utils/userSettingsManager';
 import { isMobileDeviceForTheme } from '../utils/deviceUtils';
-import { getCompanyBranding } from '../utils/brandingManager';
+import { getCompanyBranding, getCachedBranding } from '../utils/brandingManager';
 import { offlineDB } from '../utils/offlineDatabase';
 import { initializeGlobalFilters } from './initializeGlobalFilters';
 import { loadNotificationTemplates, subscribeToTemplateUpdates } from '../utils/notificationRules';
@@ -135,6 +135,10 @@ export function useLayoutInit({
             heartbeatService.start(appUserRecord.id, isDispatcherRole, fetchedUser.id);
           }
         } catch { /* non-critical */ }
+        // Apply cached branding IMMEDIATELY from localStorage (survives Android recreate)
+        const _cached = getCachedBranding();
+        if (_cached?.logo_url) { setBranding(_cached); const { applyBrandingStyles } = await import('../utils/brandingManager'); applyBrandingStyles(_cached); }
+        // Then fetch fresh branding from API (may override cached if it changed)
         if (fetchedUser?.company_id) {try {const b = await getCompanyBranding(fetchedUser.company_id);setBranding(b);const { applyBrandingStyles } = await import('../utils/brandingManager');applyBrandingStyles(b);} catch {}}
 
         // ── STEP 2: Apply offline data to UI immediately ──

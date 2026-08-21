@@ -11,8 +11,26 @@ const DEFAULT_BRANDING = {
 };
 
 let cachedBranding = null;
+const BRANDING_LS_KEY = 'rxdeliver_cached_branding';
 
-export function clearBrandingCache() { cachedBranding = null; }
+export function clearBrandingCache() { cachedBranding = null; try { localStorage.removeItem(BRANDING_LS_KEY); } catch {} }
+
+/**
+ * Load branding from localStorage cache — used for instant render on boot
+ * before the API call completes. Critical after Android recreate() where
+ * JS memory is wiped but localStorage persists.
+ */
+export function getCachedBranding() {
+  if (cachedBranding) return cachedBranding;
+  try {
+    const raw = localStorage.getItem(BRANDING_LS_KEY);
+    if (raw) {
+      cachedBranding = JSON.parse(raw);
+      return cachedBranding;
+    }
+  } catch {}
+  return DEFAULT_BRANDING;
+}
 
 export async function getCompanyBranding(companyId) {
   if (!companyId) return DEFAULT_BRANDING;
@@ -31,6 +49,8 @@ export async function getCompanyBranding(companyId) {
         secondary_color: company[0].secondary_color || DEFAULT_BRANDING.secondary_color,
         accent_color: company[0].accent_color || DEFAULT_BRANDING.accent_color
       };
+      // Persist to localStorage so it survives Android recreate() and page reloads
+      try { localStorage.setItem(BRANDING_LS_KEY, JSON.stringify(cachedBranding)); } catch {}
       return cachedBranding;
     }
   } catch (error) {
@@ -56,13 +76,4 @@ export function applyBrandingStyles(branding) {
     }
     favicon.href = branding.favicon_url;
   }
-}
-
-export function getBrandingColor(colorType, branding) {
-  const colorMap = {
-    'primary': branding.primary_color,
-    'secondary': branding.secondary_color,
-    'accent': branding.accent_color
-  };
-  return colorMap[colorType] || DEFAULT_BRANDING[`${colorType}_color`];
 }

@@ -624,8 +624,13 @@ const subscribeToEntity = (entityName) => {
   window.__realtimeSyncSubscribed.add(entityName);
 
   try {
-    // Keep track of entity data to detect changes
+    // Keep track of entity data to detect changes.
+    // MEMORY LEAK FIX: Bound the cache to prevent unbounded growth on
+    // long-running tablets. The cache is only used for getChangedFields()
+    // comparison — old entries that haven't been updated recently are useless.
+    // Clear when exceeding 2000 entries (enough for all active deliveries + app users).
     const entityDataCache = new Map();
+    const ENTITY_DATA_CACHE_MAX = 2000;
 
     const unsubscribe = base44.entities[entityName].subscribe(async (event) => {
     const { type, id } = event;
@@ -699,6 +704,12 @@ const subscribeToEntity = (entityName) => {
       } else if (type === 'delete') {
         entityDataCache.delete(id);
       }
+      // Bound the cache — clear oldest entries when exceeding the limit
+      if (entityDataCache.size > ENTITY_DATA_CACHE_MAX) {
+        const _keys = entityDataCache.keys();
+        let _toDelete = entityDataCache.size - ENTITY_DATA_CACHE_MAX;
+        while (_toDelete-- > 0) entityDataCache.delete(_keys.next().value);
+      }
       
       // For Delivery, look up patient_name from the offline DB if not present in the broadcast payload
       let deliveryDisplayName = data?.patient_name || data?.full_name;
@@ -724,14 +735,24 @@ const subscribeToEntity = (entityName) => {
       // for the same record (e.g. one with encoded_polyline, one with polyline_saved_at)
       // are NOT collapsed — both must pass through to deliver the full polyline update.
       if (!window.__realtimeSyncDedupeCache) window.__realtimeSyncDedupeCache = new Map();
+      // MEMORY LEAK FIX: Bound the dedupe cache to prevent unbounded growth on
+      // long-running tablets. Every WS event adds a key; without cleanup, the Map
+      // grows indefinitely until the renderer OOMs. Sweep entries older than 5s
+      // every 200 events (the 500ms dedupe window means entries older than 5s are
+      // guaranteed stale and never matched again).
+      const _dedupe = window.__realtimeSyncDedupeCache;
+      if (_dedupe.size > 200) {
+        const _cutoff = Date.now() - 5000;
+        for (const [_k, _v] of _dedupe) { if (_v < _cutoff) _dedupe.delete(_k); }
+      }
       const changedFieldsKey = changedFields.length > 0 ? changedFields.slice().sort().join(',') : '';
       const dedupeKey = `${entityName}:${id}:${type}:${changedFieldsKey}`;
       const now = Date.now();
-      const lastSeen = window.__realtimeSyncDedupeCache.get(dedupeKey) || 0;
+      const lastSeen = _dedupe.get(dedupeKey) || 0;
       if (now - lastSeen < 500) {
         return; // Duplicate WebSocket event from another module instance — skip
       }
-      window.__realtimeSyncDedupeCache.set(dedupeKey, now);
+      _dedupe.set(dedupeKey, now);
 
       console.log(`📡 [RealtimeSync] [${rsTime()}] ${entityName} ${type}: ${displayId}${changedFields.length > 0 ? ` changed: ${changedFields.join(', ')}` : ''}`);
       

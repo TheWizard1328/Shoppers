@@ -283,6 +283,7 @@ public class MainActivity extends BridgeActivity {
             @Override
             public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
                 boolean didCrash = detail != null && detail.didCrash();
+                long nowMs = System.currentTimeMillis();
                 try {
                     SharedPreferences crashPrefs = getSharedPreferences("CapacitorStorage", MODE_PRIVATE);
                     SharedPreferences.Editor editor = crashPrefs.edit();
@@ -291,10 +292,31 @@ public class MainActivity extends BridgeActivity {
                     try {
                         prevCount = Integer.parseInt(crashPrefs.getString("rxdeliver_native_crash_count", "0"));
                     } catch (Exception ignored) {}
+                    // Track crash timing for circuit breaker
+                    long lastCrashMs = 0;
+                    try {
+                        lastCrashMs = Long.parseLong(crashPrefs.getString("rxdeliver_native_crash_last_ms", "0"));
+                    } catch (Exception ignored) {}
+                    long sinceLastCrash = lastCrashMs > 0 ? (nowMs - lastCrashMs) : Long.MAX_VALUE;
                     editor.putString("rxdeliver_native_crash_last", nowIso);
+                    editor.putString("rxdeliver_native_crash_last_ms", String.valueOf(nowMs));
                     editor.putString("rxdeliver_native_crash_did_crash", String.valueOf(didCrash));
                     editor.putString("rxdeliver_native_crash_count", String.valueOf(prevCount + 1));
                     editor.apply();
+
+                    // CIRCUIT BREAKER: If the renderer crashed within 30 seconds
+                    // of the previous crash, we're in a crash loop — the fresh
+                    // WebView load is triggering another OOM. Instead of looping
+                    // forever (which kills the battery and frustrates the user),
+                    // let the OS handle it this time (return false = Android's
+                    // default behavior). The crash marker is still logged so
+                    // the JS side can report it if the app survives via a
+                    // manual restart.
+                    if (sinceLastCrash < 30000) {
+                        android.util.Log.w("RxDeliver", "🚨 Render process crash loop detected (" + sinceLastCrash + "ms since last crash) — letting OS handle");
+                        if (view != null) { try { view.destroy(); } catch (Exception e) { e.printStackTrace(); } }
+                        return false; // Let Android's default handling kick in
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
