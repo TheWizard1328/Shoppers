@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { isCapacitorNativeApp, getCapacitorPlatform } from '@/components/utils/locationProviders/capacitorRuntime';
 import { isNativePushAvailable, checkNativePushPermission, initNativePushNotifications, forceReRegisterNativePush, runPushDiagnostics, getRegistrationDiagnostics } from "@/components/utils/nativePushNotifications";
 import { useLatestApkBuildInfo } from '@/components/utils/useBuildInfo';
+import { useAndroidAppUpdateCheck } from '@/components/utils/nativeAppUpdateCheck';
 import { getUserAgentInfo } from '@/components/utils/deviceUtils';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -463,57 +464,8 @@ export function SettingsDialog({ open, onOpenChange, title, description, icon: I
   );
 }
 
-// ── Android App Update Check ──────────────────────────────────────────────
-// Compares the installed native app's build date (embedded in versionName by
-// capacitor/android/app/build.gradle as "1.0 (yyyy-MM-dd HH:mm)") against the
-// latest GitHub release's published_at timestamp. Only meaningful inside the
-// native Android APK — web/iOS never show an "update" state.
-// Compares the installed native app's build number against the latest build
-// number from GitHub Actions (passed in from useLatestApkBuildInfo, which now
-// polls every 5 min — so updateAvailable re-evaluates live). Only meaningful
-// inside the native Android APK — web/iOS never show an "update" state.
-function useAndroidAppUpdateCheck(latestBuildNumber) {
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [installedVersion, setInstalledVersion] = useState(null);
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!isCapacitorNativeApp() || getCapacitorPlatform() !== 'android') {
-        setChecked(true);
-        return;
-      }
-      try {
-        const { App } = await import('@capacitor/app');
-        const info = await App.getInfo();
-        const versionStr = info?.version || '';
-        const buildMatch = /1\.0\.(\d+)/.exec(versionStr);
-        const installedNum = buildMatch ? parseInt(buildMatch[1], 10) : null;
-
-        if (!cancelled) setInstalledVersion({ buildNumber: installedNum, versionStr });
-
-        const latestNum = latestBuildNumber != null ? parseInt(latestBuildNumber, 10) : null;
-        // New badge shows ONLY when the latest build number is strictly greater than the installed one.
-        if (!cancelled) {
-          if (installedNum != null && latestNum != null && latestNum > installedNum) {
-            setUpdateAvailable(true);
-          } else {
-            setUpdateAvailable(false);
-          }
-        }
-      } catch {
-        // Silently skip — no update badge shown, not a critical feature
-      } finally {
-        if (!cancelled) setChecked(true);
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, [latestBuildNumber]);
-
-  return { updateAvailable, installedVersion, checked };
-}
+// useAndroidAppUpdateCheck now lives in @/components/utils/nativeAppUpdateCheck
+// (shared with the sidebar so both show the same "New" update badge).
 
 // ── APK Download — state hook ───────────────────────────────────────────────
 // Lives outside the SettingsDialog's transformed containing block so the

@@ -38,6 +38,7 @@ import { getEffectiveUser, clearUserCache } from '../utils/auth';
 import { calculateRouteCodBalance } from '../utils/codTotalCalculator';
 import { createPageUrl } from '../../utils';
 import { useSidebarEntitySubscriptions } from './useSidebarEntitySubscriptions';
+import { useAndroidAppUpdateCheck, NativeUpdateBadge } from '../utils/nativeAppUpdateCheck';
 
 /**
  * AppSidebar
@@ -67,10 +68,16 @@ export default function AppSidebar({
   getOverviewUrl,
   currentPayrollNetPay,
   onlineCounts,
-  totalRoutesCount
+  totalRoutesCount,
+  latestBuildNumber
 }) {
   const { isMobile, isTabletPortrait, isWideScreenMobile, deviceType } = useDevice();
   const navigate = useNavigate();
+
+  // Native Android APK update check — lights up a "New" badge beside the User
+  // Settings link when a newer build is available (same check as the Settings
+  // page Native App section, using the build number Layout already fetches).
+  const { updateAvailable: nativeAppUpdateAvailable } = useAndroidAppUpdateCheck(latestBuildNumber);
 
   // CTRL/CMD + click on the app logo opens User Settings — the only entry point
   // for dispatchers (who don't get the sidebar link). Admins/drivers keep their
@@ -599,6 +606,7 @@ export default function AppSidebar({
               }}>
           <Settings className="w-5 h-5" />
           <span className="font-semibold">User Settings</span>
+          {nativeAppUpdateAvailable && <NativeUpdateBadge className="ml-auto" />}
         </Link>
             }
 

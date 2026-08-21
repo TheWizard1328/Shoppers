@@ -1287,6 +1287,7 @@ export default function Layout({ children, currentPageName }) {
                   setSidebarOpen={setSidebarOpen}
                   branding={branding}
                   appVersion={sidebarVersion}
+                  latestBuildNumber={latestBuild?.buildNumber ?? null}
                   currentUser={currentUser}
                   setCurrentUser={setCurrentUser}
                   currentPageName={currentPageName}
