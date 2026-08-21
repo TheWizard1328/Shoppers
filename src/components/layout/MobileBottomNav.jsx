@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { createPageUrl } from '@/utils';
 import { userHasRole } from '@/components/utils/userRoles';
@@ -134,7 +134,6 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
       </div>
     </nav>
   );
-}
 });
 
 MobileBottomNav.displayName = "MobileBottomNav";

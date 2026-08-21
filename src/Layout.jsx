@@ -430,6 +430,32 @@ export default function Layout({ children, currentPageName }) {
   // Ref to track if we're currently reloading data due to AppUser change
   const isReloadingFromAppUserChange = useRef(false);
   const needsDataReload = useRef(false);
+  const bottomNavRef = useRef(null);
+
+  // Measure the actual bottom nav height and set --bottom-nav-height CSS variable
+  // so overlays (bulk edit panel, dialogs) can sit above the nav bar.
+  useEffect(() => {
+    const measureNav = () => {
+      const nav = bottomNavRef.current;
+      if (nav) {
+        const h = nav.offsetHeight;
+        document.documentElement.style.setProperty('--bottom-nav-height', `${h}px`);
+      } else {
+        document.documentElement.style.setProperty('--bottom-nav-height', '0px');
+      }
+    };
+    measureNav();
+    // Re-measure on resize and orientation change
+    window.addEventListener('resize', measureNav);
+    window.addEventListener('orientationchange', measureNav);
+    // Also re-measure after a delay (fonts/layout may shift)
+    const t = setTimeout(measureNav, 500);
+    return () => {
+      window.removeEventListener('resize', measureNav);
+      window.removeEventListener('orientationchange', measureNav);
+      clearTimeout(t);
+    };
+  }, [isMobile, currentUser]);
 
   // Granular delivery update function for immediate UI synchronization
   const updateDeliveriesLocally = useCallback((newDeliveries, isFullReplacement = false) => {
@@ -1373,7 +1399,7 @@ export default function Layout({ children, currentPageName }) {
                     {/* Mobile Bottom Nav - inside main-content-area so flex column shrinks main naturally */}
                     {/* Bottom nav shows only on mobile phones (portrait) and tablet-portrait — never in landscape */}
                     {!sidebarOpen && currentUser && isMobile &&
-              <MobileBottomNav currentUser={currentUser} currentPageName={currentPageName} onSidebarToggle={() => setSidebarOpen(true)} />
+              <MobileBottomNav ref={bottomNavRef} currentUser={currentUser} currentPageName={currentPageName} onSidebarToggle={() => setSidebarOpen(true)} />
               }
               </div>
             </div>

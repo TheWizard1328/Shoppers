@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -552,15 +552,16 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerOverlay className="z-[9990] bg-black/70" />
+        <DrawerOverlay className="z-[11000] bg-black/70" />
         <DrawerContent
-          className="z-[9999] max-h-[calc(100vh-var(--bottom-nav-height)-0.75rem)]"
+          className="z-[11001] max-h-[calc(100dvh-var(--bottom-nav-height,0px)-env(safe-area-inset-bottom,0px)-0.75rem)]"
           style={{
             background: "var(--bg-white)",
-            bottom: "var(--bottom-nav-height)"
+            bottom: "calc(var(--bottom-nav-height, 0px) + env(safe-area-inset-bottom, 0px))",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
           }}>
           
-          <DrawerHeader>
+          <DrawerHeader style={{ paddingTop: "max(1rem, env(safe-area-inset-top, 0px))" }}>
             <DrawerTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</DrawerTitle>
             <DrawerDescription style={{ color: "var(--text-slate-500)" }}>
               Update the basic route info for the selected stops.
@@ -574,8 +575,14 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
 
   return (
     <div
-      className={`fixed inset-0 z-[9990] flex items-center justify-center ${open ? '' : 'pointer-events-none opacity-0'}`}
-      style={{ transition: 'opacity 0.2s', left: sidebarWidth }}>
+      className={`fixed z-[11000] flex items-center justify-center ${open ? '' : 'pointer-events-none opacity-0'}`}
+      style={{
+        transition: 'opacity 0.2s',
+        top: 'env(safe-area-inset-top, 0px)',
+        bottom: 'calc(var(--bottom-nav-height, 0px) + env(safe-area-inset-bottom, 0px))',
+        left: `calc(${sidebarWidth}px + env(safe-area-inset-left, 0px))`,
+        right: 'env(safe-area-inset-right, 0px)',
+      }}>
       
       {/* Backdrop */}
       <div
@@ -584,7 +591,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       
       {/* Panel */}
       <div
-        className="relative z-[9999] flex max-h-[90vh] w-auto min-w-[380px] max-w-[520px] flex-col rounded-xl shadow-2xl"
+        className="relative z-[11001] flex max-h-[90vh] w-auto min-w-[380px] max-w-[520px] flex-col rounded-xl shadow-2xl"
         style={{ background: "var(--bg-white)" }}>
         
         <div className="border-b px-6 py-2" style={{ borderColor: "var(--border-slate-200)" }}>
