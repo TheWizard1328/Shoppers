@@ -16,7 +16,7 @@ import {
   CalendarDays,
 } from 'lucide-react';
 
-export default function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle }) {
+const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle }, ref) {
   const { activeTab, navigateToTab } = useMobileNavigation();
   const { os, deviceType } = useDevice();
   const isIOS = os === 'iOS' && deviceType === 'Mobile';
@@ -62,6 +62,7 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
 
   return (
     <nav
+      ref={ref}
       data-mobile-bottom-nav
       className="relative z-[150] shrink-0 border-t"
       style={{
@@ -134,3 +135,8 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
     </nav>
   );
 }
+});
+
+MobileBottomNav.displayName = "MobileBottomNav";
+
+export default MobileBottomNav;
