@@ -82,13 +82,23 @@ Deno.serve(async (req) => {
         checksum += code * (i + 1);
       }
       const checksumVal = checksum % 103;
+      // Each entry in CODE128_BARS is an 11- (or 13- for STOP) unit pattern where
+      // consecutive '1' digits merge into one black bar and consecutive '0'
+      // digits merge into one white space. Parse runs — do NOT iterate char by
+      // char (that treats '0' as width 0 and misalternates the bar flag, which
+      // produces a symbol that looks like a barcode but will not decode).
       const pattern = CODE128_BARS[START_B] + chars.map((c) => CODE128_BARS[c]).join('') + CODE128_BARS[checksumVal] + CODE128_BARS[STOP];
       const bars = [];
       let x = 0;
-      for (let i = 0; i < pattern.length; i++) {
-        const w = parseInt(pattern[i], 10);
-        bars.push({ x, w, bar: i % 2 === 0 });
+      let i = 0;
+      while (i < pattern.length) {
+        const ch = pattern[i];
+        let j = i;
+        while (j < pattern.length && pattern[j] === ch) j++;
+        const w = j - i;
+        if (ch === '1') bars.push({ x, w, bar: true }); // only emit bars; spaces are implicit
         x += w;
+        i = j;
       }
       return { bars, totalWidth: x };
     }
