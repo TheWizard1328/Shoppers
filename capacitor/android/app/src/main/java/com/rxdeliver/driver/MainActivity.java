@@ -17,6 +17,7 @@ import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.core.content.FileProvider;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -296,7 +297,7 @@ public class MainActivity extends BridgeActivity {
             if (webView != null) {
                 webView.evaluateJavascript(js, null);
             }
-            return WindowInsetsCompat.CONSUMED;
+            return insets;
         });
 
         // ── WebView renderer crash recovery ──────────────────────────
