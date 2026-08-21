@@ -39,8 +39,13 @@ export const mapPendingDeliveriesToStaged = ({
   if (puid) {
     const parentPickup = allDeliveries.find((item) => item && !item.patient_id && item.stop_id === puid);
     if (parentPickup) {
-      finalStoreId = parentPickup.store_id || delivery.store_id;
-      timeSlot = parentPickup.ampm_deliveries || delivery.ampm_deliveries;
+      // The delivery's own store_id is authoritative — only fall back to the parent
+      // pickup's store_id when the delivery record is missing its own (e.g. legacy
+      // data or a partial IDB write that lost the field). Inheriting the pickup's
+      // store_id when the delivery already has its own would silently reassign the
+      // stop to the pickup's store on the next save, corrupting both IDB and server.
+      finalStoreId = delivery.store_id || parentPickup.store_id || '';
+      timeSlot = delivery.ampm_deliveries || parentPickup.ampm_deliveries || null;
     }
   }
 

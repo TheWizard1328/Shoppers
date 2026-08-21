@@ -447,7 +447,15 @@ export default function DeliveryForm({
       let finalAmpm = delivery.ampm_deliveries || null;
       if (delivery.patient_id && delivery.puid && allDeliveries) {
         const parentPickup = allDeliveries.find((d) => d && !d.patient_id && d.stop_id === delivery.puid);
-        if (parentPickup) { finalStoreId = parentPickup.store_id || delivery.store_id; finalAmpm = parentPickup.ampm_deliveries || delivery.ampm_deliveries; }
+        if (parentPickup) {
+          // The delivery's own store_id is authoritative — only fall back to the parent
+          // pickup's store_id when the delivery record is missing its own (e.g. legacy
+          // data or a partial IDB write that lost the field). Inheriting the pickup's
+          // store_id when the delivery already has its own would silently reassign the
+          // stop on the next save.
+          finalStoreId = delivery.store_id || parentPickup.store_id || "";
+          finalAmpm = delivery.ampm_deliveries || parentPickup.ampm_deliveries || null;
+        }
       }
       setFormData({
         patient_id: delivery.patient_id || "", delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
@@ -735,7 +743,14 @@ export default function DeliveryForm({
     if (staged.patient_id && staged.puid) {
       const allPossiblePickups = [...stagedDeliveries, ...(allDeliveries || [])];
       const parentPickup = allPossiblePickups.find((d) => d && !d.patient_id && d.stop_id === staged.puid);
-      if (parentPickup) { formDataToSet.store_id = parentPickup.store_id || staged.store_id; formDataToSet.ampm_deliveries = parentPickup.ampm_deliveries || staged.ampm_deliveries; }
+      if (parentPickup) {
+        // The staged item's own store_id is authoritative — only fall back to the parent
+        // pickup's store_id when the staged item is missing its own (e.g. legacy data or
+        // a partial IDB write that lost the field). Inheriting the pickup's store_id when
+        // the staged item already has its own would silently reassign the stop on save.
+        formDataToSet.store_id = staged.store_id || parentPickup.store_id || '';
+        formDataToSet.ampm_deliveries = staged.ampm_deliveries || parentPickup.ampm_deliveries || null;
+      }
     }
     setFormData(formDataToSet); setSelectedPatient(null);
     if (staged.store_id && isPickupMode) {

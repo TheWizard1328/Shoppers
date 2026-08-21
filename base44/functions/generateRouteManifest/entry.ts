@@ -82,26 +82,47 @@ Deno.serve(async (req) => {
         checksum += code * (i + 1);
       }
       const checksumVal = checksum % 103;
+      // Each entry in CODE128_BARS is an 11- (or 13- for STOP) unit pattern where
+      // consecutive '1' digits merge into one black bar and consecutive '0'
+      // digits merge into one white space. Parse runs — do NOT iterate char by
+      // char (that treats '0' as width 0 and misalternates the bar flag, which
+      // produces a symbol that looks like a barcode but will not decode).
       const pattern = CODE128_BARS[START_B] + chars.map((c) => CODE128_BARS[c]).join('') + CODE128_BARS[checksumVal] + CODE128_BARS[STOP];
       const bars = [];
       let x = 0;
-      for (let i = 0; i < pattern.length; i++) {
-        const w = parseInt(pattern[i], 10);
-        bars.push({ x, w, bar: i % 2 === 0 });
+      let i = 0;
+      while (i < pattern.length) {
+        const ch = pattern[i];
+        let j = i;
+        while (j < pattern.length && pattern[j] === ch) j++;
+        const w = j - i;
+        if (ch === '1') bars.push({ x, w, bar: true }); // only emit bars; spaces are implicit
         x += w;
+        i = j;
       }
       return { bars, totalWidth: x };
     }
 
-    // Draw a Code128 barcode into jsPDF at (x, y) with given width and height
+    // Draw a Code128 barcode into jsPDF at (x, y) with given width and height.
+    // targetWidth INCLUDES a baked-in quiet zone on each side (~8% of width,
+    // comfortably above the Code 128 minimum of 10X). A solid white background
+    // is painted first so no adjacent text/lines can intrude on the scan area.
     function drawBarcode(doc, text, x, y, targetWidth, targetHeight) {
       const { bars, totalWidth } = encodeCode128B(text);
       if (totalWidth === 0) return;
-      const scale = targetWidth / totalWidth;
+      const quietZone = targetWidth * 0.08;
+      const effectiveWidth = targetWidth - 2 * quietZone;
+      const scale = effectiveWidth / totalWidth;
+      // Clean white background across the FULL targetWidth — guarantees the
+      // quiet zones are actually quiet even if a row line or neighboring text
+      // was drawn underneath beforehand.
+      doc.setFillColor(255, 255, 255);
+      doc.rect(x, y, targetWidth, targetHeight, 'F');
       doc.setFillColor(0, 0, 0);
       for (const bar of bars) {
         if (bar.bar) {
-          doc.rect(x + bar.x * scale, y, bar.w * scale, targetHeight, 'F');
+          const bw = Math.max(bar.w * scale, 0.15); // never let a bar round to 0
+          doc.rect(x + quietZone + bar.x * scale, y, bw, targetHeight, 'F');
         }
       }
     }
@@ -647,14 +668,15 @@ Deno.serve(async (req) => {
           ? 'Rx: ' + barcodeValues.map((b) => String(b).substring(0, 8)).join(' - Rx: ')
           : '';
 
-        // Barcode mode: barcodes wrap — max 6 per row (wider bars need fewer per row),
-        // additional rows stack downward
+        // Barcode mode: barcodes wrap — max 3 per row (wider, taller bars need fewer per row),
+        // additional rows stack downward. Each barcode reserves an internal quiet zone
+        // (~8% of width) so adjacent text and row dividers cannot bleed into the scan area.
         const MAX_BARCODES_PER_ROW = 6;
         const barcodesToDraw = useBarcodes ? barcodeValues.map((b) => String(b).substring(0, 8)) : [];
-        const barcodeH = 6;          // mm tall per barcode
-        const barcodeW = 24;         // mm wide — wide enough for bars to stay distinct at print resolution
+        const barcodeH = 7;         // mm tall per barcode — tall bars scan reliably across pitch/tilt
+        const barcodeW = 36;         // mm wide (incl. quiet zone) — ~0.57mm/unit for 8-digit Code128
         const barcodeGap = 3;        // mm gap between barcodes in a row
-        const barcodeLabelGap = 3;   // mm reserved under each barcode for the value label (= barcodeRowPitch)
+        const barcodeLabelGap = 8;   // mm reserved under each barcode for the value label
         const barcodeRowsNeeded = barcodesToDraw.length > 0 ? Math.ceil(barcodesToDraw.length / MAX_BARCODES_PER_ROW) : 0;
         // Each rendered barcode row takes (barcodeH + barcodeLabelGap); +1mm top padding
         const barcodeRowHeight = barcodeRowsNeeded > 0 ? barcodeRowsNeeded * (barcodeH + barcodeLabelGap) + 1 : 0;
@@ -741,9 +763,11 @@ Deno.serve(async (req) => {
             const bx = colStop + col * (barcodeW + barcodeGap);
             const by = barcodeRowY + row * (barcodeH + barcodeLabelGap);
             drawBarcode(doc, bval, bx, by, barcodeW, barcodeH);
-            doc.setFontSize(6);
+            // Place the human-readable value well below the bars so its descenders
+            // and the row divider line cannot interfere with the scan line.
+            doc.setFontSize(8);
             doc.setTextColor(60);
-            doc.text(bval, bx + barcodeW / 2, by + barcodeH + 2, { align: 'center' });
+            doc.text(bval, bx + barcodeW / 2, by + barcodeH + 4, { align: 'center' });
             doc.setTextColor(0);
             doc.setFontSize(9);
           });
