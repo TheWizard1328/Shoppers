@@ -432,17 +432,18 @@ export default function Layout({ children, currentPageName }) {
   const needsDataReload = useRef(false);
   const bottomNavRef = useRef(null);
 
-  // Measure the actual bottom nav height and set --bottom-nav-height CSS variable
-  // so overlays (bulk edit panel, dialogs) can sit above the nav bar.
+  // Measure the actual bottom nav height into a DEDICATED CSS variable
+  // (--actual-bottom-nav-height). We deliberately do NOT touch the existing
+  // --bottom-nav-height variable — that one is hardcoded to 0px everywhere
+  // in the app (StopCardsSection, RouteManagementHeader, Deliveries.jsx,
+  // PhotoCapture, SignatureCapture, etc. all assume it's 0) and changing it
+  // globally shifts every one of those layouts. Only components that
+  // explicitly opt in (like BulkEditStopsPanel) should read the real value.
   useEffect(() => {
     const measureNav = () => {
       const nav = bottomNavRef.current;
-      if (nav) {
-        const h = nav.offsetHeight;
-        document.documentElement.style.setProperty('--bottom-nav-height', `${h}px`);
-      } else {
-        document.documentElement.style.setProperty('--bottom-nav-height', '0px');
-      }
+      const h = nav ? nav.offsetHeight : 0;
+      document.documentElement.style.setProperty('--actual-bottom-nav-height', `${h}px`);
     };
     measureNav();
     // Re-measure on resize and orientation change

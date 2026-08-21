@@ -554,10 +554,10 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerOverlay className="z-[11000] bg-black/70" />
         <DrawerContent
-          className="z-[11001] max-h-[calc(100dvh-var(--bottom-nav-height,0px)-env(safe-area-inset-bottom,0px)-0.75rem)]"
+          className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-env(safe-area-inset-bottom,0px)-0.75rem)]"
           style={{
             background: "var(--bg-white)",
-            bottom: "calc(var(--bottom-nav-height, 0px) + env(safe-area-inset-bottom, 0px))",
+            bottom: "calc(var(--actual-bottom-nav-height, 0px) + env(safe-area-inset-bottom, 0px))",
             paddingBottom: "env(safe-area-inset-bottom, 0px)",
           }}>
           
@@ -579,7 +579,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       style={{
         transition: 'opacity 0.2s',
         top: 'env(safe-area-inset-top, 0px)',
-        bottom: 'calc(var(--bottom-nav-height, 0px) + env(safe-area-inset-bottom, 0px))',
+        bottom: 'calc(var(--actual-bottom-nav-height, 0px) + env(safe-area-inset-bottom, 0px))',
         left: `calc(${sidebarWidth}px + env(safe-area-inset-left, 0px))`,
         right: 'env(safe-area-inset-right, 0px)',
       }}>
