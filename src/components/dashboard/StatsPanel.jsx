@@ -14,7 +14,7 @@ import { getNearbyModeStops, getCurrentDriverLocation } from '@/components/dashb
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { useEffect, useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { globalFilters } from "@/components/utils/globalFilters";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
@@ -263,6 +263,17 @@ export default function StatsPanel({
 
   const StatsCardMinWidth = 385;
 
+  // Blue calendar hint: true when the selected driver has any pending stops
+  // scheduled for the next date after the currently selected date.
+  const hasPendingNextDate = useMemo(() => {
+    if (!deliveries || deliveries.length === 0) return false;
+    const nextDateStr = format(addDays(selectedDate, 1), 'yyyy-MM-dd');
+    return deliveries.some((d) =>
+      d && d.delivery_date === nextDateStr && d.status === 'pending' &&
+      (selectedDriverId === 'all' || d.driver_id === selectedDriverId)
+    );
+  }, [deliveries, selectedDate, selectedDriverId]);
+
   return (
     <div ref={statsContainerRef} className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 20 : 40, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
       {/* OfflineSyncIndicator: absolutely positioned beside the stats card container on desktop, not inside it */}
@@ -361,7 +372,13 @@ export default function StatsPanel({
               <Popover open={isCalendarOpen} onOpenChange={(open) => {setIsCalendarOpen(open);if (open) setCalendarMonth(selectedDate);}} modal={true}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors shadow-sm gap-2 h-8" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-                    <CalendarIcon className="w-3.5 h-3.5" />
+                    {hasPendingNextDate ? (
+                      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-[3px]" style={{ backgroundColor: '#2563eb' }} title="Pending stops scheduled for the next date">
+                        <CalendarIcon className="w-2.5 h-2.5" style={{ color: '#ffffff' }} strokeWidth={2.5} />
+                      </span>
+                    ) : (
+                      <CalendarIcon className="w-3.5 h-3.5" />
+                    )}
                     <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
                   </Button>
                 </PopoverTrigger>
