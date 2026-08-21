@@ -843,6 +843,12 @@ const subscribeToEntity = (entityName) => {
                   // We restore from the existing IDB record when the field is truly absent
                   // (undefined) from the incoming payload AND has a non-falsy value locally.
                   const PRESERVE_FIELDS = [
+                    // Assignment — store_id, patient_id, driver_id, company_id
+                    // CRITICAL: A partial WS payload that omits these must NOT wipe the
+                    // known value from the existing IDB record. Without store_id the
+                    // dashboard city-scoped snapshot silently drops the delivery and the
+                    // Add To Route staged list falls back to a (wrong) parent pickup store.
+                    'store_id', 'patient_id', 'driver_id', 'company_id',
                     // Status (prevent stale 'pending' overwriting local 'in_transit')
                     'status',
                     // Route / polyline
