@@ -1,4 +1,3 @@
-import React, { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { XCircle, RotateCcw, RotateCw, Crop } from 'lucide-react';
 

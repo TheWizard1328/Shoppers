@@ -1,10 +1,9 @@
-import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FileText, ShieldCheck, Lock, ScrollText, ExternalLink } from 'lucide-react';
 
 // Public RxDeliver privacy/compliance documents (PDF).
 // These are company-level policy documents viewable by all authenticated users.
-export const COMPLIANCE_DOCS = [
+const COMPLIANCE_DOCS = [
   {
     key: 'legal_review_cover_sheet',
     label: 'Legal Review Cover Sheet',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { useAppData } from '../components/utils/AppDataContext';
 import { useUser } from '../components/utils/UserContext';
@@ -10,11 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   FileText, Shield, ShieldCheck, CheckCircle, XCircle, Clock, Upload, Camera,
-  Search, RefreshCw, Trash2, Eye, AlertTriangle, Building2, User, Lock, ChevronRight,
-  RotateCcw, RotateCw, Crop } from
+  Search, RefreshCw, Trash2, Eye, Building2 } from
 'lucide-react';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
-import { appParams } from '@/lib/app-params';
 import { sortUsers } from '../components/utils/sorting';
 import { DocViewerModal, DocCropModal } from '@/components/documents/DocModals';
 import ComplianceDocsSection from '@/components/documents/ComplianceDocsSection';
