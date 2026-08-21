@@ -928,6 +928,11 @@ const subscribeToEntity = (entityName) => {
                 // Non-critical — fall back to using data as-is
               } finally {
                 resolveLock(); // release the per-delivery write lock
+                // MEMORY LEAK FIX: Delete the resolved lock from the Map so it
+                // doesn't accumulate entries for every unique delivery ID over time
+                if (window.__deliveryIdbWriteLocks && window.__deliveryIdbWriteLocks.get(data.id) === newLock) {
+                  window.__deliveryIdbWriteLocks.delete(data.id);
+                }
               }
             }
             // CRITICAL: Merge AppUser data with existing offline record before saving.
