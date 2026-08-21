@@ -510,7 +510,23 @@ function Dashboard() {
     return map;
   }, [patients]);
 
-  const isRouteComplete = useMemo(() => { if (!filteredDeliveries || filteredDeliveries.length === 0) return false; const pds = filteredDeliveries.filter((d) => d && d.patient_id); const isRtn = (d) => (patientById.get(d.patient_id)?.address || '').toUpperCase().includes('(RTN)'); return pds.length > 0 && pds.every((d) => ['completed','failed','cancelled'].includes(d.status) || isRtn(d)); }, [filteredDeliveries, patientById]);
+  const isRouteComplete = useMemo(() => {
+    if (!filteredDeliveries || filteredDeliveries.length === 0) return false;
+    // CRITICAL: A route is "complete" only when EVERY real stop on it (patient
+    // deliveries, pickups, and inter-store ISP/ISD stops) is in a finished state.
+    // Previously this only checked patient deliveries — a driver who had finished
+    // all patient deliveries but still had an active pickup or inter-store stop
+    // in transit was falsely treated as "complete", which engaged the 20km
+    // completedRoute maxZoom lock mid-route and prevented zooming back in.
+    const routeStops = filteredDeliveries.filter((d) => {
+      if (!d) return false;
+      if (d.is_cycling_marker) return false;
+      if (String(d.delivery_id || '').startsWith('BIK-')) return false;
+      return true;
+    });
+    const isRtn = (d) => !!(d.patient_id && (patientById.get(d.patient_id)?.address || '').toUpperCase().includes('(RTN)'));
+    return routeStops.length > 0 && routeStops.every((d) => ['completed','failed','cancelled'].includes(d.status) || isRtn(d));
+  }, [filteredDeliveries, patientById]);
   const completedRouteCity = useMemo(() => resolveCompletedRouteCity({ cities, currentUser, selectedCityId: globalFilters.getSelectedCityId() }), [cities, currentUser]);
   // activeDriverIdsOnDate and driversList are declared above filteredDeliveries
   const isDriverDropdownDisabled = useMemo(() => !currentUser || userHasRole(currentUser,'admin') ? false : userHasRole(currentUser,'dispatcher') ? false : !!userHasRole(currentUser,'driver'), [currentUserRoles]);
