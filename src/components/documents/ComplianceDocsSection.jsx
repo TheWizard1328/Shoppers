@@ -49,16 +49,24 @@ export default function ComplianceDocsSection({ currentUser, stores }) {
   const fileInputRef = useRef(null);
   const [pendingUpload, setPendingUpload] = useState(null);
 
-  const canAccess = isAppOwner(currentUser) || currentUser?.app_roles?.includes('store_owner');
+  const canAccess = isAppOwner(currentUser) || currentUser?.app_roles?.includes('store_owner') || currentUser?.app_roles?.includes('dispatcher') || currentUser?.app_roles?.includes('admin');
   const isOwner = isAppOwner(currentUser);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('[ComplianceDocs] Loading templates and signed docs...');
       const [templatesRes, signedRes] = await Promise.all([
-        base44.entities.ComplianceDocument.filter({ status: 'template' }),
-        base44.entities.ComplianceDocument.filter({ status: 'signed' }),
+        base44.entities.ComplianceDocument.filter({ status: 'template' }).catch((e) => {
+          console.error('[ComplianceDocs] Template fetch failed:', e);
+          return [];
+        }),
+        base44.entities.ComplianceDocument.filter({ status: 'signed' }).catch((e) => {
+          console.error('[ComplianceDocs] Signed fetch failed:', e);
+          return [];
+        }),
       ]);
+      console.log('[ComplianceDocs] Loaded', templatesRes?.length || 0, 'templates,', signedRes?.length || 0, 'signed docs');
       setTemplates(templatesRes || []);
       setSignedDocs(signedRes || []);
     } catch (err) {
@@ -168,6 +176,7 @@ export default function ComplianceDocsSection({ currentUser, stores }) {
     }
   };
 
+  console.log('[ComplianceDocs] canAccess:', canAccess, 'isOwner:', isOwner, 'currentUser role:', currentUser?.role, 'app_roles:', currentUser?.app_roles);
   if (!canAccess) return null;
 
   if (loading) {
