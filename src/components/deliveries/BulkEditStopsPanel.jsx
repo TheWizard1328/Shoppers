@@ -557,8 +557,11 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
           className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-var(--native-safe-bottom,0px)-0.75rem)]"
           style={{
             background: "var(--bg-white)",
+            // `bottom` already lifts the whole panel above the nav bar AND the
+            // phone's safe-area inset — do NOT also add paddingBottom for the
+            // safe-area here, that double-counts it and shows as extra empty
+            // space below the Cancel/Apply buttons.
             bottom: "calc(var(--actual-bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))",
-            paddingBottom: "var(--native-safe-bottom, env(safe-area-inset-bottom, 0px))",
           }}>
           
           <DrawerHeader style={{ paddingTop: "max(1rem, var(--native-safe-top, env(safe-area-inset-top, 0px)))" }}>
