@@ -1,5 +1,4 @@
 import { base44 } from '@/api/base44Client';
-import { getData } from './dataManager';
 
 const DEFAULT_BRANDING = {
   name: 'RxDeliver',
@@ -29,15 +28,20 @@ export function getCachedBranding() {
       return cachedBranding;
     }
   } catch {}
-  return DEFAULT_BRANDING;
+  return null;
 }
 
+/**
+ * Fetch company branding from the API.
+ * Returns { ...branding, _fallback: true } when the API call fails or no
+ * company is found, so the caller can use the fallback as a signal to
+ * trigger a forced data reload.
+ */
 export async function getCompanyBranding(companyId) {
-  if (!companyId) return DEFAULT_BRANDING;
+  if (!companyId) return { ...DEFAULT_BRANDING, _fallback: true };
   if (cachedBranding) return cachedBranding;
 
   try {
-    // Fetch directly from API — never from offline cache — so logo changes are immediate
     const company = await base44.entities.Company.filter({ id: companyId });
 
     if (company && company.length > 0) {
@@ -49,15 +53,15 @@ export async function getCompanyBranding(companyId) {
         secondary_color: company[0].secondary_color || DEFAULT_BRANDING.secondary_color,
         accent_color: company[0].accent_color || DEFAULT_BRANDING.accent_color
       };
-      // Persist to localStorage so it survives Android recreate() and page reloads
       try { localStorage.setItem(BRANDING_LS_KEY, JSON.stringify(cachedBranding)); } catch {}
       return cachedBranding;
     }
   } catch (error) {
-    console.warn('Failed to fetch company branding:', error);
+    console.warn('⚠️ [Branding] Failed to fetch company branding:', error?.message);
   }
 
-  return DEFAULT_BRANDING;
+  // Fallback — signal to caller that data load may have failed
+  return { ...DEFAULT_BRANDING, _fallback: true };
 }
 
 export function applyBrandingStyles(branding) {
@@ -66,7 +70,6 @@ export function applyBrandingStyles(branding) {
   root.style.setProperty('--secondary-color', branding.secondary_color);
   root.style.setProperty('--accent-color', branding.accent_color);
 
-  // Update favicon if provided
   if (branding.favicon_url) {
     let favicon = document.querySelector("link[rel='icon']");
     if (!favicon) {

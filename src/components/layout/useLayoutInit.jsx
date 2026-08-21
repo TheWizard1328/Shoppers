@@ -137,9 +137,36 @@ export function useLayoutInit({
         } catch { /* non-critical */ }
         // Apply cached branding IMMEDIATELY from localStorage (survives Android recreate)
         const _cached = getCachedBranding();
-        if (_cached?.logo_url) { setBranding(_cached); const { applyBrandingStyles } = await import('../utils/brandingManager'); applyBrandingStyles(_cached); }
-        // Then fetch fresh branding from API (may override cached if it changed)
-        if (fetchedUser?.company_id) {try {const b = await getCompanyBranding(fetchedUser.company_id);setBranding(b);const { applyBrandingStyles } = await import('../utils/brandingManager');applyBrandingStyles(b);} catch {}}
+        if (_cached?.logo_url) {
+          setBranding(_cached);
+          const { applyBrandingStyles } = await import('../utils/brandingManager');
+          applyBrandingStyles(_cached);
+        }
+        // Fetch fresh branding from API. If it falls back to defaults (API failure
+        // or Company entity missing), use that as a SIGNAL that data load had a
+        // problem — force a full data reload to ensure entities are loaded correctly.
+        let _brandingFallback = false;
+        if (fetchedUser?.company_id) {
+          try {
+            const b = await getCompanyBranding(fetchedUser.company_id);
+            setBranding(b);
+            const { applyBrandingStyles } = await import('../utils/brandingManager');
+            applyBrandingStyles(b);
+            if (b?._fallback) {
+              _brandingFallback = true;
+              console.warn('🟢 [Init] Branding fallback triggered — forcing full data reload to verify entity integrity');
+            }
+          } catch {
+            _brandingFallback = true;
+          }
+        }
+        if (_brandingFallback) {
+          // Signal all downstream data loaders to force-refresh from server
+          window.__forceDataReload = true;
+          window.dispatchEvent(new CustomEvent('brandingFallbackDetected', {
+            detail: { companyId: fetchedUser?.company_id, timestamp: Date.now() }
+          }));
+        }
 
         // ── STEP 2: Apply offline data to UI immediately ──
         setSquareLocationConfigs(sqConfigs || []);
@@ -170,16 +197,24 @@ export function useLayoutInit({
         // ── PRIORITY FETCH: If critical bootstrap data is missing from IndexedDB,
         // fetch it directly from the backend NOW (before releasing the loading gate).
         // This handles first-ever sessions and corrupted / partially-wiped offline DBs.
+        // If branding fell back, force a full data reload even if IDB has data —
+        // the entity may have been misplaced/deleted server-side and the offline
+        // cache is stale. Re-fetch everything from the server.
+        const _forceReload = !!window.__forceDataReload;
+        if (_forceReload) {
+          console.warn('🔄 [Init] Force-reloading ALL critical entities from server (branding fallback signal)');
+          window.__forceDataReload = false; // consume the flag
+        }
         const criticalDataMissing = !citiesData.length || !resolvedStores.length || !resolvedAppUsers.length;
         const squareConfigsMissing = !sqConfigs?.length;
-        if (criticalDataMissing || squareConfigsMissing) {
+        if (criticalDataMissing || squareConfigsMissing || _forceReload) {
           console.warn('⚠️ [Init] Critical bootstrap data missing from IndexedDB — fetching from server immediately...');
           try {
             const [freshCities, freshStores, freshAppUsers, freshSqConfigs] = await Promise.all([
-              !citiesData.length       ? base44.entities.City.list().catch(() => null)    : Promise.resolve(null),
-              !resolvedStores.length   ? base44.entities.Store.list().catch(() => null)   : Promise.resolve(null),
-              !resolvedAppUsers.length ? base44.entities.AppUser.list().catch(() => null) : Promise.resolve(null),
-              squareConfigsMissing     ? base44.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => null) : Promise.resolve(null),
+              (!citiesData.length || _forceReload)       ? base44.entities.City.list().catch(() => null)    : Promise.resolve(null),
+              (!resolvedStores.length || _forceReload)   ? base44.entities.Store.list().catch(() => null)   : Promise.resolve(null),
+              (!resolvedAppUsers.length || _forceReload) ? base44.entities.AppUser.list().catch(() => null) : Promise.resolve(null),
+              (squareConfigsMissing || _forceReload)     ? base44.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => null) : Promise.resolve(null),
             ]);
 
             if (freshCities?.length) {

@@ -859,6 +859,20 @@ export default function Layout({ children, currentPageName }) {
     if (forceRefresh) needsDataReload.current = false;
     triggerFullDataLoadRef.current(forceRefresh);
   }, [initialGlobalFiltersSet, currentUser]);
+
+  // BRANDING FALLBACK RECOVERY: When branding fetch fails (green Rx logo shown),
+  // the API may have had a transient error or entities may have been misplaced.
+  // Force a full data reload from the server to ensure entity integrity.
+  useEffect(() => {
+    const handleBrandingFallback = () => {
+      console.warn('🔄 [Layout] Branding fallback detected — forcing full data reload');
+      needsDataReload.current = true;
+      initialDataLoadFiredRef.current = false; // allow re-trigger
+      triggerFullDataLoadRef.current(true); // forceRefresh=true bypasses cooldown
+    };
+    window.addEventListener('brandingFallbackDetected', handleBrandingFallback);
+    return () => window.removeEventListener('brandingFallbackDetected', handleBrandingFallback);
+  }, []);
   useEffect(() => {
     if (!dataLoaded) return;
     const unsubscribe = globalFilters.subscribe(() => {});
