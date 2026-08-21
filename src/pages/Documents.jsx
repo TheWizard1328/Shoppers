@@ -17,6 +17,7 @@ import { getDriverDisplayName } from '../components/utils/driverUtils';
 import { appParams } from '@/lib/app-params';
 import { sortUsers } from '../components/utils/sorting';
 import { DocViewerModal, DocCropModal } from '@/components/documents/DocModals';
+import ComplianceDocsSection from '@/components/documents/ComplianceDocsSection';
 
 const DOC_TYPES = [
 { key: 'license', label: "Driver's License", icon: FileText },
@@ -399,6 +400,13 @@ export default function Documents() {
     }
   };
 
+  // View a public compliance/privacy document (no access request needed)
+  const handleViewComplianceDoc = (doc) => {
+    setViewerRotation(0);
+    setViewingDoc({ document_type: doc.label, mime_type: 'application/pdf', isComplianceDoc: true });
+    setDocUrl(doc.url);
+  };
+
   // Open crop modal for image files, direct upload for PDFs
   const openCropOrUpload = (file, docType, driverId, driverName, scope = 'driver', storeId = null, storeName = null) => {
     if (!file) return;
@@ -676,6 +684,9 @@ export default function Documents() {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 max-w-7xl w-full mx-auto space-y-4">
+
+      {/* === COMPLIANCE & PRIVACY DOCUMENTS (all users) === */}
+      <ComplianceDocsSection onView={handleViewComplianceDoc} />
 
       {/* === DRIVER SECTION === */}
       {isDriver &&

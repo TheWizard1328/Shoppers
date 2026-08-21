@@ -69,20 +69,22 @@ export function DocViewerModal({
           ) : docUrl ? (
             <div className="relative w-full h-full">
               {!isImage ? (
-                <iframe src={`${docUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" title="Document" />
+                <iframe src={viewingDoc.isComplianceDoc ? docUrl : `${docUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" title="Document" />
               ) : (
                 <img src={docUrl} alt="Document" className="w-full h-full object-contain"
                   style={{ pointerEvents: 'none', transform: `rotate(${viewerRotation}deg)`, transition: 'transform 0.2s' }} />
               )}
-              {/* Watermark */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden select-none" style={{ zIndex: 10 }}>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <div key={i} className="absolute font-bold text-2xl text-black/[0.07] whitespace-nowrap rotate-[-35deg]"
-                    style={{ top: `${i % 5 * 22 - 5}%`, left: `${Math.floor(i / 5) * 28 - 10}%` }}>
-                    CONFIDENTIAL
-                  </div>
-                ))}
-              </div>
+              {/* Watermark — hidden for public compliance documents */}
+              {!viewingDoc.isComplianceDoc && (
+                <div className="absolute inset-0 pointer-events-none overflow-hidden select-none" style={{ zIndex: 10 }}>
+                  {Array.from({ length: 20 }).map((_, i) => (
+                    <div key={i} className="absolute font-bold text-2xl text-black/[0.07] whitespace-nowrap rotate-[-35deg]"
+                      style={{ top: `${i % 5 * 22 - 5}%`, left: `${Math.floor(i / 5) * 28 - 10}%` }}>
+                      CONFIDENTIAL
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-center text-sm text-muted-foreground py-8">Failed to load document</p>
