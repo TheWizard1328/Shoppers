@@ -661,10 +661,10 @@ Deno.serve(async (req) => {
         // Barcode mode: barcodes wrap — max 3 per row (wider, taller bars need fewer per row),
         // additional rows stack downward. Each barcode reserves an internal quiet zone
         // (~8% of width) so adjacent text and row dividers cannot bleed into the scan area.
-        const MAX_BARCODES_PER_ROW = 3;
+        const MAX_BARCODES_PER_ROW = 6;
         const barcodesToDraw = useBarcodes ? barcodeValues.map((b) => String(b).substring(0, 8)) : [];
-        const barcodeH = 18;         // mm tall per barcode — tall bars scan reliably across pitch/tilt
-        const barcodeW = 70;         // mm wide (incl. quiet zone) — ~0.57mm/unit for 8-digit Code128
+        const barcodeH = 6;         // mm tall per barcode — tall bars scan reliably across pitch/tilt
+        const barcodeW = 24;         // mm wide (incl. quiet zone) — ~0.57mm/unit for 8-digit Code128
         const barcodeGap = 6;        // mm gap between barcodes in a row
         const barcodeLabelGap = 6;   // mm reserved under each barcode for the value label
         const barcodeRowsNeeded = barcodesToDraw.length > 0 ? Math.ceil(barcodesToDraw.length / MAX_BARCODES_PER_ROW) : 0;
