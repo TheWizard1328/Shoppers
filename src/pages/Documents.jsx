@@ -683,8 +683,8 @@ export default function Documents() {
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 max-w-7xl w-full mx-auto space-y-4">
 
-      {/* === COMPLIANCE & PRIVACY DOCUMENTS (all users) === */}
-      <ComplianceDocsSection onView={handleViewComplianceDoc} />
+      {/* === COMPLIANCE & LEGAL DOCUMENTS (App Owner + Store Owners only) === */}
+      <ComplianceDocsSection onView={handleViewComplianceDoc} currentUser={currentUser} stores={stores} />
 
       {/* === DRIVER SECTION === */}
       {isDriver &&
