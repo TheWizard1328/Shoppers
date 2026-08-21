@@ -158,8 +158,87 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           button, [role="button"], nav, nav a, .select-none { -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none; -webkit-touch-callout:none; }
           p:not(.select-none), span:not(.select-none), textarea, input { -webkit-user-select:text; -moz-user-select:text; -ms-user-select:text; user-select:text; }
           .safe-bottom { padding-bottom:max(0.5rem, env(safe-area-inset-bottom, 0px)); }
-          .fixed[role="dialog"][data-state="open"], .fixed[role="alertdialog"][data-state="open"] { padding-bottom:var(--bottom-nav-height) !important; }
+          .fixed[role="dialog"][data-state="open"], .fixed[role="alertdialog"][data-state="open"] { padding-bottom:calc(var(--bottom-nav-height,0px) + var(--native-safe-bottom,0px)) !important; }
           [data-sonner-toaster][data-y-position="bottom"] { bottom:calc(var(--bottom-nav-height) + 0.5rem) !important; }
+
+          /* ════════════════════════════════════════════════════════════
+             APK SAFE-AREA INSETS (edge-to-edge mode)
+             Only applies when body.is-native-apk is set (injected by
+             MainActivity.java via WindowInsetsCompat). The web/PWA
+             version never gets this class so these rules are no-ops there.
+             --native-safe-top/bottom/left/right are also injected from native.
+             ════════════════════════════════════════════════════════════ */
+
+          /* Shadcn Dialog & AlertDialog overlays — the .fixed.inset-0 backdrop.
+             Adding padding pushes the centered content away from the phone's
+             status bar (top) and navigation bar (bottom). */
+          body.is-native-apk .fixed.inset-0[role="dialog"][data-state="open"],
+          body.is-native-apk .fixed.inset-0[role="alertdialog"][data-state="open"] {
+            padding-top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            padding-left: var(--native-safe-left, env(safe-area-inset-left, 0px)) !important;
+            padding-right: var(--native-safe-right, env(safe-area-inset-right, 0px)) !important;
+          }
+
+          /* Shadcn Drawer overlay + content */
+          body.is-native-apk .fixed.inset-0[data-vaul-drawer-wrapper],
+          body.is-native-apk .fixed.inset-0[class*="z-50"][data-state="open"]:not([role="dialog"]):not([role="alertdialog"]) {
+            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+          }
+          body.is-native-apk [data-vaul-drawer-content],
+          body.is-native-apk [role="dialog"][data-vaul-drawer] {
+            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+          }
+
+          /* Shadcn Sheet overlay */
+          body.is-native-apk .fixed.inset-0[data-state="open"]:not([role="dialog"]):not([role="alertdialog"]) {
+            padding-top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+          }
+
+          /* Toast notifications pinned to top — push down past status bar */
+          body.is-native-apk [data-sonner-toaster][data-y-position="top"] {
+            top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+          }
+          body.is-native-apk [data-sonner-toaster][data-y-position="bottom"] {
+            bottom: calc(var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) + var(--bottom-nav-height, 0px) + 0.5rem) !important;
+          }
+
+          /* Custom full-screen overlays (fixed inset-0) — generic catch-all
+             for non-Shadcn overlays like BarcodeOverlay, DeliveryCameraOverlay,
+             SmartBarcodeScanner, etc. that use their own fixed inset-0 divs. */
+          body.is-native-apk .fixed.inset-0:not([role="dialog"]):not([role="alertdialog"]):not([data-state]) {
+            padding-top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+          }
+
+          /* Full-screen panels that should fill the entire screen (camera,
+             scanner) — these need safe-area padding on their inner content,
+             not on the overlay itself which should stay full-bleed. */
+          body.is-native-apk .fixed.inset-0.bg-black:not([role="dialog"]):not([role="alertdialog"]) {
+            padding-top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+          }
+
+          /* Generic fixed elements pinned to top: 0 — push down by status bar */
+          body.is-native-apk .fixed.top-0:not(.inset-0) {
+            top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+          }
+
+          /* Generic fixed elements pinned to bottom: 0 — push up by nav bar */
+          body.is-native-apk .fixed.bottom-0:not(.inset-0) {
+            bottom: var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+          }
+
+          /* PatientHistoryPanel — slides in from right, needs top offset */
+          body.is-native-apk .fixed.top-0.right-0 {
+            top: var(--native-safe-top, env(safe-area-inset-top, 0px)) !important;
+          }
+
+          /* RouteManagementHeader dropdown — fixed bottom panel */
+          body.is-native-apk .fixed.bottom-\[var\(--bottom-nav-height\)\] {
+            bottom: calc(var(--bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+          }
           /* Hide bottom nav when screen is wide enough for the desktop layout */
           @media (min-width: 850px) {
             nav[data-mobile-bottom-nav] { display: none !important; }

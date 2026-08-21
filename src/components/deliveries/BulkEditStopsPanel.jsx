@@ -554,14 +554,14 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerOverlay className="z-[11000] bg-black/70" />
         <DrawerContent
-          className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-env(safe-area-inset-bottom,0px)-0.75rem)]"
+          className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-var(--native-safe-bottom,0px)-0.75rem)]"
           style={{
             background: "var(--bg-white)",
-            bottom: "calc(var(--actual-bottom-nav-height, 0px) + env(safe-area-inset-bottom, 0px))",
-            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            bottom: "calc(var(--actual-bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))",
+            paddingBottom: "var(--native-safe-bottom, env(safe-area-inset-bottom, 0px))",
           }}>
           
-          <DrawerHeader style={{ paddingTop: "max(1rem, env(safe-area-inset-top, 0px))" }}>
+          <DrawerHeader style={{ paddingTop: "max(1rem, var(--native-safe-top, env(safe-area-inset-top, 0px)))" }}>
             <DrawerTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</DrawerTitle>
             <DrawerDescription style={{ color: "var(--text-slate-500)" }}>
               Update the basic route info for the selected stops.
@@ -578,10 +578,10 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       className={`fixed z-[11000] flex items-center justify-center ${open ? '' : 'pointer-events-none opacity-0'}`}
       style={{
         transition: 'opacity 0.2s',
-        top: 'env(safe-area-inset-top, 0px)',
-        bottom: 'calc(var(--actual-bottom-nav-height, 0px) + env(safe-area-inset-bottom, 0px))',
-        left: `calc(${sidebarWidth}px + env(safe-area-inset-left, 0px))`,
-        right: 'env(safe-area-inset-right, 0px)',
+        top: 'var(--native-safe-top, env(safe-area-inset-top, 0px))',
+        bottom: 'calc(var(--actual-bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))',
+        left: `calc(${sidebarWidth}px + var(--native-safe-left, env(safe-area-inset-left, 0px)))`,
+        right: 'var(--native-safe-right, env(safe-area-inset-right, 0px))',
       }}>
       
       {/* Backdrop */}

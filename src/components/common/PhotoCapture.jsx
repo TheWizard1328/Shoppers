@@ -189,7 +189,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
 
   return ReactDOM.createPortal(
     <div 
-      className="fixed z-[99999] bg-black flex items-center justify-center left-0 right-0 top-[calc(env(safe-area-inset-top,0px)+57px)] md:top-0 bottom-[var(--bottom-nav-height,0px)] md:bottom-0" 
+      className="fixed z-[99999] bg-black flex items-center justify-center left-0 right-0 top-[calc(var(--native-safe-top,env(safe-area-inset-top,0px))+57px)] md:top-0 bottom-[calc(var(--bottom-nav-height,0px)+var(--native-safe-bottom,0px))] md:bottom-0" 
       onClick={(e) => e.stopPropagation()}
     >
       <div className="rounded-xl shadow-2xl w-full h-full md:max-w-2xl md:max-h-[90vh] flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)' }}>

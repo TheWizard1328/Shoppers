@@ -2922,7 +2922,7 @@ export default function DeliveriesPage() {
 
         {!isDriverOverviewMode && isMobile && isMobileMenuOpen &&
         <div
-          className="fixed top-12 left-0 right-0 bottom-0 bg-black/30 z-40"
+          className="fixed left-0 right-0 bg-black/30 z-40" style={{ top: 'calc(3rem + var(--native-safe-top, 0px))', bottom: 'calc(var(--bottom-nav-height, 88px) + var(--native-safe-bottom, 0px))' }}
           onClick={() => setIsMobileMenuOpen(false)} />
 
         }
@@ -2935,7 +2935,7 @@ export default function DeliveriesPage() {
             exit={{ x: "-100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             className="fixed left-0 w-64 shadow-xl z-[9999] flex flex-col overflow-hidden"
-            style={{ background: 'var(--bg-white)', top: 'var(--mobile-header-height, 64px)', bottom: 'var(--bottom-nav-height, 88px)', height: 'auto' }}
+            style={{ background: 'var(--bg-white)', top: 'calc(var(--mobile-header-height, 64px) + var(--native-safe-top, 0px))', bottom: 'calc(var(--bottom-nav-height, 88px) + var(--native-safe-bottom, 0px))', height: 'auto' }}
             onClick={(e) => e.stopPropagation()}>
 
               <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>

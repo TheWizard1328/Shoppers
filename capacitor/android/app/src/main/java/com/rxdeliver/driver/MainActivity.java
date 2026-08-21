@@ -260,6 +260,45 @@ public class MainActivity extends BridgeActivity {
             webView.addJavascriptInterface(new NativeDownloadInterface(), "AndroidNative");
         }
 
+        // ── Safe-area inset injection for edge-to-edge mode ──────────
+        // On Android 15 (targetSdk 35) edge-to-edge is enforced, so the
+        // WebView content extends behind the status bar and navigation bar.
+        // env(safe-area-inset-*) in CSS works but is not applied by many
+        // fixed-position overlay elements (dialogs, sheets, drawers, toasts,
+        // full-screen panels). We inject the OS-level inset values as CSS
+        // custom properties and tag the body with .is-native-apk so the web
+        // app can apply safe-area padding to ALL fixed overlays globally
+        // without touching the web/PWA version.
+        ViewCompat.setOnApplyWindowInsetsListener(getWindow().getDecorView(), (v, insets) -> {
+            WindowInsetsCompat stableBars = insets;
+            int statusBarHeight = stableBars.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            int navBarHeight = stableBars.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            int leftInset = stableBars.getInsets(WindowInsetsCompat.Type.systemBars()).left;
+            int rightInset = stableBars.getInsets(WindowInsetsCompat.Type.systemBars()).right;
+
+            // Convert to px (density) and inject into WebView
+            float density = getResources().getDisplayMetrics().density;
+            String js = String.format(java.util.Locale.US,
+                "(function(){" +
+                "  var r=document.documentElement;" +
+                "  r.style.setProperty('--native-safe-top','%dpx');" +
+                "  r.style.setProperty('--native-safe-bottom','%dpx');" +
+                "  r.style.setProperty('--native-safe-left','%dpx');" +
+                "  r.style.setProperty('--native-safe-right','%dpx');" +
+                "  if(document.body)document.body.classList.add('is-native-apk');" +
+                "  else document.addEventListener('DOMContentLoaded',function(){document.body.classList.add('is-native-apk');});" +
+                "})();",
+                (int)(statusBarHeight / density),
+                (int)(navBarHeight / density),
+                (int)(leftInset / density),
+                (int)(rightInset / density)
+            );
+            if (webView != null) {
+                webView.evaluateJavascript(js, null);
+            }
+            return WindowInsetsCompat.CONSUMED;
+        });
+
         // ── WebView renderer crash recovery ──────────────────────────
         // CRITICAL FIX: Chrome WebView runs its rendering engine in a separate
         // process. Under memory pressure (common on shared-use tablets running
