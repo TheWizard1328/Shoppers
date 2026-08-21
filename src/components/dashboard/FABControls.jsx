@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useDevice } from '@/components/utils/DeviceContext';
 import MapViewCycleFAB from '@/components/dashboard/MapViewCycleFAB';
@@ -55,6 +55,19 @@ export default function FABControls({
 }) {
   const { isMobile } = useDevice();
   const hasVisibleCards = deliveriesWithStopOrder.length > 0 && cardsReadyForFAB;
+
+  // Mirror GuideAssistant's pattern: hide the map FABs while a stop card is
+  // expanded. The expanded card (StopCard.jsx anchored/full-height view) can
+  // render taller than the collapsed-height measurement these FABs use for
+  // their `bottom` offset (stopCardsBaseHeight), and the card's z-index
+  // (z-[10070]) is far above the FABs' (z-[100]) — so without this, an
+  // expanded card on portrait mobile visually covers the FABs entirely.
+  const [isStopCardExpanded, setIsStopCardExpanded] = useState(false);
+  useEffect(() => {
+    const handleExpand = (e) => setIsStopCardExpanded(!!(e?.detail?.cardId));
+    window.addEventListener('stopCardExpandedChange', handleExpand);
+    return () => window.removeEventListener('stopCardExpandedChange', handleExpand);
+  }, []);
 
   const fabPosition = 'absolute';
   const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
@@ -153,6 +166,7 @@ export default function FABControls({
         isEnabled={mapViewPhase === 1 || filteredDeliveries.length > 0}
         stopCardsHeight={stopCardsBaseHeight}
         immersiveHidden={immersiveHidden}
+        hideForExpandedCard={isStopCardExpanded}
       />
       <RouteActionButtons
         key="route-action-buttons"
@@ -165,6 +179,7 @@ export default function FABControls({
         stores={stores}
         cardsReadyForFAB={cardsReadyForFAB}
         stopCardsBaseHeight={stopCardsBaseHeight}
+        hideForExpandedCard={isStopCardExpanded}
         isDateFinished={isDateFinished}
         isReoptimizing={isReoptimizing}
         setIsReoptimizing={setIsReoptimizing}

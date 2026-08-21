@@ -67,6 +67,7 @@ export default function RouteActionButtons({
   appUsers,
   immersiveHidden,
   updateDeliveriesLocally,
+  hideForExpandedCard = false,
 }) {
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareRows, setCompareRows] = useState([]);
@@ -224,7 +225,7 @@ export default function RouteActionButtons({
       />
       <motion.div
         initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+        animate={{ scale: 1, opacity: hideForExpandedCard ? 0 : 1 }}
         exit={{ scale: 0, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 20 }}
         className="z-[100] flex items-center gap-2"
@@ -237,6 +238,7 @@ export default function RouteActionButtons({
           }px`,
           right: '64px',
           display: immersiveHidden ? 'none' : undefined,
+          pointerEvents: hideForExpandedCard ? 'none' : 'auto',
         }}
       >
         <Button

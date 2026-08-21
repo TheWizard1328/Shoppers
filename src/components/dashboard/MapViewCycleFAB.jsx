@@ -6,7 +6,7 @@ import { Target, Maximize2, Minimize2 } from 'lucide-react';
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
 
 export default function MapViewCycleFAB({
-  currentUser = null, filteredDeliveries = [], onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false, immersiveHidden = false, bottomNavHeight = 0 }) {
+  currentUser = null, filteredDeliveries = [], onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false, immersiveHidden = false, bottomNavHeight = 0, hideForExpandedCard = false }) {
   const [isFlashing, setIsFlashing] = useState(false);
   const [isTemporarilyDeactivated, setIsTemporarilyDeactivated] = useState(false);
   const flashTimeoutRef = useRef(null);
@@ -205,12 +205,12 @@ export default function MapViewCycleFAB({
   return (
     <motion.div
       initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
+      animate={{ scale: 1, opacity: hideForExpandedCard ? 0 : 1 }}
       exit={{ scale: 0, opacity: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
       className="z-[100]"
       data-map-cycle-fab="true"
-      style={{ position: fabPosition, bottom: `${bottomPixels}px`, right: `${rightPixels}px` }}>
+      style={{ position: fabPosition, bottom: `${bottomPixels}px`, right: `${rightPixels}px`, pointerEvents: hideForExpandedCard ? 'none' : 'auto' }}>
       
       <motion.div
         animate={isFlashing ? { scale: [1, 1.2, 1], opacity: [1, 0.6, 1] } : { scale: 1, opacity: 1 }}
