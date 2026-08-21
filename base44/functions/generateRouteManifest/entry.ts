@@ -664,9 +664,9 @@ Deno.serve(async (req) => {
         const MAX_BARCODES_PER_ROW = 6;
         const barcodesToDraw = useBarcodes ? barcodeValues.map((b) => String(b).substring(0, 8)) : [];
         const barcodeH = 7;         // mm tall per barcode — tall bars scan reliably across pitch/tilt
-        const barcodeW = 30;         // mm wide (incl. quiet zone) — ~0.57mm/unit for 8-digit Code128
-        const barcodeGap = 4;        // mm gap between barcodes in a row
-        const barcodeLabelGap = 7;   // mm reserved under each barcode for the value label
+        const barcodeW = 36;         // mm wide (incl. quiet zone) — ~0.57mm/unit for 8-digit Code128
+        const barcodeGap = 3;        // mm gap between barcodes in a row
+        const barcodeLabelGap = 8;   // mm reserved under each barcode for the value label
         const barcodeRowsNeeded = barcodesToDraw.length > 0 ? Math.ceil(barcodesToDraw.length / MAX_BARCODES_PER_ROW) : 0;
         // Each rendered barcode row takes (barcodeH + barcodeLabelGap); +1mm top padding
         const barcodeRowHeight = barcodeRowsNeeded > 0 ? barcodeRowsNeeded * (barcodeH + barcodeLabelGap) + 1 : 0;
