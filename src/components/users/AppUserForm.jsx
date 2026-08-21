@@ -167,7 +167,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
               <div>
                 <Label>App Roles</Label>
                 <div className="flex gap-1">
-                  {['admin', 'dispatcher', 'driver'].map((role) =>
+                  {['admin', 'dispatcher', 'driver', 'store_owner'].map((role) =>
                   <Button
                     key={role}
                     type="button"

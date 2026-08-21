@@ -53,6 +53,7 @@ export const getPrimaryRole = (user) => {
   const roles = getUserRoles(user);
   
   if (roles.includes('admin')) return 'admin';
+  if (roles.includes('store_owner')) return 'store_owner';
   if (roles.includes('dispatcher')) return 'dispatcher';
   if (roles.includes('driver')) return 'driver';
   
@@ -65,6 +66,7 @@ export const getPrimaryRole = (user) => {
 export const isAdmin = (user) => userHasRole(user, 'admin');
 export const isDriver = (user) => userHasRole(user, 'driver');
 export const isDispatcher = (user) => userHasRole(user, 'dispatcher');
+export const isStoreOwner = (user) => userHasRole(user, 'store_owner');
 
 /**
  * Format roles for display

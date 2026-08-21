@@ -18,7 +18,8 @@
           "admin",
           "driver",
           "dispatcher",
-          "patient"
+          "patient",
+          "store_owner"
         ]
       },
       "description": "Array of roles assigned to this user in the app",

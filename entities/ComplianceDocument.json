@@ -1,0 +1,91 @@
+{
+  "properties": {
+    "covered_store_ids": {
+      "description": "Store IDs covered by this signed document (for owners with multiple stores)",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "document_type": {
+      "description": "Type of compliance document",
+      "enum": [
+        "PIA",
+        "IMA",
+        "NDA",
+        "legal_cover_sheet"
+      ],
+      "type": "string"
+    },
+    "file_uri": {
+      "description": "URI of the uploaded file (template or signed copy)",
+      "type": "string"
+    },
+    "file_url": {
+      "description": "Public CDN URL for viewing/downloading",
+      "type": "string"
+    },
+    "mime_type": {
+      "type": "string"
+    },
+    "signed_at": {
+      "description": "When the signed copy was uploaded",
+      "type": "string"
+    },
+    "signed_by_name": {
+      "description": "Name of the person who signed",
+      "type": "string"
+    },
+    "signed_by_user_id": {
+      "description": "AppUser ID of the signer",
+      "type": "string"
+    },
+    "signed_from_version": {
+      "description": "Version of the template this was signed from",
+      "type": "string"
+    },
+    "signature_image_uri": {
+      "description": "URI of signature image if digitally signed (null for physical signatures)",
+      "type": "string"
+    },
+    "status": {
+      "description": "template = blank template, signed = uploaded signed copy",
+      "enum": [
+        "template",
+        "signed"
+      ],
+      "type": "string"
+    },
+    "store_owner_id": {
+      "description": "AppUser ID of the store owner who signed (null for templates)",
+      "type": "string"
+    },
+    "store_owner_name": {
+      "description": "Name of the store owner",
+      "type": "string"
+    },
+    "title": {
+      "description": "Display title of the document",
+      "type": "string"
+    },
+    "uploaded_at": {
+      "description": "When the template or signed copy was uploaded",
+      "type": "string"
+    },
+    "uploaded_by": {
+      "description": "AppUser ID of who uploaded",
+      "type": "string"
+    },
+    "uploaded_by_name": {
+      "description": "Name of who uploaded",
+      "type": "string"
+    },
+    "version": {
+      "description": "Template version (e.g. v5.6, v2.5)",
+      "type": "string"
+    }
+  },
+  "type": "object",
+  "required": [],
+  "name": "ComplianceDocument"
+}
