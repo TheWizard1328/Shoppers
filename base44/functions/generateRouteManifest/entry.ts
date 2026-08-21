@@ -646,11 +646,12 @@ Deno.serve(async (req) => {
         const barcodeStr = !useBarcodes && barcodeValues.length > 0
           ? 'Rx: ' + barcodeValues.map((b) => String(b).substring(0, 8)).join(' - Rx: ')
           : '';
-        // Barcode mode: barcodes wrap — max 6 per row, additional rows stack downward
-        const MAX_BARCODES_PER_ROW = 6;
+        // Barcode mode: barcodes wrap — max 5 per row (wider bars need fewer per row),
+        // additional rows stack downward
+        const MAX_BARCODES_PER_ROW = 5;
         const barcodesToDraw = useBarcodes ? barcodeValues.map((b) => String(b).substring(0, 8)) : [];
         const barcodeH = 6;          // mm tall per barcode
-        const barcodeW = 28;         // mm wide per barcode
+        const barcodeW = 42;         // mm wide — wide enough for bars to stay distinct at print resolution
         const barcodeGap = 3;        // mm gap between barcodes in a row
         const barcodeLabelGap = 3;   // mm reserved under each barcode for the value label (= barcodeRowPitch)
         const barcodeRowsNeeded = barcodesToDraw.length > 0 ? Math.ceil(barcodesToDraw.length / MAX_BARCODES_PER_ROW) : 0;
@@ -731,10 +732,12 @@ Deno.serve(async (req) => {
         // Barcode mode: draw barcodes wrapped at MAX_BARCODES_PER_ROW per row
         if (barcodesToDraw.length > 0) {
           const barcodeRowY = textY + textContentLines * 4.5 + cellPadding + 1;
+          // Start barcodes at the far-left Stop column so the wider bars have room and
+          // don't collide with the Name/Notes text columns.
           barcodesToDraw.forEach((bval, bi) => {
             const row = Math.floor(bi / MAX_BARCODES_PER_ROW);
             const col = bi % MAX_BARCODES_PER_ROW;
-            const bx = colName + col * (barcodeW + barcodeGap);
+            const bx = colStop + col * (barcodeW + barcodeGap);
             const by = barcodeRowY + row * (barcodeH + barcodeLabelGap);
             drawBarcode(doc, bval, bx, by, barcodeW, barcodeH);
             doc.setFontSize(6);
