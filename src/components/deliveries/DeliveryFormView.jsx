@@ -1672,7 +1672,7 @@ export default function DeliveryFormView({
                   
                   </div>
                 }
-                {!isPickupMode && !isInterStoreMode && !userHasRole(currentUser, 'dispatcher') && !delivery?.is_cycling_marker && formData.puid &&
+                {!isPickupMode && !isInterStoreMode && !userHasRole(currentUser, 'dispatcher') && !delivery?.is_cycling_marker &&
                 <div className="flex items-center" title={parentPickupHasAfterHours ? '' : 'Enabled only when the assigned pickup is marked After Hours'}>
                     <CheckboxField
                     id="after_hours_pickup_footer_delivery"
