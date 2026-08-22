@@ -33,13 +33,25 @@ export function isCountableLegendStop(item, { requireMarkerTypeDelivery = false 
 }
 
 /**
+ * Returns how many deliveries a single countable stop represents.
+ * After Hours deliveries count as 2 (base pay only); everything else counts as 1.
+ * @param {object} item
+ * @returns {number} 0, 1, or 2
+ */
+export function getLegendStopWeight(item) {
+  if (!item) return 0;
+  return item.after_hours_pickup ? 2 : 1;
+}
+
+/**
  * Counts how many of the given items count as legend stops.
+ * After Hours deliveries count as 2 stops (base pay only).
  * @param {Array} items
  * @param {object} [opts] - forwarded to {@link isCountableLegendStop}
  * @returns {number}
  */
 export function countLegendStops(items, opts = {}) {
-  return (items || []).filter((item) => isCountableLegendStop(item, opts)).length;
+  return (items || []).reduce((sum, item) => sum + (isCountableLegendStop(item, opts) ? getLegendStopWeight(item) : 0), 0);
 }
 
 /**
