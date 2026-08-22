@@ -1676,7 +1676,7 @@ export default function DeliveryFormView({
                 <div className="flex items-center" title={parentPickupHasAfterHours ? '' : 'Enabled only when the assigned pickup is marked After Hours'}>
                     <CheckboxField
                     id="after_hours_pickup_footer_delivery"
-                    label="After Hours Delivery"
+                    label="After Hours Pickup"
                     checked={Boolean(formData.after_hours_pickup)}
                     onChange={(c) => {
                       if (!userHasRole(currentUser, 'admin')) return;
