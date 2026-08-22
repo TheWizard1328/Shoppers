@@ -260,10 +260,12 @@ export default function StopCardHeader({
     const pay = calculateDeliveryPay(delivery, driverAppUser, patient);
     const baseRate = driverAppUser?.pay_rate_per_delivery || 0;
     const isAfterHours = delivery?.after_hours_pickup === true;
-    // After Hours doubles the base pay, so the expected pay for an after-hours
-    // delivery with no extras is 2× baseRate. hasExtraPay is true only when the
-    // pay exceeds what we'd expect from base+afterHours alone.
-    const expectedBasePay = isAfterHours ? baseRate * 2 : baseRate;
+    const isPickupPay = !delivery?.patient_id && !isInterStore;
+    // After Hours: deliveries get 2x base (doubled), pickups get 1x (normally 0).
+    // expectedBasePay is the pay with no extras, so hasExtraPay detects oversized/extra km.
+    const expectedBasePay = isAfterHours
+      ? (isPickupPay ? baseRate : baseRate * 2)
+      : (isPickupPay ? 0 : baseRate);
     const hasExtraPay = pay > expectedBasePay;
     const isNoCharge = delivery?.no_charge === true;
     // N/C deliveries may still earn oversized/extra km pay — only show 'N/C'

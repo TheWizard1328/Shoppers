@@ -23,10 +23,19 @@ export const calculateDeliveryPay = (delivery, driver, patient = null) => {
   // No-charge (N/C) deliveries only skip the BASE delivery pay — oversized and
   // extra km pay are still payable for N/C deliveries.
   const isNoCharge = delivery.no_charge === true;
-  // After Hours: doubles the BASE delivery pay only (extra km and oversized
-  // rates are NOT doubled). Applies to both patient deliveries and store pickups.
-  const afterHoursMultiplier = delivery.after_hours_pickup === true ? 2 : 1;
-  let totalPay = isNoCharge ? 0 : (driver.pay_rate_per_delivery || 0) * afterHoursMultiplier;
+  const isPickup = !delivery.patient_id && !isInterStoreDelivery(delivery.delivery_id);
+
+  // After Hours pay rules:
+  //   - Patient deliveries (have patient_id): base pay is DOUBLED (1x → 2x)
+  //   - Store pickups (no patient_id): base pay is 0 normally, gets 1x when after hours (0 → 1)
+  // Extra km and oversized rates are NOT doubled.
+  let basePayUnits;
+  if (isPickup) {
+    basePayUnits = delivery.after_hours_pickup === true ? 1 : 0;
+  } else {
+    basePayUnits = delivery.after_hours_pickup === true ? 2 : 1;
+  }
+  let totalPay = isNoCharge ? 0 : (driver.pay_rate_per_delivery || 0) * basePayUnits;
 
   if (delivery.patient_id || isInterStoreDelivery(delivery.delivery_id)) {
     const extraKmRate = driver.extra_km_rate || 0;

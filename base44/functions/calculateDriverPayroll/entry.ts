@@ -207,8 +207,14 @@ Deno.serve(async (req) => {
     // --- Calculate gross pay ---
     // Base delivery pay excludes N/C deliveries; oversized and extra km
     // (computed above) already include N/C deliveries.
-    // After Hours deliveries count as 2 deliveries for base pay + delivery count (base pay only).
-    const payableWeight = (d) => (d.no_charge ? 0 : (d.after_hours_pickup ? 2 : 1));
+    // After Hours: deliveries get 2x base (doubled), pickups get 1x (normally 0).
+    // Extra km and oversized are NOT doubled.
+    const payableWeight = (d) => {
+      if (d.no_charge) return 0;
+      const _isPickup = !d.patient_id && !isInterStore(d);
+      if (d.after_hours_pickup) return _isPickup ? 1 : 2;
+      return _isPickup ? 0 : 1;
+    };
     const basePayableCount = countableDeliveries.reduce((sum, d) => sum + payableWeight(d), 0);
     const deliveryPay = basePayableCount * payRatePerDelivery;
     const extraKmPay = round2(totalExtraKm * extraKmRate);
