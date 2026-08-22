@@ -232,11 +232,40 @@ Deno.serve(async (req) => {
       stop_order: -1
     });
 
-    const masterRecord = Array.isArray(masterRecords) && masterRecords.length > 0
-      ? masterRecords[0]
-      : null;
+    // NOTE: there is a known race in syncPendingBreadcrumbs where two concurrent
+    // syncs (the routine 15s GPS loop + the "flush before slice" call fired on
+    // every stop action) can both create() a fresh master record instead of one
+    // updating the other, producing duplicate -1 rows. syncPendingBreadcrumbs
+    // self-heals this on its next run, but slicing can race ahead of that heal —
+    // so defensively merge points across ALL matching master records here rather
+    // than trusting masterRecords[0], which is only ever a PARTIAL trail when
+    // duplicates exist (this is what previously caused "one correct, rest partial"
+    // master files: whichever duplicate got picked was whatever last synced,
+    // not the full day's trail).
+    const hasMultipleMasters = Array.isArray(masterRecords) && masterRecords.length > 1;
+    if (hasMultipleMasters) {
+      console.warn(`⚠️ [consolidateBreadcrumbSegment] Found ${masterRecords.length} duplicate master records for driver=${driver_id} date=${delivery_date} — merging points from all before slicing.`);
+    }
 
-    if (!masterRecord?.encoded_polyline || !masterRecord?.timestamps) {
+    const masterPointsMap = new Map();
+    for (const rec of (Array.isArray(masterRecords) ? masterRecords : [])) {
+      if (!rec?.encoded_polyline || !rec?.timestamps) continue;
+      const coords = decodePolyline(rec.encoded_polyline);
+      const tsArr = rec.timestamps.split(',').map(Number);
+      coords.forEach((coord, i) => {
+        const ts = tsArr[i] || 0;
+        const pt = [coord[0], coord[1], ts];
+        if (
+          Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && Number.isFinite(pt[2]) &&
+          !isCorruptedPoint(pt[0], pt[1]) && ts
+        ) {
+          masterPointsMap.set(ts, pt);
+        }
+      });
+    }
+    const masterPoints = Array.from(masterPointsMap.values()).sort((a, b) => a[2] - b[2]);
+
+    if (masterPoints.length === 0) {
       return Response.json({
         success: false,
         error: 'No master breadcrumb trail found for this driver/date',
@@ -245,16 +274,6 @@ Deno.serve(async (req) => {
         point_count: 0
       }, { status: 404 });
     }
-
-    // Decode master trail into [lat, lng, timestamp] points
-    const masterCoords = decodePolyline(masterRecord.encoded_polyline);
-    const masterTsArr = masterRecord.timestamps.split(',').map(Number);
-    const masterPoints = masterCoords
-      .map((coord, i) => [coord[0], coord[1], masterTsArr[i] || 0])
-      .filter((pt) =>
-        Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && Number.isFinite(pt[2]) &&
-        !isCorruptedPoint(pt[0], pt[1])
-      );
 
     if (masterPoints.length === 0) {
       return Response.json({ success: false, error: 'Master trail has no valid points', point_count: 0 }, { status: 500 });

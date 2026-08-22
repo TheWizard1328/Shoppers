@@ -113,20 +113,45 @@ Deno.serve(async (req) => {
       .map((coord, i) => [coord[0], coord[1], incomingTs[i] || 0])
       .filter(pt => !isCorruptedPoint(pt[0], pt[1])); // Drop any corrupted points
 
-    // Fetch existing master record (stop_order = -1)
+    // Fetch ALL existing master records (stop_order = -1) for this driver/date.
+    // NOTE: this is intentionally NOT just [0] — there is a known race where two
+    // concurrent invocations (the routine 15s GPS sync + the "flush before slice"
+    // call fired on every stop completion) can both read "no existing record" and
+    // both create() a fresh master record, producing duplicate -1 rows over the
+    // course of a day. Rather than trying to eliminate the race with locking
+    // (not available on this platform for entity writes), we self-heal on every
+    // sync: merge ALL duplicates' points together, keep the oldest record as the
+    // single source of truth, and delete the rest. Because syncs happen every
+    // ~15s while on_duty, any duplicate created by the race gets folded back into
+    // one record almost immediately, instead of accumulating for the rest of the day.
     const existingRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id,
       delivery_date,
       stop_order: -1,
     }).catch(() => []);
-    const existingRecord = existingRecords?.[0] || null;
 
-    // Merge: existing points + incoming points, de-duplicated by timestamp, sorted
+    // Oldest record (by created_date, falling back to id) is the one we keep/update.
+    const sortedExisting = Array.isArray(existingRecords) && existingRecords.length > 0
+      ? [...existingRecords].sort((a, b) => {
+          const aTime = a?.created_date ? new Date(a.created_date).getTime() : 0;
+          const bTime = b?.created_date ? new Date(b.created_date).getTime() : 0;
+          return aTime - bTime;
+        })
+      : [];
+    const existingRecord = sortedExisting[0] || null;
+    const duplicateRecordIds = sortedExisting.slice(1).map((r) => r.id).filter(Boolean);
+
+    if (duplicateRecordIds.length > 0) {
+      console.warn(`⚠️ [syncPendingBreadcrumbs] Found ${duplicateRecordIds.length} duplicate master record(s) for driver=${driver_id} date=${delivery_date} — merging into one.`);
+    }
+
+    // Merge: ALL existing duplicates' points + incoming points, de-duplicated by timestamp, sorted
     const existingPoints = [];
     let corruptedSkipped = 0;
-    if (existingRecord?.encoded_polyline && existingRecord?.timestamps) {
-      const coords = decodePolyline(existingRecord.encoded_polyline);
-      const tsArr = existingRecord.timestamps.split(',').map(Number);
+    for (const rec of sortedExisting) {
+      if (!rec?.encoded_polyline || !rec?.timestamps) continue;
+      const coords = decodePolyline(rec.encoded_polyline);
+      const tsArr = rec.timestamps.split(',').map(Number);
       coords.forEach((coord, i) => {
         const ts = parseTimestampMs(tsArr[i]);
         if (!ts) return;
@@ -140,7 +165,7 @@ Deno.serve(async (req) => {
     }
 
     if (corruptedSkipped > 0) {
-      console.log(`🍞 [syncPendingBreadcrumbs] Skipped ${corruptedSkipped} corrupted points from existing record (bitwise overflow)`);
+      console.log(`🍞 [syncPendingBreadcrumbs] Skipped ${corruptedSkipped} corrupted points from existing record(s) (bitwise overflow)`);
     }
 
     // Merge by timestamp — prefer incoming points (they are the latest from client)
@@ -173,6 +198,19 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(masterRecord);
     }
 
+    // Clean up duplicate master records now that their points are folded into
+    // the kept record above. Do this AFTER the save succeeds so a failure here
+    // never loses data.
+    if (duplicateRecordIds.length > 0) {
+      await Promise.all(
+        duplicateRecordIds.map((id) =>
+          base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(id).catch((err) =>
+            console.warn(`⚠️ [syncPendingBreadcrumbs] Failed to delete duplicate master record ${id}:`, err?.message || err)
+          )
+        )
+      );
+    }
+
     return Response.json({
       status: 'synced',
       driver_id,
@@ -181,6 +219,7 @@ Deno.serve(async (req) => {
       new_points: incomingPoints.length,
       merged: existingPoints.length > 0,
       corrupted_skipped: corruptedSkipped,
+      duplicates_merged: duplicateRecordIds.length,
     });
   } catch (error) {
     console.error('❌ [syncPendingBreadcrumbs] Error:', error?.message || error);
