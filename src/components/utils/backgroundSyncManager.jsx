@@ -328,39 +328,51 @@ class BackgroundSyncManager {
     let cursor = new Date(this.historicalSyncDateCursor);
     cursor.setHours(0, 0, 0, 0);
 
-    while (cursor >= cutoffDate && syncedCount < maxDatesPerCycle) {
-      if (this.isPaused || !this.isRunning) break;
-      if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) break;
+    // Signal the UI that the historical delivery backfill is actively running
+    // so the Offline DB indicator can reflect it (blue HardDrive icon).
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('historicalDeliverySyncProgress', { detail: { active: true, cursor: cursor.toISOString() } }));
+    }
 
-      const dateStr = format(cursor, 'yyyy-MM-dd');
+    try {
+      while (cursor >= cutoffDate && syncedCount < maxDatesPerCycle) {
+        if (this.isPaused || !this.isRunning) break;
+        if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) break;
 
-      try {
-        const result = await syncHistoricalDateCityScoped(dateStr, this.currentUser, stores);
-        this.currentCycleAPICalls++;
+        const dateStr = format(cursor, 'yyyy-MM-dd');
 
-        if (result.synced) {
-          console.log(`🔄 [BackgroundSync] Synced ${result.onlineCount} deliveries for ${dateStr} (was ${result.offlineCount}, pruned ${result.pruned})`);
-          syncedCount++;
-          this.lastSyncTimes.deliveries = new Date().toISOString();
-        } else {
-          console.log(`✅ [BackgroundSync] ${dateStr} already synced (${result.offlineCount} records match) — skipping`);
+        try {
+          const result = await syncHistoricalDateCityScoped(dateStr, this.currentUser, stores);
+          this.currentCycleAPICalls++;
+
+          if (result.synced) {
+            console.log(`🔄 [BackgroundSync] Synced ${result.onlineCount} deliveries for ${dateStr} (was ${result.offlineCount}, pruned ${result.pruned})`);
+            syncedCount++;
+            this.lastSyncTimes.deliveries = new Date().toISOString();
+          } else {
+            console.log(`✅ [BackgroundSync] ${dateStr} already synced (${result.offlineCount} records match) — skipping`);
+          }
+
+          // Advance cursor + persist so restarts resume here
+          cursor.setDate(cursor.getDate() - 1);
+          this.historicalSyncDateCursor = new Date(cursor);
+          await saveHistoricalCursor(this.historicalSyncDateCursor, this.cityIdsHash);
+
+          if (throttleMs > 0) {
+            await new Promise((resolve) => setTimeout(resolve, throttleMs));
+          }
+        } catch (error) {
+          if (error.response?.status === 429 || error.message?.includes('429')) {
+            console.log('⏰ [BackgroundSync] Rate limited - stopping delivery sync');
+          } else {
+            console.warn(`⚠️ [BackgroundSync] Failed to sync deliveries for ${dateStr}:`, error.message);
+          }
+          break;
         }
-
-        // Advance cursor + persist so restarts resume here
-        cursor.setDate(cursor.getDate() - 1);
-        this.historicalSyncDateCursor = new Date(cursor);
-        await saveHistoricalCursor(this.historicalSyncDateCursor, this.cityIdsHash);
-
-        if (throttleMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, throttleMs));
-        }
-      } catch (error) {
-        if (error.response?.status === 429 || error.message?.includes('429')) {
-          console.log('⏰ [BackgroundSync] Rate limited - stopping delivery sync');
-        } else {
-          console.warn(`⚠️ [BackgroundSync] Failed to sync deliveries for ${dateStr}:`, error.message);
-        }
-        break;
+      }
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('historicalDeliverySyncProgress', { detail: { active: false, count: syncedCount } }));
       }
     }
 
