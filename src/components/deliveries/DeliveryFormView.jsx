@@ -197,6 +197,18 @@ export default function DeliveryFormView({
     setBuzzerValue('');
   }, [buzzerValue, setFormData]);
 
+  // ── After Hours for regular deliveries ─────────────────────────────────
+  // For a patient delivery, the After Hours checkbox is only enabled when the
+  // assigned pickup (matching the delivery's PUID) already has after_hours_pickup
+  // set to true. Admins can then toggle it; everyone else sees it disabled.
+  const parentPickupHasAfterHours = React.useMemo(() => {
+    if (isPickupMode || isInterStoreMode || !formData.puid) return false;
+    const parent = (allDeliveries || []).find(
+      (d) => d && !d.patient_id && d.stop_id === formData.puid
+    );
+    return Boolean(parent?.after_hours_pickup);
+  }, [isPickupMode, isInterStoreMode, formData.puid, allDeliveries]);
+
   // InterStore: tracks whether both From + To are selected (gates the Add/Done button)
   const [interStoreReady, setInterStoreReady] = React.useState(false);
   // InterStore: force-open the driver dropdown when both stores selected but no driver
@@ -1657,6 +1669,20 @@ export default function DeliveryFormView({
                       setFormData((p) => ({ ...p, after_hours_pickup: c }));
                     }}
                     disabled={isSaving || !userHasRole(currentUser, 'admin')} />
+                  
+                  </div>
+                }
+                {!isPickupMode && !isInterStoreMode && !userHasRole(currentUser, 'dispatcher') && !delivery?.is_cycling_marker && formData.puid &&
+                <div className="flex items-center" title={parentPickupHasAfterHours ? '' : 'Enabled only when the assigned pickup is marked After Hours'}>
+                    <CheckboxField
+                    id="after_hours_pickup_footer_delivery"
+                    label="After Hours Pickup"
+                    checked={Boolean(formData.after_hours_pickup)}
+                    onChange={(c) => {
+                      if (!userHasRole(currentUser, 'admin')) return;
+                      setFormData((p) => ({ ...p, after_hours_pickup: c }));
+                    }}
+                    disabled={isSaving || !userHasRole(currentUser, 'admin') || !parentPickupHasAfterHours} />
                   
                   </div>
                 }
