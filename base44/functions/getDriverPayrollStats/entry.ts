@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
       totalTimeOnDuty: totalTimeOnDuty,
       extraKmLimit: extraKmLimit,
       breakdown: {
-        completedDeliveries: completedDeliveries.reduce((sum, d) => sum + (d.after_hours_pickup ? 2 : 1), 0),
+        completedDeliveries: completedDeliveries.length,
         deliveryPay: deliveryPay,
         extraKmPay: extraKmPay,
         oversizedCount: oversizedCount,
