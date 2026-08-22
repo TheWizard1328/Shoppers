@@ -113,23 +113,22 @@ export default function MapController({
       const roundedZoom = Math.round(rawZoom * 10) / 10;
       window.__currentMapZoom = roundedZoom;
       window.__mapCurrentZoom = roundedZoom;
-      
+
       if (roundedZoom !== currentZoom) {
+        // setCurrentZoom drives the DeliveryMap zoom-band memo (pickup/delivery
+        // marker grouping by precision bucket). MapIcons buckets internally so
+        // within a band no marker/icon rebuilds happen — fractional zoom changes
+        // within a band produce cache hits, no Leaflet DOM churn.
         setCurrentZoom(roundedZoom);
-        
+
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
         const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
         const isProgrammaticFromTimer = timeSinceProgrammatic < 1500;
         const isUserZoom = !isProgrammaticFromFlag && !isProgrammaticFromTimer;
 
-        // Only echo zoom back to Dashboard state on genuine user zoom to avoid re-triggering setView.
-        // CRITICAL: suppress in Phase 2/3 (and while locked) — the fitBounds path (with padding)
-        // is the sole authority there. Echoing back feeds DeliveryMap's UNPADDED setView effect,
-        // causing the integer-snap "secondary zoom" that ignores FAB padding.
-        if (isUserZoom && timeSinceProgrammatic >= 3500 && !isPhase2or3() && !isMapViewLockedRef.current) {
-          setMapZoom?.(roundedZoom);
-        }
-        
+        // Echo back to Dashboard's mapZoom state was removed — that path fed the
+        // removed setView echo effect and caused integer-snap re-zooms. Only
+        // markUserMapControlActive + the optional zoom overlay remain.
         if (isUserZoom) {
           markUserMapControlActive();
           if (zoomOverlayTimeoutRef.current) {
@@ -141,70 +140,23 @@ export default function MapController({
           }, 3000);
         }
       }
-      
+
       if (mapInstance._isProgrammaticZoom) {
         mapInstance._isProgrammaticZoom.current = false;
       }
-      
-      const bounds = mapInstance.getBounds();
-      setVisibleBounds(bounds);
     },
     moveend: () => {
       if ((window._suppressAutoCenterUntil || 0) > Date.now()) { return; }
       const center = mapInstance.getCenter();
       const newCenter = [center.lat, center.lng];
       const rawZoom = mapInstance.getZoom();
-      const roundedZoom = Math.round(rawZoom * 10) / 10;
       window.__mapCurrentCenter = newCenter;
       window.__mapCurrentZoom = rawZoom;
-      
-      const bounds = mapInstance.getBounds();
-      setVisibleBounds(bounds);
-
-      // Only echo center back to Dashboard state on genuine user moves.
-      // fitBounds/setView fire moveend — echoing back updates mapCenter prop, which
-      // re-triggers the setView effect causing a double-bounce.
-      // ALSO suppress during active user control: GPS ticks keep _lastProgrammaticMapMove
-      // fresh every few seconds, so after 1.2s the timer passes and we'd echo center
-      // back, causing setView in DeliveryMap to snap the map back (jitter).
-      // _userMapControlUntil is set to 4s on any drag/zoom and is the reliable signal.
-      const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-      if (timeSinceProgrammatic < 1200) return;
-      // CRITICAL: Suppress ALL state echoes while the user is actively controlling the map.
-      // GPS ticks keep _lastProgrammaticMapMove fresh every few seconds, so after 1.2s
-      // the timer passes even during an active drag. _userMapControlUntil is the reliable
-      // signal — it's set to 4s on dragstart/zoomstart and cleared when it expires.
-      // Echoing mapCenter or mapZoom back to state during this window causes DeliveryMap's
-      // setView effect to re-fire (even as a no-op comparison, it can disturb Leaflet),
-      // producing the 1-second "jitter" / snap-back the user sees after panning.
-      if ((window._userMapControlUntil || 0) > Date.now()) return;
-
-      // CRITICAL: Don't echo center/zoom back to React state when the map is in
-      // Phase 2 or 3 (driver follow / remaining stops). The fitBounds path (with
-      // padding) is the sole authority in those phases — echoing back feeds the
-      // setView effect in DeliveryMap which uses raw center/zoom WITHOUT padding,
-      // causing an "extra zoom" that pushes markers behind the stats card and
-      // stop cards on mobile. This must check the phase directly (via the window
-      // ref), NOT just `__fabIsLocked`, because the FAB lock expires (unlockMs
-      // timeout) while the map is still in Phase 2/3 — after expiry, __fabIsLocked
-      // flips to false and the echo would leak through on every GPS tick.
-      // Use the authoritative prop refs — see note at top of component. The old
-      // window-var guard was dead code (window._mapViewPhaseRef never set) and
-      // `window.__fabIsLocked` flips false on FAB lock expiry, leaking the echo
-      // in Phase 2/3 and triggering DeliveryMap's unpadded setView (secondary zoom).
-      if (isMapViewLockedRef.current || isPhase2or3()) return;
-
-      window.__currentMapCenter = newCenter;
-      setMapCenter(prev => {
-        if (!prev || prev[0] !== newCenter[0] || prev[1] !== newCenter[1]) {
-          return newCenter;
-        }
-        return prev;
-      });
-      setMapZoom?.(prev => {
-        if (Math.abs((prev || 0) - roundedZoom) < 0.01) return prev;
-        return roundedZoom;
-      });
+      // No state echo: the moveend → setMapCenter → setView path caused a 500ms
+      // drift-back stutter whenever a passive trigger (GPS, smart refresh) bumped
+      // the Dashboard's mapViewTrigger after the user's pan settled. The fitBounds
+      // path is the sole authority for map positioning post-user-pan. The window
+      // globals above keep the center/zoom values available for debug/tooling.
     },
     click: () => {
       setFannedLocationKey(null);

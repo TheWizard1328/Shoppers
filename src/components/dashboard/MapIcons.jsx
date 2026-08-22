@@ -14,8 +14,28 @@ const ZOOM_LEVELS = {
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 const simpleCircleIconCache = new Map();
-// Clear cache on hot reload
-if (import.meta.hot) { import.meta.hot.accept(() => simpleCircleIconCache.clear()); }
+const storeIconCache = new Map();
+const deliveryIconCache = new Map();
+// Clear caches on hot reload
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    simpleCircleIconCache.clear();
+    storeIconCache.clear();
+    deliveryIconCache.clear();
+  });
+}
+
+// Bucket zoom to band representatives so icon cache keys stay stable within a band.
+// Markers/icons only change appearance when crossing one of the ZOOM_LEVELS thresholds;
+// fractional zoom changes within a band produce identical icons, so Leaflet never re-mounts DOM.
+export const bucketZoom = (zoomLevel) => {
+  const z = Number(zoomLevel) || 0;
+  if (z >= 13) return 13;       // FULL_DETAIL
+  if (z >= 12) return 12;       // SIMPLIFY_ROUTES
+  if (z >= 11) return 11;       // HIDE_NUMBERS / HIDE_CIRCLES
+  if (z >= 10) return 10;       // HIDE_ROUTES
+  return 0;
+};
 
 const getDriverTextColor = (driverColor) => {
   if (driverColor === '#00CED1' || driverColor === '#FF69B4') return 'black';
@@ -25,15 +45,11 @@ const getDriverTextColor = (driverColor) => {
 const getInnerSymbolColor = (status, isPickup = false) => {
   if (isPickup) {
     if (status === 'completed') return '#10B981';
-    //if (status === 'Ready For Pickup') return '#3B82F6';
-    //if (status === 'pending') return '#94A3B8';
     if (status === 'cancelled') return '#EF4444';
     return '#FFFFFF';
   } else {
     if (status === 'completed' || status === 'delivered') return '#10B981';
     if (status === 'failed' || status === 'cancelled') return '#EF4444';
-    //if (status === 'returned') return '#F97316';
-    //if (status === 'Ready For Pickup') return '#3B82F6';
     if (status === 'pending') return '#94A3B8';
     return '#FFFFFF';
   }
@@ -41,12 +57,13 @@ const getInnerSymbolColor = (status, isPickup = false) => {
 
 export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false, isFaded = false, isHighlightedFinished = false, storeColor = null) => {
   const isMobile = isMobileDevice();
-  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}_${isFaded}_${storeColor || ''}`;
-  
+  const zBucket = bucketZoom(zoomLevel);
+  const cacheKey = `${status}_${number}_${zBucket}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}_${isFaded}_${isHighlightedFinished}_${storeColor || ''}`;
+
   if (simpleCircleIconCache.has(cacheKey)) {
     return simpleCircleIconCache.get(cacheKey);
   }
-  
+
   const statusColors = {
     'pending': '#3B82F6',
     'in_transit': '#0EA5E9',
@@ -54,27 +71,24 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
     'completed': '#10B981',
     'failed': '#EF4444',
     'cancelled': '#EF4444'
-    //'Ready For Pickup': '#3B82F6',
-    //'delivered': '#10B981',
-    //'returned': '#F97316'
   };
 
   const statusColor = statusColors[status] || '#94A3B8';
   const driverColor = isNextDelivery ? '#FDE047' : borderColor;
-  
+
   const outerRingColor = isOtherDriver ? '#FFFFFF' : statusColor;
   // For placeholder/other-driver circles: fill with store color if provided, else fall back to borderColor (driver color)
-  const innerCircleColor = isOtherDriver 
+  const innerCircleColor = isOtherDriver
     ? (isNextDelivery && !FINISHED_STATUSES.includes(status) ? '#FFEA00' : (storeColor || borderColor))
     : driverColor;
 
   let baseSize = 24 * 0.75;
-  if (zoomLevel >= ZOOM_LEVELS.FULL_DETAIL) {
+  if (zBucket >= ZOOM_LEVELS.FULL_DETAIL) {
     baseSize = 28 * 0.75;
-  } else if (zoomLevel < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+  } else if (zBucket < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
     baseSize = 20 * 0.75;
   }
-  
+
   if (status === 'pending') baseSize *= 0.75;
   if (isOtherDriver) baseSize *= 0.86;
   if (isMobile) baseSize *= 1.25;
@@ -140,35 +154,39 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
     iconSize: [baseSize, baseSize],
     iconAnchor: [baseSize / 2, baseSize / 2]
   });
-  
+
   simpleCircleIconCache.set(cacheKey, icon);
   return icon;
 };
 
 export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true, isOtherDriver = false, isFaded = false, isHighlightedFinished = false, isAfterHours = false) => {
   const isMobile = isMobileDevice();
+  const zBucket = bucketZoom(zoomLevel);
+  const storeCacheKey = `${status}_${storeColor}_${isActive}_${number}_${zBucket}_${duplicateCount}_${isHighlighted}_${isNextDelivery}_${hasIncompleteStops}_${isOtherDriver}_${isFaded}_${isHighlightedFinished}_${isAfterHours}`;
+  if (storeIconCache.has(storeCacheKey)) return storeIconCache.get(storeCacheKey);
+
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextYellow = isNextDelivery && !isFinished && hasIncompleteStops;
-  
+
   const innerColor = shouldShowNextYellow ? '#FFEA00' : getInnerSymbolColor(status, true);
-  const showNumber = zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS && number;
+  const showNumber = zBucket >= ZOOM_LEVELS.HIDE_NUMBERS && number;
   const hasDuplicates = duplicateCount > 1;
 
   let baseSize = 24 * 0.75;
-  if (zoomLevel >= ZOOM_LEVELS.FULL_DETAIL) {
+  if (zBucket >= ZOOM_LEVELS.FULL_DETAIL) {
     baseSize = 28 * 0.75;
-  } else if (zoomLevel < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+  } else if (zBucket < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
     baseSize = 20 * 0.75;
   }
-  
+
   if (status === 'pending') baseSize *= 0.75;
   if (isMobile) baseSize *= 1.25;
-  
+
   let size = isActive ? baseSize * 1.15 : baseSize;
   const storeOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
   const pinHeadHStore = Math.round(size * 1.4 * 0.72);
 
-  return L.divIcon({
+  const icon = L.divIcon({
     html: `
       <div style="
         width: ${size}px;
@@ -180,28 +198,28 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
         overflow: visible;
       ">
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none; display: block; overflow: visible; position: absolute; top: 0; left: 0;">
-          <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z" 
-                fill="${storeColor}" 
-                stroke="#FFFFFF" 
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z"
+                fill="${storeColor}"
+                stroke="#FFFFFF"
                 stroke-width="1.2"
                 style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));" />
-          
+
           <g transform="translate(12, 9) ${isAfterHours ? 'rotate(45)' : ''}">
             <rect x="-2" y="-7" width="4" height="14" fill="${innerColor}" rx="1.5" />
             <rect x="-7" y="-2" width="14" height="4" fill="${innerColor}" rx="1.5" />
           </g>
-          
+
           ${showNumber ? `
-            <text x="12" y="24" 
-                  font-family="Arial, sans-serif" 
-                  font-size="9.5" 
-                  font-weight="bold" 
+            <text x="12" y="24"
+                  font-family="Arial, sans-serif"
+                  font-size="9.5"
+                  font-weight="bold"
                   fill="white"
                   text-anchor="middle">${number}</text>
           ` : ''}
         </svg>
-        
-        ${hasDuplicates && zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS ? `
+
+        ${hasDuplicates && zBucket >= ZOOM_LEVELS.HIDE_NUMBERS ? `
           <div class="cluster-badge" style="
             position: absolute;
             top: -5px;
@@ -225,19 +243,21 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
         <!-- Hit area restricted to pin head only -->
         <div class="store-marker ${isHighlighted ? 'highlighted' : ''}" style="position: absolute; top: 0; left: 0; width: ${size}px; height: ${pinHeadHStore}px; cursor: pointer; border-radius: 50% 50% 40% 40%; pointer-events: auto;"></div>
       </div>
-      <style>
-        .store-marker { transition: transform 0.15s ease-out; will-change: transform; }
-        .leaflet-marker-icon:has(.store-marker:hover) { z-index: 30000 !important; transform: scale(1.15); }
-      </style>
     `,
     className: 'custom-store-icon',
     iconSize: [size, size * 1.4],
     iconAnchor: [size / 2, size * 1.4]
   });
+  storeIconCache.set(storeCacheKey, icon);
+  return icon;
 };
 
 export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false, isFridgeItem = false) => {
   const isMobile = isMobileDevice();
+  const zBucket = bucketZoom(zoomLevel);
+  const deliveryCacheKey = `${status}_${storeColor}_${isActive}_${number}_${isFirstTime}_${zBucket}_${duplicateCount}_${isNextInLine}_${isHighlighted}_${hasIncompleteStops}_${isPM}_${isOtherDriver}_${isReturn}_${isFaded}_${isHighlightedFinished}_${isFridgeItem}`;
+  if (deliveryIconCache.has(deliveryCacheKey)) return deliveryIconCache.get(deliveryCacheKey);
+
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextYellow = isNextInLine && !isFinished && hasIncompleteStops;
   const isPending = status === 'pending';
@@ -248,27 +268,27 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
     ? '#F97316'
     : (shouldShowNextYellow ? '#FFEA00' : getInnerSymbolColor(status, false));
   const statusColor = (isFridgeItem && isInTransit && !shouldShowNextYellow) ? '#A5F3FC' : baseStatusColor;
-  const hasYellowHalo = isFirstTime && zoomLevel >= ZOOM_LEVELS.SIMPLIFY_ROUTES;
+  const hasYellowHalo = isFirstTime && zBucket >= ZOOM_LEVELS.SIMPLIFY_ROUTES;
   const hasDuplicates = duplicateCount > 1;
-  const showNumber = zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS && number;
+  const showNumber = zBucket >= ZOOM_LEVELS.HIDE_NUMBERS && number;
 
   let baseSize = 24 * 0.75;
-  if (zoomLevel >= ZOOM_LEVELS.FULL_DETAIL) {
+  if (zBucket >= ZOOM_LEVELS.FULL_DETAIL) {
     baseSize = 28 * 0.75;
-  } else if (zoomLevel < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
+  } else if (zBucket < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
     baseSize = 20 * 0.75;
   }
-  
+
   if (status === 'pending') baseSize *= 0.75;
   if (isOtherDriver) baseSize *= 0.86;
   if (isMobile) baseSize *= 1.25;
-  
+
   const size = isActive ? baseSize * 1.15 : baseSize;
   const numberColor = shouldShowNextYellow ? '#000000' : 'black';
   const deliveryOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
 
   const pinHeadHDel = Math.round(size * 1.4 * 0.72);
-  return L.divIcon({
+  const icon = L.divIcon({
     html: `
       <div style="
         width: ${size}px;
@@ -280,30 +300,30 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
         overflow: visible;
       ">
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none; display: block; overflow: visible; position: absolute; top: 0; left: 0;">
-          <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z" 
-                fill="${storeColor}" 
-                stroke="#FFFFFF" 
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z"
+                fill="${storeColor}"
+                stroke="#FFFFFF"
                 stroke-width="1.2"
                 style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));" />
-          
+
           ${hasYellowHalo ? (isPM ? `
             <rect x="4.5" y="4.5" width="15" height="15" fill="none" stroke="#FBBF24" stroke-width="5.5" opacity="1" />
           ` : `
             <circle cx="12" cy="12" r="7.5" fill="none" stroke="#FBBF24" stroke-width="5.5" opacity="1" />
           `) : ''}
-          
+
           ${(isPM && !isPending) || (isPM && isPending) ? `
             <rect x="4" y="4" width="16" height="16" fill="${statusColor}" stroke="${storeColor}" stroke-width="1.2" />
           ` : `
             <circle cx="12" cy="12" r="8" fill="${statusColor}" stroke="${storeColor}" stroke-width="1.2" />
           `}
-          
+
           ${showNumber ? `
             <text x="12" y="15.5" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="${numberColor}" text-anchor="middle">${number}</text>
           ` : ''}
         </svg>
-        
-        ${hasDuplicates && zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS ? `
+
+        ${hasDuplicates && zBucket >= ZOOM_LEVELS.HIDE_NUMBERS ? `
           <div class="cluster-badge" style="
             position: absolute;
             top: -5px;
@@ -327,15 +347,13 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
         <!-- Hit area restricted to pin head only -->
         <div class="delivery-marker ${isHighlighted ? 'highlighted' : ''}" style="position: absolute; top: 0; left: 0; width: ${size}px; height: ${pinHeadHDel}px; cursor: pointer; border-radius: 50% 50% 40% 40%; pointer-events: auto;"></div>
       </div>
-      <style>
-        .delivery-marker { transition: transform 0.15s ease-out; will-change: transform; }
-        .leaflet-marker-icon:has(.delivery-marker:hover) { z-index: 30000 !important; transform: scale(1.15); }
-      </style>
     `,
     className: 'custom-delivery-icon',
     iconSize: [size, size * 1.4],
     iconAnchor: [size / 2, size * 1.4]
   });
+  deliveryIconCache.set(deliveryCacheKey, icon);
+  return icon;
 };
 
 export const createLiveLocationDot = () => {
@@ -347,7 +365,6 @@ export const createLiveLocationDot = () => {
         height: ${size}px;
         position: relative;
         cursor: pointer;
-        z-index: 100 !important;
       ">
         <div style="
           position: absolute;
@@ -373,14 +390,6 @@ export const createLiveLocationDot = () => {
           box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         "></div>
       </div>
-      <style>
-        @keyframes locationPulse {
-          0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
-          50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.2; }
-        }
-        .live-location-dot { z-index: 100 !important; pointer-events: auto; transition: transform 0.2s ease; }
-        .live-location-dot:hover { transform: scale(1.15); }
-      </style>
     `,
     className: 'custom-live-location-icon',
     iconSize: [size, size],
@@ -470,7 +479,7 @@ export const createHomeIcon = (color = '#10B981') => {
     html: `
       <div style="width: ${w}px; height: ${h}px; position: relative; pointer-events: none; overflow: visible;">
         <svg width="${w}" height="${h}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none; overflow: visible; display: block; position: absolute; top: 0; left: 0;">
-          <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z" 
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z"
                 fill="${color}" stroke="#FFFFFF" stroke-width="1.2" style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));" />
           <g transform="translate(12, 12)">
             <path d="M-5,-3 L0,-7 L5,-3 Z" fill="white" stroke="white" stroke-width="0.5" stroke-linejoin="round" />
@@ -481,10 +490,6 @@ export const createHomeIcon = (color = '#10B981') => {
         <!-- Hit area restricted to pin head only, not the tail -->
         <div class="home-marker" style="position: absolute; top: 0; left: 0; width: ${w}px; height: ${pinHeadH}px; cursor: pointer; border-radius: 50% 50% 40% 40%; pointer-events: auto;"></div>
       </div>
-      <style>
-        .home-marker { transition: transform 0.2s ease; }
-        .leaflet-marker-icon:has(.home-marker:hover) { z-index: 30000 !important; transform: scale(1.15); }
-      </style>
     `,
     className: 'custom-home-icon',
     iconSize: [w, h],
@@ -517,10 +522,6 @@ export const createInterStoreIcon = (mode = 'off') => {
         position: relative;
       ">
       </div>
-      <style>
-        .inter-store-marker { transition: transform 0.15s ease; }
-        .leaflet-marker-icon:has(.inter-store-marker:hover) { z-index: 30000 !important; transform: scale(1.25); }
-      </style>
     `,
     className: 'custom-inter-store-icon',
     iconSize: [size, size],

@@ -36,7 +36,7 @@ import DeliveryMarkers from "./DeliveryMarkers";
 import HomeMarkers from "./HomeMarkers";
 import InterStoreMarkers from "./InterStoreMarkers";
 import MapBreadcrumbs from "./MapBreadcrumbs";
-import { createLiveLocationDot } from "./MapIcons";
+import { createLiveLocationDot, bucketZoom } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
 import { getInterStoreLocationSync, isInterStoreDelivery, parseInterStoreDeliveryId } from "../utils/interStoreDisplayName";
 import { countLegendStops } from "./legendStopCounter";
@@ -568,12 +568,17 @@ function DeliveryMap({
 
   // Step 2: Apply zoom-dependent duplicate counts and grouping maps separately.
   // Zoom changes only recompute counts/groups — the stable marker objects from Step 1 are reused.
+  // CRITICAL: bucket `currentZoom` so the memo reference only shifts when the zoom band
+  // actually changes. Within a band (e.g. 13+ or 12–13) precision + baseSize are identical
+  // so the marker set is reusable — no React re-render of the marker tree, no icon
+  // re-creation, no Leaflet DOM churn on every fractional wheel tick.
+  const bucketedZoom = bucketZoom(currentZoom);
   const { pickupMarkers, groupedPickupMarkers, deliveryMarkers, groupedDeliveryMarkers } = useMemo(() => {
     const allMarkers = [...rawPickupMarkers, ...rawDeliveryMarkers];
     const counts = new Map();
     allMarkers.forEach((marker) => {
       const cap = getLocationKeyCapForStatus(marker.status);
-      const key = getLocationKey(marker.latitude, marker.longitude, currentZoom, cap);
+      const key = getLocationKey(marker.latitude, marker.longitude, bucketedZoom, cap);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
 
@@ -582,7 +587,7 @@ function DeliveryMap({
 
     const pickupMarkersWithCounts = rawPickupMarkers.map((marker) => {
       const cap = getLocationKeyCapForStatus(marker.status);
-      const key = getLocationKey(marker.latitude, marker.longitude, currentZoom, cap);
+      const key = getLocationKey(marker.latitude, marker.longitude, bucketedZoom, cap);
       if (!groupedPickupsMap.has(key)) groupedPickupsMap.set(key, []);
       const withCount = { ...marker, duplicateCount: counts.get(key) || 1, locationKey: key };
       groupedPickupsMap.get(key).push(withCount);
@@ -594,7 +599,7 @@ function DeliveryMap({
       // pending-cap precision cluster (they share exact lat/lng by design).
       const isCycling = marker.is_cycling_marker || marker.markerType === 'cycling';
       const cap = isCycling ? null : getLocationKeyCapForStatus(marker.status);
-      const key = getLocationKey(marker.latitude, marker.longitude, currentZoom, cap);
+      const key = getLocationKey(marker.latitude, marker.longitude, bucketedZoom, cap);
       if (!groupedDeliveriesMap.has(key)) groupedDeliveriesMap.set(key, []);
       const withCount = { ...marker, duplicateCount: counts.get(key) || 1, locationKey: key };
       groupedDeliveriesMap.get(key).push(withCount);
@@ -607,7 +612,7 @@ function DeliveryMap({
       deliveryMarkers: deliveryMarkersWithCounts,
       groupedDeliveryMarkers: groupedDeliveriesMap,
     };
-  }, [rawPickupMarkers, rawDeliveryMarkers, currentZoom]);
+  }, [rawPickupMarkers, rawDeliveryMarkers, bucketedZoom]);
 
   const driverLocationMarkers = useMemo(() => {
     const today = getEdmDate();
@@ -1269,50 +1274,92 @@ function DeliveryMap({
   // flips to false while the map is still in Phase 2/3 — the moveend echo leaks through and the
   // setView effect fires a second, unpadded zoom on every subsequent GPS tick / watchdog re-fire.
   // Fix: block setView for ALL of Phase 2/3, locked or unlocked. The fitBounds path handles it.
+  // REMOVED: setView echo effect. The map's center/zoom state was being echoed
+  // back to the map after every moveend, producing a 500ms "drift-back" animation
+  // whenever a passive trigger (GPS, smart refresh, immersive re-fit) bumped the
+  // Dashboard's mapViewTrigger after the user's pan settled. The fitBounds path
+  // (shouldFitBounds) is the sole authority for map positioning post-gesture; the
+  // moveend echoes that fed this effect were also stripped from MapController.
+  // The `center`/`zoom` props are still consumed by <MapContainer> for initial
+  // mount only (react-leaflet ignores them after that).
   useEffect(() => {
-    if (!map || !map._loaded || !map._container || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
-    if (isMapViewLocked || mapViewPhase === 2 || mapViewPhase === 3) return;
-    // CRITICAL: Don't fight an active user pan/zoom — _userMapControlUntil is set
-    // by MapController whenever a real gesture (drag/pinch) is detected. Without this
-    // check, echoing mapCenter/mapZoom state back from moveend and then re-entering
-    // setView causes a 1-second "jitter" where the map fights the user's pan.
-    if ((window._userMapControlUntil || 0) > Date.now()) return;
-    const currentCenter = map.getCenter();
-    const sameCenter = Math.abs(currentCenter.lat - center[0]) < 0.000001 && Math.abs(currentCenter.lng - center[1]) < 0.000001;
-    const sameZoom = Math.abs(map.getZoom() - zoom) < 0.01;
-    if (sameCenter && sameZoom) return;
-    window._lastProgrammaticMapMove = Date.now();
-    map.setView(center, zoom, { animate: true, duration: 0.5 });
+    // no-op — positioning is owned by the fitBounds trigger (shouldFitBounds).
   }, [map, center, zoom, mapViewPhase, isMapViewLocked]);
 
   useEffect(() => {
     if (!map) return;
+    let rafId = null;
 
-    const updateCrosshairCoords = () => {
+    const compute = () => {
+      rafId = null;
       const topObscured = isMobile ? (immersiveHidden ? 0 : (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116))) : 0;
       const bottomObscured = immersiveHidden ? 0 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight : 0);
       const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 5;
       const size = map.getSize();
       const point = L.point(size.x / 2, size.y / 2 - verticalShift);
       const latLng = map.containerPointToLatLng(point);
-
       window.__mapCrosshairCoords = {
         latitude: latLng.lat,
         longitude: latLng.lng
       };
     };
 
-    updateCrosshairCoords();
-    map.on('move', updateCrosshairCoords);
-    map.on('zoom', updateCrosshairCoords);
-    map.on('resize', updateCrosshairCoords);
+    // rAF throttle — multiple rapid `move` events during a single drag coalesce
+    // into one rAF instead of running map.containerPointToLatLng on every tick.
+    const schedule = () => {
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(compute);
+    };
+
+    schedule();
+    map.on('move', schedule);
+    // 'zoom' omitted — zooming keeps the map center fixed, so a crosshair pinned to
+    // the visible-region midpoint doesn't move during a pure zoom; 'move' covers
+    // the pan case and 'resize' covers window/layout changes.
+    map.on('resize', schedule);
 
     return () => {
-      map.off('move', updateCrosshairCoords);
-      map.off('zoom', updateCrosshairCoords);
-      map.off('resize', updateCrosshairCoords);
+      if (rafId != null) cancelAnimationFrame(rafId);
+      map.off('move', schedule);
+      map.off('resize', schedule);
     };
   }, [map, isMobile, isStatsCardExpanded, areStopCardsVisible, stopCardsHeight, effectiveTopOverlayHeight]);
+
+  // Delegated marker hover: replaces the per-marker `:has()` selectors that were
+  // too costly for Chrome/Safari's compositor to re-evaluate during every paint
+  // while panning/zooming (a `.leaflet-marker-icon:has(.delivery-marker:hover)`
+  // rule was previously injected into every marker's icon DOM). A single
+  // delegated listener on the marker pane toggles a class on the parent
+  // `.leaflet-marker-icon` element; the hover rule lives in index.css.
+  useEffect(() => {
+    if (!map) return;
+    const markerPane = map.getPanes().markerPane;
+    if (!markerPane) return;
+    const HOVER_115 = 'marker-hover-scale-115';
+    const HOVER_125 = 'marker-hover-scale-125';
+    const over = (e) => {
+      const tgt = e.target;
+      if (!tgt || !tgt.closest) return;
+      const iconEl = tgt.closest('.leaflet-marker-icon');
+      if (!iconEl) return;
+      if (tgt.closest('.inter-store-marker')) iconEl.classList.add(HOVER_125);
+      else if (tgt.closest('.delivery-marker, .store-marker, .home-marker')) iconEl.classList.add(HOVER_115);
+    };
+    const out = (e) => {
+      const tgt = e.target;
+      if (!tgt || !tgt.closest) return;
+      const iconEl = tgt.closest('.leaflet-marker-icon');
+      if (!iconEl) return;
+      iconEl.classList.remove(HOVER_115);
+      iconEl.classList.remove(HOVER_125);
+    };
+    markerPane.addEventListener('mouseover', over, { passive: true });
+    markerPane.addEventListener('mouseout', out, { passive: true });
+    return () => {
+      markerPane.removeEventListener('mouseover', over);
+      markerPane.removeEventListener('mouseout', out);
+    };
+  }, [map]);
 
   const calculateFannedPositionWrapperWrapper = useCallback((originalLat, originalLng, markerIndex, totalMarkers) => {
     const radius = 0.0008 + (18 - currentZoom) * 0.0008;
