@@ -460,9 +460,16 @@ export default function DeliveryFormView({
 
   const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
   const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
+  // `position: fixed` measures `bottom` from the TRUE viewport edge, ignoring
+  // ancestor padding. The bottom nav sits ABOVE the phone's safe-area inset
+  // (that inset is reserved as .app-container's own padding-bottom, below the
+  // nav) — so a bare `bottom: mobileBottomNavHeight` stops short of the nav's
+  // real top edge by exactly the safe-area amount, leaving a blank strip that
+  // neither this overlay nor the nav render into. Add the safe-area inset to
+  // close that gap (same formula already proven for BulkEditStopsPanel).
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice ? {
     top: `${mobileHeaderHeight}px`,
-    bottom: `${mobileBottomNavHeight}px`,
+    bottom: `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
     background: 'var(--bg-white)'
   } : undefined;
 
@@ -652,6 +659,15 @@ export default function DeliveryFormView({
 
   return (
     <div
+      // role="dialog" (without data-state) deliberately opts this wrapper OUT
+      // of every native-APK ".fixed.inset-0" safe-area catch-all rule in
+      // layoutStyles.jsx — those all either exclude role="dialog" outright or
+      // require it paired with data-state="open" (which we don't set). Those
+      // catch-all rules exist for overlays that DON'T already compute their
+      // own insets (camera/barcode scanners) — this form already does via
+      // mobileFormInsetStyle above, so letting the catch-all also add
+      // padding-bottom here just double-counts the safe-area gap.
+      role="dialog"
       className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : 'bg-black/60 flex items-center justify-center p-4'}`}
       style={mobileFormInsetStyle}>
       

@@ -861,13 +861,24 @@ export default function PatientForm({
   const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50 dark:bg-red-950';
   const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
   const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
+  // See DeliveryFormView.jsx for the full explanation: `bottom` on a fixed
+  // overlay is measured from the true viewport edge, so it needs the
+  // safe-area inset added on top of the nav's own height to actually land
+  // flush with the nav's real top edge (the nav itself already sits above
+  // that inset via .app-container's own padding-bottom).
   const mobileFormInsetStyle = isMobile ? {
     top: `${mobileHeaderHeight}px`,
-    bottom: `${mobileBottomNavHeight}px`
+    bottom: `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
   } : undefined;
 
   return (
-    <div className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 items-start' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
+    <div
+      // role="dialog" opts this wrapper out of the native-APK generic
+      // ".fixed.inset-0" safe-area catch-all rules (layoutStyles.jsx) — this
+      // form already computes its own bottom inset above, so the catch-all
+      // adding padding-bottom too would double-count the safe area.
+      role="dialog"
+      className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 items-start' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
     style={mobileFormInsetStyle}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
