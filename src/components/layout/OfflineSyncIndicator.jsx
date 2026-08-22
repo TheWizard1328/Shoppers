@@ -18,6 +18,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
   const [runtimeStats, setRuntimeStats] = useState({});
   const [liveCachedCounts, setLiveCachedCounts] = useState(null);
   const liveCountPollRef = useRef(null);
+  // True while the historical delivery backfill is actively running — turns the
+  // idle HardDrive icon blue so dispatchers can see it's working in the background.
+  const [isHistoricalSyncing, setIsHistoricalSyncing] = useState(false);
 
   const isVisible = !!currentUser;
   const triggerRef = useRef(null);
@@ -176,6 +179,12 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
 
     const pollInterval = setInterval(handleRealtimeDBUpdate, 30000);
 
+    const handleHistoricalProgress = (event) => {
+      const active = event?.detail?.active === true;
+      setIsHistoricalSyncing(active);
+    };
+    window.addEventListener('historicalDeliverySyncProgress', handleHistoricalProgress);
+
     return () => {
       unsubscribe();
       clearTimeout(refreshDebounceTimer);
@@ -188,6 +197,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
       window.removeEventListener('realtimeUpdate_Patient', handleRealtimeDBUpdate);
       window.removeEventListener('offlineSyncComplete', handleRealtimeDBUpdate);
       window.removeEventListener('deliveriesUpdated', handleRealtimeDBUpdate);
+      window.removeEventListener('historicalDeliverySyncProgress', handleHistoricalProgress);
     };
   }, [isVisible]);
 
@@ -214,6 +224,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
 
   const getStatusColor = () => {
     if (isSyncing) return 'text-blue-500';
+    if (isHistoricalSyncing) return 'text-blue-500';
     if (syncStatus.status === 'error') return 'text-red-500';
     if (syncStatus.status === 'synced' || syncStatus.status === 'complete') return 'text-green-500';
     return 'text-slate-500 dark:text-slate-400 dark:text-slate-500';
@@ -221,6 +232,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
 
   const getStatusTooltip = () => {
     if (isSyncing) return `Syncing: ${syncStatus.entity || '...'}${syncStatus.progress ? ` (${syncStatus.progress}%)` : ''}`;
+    if (isHistoricalSyncing) return 'Historical delivery sync in progress';
     if (syncStatus.status === 'error') return `Error: ${syncStatus.error || 'Sync failed'}`;
     if (syncStatus.status === 'synced' || syncStatus.status === 'complete') return 'Sync complete';
     return 'Offline DB';

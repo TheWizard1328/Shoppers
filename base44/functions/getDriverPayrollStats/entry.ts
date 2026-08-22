@@ -166,7 +166,9 @@ Deno.serve(async (req) => {
     // Calculate total pay
     // Base delivery pay excludes N/C deliveries; oversized and extra km
     // (computed above) already include N/C deliveries.
-    const basePayableCount = completedDeliveries.filter(d => !d.no_charge).length;
+    // After Hours deliveries count as 2 deliveries for base pay + delivery count (base pay only).
+    const payableWeight = (d) => (d.no_charge ? 0 : (d.after_hours_pickup ? 2 : 1));
+    const basePayableCount = completedDeliveries.reduce((sum, d) => sum + payableWeight(d), 0);
     const deliveryPay = basePayableCount * payRatePerDelivery;
     const extraKmPay = totalExtraKm * extraKmRate;
     const oversizedPay = oversizedCount * oversizedRate;

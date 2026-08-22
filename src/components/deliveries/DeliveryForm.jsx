@@ -587,8 +587,35 @@ export default function DeliveryForm({
       else if (formData.patient_id && patients) { const patient = patients.find((p) => p && p.id === formData.patient_id); if (patient && patient.store_id) { const patientStore = storesToUse.find((s) => s && s.id === patient.store_id); relevantStores = patientStore ? [patientStore] : storesToUse; } }
       if (userHasRole(currentUser, 'dispatcher')) { const dispatcherStoreIds = currentUser.store_ids || []; relevantStores = relevantStores.filter((s) => s && dispatcherStoreIds.includes(s.id)); }
     }
-    return sortStores(expandStoresForTimeSlots({ stores: relevantStores, deliveryDate: formData.delivery_date }));
-  }, [freshStores, stores, isPickupMode, formData.patient_id, formData.driver_id, formData.delivery_date, patients, currentUser, selectedPatient, delivery, allDeliveries, stagedDeliveries]);
+    const expandedStores = expandStoresForTimeSlots({ stores: relevantStores, deliveryDate: formData.delivery_date });
+
+    // CRITICAL: When editing an existing pickup/delivery, the form may carry an
+    // AM/PM slot for a store that has no scheduled driver for that slot on this
+    // day-of-week (e.g. a manually-created PM pickup on a day with no PM driver).
+    // expandStoresForTimeSlots only emits slot variants for slots that have a
+    // driver — so without this guard the "Pickup Store" dropdown has no option
+    // matching formData.store_id + formData.ampm_deliveries and renders blank,
+    // silently dropping the store assignment. Force-include the form's slot
+    // variant so the store + AM/PM stays populated and selected for edits.
+    if (delivery && formData.store_id && formData.ampm_deliveries) {
+      const slotVariantId = `${formData.store_id}_${formData.ampm_deliveries}`;
+      const alreadyHasVariant = expandedStores.some((s) => s && s.id === slotVariantId);
+      if (!alreadyHasVariant) {
+        const baseStore = (storesToUse || []).find((s) => s && s.id === formData.store_id);
+        if (baseStore) {
+          expandedStores.push({
+            ...baseStore,
+            id: slotVariantId,
+            name: `${baseStore.name} [${formData.ampm_deliveries}]`,
+            _originalStoreId: baseStore.id,
+            _timeSlot: formData.ampm_deliveries
+          });
+        }
+      }
+    }
+
+    return sortStores(expandedStores);
+  }, [freshStores, stores, isPickupMode, formData.patient_id, formData.driver_id, formData.delivery_date, formData.store_id, formData.ampm_deliveries, patients, currentUser, selectedPatient, delivery, allDeliveries, stagedDeliveries]);
 
   const filteredPatients = useMemo(() => {
     if (!patientSearch || !patients || formData.patient_id) return [];

@@ -34,6 +34,8 @@ export function isCountableLegendStop(item, { requireMarkerTypeDelivery = false 
 
 /**
  * Counts how many of the given items count as legend stops.
+ * Each delivery counts as 1 (After Hours does NOT multiply the leg count —
+ * it only doubles the base pay).
  * @param {Array} items
  * @param {object} [opts] - forwarded to {@link isCountableLegendStop}
  * @returns {number}
