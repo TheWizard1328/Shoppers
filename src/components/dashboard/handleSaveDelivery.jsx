@@ -167,57 +167,67 @@ export async function handleSaveDelivery(deliveryData, ctx) {
         updateDeliveriesLocally([{ ...editingDelivery, ...deliveryData }], false);
       }
 
-      // Step 3: Save to IDB + backend. skipSmartRefresh=true because we already
-      // paused at the top of handleSaveDelivery and will resume at the end.
-      await updateDeliveryLocal(editingDelivery.id, deliveryData, { skipSmartRefresh: true });
-
-      // Step 3b: Immediately read the full merged record from IDB and push it to the UI.
-      // This ensures all users see the change instantly — no waiting for WS echo or refresh cycle.
-      try {
-        const { offlineDB } = await import('@/components/utils/offlineDatabase');
-        const savedRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, editingDelivery.id);
-        if (savedRecord) {
-          const localDeliveries = window.__appDeliveries || [];
-          const snapshotMap = new Map(localDeliveries.filter(Boolean).map((d) => [d.id, d]));
-          snapshotMap.set(savedRecord.id, savedRecord);
-          const mergedDeliveries = Array.from(snapshotMap.values());
-          window.__appDeliveries = mergedDeliveries;
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: {
-              freshDeliveries: mergedDeliveries,
-              deliveries: mergedDeliveries,
-              immediate: true,
-              driverId,
-              deliveryDate,
-              triggeredBy: 'formSaveImmediate',
-              preserveLocalState: true,
-              skipMapPhaseOneRefresh: true,
-              skipDriverLocationRefresh: true,
-            }
-          }));
-        }
-      } catch (_) {
-        // Non-critical fallback — broadcast without full snapshot
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { driverId, deliveryDate, triggeredBy: 'formSave', preserveLocalState: true }
-        }));
-      }
-
-      if (hasStructuralChange) {
-        // Re-sort stop orders and check if any actually changed
-        const { orderChanged } = await recalculateAndUpdateStopOrders(
-          driverId, deliveryDate,
-          /*skipPolylineRegeneration=*/ true,
-          /*skipPolylineIfNoOrderChange=*/ false
-        );
-        requestDeferredOptimization(driverId, deliveryDate, orderChanged);
-      }
-
-      invalidate('Delivery');
+      // Step 3: Close the form IMMEDIATELY — the optimistic UI update above already
+      // reflects the change. The backend write + IDB sync + stop-order recalc below
+      // run in the background so the user isn't blocked behind a network/sync round trip.
       setShowDeliveryForm(false);
-
       setEditingDelivery(null);
       fabControlEvents.resetToPhaseOneAfterDone(500);
+
+      // Step 4: Backend write + IDB re-read + structural recalc — fire-and-forget.
+      // Errors here are non-fatal since the local UI already reflects the user's
+      // intent; the next smart-refresh cycle reconciles any discrepancies.
+      (async () => {
+        try {
+          // Save to IDB + backend. skipSmartRefresh=true because we already paused
+          // at the top of handleSaveDelivery and will resume at the end.
+          await updateDeliveryLocal(editingDelivery.id, deliveryData, { skipSmartRefresh: true });
+
+          // Re-read the full merged record from IDB and broadcast to UI for polish
+          try {
+            const { offlineDB } = await import('@/components/utils/offlineDatabase');
+            const savedRecord = await offlineDB.getById(offlineDB.STORES.DELIVERIES, editingDelivery.id);
+            if (savedRecord) {
+              const localDeliveries = window.__appDeliveries || [];
+              const snapshotMap = new Map(localDeliveries.filter(Boolean).map((d) => [d.id, d]));
+              snapshotMap.set(savedRecord.id, savedRecord);
+              const mergedDeliveries = Array.from(snapshotMap.values());
+              window.__appDeliveries = mergedDeliveries;
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: {
+                  freshDeliveries: mergedDeliveries,
+                  deliveries: mergedDeliveries,
+                  immediate: true,
+                  driverId,
+                  deliveryDate,
+                  triggeredBy: 'formSaveImmediate',
+                  preserveLocalState: true,
+                  skipMapPhaseOneRefresh: true,
+                  skipDriverLocationRefresh: true,
+                }
+              }));
+            }
+          } catch (_) {
+            // Non-critical fallback — broadcast without full snapshot
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { driverId, deliveryDate, triggeredBy: 'formSave', preserveLocalState: true }
+            }));
+          }
+
+          if (hasStructuralChange) {
+            // Re-sort stop orders and check if any actually changed
+            const { orderChanged } = await recalculateAndUpdateStopOrders(
+              driverId, deliveryDate,
+              /*skipPolylineRegeneration=*/ true,
+              /*skipPolylineIfNoOrderChange=*/ false
+            );
+            requestDeferredOptimization(driverId, deliveryDate, orderChanged);
+          }
+          invalidate('Delivery');
+        } catch (err) {
+          console.warn('⚠️ [handleSaveDelivery] background sync failed:', err?.message || err);
+        }
+      })();
       return;
     }
 
@@ -413,7 +423,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
     alert(`Failed to save delivery: ${error.message}`);
     throw error;
   } finally {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 150));
     resumeOfflineSync();
     smartRefreshManager.restart(); // restart (not just resume) so the next cycle fetches fresh data
     setIsEntityUpdating(false);
