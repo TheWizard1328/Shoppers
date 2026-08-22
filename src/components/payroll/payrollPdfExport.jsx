@@ -276,7 +276,10 @@ export function exportPayrollPdf({
     });
 
     const ytdTotalDeliveries = ytdDeliveries.length;
-    const ytdTotalBasePay = ytdTotalDeliveries * driverData.payRate;
+    // After Hours: double the base pay only (count stays the same)
+    const ytdAfterHoursCount = ytdDeliveries.filter((d) => d.after_hours_pickup && !d.no_charge).length;
+    const ytdNormalCount = ytdDeliveries.filter((d) => !d.no_charge).length - ytdAfterHoursCount;
+    const ytdTotalBasePay = (ytdNormalCount + ytdAfterHoursCount * 2) * driverData.payRate;
     const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
       const patient = patients.find((p) => p?.id === d.patient_id);
       if (!patient?.distance_from_store) return sum;

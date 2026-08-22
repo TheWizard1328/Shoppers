@@ -148,8 +148,12 @@ export function useLocalPerformanceStats({
         });
 
         // N/C deliveries skip BASE pay only — oversized and extra km are still payable.
+        // After Hours deliveries get DOUBLE base pay (after_hours_pickup flag),
+        // but the delivery COUNT is not doubled.
         const noChargeCount = paidDeliveries.filter((d) => d?.no_charge === true).length;
-        totalPay += (paidDeliveries.length - noChargeCount) * payRatePerDelivery;
+        const afterHoursCount = paidDeliveries.filter((d) => d?.after_hours_pickup === true && d?.no_charge !== true).length;
+        const normalBaseCount = (paidDeliveries.length - noChargeCount) - afterHoursCount;
+        totalPay += (normalBaseCount + afterHoursCount * 2) * payRatePerDelivery;
         totalPay += paidDeliveries.filter((delivery) => delivery?.oversized === true).length * oversizedRate;
 
         paidDeliveries.forEach((delivery) => {

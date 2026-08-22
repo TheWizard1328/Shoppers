@@ -1646,11 +1646,11 @@ export default function DeliveryFormView({
                     Deliveries: (S: {stagedCount.new} P: {stagedCount.pending})
                   </Button>
                 }
-                {isPickupMode && !isInterStoreMode && !userHasRole(currentUser, 'dispatcher') && !delivery?.is_cycling_marker &&
+                {!isInterStoreMode && !userHasRole(currentUser, 'dispatcher') && !delivery?.is_cycling_marker &&
                 <div className="flex items-center">
                     <CheckboxField
                     id="after_hours_pickup_footer"
-                    label="After Hours Pickup"
+                    label={isPickupMode ? "After Hours Pickup" : "After Hours"}
                     checked={Boolean(formData.after_hours_pickup)}
                     onChange={(c) => {
                       if (!userHasRole(currentUser, 'admin')) return;

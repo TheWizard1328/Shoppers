@@ -203,10 +203,14 @@ export default function PayrollSummaryCard({
         basePay = periodDeliveries.reduce((sum, d) => {
           if (d.no_charge) return sum;
           const r = getEffectiveRates(appUser, d.delivery_date);
-          return sum + r.pay_rate_per_delivery;
+          // After Hours: double the base pay only (count stays the same)
+          return sum + r.pay_rate_per_delivery * (d.after_hours_pickup ? 2 : 1);
         }, 0);
       } else {
-        basePay = periodDeliveries.filter((d) => !d.no_charge).length * payRate;
+        // After Hours: double the base pay only (count stays the same)
+        const afterHoursCount = periodDeliveries.filter((d) => d.after_hours_pickup && !d.no_charge).length;
+        const normalCount = periodDeliveries.filter((d) => !d.no_charge).length - afterHoursCount;
+        basePay = (normalCount + afterHoursCount * 2) * payRate;
       }
 
       let extraKmPay = 0,totalExtraKm = 0;
@@ -279,7 +283,7 @@ export default function PayrollSummaryCard({
       if (hasRateHistory && graphDeliveryCount > 0) {
         graphBasePay = graphPayableDeliveries.reduce((sum, d) => {
           if (d.no_charge) return sum;
-          return sum + getEffectiveRates(appUser, d.delivery_date).pay_rate_per_delivery;
+          return sum + getEffectiveRates(appUser, d.delivery_date).pay_rate_per_delivery * (d.after_hours_pickup ? 2 : 1);
         }, 0);
         graphPayableDeliveries.forEach((d) => {
           const r = getEffectiveRates(appUser, d.delivery_date);
@@ -297,7 +301,9 @@ export default function PayrollSummaryCard({
           return sum + getEffectiveRates(appUser, d.delivery_date).oversized_item_rate;
         }, 0);
       } else {
-        graphBasePay = graphPayableDeliveries.filter((d) => !d.no_charge).length * payRate;
+        const graphAfterHoursCount = graphPayableDeliveries.filter((d) => d.after_hours_pickup && !d.no_charge).length;
+        const graphNormalCount = graphPayableDeliveries.filter((d) => !d.no_charge).length - graphAfterHoursCount;
+        graphBasePay = (graphNormalCount + graphAfterHoursCount * 2) * payRate;
         graphPayableDeliveries.forEach((d) => {
           let dist = d.paid_km_override ?? 0;
           if (!dist && d.patient_id && patients) {

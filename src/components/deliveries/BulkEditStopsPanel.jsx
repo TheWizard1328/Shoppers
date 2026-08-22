@@ -421,18 +421,16 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
       <div className="border-t px-4 py-2" style={{ borderColor: "var(--border-slate-200)" }}>
         <div className="flex items-center gap-3">
-          {allPickups && (
-            <label className="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
-              <Checkbox
-                checked={values.after_hours_pickup === true}
-                onCheckedChange={(checked) => setValues(current => ({ ...current, after_hours_pickup: !!checked }))}
-                disabled={isSaving}
-                className="mt-0.5 shrink-0" />
-              <span className="text-xs font-medium leading-tight" style={{ color: "var(--text-slate-700)" }}>
-                After Hours
-              </span>
-            </label>
-          )}
+          <label className="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
+            <Checkbox
+              checked={values.after_hours_pickup === true}
+              onCheckedChange={(checked) => setValues(current => ({ ...current, after_hours_pickup: !!checked }))}
+              disabled={isSaving}
+              className="mt-0.5 shrink-0" />
+            <span className="text-xs font-medium leading-tight" style={{ color: "var(--text-slate-700)" }}>
+              After Hours
+            </span>
+          </label>
           <div className="flex gap-2 ml-auto shrink-0">
             <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
               Cancel
@@ -508,9 +506,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     storeChoice: "unchanged",
     ampmChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.ampm_deliveries, "unchanged"),
     puid: hasMixedPuids ? "" : getSharedValue(selectedDeliveries, (delivery) => delivery?.puid, ""),
-    after_hours_pickup: selectedDeliveries.every(d => !d?.patient_id)
-      ? (selectedDeliveries.every(d => d?.after_hours_pickup === true) ? true : false)
-      : undefined,
+    after_hours_pickup: selectedDeliveries.every(d => d?.after_hours_pickup === true) ? true : false,
   }), [selectedDeliveries, hasMixedPuids, hasTerminalStatus, allSameStore]);
 
   const [values, setValues] = useState(initialValues);
