@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { base44 } from '@/api/base44Client';
+import { calculateDeliveryPay } from '@/components/utils/payCalculator';
 
 /**
  * Computes performance stats (pay, km, extra km, duty time) for the currently
@@ -126,10 +127,7 @@ export function useLocalPerformanceStats({
 
       driverIds.forEach((driverId) => {
         const driverAppUser = resolvedMap.get(driverId);
-        const payRatePerDelivery = driverAppUser?.pay_rate_per_delivery || 0;
-        const extraKmRate = driverAppUser?.extra_km_rate || 0;
         const extraKmLimit = driverAppUser?.extra_km_limit || 0;
-        const oversizedRate = driverAppUser?.oversized_item_rate || 0;
         const driverStatus = driverAppUser?.driver_status;
         const driverDeliveries = (filteredDeliveries || []).filter((d) => d?.driver_id === driverId);
 
@@ -147,29 +145,21 @@ export function useLocalPerformanceStats({
           return false;
         });
 
-        // N/C deliveries skip BASE pay only — oversized and extra km are still payable.
-        // After Hours: deliveries (patient/interstore) get 2x base pay; pickups get 1x (normally 0).
-        const basePayableCount = paidDeliveries.reduce(
-          (sum, d) => {
-            if (d?.no_charge === true) return sum;
-            const isPickup = !d.patient_id && !isInterStore(d);
-            return sum + (d?.after_hours_pickup ? (isPickup ? 1 : 2) : (isPickup ? 0 : 1));
-          },
-          0
-        );
-        totalPay += basePayableCount * payRatePerDelivery;
-        totalPay += paidDeliveries.filter((delivery) => delivery?.oversized === true).length * oversizedRate;
-
+        // Use the canonical per-delivery pay calculator — keeps StatsCard Total Pay
+        // identical to the stop-card badges (AH patient deliveries pay 2x base;
+        // AH store pickups pay 1x base; regular pickups pay 0; N/C deliveries skip
+        // base pay but oversized + extra km are still payable).
         paidDeliveries.forEach((delivery) => {
           const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
+          totalPay += calculateDeliveryPay(delivery, driverAppUser, patient);
+
+          // Extra km debug total feeds the "Extra" badge — not part of calculateDeliveryPay's return.
           const distance = delivery.paid_km_override !== null && delivery.paid_km_override !== undefined
             ? parseFloat(delivery.paid_km_override)
             : patient?.distance_from_store;
 
           if (typeof distance === "number" && !Number.isNaN(distance) && distance > extraKmLimit) {
-            const extraKm = distance - extraKmLimit;
-            totalExtraKm += extraKm;
-            totalPay += extraKm * extraKmRate;
+            totalExtraKm += distance - extraKmLimit;
           }
         });
 

@@ -7,64 +7,45 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { formatDistanceToNow, format } from 'date-fns';
 
+/**
+ * OfflineSyncIndicator
+ *
+ * Displays the current background-sync / offline-DB status in the sidebar.
+ *
+ * CRITICAL: This component must NOT poll IndexedDB while a sync is running.
+ * A previous version mounted a 1500ms setInterval that called
+ * offlineDB.getAll() for Deliveries + Patients + AppUsers + Cities on every
+ * tick. Because IndexedDB is single-threaded per origin, those read
+ * transactions contended with the background sync's write transactions,
+ * stalling the writer and blocking the React main thread while materializing
+ * 50k+ records per tick — producing the visible dashboard jitter whenever a
+ * sync notification appeared.
+ *
+ * Fix: the manager already emits `{entity, count, progress}` through
+ * subscribeSyncStatus, so the indicator derives its "Syncing: X (Y%)"
+ * header purely from the syncStatus object it already receives. Stats are
+ * refreshed exactly once when sync completes, and the idle stats-refresh
+ * interval is now 5 minutes (was 30s) — it only freshens stale counts.
+ */
 export default function OfflineSyncIndicator({ embedded = false, inline = false, renderInline = false }) {
   const { currentUser } = useUser();
+
+  // Single state object for whatever syncStatus tells us — one setState per
+  // emit, one re-render per emit (was three separate setStates before).
   const [syncStatus, setSyncStatus] = useState({ status: 'idle' });
   const [stats, setStats] = useState(null);
   const [deliveryCounts, setDeliveryCounts] = useState({ past: 0, today: 0, future: 0 });
   const prevCountsRef = useRef(null); // snapshot before last sync started
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [runtimeStats, setRuntimeStats] = useState({});
-  const [liveCachedCounts, setLiveCachedCounts] = useState(null);
-  const liveCountPollRef = useRef(null);
-  // True while the historical delivery backfill is actively running — turns the
-  // idle HardDrive icon blue so dispatchers can see it's working in the background.
   const [isHistoricalSyncing, setIsHistoricalSyncing] = useState(false);
 
   const isVisible = !!currentUser;
   const triggerRef = useRef(null);
   const [panelStyle, setPanelStyle] = useState({});
 
-  const pollLiveDBCounts = async () => {
-    try {
-      const [deliveries, patients, appUsers, cities] = await Promise.all([
-        offlineDB.getAll(offlineDB.STORES.DELIVERIES),
-        offlineDB.getAll(offlineDB.STORES.PATIENTS),
-        offlineDB.getAll(offlineDB.STORES.APP_USERS),
-        offlineDB.getAll(offlineDB.STORES.CITIES),
-      ]);
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      let past = 0, today = 0, future = 0;
-      (deliveries || []).forEach(d => {
-        if (!d?.delivery_date) return;
-        if (d.delivery_date < todayStr) past++;
-        else if (d.delivery_date === todayStr) today++;
-        else future++;
-      });
-      setLiveCachedCounts({
-        deliveries: (deliveries || []).length,
-        patients: (patients || []).length,
-        appUsers: (appUsers || []).length,
-        cities: (cities || []).length,
-        deliveryBreakdown: { past, today, future },
-      });
-    } catch (_) {}
-  };
+  const isSyncing = syncStatus.status === 'syncing' || syncStatus.status === 'force_syncing';
 
-  const startLivePolling = () => {
-    if (liveCountPollRef.current) return;
-    liveCountPollRef.current = setInterval(pollLiveDBCounts, 1500);
-    pollLiveDBCounts();
-  };
-
-  const stopLivePolling = () => {
-    if (liveCountPollRef.current) {
-      clearInterval(liveCountPollRef.current);
-      liveCountPollRef.current = null;
-    }
-  };
-
+  // ── Cheap IDB reads — only on sync start / complete, never on a timer ──
   const getDeliveryCountsFromDB = async () => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
@@ -99,35 +80,23 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
   useEffect(() => {
     if (!isVisible) return;
 
-    getSyncStats().then(stats => {
-      setStats(stats);
-    }).catch(() => {});
-    // On mount: snapshot current counts (delta will be computed after next sync)
+    getSyncStats().then(s => setStats(s)).catch(() => {});
     getDeliveryCountsFromDB().then(counts => { prevCountsRef.current = counts; }).catch(() => {});
 
+    // One state update per status emit — syncStatus carries entity / count /
+    // progress directly, so the header renders from it without any IDB read.
     const unsubscribe = subscribeSyncStatus((status) => {
       setSyncStatus(status);
-      setIsSyncing(status.status === 'syncing' || status.status === 'force_syncing');
-
-      if (status.entity && status.count !== undefined) {
-        setRuntimeStats(prev => ({ ...prev, [status.entity.toLowerCase()]: status.count }));
-      }
 
       if (status.status === 'syncing' || status.status === 'force_syncing') {
-        // Snapshot before sync so we can compute delta when done
         if (!prevCountsRef.current) {
-          getDeliveryCountsFromDB().then(counts => { prevCountsRef.current = counts; }).catch(() => {});
+          getDeliveryCountsFromDB().then(c => { prevCountsRef.current = c; }).catch(() => {});
         }
-        startLivePolling();
       }
       if (status.status === 'complete' || status.status === 'synced') {
-        stopLivePolling();
-        getSyncStats().then(newStats => {
-          setStats(newStats);
-          setRuntimeStats({});
-        }).catch(() => {});
+        // Refresh stats ONCE on completion — no polling during the sync.
+        getSyncStats().then(newStats => setStats(newStats)).catch(() => {});
         refreshDeliveryCounts(true); // show delta since last sync
-        pollLiveDBCounts(); // final count update
       }
 
       const relevantEntities = ['Deliveries', 'Patients', 'AppUsers', 'Cities'];
@@ -142,17 +111,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
     });
 
     const handlePeriodicSync = (event) => {
-      const { entity, count, isComplete } = event.detail;
-      setIsSyncing(true);
-      setSyncStatus({ status: 'syncing', entity, count, progress: isComplete ? 100 : 50 });
-      setRuntimeStats(prev => ({ ...prev, [entity.toLowerCase()]: count }));
+      const { entity, count, isComplete } = event.detail || {};
+      setSyncStatus({ status: isComplete ? 'complete' : 'syncing', entity, count, progress: isComplete ? 100 : 50 });
       if (isComplete) {
         setTimeout(() => {
-          getSyncStats().then(newStats => {
-            setStats(newStats);
-            setRuntimeStats({});
-            setIsSyncing(false);
-          }).catch(() => { setIsSyncing(false); });
+          getSyncStats().then(newStats => setStats(newStats)).catch(() => {});
         }, 300);
       }
     };
@@ -161,6 +124,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
       if (!isSyncing) handleForceSync();
     };
 
+    // Debounced stats refresh on realtime DB updates — fires at most once per
+    // 500ms no matter how many entity-update events arrive in that window.
     let refreshDebounceTimer = null;
     const handleRealtimeDBUpdate = () => {
       clearTimeout(refreshDebounceTimer);
@@ -177,11 +142,12 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
     window.addEventListener('offlineSyncComplete', handleRealtimeDBUpdate);
     window.addEventListener('deliveriesUpdated', handleRealtimeDBUpdate);
 
-    const pollInterval = setInterval(handleRealtimeDBUpdate, 30000);
+    // Idle stats refresh — 5 minutes (was 30s). This only freshens stale
+    // snapshot counts; the live "syncing" state comes from syncStatus.
+    const pollInterval = setInterval(handleRealtimeDBUpdate, 5 * 60 * 1000);
 
     const handleHistoricalProgress = (event) => {
-      const active = event?.detail?.active === true;
-      setIsHistoricalSyncing(active);
+      setIsHistoricalSyncing(event?.detail?.active === true);
     };
     window.addEventListener('historicalDeliverySyncProgress', handleHistoricalProgress);
 
@@ -189,7 +155,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
       unsubscribe();
       clearTimeout(refreshDebounceTimer);
       clearInterval(pollInterval);
-      stopLivePolling();
       window.removeEventListener('periodicSyncProgress', handlePeriodicSync);
       window.removeEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
       window.removeEventListener('realtimeUpdate_AppUser', handleRealtimeDBUpdate);
@@ -205,12 +170,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
 
   const handleForceSync = async () => {
     try {
-      setIsSyncing(true);
+      setSyncStatus(prev => ({ ...prev, status: 'force_syncing' }));
       prevCountsRef.current = await getDeliveryCountsFromDB().catch(() => null);
       await forceSyncAll();
       const updatedStats = await getSyncStats();
       setStats(updatedStats);
-      setRuntimeStats({});
       refreshDeliveryCounts(true); // show delta
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
@@ -218,7 +182,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
     } catch (error) {
       console.error('❌ [OfflineSyncIndicator] Force sync failed:', error);
     } finally {
-      setIsSyncing(false);
+      setSyncStatus({ status: 'idle' });
     }
   };
 
@@ -261,17 +225,18 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
     return '📊';
   };
 
-  // During syncs: use live-polled DB counts; otherwise fall back to stats snapshot
-  const liveCounts = {
-    patients: (isSyncing && liveCachedCounts) ? liveCachedCounts.patients : (stats?.patients?.count ?? 0),
-    deliveries: (isSyncing && liveCachedCounts) ? liveCachedCounts.deliveries : (stats?.deliveries?.count ?? 0),
-    appUsers: (isSyncing && liveCachedCounts) ? liveCachedCounts.appUsers : (stats?.appUsers?.count ?? 0),
-    cities: (isSyncing && liveCachedCounts) ? liveCachedCounts.cities : (stats?.cities?.count ?? 0),
+  // Cached snapshot counts — no live polling. During sync the header shows
+  // the entity + progress from syncStatus instead of record counts.
+  const cachedCounts = {
+    patients: stats?.patients?.count ?? 0,
+    deliveries: stats?.deliveries?.count ?? 0,
+    appUsers: stats?.appUsers?.count ?? 0,
+    cities: stats?.cities?.count ?? 0,
     driverOverviewStats: stats?.driverOverviewStats?.count ?? 0,
     squareTransactions: stats?.squareTransactions?.count ?? 0,
   };
 
-  const liveLastSync = stats ? {
+  const cachedLastSync = stats ? {
     patients: stats.patients?.lastSync,
     deliveries: stats.deliveries?.lastSync,
     appUsers: stats.appUsers?.lastSync,
@@ -280,13 +245,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
     squareTransactions: stats.squareTransactions?.lastSync,
   } : null;
 
-  const liveTotalRecords = liveCounts.patients + liveCounts.deliveries + liveCounts.appUsers + liveCounts.cities + liveCounts.driverOverviewStats;
-
-  const shouldRenderStats = !!stats || !!liveCachedCounts;
+  const totalRecords = cachedCounts.patients + cachedCounts.deliveries + cachedCounts.appUsers + cachedCounts.cities + cachedCounts.driverOverviewStats;
+  const shouldRenderStats = !!stats;
 
   const handleToggle = () => {
     if (!renderInline) {
-      // Floating mode: position:absolute relative to this wrapper div
       setPanelStyle({
         position: 'absolute',
         top: '100%',
@@ -300,7 +263,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
         boxShadow: '0 8px 24px rgba(15,23,42,0.12)'
       });
     } else {
-      // Inline/accordion mode: no positioning — panel renders in normal flow below button
       setPanelStyle({});
     }
     setIsExpanded(!isExpanded);
@@ -319,13 +281,12 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
               {isSyncing ? 'Syncing...' : 'Offline DB'}
             </span>
             <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-              ({liveTotalRecords})
+              ({totalRecords})
             </span>
             <div className="text-[10px] font-mono" style={{ color: 'var(--text-slate-400)' }}>
-              {isSyncing && liveCachedCounts
-                ? `📦 ${liveCachedCounts.deliveries} · 👥 ${liveCachedCounts.patients}`
-                : `Synced: ${deliveryCounts.past}/${deliveryCounts.today}/${deliveryCounts.future}`
-              }
+              {isSyncing
+                ? `Syncing… ${syncStatus.entity || '...'}${syncStatus.progress ? ` (${syncStatus.progress}%)` : ''}`
+                : `Synced: ${deliveryCounts.past}/${deliveryCounts.today}/${deliveryCounts.future}`}
             </div>
           </div>
         </div>
@@ -356,11 +317,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                       </div>
                       <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                         <Clock className="w-3 h-3" />
-                        <span>{formatLastSync(liveLastSync.appUsers)}</span>
+                        <span>{formatLastSync(cachedLastSync.appUsers)}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.appUsers}</div>
+                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.appUsers}</div>
                       {stats.fullSyncStatus?.appUsers?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                     </div>
                   </div>
@@ -374,11 +335,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                         </div>
                         <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                           <Clock className="w-3 h-3" />
-                          <span>{formatLastSync(liveLastSync.cities)}</span>
+                          <span>{formatLastSync(cachedLastSync.cities)}</span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.cities}</div>
+                        <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.cities}</div>
                         {stats.fullSyncStatus?.cities?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                       </div>
                     </div>
@@ -392,11 +353,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                       </div>
                       <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                         <Clock className="w-3 h-3" />
-                        <span>{formatLastSync(liveLastSync.patients)}</span>
+                        <span>{formatLastSync(cachedLastSync.patients)}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.patients}</div>
+                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.patients}</div>
                       {stats.fullSyncStatus?.patients?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                     </div>
                   </div>
@@ -409,11 +370,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                       </div>
                       <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                         <Clock className="w-3 h-3" />
-                        <span>{formatLastSync(liveLastSync.deliveries)}</span>
+                        <span>{formatLastSync(cachedLastSync.deliveries)}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries} / {liveCounts.driverOverviewStats}</div>
+                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.deliveries} / {cachedCounts.driverOverviewStats}</div>
                       {stats.fullSyncStatus?.deliveries?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                     </div>
                   </div>
@@ -427,11 +388,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                         </div>
                         <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                           <Clock className="w-3 h-3" />
-                          <span>{formatLastSync(liveLastSync.squareTransactions)}</span>
+                          <span>{formatLastSync(cachedLastSync.squareTransactions)}</span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.squareTransactions}</div>
+                        <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{cachedCounts.squareTransactions}</div>
                         {stats.fullSyncStatus?.squareTransactions?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
                       </div>
                     </div>

@@ -231,6 +231,10 @@ export const globalFilters = {
   setSelectedDriverId: (driverId, userId = null) => {
     const newDriverId = driverId || 'all';
     updateAndSave('selectedDriverId', newDriverId, userId);
+    // Push the live selection to realtimeSync so the role-gated DeliveryBreadcrumbs
+    // handler can filter admin breadcrumb pings to the selected driver without an import
+    // cycle (dynamic import avoids circular dependency at module load).
+    import('./realtimeSync').then(({ setSelectedDriver }) => setSelectedDriver(newDriverId)).catch(() => {});
   },
 
   setSelectedCityId: (cityId) => {

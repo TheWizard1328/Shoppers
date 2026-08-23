@@ -302,3 +302,25 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
   from { left: 0%; }
   to   { left: calc(100% - 52px); }
 }
+
+/* Hoisted map marker styles — replaces the per-icon `<style>` blocks that used
+   to be injected into every marker's icon DOM by MapIcons.jsx. Those produced a
+   `:has()` selector per marker that Chrome/Safari's compositor had to re-evaluate
+   on every paint while panning/zooming (hundreds of leaves during a single drag).
+   These rules live once globally; marker hover scaling is delegated from a single
+   listener in DeliveryMap that toggles `marker-hover-scale-*` on the parent
+   `.leaflet-marker-icon` element. */
+.store-marker, .delivery-marker, .home-marker { transition: transform 0.15s ease-out; will-change: transform; }
+.inter-store-marker { transition: transform 0.15s ease; }
+
+.leaflet-marker-icon.marker-hover-scale-115 { z-index: 30000 !important; transform: scale(1.15); }
+.leaflet-marker-icon.marker-hover-scale-125 { z-index: 30000 !important; transform: scale(1.25); }
+
+/* Live self-location blue dot */
+.live-location-dot { z-index: 100 !important; pointer-events: auto; transition: transform 0.2s ease; }
+.live-location-dot:hover { transform: scale(1.15); }
+
+@keyframes locationPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+  50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.2; }
+}

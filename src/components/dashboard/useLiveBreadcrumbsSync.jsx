@@ -35,7 +35,14 @@ export default function useLiveBreadcrumbsSync({
 
     // Debounced, guarded refresh — skips if already running, no-ops if unmounted
     const refresh = (event) => {
-      if (!matches(event?.detail || {})) return;
+      const detail = event?.detail || {};
+      // Audit fix: short-circuit refreshes that explicitly carry a driverId outside the
+      // active set (selected/overlay/self). Events without a driverId (global triggers
+      // like initialDataReady or full-replacement route refreshes) still pass through to
+      // `matches()`, which handles the date scope.
+      const eventDriverId = detail.driverId || detail.driver_id || detail.delivery?.driver_id;
+      if (eventDriverId && activeDriverId && eventDriverId !== activeDriverId && eventDriverId !== currentUser?.id) return;
+      if (!matches(detail)) return;
       if (refreshBusyRef.current) return; // already loading, skip
       refreshBusyRef.current = true;
       loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsersRef.current)
