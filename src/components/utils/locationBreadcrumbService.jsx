@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { getLocalDateString } from './localTimeHelper';
+import { acquireBreadcrumbSyncLock } from './breadcrumbSyncLock';
 
 // ─── Master Timeline Architecture ─────────────────────────────────────────────
 // All breadcrumbs are collected into a single 'TODAY' record per driver/date,
@@ -202,6 +203,10 @@ export const collectBreadcrumbForTracker = async ({
   if (_breadcrumbSaveCount >= ONLINE_SYNC_EVERY_N_SAVES) {
     _breadcrumbSaveCount = 0;
     _lastOnlineSyncTime = now;
+    // Acquire mutex lock to prevent concurrent syncPendingBreadcrumbs calls
+    // (routine 15s GPS sync vs pre-slice flush on stop completion). Without this,
+    // both calls read "no existing record" and both create(), producing duplicates.
+    const releaseLock = await acquireBreadcrumbSyncLock();
     try {
       await base44.functions.invoke('syncPendingBreadcrumbs', {
         driver_id: currentUser.id,
@@ -216,6 +221,8 @@ export const collectBreadcrumbForTracker = async ({
       if (!isRateLimited) {
         console.warn(`⚠️ [Breadcrumbs] Server sync failed:`, error.message);
       }
+    } finally {
+      releaseLock();
     }
   } else {
     console.log(`🍞 [Breadcrumbs] Offline save ${_breadcrumbSaveCount}/${ONLINE_SYNC_EVERY_N_SAVES} (${allPoints.length} pts) — server sync on save #${ONLINE_SYNC_EVERY_N_SAVES}`);

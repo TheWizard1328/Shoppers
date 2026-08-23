@@ -9,6 +9,7 @@
 
 import { parseLocalTimestamp } from '../utils/timeRoundingHelper';
 import { consolidateBreadcrumbSegment } from "@/functions/consolidateBreadcrumbSegment";
+import { acquireBreadcrumbSyncLock } from "../utils/breadcrumbSyncLock";
 
 export const START_ACTION_NAME = 'start_delivery';
 
@@ -26,14 +27,22 @@ export const queueConsolidateBreadcrumbs = async ({ driverId, deliveryDate, deli
     const masterRecord = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey);
     if (masterRecord?.encoded_polyline && masterRecord?.timestamps) {
       const { base44 } = await import('@/api/base44Client');
-      await base44.functions.invoke('syncPendingBreadcrumbs', {
-        driver_id: driverId,
-        delivery_date: deliveryDate,
-        encoded_polyline: masterRecord.encoded_polyline,
-        timestamps: masterRecord.timestamps,
-        point_count: masterRecord.point_count,
-      });
-      console.log(`☁️ [Breadcrumbs] Pre-slice flush: ${masterRecord.point_count} points synced to server`);
+      // Acquire mutex lock — prevents concurrent syncPendingBreadcrumbs calls
+      // from the routine GPS sync loop and this pre-slice flush racing to create
+      // duplicate master records (stop_order = -1).
+      const releaseLock = await acquireBreadcrumbSyncLock();
+      try {
+        await base44.functions.invoke('syncPendingBreadcrumbs', {
+          driver_id: driverId,
+          delivery_date: deliveryDate,
+          encoded_polyline: masterRecord.encoded_polyline,
+          timestamps: masterRecord.timestamps,
+          point_count: masterRecord.point_count,
+        });
+        console.log(`☁️ [Breadcrumbs] Pre-slice flush: ${masterRecord.point_count} points synced to server`);
+      } finally {
+        releaseLock();
+      }
     }
   } catch (flushErr) {
     console.warn('⚠️ [Breadcrumbs] Pre-slice flush failed:', flushErr?.message || flushErr);

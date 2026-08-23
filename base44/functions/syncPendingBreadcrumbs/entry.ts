@@ -196,11 +196,70 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existingRecord.id, masterRecord);
     } else {
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(masterRecord);
+
+      // ── POST-CREATE DEDUP ──────────────────────────────────────────────────
+      // Even with the client-side mutex, two different devices could race to
+      // create. Re-query immediately after create; if we now see >1 record,
+      // merge into the oldest and delete the rest. This catches duplicates in
+      // the SAME call that created them, rather than waiting for the next sync.
+      const postCreateRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+        driver_id,
+        delivery_date,
+        stop_order: -1,
+      }).catch(() => []);
+
+      if (Array.isArray(postCreateRecords) && postCreateRecords.length > 1) {
+        console.warn(`⚠️ [syncPendingBreadcrumbs] Post-create dedup: found ${postCreateRecords.length} master records after create — merging.`);
+
+        // Re-merge ALL records (including the one we just created) into oldest
+        const postSorted = [...postCreateRecords].sort((a, b) => {
+          const aTime = a?.created_date ? new Date(a.created_date).getTime() : 0;
+          const bTime = b?.created_date ? new Date(b.created_date).getTime() : 0;
+          return aTime - bTime;
+        });
+        const postOldest = postSorted[0];
+        const postDupIds = postSorted.slice(1).map((r) => r.id).filter(Boolean);
+
+        // Re-merge points from all records
+        const postPointsMap = new Map();
+        for (const rec of postSorted) {
+          if (!rec?.encoded_polyline || !rec?.timestamps) continue;
+          const coords = decodePolyline(rec.encoded_polyline);
+          const tsArr = rec.timestamps.split(',').map(Number);
+          coords.forEach((coord, i) => {
+            const ts = parseTimestampMs(tsArr[i]);
+            if (!ts || isCorruptedPoint(coord[0], coord[1])) return;
+            postPointsMap.set(ts, [coord[0], coord[1], ts]);
+          });
+        }
+        // Also include incoming points
+        for (const pt of incomingPoints) { if (pt[2]) postPointsMap.set(pt[2], pt); }
+        const postMerged = Array.from(postPointsMap.values()).sort((a, b) => a[2] - b[2]);
+
+        if (postMerged.length > 0 && postOldest?.id) {
+          await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(postOldest.id, {
+            driver_id,
+            delivery_date,
+            stop_order: -1,
+            encoded_polyline: encodePolyline(postMerged),
+            timestamps: postMerged.map((p) => p[2]).join(','),
+            transport_mode: 'driving',
+            point_count: postMerged.length,
+          });
+          await Promise.all(
+            postDupIds.map((id) =>
+              base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(id).catch((err) =>
+                console.warn(`⚠️ [syncPendingBreadcrumbs] Post-create dedup: failed to delete ${id}:`, err?.message || err)
+              )
+            )
+          );
+          console.log(`✅ [syncPendingBreadcrumbs] Post-create dedup: merged ${postSorted.length} records into 1 (${postMerged.length} points).`);
+        }
+      }
     }
 
-    // Clean up duplicate master records now that their points are folded into
-    // the kept record above. Do this AFTER the save succeeds so a failure here
-    // never loses data.
+    // Clean up duplicate master records that existed at read time.
+    // Do this AFTER the save succeeds so a failure here never loses data.
     if (duplicateRecordIds.length > 0) {
       await Promise.all(
         duplicateRecordIds.map((id) =>
