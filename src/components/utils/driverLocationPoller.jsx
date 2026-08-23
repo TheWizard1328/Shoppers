@@ -211,11 +211,12 @@ class DriverLocationPoller {
        }
 
        // ========================================
-       // RULE 2: App Owner — sees ALL drivers on_duty or on_break, regardless of
-       // location_tracking_enabled or city. No city filter for app owner.
+       // RULE 2: App Owner — sees ANY driver as long as the app is running and
+       // broadcasting a heartbeat. No gate on driver_status, location_tracking_enabled,
+       // or city. Marker COLOR (not visibility) reflects duty status / staleness.
        // ========================================
        if (isUserAppOwner) {
-         return user.driver_status === 'on_duty' || user.driver_status === 'on_break';
+         return true; // coordinates + heartbeat already verified above
        }
 
        // Skip inactive users for non-app-owner roles
@@ -235,38 +236,28 @@ class DriverLocationPoller {
        }
 
        // ========================================
-       // RULE 4: Dispatchers — see all on_duty drivers from their stores
+       // RULE 4: Dispatchers — see all on_duty drivers in their same city. No Share
+       // Location gate needed, and no delivery/store matching required.
        // ========================================
        if (isDispatcher && !isDriver) {
          if (user.driver_status !== 'on_duty') return false;
 
-         const rawDispatcherStoreIds = this.currentUser.store_ids || [];
-         const dispatcherStoreIds = new Set(rawDispatcherStoreIds.map(id => String(id)));
-
-         const userIdForDeliveryMatch = user.id || user.user_id;
-         const allDriverIdFormats = [userIdForDeliveryMatch, driverId, user.user_id, user.user_user_id].filter(Boolean);
-
-         const matchingDeliveries = (deliveries || []).filter(delivery => {
-           if (!delivery) return false;
-           const driverMatch = allDriverIdFormats.some(fmt => delivery.driver_id === fmt);
-           const dateMatch = delivery.delivery_date === selectedDateStr;
-           const deliveryStoreIdStr = String(delivery.store_id || '');
-           const storeMatch = dispatcherStoreIds.has(deliveryStoreIdStr);
-           const statusMatch = ['en_route', 'in_transit', 'pending'].includes(delivery.status);
-           return driverMatch && dateMatch && storeMatch && statusMatch;
-         });
-
-         return matchingDeliveries.length > 0;
+         if (currentUserCityId) {
+           const userCityIds = user.city_ids && user.city_ids.length > 0 ? user.city_ids : (user.city_id ? [user.city_id] : []);
+           if (!userCityIds.includes(currentUserCityId)) return false;
+         }
+         return true;
        }
 
        // ========================================
-       // RULE 5: Drivers — see same-city drivers on_duty or on_break with location sharing ON
+       // RULE 5: Drivers — see same-city drivers with Share Location ON. No On Duty
+       // gate — location sharing auto-turns off when off duty/break, but can be left
+       // manually ON, so the toggle alone is the source of truth.
        // ========================================
        if (isDriver) {
          if (!showAllDrivers) {
            return false;
          }
-         if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
          if (!user.location_tracking_enabled) return false;
          // Same-city check
          if (currentUserCityId) {

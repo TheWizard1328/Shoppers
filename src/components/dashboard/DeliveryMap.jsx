@@ -635,19 +635,19 @@ function DeliveryMap({
       const isSelf = user.id === currentUserId || user.user_id === currentUserId;
 
       // ── VISIBILITY RULES (single source of truth for location marker visibility) ──
-      // App Owner: sees ALL drivers on_duty or on_break, regardless of location_tracking_enabled toggle
+      // App Owner: sees ANY driver with a heartbeat — no gate on driver_status,
+      // location_tracking_enabled, or city. Marker COLOR reflects duty status/staleness.
       if (_isAppOwner && !isSelf) {
-        if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return null;
-        // No location_tracking_enabled check — app owner sees all active drivers
+        // No status/city/location_tracking_enabled check — app owner sees all broadcasting drivers
       } else if (isAdmin && !isSelf) {
         // Admin: sees all on_duty drivers for the selected city
         if (user.driver_status !== 'on_duty') return null;
       } else if (isDispatcher && !isSelf) {
-        // Dispatcher: sees all on_duty drivers from their stores
+        // Dispatcher: sees all on_duty drivers in their same city — no Share Location gate.
         if (user.driver_status !== 'on_duty') return null;
       } else if (isDriver && !isSelf) {
-        // Driver: sees same-city drivers who are on_duty or on_break with location sharing ON
-        if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return null;
+        // Driver: sees same-city drivers with Share Location ON — no On Duty gate.
+        // Location sharing auto-turns off when off duty/break, but can be left on manually.
         if (!user.location_tracking_enabled) return null;
         // Same-city check for drivers
         if (currentUserCityId && user.city_id && user.city_id !== currentUserCityId) return null;
@@ -674,10 +674,14 @@ function DeliveryMap({
 
       const resolvedDriverName = driverNameLookupMap.get(user.id) || driverNameLookupMap.get(user.user_id) || user.user_name || user.full_name || "Driver";
 
-      if (isDispatcher) {
-        const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
-        const hasVisibleDelivery = (deliveriesForLocationFilter || []).some((delivery) => delivery?.driver_id === user.id && delivery?.delivery_date === today && dispatcherStoreIds.has(delivery.store_id) && ["en_route", "in_transit", "pending"].includes(delivery.status));
-        if (!hasVisibleDelivery) return null;
+      if (isDispatcher && !isSelf) {
+        // Dispatcher sees any on_duty driver in their same city — no delivery/store
+        // matching required (that gate was replaced by the same-city check above).
+        const dispatcherCityId = currentUser?.city_id;
+        const dispatcherCityIds = currentUser?.city_ids || (dispatcherCityId ? [dispatcherCityId] : []);
+        const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
+        const isSameCity = dispatcherCityIds.length === 0 || userCityIds.some((cityId) => dispatcherCityIds.includes(cityId));
+        if (!isSameCity) return null;
       }
 
       if (!isAdmin && !isDriver && !isDispatcher && !_isAppOwner) return null;

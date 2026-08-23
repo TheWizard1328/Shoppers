@@ -81,15 +81,31 @@ export const getNativeLocationAuthorization = async () => {
     return { granted: false, status: 'web' };
   }
 
-  // Use the Web Permissions API to check location status — this works
-  // inside Capacitor's WebView and returns 'granted', 'denied', or 'prompt'.
+  // CRITICAL: Use the native CapGo BackgroundGeolocation plugin's checkPermissions()
+  // instead of navigator.permissions.query('geolocation'). The WebView's own
+  // Permissions API reflects a per-origin Chrome-internal grant that does NOT
+  // reliably mirror the actual Android OS runtime permission (ACCESS_FINE_LOCATION /
+  // ACCESS_BACKGROUND_LOCATION) — it can get stuck reporting 'prompt' even when the
+  // user has set Location to "Allow all the time" in Android Settings. The native
+  // plugin queries the real OS permission directly, which is also what the plugin
+  // itself checks before starting GPS tracking — so this check must use the same source.
+  if (typeof BackgroundGeolocation?.checkPermissions === 'function') {
+    try {
+      const status = await BackgroundGeolocation.checkPermissions();
+      const granted = status?.location === 'granted';
+      const backgroundGranted = status?.backgroundLocation === 'granted' || status?.backgroundLocation === 'always';
+      return { granted, backgroundGranted, status: status?.location || 'unknown', nativeStatus: status };
+    } catch (e) {
+      console.warn('[capacitorRuntime] BackgroundGeolocation.checkPermissions failed:', e?.message);
+      // Fall through to Web Permissions API as a last-resort fallback
+    }
+  }
+
+  // Fallback: Web Permissions API (only used if the native plugin check is unavailable)
   try {
     const result = await navigator.permissions.query({ name: 'geolocation' });
     const status = result.state; // 'granted' | 'denied' | 'prompt'
     const granted = status === 'granted';
-
-    // Android does not expose whether background was granted via the
-    // Permissions API — we flag it as unknown so callers can handle it.
     return { granted, backgroundGranted: null, status, permissions: result };
   } catch (e) {
     console.warn('[capacitorRuntime] navigator.permissions.query failed:', e?.message);
@@ -137,9 +153,26 @@ export const requestNativeLocationAuthorization = async () => {
     return { granted: false, backgroundGranted: false, status: 'web' };
   }
 
-  // The plugin requests permissions itself via addWatcher(requestPermissions: true).
-  // We just check whether foreground location is available.
+  // First check current state via the native plugin (real OS permission).
   const current = await getNativeLocationAuthorization();
+  if (current.granted) {
+    return current;
+  }
+
+  // Not yet granted — actively trigger the native OS permission dialog via the
+  // plugin's requestPermissions(), rather than relying on the WebView's own
+  // (flaky) geolocation prompt. This surfaces the real Android permission dialog.
+  if (typeof BackgroundGeolocation?.requestPermissions === 'function') {
+    try {
+      const status = await BackgroundGeolocation.requestPermissions();
+      const granted = status?.location === 'granted';
+      const backgroundGranted = status?.backgroundLocation === 'granted' || status?.backgroundLocation === 'always';
+      return { granted, backgroundGranted, status: status?.location || 'unknown', nativeStatus: status };
+    } catch (e) {
+      console.warn('[capacitorRuntime] BackgroundGeolocation.requestPermissions failed:', e?.message);
+    }
+  }
+
   return current;
 };
 

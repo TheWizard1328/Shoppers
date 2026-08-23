@@ -21,16 +21,25 @@ import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { generateDriverColor, getContrastColor } from '../utils/colorGenerator';
 
 // Create driver/dispatcher icon with border ring based on delivery status
-const createDriverIcon = (driverColor = '#2563EB', driverStatus = 'on_duty', initial = '', staleness = 'fresh', deliveryStatus = 'incomplete') => {
+// Marker fill color rules:
+//   Green  (#16A34A): On Duty
+//   Red    (#DC2626): Off Duty
+//   Blue   (#2563EB): On Break
+//   Orange (#F59E0B): Stale timestamp (location_updated_at older than 5 minutes) — overrides status color
+const createDriverIcon = (driverColor = '#2563EB', driverStatus = 'on_duty', initial = '', isStale = false, deliveryStatus = 'incomplete') => {
   const size = 15;
 
-  let fillColor = '#16A34A';
-  if (staleness === 'very_stale' || staleness === 'stale' || staleness === 'aging' || staleness === 'heartbeat_stale') {
-    fillColor = '#F59E0B';
+  let fillColor;
+  if (isStale) {
+    fillColor = '#F59E0B'; // Orange - stale heartbeat (>5 min old), overrides status color
   } else if (driverStatus === 'on_break') {
-    fillColor = '#2563EB';
+    fillColor = '#2563EB'; // Blue - on break
   } else if (driverStatus === 'online' || driverStatus === 'on_duty') {
-    fillColor = '#16A34A';
+    fillColor = '#16A34A'; // Green - on duty
+  } else if (driverStatus === 'off_duty') {
+    fillColor = '#DC2626'; // Red - off duty
+  } else {
+    fillColor = '#6B7280'; // Gray - unknown status fallback
   }
 
   let borderColor = '#FFFFFF';
@@ -268,9 +277,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const hasAnyHeartbeat = updatedAt > 0;
 
     // ── ROLE-BASED VISIBILITY RULES ──
-    // App Owner: sees ALL drivers on_duty or on_break, regardless of location_tracking_enabled
+    // App Owner: sees ANY driver as long as the app is running and broadcasting a
+    // heartbeat — no gate on driver_status or location_tracking_enabled or city.
+    // Marker COLOR (not visibility) reflects duty status / staleness — see createDriverIcon.
     if (_isAppOwner) {
-      return hasAnyHeartbeat && (user.driver_status === 'on_duty' || user.driver_status === 'on_break');
+      return hasAnyHeartbeat;
     }
 
     // Admin: sees all on_duty drivers (for selected city — city filter applied in DeliveryMap.jsx)
@@ -278,35 +289,25 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       return hasAnyHeartbeat && user.driver_status === 'on_duty';
     }
 
-    // Dispatcher: sees all on_duty drivers from their stores
+    // Dispatcher: sees all on_duty drivers in their same city — no Share Location gate.
     if (isDispatcher && !isSelf) {
       if (user.driver_status !== 'on_duty') return false;
       if (user.status === 'inactive') return false;
 
-      const rawDispatcherStoreIds = currentUser?.store_ids || [];
-      if (rawDispatcherStoreIds.length === 0) return false;
+      const currentUserCityId = currentUser?.city_id;
+      const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
+      const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
+      const isSameCity = currentUserCityIds.length === 0 || userCityIds.some(cityId => currentUserCityIds.includes(cityId));
 
-      const dispatcherStoreIds = new Set(rawDispatcherStoreIds.map(id => String(id)));
-      const selectedDateStr = selectedDate instanceof Date 
-        ? selectedDate.toISOString().split('T')[0]
-        : selectedDate;
-      const allDriverIdFormats = [user.id, user.user_id, userId].filter(Boolean);
-
-      const hasDispatcherStoreDelivery = deliveries?.some(d => {
-        if (!d) return false;
-        const driverMatch = allDriverIdFormats.some(fmt => d.driver_id === fmt);
-        const dateMatch = d.delivery_date === selectedDateStr;
-        const storeMatch = dispatcherStoreIds.has(String(d.store_id || ''));
-        return driverMatch && dateMatch && storeMatch;
-      });
-
-      return hasDispatcherStoreDelivery;
+      return isSameCity;
     }
 
-    // Driver: sees same-city drivers who are on_duty or on_break with location sharing ON
+    // Driver: sees same-city drivers with Share Location ON — no On Duty gate needed.
+    // Location sharing auto-turns off when off duty/on break, but a driver can leave it
+    // manually ON, so the toggle alone is the source of truth here.
     if (isDriver && !isSelf) {
       if (currentUser?.status === 'inactive') return false;
-      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
+      if (user.status === 'inactive') return false;
       if (!user.location_tracking_enabled) return false;
 
       const currentUserCityId = currentUser?.city_id;
@@ -314,7 +315,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
       const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
 
-      return isSameCity && user.status !== 'inactive';
+      return isSameCity;
     }
 
     return false;
@@ -588,8 +589,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   // Reuses the same L.divIcon object as long as staleness/status/deliveryStatus don't change,
   // so Leaflet never tears down and rebuilds the marker DOM element on location-only updates.
   const iconCacheRef = useRef(new Map());
-  const getStableIcon = useCallback((stableKey, driverColor, driverStatus, initial, staleness, deliveryStatus) => {
-    const iconKey = `${stableKey}|${driverColor}|${driverStatus}|${initial}|${staleness}|${deliveryStatus}`;
+  const getStableIcon = useCallback((stableKey, driverColor, driverStatus, initial, isStale, deliveryStatus) => {
+    const iconKey = `${stableKey}|${driverColor}|${driverStatus}|${initial}|${isStale}|${deliveryStatus}`;
     if (!iconCacheRef.current.has(iconKey)) {
       // Evict any old entry for this driver before inserting the new one
       for (const k of iconCacheRef.current.keys()) {
@@ -598,7 +599,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           break;
         }
       }
-      iconCacheRef.current.set(iconKey, createDriverIcon(driverColor, driverStatus, initial, staleness, deliveryStatus));
+      iconCacheRef.current.set(iconKey, createDriverIcon(driverColor, driverStatus, initial, isStale, deliveryStatus));
     }
     return iconCacheRef.current.get(iconKey);
   }, []);
@@ -667,7 +668,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const driverColor = generateDriverColor(displayName);
 
         // Use cached icon — avoids Leaflet destroying/recreating the marker DOM on every location update
-        const stableIcon = getStableIcon(stableKey, driverColor, user.driver_status, displayName.charAt(0).toUpperCase(), staleness, deliveryStatus);
+        // Bucketed boolean (not raw ageMinutes) so the icon cache doesn't churn every tick —
+        // only flips (and rebuilds the icon) when crossing the 5-minute threshold.
+        const isStale = ageMinutes > 5;
+        const stableIcon = getStableIcon(stableKey, driverColor, user.driver_status, displayName.charAt(0).toUpperCase(), isStale, deliveryStatus);
 
         return (
           <Marker
