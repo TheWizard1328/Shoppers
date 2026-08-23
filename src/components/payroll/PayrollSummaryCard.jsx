@@ -272,11 +272,15 @@ export default function PayrollSummaryCard({
 
       const graphPayableDeliveries = periodDeliveries.filter((delivery) => {
         if (!delivery) return false;
-        const validStatus = delivery.status === 'completed' || delivery.status === 'failed' || (delivery.status === 'cancelled' && delivery.after_hours_pickup);
+        // Exclude after-hours pickups/deliveries from graph (summary card) pay
+        // values — after-hours pay is tracked separately and must NOT inflate
+        // the per-driver summary or grand-total graph figures.
+        if (delivery.after_hours_pickup) return false;
+        const validStatus = delivery.status === 'completed' || delivery.status === 'failed';
         if (!validStatus) return false;
         const dIdUpper = String(delivery.delivery_id || '').toUpperCase();
         const isIS = dIdUpper.startsWith('ISD-') || dIdUpper.startsWith('ISP-');
-        if (!delivery.patient_id && !delivery.after_hours_pickup && !isIS) return false;
+        if (!delivery.patient_id && !isIS) return false;
         return true;
       });
       const graphDeliveryCount = graphPayableDeliveries.length;
