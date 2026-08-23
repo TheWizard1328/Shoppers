@@ -2,7 +2,8 @@ import React, { createContext, useState, useContext, useEffect, useRef } from 'r
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
-import { initEncryption, destroyKey } from '@/components/utils/idbCrypto';
+import { initEncryption, destroyKey, setEncryptionBypass } from '@/components/utils/idbCrypto';
+import { isAppOwner } from '@/components/utils/userRoles';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
 // Bounded timeout for platform API calls during boot. If the Base44 platform
@@ -93,10 +94,7 @@ export const AuthProvider = ({ children }) => {
           try { base44.auth.setRefreshToken?.(refreshToken); } catch {}
         }
 
-        // Initialize IDB encryption with the new token
-        initEncryption(accessToken).catch((e) =>
-          console.error('[Auth] IDB encryption init failed after deep link:', e)
-        );
+        // IDB encryption init deferred to checkUserAuth (which knows the user role)
 
         // Update native GPS POST headers with the fresh token so the
         // @capgo foreground service keeps authenticating after token rotation.
@@ -236,10 +234,14 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
 
-      // Initialize IDB encryption with the auth token
+      // Initialize IDB encryption — bypass for App Owner (Preview environment IDB conflicts)
       const token = appParams.token || localStorage.getItem('base44_access_token');
       if (token) {
-        initEncryption(token).catch((e) => console.error('[Auth] IDB encryption init failed:', e));
+        if (isAppOwner(currentUser)) {
+          setEncryptionBypass(true);
+        } else {
+          initEncryption(token).catch((e) => console.error('[Auth] IDB encryption init failed:', e));
+        }
         // Refresh native GPS POST headers on app startup in case the token
         // was refreshed while the app was killed (START_STICKY restart uses
         // the old persisted header until we call updateHeaders).

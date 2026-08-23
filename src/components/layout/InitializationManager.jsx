@@ -5,7 +5,8 @@ import { getDeviceType, getDeviceIdentifier } from '../utils/userSettingsManager
 import { performAtomicDeviceCheck } from '../utils/atomicDeviceCheck';
 import { requestThrottler } from '../utils/requestThrottler';
 import { getBootstrapManifest } from '@/functions/getBootstrapManifest';
-import { initEncryption, purgeUndecryptableRecords, resetDecryptFailCounters } from '@/components/utils/idbCrypto';
+import { initEncryption, purgeUndecryptableRecords, resetDecryptFailCounters, setEncryptionBypass } from '@/components/utils/idbCrypto';
+import { isAppOwner } from '@/components/utils/userRoles';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 
 /**
@@ -70,46 +71,49 @@ export const useInitialization = ({
       setCurrentUser(fetchedUser);
       setHasAccess(true);
 
-      // STEP 4.5: Initialize IDB encryption and migrate existing plaintext records
+      // STEP 4.5: Initialize IDB encryption — bypass for App Owner (Preview environment IDB conflicts)
       try {
         const token = localStorage.getItem('base44_access_token');
         if (token) {
-          await initEncryption(token);
-
-          // PURGE: Remove records encrypted with an old key (previous session token).
-          // They are undecryptable with the current key. Server sync will repopulate.
-          try {
-            const { STORES, PHI_STORES } = offlineDB;
-            let totalPurged = 0;
-            for (const storeName of Array.from(PHI_STORES)) {
-              const purged = await purgeUndecryptableRecords(storeName);
-              totalPurged += purged;
-            }
-            if (totalPurged > 0) {
-              console.log(`[InitManager] Purged ${totalPurged} undecryptable IDB records — server sync will repopulate`);
-              resetDecryptFailCounters();
-            }
-          } catch (purgeErr) {
-            console.warn('[InitManager] IDB purge failed:', purgeErr?.message);
+          if (isAppOwner(fetchedUser)) {
+            setEncryptionBypass(true);
+          } else {
+            await initEncryption(token);
           }
 
-          // Migrate existing plaintext records to encrypted form
-          const { STORES, PHI_STORES } = offlineDB;
-          const phiStores = Array.from(PHI_STORES);
-          for (const storeName of phiStores) {
+          // PURGE + MIGRATE: Skip for App Owner (encryption bypassed — no encrypted records to purge/migrate)
+          if (!isAppOwner(fetchedUser)) {
+            // PURGE: Remove records encrypted with an old key (previous session token).
             try {
-              const allRecords = await offlineDB.getAll(storeName);
-              if (allRecords.length > 0 && !allRecords[0]?.__encrypted) {
-                console.log(`[InitManager] Migrating ${allRecords.length} records in ${storeName} to encrypted form...`);
-                // The encryptRecord call is automatic via save/bulkSave now that encryption is active,
-                // but we need to explicitly re-encrypt: read (decrypted), clear, re-write (encrypted)
-                // Since getAll now decrypts, we get plaintext records back. Clear + bulkSave will encrypt them.
-                await offlineDB.clearStore(storeName);
-                await offlineDB.bulkSave(storeName, allRecords);
-                console.log(`[InitManager] Migrated ${storeName}: ${allRecords.length} records encrypted`);
+              const { STORES, PHI_STORES } = offlineDB;
+              let totalPurged = 0;
+              for (const storeName of Array.from(PHI_STORES)) {
+                const purged = await purgeUndecryptableRecords(storeName);
+                totalPurged += purged;
               }
-            } catch (migrateErr) {
-              console.warn(`[InitManager] Migration failed for ${storeName}:`, migrateErr?.message);
+              if (totalPurged > 0) {
+                console.log(`[InitManager] Purged ${totalPurged} undecryptable IDB records — server sync will repopulate`);
+                resetDecryptFailCounters();
+              }
+            } catch (purgeErr) {
+              console.warn('[InitManager] IDB purge failed:', purgeErr?.message);
+            }
+
+            // Migrate existing plaintext records to encrypted form
+            const { STORES, PHI_STORES } = offlineDB;
+            const phiStores = Array.from(PHI_STORES);
+            for (const storeName of phiStores) {
+              try {
+                const allRecords = await offlineDB.getAll(storeName);
+                if (allRecords.length > 0 && !allRecords[0]?.__encrypted) {
+                  console.log(`[InitManager] Migrating ${allRecords.length} records in ${storeName} to encrypted form...`);
+                  await offlineDB.clearStore(storeName);
+                  await offlineDB.bulkSave(storeName, allRecords);
+                  console.log(`[InitManager] Migrated ${storeName}: ${allRecords.length} records encrypted`);
+                }
+              } catch (migrateErr) {
+                console.warn(`[InitManager] Migration failed for ${storeName}:`, migrateErr?.message);
+              }
             }
           }
         }

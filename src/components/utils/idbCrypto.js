@@ -45,6 +45,7 @@ const KEY_VERSION_KEY = 'rxdeliver_idb_key_v';
 let _cryptoKey = null;        // CryptoKey in memory — gone on page unload
 let _isInitialized = false;
 let _isEncrypting = false;    // Flag: is encryption active?
+let _encryptionBypassed = false; // Flag: encryption completely bypassed (e.g. App Owner)
 
 // ─── Salt Management ─────────────────────────────────────────────────────
 
@@ -137,6 +138,7 @@ const deriveKey = async () => {
  * @returns {Promise<boolean>} — true if encryption is now active
  */
 export const initEncryption = async (authToken) => {
+  if (_encryptionBypassed) return false;
   try {
     // Derive the AES key from STABLE material (not the rotating auth token).
     // authToken is accepted for backward-compatible callers but ignored.
@@ -178,6 +180,7 @@ export const destroyKey = () => {
   _cryptoKey = null;
   _isEncrypting = false;
   _isInitialized = false;
+  _encryptionBypassed = false;
   console.log('[IDB-Crypto] Key destroyed — IDB data is now unreadable');
 };
 
@@ -191,6 +194,27 @@ export const isEncrypting = () => _isEncrypting;
  */
 export const isInitialized = () => _isInitialized;
 
+/**
+ * Completely bypass encryption — no key derivation, no encrypt/decrypt.
+ * Used for App Owner who runs on the Preview environment where the editor
+ * and the app share IDB, causing key-mismatch boot loops.
+ * Must be called BEFORE initEncryption.
+ */
+export const setEncryptionBypass = (bypass) => {
+  _encryptionBypassed = bypass;
+  if (bypass) {
+    _isEncrypting = false;
+    _isInitialized = true;
+    _cryptoKey = null;
+    console.log('[IDB-Crypto] Encryption BYPASSED — plaintext mode (App Owner)');
+  }
+};
+
+/**
+ * Check if encryption has been explicitly bypassed.
+ */
+export const isEncryptionBypassed = () => _encryptionBypassed;
+
 // ─── Encrypt / Decrypt ───────────────────────────────────────────────────
 
 /**
@@ -202,7 +226,7 @@ export const isInitialized = () => _isInitialized;
  *   or the original record if encryption is off
  */
 export const encryptRecord = async (record) => {
-  if (!_isEncrypting || !_cryptoKey) return record;
+  if (_encryptionBypassed || !_isEncrypting || !_cryptoKey) return record;
   if (!record || typeof record !== 'object') return record;
 
   try {
@@ -263,6 +287,7 @@ let _decryptFailCount = 0;
 let _decryptFailLogged = 0;
 
 export const decryptRecord = async (record) => {
+  if (_encryptionBypassed) return record;
   if (!record || typeof record !== 'object') return record;
 
   // Not encrypted — return as-is (handles migration + non-PHI stores)
@@ -352,6 +377,7 @@ export const resetDecryptFailCounters = () => {
  * with fresh data encrypted under the current key.
  */
 export const purgeUndecryptableRecords = async (storeName, clearStoreFn) => {
+  if (_encryptionBypassed) return 0;
   let purgedCount = 0;
   try {
     const db = await openDbForPurge(storeName);
