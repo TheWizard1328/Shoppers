@@ -1350,14 +1350,32 @@ export default function DriverPayroll() {
         <div className="bg-[var(--bg-slate-50)]/95 pt-1 pb-1 sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75 w-full min-w-0 overflow-x-hidden">
           {/* Row 1 (Mobile) / Left section (Desktop) */}
           <div className="flex items-center gap-3 justify-between w-full lg:w-auto">
-            <div className="flex items-center gap-3">
-              <DollarSign className="w-8 h-8 text-emerald-600" />
-              <h1 className="text-2xl font-bold min-w-[200px]" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
+            <div className="flex items-center gap-2 min-w-0 flex-1 lg:flex-initial lg:gap-3">
+              <DollarSign className="w-6 h-6 lg:w-8 lg:h-8 text-emerald-600 flex-shrink-0" />
+              <h1 className="text-lg lg:text-2xl font-bold truncate lg:min-w-[200px]" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
 
             </div>
             
-            {/* Mobile/Tablet Portrait: Show Refresh and Share buttons next to title */}
-            <div className="flex lg:hidden items-center gap-1">
+            {/* Mobile/Tablet Portrait: City filter + Refresh and Share buttons next to title */}
+            <div className="flex lg:hidden items-center gap-1 flex-shrink-0">
+              {/* City Filter (mobile) — sits next to the header title */}
+              <Select value={selectedCityId} onValueChange={(v) => {
+              if (!v || v === 'all') return;
+              React.startTransition(() => {
+                setSelectedCityId(v);
+              });
+            }} disabled={isDriver || !sortedCities.length}>
+                <SelectTrigger className="w-[78px] text-xs px-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <SelectValue placeholder="City" />
+                </SelectTrigger>
+                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  {sortedCities.map((city) =>
+                <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                      {city.name}
+                    </SelectItem>
+                )}
+                </SelectContent>
+              </Select>
               <Button
               onClick={handleManualRefresh}
               disabled={isRefreshing || isLoadingPayroll}
@@ -1391,7 +1409,8 @@ export default function DriverPayroll() {
           <div className="flex flex-row items-center gap-2 justify-center w-full">
             {/* City, Year, Driver Dropdowns */}
             <div className="flex items-center gap-2">
-              {/* City Filter */}
+              {/* City Filter — desktop only now; mobile version moved next to header title above */}
+              <div className="hidden lg:block">
               <Select value={selectedCityId} onValueChange={(v) => {
               if (!v || v === 'all') return;
               React.startTransition(() => {
@@ -1409,6 +1428,7 @@ export default function DriverPayroll() {
                 )}
                 </SelectContent>
               </Select>
+              </div>
 
               {/* Year Filter */}
               <Select value={String(selectedYear)} onValueChange={(v) => {
