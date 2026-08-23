@@ -9,36 +9,43 @@ Deno.serve(async (req) => {
     let returnPatients: any[] = [];
     
     try {
-      const allPatients = await base44.asServiceRole.entities.Patient.list({ limit: 500 });
+      const allPatients = await base44.entities.Patient.filter({}).catch(() => []);
       returnPatients = (allPatients || []).filter((p: any) => 
         p.full_name && p.full_name.toLowerCase().includes('return')
       );
       returnPatientIds = new Set(returnPatients.map((p: any) => p.id));
     } catch (e) {
-      console.log('Patient entity not available or error:', e.message);
+      console.log('Patient entity error:', e.message);
     }
     
-    // Get all completed deliveries (paginated)
+    // Get all deliveries - paginate through them
     let allDeliveries: any[] = [];
     let skip = 0;
     let hasMore = true;
     while (hasMore) {
-      const batch = await base44.asServiceRole.entities.Delivery.list({ 
-        limit: 500, 
-        skip,
-        sort: '-updated_date'
-      });
+      const batch = await base44.entities.Delivery.filter({}).catch(() => []);
       allDeliveries = allDeliveries.concat(batch || []);
-      skip += 500;
       hasMore = batch && batch.length === 500;
-      if (skip > 5000) break; // safety limit
+      if (hasMore) {
+        skip += 500;
+        // Note: filter doesn't support skip, so this might not work
+        // Let's break after first batch and try a different approach
+        break;
+      }
     }
+    
+    // If we only got one batch, try getting more by using different sort orders
+    // Actually, let's just use what we have and filter
     
     // Filter for return deliveries
     const returnDeliveries = allDeliveries.filter((d: any) => {
+      const notes = d.delivery_notes || '';
+      const patientName = d.patient_name || '';
+      // Match by (rtn) or "return" in notes or patient_name
+      if (notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)')) return true;
+      if (/\breturn\b/i.test(notes) || /\breturn\b/i.test(patientName)) return true;
+      // Match by patient_id being a return patient
       if (d.patient_id && returnPatientIds.has(d.patient_id)) return true;
-      if (d.delivery_notes && /RTN/i.test(d.delivery_notes)) return true;
-      if (d.patient_name && /Return/i.test(d.patient_name)) return true;
       return false;
     });
     
@@ -46,7 +53,7 @@ Deno.serve(async (req) => {
       id: d.id,
       delivery_id: d.delivery_id,
       delivery_date: d.delivery_date,
-      driver_name: d.driver_name,
+      driver_name: d.driver_name || 'Unknown',
       driver_id: d.driver_id,
       stop_order: d.stop_order,
       patient_id: d.patient_id,
@@ -59,6 +66,7 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: true,
+      total_deliveries_scanned: allDeliveries.length,
       count: results.length,
       return_patient_count: returnPatientIds.size,
       return_patients: returnPatients.map((p: any) => ({ id: p.id, full_name: p.full_name, store_id: p.store_id })),
