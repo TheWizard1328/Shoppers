@@ -45,6 +45,9 @@ export function useLayoutInit({
   // Disarms the 60s auto-reload so the DeviceRegistration modal can be reached
   // instead of looping the page reload every minute (boot-loop root cause).
   const waitingForDeviceRegistrationRef = useRef(false);
+  // Holds the bootstrap init function so it can be re-invoked in-place after the
+  // user completes device registration (no page reload required).
+  const initRef = useRef(null);
 
   useEffect(() => {
     const init = async () => {
@@ -370,8 +373,24 @@ export function useLayoutInit({
         setIsLoadingLayout(false);setDataLoaded(true);
       }
     };
+    initRef.current = init;
     init();
     return () => heartbeatService.stop();
+  }, []);
+
+  // Resume the bootstrap in-place after the user selects/creates a device in the
+  // DeviceRegistration modal (no page reload). DeviceRegistration.completeRegistration
+  // dispatches this event once the new device identifier is in localStorage and the
+  // identifier cache is invalidated, so re-running init picks up the registered
+  // device and the manifest gate passes.
+  useEffect(() => {
+    const handleResume = () => {
+      if (!initRef.current) return;
+      waitingForDeviceRegistrationRef.current = false;
+      initRef.current();
+    };
+    window.addEventListener('deviceRegistrationCompleted', handleResume);
+    return () => window.removeEventListener('deviceRegistrationCompleted', handleResume);
   }, []);
 
   // Initialize daily message cleanup

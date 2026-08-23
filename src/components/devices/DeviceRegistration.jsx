@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 
 import { Smartphone, Tablet, Monitor, CheckCircle } from 'lucide-react';
 import { getUserAgentInfo } from '../utils/deviceUtils';
+import { invalidateDeviceIdentifierCache } from '../utils/userSettingsManager';
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
@@ -19,6 +20,21 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
   const [isPrimaryTracker, setIsPrimaryTracker] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Complete registration in-place (no page reload) so the boot resumes with the
+  // newly-selected device identifier even in environments where a reload would
+  // wipe ephemeral storage (e.g. the preview browser). Invalidates the
+  // device-identifier cache so the resumed boot reads the new id, notifies the
+  // parent to hide the modal, and dispatches an event useLayoutInit listens for
+  // to re-run the bootstrap sequence.
+  const completeRegistration = (device) => {
+    invalidateDeviceIdentifierCache();
+    setShowDialog(false);
+    if (onDeviceRegistered) onDeviceRegistered(device);
+    window.dispatchEvent(new CustomEvent('deviceRegistrationCompleted', {
+      detail: { device_identifier: device?.device_identifier }
+    }));
+  };
 
   useEffect(() => {
     if (!currentUser) return;
@@ -123,10 +139,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
       });
 
       console.log('✅ Device selected:', device);
-      setShowDialog(false);
-      if (onDeviceRegistered) onDeviceRegistered(device);
-      // CRITICAL: Reload page to complete initialization with registered device
-      window.location.reload();
+      completeRegistration(device);
     } catch (error) {
       console.error('Failed to select device:', error);
       alert('Failed to select device. Please try again.');
@@ -179,11 +192,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
       localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
 
       console.log('✅ Device created:', newDevice);
-      setShowDialog(false);
-      if (onDeviceRegistered) onDeviceRegistered(newDevice);
-      
-      // CRITICAL: Reload page to complete initialization with registered device
-      window.location.reload();
+      completeRegistration(newDevice);
     } catch (error) {
       console.error('Failed to create device:', error);
       alert('Failed to create device. Please try again.');
@@ -246,10 +255,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                               last_active_at: new Date().toISOString()
                             });
                             console.log('✅ Device selected:', device);
-                            setShowDialog(false);
-                            if (onDeviceRegistered) onDeviceRegistered(device);
-                            // CRITICAL: Reload page to complete initialization with registered device
-                            window.location.reload();
+                            completeRegistration(device);
                           } catch (error) {
                             console.error('Failed to select device:', error);
                             alert('Failed to select device. Please try again.');

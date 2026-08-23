@@ -45,6 +45,16 @@ export function getDeviceIdentifier() {
 }
 
 /**
+ * Clears the in-memory device-identifier cache so the next getDeviceIdentifier()
+ * call re-reads from localStorage. Used after DeviceRegistration writes a new
+ * device identifier to localStorage in-place (without a page reload) so the
+ * resumed boot sees the newly-selected device.
+ */
+export function invalidateDeviceIdentifierCache() {
+  cachedDeviceIdentifier = null;
+}
+
+/**
  * Gets device type identifier - "Mobile", "Desktop", or "Tablet"
  * CRITICAL: Classifies Tablet as Mobile for settings purposes
  */
