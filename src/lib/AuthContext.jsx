@@ -5,6 +5,19 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { initEncryption, destroyKey } from '@/components/utils/idbCrypto';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
+// Bounded timeout for platform API calls during boot. If the Base44 platform
+// is degraded (the public-settings or auth.me endpoint hangs), the loader would
+// spin forever on a cold reload. This resolves to a rejection after `ms` so the
+// existing catch blocks release the loading gate (→ login redirect / error),
+// instead of pinning the slate PageLoader indefinitely.
+const _withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    )
+  ]);
+
 const AuthContext = createContext();
 
 const getAppReturnUrl = () => `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -158,7 +171,10 @@ export const AuthProvider = ({ children }) => {
       });
       
       try {
-        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
+        const publicSettings = await _withTimeout(
+          appClient.get(`/prod/public-settings/by-id/${appParams.appId}`),
+          12000, 'public-settings'
+        );
         setAppPublicSettings(publicSettings);
         
         // If we got the app public settings successfully, check if user is authenticated
@@ -215,7 +231,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // Now check if the user is authenticated
       setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me();
+      const currentUser = await _withTimeout(base44.auth.me(), 10000, 'auth.me');
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
