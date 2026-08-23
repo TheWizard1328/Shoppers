@@ -930,20 +930,19 @@ export default function GuideAssistant() {
           >
             <button
               onClick={handleOpen}
-              className="relative flex flex-col items-center justify-center gap-1 px-1.5 py-3 shadow-lg hover:shadow-xl transition-all rounded-l-xl"
+              className="relative flex items-center justify-center px-1 py-2 shadow-lg hover:shadow-xl transition-all rounded-l-lg"
               style={{
                 backgroundColor: 'var(--primary-color)',
                 color: '#fff',
                 writingMode: 'vertical-rl',
                 textOrientation: 'mixed',
-                minHeight: '72px',
+                minHeight: '40px',
               }}
               aria-label="Open AI assistant"
             >
-              <Sparkles className="w-4 h-4 md:w-5 md:h-5 mb-1" style={{ writingMode: 'horizontal-tb' }} />
               <span className="text-[10px] md:text-xs font-semibold tracking-wide whitespace-nowrap">AI</span>
               {showPulse && (
-                <span className="absolute inset-0 rounded-l-xl animate-ping opacity-20" style={{ backgroundColor: 'var(--primary-color)' }} />
+                <span className="absolute inset-0 rounded-l-lg animate-ping opacity-20" style={{ backgroundColor: 'var(--primary-color)' }} />
               )}
               {!hasSeenIntro && (
                 <span className="absolute -top-1 -left-1 w-3 h-3 bg-red-500 rounded-full" style={{ boxShadow: '0 0 0 2px var(--bg-white)' }} />
