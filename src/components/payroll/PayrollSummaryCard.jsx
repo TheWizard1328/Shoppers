@@ -474,6 +474,28 @@ export default function PayrollSummaryCard({
     try {
       let existingRecord = getDriverPayrollRecord(driverId);
       if (!existingRecord) {
+        // CRITICAL: Check server before creating — prevents duplicate payroll records
+        const serverRecords = await base44.entities.Payroll.filter({
+          driver_id: driverId,
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr
+        });
+        if (serverRecords && serverRecords.length > 0) {
+          existingRecord = serverRecords.sort((a, b) =>
+            new Date(b.updated_date || b.created_date) - new Date(a.updated_date || a.created_date)
+          )[0];
+          // Merge server record into local state
+          const updatedLocal = [...payrollRecords];
+          const idx = updatedLocal.findIndex((r) => r.id === existingRecord.id);
+          if (idx >= 0) { updatedLocal[idx] = existingRecord; }
+          else { updatedLocal.push(existingRecord); }
+          setPayrollRecords(updatedLocal);
+          if (onPayrollRecordsChange) onPayrollRecordsChange(updatedLocal);
+          // Delete extra server-side duplicates
+          for (const dup of serverRecords.slice(1)) {
+            try { await base44.entities.Payroll.delete(dup.id); } catch (e) {}
+          }
+        } else {
         const driverData = payrollData.find((d) => d.driver.id === driverId);
         if (!driverData) return;
         const saveAppFeeAmount = countBillableDeliveries(driverId) * (driverData.appFeePercentage || 0) / 100;
@@ -521,6 +543,7 @@ export default function PayrollSummaryCard({
           await broadcastMutation('Payroll', 'create', newRecord.id, newRecord);
         } catch (e) {/* ignore */}
         existingRecord = newRecord;
+        }
       }
 
       const driverData = payrollData.find((d) => d.driver.id === driverId);
@@ -635,7 +658,24 @@ export default function PayrollSummaryCard({
   const handleDriverFinalize = async (driverData) => {
     setIsFinalizing(true);
     try {
-      const existingRecord = getDriverPayrollRecord(driverData.driver.id);
+      let existingRecord = getDriverPayrollRecord(driverData.driver.id);
+    // CRITICAL: Check server before creating — prevents duplicate payroll records
+    if (!existingRecord) {
+      const serverRecs = await base44.entities.Payroll.filter({
+        driver_id: driverData.driver.id,
+        pay_period_start: periodStartStr,
+        pay_period_end: periodEndStr
+      });
+      if (serverRecs && serverRecs.length > 0) {
+        existingRecord = serverRecs.sort((a, b) =>
+          new Date(b.updated_date || b.created_date) - new Date(a.updated_date || a.created_date)
+        )[0];
+        // Clean up extra duplicates
+        for (const dup of serverRecs.slice(1)) {
+          try { await base44.entities.Payroll.delete(dup.id); } catch (e) {}
+        }
+      }
+    }
       const edit = driverEdits[driverData.driver.id] || {};
       const finalizeAppFeeAmount = countBillableDeliveries(driverData.driver.id) * (edit.appFeePercent || 0) / 100;
       const finalizedNetPay = getPeriodNetAmount({

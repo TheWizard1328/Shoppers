@@ -715,7 +715,21 @@ export default function DriverPayroll() {
     });
   }, [payrollRecords, currentPeriod, driversInPayCycle, selectedDriverId, selectedCityId, payPeriod, payrollData?.appUsers]);
 
-  const totalNetPay = useMemo(() => filteredPayrollRecords.reduce((sum, r) => sum + (Number(r.net_pay) || 0), 0), [filteredPayrollRecords]);
+  // Defensive dedupe: if duplicate Payroll records exist for the same driver+period
+  // (caused by create-instead-of-update bugs), only count the most recently updated one.
+  const totalNetPay = useMemo(() => {
+    const seen = new Map(); // key: driver_id+period → record
+    for (const r of filteredPayrollRecords) {
+      const key = `${r.driver_id}|${r.pay_period_start}|${r.pay_period_end}`;
+      const existing = seen.get(key);
+      if (!existing || new Date(r.updated_date || r.created_date) > new Date(existing.updated_date || existing.created_date)) {
+        seen.set(key, r);
+      }
+    }
+    let sum = 0;
+    for (const r of seen.values()) sum += Number(r.net_pay) || 0;
+    return sum;
+  }, [filteredPayrollRecords]);
   const totalDeliveries = useMemo(() => {
     const payrollRows = Array.isArray(payrollData) ? payrollData : [];
     if (payrollRows.length === 0) return 0;
