@@ -159,30 +159,37 @@ export default function GuideAssistant() {
   // (Delivery form relocate on mobile is handled by the form header itself.)
   const deliveryFormRelocateActive = isDeliveryFormOpen && isMobileViewport;
 
-  // ── Side tab position — vertically centered on the right edge, always visible ────
-  // No FAB tracking needed. The tab is a slim vertical strip on the right edge.
-  // On mobile it sits above the bottom nav; on desktop it's vertically centered.
+  // ── Side tab position — sits just above the MapCycleFAB on the dashboard ────
+  // Tracks the FAB element dynamically (it moves when stop cards expand/collapse,
+  // immersive mode toggles, etc.). Falls back to vertical center on non-dashboard pages.
   const [guideBottomPx, setGuideBottomPx] = useState('50%');
+  const [guideRightPx, setGuideRightPx] = useState(0);
 
   useEffect(() => {
     const compute = () => {
-      // On mobile: position above bottom nav, roughly at 45% from bottom
-      // On desktop: vertically centered
-      const isMobile = window.innerWidth < 768;
-      if (isMobile) {
-        const navEl = document.querySelector('[data-mobile-bottom-nav]');
-        const navHeight = navEl ? navEl.offsetHeight : 0;
-        setGuideBottomPx(`calc(50% + ${navHeight / 2}px)`);
-      } else {
-        setGuideBottomPx('50%');
+      const fabEl = document.querySelector('[data-map-cycle-fab="true"]');
+      if (fabEl && fabEl.offsetParent !== null) {
+        const rect = fabEl.getBoundingClientRect();
+        if (rect.top > 0 && rect.top < window.innerHeight) {
+          // Position just above the FAB with a 6px gap
+          setGuideBottomPx(`${window.innerHeight - rect.top + 6}px`);
+          setGuideRightPx(`${Math.max(0, window.innerWidth - rect.right)}px`);
+          return;
+        }
       }
+      // Fallback: no FAB found (non-dashboard pages or FAB hidden)
+      setGuideBottomPx('50%');
+      setGuideRightPx(0);
     };
 
     compute();
+    // Poll for FAB position changes — the FAB moves dynamically with stop card state
+    const interval = setInterval(compute, 250);
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
 
     return () => {
+      clearInterval(interval);
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
     };
@@ -923,8 +930,7 @@ export default function GuideAssistant() {
             className="fixed z-[10060]"
             style={{
               bottom: typeof guideBottomPx === 'string' ? guideBottomPx : `${guideBottomPx}px`,
-              right: 0,
-              transform: 'translateY(50%)',
+              right: typeof guideRightPx === 'string' ? guideRightPx : `${guideRightPx}px`,
               pointerEvents: 'auto',
             }}
           >
