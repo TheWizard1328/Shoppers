@@ -86,6 +86,20 @@ function DashboardView({
     showAllDriverMarkers, setShowAllDriverMarkers,
   });
 
+  // Push the live selected + overlay driver to realtimeSync so the role-gated
+  // DeliveryBreadcrumbs WebSocket handler can filter admin pings to the selected
+  // driver. Kept here (not in globalFilters) because overlayDriverId is local
+  // DashboardView state owned by useDriverOverlayLegend.
+  useEffect(() => {
+    let cancelled = false;
+    import('@/components/utils/realtimeSync').then(({ setSelectedDriver, setOverlayDriver }) => {
+      if (cancelled) return;
+      setSelectedDriver(selectedDriverId);
+      setOverlayDriver(overlayDriverId);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedDriverId, overlayDriverId]);
+
   // Block map pan/zoom whenever the stats card or a stop card is expanded
   const prevPanZoomBlockedRef = useRef(false);
   useEffect(() => {

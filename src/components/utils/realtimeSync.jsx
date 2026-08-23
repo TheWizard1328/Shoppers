@@ -502,6 +502,58 @@ const getEffectiveUser = () => {
   return null;
 };
 
+// ── Role-gated DeliveryBreadcrumbs WebSocket filtering ───────────────────────
+// Pure dispatchers never subscribe to DeliveryBreadcrumbs at all (see connect()).
+// Drivers only process their own breadcrumb pings; admins only process the
+// selected/overlay driver's (or their own). Live selection is pushed in by
+// DashboardView via setSelectedDriver/setOverlayDriver, backed by window globals
+// for the cases where the live setter hasn't fired yet (boot race).
+let _selectedDriverId = null;
+let _overlayDriverId = null;
+export const setSelectedDriver = (id) => { _selectedDriverId = id || null; };
+export const setOverlayDriver = (id) => { _overlayDriverId = id || null; };
+export const getSelectedDriverId = () =>
+  _selectedDriverId ||
+  (typeof window !== 'undefined' ? window.__appSelectedDriverId : null) ||
+  (typeof localStorage !== 'undefined' ? localStorage.getItem('app_selectedDriverId') : null);
+export const getOverlayDriverId = () =>
+  _overlayDriverId || (typeof window !== 'undefined' ? window.__appOverlayDriverId : null);
+
+const isPureDispatcherUser = () => {
+  const eff = getEffectiveUser();
+  if (!eff) return false; // unknown role → subscribe (safe default)
+  const roles = eff?.appUser?.app_roles || eff?.user?.app_roles || [];
+  return Array.isArray(roles) &&
+    roles.includes('dispatcher') &&
+    !roles.includes('driver') &&
+    !roles.includes('admin');
+};
+
+// Returns true if a DeliveryBreadcrumbs WS event should be processed by this device.
+// Drivers: only their own pings. Admins: selected/overlay/self, or all if viewing 'all'.
+// Dispatchers: always false (they never subscribe; defensive in case a stale sub exists).
+const isBreadcrumbRelevant = (data) => {
+  const eff = getEffectiveUser();
+  if (!eff) return true; // can't determine role — allow (defensive)
+  const roles = eff?.appUser?.app_roles || eff?.user?.app_roles || [];
+  if (!Array.isArray(roles) || roles.length === 0) return true;
+  const driverId = data?.driver_id || data?.user_id;
+  if (!driverId) return true; // can't determine owner — allow
+  const selfId = eff?.user?.id || eff?.appUser?.user_id || null;
+  // Drivers only process their own breadcrumb pings
+  if (roles.includes('driver') && !roles.includes('admin')) {
+    return driverId === selfId;
+  }
+  // Admins/app owner: selected, overlay, or self. Viewing 'all' → allow everything.
+  const selected = getSelectedDriverId();
+  const overlay = getOverlayDriverId();
+  if (!selected || selected === 'all') return true;
+  if (driverId === selected) return true;
+  if (overlay && driverId === overlay) return true;
+  if (selfId && driverId === selfId) return true;
+  return false;
+};
+
 const isDeliveryVisibleToUser = (delivery) => {
   const eff = getEffectiveUser();
   if (!eff) return true; // Fallback: don't block if unknown
@@ -635,6 +687,15 @@ const subscribeToEntity = (entityName) => {
     const unsubscribe = base44.entities[entityName].subscribe(async (event) => {
     const { type, id } = event;
     const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
+
+    // ── ROLE-GATED BREADCRUMB FILTER (very top — before dedupe, log, IDB save) ──
+    // Dispatchers never subscribe, but be defensive: drop here too. Drivers drop
+    // other drivers' pings; admins drop pings outside selected/overlay/self. A dropped
+    // event costs nothing — no IDB write, no log line, no bufferEvent, no UI dispatch.
+    if (entityName === 'DeliveryBreadcrumbs') {
+      if (isPureDispatcherUser()) return;
+      if (!isBreadcrumbRelevant(data)) return;
+    }
 
     // SELF-ECHO SUPPRESSION for Delivery: If this Delivery update/create/delete was
     // written by this exact device (tracked via window.__localDeliveryWrites set by
@@ -1087,7 +1148,15 @@ export const connect = () => {
     subscribeToEntity('GoogleAPILog');
     subscribeToEntity('AppSettings');
     subscribeToEntity('Store');
-    subscribeToEntity('DeliveryBreadcrumbs');
+    // ROLE GATE: Pure dispatchers never subscribe to DeliveryBreadcrumbs — their
+    // dashboard has no breadcrumb viewer, and the per-ping IDB write + log line
+    // + bufferEvent flow was the source of the renderer memory exhaustion on
+    // Android/PWA. Drivers/admins subscribe and filter in-band (see isBreadcrumbRelevant).
+    if (!isPureDispatcherUser()) {
+      subscribeToEntity('DeliveryBreadcrumbs');
+    } else {
+      console.log(`🚫 [RealtimeSync] [${rsTime()}] Pure dispatcher — skipping DeliveryBreadcrumbs subscription`);
+    }
     subscribeToEntity('InterStoreLocation');
     subscribeToEntity('TileCoverage');
     subscribeToEntity('RxTempLogs');
@@ -1477,7 +1546,11 @@ export const realtimeSync = {
   getStatus,
   reconnect,
   subscribe: subscribeToRealtime,
-  broadcast: broadcastMutation
+  broadcast: broadcastMutation,
+  setSelectedDriver,
+  setOverlayDriver,
+  getSelectedDriverId,
+  getOverlayDriverId
 };
 
 export default realtimeSync;
