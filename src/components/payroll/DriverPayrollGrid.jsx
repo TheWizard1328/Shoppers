@@ -298,15 +298,19 @@ export default function DriverPayrollGrid({
       const dateKey = d.delivery_date;
       const storeId = d.store_id;
       if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
-        deliveryMap[dateKey][storeId]++;
-        kmMap[dateKey][storeId] += calculateExtraKm(d);
         storeHasData[storeId] = true;
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
         if (d.after_hours_pickup) {
+          // After-hours deliveries are tracked for the '-' marker but excluded
+          // from the daily/store counts (and km) — they're paid out separately
+          // in the payroll summary, so the grid reflects regular deliveries only.
           afterHoursCountMap[dateKey][storeId]++;
+          return;
         }
+        deliveryMap[dateKey][storeId]++;
+        kmMap[dateKey][storeId] += calculateExtraKm(d);
       }
     });
 
