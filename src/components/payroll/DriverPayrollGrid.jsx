@@ -271,11 +271,12 @@ export default function DriverPayrollGrid({
     return extraKm > 0 ? extraKm : 0;
   };
 
-  // Build a map of dateKey -> store -> count (deliveries), extraKm, and oversized count
-  const { dataMap, extraKmMap, oversizedMap, storesWithData } = useMemo(() => {
+  // Build a map of dateKey -> store -> count (deliveries), extraKm, oversized count, and after-hours count
+  const { dataMap, extraKmMap, oversizedMap, afterHoursMap, storesWithData } = useMemo(() => {
     const deliveryMap = {};
     const kmMap = {};
     const oversizedCountMap = {};
+    const afterHoursCountMap = {};
     const storeHasData = {};
 
 
@@ -284,10 +285,12 @@ export default function DriverPayrollGrid({
       deliveryMap[dateKey] = {};
       kmMap[dateKey] = {};
       oversizedCountMap[dateKey] = {};
+      afterHoursCountMap[dateKey] = {};
       allSortedStores.forEach((store) => {
         deliveryMap[dateKey][store.id] = 0;
         kmMap[dateKey][store.id] = 0;
         oversizedCountMap[dateKey][store.id] = 0;
+        afterHoursCountMap[dateKey][store.id] = 0;
       });
     });
 
@@ -301,6 +304,9 @@ export default function DriverPayrollGrid({
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
+        if (d.after_hours_pickup) {
+          afterHoursCountMap[dateKey][storeId]++;
+        }
       }
     });
 
@@ -309,7 +315,7 @@ export default function DriverPayrollGrid({
     store.status !== 'inactive'
     );
 
-    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, storesWithData: storesWithDataList };
+    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, afterHoursMap: afterHoursCountMap, storesWithData: storesWithDataList };
   }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers, selectedDriverId, currentPeriod]);
 
   // Use stores with data for display (hide empty columns)
@@ -564,6 +570,7 @@ export default function DriverPayrollGrid({
                       extraKmMap[dateKey]?.[store.id] || 0 :
                       dataMap[dateKey]?.[store.id] || 0;
                       const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
+                      const afterHoursCount = afterHoursMap[dateKey]?.[store.id] || 0;
                       const displayValueMobile = viewMode === 'extraKm' ?
                       value > 0 ? value.toFixed(1) : '' :
                       value > 0 ? value : '';
@@ -573,14 +580,20 @@ export default function DriverPayrollGrid({
                       const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 ?
                       '+'.repeat(oversizedCount) :
                       '';
+                      // After-hours marker — "°" indicates an after-hours delivery (doubled base pay).
+                      // Separate from oversized "+" so the two flags stay distinguishable.
+                      const ahSigns = viewMode === 'deliveries' && afterHoursCount > 0 ?
+                      '°'.repeat(afterHoursCount) :
+                      '';
+                      const ahTitle = afterHoursCount > 0 ? `${afterHoursCount} after-hours (2× base pay)` : '';
                       return (
                         <td
                           key={store.id}
                           className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                           style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}>
                           
-                          <span className="md:hidden">{displayValueMobile}{plusSigns}</span>
-                          <span className="hidden md:inline">{displayValueDesktop}{plusSigns}</span>
+                          <span className="md:hidden" title={ahTitle}>{displayValueMobile}{plusSigns}<span className="text-amber-500" title={ahTitle}>{ahSigns}</span></span>
+                          <span className="hidden md:inline" title={ahTitle}>{displayValueDesktop}{plusSigns}<span className="text-amber-500" title={ahTitle}>{ahSigns}</span></span>
                         </td>);
 
                     })}

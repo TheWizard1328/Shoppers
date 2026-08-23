@@ -286,7 +286,11 @@ export default function PayrollSummaryCard({
       if (hasRateHistory && graphDeliveryCount > 0) {
         graphBasePay = graphPayableDeliveries.reduce((sum, d) => {
           if (d.no_charge) return sum;
-          return sum + getEffectiveRates(appUser, d.delivery_date).pay_rate_per_delivery;
+          const r = getEffectiveRates(appUser, d.delivery_date);
+          // After Hours: deliveries (patient/interstore) get 2x base, pickups get 1x (normally 0).
+          const dIsPickup = !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS');
+          const multiplier = d.after_hours_pickup ? (dIsPickup ? 1 : 2) : (dIsPickup ? 0 : 1);
+          return sum + r.pay_rate_per_delivery * multiplier;
         }, 0);
         graphPayableDeliveries.forEach((d) => {
           const r = getEffectiveRates(appUser, d.delivery_date);
@@ -304,7 +308,11 @@ export default function PayrollSummaryCard({
           return sum + getEffectiveRates(appUser, d.delivery_date).oversized_item_rate;
         }, 0);
       } else {
-        graphBasePay = graphPayableDeliveries.filter((d) => !d.no_charge).length * payRate;
+        // After Hours: deliveries (patient/interstore) get 2x base, pickups get 1x (normally 0).
+        const gAhDeliveries = graphPayableDeliveries.filter((d) => !d.no_charge && d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS')));
+        const gAhPickups = graphPayableDeliveries.filter((d) => !d.no_charge && d.after_hours_pickup && !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS'));
+        const gNormalDeliveries = graphPayableDeliveries.filter((d) => !d.no_charge && !d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS')));
+        graphBasePay = (gNormalDeliveries.length + gAhDeliveries.length * 2 + gAhPickups.length) * payRate;
         graphPayableDeliveries.forEach((d) => {
           let dist = d.paid_km_override ?? 0;
           if (!dist && d.patient_id && patients) {
