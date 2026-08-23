@@ -22,75 +22,87 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
 
   useEffect(() => {
     if (!currentUser) return;
+    let cancelled = false;
+
+    const _withTimeout = (p, ms) =>
+      Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
+
+    // Safety net: if backend fetches hang on a degraded platform, force the
+    // chooser dialog visible after 10s so the user is never trapped behind an
+    // invisible modal (which previously let the 60s boot-reload loop).
+    const safetyNet = setTimeout(() => {
+      if (!cancelled) { setShowDialog(true); setIsLoading(false); }
+    }, 10000);
+
+    const finish = (devices) => {
+      if (cancelled) return;
+      clearTimeout(safetyNet);
+      const sortedDevices = (devices || []).sort((a, b) => {
+        if (a.is_primary_tracker && !b.is_primary_tracker) return -1;
+        if (!a.is_primary_tracker && b.is_primary_tracker) return 1;
+        return 0;
+      });
+      setExistingDevices(sortedDevices);
+      try {
+        const { deviceType, os } = getUserAgentInfo();
+        setNewDeviceName(`${os} ${deviceType}`);
+      } catch (e) {}
+      if (!devices || devices.length === 0) {
+        setIsCreatingNew(true);
+        setIsPrimaryTracker(true);
+      } else {
+        setIsCreatingNew(false);
+      }
+      setShowDialog(true);
+      setIsLoading(false);
+    };
 
     const checkDevice = async () => {
       try {
         // 1) If a device identifier is stored locally, trust the cached registration first
         const storedDeviceId = localStorage.getItem(DEVICE_ID_KEY);
         if (storedDeviceId && localStorage.getItem(`rxdeliver_device_registered_${storedDeviceId}`) === 'true') {
+          clearTimeout(safetyNet);
           setIsLoading(false);
           if (onDeviceRegistered) onDeviceRegistered({ user_id: currentUser.id, device_identifier: storedDeviceId });
           return;
         }
 
-        // 2) If not cached, validate the stored identifier against the backend
+        // 2) Validate the stored identifier against the backend (bounded — 8s)
         if (storedDeviceId) {
-          const matches = await base44.entities.UserDevice.filter({
-            user_id: currentUser.id,
-            device_identifier: storedDeviceId
-          });
+          let matches = null;
+          try {
+            matches = await _withTimeout(base44.entities.UserDevice.filter({
+              user_id: currentUser.id,
+              device_identifier: storedDeviceId
+            }), 8000);
+          } catch (e) { matches = null; }
+          if (cancelled) return;
           if (matches && matches.length > 0 && (matches[0].status === 'active' || !matches[0].status)) {
             localStorage.setItem(`rxdeliver_device_registered_${storedDeviceId}`, 'true');
-            await base44.entities.UserDevice.update(matches[0].id, { last_active_at: new Date().toISOString() });
+            await base44.entities.UserDevice.update(matches[0].id, { last_active_at: new Date().toISOString() }).catch(() => {});
+            clearTimeout(safetyNet);
             setIsLoading(false);
             if (onDeviceRegistered) onDeviceRegistered(matches[0]);
             return; // Already linked – no dialog needed
           }
         }
 
-        // 2) Always fetch the user's registered devices and show the chooser if any exist
-        const userDevices = await base44.entities.UserDevice.filter({ user_id: currentUser.id });
-        const sortedDevices = (userDevices || []).sort((a, b) => {
-          if (a.is_primary_tracker && !b.is_primary_tracker) return -1;
-          if (!a.is_primary_tracker && b.is_primary_tracker) return 1;
-          return 0;
-        });
-        setExistingDevices(sortedDevices);
-
-        // Suggest default device name based on device info
-        const { deviceType, os } = getUserAgentInfo();
-        const defaultName = `${os} ${deviceType}`;
-        setNewDeviceName(defaultName);
-
-        if (!userDevices || userDevices.length === 0) {
-          // No devices on account – offer new registration
-          setIsCreatingNew(true);
-          setIsPrimaryTracker(true);
-        } else {
-          // Devices exist – show the list (do NOT force new registration)
-          setIsCreatingNew(false);
-        }
-
-        setShowDialog(true);
-        setIsLoading(false);
+        // 3) Fetch the user's registered devices and show the chooser (bounded — 8s)
+        let userDevices = [];
+        try {
+          userDevices = await _withTimeout(base44.entities.UserDevice.filter({ user_id: currentUser.id }), 8000);
+        } catch (e) { userDevices = []; }
+        if (cancelled) return;
+        finish(userDevices);
       } catch (error) {
         console.error('Device check failed:', error);
-        setExistingDevices([]);
-        setIsCreatingNew(true);
-        try {
-          const { deviceType, os } = getUserAgentInfo();
-          const defaultName = `${os} ${deviceType}`;
-          setNewDeviceName(defaultName);
-        } catch (e) {}
-        if (currentUser?.app_roles?.includes('driver')) {
-          setIsPrimaryTracker(true);
-        }
-        setShowDialog(true);
-        setIsLoading(false);
+        finish([]);
       }
     };
 
     checkDevice();
+    return () => { cancelled = true; clearTimeout(safetyNet); };
   }, [currentUser?.id]);
 
   const handleSelectExistingDevice = async () => {

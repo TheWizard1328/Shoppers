@@ -41,6 +41,10 @@ export function useLayoutInit({
 }) {
   const initAutoRefreshTimerRef = useRef(null);
   const initRetryHintTimerRef   = useRef(null);
+  // True once the boot pauses because the current device has no UserDevice record.
+  // Disarms the 60s auto-reload so the DeviceRegistration modal can be reached
+  // instead of looping the page reload every minute (boot-loop root cause).
+  const waitingForDeviceRegistrationRef = useRef(false);
 
   useEffect(() => {
     const init = async () => {
@@ -128,7 +132,20 @@ export function useLayoutInit({
         // the UserDevice record was deleted/never created) — silently disabling GPS
         // heartbeats for that user with no way to self-heal. Only trust the cache when
         // the manifest call itself failed (offline), never to override a fresh "false".
-        if (!isDeviceRegistered && (manifestSucceeded || cachedReg !== 'true')) {setCurrentUser(fetchedUser);return;}
+        if (!isDeviceRegistered && (manifestSucceeded || cachedReg !== 'true')) {
+          // Device not registered — pause boot so the DeviceRegistration modal
+          // (rendered via GlobalOverlays) becomes the user's only path forward to
+          // reselect/create the correct device. CRITICAL: clear the auto-reload
+          // timers so a degraded platform can't keep reloading the page every 60s
+          // and trap the user in a loop before the modal appears. The modal calls
+          // window.location.reload() itself once a device is chosen, resuming boot.
+          waitingForDeviceRegistrationRef.current = true;
+          setCurrentUser(fetchedUser);
+          if (initAutoRefreshTimerRef.current) { clearTimeout(initAutoRefreshTimerRef.current); initAutoRefreshTimerRef.current = null; }
+          if (initRetryHintTimerRef.current) { clearTimeout(initRetryHintTimerRef.current); initRetryHintTimerRef.current = null; }
+          setShowInitRetryHint(false);
+          return;
+        }
         localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
         setDeviceRegistered(true);
 
@@ -363,7 +380,10 @@ export function useLayoutInit({
   }, []);
 
   useEffect(() => {
-    if (isLoadingLayout) {
+    // Don't arm the 60s auto-reload while the boot is intentionally paused
+    // waiting for the user to register/reselect a device — the modal is the
+    // recovery path, and reloading would trap the user in a loop.
+    if (isLoadingLayout && !waitingForDeviceRegistrationRef.current) {
       setShowInitRetryHint(false);
       initRetryHintTimerRef.current = setTimeout(() => setShowInitRetryHint(true), 15000);
       initAutoRefreshTimerRef.current = setTimeout(() => window.location.reload(), 60000);
