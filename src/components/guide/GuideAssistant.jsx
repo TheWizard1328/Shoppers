@@ -159,11 +159,11 @@ export default function GuideAssistant() {
   // (Delivery form relocate on mobile is handled by the form header itself.)
   const deliveryFormRelocateActive = isDeliveryFormOpen && isMobileViewport;
 
-  // ── Side tab position — sits just above the MapCycleFAB on the dashboard ────
-  // Tracks the FAB element dynamically (it moves when stop cards expand/collapse,
-  // immersive mode toggles, etc.). Falls back to vertical center on non-dashboard pages.
+  // ── Side tab position — sits just above the MapCycleFAB, attached to the screen's right edge ────
+  // Tracks the FAB's vertical position dynamically (it moves when stop cards expand/collapse,
+  // immersive mode toggles, etc.) but stays pinned to right:0 (the actual screen edge),
+  // never the FAB's own right edge.
   const [guideBottomPx, setGuideBottomPx] = useState('50%');
-  const [guideRightPx, setGuideRightPx] = useState(0);
 
   useEffect(() => {
     const compute = () => {
@@ -173,13 +173,11 @@ export default function GuideAssistant() {
         if (rect.top > 0 && rect.top < window.innerHeight) {
           // Position just above the FAB with a 6px gap
           setGuideBottomPx(`${window.innerHeight - rect.top + 6}px`);
-          setGuideRightPx(`${Math.max(0, window.innerWidth - rect.right)}px`);
           return;
         }
       }
       // Fallback: no FAB found (non-dashboard pages or FAB hidden)
       setGuideBottomPx('50%');
-      setGuideRightPx(0);
     };
 
     compute();
@@ -930,7 +928,7 @@ export default function GuideAssistant() {
             className="fixed z-[10060]"
             style={{
               bottom: typeof guideBottomPx === 'string' ? guideBottomPx : `${guideBottomPx}px`,
-              right: typeof guideRightPx === 'string' ? guideRightPx : `${guideRightPx}px`,
+              right: 0,
               pointerEvents: 'auto',
             }}
           >
