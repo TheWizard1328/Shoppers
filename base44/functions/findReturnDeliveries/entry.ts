@@ -4,7 +4,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    // Build return patient lookup: id -> {full_name, store_id}
+    // Build return patient lookup
     const returnPatientMap = new Map<string, any>();
     try {
       const allPatients = await base44.entities.Patient.filter({}).catch(() => []);
@@ -15,26 +15,55 @@ Deno.serve(async (req) => {
       });
     } catch (e) { console.log('Patient error:', e.message); }
     
-    // Get all deliveries
-    const allDeliveries = await base44.entities.Delivery.filter({}).catch(() => []);
+    const returnPatientIds = Array.from(returnPatientMap.keys());
     
-    // Identify return deliveries strictly:
-    // 1. patient_id matches a return patient record, OR
-    // 2. delivery_notes contains "(rtn)" (the specific marker from returnDeliveryBuilder)
-    // NOT using broad \breturn\b match (catches false positives)
-    const returnDeliveries = (allDeliveries || []).filter((d: any) => {
-      const notes = (d.delivery_notes || '').toLowerCase();
-      if (notes.includes('(rtn)')) return true;
-      if (d.patient_id && returnPatientMap.has(d.patient_id)) return true;
-      return false;
+    // For each return patient, fetch ALL their deliveries
+    let allReturnDeliveries: any[] = [];
+    for (const pid of returnPatientIds) {
+      try {
+        const deliveries = await base44.entities.Delivery.filter({ patient_id: pid }).catch(() => []);
+        allReturnDeliveries = allReturnDeliveries.concat(deliveries || []);
+      } catch (e) { console.log(`Error fetching deliveries for patient ${pid}:`, e.message); }
+    }
+    
+    // Also get all deliveries and scan for (rtn) in notes (might have deliveries without return patient link)
+    // We'll need to paginate through all deliveries
+    let allDeliveries: any[] = [];
+    // Try using filter with status completed to get completed deliveries
+    const completed = await base44.entities.Delivery.filter({ status: 'completed' }).catch(() => []);
+    allDeliveries = completed || [];
+    
+    // Also get failed ones (return deliveries might have failed status)
+    const failed = await base44.entities.Delivery.filter({ status: 'failed' }).catch(() => []);
+    allDeliveries = allDeliveries.concat(failed || []);
+    
+    // Also get cancelled ones
+    const cancelled = await base44.entities.Delivery.filter({ status: 'cancelled' }).catch(() => []);
+    allDeliveries = allDeliveries.concat(cancelled || []);
+    
+    // Deduplicate by id
+    const seen = new Set<string>();
+    allDeliveries = allDeliveries.filter((d: any) => {
+      if (seen.has(d.id)) return false;
+      seen.add(d.id);
+      return true;
     });
     
-    // Now identify PROBLEMATIC ones:
-    // A) Has (rtn) in notes but patient_id doesn't match a return patient (missing or wrong patient link)
-    // B) Has return patient_id but store_id doesn't match the return patient's store
-    // C) Has return patient_id but no (rtn) in notes (inconsistent marking)
-    // D) Status is not "completed" (return deliveries should be completed)
-    const problematic = returnDeliveries.filter((d: any) => {
+    // Find deliveries with (rtn) in notes that are NOT linked to return patients
+    const rtnInNotes = allDeliveries.filter((d: any) => {
+      const notes = (d.delivery_notes || '').toLowerCase();
+      return notes.includes('(rtn)');
+    });
+    
+    // Combine: return patient deliveries + (rtn) in notes deliveries
+    const allReturnSet = new Map<string, any>();
+    for (const d of allReturnDeliveries) allReturnSet.set(d.id, d);
+    for (const d of rtnInNotes) allReturnSet.set(d.id, d);
+    
+    const allReturns = Array.from(allReturnSet.values());
+    
+    // Identify problematic ones
+    const problematic = allReturns.filter((d: any) => {
       const notes = (d.delivery_notes || '').toLowerCase();
       const hasRTN = notes.includes('(rtn)');
       const returnPatient = d.patient_id ? returnPatientMap.get(d.patient_id) : null;
@@ -48,16 +77,7 @@ Deno.serve(async (req) => {
       if (isReturnPatient && !hasRTN) return true;
       // D: Not completed status
       if (d.status && d.status !== 'completed') return true;
-      
       return false;
-    });
-    
-    // Also find deliveries that DON'T match return criteria but have "return" in patient_name
-    // (these might be misidentified returns)
-    const suspectByName = (allDeliveries || []).filter((d: any) => {
-      if (returnDeliveries.includes(d)) return false; // already counted
-      const pname = (d.patient_name || '').toLowerCase();
-      return pname.includes('return') && !!d.patient_id;
     });
     
     const results = problematic.map((d: any) => {
@@ -67,9 +87,9 @@ Deno.serve(async (req) => {
       const isReturnPatient = !!returnPatient;
       
       let issue = '';
-      if (hasRTN && !isReturnPatient) issue = 'A: has (RTN) but no return patient link';
-      else if (isReturnPatient && returnPatient.store_id && d.store_id && returnPatient.store_id !== d.store_id) issue = `B: store mismatch (patient store=${returnPatient.store_id}, delivery store=${d.store_id})`;
-      else if (isReturnPatient && !hasRTN) issue = 'C: return patient but missing (RTN) marker';
+      if (hasRTN && !isReturnPatient) issue = 'A: (RTN) in notes but no return patient link';
+      else if (isReturnPatient && returnPatient.store_id && d.store_id && returnPatient.store_id !== d.store_id) issue = `B: store mismatch (${returnPatient.full_name}→${returnPatient.store_id?.slice(-4)}, delivery→${d.store_id?.slice(-4)})`;
+      else if (isReturnPatient && !hasRTN) issue = `C: return patient (${returnPatient.full_name}) but missing (RTN)`;
       else if (d.status !== 'completed') issue = `D: status=${d.status}`;
       
       return {
@@ -86,11 +106,9 @@ Deno.serve(async (req) => {
     });
     
     return Response.json({
-      total_deliveries: allDeliveries.length,
-      total_returns: returnDeliveries.length,
+      total_returns: allReturns.length,
       problematic_count: results.length,
-      suspect_by_name_count: suspectByName.length,
-      return_patients: Array.from(returnPatientMap.entries()).map(([id, v]) => ({ id, ...v })),
+      total_scanned: allDeliveries.length,
       results,
     });
   } catch (error) {
