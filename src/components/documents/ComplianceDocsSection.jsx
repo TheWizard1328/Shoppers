@@ -49,7 +49,7 @@ export default function ComplianceDocsSection({ currentUser, stores }) {
   const fileInputRef = useRef(null);
   const [pendingUpload, setPendingUpload] = useState(null);
 
-  const canAccess = isAppOwner(currentUser) || currentUser?.app_roles?.includes('store_owner') || currentUser?.app_roles?.includes('dispatcher') || currentUser?.app_roles?.includes('admin');
+  const canAccess = isAppOwner(currentUser) || currentUser?.app_roles?.includes('store_owner') || currentUser?.is_store_owner === true;
   const isOwner = isAppOwner(currentUser);
 
   const loadData = useCallback(async () => {
