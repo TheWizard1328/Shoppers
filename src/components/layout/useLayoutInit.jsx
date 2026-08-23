@@ -47,7 +47,25 @@ export function useLayoutInit({
       setIsLoadingLayout(true);
       try {
         setDeviceTypeDetected(getDeviceType());
-        const fetchedUser = await requestThrottler.queue(() => getEffectiveUser(), 'critical', 'getEffectiveUser');
+
+        // CRITICAL: Wrap the user fetch in a timeout — if the backend is unreachable
+        // or the throttler is stuck, the boot would hang here forever, and the 60s
+        // auto-reload timer would fire and retry in an infinite loop.
+        const _withTimeout = (promise, ms, label) =>
+          Promise.race([promise, new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+          )]);
+
+        let fetchedUser;
+        try {
+          fetchedUser = await _withTimeout(
+            requestThrottler.queue(() => getEffectiveUser(), 'critical', 'getEffectiveUser'),
+            10000, 'getEffectiveUser'
+          );
+        } catch (e) {
+          console.error('❌ [Init] getEffectiveUser failed/timeout:', e.message);
+          setHasAccess(false);setCurrentUser(null);setIsLoadingLayout(false);setDataLoaded(true);return;
+        }
         if (!fetchedUser) {setHasAccess(false);setCurrentUser(null);setIsLoadingLayout(false);setDataLoaded(true);return;}
         const deviceIdentifier = getDeviceIdentifier();
         const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -55,11 +73,10 @@ export function useLayoutInit({
 
         // ── STEP 1: Load ALL static bootstrap entities from IndexedDB immediately ──
         // This runs in parallel with the slim backend manifest call so neither blocks the other.
-        const [
-          offlineManifestResult,
-          offlineDels, offlinePats, offlineAppUsers, offlineStores, offlineCities,
-          sqConfigs, sqCatalog, sqTx, offlineInterStoreLocations,
-        ] = await Promise.all([
+        // Wrap the entire bootstrap Promise.all in a timeout — if ANY single
+        // getAll() call hangs (not rejects), the .catch(() => []) is useless
+        // because catch only fires on rejection, not on a promise that never settles.
+        const _bootstrapPromise = Promise.all([
           // Slim backend call: device check + HERE API key only (no entity fetches)
           requestThrottler.queue(
             () => base44.functions.invoke('getBootstrapManifest', { deviceIdentifier, todayStr }),
@@ -75,6 +92,21 @@ export function useLayoutInit({
           offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS).catch(() => []),
           offlineDB.getAll(offlineDB.STORES.INTER_STORE_LOCATIONS).catch(() => []),
         ]);
+
+        let offlineManifestResult, offlineDels, offlinePats, offlineAppUsers, offlineStores, offlineCities,
+            sqConfigs, sqCatalog, sqTx, offlineInterStoreLocations;
+        try {
+          [
+            offlineManifestResult,
+            offlineDels, offlinePats, offlineAppUsers, offlineStores, offlineCities,
+            sqConfigs, sqCatalog, sqTx, offlineInterStoreLocations,
+          ] = await _withTimeout(_bootstrapPromise, 15000, 'bootstrap Promise.all');
+        } catch (bootTimeoutErr) {
+          console.error('❌ [Init] Bootstrap Promise.all timed out — continuing with empty IDB data:', bootTimeoutErr.message);
+          offlineManifestResult = { _error: bootTimeoutErr };
+          offlineDels = []; offlinePats = []; offlineAppUsers = []; offlineStores = [];
+          offlineCities = []; sqConfigs = []; sqCatalog = []; sqTx = []; offlineInterStoreLocations = [];
+        }
 
         // Handle manifest response (slim — device check + API key only)
         let manifest = {}, isDeviceRegistered = false, manifestSucceeded = false;

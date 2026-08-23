@@ -464,25 +464,39 @@ const bulkSave = async (storeName, records) => {
 /**
  * Get all records from a store
  */
+const GETALL_TIMEOUT_MS = 6000;
+
+const withTimeout = (promise, ms, label = 'operation') =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+
 const getAll = async (storeName) => {
   try {
     const db = await openDatabase();
     const transaction = db.transaction([storeName], 'readonly');
     const store = transaction.objectStore(storeName);
 
-    return new Promise((resolve, reject) => {
+    const records = await withTimeout(new Promise((resolve, reject) => {
       const request = store.getAll();
-      request.onsuccess = async () => {
-        const results = request.result;
-        if (isPHIStore(storeName)) {
-          resolve(await decryptRecords(results));
-        } else {
-          resolve(results);
-        }
-      };
+      request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
-    });
+    }), GETALL_TIMEOUT_MS, `IDB getAll(${storeName})`);
+
+    if (isPHIStore(storeName)) {
+      const decrypted = await withTimeout(
+        decryptRecords(records),
+        GETALL_TIMEOUT_MS,
+        `decryptRecords(${storeName})`
+      );
+      return decrypted;
+    }
+    return records;
   } catch (error) {
+    console.warn(`[OfflineDB] getAll(${storeName}) failed: ${error.message}`);
     return [];
   }
 };
