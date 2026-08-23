@@ -1,16 +1,19 @@
 /**
  * Heartbeat Service
  *
- * For DISPATCHERS: sends a heartbeat every 5 minutes.
- *   - On each heartbeat, also checks if location_updated_at is stale (> 5 min).
- *     If stale → sets driver_status to 'off_duty' (offline).
- *     On a fresh heartbeat → restores driver_status to 'online'.
+ * For DISPATCHERS: sends a heartbeat every 5 minutes (only from the primary device —
+ *   see isPrimaryDevice check in start()). Every call unconditionally refreshes
+ *   location_updated_at to now and restores driver_status to 'online'. This client
+ *   NEVER self-marks off_duty — the mere fact this code is running proves the app is
+ *   active right now, so any "stale means offline" judgment call belongs exclusively
+ *   to the server-side monitor below, which can see the absence of a heartbeat over
+ *   time — something the client itself cannot reliably observe about its own status.
  *
  * For DRIVERS: heartbeat is handled by the location tracker (GPS updates act as heartbeats).
  *
- * Rules (used by monitorUserHeartbeat scheduled function):
- *   < 5 min  → online
- *   > 5 min  → off_duty (offline)
+ * Rules (enforced by the monitorUserHeartbeat scheduled function, server-side only):
+ *   < 5 min since last heartbeat → online
+ *   > 5 min since last heartbeat → off_duty (offline)
  */
 
 import { base44 } from '@/api/base44Client';
@@ -19,7 +22,6 @@ import { isCapacitorNativeApp, getCapacitorPlatform } from './locationProviders/
 import { remoteLogger } from './remoteLogger';
 
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const STALE_THRESHOLD_MS = 5 * 60 * 1000;    // 5 minutes — same threshold
 
 let intervalId = null;
 let currentAppUserId = null;
@@ -43,26 +45,22 @@ const sendHeartbeat = async () => {
     const nowIso = now.toISOString();
 
     if (isDispatcher) {
-      // Fetch current record to check existing timestamp and status
+      // CRITICAL: This function only runs at all when isPrimaryDevice is true (see
+      // start() below) — the very fact sendHeartbeat() is executing IS proof the app
+      // is active right now. Always refresh the timestamp and restore 'online' status
+      // unconditionally. Marking off_duty due to a STALE old timestamp used to happen
+      // here too, but that punished the exact moment a dispatcher reopened the app: the
+      // first heartbeat call would see the old stale timestamp, flip driver_status to
+      // off_duty, and return WITHOUT writing a fresh timestamp — leaving them stuck
+      // off_duty for up to 5 more minutes until the next tick self-corrected. Going
+      // offline after inactivity is exclusively the job of the monitorUserHeartbeat
+      // scheduled function (see file header) — the client must never self-mark off_duty.
       let existing = null;
       try {
         const results = await base44.entities.AppUser.filter({ id: currentAppUserId });
         existing = results?.[0] || null;
       } catch (_) { /* non-critical */ }
 
-      const lastBeat = existing?.location_updated_at ? new Date(existing.location_updated_at) : null;
-      const isStale = !lastBeat || (now - lastBeat) > STALE_THRESHOLD_MS;
-
-      if (isStale && existing?.driver_status !== 'off_duty') {
-        // Stale — mark offline
-        await base44.entities.AppUser.update(currentAppUserId, {
-          driver_status: 'off_duty',
-        });
-        console.log(`💤 [HeartbeatService] Dispatcher ${currentAppUserId} marked off_duty (stale heartbeat)`);
-        return; // Don't update location_updated_at — we want it to remain stale until the user is active
-      }
-
-      // Active — send heartbeat and ensure status is 'online'
       const update = { location_updated_at: nowIso };
       if (existing?.driver_status !== 'online') {
         update.driver_status = 'online';

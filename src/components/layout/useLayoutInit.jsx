@@ -77,18 +77,26 @@ export function useLayoutInit({
         ]);
 
         // Handle manifest response (slim — device check + API key only)
-        let manifest = {}, isDeviceRegistered = false;
+        let manifest = {}, isDeviceRegistered = false, manifestSucceeded = false;
         if (offlineManifestResult && !offlineManifestResult._error) {
           manifest = offlineManifestResult?.data || offlineManifestResult || {};
           isDeviceRegistered = manifest.deviceRegistered === true;
+          manifestSucceeded = true; // Server responded — its deviceRegistered flag is authoritative
         } else if (cachedReg === 'true') {
-          isDeviceRegistered = true; // Offline fallback
+          isDeviceRegistered = true; // Offline fallback — manifest fetch failed, trust last known cache
         } else if (offlineManifestResult?._error) {
           throw offlineManifestResult._error;
         }
 
-        // KEEP LOADING SPINNER while waiting for device registration
-        if (!isDeviceRegistered && cachedReg !== 'true') {setCurrentUser(fetchedUser);return;}
+        // KEEP LOADING SPINNER while waiting for device registration.
+        // CRITICAL: Once the manifest call succeeds, the server's deviceRegistered flag
+        // is authoritative and must NEVER be overridden by a stale local cache flag.
+        // Previously `cachedReg === 'true'` alone could suppress the registration dialog
+        // forever even after the server correctly reported deviceRegistered:false (e.g.
+        // the UserDevice record was deleted/never created) — silently disabling GPS
+        // heartbeats for that user with no way to self-heal. Only trust the cache when
+        // the manifest call itself failed (offline), never to override a fresh "false".
+        if (!isDeviceRegistered && (manifestSucceeded || cachedReg !== 'true')) {setCurrentUser(fetchedUser);return;}
         localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
         setDeviceRegistered(true);
 
