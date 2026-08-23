@@ -24,7 +24,7 @@ import { AppFeeAllDriversDialog } from './AppFeeDialogs';
 import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 import { exportPayrollPdf } from './payrollPdfExport';
-import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
+import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts, roundCurrency } from './payrollSummaryCalculations';
 import { getActiveDeductionsForPeriod } from '../utils/deductionHelpers';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
@@ -398,7 +398,7 @@ export default function PayrollSummaryCard({
               pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: driverPayCycle,
               total_deliveries: driverData?.totalDeliveries || 0, total_extra_km: driverData?.totalExtraKm || 0,
               total_oversized_deliveries: driverData?.oversizedCount || 0, total_after_hours_deliveries: driverData?.afterHoursCount || 0,
-              gross_pay: driverData?.grossPay || 0, net_pay: driverData?.grandTotal || 0,
+              gross_pay: driverData?.grossPay || 0, net_pay: getPeriodNetAmount({ grandTotal: driverData?.grandTotal || 0, taxAmount: driverData?.taxAmount || 0, bonusPay: 0, deductions: driverData?.deductionsArray || [], appFeeAmount: periodAppFeeAmount }),
               total_deductions: driverData?.deductions || 0, deductions: driverData?.deductionsArray || [],
               bonus_pay: 0, app_fee_percentage: 0, app_fee_amount: periodAppFeeAmount,
               tax_amount: driverData?.taxAmount || 0, pay_rate_per_delivery: driverData?.payRate || 0,
@@ -515,13 +515,13 @@ export default function PayrollSummaryCard({
           total_oversized_deliveries: driverData.oversizedCount,
           total_after_hours_deliveries: driverData.afterHoursCount || 0,
           gross_pay: driverData.grossPay,
-          net_pay: driverData.grandTotal,
+          net_pay: getPeriodNetAmount({ grandTotal: driverData.grandTotal, taxAmount: driverData.taxAmount, bonusPay: 0, deductions: driverData.deductionsArray || [], appFeeAmount: saveAppFeeAmount }),
           total_deductions: driverData.deductions,
           deductions: driverData.deductionsArray,
           bonus_pay: 0,
           app_fee_percentage: 0,
           app_fee_amount: saveAppFeeAmount,
-          paid_amount: driverData.grandTotal,
+          paid_amount: getDefaultPaidAmount({ grandTotal: driverData.grandTotal, taxAmount: driverData.taxAmount, bonusPay: 0, deductions: driverData.deductionsArray || [] }),
           tax_amount: driverData.taxAmount,
           pay_rate_per_delivery: driverData.payRate,
           extra_km_rate: driverData.extraKmRate,
@@ -551,7 +551,15 @@ export default function PayrollSummaryCard({
       if (updates.deductions !== undefined || updates.bonus_pay !== undefined) {
         const newDed = updates.total_deductions !== undefined ? updates.total_deductions : existingRecord.total_deductions || 0;
         const newBonus = updates.bonus_pay !== undefined ? updates.bonus_pay : existingRecord.bonus_pay || 0;
-        recalculatedUpdates.gross_pay = (driverData?.grandTotal || existingRecord.net_pay || 0) + (driverData?.taxAmount || 0) - newDed + newBonus;
+        // FIX: This must update net_pay (gross + tax - deductions + bonus + appFee), NOT gross_pay.
+        // gross_pay represents base earnings before bonus/deduction adjustments and should stay untouched here.
+        recalculatedUpdates.net_pay = roundCurrency(
+          (driverData?.grandTotal ?? existingRecord.gross_pay ?? 0) +
+          (driverData?.taxAmount || 0) -
+          newDed +
+          newBonus +
+          (existingRecord.app_fee_amount || 0)
+        );
       }
 
       const finalUpdates = roundPayrollData(recalculatedUpdates);
@@ -695,7 +703,7 @@ export default function PayrollSummaryCard({
         pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: finalizePayCycle,
         total_deliveries: driverData.totalDeliveries, total_extra_km: driverData.totalExtraKm,
         total_oversized_deliveries: driverData.oversizedCount, total_after_hours_deliveries: driverData.afterHoursCount || 0,
-        gross_pay: driverData.grossPay, net_pay: driverData.grandTotal,
+        gross_pay: driverData.grossPay, net_pay: finalizedNetPay,
         total_deductions: driverData.deductions, deductions: driverData.deductionsArray,
         bonus_pay: edit.bonusPay || 0, app_fee_percentage: edit.appFeePercent || 0, app_fee_amount: finalizeAppFeeAmount, paid_amount: finalizedPaidAmount,
         tax_amount: driverData.taxAmount, pay_rate_per_delivery: driverData.payRate,
