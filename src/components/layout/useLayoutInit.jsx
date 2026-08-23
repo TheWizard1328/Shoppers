@@ -144,6 +144,15 @@ export function useLayoutInit({
           // window.location.reload() itself once a device is chosen, resuming boot.
           waitingForDeviceRegistrationRef.current = true;
           setCurrentUser(fetchedUser);
+          // CRITICAL: Release the loading gate so GlobalOverlays (which hosts the
+          // DeviceRegistration modal) actually renders. Previously the spinner
+          // stayed up while the modal — gated behind isLoadingLayout=false —
+          // never appeared, deadlocking the boot on an infinite spinner. This
+          // was the root cause of the editor-only "stuck on Loading RxDeliver"
+          // hang: the preview device has no UserDevice record, so every boot
+          // paused here and never recovered.
+          setHasAccess(true);
+          setIsLoadingLayout(false);
           if (initAutoRefreshTimerRef.current) { clearTimeout(initAutoRefreshTimerRef.current); initAutoRefreshTimerRef.current = null; }
           if (initRetryHintTimerRef.current) { clearTimeout(initRetryHintTimerRef.current); initRetryHintTimerRef.current = null; }
           setShowInitRetryHint(false);
