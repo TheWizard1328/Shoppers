@@ -73,6 +73,13 @@ class LocationTracker {
         this.lastHeartbeatAt = 0;
         this.lastFocusLostAt = 0;
 
+        // ── Idle Kill System (Part C) ──
+        // Force-close app after extended background + off-duty idle
+        this._offDutyBackgroundedAt = null;
+        this._idleKillInterval = null;
+        this._idleKillLastPosition = null;
+        this._webOnlyVisibilityHandler = null;
+
         // At-stop breadcrumb throttle — when driver is at a delivery location,
         // reduce breadcrumb frequency to 60s instead of 5s.
         this.isBreadcrumbSlowed = false;
@@ -453,57 +460,15 @@ class LocationTracker {
     this._webOnlyMode = true;
     const providerName = 'WEB-ONLY';
     this.failedUpdateCount = 0; // Reset failure count on web-only start
-    this.heartbeatInterval = setInterval(async () => {
-      if (!this.isTracking || !this._webOnlyMode) return;
-      try {
-        const provider = getLocationProvider();
-        if (provider.isAvailable()) {
-          const pos = await provider.getCurrentPosition({
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 0,
-            requestPermissions: false
-          });
-          this.lastPosition = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            accuracy: pos.coords.accuracy
-          };
-          // CRITICAL: Dispatch driverPositionUpdated so the primary device's own
-          // marker updates. In full tracking mode this comes from handleLocationSuccess
-          // (watchPosition callback), but web-only mode has no watchPosition.
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('driverPositionUpdated', {
-              detail: {
-                userId: this.currentUser?.id,
-                latitude: pos.coords.latitude,
-                longitude: pos.coords.longitude,
-                accuracy: pos.coords.accuracy,
-                timestamp: getLocalTimestamp(),
-                source: 'web-only-heartbeat'
-              }
-            }));
-          }
-          await this.updateLocationInDatabase(
-            pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy,
-            false, false, true
-          );
-        } else if (this.lastPosition) {
-          await this.updateLocationInDatabase(
-            this.lastPosition.latitude, this.lastPosition.longitude,
-            this.lastPosition.accuracy, false, true, true
-          );
-        }
-      } catch (err) {
-        // Log but don't increment failedUpdateCount for GPS acquisition failures —
-        // only updateLocationInDatabase increments it for upload failures.
-        // GPS timeouts are transient (especially on resume from background);
-        // silently killing the heartbeat would freeze the driver's location.
-        console.warn('📍 [Web-only heartbeat] GPS fix failed (non-fatal):', err?.message || err);
-      }
-    }, this.updateInterval);
+    this._startWebOnlyHeartbeatInterval();
 
-    console.log(`📍 [LocationTracker] Web-only tracking started (off-duty heartbeat every ${this.updateInterval / 1000}s)`);
+    // ── Part A+B: Visibility-based heartbeat pause + idle kill timer ──
+    // When the app goes to background while off duty, pause the heartbeat
+    // (stops phantom heartbeats). After 30 min of background inactivity,
+    // force-close the app via App.exitApp() to free device resources.
+    this._setupWebOnlyVisibilityHandler();
+
+    console.log(`📍 [LocationTracker] Web-only tracking started (off-duty heartbeat every ${this.updateInterval / 1000}s, idle kill at ${30}min)`);
   }
 
   /**
@@ -1455,6 +1420,11 @@ class LocationTracker {
     this.isTracking = false;
     this._webOnlyMode = false;
     this._nativeOffDutyWatcher = false;
+    // ── Idle kill cleanup ──
+    this._stopIdleKillTimer();
+    this._teardownWebOnlyVisibilityHandler();
+    this._offDutyBackgroundedAt = null;
+    this._idleKillLastPosition = null;
     this.nativeWatchId = null;
     this._dispatcherHeartbeatMode = false;
     this.isPrimaryDevice = false;
@@ -1478,6 +1448,13 @@ class LocationTracker {
     this.allowNonPrimaryPolylineRefresh = false;
     this.lastHeartbeatAt = 0;
     this.lastFocusLostAt = 0;
+
+        // ── Idle Kill System (Part C) ──
+        // Force-close app after extended background + off-duty idle
+        this._offDutyBackgroundedAt = null;
+        this._idleKillInterval = null;
+        this._idleKillLastPosition = null;
+        this._webOnlyVisibilityHandler = null;
     
     // Clear arrival detection state
     arrivalTimeDetector.clearRecordedArrivals();
@@ -1496,6 +1473,11 @@ class LocationTracker {
     if (this._webOnlyMode) {
       // Stop the web-only heartbeat but preserve lastPosition and appUserId
       this._clearHeartbeat();
+      // ── Idle kill cleanup — driver going on duty, cancel any pending kill ──
+      this._stopIdleKillTimer();
+      this._teardownWebOnlyVisibilityHandler();
+      this._offDutyBackgroundedAt = null;
+      this._idleKillLastPosition = null;
       this.isTracking = false;
       this._webOnlyMode = false;
     }
@@ -1879,7 +1861,188 @@ class LocationTracker {
      };
    }
 
-   reloadSettings() {
+ 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IDLE KILL SYSTEM — Force-close after extended background + off-duty idle
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Part A: Pause web-only heartbeat when backgrounded + off duty
+  // Part B: Force-close via App.exitApp() after 30 min of no movement
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  _startWebOnlyHeartbeatInterval() {
+    this._clearHeartbeat();
+    this.heartbeatInterval = setInterval(async () => {
+      if (!this.isTracking || !this._webOnlyMode) return;
+      try {
+        const provider = getLocationProvider();
+        if (provider.isAvailable()) {
+          const pos = await provider.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0,
+            requestPermissions: false
+          });
+          this.lastPosition = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy
+          };
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('driverPositionUpdated', {
+              detail: {
+                userId: this.currentUser?.id,
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+                timestamp: getLocalTimestamp(),
+                source: 'web-only-heartbeat'
+              }
+            }));
+          }
+          await this.updateLocationInDatabase(
+            pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy,
+            false, false, true
+          );
+        } else if (this.lastPosition) {
+          await this.updateLocationInDatabase(
+            this.lastPosition.latitude, this.lastPosition.longitude,
+            this.lastPosition.accuracy, false, true, true
+          );
+        }
+      } catch (err) {
+        console.warn('📍 [Web-only heartbeat] GPS fix failed (non-fatal):', err?.message || err);
+      }
+    }, this.updateInterval);
+  }
+
+  _startIdleKillTimer() {
+    this._offDutyBackgroundedAt = Date.now();
+    this._idleKillLastPosition = this.lastPosition ? { ...this.lastPosition } : null;
+
+    this._idleKillInterval = setInterval(async () => {
+      if (!this._offDutyBackgroundedAt || !this._webOnlyMode) return;
+
+      const elapsed = Date.now() - this._offDutyBackgroundedAt;
+      if (elapsed < 30 * 60 * 1000) return; // 30 min threshold
+
+      // Threshold reached — check if driver has moved
+      let hasMoved = false;
+      try {
+        const provider = getLocationProvider();
+        if (provider.isAvailable() && this._idleKillLastPosition) {
+          const pos = await provider.getCurrentPosition({
+            enableHighAccuracy: false,
+            timeout: 5000,
+            maximumAge: 60000,
+            requestPermissions: false,
+          });
+          const moved = calculateDistanceInMeters(
+            this._idleKillLastPosition.latitude, this._idleKillLastPosition.longitude,
+            pos.coords.latitude, pos.coords.longitude
+          );
+          if (moved > 50) { // 50m movement threshold
+            hasMoved = true;
+            this._idleKillLastPosition = {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            };
+          }
+        }
+      } catch (_) { /* GPS might fail in background — proceed with time-based close */ }
+
+      if (hasMoved) {
+        this._offDutyBackgroundedAt = Date.now();
+        console.log(`📱 [IdleKill] Timer reset — driver moved >50m while off duty`);
+      } else {
+        const mins = Math.round(elapsed / 60000);
+        console.log(`📱 [IdleKill] Threshold reached (${mins}min off-duty + backgrounded) — force closing app`);
+        this._forceCloseApp(`App closed after ${mins} min off duty in background to save battery.`);
+      }
+    }, 60 * 1000); // Check every 60s (throttled to ~1/min in background)
+
+    console.log(`📱 [IdleKill] Timer started — will force close after 30min of background inactivity while off duty`);
+  }
+
+  _stopIdleKillTimer() {
+    if (this._idleKillInterval) {
+      clearInterval(this._idleKillInterval);
+      this._idleKillInterval = null;
+    }
+  }
+
+  _setupWebOnlyVisibilityHandler() {
+    this._teardownWebOnlyVisibilityHandler();
+
+    this._webOnlyVisibilityHandler = () => {
+      if (!this._webOnlyMode) return;
+
+      if (document.hidden) {
+        // ── App going to background while off duty ──
+        // Part A: Pause heartbeat to stop phantom heartbeats
+        this._clearHeartbeat();
+        console.log('📱 [Web-only] Heartbeat paused — app backgrounded while off duty');
+
+        // Part B: Start idle kill timer
+        this._startIdleKillTimer();
+      } else {
+        // ── App returning to foreground ──
+        this._stopIdleKillTimer();
+
+        // Check if was backgrounded beyond threshold
+        if (this._offDutyBackgroundedAt) {
+          const elapsed = Date.now() - this._offDutyBackgroundedAt;
+          if (elapsed >= 30 * 60 * 1000) {
+            const mins = Math.round(elapsed / 60000);
+            console.log(`📱 [IdleKill] App returned after ${mins}min background off-duty — force closing`);
+            this._forceCloseApp(`You've been off duty for ${mins} minutes. Closing app to save battery.`);
+            return;
+          }
+          console.log(`📱 [Web-only] App returned after ${Math.round(elapsed / 1000)}s — resuming heartbeat`);
+        }
+
+        this._offDutyBackgroundedAt = null;
+        this._idleKillLastPosition = null;
+        this._startWebOnlyHeartbeatInterval();
+      }
+    };
+
+    document.addEventListener('visibilitychange', this._webOnlyVisibilityHandler);
+  }
+
+  _teardownWebOnlyVisibilityHandler() {
+    if (this._webOnlyVisibilityHandler) {
+      document.removeEventListener('visibilitychange', this._webOnlyVisibilityHandler);
+      this._webOnlyVisibilityHandler = null;
+    }
+  }
+
+  async _forceCloseApp(message) {
+    console.log(`📱 [IdleKill] Force closing app: ${message}`);
+    try { remoteLogger.warn('[IDLE_KILL] FORCE_CLOSE | ' + message); } catch (_) {}
+
+    this._stopIdleKillTimer();
+    this._teardownWebOnlyVisibilityHandler();
+    this._clearHeartbeat();
+    this.isTracking = false;
+    this._webOnlyMode = false;
+
+    try {
+      if (typeof window !== 'undefined' && window.__toast) {
+        window.__toast(message);
+      }
+    } catch (_) {}
+
+    try {
+      const { App } = await import('@capacitor/app');
+      await App.exitApp();
+    } catch (err) {
+      console.warn('⚠️ [IdleKill] App.exitApp() failed:', err?.message);
+      try { window.close(); } catch (_) {}
+    }
+  }
+
+  reloadSettings() {
      this.loadSettings();
    }
 }
