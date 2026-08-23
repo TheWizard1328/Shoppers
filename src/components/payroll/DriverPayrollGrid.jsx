@@ -580,20 +580,36 @@ export default function DriverPayrollGrid({
                       const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 ?
                       '+'.repeat(oversizedCount) :
                       '';
-                      // After-hours marker — "°" indicates an after-hours delivery (doubled base pay).
+                      // After-hours marker — "-" indicates an after-hours delivery (doubled base pay).
                       // Separate from oversized "+" so the two flags stay distinguishable.
                       const ahSigns = viewMode === 'deliveries' && afterHoursCount > 0 ?
-                      '°'.repeat(afterHoursCount) :
+                      '-'.repeat(afterHoursCount) :
                       '';
-                      const ahTitle = afterHoursCount > 0 ? `${afterHoursCount} after-hours (2× base pay)` : '';
+                      const ahTitle = `${afterHoursCount} after-hours (2× base pay)`;
+                      const osTitle = `${oversizedCount} oversized`;
+                      const showMarkers = viewMode === 'deliveries' && (plusSigns || ahSigns);
                       return (
                         <td
                           key={store.id}
                           className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
                           style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}>
-                          
-                          <span className="md:hidden" title={ahTitle}>{displayValueMobile}{plusSigns}<span className="text-amber-500" title={ahTitle}>{ahSigns}</span></span>
-                          <span className="hidden md:inline" title={ahTitle}>{displayValueDesktop}{plusSigns}<span className="text-amber-500" title={ahTitle}>{ahSigns}</span></span>
+
+                          <div className="flex items-center justify-center gap-0.5 leading-none">
+                            {/* Delivery / km count — spans both indicator rows visually (left column) */}
+                            <span className="md:hidden">{displayValueMobile}</span>
+                            <span className="hidden md:inline">{displayValueDesktop}</span>
+                            {/* Right column: Oversized (+) on top row, After-hours (-) on bottom row */}
+                            {showMarkers && (
+                              <span className="flex flex-col items-start justify-center text-[0.65rem] leading-[1.05]">
+                                {plusSigns && (
+                                  <span title={osTitle}>{plusSigns}</span>
+                                )}
+                                {ahSigns && (
+                                  <span className="text-amber-500 dark:text-amber-400" title={ahTitle}>{ahSigns}</span>
+                                )}
+                              </span>
+                            )}
+                          </div>
                         </td>);
 
                     })}
