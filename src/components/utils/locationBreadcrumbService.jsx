@@ -110,7 +110,9 @@ export const collectBreadcrumbForTracker = async ({
   longitude,
   timestamp
 }) => {
-  if (driverStatus !== 'on_duty' || !appUserId || !currentUser?.id) {
+  // Breadcrumb recording rule — collected ONLY while on duty or on break.
+  // Off-duty and "online" (non-driver) statuses must NOT produce trails.
+  if ((driverStatus !== 'on_duty' && driverStatus !== 'on_break') || !appUserId || !currentUser?.id) {
     return null;
   }
 

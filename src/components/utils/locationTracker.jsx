@@ -177,6 +177,16 @@ class LocationTracker {
   }
 
 
+  /**
+   * Breadcrumb recording rule — breadcrumbs are collected ONLY while the
+   * driver is on duty or on break. Off-duty and "online" (non-driver) statuses
+   * must NOT produce breadcrumb trails. Single source of truth for all gates.
+   */
+  _isBreadcrumbStatusActive() {
+    return this.driverStatus === 'on_duty' || this.driverStatus === 'on_break';
+  }
+
+
   // ── CENTRALIZED GPS ACCESS ──────────────────────────────────────────────
   // All non-breadcrumb GPS callers should use these methods instead of raw
   // navigator.geolocation.getCurrentPosition(). The tracker maintains a
@@ -271,7 +281,7 @@ class LocationTracker {
     // Start a 60s at-stop interval — just keeps the timeline from having a huge gap
     if (this._atStopBreadcrumbInterval) clearInterval(this._atStopBreadcrumbInterval);
     this._atStopBreadcrumbInterval = setInterval(async () => {
-      if (!this.isTracking || this.driverStatus !== 'on_duty' || !this.isBreadcrumbSlowed) return;
+      if (!this.isTracking || !this._isBreadcrumbStatusActive() || !this.isBreadcrumbSlowed) return;
       try {
         const freshPos = await this.locationProvider.getCurrentPosition({
           enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false
@@ -302,7 +312,7 @@ class LocationTracker {
     // Restart the normal 5s breadcrumb interval
     if (this.breadcrumbInterval) clearInterval(this.breadcrumbInterval);
     this.breadcrumbInterval = setInterval(async () => {
-      if (!this.isTracking || this.driverStatus !== 'on_duty' || this.isBreadcrumbSlowed) return;
+      if (!this.isTracking || !this._isBreadcrumbStatusActive() || this.isBreadcrumbSlowed) return;
       try {
         const freshPos = await this.locationProvider.getCurrentPosition({
           enableHighAccuracy: true, timeout: 4000, maximumAge: 0, requestPermissions: false
@@ -317,7 +327,7 @@ class LocationTracker {
     // Restart watchdog
     if (this.breadcrumbWatchdog) clearInterval(this.breadcrumbWatchdog);
     this.breadcrumbWatchdog = setInterval(async () => {
-      if (!this.isTracking || this.driverStatus !== 'on_duty' || this.isBreadcrumbSlowed) return;
+      if (!this.isTracking || !this._isBreadcrumbStatusActive() || this.isBreadcrumbSlowed) return;
       const now = Date.now();
       const timeSinceLastCrumb = now - (this.lastBreadcrumbTickAt || this.lastBreadcrumbSavedAt || 0);
       if (timeSinceLastCrumb > 7000) {
@@ -906,7 +916,7 @@ class LocationTracker {
     // tick is safe — extra calls within the 5s window are simply skipped.
     // This is the fix for "entire leg missing" — the setInterval was being throttled
     // or killed by Android Chrome during backgrounding, but watchPosition survives.
-    if (this.driverStatus === 'on_duty' && this.appUserId && this.currentUser?.id) {
+    if (this._isBreadcrumbStatusActive() && this.appUserId && this.currentUser?.id) {
       this.collectBreadcrumb(latitude, longitude, Date.now()).catch((e) => {
         console.warn('🍞 [LocationTracker] watchPosition breadcrumb failed:', e?.message);
       });
@@ -1257,7 +1267,7 @@ class LocationTracker {
           this.breadcrumbInterval = null;
         }
         this.breadcrumbInterval = setInterval(async () => {
-          if (!this.isTracking || this.driverStatus !== 'on_duty') return;
+          if (!this.isTracking || !this._isBreadcrumbStatusActive()) return;
           try {
             const freshPos = await this.locationProvider.getCurrentPosition({
               enableHighAccuracy: true,
@@ -1295,7 +1305,7 @@ class LocationTracker {
           this.breadcrumbWatchdog = null;
         }
         this.breadcrumbWatchdog = setInterval(async () => {
-          if (!this.isTracking || this.driverStatus !== 'on_duty') return;
+          if (!this.isTracking || !this._isBreadcrumbStatusActive()) return;
           const now = Date.now();
           const timeSinceLastCrumb = now - (this.lastBreadcrumbTickAt || this.lastBreadcrumbSavedAt || 0);
           if (timeSinceLastCrumb > 7000) {
@@ -1568,7 +1578,7 @@ class LocationTracker {
 
   /**
     * Collect GPS breadcrumbs (offline-first strategy)
-    * CRITICAL: Only saves if driver is on_duty
+    * CRITICAL: Only saves if driver is on duty or on break (never off duty / online)
     * Stores [lat, lng, timestamp_ms] in offline DB, associated with driver_id
     */
   async clearStalePendingBreadcrumbs() {
@@ -1576,7 +1586,7 @@ class LocationTracker {
   }
 
   async collectBreadcrumb(latitude, longitude, timestamp) {
-    if (this.driverStatus !== 'on_duty' || !this.appUserId || !this.currentUser?.id) {
+    if (!this._isBreadcrumbStatusActive() || !this.appUserId || !this.currentUser?.id) {
       return;
     }
 
@@ -1778,7 +1788,7 @@ class LocationTracker {
       this.breadcrumbInterval = null;
     }
     this.breadcrumbInterval = setInterval(async () => {
-      if (!this.isTracking || this.driverStatus !== 'on_duty') return;
+      if (!this.isTracking || !this._isBreadcrumbStatusActive()) return;
       try {
         const freshPos = await this.locationProvider.getCurrentPosition({
           enableHighAccuracy: true,
@@ -2065,7 +2075,7 @@ if (typeof document !== 'undefined') {
 
     if (
       locationTracker.isTracking &&
-      locationTracker.driverStatus === 'on_duty' &&
+      locationTracker._isBreadcrumbStatusActive() &&
       focusLostAt > 0 &&
       awayDuration > 5000
     ) {
@@ -2146,7 +2156,7 @@ if (typeof document !== 'undefined') {
   // it dispatches 'breadcrumbResumeAfterAction'. We immediately collect a breadcrumb
   // at the current GPS position to bridge the gap.
   window.addEventListener('breadcrumbResumeAfterAction', () => {
-    if (!locationTracker.isTracking || locationTracker.driverStatus !== 'on_duty') return;
+    if (!locationTracker.isTracking || !locationTracker._isBreadcrumbStatusActive()) return;
     if (!locationTracker.appUserId || !locationTracker.currentUser?.id) return;
 
     // Resume normal 5s breadcrumb frequency — stop is done
