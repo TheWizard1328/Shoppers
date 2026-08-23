@@ -143,8 +143,8 @@ export default async function(req) {
     // location_updated_at — if < 15 seconds ago, skip ALL writes and return 200.
     // This keeps the local marker smooth (every 1s via JS callbacks) while
     // preventing excessive DB writes from the native POST path.
+    let existingAppUser = null;
     try {
-      let existingAppUser = null;
       try {
         existingAppUser = await base44.entities.AppUser.get(appUserId);
       } catch (_) {
@@ -210,7 +210,30 @@ export default async function(req) {
     // The native POST gives us a single GPS point — append it to the
     // DeliveryBreadcrumbs master record (stop_order=-1) so other devices
     // can see the driver's trail even while the WebView is suspended.
+    //
+    // Breadcrumb recording rule: collect ONLY while on_duty or on_break.
+    // Off-duty and "online" non-driver statuses must NOT produce trails.
+    // AppUser location update above is allowed regardless of duty status
+    // (shared marker); only the breadcrumb trail is gated here. Unknown
+    // status (lookup failure) proceeds permissively to avoid losing data.
     try {
+      const driverStatus = existingAppUser?.driver_status;
+      if (driverStatus && driverStatus !== 'on_duty' && driverStatus !== 'on_break') {
+        return new Response(JSON.stringify({
+          success: true,
+          appUserId,
+          latitude,
+          longitude,
+          timestamp: nowISO,
+          source: 'native',
+          appUserUpdated,
+          breadcrumbAppended: false,
+          skippedReason: 'off_duty',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       // Get the authenticated user's ID for the driver_id field
       const me = await base44.auth.me();
       if (me?.id) {
