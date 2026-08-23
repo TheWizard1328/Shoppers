@@ -155,47 +155,34 @@ export default function GuideAssistant() {
     return () => window.removeEventListener('eodDialogStateChange', handler);
   }, []);
 
-  // FAB should be hidden when a stop card is expanded and no dialog is open,
-  // OR when the delivery form is open on mobile (the FAB relocates into the
-  // form header next to the close button in that case).
+  // Tab is always visible — no hiding in any context.
+  // (Delivery form relocate on mobile is handled by the form header itself.)
   const deliveryFormRelocateActive = isDeliveryFormOpen && isMobileViewport;
-  const hideFabForExpandedCard = (isStopCardExpanded && !isDialogOpen && !isOpen) || isBulkEditPanelOpen || isCameraOverlayOpen || deliveryFormRelocateActive || isEodDialogOpen;
 
-  // ── Dynamic bottom offset — tracks MapViewCycleFAB via getBoundingClientRect ────
-  // Uses direct DOM measurement (viewport-accurate regardless of position context).
-  // Polls every 300ms so it catches any layout changes quickly.
-  const [guideBottomPx, setGuideBottomPx] = useState(80);
-  const [guideRightPx] = useState(16);
+  // ── Side tab position — vertically centered on the right edge, always visible ────
+  // No FAB tracking needed. The tab is a slim vertical strip on the right edge.
+  // On mobile it sits above the bottom nav; on desktop it's vertically centered.
+  const [guideBottomPx, setGuideBottomPx] = useState('50%');
 
   useEffect(() => {
     const compute = () => {
-      const fabEl = document.querySelector('[data-map-cycle-fab]');
-      if (fabEl && fabEl.offsetWidth > 0) {
-        const rect = fabEl.getBoundingClientRect();
-        // Guard: if rect.top is 0, the FAB hasn't been laid out yet — use fallback
-        if (rect.top > 0 && rect.top < window.innerHeight) {
-          // viewport bottom → top of MapCycleFAB + 8px gap
-          const fromBottom = window.innerHeight - rect.top + 8;
-          setGuideBottomPx(fromBottom);
-        } else {
-          // FAB exists but not laid out — use estimated position above bottom nav
-          const navEl = document.querySelector('[data-mobile-bottom-nav]');
-          setGuideBottomPx((navEl ? navEl.offsetHeight : 0) + 68);
-        }
-      } else {
-        // No MapCycleFAB (non-Dashboard page) — sit above bottom nav
+      // On mobile: position above bottom nav, roughly at 45% from bottom
+      // On desktop: vertically centered
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
         const navEl = document.querySelector('[data-mobile-bottom-nav]');
-        setGuideBottomPx((navEl ? navEl.offsetHeight : 0) + 12);
+        const navHeight = navEl ? navEl.offsetHeight : 0;
+        setGuideBottomPx(`calc(50% + ${navHeight / 2}px)`);
+      } else {
+        setGuideBottomPx('50%');
       }
     };
 
     compute();
-    const interval = setInterval(compute, 300);
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
     };
@@ -925,33 +912,41 @@ export default function GuideAssistant() {
 
   return (
     <>
-      {/* Floating Sparkles Button */}
+      {/* Collapsed Side Tab — always visible on the right edge */}
       <AnimatePresence>
         {!isOpen && (
           <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: hideFabForExpandedCard ? 0 : 1 }}
-            exit={{ scale: 0, opacity: 0 }}
+            initial={{ x: 60, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 60, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20, opacity: { duration: 0.2, ease: 'easeInOut' } }}
             className="fixed z-[10060]"
             style={{
-              bottom: `${guideBottomPx}px`,
-              right: `${guideRightPx}px`,
-              pointerEvents: hideFabForExpandedCard ? 'none' : 'auto',
+              bottom: typeof guideBottomPx === 'string' ? guideBottomPx : `${guideBottomPx}px`,
+              right: 0,
+              transform: 'translateY(50%)',
+              pointerEvents: 'auto',
             }}
           >
             <button
               onClick={handleOpen}
-              className="relative flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full shadow-lg hover:shadow-xl transition-shadow"
-              style={{ backgroundColor: 'var(--primary-color)', color: '#fff' }}
-              aria-label="Open guide assistant"
+              className="relative flex flex-col items-center justify-center gap-1 px-1.5 py-3 shadow-lg hover:shadow-xl transition-all rounded-l-xl"
+              style={{
+                backgroundColor: 'var(--primary-color)',
+                color: '#fff',
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed',
+                minHeight: '72px',
+              }}
+              aria-label="Open AI assistant"
             >
-              <Sparkles className="w-5 h-5 md:w-6 md:h-6" />
+              <Sparkles className="w-4 h-4 md:w-5 md:h-5 mb-1" style={{ writingMode: 'horizontal-tb' }} />
+              <span className="text-[10px] md:text-xs font-semibold tracking-wide whitespace-nowrap">AI</span>
               {showPulse && (
-                <span className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ backgroundColor: 'var(--primary-color)' }} />
+                <span className="absolute inset-0 rounded-l-xl animate-ping opacity-20" style={{ backgroundColor: 'var(--primary-color)' }} />
               )}
               {!hasSeenIntro && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" style={{ boxShadow: '0 0 0 2px var(--bg-white)' }} />
+                <span className="absolute -top-1 -left-1 w-3 h-3 bg-red-500 rounded-full" style={{ boxShadow: '0 0 0 2px var(--bg-white)' }} />
               )}
             </button>
           </motion.div>
@@ -962,11 +957,11 @@ export default function GuideAssistant() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            initial={{ opacity: 0, x: 60, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 60, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="fixed bottom-[env(safe-area-inset-bottom,0px)] md:bottom-6 right-0 md:right-4 z-[10060] w-full md:w-[500px] h-[70vh] md:h-[650px] md:max-h-[80vh]"
+            className="fixed bottom-[env(safe-area-inset-bottom,0px)] md:bottom-6 md:top-1/2 md:-translate-y-1/2 right-0 md:right-4 z-[10060] w-full md:w-[500px] h-[70vh] md:h-[650px] md:max-h-[80vh]"
           >
             <div
               className="flex flex-col h-full rounded-t-xl md:rounded-xl shadow-2xl overflow-hidden"

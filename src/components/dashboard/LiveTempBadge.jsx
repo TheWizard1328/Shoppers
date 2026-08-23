@@ -446,15 +446,18 @@ export default function LiveTempBadge({
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.92 }}
         transition={{ duration: 0.2 }}
-        className="flex justify-center z-[100] pointer-events-none"
+        className="z-[100] pointer-events-none flex items-center"
         style={(() => {
           const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
+          // In line with the FABs — same bottom calculation as MapViewCycleFAB/RouteActionButtons.
+          // No +56 offset; sits at the same vertical level as the cycle FAB and reoptimize button.
           const bottom = immersiveHidden
             ? bottomNavHeight + 10
-            : ((hasVisibleCards) ? stopCardsHeight + bottomNavHeight : bottomNavHeight + 56) + 10;
-          // When no stop cards: sit above the MapViewCycleFAB (~48px tall + 8px gap = 56px offset)
-          return { position: fabPosition, bottom: `${bottom}px`,
-            left: 0, right: 0 };
+            : ((hasVisibleCards) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
+          // Anchored to the right, positioned to the left of the FAB cluster.
+          // MapViewCycleFAB is at right:16px (~48px wide), RouteActionButtons at right:64px.
+          // Temp badge sits to the left of both, at right:120px.
+          return { position: fabPosition, bottom: `${bottom}px`, right: '120px' };
         })()}
       >
         <div
