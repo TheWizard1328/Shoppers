@@ -5,6 +5,7 @@ import { Camera, SwitchCamera, X, Check, User, Phone, MapPin, AlertCircle, Zap, 
 import { listCameras, cycleRearCamera } from "./useDeliveryCamera";
 import { scanPrescriptionLabel } from "./prescriptionScanHelpers";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
+import { isCapacitorNativeApp } from "@/components/utils/locationProviders/capacitorRuntime";
 
 // ── Laplacian sharpness ──
 const calculateSharpness = (canvas, ctx) => {
@@ -144,8 +145,10 @@ export default function DeliveryCameraOverlay({
   // ── Barcode detection loop ──
   const startBarcodeLoop = useCallback(() => {
     if (barcodeLoopRef.current) return;
-    if (typeof window === 'undefined' || !('BarcodeDetector' in window)) {
-      console.log('[DeliveryCameraOverlay] No BarcodeDetector — manual capture only');
+    // In Capacitor APK (Android WebView), BarcodeDetector may exist but silently fail.
+    // Skip it entirely in native apps — sharpness-based auto-capture handles it.
+    if (typeof window === 'undefined' || !('BarcodeDetector' in window) || isCapacitorNativeApp()) {
+      console.log('[DeliveryCameraOverlay] BarcodeDetector unavailable or native APK — using sharpness auto-capture');
       return;
     }
     try {
@@ -200,7 +203,9 @@ export default function DeliveryCameraOverlay({
   const handleBurstCaptureRef = useRef(null);
 
   const startIosAutoCapture = useCallback(() => {
-    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) return; // Android handles via BarcodeDetector
+    // In browser with BarcodeDetector: let BarcodeDetector handle auto-capture.
+    // In native APK or iOS (no BarcodeDetector): use sharpness-based auto-capture.
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window && !isCapacitorNativeApp()) return;
     if (iosAutoCaptureRef.current) return;
     const IOS_SHARPNESS_THRESHOLD = 8;  // lowered from 12 — iPhone cameras need a lower bar
     const IOS_POLL_INTERVAL = 500;      // ms between auto-capture checks (was 600)
@@ -240,7 +245,7 @@ export default function DeliveryCameraOverlay({
         console.warn('[DeliveryCameraOverlay] iOS sharpness check failed:', e?.message);
       }
     }, IOS_POLL_INTERVAL);
-    console.log('[DeliveryCameraOverlay] iOS sharpness auto-capture loop started (threshold:', IOS_SHARPNESS_THRESHOLD + ')');
+    console.log('[DeliveryCameraOverlay] Sharpness auto-capture loop started (threshold:', IOS_SHARPNESS_THRESHOLD + ')');
   }, []);
 
   const stopIosAutoCapture = useCallback(() => {
@@ -507,7 +512,7 @@ export default function DeliveryCameraOverlay({
              scanState === 'error' ? 'Scan failed' :
              blurWarning ? 'Too blurry — try again' :
              barcodeDetected ? 'Barcode detected — capturing...' :
-             ('BarcodeDetector' in window ? 'Point at a prescription label and click' : 'Point at label — auto-captures when sharp (or tap the camera button)')}
+             (('BarcodeDetector' in window && !isCapacitorNativeApp()) ? 'Point at a prescription label and click' : 'Point at label — auto-captures when sharp (or tap the camera button)')}
           </div>
 
           {/* Results panel (scrollable if needed) */}

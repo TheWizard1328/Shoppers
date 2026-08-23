@@ -12,6 +12,7 @@ import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import BarcodeThumb from './BarcodeThumb';
 import { openStream, cycleRearCamera, getSavedCameraId, listCameras, getCachedStream, isStreamAlive, detachStream } from './useDeliveryCamera';
 import LargeBarcodePreview from './LargeBarcodePreview';
+import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 
 const classifyBarcode = (value) => {
   const raw = String(value || '').trim();
@@ -353,7 +354,9 @@ export default function SmartBarcodeScanner({
       setIsStartingCamera(false);
 
       // ── Try native BarcodeDetector (5-10x faster on Chrome/Android) ──
-      const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+      // In Capacitor APK (Android WebView), BarcodeDetector may exist but silently fail.
+      // Skip it entirely in native apps and use the ZXing canvas-based fallback.
+      const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window && !isCapacitorNativeApp();
       if (hasNative) {
         try {
           nativeDetectorRef.current = new window.BarcodeDetector({ formats: ['code_128', 'code_39'] });
