@@ -203,10 +203,17 @@ export default function PayrollSummaryCard({
         basePay = periodDeliveries.reduce((sum, d) => {
           if (d.no_charge) return sum;
           const r = getEffectiveRates(appUser, d.delivery_date);
-          return sum + r.pay_rate_per_delivery;
+          // After Hours: deliveries (patient/interstore) get 2x base, pickups get 1x (normally 0)
+          const dIsPickup = !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS');
+          const multiplier = d.after_hours_pickup ? (dIsPickup ? 1 : 2) : (dIsPickup ? 0 : 1);
+          return sum + r.pay_rate_per_delivery * multiplier;
         }, 0);
       } else {
-        basePay = periodDeliveries.filter((d) => !d.no_charge).length * payRate;
+        // After Hours: deliveries get 2x base, pickups get 1x (normally 0)
+        const ahDeliveries = periodDeliveries.filter((d) => !d.no_charge && d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS')));
+        const ahPickups = periodDeliveries.filter((d) => !d.no_charge && d.after_hours_pickup && !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS'));
+        const normalDeliveries = periodDeliveries.filter((d) => !d.no_charge && !d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS')));
+        basePay = (normalDeliveries.length + ahDeliveries.length * 2 + ahPickups.length) * payRate;
       }
 
       let extraKmPay = 0,totalExtraKm = 0;
