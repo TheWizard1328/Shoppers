@@ -81,6 +81,25 @@ const buildDataVersion = (records = []) => {
   return `${records.length}:${latestTimestamp}:${firstId}:${lastId}`;
 };
 
+const DB_OPEN_TIMEOUT_MS = 8000;
+
+/**
+ * Best-effort wipe of the entire offline database. Only ever called when the
+ * open sequence itself is broken (blocked/stuck) — everything in here is a
+ * disposable cache of server data, so deleting and letting it re-populate on
+ * next sync is always safe.
+ */
+const deleteDatabaseSilently = () => new Promise((resolve) => {
+  try {
+    const req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = () => resolve();
+    req.onerror = () => resolve();
+    req.onblocked = () => resolve();
+  } catch (_) {
+    resolve();
+  }
+});
+
 /**
  * Initialize and open the IndexedDB database
  * CRITICAL: Uses promise pooling to prevent race conditions
@@ -98,14 +117,50 @@ const openDatabase = async () => {
 
   // Start new open operation
   dbOpenPromise = new Promise((resolve, reject) => {
+    let settled = false;
+    let wasBlocked = false;
+
+    // CRITICAL: indexedDB.open() can hang FOREVER with no onsuccess/onerror ever
+    // firing — this happens when another connection to an OLDER version of this
+    // same-origin database is still alive (a stale tab/iframe left open across a
+    // DB_VERSION bump) and blocks the upgrade transaction from starting. Without
+    // this timeout, dbOpenPromise stays permanently pending, every caller across
+    // the whole app (including the entire boot sequence's Promise.all) awaits it
+    // forever, and even reloading the page doesn't help if the stale blocking
+    // connection survives the reload elsewhere. Self-heal instead: give up after
+    // a bounded wait, wipe the (disposable, cache-only) database, and let the
+    // next call start completely clean.
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      console.error(`[OfflineDB] Open timed out after ${DB_OPEN_TIMEOUT_MS}ms${wasBlocked ? ' (was blocked by another connection)' : ''} — wiping and recreating ${DB_NAME}`);
+      dbOpenPromise = null;
+      deleteDatabaseSilently().finally(() => {
+        reject(new Error('IndexedDB open timed out — database was reset, please retry'));
+      });
+    }, DB_OPEN_TIMEOUT_MS);
+
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       dbOpenPromise = null;
       reject(request.error);
     };
-    
+
+    request.onblocked = () => {
+      // Don't hang silently — log it so we can see this in the wild, and let the
+      // timeout above self-heal if the blocking connection doesn't clear in time.
+      wasBlocked = true;
+      console.warn(`[OfflineDB] Open blocked by another connection to ${DB_NAME} — will self-heal after ${DB_OPEN_TIMEOUT_MS}ms if it doesn't clear`);
+    };
+
     request.onsuccess = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       dbInstance = request.result;
       
       // CRITICAL: Handle unexpected close events
