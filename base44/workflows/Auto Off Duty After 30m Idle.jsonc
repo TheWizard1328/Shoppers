@@ -1,0 +1,41 @@
+{
+  "name": "Auto Off Duty After 30m Idle",
+  "description": "Every 5 minutes, mark drivers off duty and disable location sharing after 30 minutes with no movement when all stops are finished.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 5,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-02-11T15:39:18.962000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auto_off_duty_after_30m_idle",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "monitorDriverStatus",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  }
+}

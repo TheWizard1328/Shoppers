@@ -1,0 +1,41 @@
+{
+  "name": "Refresh live ETAs every 5 minutes",
+  "description": "Runs every 5 minutes and only updates driver ETAs when the next-stop ETA has drifted by more than 5 minutes.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 5,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-03-20T18:21:22.222000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "refresh_live_etas_every_5_minutes",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "refreshDriverEtasOnLocationUpdate",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  }
+}
