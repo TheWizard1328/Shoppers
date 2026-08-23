@@ -198,7 +198,17 @@ class DriverLocationPoller {
          return false;
        }
 
-       // Already filtered by coordinates above, no additional timestamp checks needed
+       // ========================================
+       // GLOBAL: Heartbeat recency check — ALL non-self markers require a location
+       // update within the last 5 minutes. This prevents ghost markers from inactive
+       // or off-duty drivers whose stale coordinates linger in the database.
+       // ========================================
+       if (!isSelf) {
+         const updatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+         if (!updatedAt || (currentTime - updatedAt) > maxStaleTime) {
+           return false;
+         }
+       }
 
        // ========================================
        // RULE 1: Own location marker - drivers on primary device DON'T see their own shared location
@@ -211,12 +221,13 @@ class DriverLocationPoller {
        }
 
        // ========================================
-       // RULE 2: App Owner — sees ANY driver as long as the app is running and
-       // broadcasting a heartbeat. No gate on driver_status, location_tracking_enabled,
-       // or city. Marker COLOR (not visibility) reflects duty status / staleness.
+       // RULE 2: App Owner — sees ANY driver with a recent heartbeat. No gate on
+       // driver_status, location_tracking_enabled, or city. Inactive users are
+       // still filtered. Marker COLOR (not visibility) reflects duty status / staleness.
        // ========================================
        if (isUserAppOwner) {
-         return true; // coordinates + heartbeat already verified above
+         if (user.status === 'inactive') return false;
+         return true; // heartbeat recency already verified above
        }
 
        // Skip inactive users for non-app-owner roles

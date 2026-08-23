@@ -273,20 +273,25 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     // Non-self markers require coordinates
     if (!user.current_latitude || !user.current_longitude) return false;
 
+    // Inactive users never show as location markers (for any role except self)
+    if (user.status === 'inactive') return false;
+
     const updatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
-    const hasAnyHeartbeat = updatedAt > 0;
+    const now = Date.now();
+    const fiveMinMs = 5 * 60 * 1000;
+    const hasFreshHeartbeat = updatedAt > 0 && (now - updatedAt) <= fiveMinMs;
 
     // ── ROLE-BASED VISIBILITY RULES ──
-    // App Owner: sees ANY driver as long as the app is running and broadcasting a
-    // heartbeat — no gate on driver_status or location_tracking_enabled or city.
+    // App Owner: sees ANY driver with a fresh heartbeat (< 5 min) — no gate on
+    // driver_status or location_tracking_enabled or city. Inactive users filtered above.
     // Marker COLOR (not visibility) reflects duty status / staleness — see createDriverIcon.
     if (_isAppOwner) {
-      return hasAnyHeartbeat;
+      return hasFreshHeartbeat;
     }
 
-    // Admin: sees all on_duty drivers (for selected city — city filter applied in DeliveryMap.jsx)
+    // Admin: sees all on_duty drivers with fresh heartbeat (city filter applied in DeliveryMap.jsx)
     if (isAdmin) {
-      return hasAnyHeartbeat && user.driver_status === 'on_duty';
+      return hasFreshHeartbeat && user.driver_status === 'on_duty';
     }
 
     // Dispatcher: sees all on_duty drivers in their same city — no Share Location gate.

@@ -639,11 +639,18 @@ function DeliveryMap({
       if (!user.current_latitude || !user.current_longitude) return null;
       const isSelf = user.id === currentUserId || user.user_id === currentUserId;
 
+      // ── GLOBAL HEARTBEAT CHECK — non-self markers require location update within 5 min ──
+      if (!isSelf) {
+        const locUpdatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+        if (!locUpdatedAt || (now - locUpdatedAt) > fiveMinutesMs) return null;
+      }
+
       // ── VISIBILITY RULES (single source of truth for location marker visibility) ──
-      // App Owner: sees ANY driver with a heartbeat — no gate on driver_status,
+      // App Owner: sees ANY driver with a recent heartbeat — no gate on driver_status,
       // location_tracking_enabled, or city. Marker COLOR reflects duty status/staleness.
       if (_isAppOwner && !isSelf) {
         // No status/city/location_tracking_enabled check — app owner sees all broadcasting drivers
+        // (heartbeat recency already checked above, inactive already filtered above)
       } else if (isAdmin && !isSelf) {
         // Admin: sees all on_duty drivers for the selected city
         if (user.driver_status !== 'on_duty') return null;
