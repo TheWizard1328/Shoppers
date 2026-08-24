@@ -43,13 +43,13 @@ import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper'
 import InterStoreFormContent from './InterStoreFormContent';
 import CyclingLocationSearch from './CyclingLocationSearch';
 
-const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
+const CheckboxField = ({ id, label, checked, onChange, disabled, tooltip }) =>
 <div className="flex items-center space-x-2">
     {/* Coerce to a real boolean so the underlying Radix checkbox stays
       controlled for its entire lifetime (avoids React's
       "controlled -> uncontrolled" warning when formData fields are undefined). */}
     <Checkbox id={id} checked={Boolean(checked)} onCheckedChange={onChange} disabled={disabled} />
-    <Label htmlFor={id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
+    <Label htmlFor={id} title={tooltip} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
   </div>;
 
 const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = [], useMobileLayout = false }) => {
@@ -1256,10 +1256,10 @@ export default function DeliveryFormView({
                             <div className="space-y-2 min-w-0">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
                               <div className="space-y-3">
-                                <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={(c) => setFormData((p) => ({ ...p, fridge_item: c }))} disabled={isSaving} />
-                                <CheckboxField id="oversized" label="Oversized" checked={formData.oversized} onChange={(c) => setFormData((p) => ({ ...p, oversized: c }))} disabled={isSaving} />
-                                <CheckboxField id="signature_needed" label="Signature Needed" checked={formData.signature_needed} onChange={(c) => setFormData((p) => ({ ...p, signature_needed: c }))} disabled={isSaving} />
-                                <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={(c) => setFormData((p) => ({ ...p, no_charge: c }))} disabled={isSaving} />
+                                <CheckboxField id="fridge_item" label="Fridge Item" checked={formData.fridge_item} onChange={(c) => setFormData((p) => ({ ...p, fridge_item: c }))} disabled={isSaving} tooltip="For items that need refrigeration while in transit." />
+                                <CheckboxField id="oversized" label="Oversized" checked={formData.oversized} onChange={(c) => setFormData((p) => ({ ...p, oversized: c }))} disabled={isSaving} tooltip="For items that are 4 or more boost boxes in size." />
+                                <CheckboxField id="signature_needed" label="Signature Needed" checked={formData.signature_needed} onChange={(c) => setFormData((p) => ({ ...p, signature_needed: c }))} disabled={isSaving} tooltip="For the yearly patient signature sheets attached to Rx bags." />
+                                <CheckboxField id="no_charge" label="No Charge Delivery" checked={formData.no_charge} onChange={(c) => setFormData((p) => ({ ...p, no_charge: c }))} disabled={isSaving} tooltip="For when 2 or more deliveries are being delivered to the same exact address, excluding multiple deliveries to the same apartment building at different unit numbers. ie: Multiple family members at the same address." />
                               </div>
                             </div>
                             <div className="space-y-2 min-w-0">

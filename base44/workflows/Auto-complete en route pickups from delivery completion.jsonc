@@ -1,0 +1,34 @@
+{
+  "name": "Auto-complete en route pickups from delivery completion",
+  "description": "When a patient delivery is marked completed or failed, automatically complete its associated en-route pickup using the estimated travel time from store to patient.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "update"
+      ],
+      "entity_name": "Delivery"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auto_complete_en_route_pickups_from_delivery_completion",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "ensurePickupCompletion",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  }
+}

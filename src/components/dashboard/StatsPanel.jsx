@@ -32,7 +32,7 @@ import { saveSetting } from "@/components/utils/userSettingsManager";
 import { getDriverColor } from "@/components/utils/driverUtils";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { sortUsers } from "@/components/utils/sorting";
-import { countLegendStops, countAfterHoursPickups } from "@/components/dashboard/legendStopCounter";
+import { countLegendStops } from "@/components/dashboard/legendStopCounter";
 import { getInterStoreMode, subscribeInterStore, setInterStorePickup, setInterStoreDropoff } from "@/components/dashboard/interStoreToggleStore";
 
 export default function StatsPanel({
@@ -210,7 +210,8 @@ export default function StatsPanel({
       const driverAppUser = (appUsers || []).find((appUser) => appUser?.user_id === driverId);
       const driverListUser = driversList.find((driver) => driver?.id === driverId);
       const driverName = route?.driverName || driverAppUser?.user_name || driverListUser?.user_name || driverListUser?.full_name || 'Unknown';
-      const totalStops = countLegendStops(driverDeliveries) + countAfterHoursPickups(driverDeliveries);
+      // After-hours deliveries/pickups are paid separately — exclude from legend totals.
+      const totalStops = countLegendStops(driverDeliveries, { excludeAfterHours: true });
       const status = driverAppUser?.driver_status || 'offline';
       const heartbeatAgeMs = driverAppUser?.location_updated_at ? Date.now() - new Date(driverAppUser.location_updated_at).getTime() : Infinity;
       const hasHeartbeat = heartbeatAgeMs <= 120000;

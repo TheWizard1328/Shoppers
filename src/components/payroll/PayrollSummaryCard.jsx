@@ -238,7 +238,10 @@ export default function PayrollSummaryCard({
       }
       const payrollRecord = payrollRecords.find((r) => r.driver_id === driverId);
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
-      const afterHoursCount = periodDeliveries.filter((d) => d.after_hours_pickup).length;
+      const afterHoursPickupCount = periodDeliveries.filter((d) => d.after_hours_pickup && !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS')).length;
+      const afterHoursDeliveryCount = periodDeliveries.filter((d) => d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS'))).length;
+      const afterHoursCount = afterHoursPickupCount + afterHoursDeliveryCount;
+      const noChargeCount = periodDeliveries.filter((d) => d.no_charge).length;
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.reduce(
         (sum, d) => sum + getReturnCountFromPatientId(d, patients),
@@ -280,14 +283,22 @@ export default function PayrollSummaryCard({
         return true;
       });
       const graphDeliveryCount = graphPayableDeliveries.length;
+      // After-hours DELIVERIES are paid at 2× the per-delivery rate, so the pay-weighted
+      // "delivery unit" count adds one extra unit per after-hours delivery (they are already
+      // counted once in graphDeliveryCount). This keeps the displayed "Del: count = $pay"
+      // badge consistent with the graphBasePay weighting.
+      const graphAhDeliveryCount = graphPayableDeliveries.filter(
+        (d) => d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS'))
+      ).length;
+      const graphDeliveryUnits = graphDeliveryCount + graphAhDeliveryCount;
       // Compute graph pay from the graphPayableDeliveries subset with per-delivery rates
       // (same logic as basePay/extraKmPay/oversizedPay above, but scoped to graph subset)
       let graphBasePay, graphExtraKmPay = 0, graphOversizedPay = 0;
       if (hasRateHistory && graphDeliveryCount > 0) {
         graphBasePay = graphPayableDeliveries.reduce((sum, d) => {
-          if (d.no_charge) return sum;
           const r = getEffectiveRates(appUser, d.delivery_date);
           // After Hours: deliveries (patient/interstore) get 2x base, pickups get 1x (normally 0).
+          // no_charge deliveries are still paid at base rate (counted in Total deliveries).
           const dIsPickup = !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS');
           const multiplier = d.after_hours_pickup ? (dIsPickup ? 1 : 2) : (dIsPickup ? 0 : 1);
           return sum + r.pay_rate_per_delivery * multiplier;
@@ -331,8 +342,8 @@ export default function PayrollSummaryCard({
 
       return {
         driver: { ...driver, id: driverId }, payRate, extraKmRate, extraKmLimit, oversizedRate,
-        totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphBasePay, graphExtraKmPay, graphOversizedPay, totalExtraKm, totalExtraKmPay: extraKmPay,
-        oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, failedCount, returnsCount,
+        totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphDeliveryUnits, graphBasePay, graphExtraKmPay, graphOversizedPay, totalExtraKm, totalExtraKmPay: extraKmPay,
+        oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, afterHoursPickupCount, afterHoursDeliveryCount, noChargeCount, failedCount, returnsCount,
         storeReturnCount, grandTotal: graphGrandTotal, gstHstEnabled, taxRate, taxAmount: graphTaxAmount, provinceCode,
         deductions: totalDeductions, deductionsArray, grossPay: graphGrossPay, netPay: graphNetPay, appFeePercentage, storedPaidAmount
       };

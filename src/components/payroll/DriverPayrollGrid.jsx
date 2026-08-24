@@ -9,6 +9,7 @@ import { globalFilters } from '@/components/utils/globalFilters';
 import { createPageUrl } from '../../utils';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
+import { isAfterHoursPickup } from '@/components/dashboard/legendStopCounter';
 
 /**
  * Driver Payroll Grid
@@ -298,15 +299,24 @@ export default function DriverPayrollGrid({
       const dateKey = d.delivery_date;
       const storeId = d.store_id;
       if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
-        deliveryMap[dateKey][storeId]++;
-        kmMap[dateKey][storeId] += calculateExtraKm(d);
         storeHasData[storeId] = true;
+        // After-hours PICKUPS (store pickups, no patient_id, not interstore) are
+        // paid separately via after_hours_rate — excluded from the daily count,
+        // but still marked with '-' next to the total (matching deliveries).
+        if (isAfterHoursPickup(d)) {
+          afterHoursCountMap[dateKey][storeId]++;
+          return;
+        }
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
         if (d.after_hours_pickup) {
+          // After-hours DELIVERY (patient/ISD) — '-' marker (2× base pay) AND
+          // counted 1× below, like every other finished delivery.
           afterHoursCountMap[dateKey][storeId]++;
         }
+        deliveryMap[dateKey][storeId]++;
+        kmMap[dateKey][storeId] += calculateExtraKm(d);
       }
     });
 
@@ -571,12 +581,15 @@ export default function DriverPayrollGrid({
                       dataMap[dateKey]?.[store.id] || 0;
                       const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
                       const afterHoursCount = afterHoursMap[dateKey]?.[store.id] || 0;
+                      // Show "0" (not blank) when the cell has after-hours pickups but no
+                      // deliveries — an empty cell next to "-" markers reads as a missing value.
+                      const showAhZero = viewMode === 'deliveries' && value === 0 && afterHoursCount > 0;
                       const displayValueMobile = viewMode === 'extraKm' ?
                       value > 0 ? value.toFixed(1) : '' :
-                      value > 0 ? value : '';
+                      value > 0 ? value : (showAhZero ? 0 : '');
                       const displayValueDesktop = viewMode === 'extraKm' ?
                       value > 0 ? value.toFixed(2) : '' :
-                      value > 0 ? value : '';
+                      value > 0 ? value : (showAhZero ? 0 : '');
                       const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 ?
                       '+'.repeat(oversizedCount) :
                       '';

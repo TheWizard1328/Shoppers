@@ -964,7 +964,7 @@ function DeliveryMap({
         isCompleted: isRouteCompleted,
         isRouteStarted: completed.length > 0 || incomplete.length > 0,
         pickupCount: stops.filter((stop) => stop.markerType === "pickup").length,
-        totalStops: countLegendStops(stops, { requireMarkerTypeDelivery: true }),
+        totalStops: countLegendStops(stops, { requireMarkerTypeDelivery: true, excludeAfterHours: true }),
         routeWeight: currentZoom < ZOOM_LEVELS.SIMPLIFY_ROUTES ? (isMobile ? 1.875 : 1.5) : (currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? (isMobile ? 3.75 : 3) : (isMobile ? 2.5 : 2)),
         routeOpacity: currentZoom < ZOOM_LEVELS.SIMPLIFY_ROUTES ? 0.6 : currentZoom >= ZOOM_LEVELS.FULL_DETAIL ? 0.9 : 0.8,
         showWaypoints: currentZoom >= ZOOM_LEVELS.SIMPLIFY_ROUTES
