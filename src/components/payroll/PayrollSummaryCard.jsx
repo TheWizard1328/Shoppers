@@ -285,9 +285,9 @@ export default function PayrollSummaryCard({
       let graphBasePay, graphExtraKmPay = 0, graphOversizedPay = 0;
       if (hasRateHistory && graphDeliveryCount > 0) {
         graphBasePay = graphPayableDeliveries.reduce((sum, d) => {
-          if (d.no_charge) return sum;
           const r = getEffectiveRates(appUser, d.delivery_date);
           // After Hours: deliveries (patient/interstore) get 2x base, pickups get 1x (normally 0).
+          // no_charge deliveries are still paid at base rate (counted in Total deliveries).
           const dIsPickup = !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS');
           const multiplier = d.after_hours_pickup ? (dIsPickup ? 1 : 2) : (dIsPickup ? 0 : 1);
           return sum + r.pay_rate_per_delivery * multiplier;
