@@ -581,12 +581,15 @@ export default function DriverPayrollGrid({
                       dataMap[dateKey]?.[store.id] || 0;
                       const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
                       const afterHoursCount = afterHoursMap[dateKey]?.[store.id] || 0;
+                      // Show "0" (not blank) when the cell has after-hours pickups but no
+                      // deliveries — an empty cell next to "-" markers reads as a missing value.
+                      const showAhZero = viewMode === 'deliveries' && value === 0 && afterHoursCount > 0;
                       const displayValueMobile = viewMode === 'extraKm' ?
                       value > 0 ? value.toFixed(1) : '' :
-                      value > 0 ? value : '';
+                      value > 0 ? value : (showAhZero ? 0 : '');
                       const displayValueDesktop = viewMode === 'extraKm' ?
                       value > 0 ? value.toFixed(2) : '' :
-                      value > 0 ? value : '';
+                      value > 0 ? value : (showAhZero ? 0 : '');
                       const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 ?
                       '+'.repeat(oversizedCount) :
                       '';
