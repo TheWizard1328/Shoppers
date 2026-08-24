@@ -275,12 +275,12 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                             <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: 'var(--border-slate-300)' }}>
                               {delivery.delivery_notes ?
                             <div className="text-xs flex-1 mr-2 flex items-start gap-1.5">
-                                  <span
-                                className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide hidden"
-                                style={{ background: 'rgba(245,158,11,0.12)', color: '#92400e', border: '1px solid rgba(245,158,11,0.25)' }}>
-                                
-                                    Delivery Notes
-                                  </span>
+                                  
+
+
+
+
+                              
                                   <span style={{ color: 'var(--text-slate-600)' }}>{delivery.delivery_notes}</span>
                                 </div> :
 
