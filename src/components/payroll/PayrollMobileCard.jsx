@@ -190,10 +190,12 @@ export default function PayrollMobileCard({
 
             {/* Failed & Returns counts */}
             <div className="flex items-center gap-3 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              {(data.failedCount > 0 || data.returnsCount > 0) &&
+              {(data.failedCount > 0 || data.returnsCount > 0 || Number(data.afterHoursCount) > 0 || Number(data.noChargeCount) > 0) &&
             <>
                   <span style={{ color: 'var(--text-red-600)' }}>Failed: <span className="font-semibold">{data.failedCount}</span></span>
                   <span style={{ color: 'var(--text-orange-600)' }}>Returns: <span className="font-semibold">{data.returnsCount}</span></span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>A/H: <span className="font-semibold">{Number(data.afterHoursCount) || 0}</span></span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>N/C: <span className="font-semibold">{Number(data.noChargeCount) || 0}</span></span>
                 </>
             }
             </div>
