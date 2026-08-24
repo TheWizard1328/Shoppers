@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import { userHasRole } from "../utils/userRoles";
+import { base44 } from "@/api/base44Client";
 import {
   BarChart3,
   Package,
@@ -18,34 +19,46 @@ import {
   Users,
   Eye,
   Pencil,
-  ChevronDown } from
+  ChevronDown,
+  Loader2 } from
 "lucide-react";
 import { format } from "date-fns";
 
-const RecentDeliveries = ({ deliveries, patient, currentUser, onEditDelivery }) => {
+const getStatusStyle = (status) => {
+  switch (status) {
+    case 'completed':
+      return { color: '#15803d', background: 'rgba(22,163,74,0.12)', border: '1px solid rgba(22,163,74,0.25)' };
+    case 'failed':
+      return { color: '#b91c1c', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.25)' };
+    case 'pending':
+      return { color: '#b45309', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.25)' };
+    case 'in_transit':
+      return { color: '#1d4ed8', background: 'rgba(37,99,235,0.12)', border: '1px solid rgba(37,99,235,0.25)' };
+    default:
+      return { color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)', border: '1px solid var(--border-slate-200)' };
+  }
+};
+
+// Renders the scrollable list of delivery cards + "Show more" pagination.
+// Receives the FULL (patient-scoped, self-fetched) delivery list — not a
+// globally-capped subset — so pagination always has real data to reveal.
+const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEditDelivery }) => {
   const [codOnly, setCodOnly] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
 
-  // Filter deliveries for this patient and sort by date (most recent first)
-  const patientDeliveries = deliveries.
-  filter((d) => d.patient_id === patient.id).
-  filter((d) => !codOnly || (Number(d.cod_total_amount_required || 0) > 0)).
-  sort((a, b) => new Date(b.delivery_date) - new Date(a.delivery_date)).
-  slice(0, 20);
+  // Reset pagination whenever the selected patient changes
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [patient?.id]);
 
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case 'completed':
-        return { color: '#15803d', background: 'rgba(22,163,74,0.12)', border: '1px solid rgba(22,163,74,0.25)' };
-      case 'failed':
-        return { color: '#b91c1c', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.25)' };
-      case 'pending':
-        return { color: '#b45309', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.25)' };
-      case 'in_transit':
-        return { color: '#1d4ed8', background: 'rgba(37,99,235,0.12)', border: '1px solid rgba(37,99,235,0.25)' };
-      default:
-        return { color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)', border: '1px solid var(--border-slate-200)' };
-    }
-  };
+  const filteredDeliveries = useMemo(() => {
+    return allDeliveries.
+    filter((d) => !codOnly || Number(d.cod_total_amount_required || 0) > 0).
+    sort((a, b) => new Date(b.delivery_date) - new Date(a.delivery_date));
+  }, [allDeliveries, codOnly]);
+
+  const patientDeliveries = filteredDeliveries.slice(0, visibleCount);
+  const hasMore = filteredDeliveries.length > visibleCount;
 
   return (
     <Card className="shadow-sm flex flex-col h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
@@ -67,12 +80,18 @@ const RecentDeliveries = ({ deliveries, patient, currentUser, onEditDelivery }) 
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 min-h-0 flex flex-col">
-        {patientDeliveries.length === 0 ?
+        {isLoading ?
+        <div className="flex items-center justify-center gap-2 py-6 text-sm" style={{ color: 'var(--text-slate-500)' }}>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading deliveries...
+          </div> :
+        patientDeliveries.length === 0 ?
         <p className="text-sm text-center py-4" style={{ color: 'var(--text-slate-500)' }}>
             No deliveries found
           </p> :
 
-        <div className="space-y-2 flex-1 overflow-y-auto pr-1">
+        <>
+          <div className="space-y-2 flex-1 overflow-y-auto pr-1">
             {patientDeliveries.map((delivery) => {
             const statusStyle = getStatusStyle(delivery.status);
             return (
@@ -149,6 +168,15 @@ const RecentDeliveries = ({ deliveries, patient, currentUser, onEditDelivery }) 
 
           })}
           </div>
+          {hasMore &&
+          <button
+            onClick={() => setVisibleCount((c) => c + 20)}
+            className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 flex-shrink-0"
+            style={{ color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-200)' }}>
+              Show more ({filteredDeliveries.length - visibleCount} more)
+            </button>
+          }
+        </>
         }
       </CardContent>
     </Card>);
@@ -156,9 +184,63 @@ const RecentDeliveries = ({ deliveries, patient, currentUser, onEditDelivery }) 
 
 };
 
-export default function PatientDetails({ patient, deliveries, deliveryStats, currentUser, onEditDelivery }) {
+export default function PatientDetails({ patient, currentUser, onEditDelivery }) {
   const [analyticsCollapsed, setAnalyticsCollapsed] = useState(false);
   const dragStartY = useRef(null);
+
+  // Self-fetch this patient's FULL delivery history directly from the Delivery
+  // entity, scoped by patient_id — mirroring the dashboard's PatientHistoryPanel.
+  // Previously this page relied on a globally-fetched (and server-capped)
+  // "allDriverDeliveries" list from the parent page, which silently truncated
+  // older records for high-volume patients before they were ever filtered by
+  // patient_id. Fetching directly here guarantees accurate totals and a real
+  // "Show more" pagination, matching the dashboard exactly.
+  const [allDeliveries, setAllDeliveries] = useState([]);
+  const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(false);
+
+  useEffect(() => {
+    if (!patient?.id) {
+      setAllDeliveries([]);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingDeliveries(true);
+    base44.entities.Delivery.filter({ patient_id: patient.id }, '-delivery_date', 200).
+    then((fetched) => {
+      if (cancelled) return;
+      setAllDeliveries((fetched || []).filter(Boolean));
+    }).
+    catch((err) => {
+      console.error('[PatientDetails] Failed to fetch patient deliveries:', err);
+      if (!cancelled) setAllDeliveries([]);
+    }).
+    finally(() => {
+      if (!cancelled) setIsLoadingDeliveries(false);
+    });
+    return () => { cancelled = true; };
+  }, [patient?.id]);
+
+  // Compute analytics from the same self-fetched, patient-scoped dataset —
+  // keeps "Total / Most Common Day / Last Delivery / Pattern" in sync with
+  // what's actually shown in the Recent Deliveries list below (and with the
+  // dashboard's equivalent panel, which counts completed deliveries only).
+  const deliveryStats = useMemo(() => {
+    const completed = allDeliveries.filter((d) => d.status === 'completed');
+    if (completed.length === 0) {
+      return { totalDeliveries: 0, mostCommonDay: null, lastDeliveryDate: null, dayFrequency: {} };
+    }
+    const dayFrequency = {};
+    let lastDate = null;
+    completed.forEach((d) => {
+      try {
+        const dayName = format(new Date(d.delivery_date + 'T12:00:00'), 'EEEE');
+        dayFrequency[dayName] = (dayFrequency[dayName] || 0) + 1;
+      } catch { /* ignore invalid dates */ }
+      if (!lastDate || d.delivery_date > lastDate) lastDate = d.delivery_date;
+    });
+    const mostCommonDay = Object.entries(dayFrequency).sort(([, a], [, b]) => b - a)[0]?.[0] || null;
+    return { totalDeliveries: completed.length, mostCommonDay, lastDeliveryDate: lastDate, dayFrequency };
+  }, [allDeliveries]);
 
   const handleAnalyticsHeaderPointerDown = (e) => {
     dragStartY.current = e.clientY ?? e.touches?.[0]?.clientY;
@@ -278,7 +360,13 @@ export default function PatientDetails({ patient, deliveries, deliveryStats, cur
 
       {/* Recent Deliveries */}
       <div className="flex-1 min-h-0 flex flex-col">
-        <RecentDeliveries deliveries={deliveries} patient={patient} currentUser={currentUser} onEditDelivery={onEditDelivery} />
+        <RecentDeliveries
+          allDeliveries={allDeliveries}
+          isLoading={isLoadingDeliveries}
+          patient={patient}
+          currentUser={currentUser}
+          onEditDelivery={onEditDelivery} />
+
       </div>
     </div>);
 
