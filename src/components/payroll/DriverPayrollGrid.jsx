@@ -9,6 +9,7 @@ import { globalFilters } from '@/components/utils/globalFilters';
 import { createPageUrl } from '../../utils';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
+import { isAfterHoursPickup } from '@/components/dashboard/legendStopCounter';
 
 /**
  * Driver Payroll Grid
@@ -299,12 +300,18 @@ export default function DriverPayrollGrid({
       const storeId = d.store_id;
       if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
         storeHasData[storeId] = true;
+        // After-hours PICKUPS (store pickups, no patient_id, not interstore) are
+        // paid separately via after_hours_rate — excluded from the grid entirely,
+        // matching the dashboard/legend convention.
+        if (isAfterHoursPickup(d)) {
+          return;
+        }
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
         if (d.after_hours_pickup) {
-          // Track the '-' marker (2× base pay hint); still counted 1× below —
-          // all finished deliveries (incl. N/C and after-hours) count in the grid.
+          // After-hours DELIVERY (patient/ISD) — '-' marker (2× base pay) AND
+          // counted 1× below, like every other finished delivery.
           afterHoursCountMap[dateKey][storeId]++;
         }
         deliveryMap[dateKey][storeId]++;
