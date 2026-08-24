@@ -303,11 +303,9 @@ export default function DriverPayrollGrid({
           oversizedCountMap[dateKey][storeId]++;
         }
         if (d.after_hours_pickup) {
-          // After-hours deliveries are tracked for the '-' marker but excluded
-          // from the daily/store counts (and km) — they're paid out separately
-          // in the payroll summary, so the grid reflects regular deliveries only.
+          // Track the '-' marker (2× base pay hint); still counted 1× below —
+          // all finished deliveries (incl. N/C and after-hours) count in the grid.
           afterHoursCountMap[dateKey][storeId]++;
-          return;
         }
         deliveryMap[dateKey][storeId]++;
         kmMap[dateKey][storeId] += calculateExtraKm(d);
