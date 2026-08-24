@@ -1649,9 +1649,9 @@ export default function DeliveryFormView({
           </CardContent>
 
           {/* Footer */}
-          <CardFooter className="px-3 py-1 flex items-center border-t flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-            <div className="flex items-center justify-between w-full gap-4">
-              <div className="flex items-center gap-4">
+          <CardFooter className="px-3 py-1.5 flex items-center border-t flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+            <div className={`flex w-full gap-2 ${useMobileLayout ? 'flex-col' : 'items-center justify-between gap-4'}`}>
+              <div className="flex flex-wrap items-center gap-3 min-w-0">
                 {!delivery && useMobileLayout && !isPickupMode &&
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowStagedPanel(!showStagedPanel)} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                     <Package className="w-4 h-4" />
@@ -1687,7 +1687,7 @@ export default function DeliveryFormView({
                   </div>
                 }
               </div>
-              <div className="flex gap-2 ml-auto">
+              <div className={`flex gap-2 ${useMobileLayout ? 'w-full justify-end' : 'ml-auto'}`}>
                 <Button type="button" variant="outline" size="sm" onClick={() => {
                   const shouldClear = cancelButtonState === 'clear' || !!editingStagedId;
                   if (delivery) {handleCancelClick();return;}
