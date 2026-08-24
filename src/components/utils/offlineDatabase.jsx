@@ -51,6 +51,14 @@ const isPHIStore = (storeName) => PHI_STORES.has(storeName);
 
 let dbInstance = null;
 let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
+// Degraded-mode window: after an open times out (stale blocking connection from a
+// previous editor-preview session), every subsequent offlineDB operation would
+// otherwise re-trigger its own 8s open timeout — cascading 32s+ of delays that
+// trap the app on the loading screen and never release before the 60s auto-reload.
+// Once we time out, fast-fail ALL opens until this timestamp so the boot proceeds
+// instantly with empty offline data; the background/patient syncs retry normally
+// once the stale connection clears (usually on the next preview reload).
+let _dbDegradedUntil = 0;
 
 const buildMetadataKey = (entityName, scopeKey = DEFAULT_CACHE_SCOPE) => {
   if (!scopeKey || scopeKey === DEFAULT_CACHE_SCOPE) return entityName;
@@ -115,6 +123,14 @@ const openDatabase = async () => {
     return dbOpenPromise;
   }
 
+  // Degraded mode: a previous open timed out (stale blocking connection).
+  // Fast-fail instead of retrying — otherwise every caller across the whole
+  // boot sequence re-triggers its own 8s open timeout, cascading into 32s+ of
+  // delays that hold the loading screen indefinitely.
+  if (Date.now() < _dbDegradedUntil) {
+    return Promise.reject(new Error('IndexedDB degraded — offline cache skipped this session'));
+  }
+
   // Start new open operation
   dbOpenPromise = new Promise((resolve, reject) => {
     let settled = false;
@@ -133,8 +149,12 @@ const openDatabase = async () => {
     const timeoutId = setTimeout(() => {
       if (settled) return;
       settled = true;
-      console.error(`[OfflineDB] Open timed out after ${DB_OPEN_TIMEOUT_MS}ms${wasBlocked ? ' (was blocked by another connection)' : ''} — wiping and recreating ${DB_NAME}`);
+      console.error(`[OfflineDB] Open timed out after ${DB_OPEN_TIMEOUT_MS}ms${wasBlocked ? ' (was blocked by another connection)' : ''} — wiping, entering 30s degraded mode, recreating ${DB_NAME}`);
       dbOpenPromise = null;
+      dbInstance = null;
+      // Fast-fail every subsequent open for 30s so the boot proceeds instantly
+      // with empty offline data instead of cascading 8s×N timeouts.
+      _dbDegradedUntil = Date.now() + 30000;
       deleteDatabaseSilently().finally(() => {
         reject(new Error('IndexedDB open timed out — database was reset, please retry'));
       });
