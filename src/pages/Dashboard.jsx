@@ -488,11 +488,11 @@ function Dashboard() {
     if (!Array.isArray(sd)) return {total:0,inTransit:0,enRoute:0,completed:0,failed:0,returned:0,totalDrivers:0,inTransitDrivers:0,completedDrivers:0,totalPickups:0,completedPickups:0};
     const pm=new Map((patients||[]).filter((p)=>p&&p.id).map((p)=>[p.id,p]));
     const isRtn=(d)=>d&&d.status==='completed'&&(pm.get(d.patient_id)?.address||'').toUpperCase().includes('(RTN)');
-    const total=sd.filter((d)=>!d.after_hours_pickup).length+ap.filter((d)=>d&&isISP(d)&&!d.after_hours_pickup).length; /* excl after-hours */
+    const total=sd.length+ap.filter((d)=>d&&isISP(d)&&!d.after_hours_pickup).length; /* excl AH pickups, keep AH deliveries 1x */
     const inTransitIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&(d.status==='in_transit'||d.status==='en_route')).length;
     const completedIsdIsp=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))&&d.status==='completed').length;
     const inTransit=sd.filter((d)=>d&&d.status==='in_transit').length+inTransitIsdIsp; const enRoute=ap.filter((d)=>d&&!isISP(d)&&d.status==='en_route').length;
-    const completed=sd.filter((d)=>d&&d.status==='completed'&&!isRtn(d)&&!d.after_hours_pickup).length+rd.filter((d)=>d&&!d.patient_id&&isISP(d)&&!d.after_hours_pickup&&(d.status==='completed'||d.status==='cancelled')).length; /* excl after-hours */
+    const completed=sd.filter((d)=>d&&d.status==='completed'&&!isRtn(d)).length+rd.filter((d)=>d&&!d.patient_id&&isISP(d)&&!d.after_hours_pickup&&(d.status==='completed'||d.status==='cancelled')).length; /* excl AH pickups, keep AH deliveries 1x */
     const returned=sd.filter(isRtn).length; const failed=sd.filter((d)=>d&&((d.status==='failed'&&!isRtn(d))||(d.status==='cancelled'&&!d.patient_id))).length+ap.filter((d)=>d&&isISP(d)&&d.status==='failed').length;
     const completedPickups=ap.filter((d)=>d&&!isISP(d)&&(d.status==='completed'||d.status==='cancelled')).length;
     const totalPickups=ap.filter((d)=>d&&!isISP(d)).length;
