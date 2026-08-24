@@ -273,7 +273,7 @@ export default function DeliveryCameraOverlay({
     // If BarcodeDetector works, both will detect barcodes but the cooldown
     // prevents double-capture. If BarcodeDetector fails, ZXing catches it.
     startZxingBarcodeLoop();
-  }, []);
+  }, [startZxingBarcodeLoop]);
 
   const stopBarcodeLoop = useCallback(() => {
     if (barcodeLoopRef.current) { clearInterval(barcodeLoopRef.current); barcodeLoopRef.current = null; }
@@ -510,7 +510,7 @@ export default function DeliveryCameraOverlay({
     listCameras().then(cams => setCameraCount(cams.length)).catch(() => {});
     window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: true } }));
     setTimeout(() => { startBarcodeLoop(); startIosAutoCapture(); }, 300);
-  }, [show, startBarcodeLoop, stopBarcodeLoop, startIosAutoCapture, stopIosAutoCapture]);
+  }, [show, startBarcodeLoop, stopBarcodeLoop, startIosAutoCapture, stopIosAutoCapture, stopZxingBarcodeLoop]);
 
   if (!show) return null;
 

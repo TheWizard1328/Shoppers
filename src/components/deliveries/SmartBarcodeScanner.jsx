@@ -772,7 +772,7 @@ export default function SmartBarcodeScanner({
 
           {/* Status hint — centered white text */}
           <div className="text-white text-sm font-medium text-center px-4">
-            {cameraError ? '' : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Align barcode with the red line'}
+            {cameraError ? '' : isStartingCamera ? 'Starting camera...' : flashHit ? 'Captured!' : 'Point at any barcode — full frame auto-detects'}
           </div>
 
           {/* Scanned barcodes list — shows each barcode scanned during this session */}
