@@ -6,6 +6,8 @@ import { listCameras, cycleRearCamera } from "./useDeliveryCamera";
 import { scanPrescriptionLabel } from "./prescriptionScanHelpers";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import { isCapacitorNativeApp } from "@/components/utils/locationProviders/capacitorRuntime";
+import { BrowserMultiFormatReader } from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 // ── Laplacian sharpness ──
 const calculateSharpness = (canvas, ctx) => {
@@ -69,6 +71,11 @@ export default function DeliveryCameraOverlay({
   const lastBarcodeAtRef = useRef(0);
   const lastBarcodeValueRef = useRef('');
   const [barcodeDetected, setBarcodeDetected] = useState(false);
+
+  // ── ZXing barcode detection (fallback for APK / when BarcodeDetector fails) ──
+  const zxingReaderRef = useRef(null);
+  const zxingLoopRef = useRef(null);
+  const zxingCanvasRef = useRef(null);
 
   // Refs for interval-safe access
   const scanStateRef = useRef(scanState);
@@ -142,13 +149,87 @@ export default function DeliveryCameraOverlay({
   const handleBarcodeCaptureRef = useRef(handleBarcodeCapture);
   handleBarcodeCaptureRef.current = handleBarcodeCapture;
 
+  // ── ZXing-based barcode detection (runs on APK and as web fallback) ──
+  // Scans the full video frame for barcodes using ZXing canvas decode.
+  // When a barcode is detected, triggers handleBarcodeCapture() which captures
+  // the current video frame and sends it to the LLM for label scanning.
+  const startZxingBarcodeLoop = useCallback(() => {
+    if (zxingReaderRef.current) return; // already running
+    console.log('[DeliveryCameraOverlay] Starting ZXing barcode detection loop');
+    zxingReaderRef.current = new BrowserMultiFormatReader();
+
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
+      BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+      BarcodeFormat.ITF, BarcodeFormat.CODABAR
+    ]);
+    hints.set(DecodeHintType.ASSUME_GS1, false);
+    hints.set(DecodeHintType.PURE_FORMATS, false);
+    try { zxingReaderRef.current.setHints(hints); } catch {}
+
+    if (!zxingCanvasRef.current) zxingCanvasRef.current = document.createElement('canvas');
+    const zxingCanvas = zxingCanvasRef.current;
+    const zxingCtx = zxingCanvas.getContext('2d', { willReadFrequently: true });
+
+    const decodeLoop = () => {
+      if (!overlayActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) {
+        if (overlayActiveRef.current) zxingLoopRef.current = setTimeout(decodeLoop, 150);
+        return;
+      }
+      const st = scanStateRef.current;
+      if (st !== 'idle' && st !== 'error') {
+        if (overlayActiveRef.current) zxingLoopRef.current = setTimeout(decodeLoop, 200);
+        return;
+      }
+      if (scanInProgressRef.current) {
+        if (overlayActiveRef.current) zxingLoopRef.current = setTimeout(decodeLoop, 200);
+        return;
+      }
+      try {
+        const vw = videoRef.current.videoWidth;
+        const vh = videoRef.current.videoHeight;
+        if (!vw || !vh) { zxingLoopRef.current = setTimeout(decodeLoop, 150); return; }
+
+        // Full-frame decode, downscaled to max 800px for speed
+        const scale = Math.min(1, 800 / vw);
+        zxingCanvas.width = Math.round(vw * scale);
+        zxingCanvas.height = Math.round(vh * scale);
+        zxingCtx.drawImage(videoRef.current, 0, 0, zxingCanvas.width, zxingCanvas.height);
+
+        const result = zxingReaderRef.current.decodeFromCanvas(zxingCanvas);
+        if (result) {
+          const text = result.getText ? result.getText() : String(result?.text || '');
+          if (text && (text !== lastBarcodeValueRef.current || Date.now() - lastBarcodeAtRef.current > 2000)) {
+            lastBarcodeValueRef.current = text;
+            lastBarcodeAtRef.current = Date.now();
+            setBarcodeDetected(true);
+            console.log('[DeliveryCameraOverlay] ZXing detected barcode:', text, '→ auto-capture');
+            handleBarcodeCaptureRef.current();
+          }
+        }
+      } catch {
+        // NotFoundException — no barcode this frame, normal
+      }
+      if (overlayActiveRef.current) zxingLoopRef.current = setTimeout(decodeLoop, 150);
+    };
+    decodeLoop();
+  }, []);
+
+  const stopZxingBarcodeLoop = useCallback(() => {
+    if (zxingLoopRef.current) { clearTimeout(zxingLoopRef.current); zxingLoopRef.current = null; }
+    if (zxingReaderRef.current) { try { zxingReaderRef.current.stop?.(); } catch {} zxingReaderRef.current = null; }
+  }, []);
+
   // ── Barcode detection loop ──
   const startBarcodeLoop = useCallback(() => {
     if (barcodeLoopRef.current) return;
     // In Capacitor APK (Android WebView), BarcodeDetector may exist but silently fail.
-    // Skip it entirely in native apps — sharpness-based auto-capture handles it.
+    // Skip it entirely in native apps — use ZXing-based barcode detection instead.
     if (typeof window === 'undefined' || !('BarcodeDetector' in window) || isCapacitorNativeApp()) {
-      console.log('[DeliveryCameraOverlay] BarcodeDetector unavailable or native APK — using sharpness auto-capture');
+      console.log('[DeliveryCameraOverlay] BarcodeDetector unavailable or native APK — starting ZXing barcode detection');
+      startZxingBarcodeLoop();
       return;
     }
     try {
@@ -187,6 +268,11 @@ export default function DeliveryCameraOverlay({
       } catch {}
     }, 120);
     console.log('[DeliveryCameraOverlay] Barcode auto-capture loop started');
+
+    // Start ZXing as a backup alongside BarcodeDetector on web.
+    // If BarcodeDetector works, both will detect barcodes but the cooldown
+    // prevents double-capture. If BarcodeDetector fails, ZXing catches it.
+    startZxingBarcodeLoop();
   }, []);
 
   const stopBarcodeLoop = useCallback(() => {
@@ -194,7 +280,8 @@ export default function DeliveryCameraOverlay({
     nativeDetectorRef.current = null;
     lastBarcodeValueRef.current = '';
     setBarcodeDetected(false);
-  }, []);
+    stopZxingBarcodeLoop();
+  }, [stopZxingBarcodeLoop]);
 
   // ── iOS fallback: sharpness-based auto-capture timer ──
   // When BarcodeDetector is not available (iOS Safari), poll sharpness every 1.8s
@@ -412,6 +499,7 @@ export default function DeliveryCameraOverlay({
       overlayActiveRef.current = false;
       stopBarcodeLoop();
       stopIosAutoCapture();
+      stopZxingBarcodeLoop();
       window.dispatchEvent(new CustomEvent('cameraOverlayChange', { detail: { open: false } }));
       return;
     }
@@ -514,7 +602,7 @@ export default function DeliveryCameraOverlay({
              scanState === 'error' ? 'Scan failed' :
              blurWarning ? 'Too blurry — try again' :
              barcodeDetected ? 'Barcode detected — capturing...' :
-             (('BarcodeDetector' in window && !isCapacitorNativeApp()) ? 'Point at a prescription label and click' : 'Point at label — auto-captures when sharp (or tap the camera button)')}
+             'Point at a prescription label — auto-captures on barcode detection'}
           </div>
 
           {/* Results panel (scrollable if needed) */}
