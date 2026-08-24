@@ -56,6 +56,20 @@ export default function LeftStatsAndNotes({
         </div>
       </div>
 
+      {/* After-hours / No-charge badge — shown when either count is non-zero */}
+      {(Number(data.afterHoursCount) > 0 || Number(data.noChargeCount) > 0) && (
+        <div className="mt-2 flex items-center">
+          <span
+            className="inline-flex w-full items-center justify-center gap-2 px-3 py-1 rounded text-[11px] font-semibold whitespace-nowrap"
+            style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)', textWrap: 'balance' }}
+          >
+            <span><span className="text-slate-500">A/H:</span> {Number(data.afterHoursCount) || 0}</span>
+            <span className="text-slate-400">-</span>
+            <span><span className="text-slate-500">N/C:</span> {Number(data.noChargeCount) || 0}</span>
+          </span>
+        </div>
+      )}
+
       {/* Desktop-only notes under the left block */}
       <div className="hidden md:block mt-2" data-notes-desktop-left>
         <DriverNotesInline
