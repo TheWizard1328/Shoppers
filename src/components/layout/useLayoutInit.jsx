@@ -217,7 +217,14 @@ export function useLayoutInit({
         let _brandingFallback = false;
         if (fetchedUser?.company_id) {
           try {
-            const b = await getCompanyBranding(fetchedUser.company_id);
+            // Wrap branding fetch in a timeout — if Company.filter hangs (throttler
+            // stuck / backend unresponsive) the boot would hang here forever, the
+            // loading spinner would cycle endlessly, and the 5s patient priority
+            // sync below would never fire — leaving patient cards blank.
+            const b = await _withTimeout(
+              getCompanyBranding(fetchedUser.company_id),
+              15000, 'getCompanyBranding'
+            );
             setBranding(b);
             const { applyBrandingStyles } = await import('../utils/brandingManager');
             applyBrandingStyles(b);
@@ -279,12 +286,25 @@ export function useLayoutInit({
         if (criticalDataMissing || squareConfigsMissing || _forceReload) {
           console.warn('⚠️ [Init] Critical bootstrap data missing from IndexedDB — fetching from server immediately...');
           try {
-            const [freshCities, freshStores, freshAppUsers, freshSqConfigs] = await Promise.all([
-              (!citiesData.length || _forceReload)       ? base44.entities.City.list().catch(() => null)    : Promise.resolve(null),
-              (!resolvedStores.length || _forceReload)   ? base44.entities.Store.list().catch(() => null)   : Promise.resolve(null),
-              (!resolvedAppUsers.length || _forceReload) ? base44.entities.AppUser.list().catch(() => null) : Promise.resolve(null),
-              (squareConfigsMissing || _forceReload)     ? base44.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => null) : Promise.resolve(null),
-            ]);
+            // Wrap the priority fetch in a timeout — if any entity.list()/filter()
+            // call hangs (not rejects), the boot would hang here forever, trapping
+            // the user on the cycling loading screen and preventing the patient
+            // priority sync (5s timer below) from ever repopulating patient records.
+            let freshCities = null, freshStores = null, freshAppUsers = null, freshSqConfigs = null;
+            try {
+              [freshCities, freshStores, freshAppUsers, freshSqConfigs] = await _withTimeout(
+                Promise.all([
+                  (!citiesData.length || _forceReload)       ? base44.entities.City.list().catch(() => null)    : Promise.resolve(null),
+                  (!resolvedStores.length || _forceReload)   ? base44.entities.Store.list().catch(() => null)   : Promise.resolve(null),
+                  (!resolvedAppUsers.length || _forceReload) ? base44.entities.AppUser.list().catch(() => null) : Promise.resolve(null),
+                  (squareConfigsMissing || _forceReload)     ? base44.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => null) : Promise.resolve(null),
+                ]),
+                20000, 'priority entity fetch'
+              );
+            } catch {
+              // Timeout — proceed with whatever offline data we have; background
+              // sync will repopulate once the UI is released.
+            }
 
             if (freshCities?.length) {
               citiesData = freshCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));

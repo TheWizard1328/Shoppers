@@ -77,14 +77,18 @@ export async function runPatientDbPrioritySync(currentUser) {
 
   try {
     const allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
-    const count = (allPatients || []).filter(p => p?.id && !p.id.startsWith('temp_')).length;
+    // Count only VALID records — a partially-wiped / corrupt offline DB can hold
+    // thousands of skeleton rows (id present, full_name/address empty). These
+    // must NOT satisfy the threshold, otherwise the re-sync that would overwrite
+    // them with full server data never runs and patient cards render blank.
+    const count = (allPatients || []).filter(p => p?.id && !p.id.startsWith('temp_') && (p.full_name || p.address)).length;
 
     if (count >= PATIENT_THRESHOLD) {
-      console.log(`✅ [PatientPrioritySync] Offline patient DB has ${count} records — no sync needed`);
+      console.log(`✅ [PatientPrioritySync] Offline patient DB has ${count} valid records — no sync needed`);
       return;
     }
 
-    console.log(`⚠️ [PatientPrioritySync] Only ${count} patients offline (threshold: ${PATIENT_THRESHOLD}). Starting priority sync...`);
+    console.log(`⚠️ [PatientPrioritySync] Only ${count} valid patients offline (threshold: ${PATIENT_THRESHOLD}). Starting priority sync...`);
     _syncRunning = true;
 
     const [allStores, allAppUsers] = await Promise.all([
