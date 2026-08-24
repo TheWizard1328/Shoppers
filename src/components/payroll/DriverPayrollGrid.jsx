@@ -272,12 +272,12 @@ export default function DriverPayrollGrid({
     return extraKm > 0 ? extraKm : 0;
   };
 
-  // Build maps: dateKey->store->count (deliveries, km, oversized); dateKey->after-hours count
-  const { dataMap, extraKmMap, oversizedMap, afterHoursByDay, storesWithData } = useMemo(() => {
+  // Build a map of dateKey -> store -> count (deliveries), extraKm, oversized count, and after-hours count
+  const { dataMap, extraKmMap, oversizedMap, afterHoursMap, storesWithData } = useMemo(() => {
     const deliveryMap = {};
     const kmMap = {};
     const oversizedCountMap = {};
-    const afterHoursByDayCount = {};
+    const afterHoursCountMap = {};
     const storeHasData = {};
 
 
@@ -286,11 +286,12 @@ export default function DriverPayrollGrid({
       deliveryMap[dateKey] = {};
       kmMap[dateKey] = {};
       oversizedCountMap[dateKey] = {};
-      afterHoursByDayCount[dateKey] = 0;
+      afterHoursCountMap[dateKey] = {};
       allSortedStores.forEach((store) => {
         deliveryMap[dateKey][store.id] = 0;
         kmMap[dateKey][store.id] = 0;
         oversizedCountMap[dateKey][store.id] = 0;
+        afterHoursCountMap[dateKey][store.id] = 0;
       });
     });
 
@@ -300,19 +301,18 @@ export default function DriverPayrollGrid({
       if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
         storeHasData[storeId] = true;
         // After-hours PICKUPS (store pickups, no patient_id, not interstore) are
-        // paid separately via after_hours_rate — excluded from the grid count,
-        // but still flagged with a '-' next to the daily total.
+        // paid separately via after_hours_rate — excluded from the grid entirely,
+        // matching the dashboard/legend convention.
         if (isAfterHoursPickup(d)) {
-          afterHoursByDayCount[dateKey]++;
           return;
         }
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
         if (d.after_hours_pickup) {
-          // After-hours DELIVERY (patient/ISD) — '-' next to the daily total AND
+          // After-hours DELIVERY (patient/ISD) — '-' marker (2× base pay) AND
           // counted 1× below, like every other finished delivery.
-          afterHoursByDayCount[dateKey]++;
+          afterHoursCountMap[dateKey][storeId]++;
         }
         deliveryMap[dateKey][storeId]++;
         kmMap[dateKey][storeId] += calculateExtraKm(d);
@@ -324,7 +324,7 @@ export default function DriverPayrollGrid({
     store.status !== 'inactive'
     );
 
-    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, afterHoursByDay: afterHoursByDayCount, storesWithData: storesWithDataList };
+    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, afterHoursMap: afterHoursCountMap, storesWithData: storesWithDataList };
   }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers, selectedDriverId, currentPeriod]);
 
   // Use stores with data for display (hide empty columns)
@@ -579,6 +579,7 @@ export default function DriverPayrollGrid({
                       extraKmMap[dateKey]?.[store.id] || 0 :
                       dataMap[dateKey]?.[store.id] || 0;
                       const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
+                      const afterHoursCount = afterHoursMap[dateKey]?.[store.id] || 0;
                       const displayValueMobile = viewMode === 'extraKm' ?
                       value > 0 ? value.toFixed(1) : '' :
                       value > 0 ? value : '';
@@ -588,8 +589,14 @@ export default function DriverPayrollGrid({
                       const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 ?
                       '+'.repeat(oversizedCount) :
                       '';
+                      // After-hours marker — "-" indicates an after-hours delivery (doubled base pay).
+                      // Separate from oversized "+" so the two flags stay distinguishable.
+                      const ahSigns = viewMode === 'deliveries' && afterHoursCount > 0 ?
+                      '-'.repeat(afterHoursCount) :
+                      '';
+                      const ahTitle = `${afterHoursCount} after-hours (2× base pay)`;
                       const osTitle = `${oversizedCount} oversized`;
-                      const showMarkers = viewMode === 'deliveries' && !!plusSigns;
+                      const showMarkers = viewMode === 'deliveries' && (plusSigns || ahSigns);
                       return (
                         <td
                           key={store.id}
@@ -600,26 +607,24 @@ export default function DriverPayrollGrid({
                             {/* Delivery / km count — spans both indicator rows visually (left column) */}
                             <span className="md:hidden">{displayValueMobile}</span>
                             <span className="hidden md:inline">{displayValueDesktop}</span>
-                            {/* Oversized (+) marker — after-hours (-) moved to the daily-total column */}
+                            {/* Right column: Oversized (+) on top row, After-hours (-) on bottom row */}
                             {showMarkers && (
                               <span className="flex flex-col items-start justify-center text-[0.65rem] leading-[1.05]">
                                 {plusSigns && (
                                   <span title={osTitle}>{plusSigns}</span>
                                 )}
+                                {ahSigns && (
+                                  <span className="text-amber-500 dark:text-amber-400" title={ahTitle}>{ahSigns}</span>
+                                )}
                               </span>
                             )}
-                            </div>
-                            </td>);
+                          </div>
+                        </td>);
 
                     })}
                     <td className="text-center px-1 md:px-2 py-0.5 font-semibold border-l-2 border-purple-300 tabular-nums align-top" style={{ color: 'var(--text-slate-900)' }}>
-                      <div className="flex items-center justify-center gap-0.5 leading-none">
-                        <span className="md:hidden">{viewMode === 'extraKm' ? dayTotal > 0 ? dayTotal.toFixed(1) : '' : dayTotal > 0 ? dayTotal : ''}</span>
-                        <span className="hidden md:inline">{viewMode === 'extraKm' ? dayTotal > 0 ? dayTotal.toFixed(2) : '' : dayTotal > 0 ? dayTotal : ''}</span>
-                        {viewMode === 'deliveries' && (afterHoursByDay[dateKey] || 0) > 0 && (
-                          <span className="text-amber-500 dark:text-amber-400 text-[0.65rem] leading-[1.05]" title={`${afterHoursByDay[dateKey]} after-hours (pickups + deliveries)`}>{'-'.repeat(afterHoursByDay[dateKey])}</span>
-                        )}
-                      </div>
+                      <span className="md:hidden">{viewMode === 'extraKm' ? dayTotal > 0 ? dayTotal.toFixed(1) : '' : dayTotal > 0 ? dayTotal : ''}</span>
+                      <span className="hidden md:inline">{viewMode === 'extraKm' ? dayTotal > 0 ? dayTotal.toFixed(2) : '' : dayTotal > 0 ? dayTotal : ''}</span>
                     </td>
                   </tr>);
 
