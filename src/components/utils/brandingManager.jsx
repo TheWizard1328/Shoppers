@@ -10,9 +10,10 @@ const DEFAULT_BRANDING = {
 };
 
 let cachedBranding = null;
+let _fallbackAttempted = false; // Prevent repeated API calls after a fallback
 const BRANDING_LS_KEY = 'rxdeliver_cached_branding';
 
-export function clearBrandingCache() { cachedBranding = null; try { localStorage.removeItem(BRANDING_LS_KEY); } catch {} }
+export function clearBrandingCache() { cachedBranding = null; _fallbackAttempted = false; try { localStorage.removeItem(BRANDING_LS_KEY); } catch {} }
 
 /**
  * Load branding from localStorage cache — used for instant render on boot
@@ -41,8 +42,21 @@ export async function getCompanyBranding(companyId) {
   if (!companyId) return { ...DEFAULT_BRANDING, _fallback: true };
   if (cachedBranding) return cachedBranding;
 
+  // If we already tried and failed (same page load), don't retry — return fallback.
+  // This prevents repeated API calls on every re-render or retry path.
+  if (_fallbackAttempted) return { ...DEFAULT_BRANDING, _fallback: true };
+
   try {
-    const company = await base44.entities.Company.filter({ id: companyId });
+    // Try filter by id first
+    let company = await base44.entities.Company.filter({ id: companyId });
+
+    // If filter returned nothing, try listing all companies and finding by id.
+    // Some Base44 SDK versions don't support filtering by the system `id` field.
+    if (!company || company.length === 0) {
+      console.warn('[Branding] Company.filter({id}) returned empty \u2014 trying Company.list() fallback');
+      const allCompanies = await base44.entities.Company.list();
+      company = allCompanies?.filter(c => c.id === companyId) || [];
+    }
 
     if (company && company.length > 0) {
       cachedBranding = {
@@ -60,7 +74,8 @@ export async function getCompanyBranding(companyId) {
     console.warn('⚠️ [Branding] Failed to fetch company branding:', error?.message);
   }
 
-  // Fallback — signal to caller that data load may have failed
+  // Fallback — mark as attempted so we don't retry on the same page load
+  _fallbackAttempted = true;
   return { ...DEFAULT_BRANDING, _fallback: true };
 }
 

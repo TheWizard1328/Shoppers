@@ -887,19 +887,13 @@ export default function Layout({ children, currentPageName }) {
     triggerFullDataLoadRef.current(forceRefresh);
   }, [initialGlobalFiltersSet, currentUser]);
 
-  // BRANDING FALLBACK RECOVERY: When branding fetch fails (green Rx logo shown),
-  // the API may have had a transient error or entities may have been misplaced.
-  // Force a full data reload from the server to ensure entity integrity.
-  useEffect(() => {
-    const handleBrandingFallback = () => {
-      console.warn('🔄 [Layout] Branding fallback detected — forcing full data reload');
-      needsDataReload.current = true;
-      initialDataLoadFiredRef.current = false; // allow re-trigger
-      triggerFullDataLoadRef.current(true); // forceRefresh=true bypasses cooldown
-    };
-    window.addEventListener('brandingFallbackDetected', handleBrandingFallback);
-    return () => window.removeEventListener('brandingFallbackDetected', handleBrandingFallback);
-  }, []);
+  // BRANDING FALLBACK RECOVERY: Removed - branding fallback no longer dispatches
+  // the brandingFallbackDetected event (see useLayoutInit.jsx). The previous
+  // implementation caused a redundant second full data load in Layout.jsx on top
+  // of the __forceDataReload already handled by useLayoutInit, which was the
+  // root cause of the branding boot loop. Branding fallback alone is not a signal
+  // that other entities are broken - the criticalDataMissing check in useLayoutInit
+  // handles genuinely missing data.
   useEffect(() => {
     if (!dataLoaded) return;
     const unsubscribe = globalFilters.subscribe(() => {});

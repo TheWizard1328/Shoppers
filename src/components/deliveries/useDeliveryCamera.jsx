@@ -96,12 +96,35 @@ const tryOpenStream = async (deviceId) => {
     }
   }
   if (!stream) {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-      audio: false
-    });
+    // Android WebView (APK) often ignores facingMode:{ideal:'environment'} and
+    // defaults to the selfie camera. Try exact first, then ideal, then any.
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+        audio: false
+      });
+      console.log('[camera] Opened with facingMode:exact(environment)');
+    } catch {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+          audio: false
+        });
+        console.log('[camera] Opened with facingMode:ideal(environment)');
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true, audio: false
+        });
+        console.log('[camera] Opened with default camera (facingMode fallbacks exhausted)');
+      }
+    }
   }
-  setCachedStream(stream, stream.getVideoTracks()[0]?.getSettings?.()?.deviceId);
+  // CRITICAL: Save the deviceId to localStorage so the same camera is used next time.
+  // Previously only cycleRearCamera saved the ID — the initial open never persisted it,
+  // so the APK would default to selfie on every fresh boot.
+  const actualDeviceId = stream.getVideoTracks()[0]?.getSettings?.()?.deviceId;
+  setCachedStream(stream, actualDeviceId);
+  if (actualDeviceId) saveCameraId(actualDeviceId);
   return stream;
 };
 
@@ -120,6 +143,8 @@ const cycleRearCamera = async (videoEl) => {
     try { oldStream.getTracks().forEach(t => t.stop()); } catch {}
     if (videoEl) videoEl.srcObject = null;
   }
+  // Also clear the global cache so tryOpenStream doesn't reuse the stopped stream
+  releaseCachedStream();
 
   // Step 3: Enumerate cameras
   const cams = await listCameras();
@@ -150,9 +175,12 @@ const cycleRearCamera = async (videoEl) => {
       continue;
     }
 
-    // Check if it's a front camera — skip those
+    // Check if it's a front camera — skip those.
+    // In Android WebView, facingMode may be undefined — use label as fallback.
     const facingMode = stream.getVideoTracks()[0]?.getSettings?.()?.facingMode;
-    if (facingMode === 'user') {
+    const label = (cam.label || '').toLowerCase();
+    const isFront = facingMode === 'user' || (!facingMode && (label.includes('front') || label.includes('selfie')));
+    if (isFront) {
       console.log('[camera] idx', tryIdx, 'is front-facing — skipping');
       try { stream.getTracks().forEach(t => t.stop()); } catch {}
       continue;
