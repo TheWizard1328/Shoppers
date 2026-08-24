@@ -203,9 +203,11 @@ export default function DeliveryCameraOverlay({
   const handleBurstCaptureRef = useRef(null);
 
   const startIosAutoCapture = useCallback(() => {
-    // In browser with BarcodeDetector: let BarcodeDetector handle auto-capture.
-    // In native APK or iOS (no BarcodeDetector): use sharpness-based auto-capture.
-    if (typeof window !== 'undefined' && 'BarcodeDetector' in window && !isCapacitorNativeApp()) return;
+    // ALWAYS run sharpness-based auto-capture alongside BarcodeDetector.
+    // BarcodeDetector catches labels with visible barcodes (fast path),
+    // sharpness catches labels without detectable barcodes (fallback).
+    // Previously this was skipped when BarcodeDetector was available, causing
+    // auto-capture to never fire for labels without machine-readable barcodes.
     if (iosAutoCaptureRef.current) return;
     const IOS_SHARPNESS_THRESHOLD = 8;  // lowered from 12 — iPhone cameras need a lower bar
     const IOS_POLL_INTERVAL = 500;      // ms between auto-capture checks (was 600)
@@ -245,7 +247,7 @@ export default function DeliveryCameraOverlay({
         console.warn('[DeliveryCameraOverlay] iOS sharpness check failed:', e?.message);
       }
     }, IOS_POLL_INTERVAL);
-    console.log('[DeliveryCameraOverlay] Sharpness auto-capture loop started (threshold:', IOS_SHARPNESS_THRESHOLD + ')');
+    console.log('[DeliveryCameraOverlay] Sharpness auto-capture loop started (threshold:', IOS_SHARPNESS_THRESHOLD + ', runs alongside BarcodeDetector)');
   }, []);
 
   const stopIosAutoCapture = useCallback(() => {
