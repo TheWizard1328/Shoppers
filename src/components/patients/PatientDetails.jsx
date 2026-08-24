@@ -44,11 +44,11 @@ const getStatusStyle = (status) => {
 // globally-capped subset — so pagination always has real data to reveal.
 const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEditDelivery }) => {
   const [codOnly, setCodOnly] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(20);
+  const [visibleCount, setVisibleCount] = useState(60);
 
   // Reset pagination whenever the selected patient changes
   useEffect(() => {
-    setVisibleCount(20);
+    setVisibleCount(60);
   }, [patient?.id]);
 
   const filteredDeliveries = useMemo(() => {
@@ -170,7 +170,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
           </div>
           {hasMore &&
           <button
-            onClick={() => setVisibleCount((c) => c + 20)}
+            onClick={() => setVisibleCount((c) => c + 60)}
             className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 flex-shrink-0"
             style={{ color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-200)' }}>
               Show more ({filteredDeliveries.length - visibleCount} more)
@@ -205,7 +205,7 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
     }
     let cancelled = false;
     setIsLoadingDeliveries(true);
-    base44.entities.Delivery.filter({ patient_id: patient.id }, '-delivery_date', 200).
+    base44.entities.Delivery.filter({ patient_id: patient.id }, '-delivery_date', 500).
     then((fetched) => {
       if (cancelled) return;
       setAllDeliveries((fetched || []).filter(Boolean));
@@ -226,9 +226,6 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
   // dashboard's equivalent panel, which counts completed deliveries only).
   const deliveryStats = useMemo(() => {
     const completed = allDeliveries.filter((d) => d.status === 'completed');
-    if (completed.length === 0) {
-      return { totalDeliveries: 0, mostCommonDay: null, lastDeliveryDate: null, dayFrequency: {} };
-    }
     const dayFrequency = {};
     let lastDate = null;
     completed.forEach((d) => {
@@ -239,7 +236,10 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
       if (!lastDate || d.delivery_date > lastDate) lastDate = d.delivery_date;
     });
     const mostCommonDay = Object.entries(dayFrequency).sort(([, a], [, b]) => b - a)[0]?.[0] || null;
-    return { totalDeliveries: completed.length, mostCommonDay, lastDeliveryDate: lastDate, dayFrequency };
+    // Total reflects the FULL fetched set (any status) — the same universe the
+    // Recent Deliveries list below paginates through — so the top card always
+    // matches 'currently showing + show more remaining'.
+    return { totalDeliveries: allDeliveries.length, mostCommonDay, lastDeliveryDate: lastDate, dayFrequency };
   }, [allDeliveries]);
 
   const handleAnalyticsHeaderPointerDown = (e) => {

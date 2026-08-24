@@ -29,7 +29,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
   const [deliveryStats, setDeliveryStats] = useState(null);
   const [allDeliveries, setAllDeliveries] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(30);
+  const [visibleCount, setVisibleCount] = useState(60);
 
   useEffect(() => {
     if (!patient?.id) return;
@@ -37,17 +37,12 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
     setAllDeliveries([]);
     setDeliveryStats(null);
 
-    base44.entities.Delivery.filter({ patient_id: patient.id }, '-delivery_date', 60)
+    base44.entities.Delivery.filter({ patient_id: patient.id }, '-delivery_date', 500)
       .then((fetched) => {
         const valid = (fetched || []).filter(Boolean);
         setAllDeliveries(valid);
 
         const completed = valid.filter((d) => d.status === 'completed');
-        if (completed.length === 0) {
-          setDeliveryStats({ totalDeliveries: 0, mostCommonDay: null, lastDeliveryDate: null, dayFrequency: {} });
-          return;
-        }
-
         const dayFrequency = {};
         let lastDate = null;
         completed.forEach((d) => {
@@ -57,7 +52,10 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
         });
 
         const mostCommonDay = Object.entries(dayFrequency).sort(([, a], [, b]) => b - a)[0]?.[0] || null;
-        setDeliveryStats({ totalDeliveries: completed.length, mostCommonDay, lastDeliveryDate: lastDate, dayFrequency });
+        // Total reflects the FULL fetched set (any status) — the same universe
+        // the Recent Deliveries list below paginates through — so the top card
+        // always matches 'currently showing + show more remaining'.
+        setDeliveryStats({ totalDeliveries: valid.length, mostCommonDay, lastDeliveryDate: lastDate, dayFrequency });
       })
       .catch(() => setDeliveryStats({ totalDeliveries: 0, mostCommonDay: null, lastDeliveryDate: null, dayFrequency: {} }))
       .finally(() => setIsLoading(false));
@@ -320,7 +318,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                     </div>
                     {hasMore && (
                       <button
-                        onClick={() => setVisibleCount((c) => c + 30)}
+                        onClick={() => setVisibleCount((c) => c + 60)}
                         className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100"
                         style={{ color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-200)' }}
                       >
