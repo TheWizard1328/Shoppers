@@ -19,13 +19,18 @@ export const FINISHED_LEGEND_STATUSES = ['completed', 'failed', 'cancelled'];
  * @param {object} [opts]
  * @param {boolean} [opts.requireMarkerTypeDelivery=false] - When true (DeliveryMap),
  *        require item.markerType === 'delivery' so pickups/cycling markers are excluded.
+ * @param {boolean} [opts.excludeAfterHours=false] - When true, exclude any stop
+ *        marked after_hours_pickup (after-hours deliveries AND pickups are paid out
+ *        separately, so they must not inflate the legend delivery totals).
  * @returns {boolean}
  */
-export function isCountableLegendStop(item, { requireMarkerTypeDelivery = false } = {}) {
+export function isCountableLegendStop(item, { requireMarkerTypeDelivery = false, excludeAfterHours = false } = {}) {
   if (!item) return false;
   if (requireMarkerTypeDelivery && item.markerType !== 'delivery') return false;
   // Primary gate: must be in a finished status to count.
   if (!FINISHED_LEGEND_STATUSES.includes(item.status)) return false;
+  // After-hours stops are paid separately — exclude from regular legend totals.
+  if (excludeAfterHours && item.after_hours_pickup === true) return false;
   const did = item.delivery_id || '';
   const isActualDelivery = did.startsWith('DID') && !!item.patient_id;
   const isInterStore = did.startsWith('ISD') || did.startsWith('ISP');
