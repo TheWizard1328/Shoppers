@@ -271,13 +271,12 @@ export default function DriverPayrollGrid({
     return extraKm > 0 ? extraKm : 0;
   };
 
-  // Build a map of dateKey -> store -> count (deliveries), extraKm, and oversized count.
-  // After-hours and N/C deliveries are counted as regular deliveries here — the graph
-  // shows ALL delivery counts; after-hours no longer appears as a separate '-' marker.
-  const { dataMap, extraKmMap, oversizedMap, storesWithData } = useMemo(() => {
+  // Build a map of dateKey -> store -> count (deliveries), extraKm, oversized count, and after-hours count
+  const { dataMap, extraKmMap, oversizedMap, afterHoursMap, storesWithData } = useMemo(() => {
     const deliveryMap = {};
     const kmMap = {};
     const oversizedCountMap = {};
+    const afterHoursCountMap = {};
     const storeHasData = {};
 
 
@@ -286,10 +285,12 @@ export default function DriverPayrollGrid({
       deliveryMap[dateKey] = {};
       kmMap[dateKey] = {};
       oversizedCountMap[dateKey] = {};
+      afterHoursCountMap[dateKey] = {};
       allSortedStores.forEach((store) => {
         deliveryMap[dateKey][store.id] = 0;
         kmMap[dateKey][store.id] = 0;
         oversizedCountMap[dateKey][store.id] = 0;
+        afterHoursCountMap[dateKey][store.id] = 0;
       });
     });
 
@@ -301,6 +302,13 @@ export default function DriverPayrollGrid({
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
+        if (d.after_hours_pickup) {
+          // After-hours deliveries are tracked for the '-' marker but excluded
+          // from the daily/store counts (and km) — they're paid out separately
+          // in the payroll summary, so the grid reflects regular deliveries only.
+          afterHoursCountMap[dateKey][storeId]++;
+          return;
+        }
         deliveryMap[dateKey][storeId]++;
         kmMap[dateKey][storeId] += calculateExtraKm(d);
       }
@@ -311,7 +319,7 @@ export default function DriverPayrollGrid({
     store.status !== 'inactive'
     );
 
-    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, storesWithData: storesWithDataList };
+    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, afterHoursMap: afterHoursCountMap, storesWithData: storesWithDataList };
   }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers, selectedDriverId, currentPeriod]);
 
   // Use stores with data for display (hide empty columns)
@@ -566,6 +574,7 @@ export default function DriverPayrollGrid({
                       extraKmMap[dateKey]?.[store.id] || 0 :
                       dataMap[dateKey]?.[store.id] || 0;
                       const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
+                      const afterHoursCount = afterHoursMap[dateKey]?.[store.id] || 0;
                       const displayValueMobile = viewMode === 'extraKm' ?
                       value > 0 ? value.toFixed(1) : '' :
                       value > 0 ? value : '';
@@ -575,8 +584,14 @@ export default function DriverPayrollGrid({
                       const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 ?
                       '+'.repeat(oversizedCount) :
                       '';
+                      // After-hours marker — "-" indicates an after-hours delivery (doubled base pay).
+                      // Separate from oversized "+" so the two flags stay distinguishable.
+                      const ahSigns = viewMode === 'deliveries' && afterHoursCount > 0 ?
+                      '-'.repeat(afterHoursCount) :
+                      '';
+                      const ahTitle = `${afterHoursCount} after-hours (2× base pay)`;
                       const osTitle = `${oversizedCount} oversized`;
-                      const showMarkers = viewMode === 'deliveries' && plusSigns;
+                      const showMarkers = viewMode === 'deliveries' && (plusSigns || ahSigns);
                       return (
                         <td
                           key={store.id}
@@ -592,6 +607,9 @@ export default function DriverPayrollGrid({
                               <span className="flex flex-col items-start justify-center text-[0.65rem] leading-[1.05]">
                                 {plusSigns && (
                                   <span title={osTitle}>{plusSigns}</span>
+                                )}
+                                {ahSigns && (
+                                  <span className="text-amber-500 dark:text-amber-400" title={ahTitle}>{ahSigns}</span>
                                 )}
                               </span>
                             )}
