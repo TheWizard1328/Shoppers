@@ -236,13 +236,13 @@ export function useLayoutInit({
             _brandingFallback = true;
           }
         }
-        if (_brandingFallback) {
-          // Signal all downstream data loaders to force-refresh from server
-          window.__forceDataReload = true;
-          window.dispatchEvent(new CustomEvent('brandingFallbackDetected', {
-            detail: { companyId: fetchedUser?.company_id, timestamp: Date.now() }
-          }));
-        }
+        // Branding fallback alone does NOT trigger a full entity reload.
+        // The Company entity may simply be empty or the company_id may not match —
+        // this doesn't mean other entities (cities, stores, app users) are broken.
+        // The criticalDataMissing check below already handles genuinely missing data.
+        // Previously, branding fallback set window.__forceDataReload AND dispatched
+        // a brandingFallbackDetected event, causing TWO redundant full data loads
+        // (one in useLayoutInit, one in Layout.jsx) — this was the boot loop.
 
         // ── STEP 2: Apply offline data to UI immediately ──
         setSquareLocationConfigs(sqConfigs || []);
@@ -273,12 +273,9 @@ export function useLayoutInit({
         // ── PRIORITY FETCH: If critical bootstrap data is missing from IndexedDB,
         // fetch it directly from the backend NOW (before releasing the loading gate).
         // This handles first-ever sessions and corrupted / partially-wiped offline DBs.
-        // If branding fell back, force a full data reload even if IDB has data —
-        // the entity may have been misplaced/deleted server-side and the offline
-        // cache is stale. Re-fetch everything from the server.
         const _forceReload = !!window.__forceDataReload;
         if (_forceReload) {
-          console.warn('🔄 [Init] Force-reloading ALL critical entities from server (branding fallback signal)');
+          console.warn('🔄 [Init] Force-reloading ALL critical entities from server');
           window.__forceDataReload = false; // consume the flag
         }
         const criticalDataMissing = !citiesData.length || !resolvedStores.length || !resolvedAppUsers.length;

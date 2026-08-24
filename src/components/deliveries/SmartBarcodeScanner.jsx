@@ -324,46 +324,61 @@ export default function SmartBarcodeScanner({
   // startCamera path (no BarcodeDetector) and the BarcodeDetector failure path.
   const startZxingFallback = useCallback(() => {
     // ── ZXing fallback — full-frame decode ──
-    // Scans the FULL video frame (downscaled to max 640px wide for speed).
-    // Previous strip-crop approach (center 60% × 15%) was too narrow and
-    // missed barcodes that weren't perfectly aligned with the laser bar.
-    // Full-frame scanning trades some CPU for much better reliability.
+    // Scans the FULL video frame (downscaled to max 800px wide for speed + accuracy).
+    // Two-pass approach: fast decode (no TRY_HARDER) at 80ms intervals for real-time
+    // detection, then TRY_HARDER every 5th frame for difficult/blurry barcodes.
     if (codeReaderRef.current) return; // already running
     console.log('[SmartBarcodeScanner] Using ZXing full-frame decode');
     codeReaderRef.current = new BrowserMultiFormatReader();
-    try {
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
-        BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
-        BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
-        BarcodeFormat.ITF, BarcodeFormat.CODABAR
-      ]);
-      hints.set(DecodeHintType.ASSUME_GS1, false);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-      hints.set(DecodeHintType.PURE_FORMATS, false);
-      codeReaderRef.current.setHints(hints);
-    } catch {}
+
+    // Hints without TRY_HARDER — fast pass
+    const fastHints = new Map();
+    fastHints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
+      BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+      BarcodeFormat.ITF, BarcodeFormat.CODABAR
+    ]);
+    fastHints.set(DecodeHintType.ASSUME_GS1, false);
+    fastHints.set(DecodeHintType.PURE_FORMATS, false);
+
+    // Hints with TRY_HARDER — slow pass for difficult barcodes
+    const slowHints = new Map(fastHints);
+    slowHints.set(DecodeHintType.TRY_HARDER, true);
+
+    try { codeReaderRef.current.setHints(fastHints); } catch {}
 
     if (!zxingCanvasRef.current) zxingCanvasRef.current = document.createElement('canvas');
     const zxingCanvas = zxingCanvasRef.current;
     const zxingCtx = zxingCanvas.getContext('2d', { willReadFrequently: true });
 
+    let frameCount = 0;
+    let usingSlowHints = false;
+
     const decodeLoop = () => {
       if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) {
-        if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 120);
+        if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 100);
         return;
       }
       try {
         const vw = videoRef.current.videoWidth;
         const vh = videoRef.current.videoHeight;
-        if (!vw || !vh) { nativeScanLoopRef.current = setTimeout(decodeLoop, 120); return; }
+        if (!vw || !vh) { nativeScanLoopRef.current = setTimeout(decodeLoop, 100); return; }
 
-        // Downscale full frame to max 640px wide for ZXing (keeps aspect ratio)
-        const scale = Math.min(1, 640 / vw);
+        // Downscale full frame to max 800px wide for ZXing (keeps aspect ratio).
+        // 800px gives better resolution than 640px for small pharmacy barcodes.
+        const scale = Math.min(1, 800 / vw);
         zxingCanvas.width = Math.round(vw * scale);
         zxingCanvas.height = Math.round(vh * scale);
         zxingCtx.drawImage(videoRef.current, 0, 0, zxingCanvas.width, zxingCanvas.height);
+
+        // Every 5th frame, use TRY_HARDER for difficult/blurry barcodes
+        frameCount++;
+        const useSlow = (frameCount % 5 === 0);
+        if (useSlow !== usingSlowHints) {
+          try { codeReaderRef.current.setHints(useSlow ? slowHints : fastHints); } catch {}
+          usingSlowHints = useSlow;
+        }
 
         // Attempt ZXing decode on full frame (synchronous, throws NotFoundException if none found)
         const result = codeReaderRef.current.decodeFromCanvas(zxingCanvas);
@@ -374,7 +389,7 @@ export default function SmartBarcodeScanner({
       } catch {
         // NotFoundException — no barcode this frame, normal
       }
-      if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 120);
+      if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 100);
     };
     decodeLoop();
 
