@@ -281,6 +281,14 @@ export default function PayrollSummaryCard({
         return true;
       });
       const graphDeliveryCount = graphPayableDeliveries.length;
+      // After-hours DELIVERIES are paid at 2× the per-delivery rate, so the pay-weighted
+      // "delivery unit" count adds one extra unit per after-hours delivery (they are already
+      // counted once in graphDeliveryCount). This keeps the displayed "Del: count = $pay"
+      // badge consistent with the graphBasePay weighting.
+      const graphAhDeliveryCount = graphPayableDeliveries.filter(
+        (d) => d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS'))
+      ).length;
+      const graphDeliveryUnits = graphDeliveryCount + graphAhDeliveryCount;
       // Compute graph pay from the graphPayableDeliveries subset with per-delivery rates
       // (same logic as basePay/extraKmPay/oversizedPay above, but scoped to graph subset)
       let graphBasePay, graphExtraKmPay = 0, graphOversizedPay = 0;
@@ -332,7 +340,7 @@ export default function PayrollSummaryCard({
 
       return {
         driver: { ...driver, id: driverId }, payRate, extraKmRate, extraKmLimit, oversizedRate,
-        totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphBasePay, graphExtraKmPay, graphOversizedPay, totalExtraKm, totalExtraKmPay: extraKmPay,
+        totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphDeliveryUnits, graphBasePay, graphExtraKmPay, graphOversizedPay, totalExtraKm, totalExtraKmPay: extraKmPay,
         oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, noChargeCount, failedCount, returnsCount,
         storeReturnCount, grandTotal: graphGrandTotal, gstHstEnabled, taxRate, taxAmount: graphTaxAmount, provinceCode,
         deductions: totalDeductions, deductionsArray, grossPay: graphGrossPay, netPay: graphNetPay, appFeePercentage, storedPaidAmount
