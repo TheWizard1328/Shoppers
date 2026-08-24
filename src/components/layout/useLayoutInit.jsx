@@ -162,7 +162,13 @@ export function useLayoutInit({
         setDeviceRegistered(true);
 
         try {
-          const s = await requestThrottler.queue(() => loadUserSettings(fetchedUser.id), 'critical', 'loadUserSettings');
+          // Wrap loadUserSettings in a timeout — if the throttler is stuck or the
+          // UserSettings fetch hangs (mobile/laptop can stall here during the first
+          // editor-preview boot), the boot would hang on the loading screen forever.
+          const s = await _withTimeout(
+            requestThrottler.queue(() => loadUserSettings(fetchedUser.id), 'critical', 'loadUserSettings'),
+            10000, 'loadUserSettings'
+          );
           if (s.sidebar_width) setSidebarWidth(s.sidebar_width);
           if (s.theme_preference && isMobileDeviceForTheme()) setThemePreference(s.theme_preference);else setThemePreference('light');
           if (s.data_source) setDataSource(s.data_source);
@@ -197,7 +203,12 @@ export function useLayoutInit({
 
         // Start heartbeat — find this user's AppUser record id
         try {
-          const appUserRecords = await base44.entities.AppUser.filter({ user_id: fetchedUser.id });
+          // Wrap in a timeout — a hung backend/throttler here would hold the
+          // loading gate open permanently on the first boot of a preview session.
+          const appUserRecords = await _withTimeout(
+            base44.entities.AppUser.filter({ user_id: fetchedUser.id }),
+            10000, 'heartbeat AppUser.filter'
+          );
           const appUserRecord = appUserRecords?.[0];
           if (appUserRecord?.id) {
             const isDispatcherRole = userHasRole(fetchedUser, 'dispatcher') && !userHasRole(fetchedUser, 'driver');
