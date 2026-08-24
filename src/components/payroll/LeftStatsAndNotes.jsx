@@ -63,7 +63,7 @@ export default function LeftStatsAndNotes({
             className="inline-flex w-full items-center justify-center gap-2 px-3 py-1 rounded text-[11px] font-semibold whitespace-nowrap"
             style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)', textWrap: 'balance' }}
           >
-            <span><span className="text-slate-500">A/H:</span> {Number(data.afterHoursCount) || 0}</span>
+            <span><span className="text-slate-500">A/H:</span> {Number(data.afterHoursPickupCount) || 0}p + {Number(data.afterHoursDeliveryCount) || 0}d</span>
             <span className="text-slate-400">-</span>
             <span><span className="text-slate-500">N/C:</span> {Number(data.noChargeCount) || 0}</span>
           </span>

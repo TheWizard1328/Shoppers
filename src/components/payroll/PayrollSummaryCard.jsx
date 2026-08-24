@@ -238,7 +238,9 @@ export default function PayrollSummaryCard({
       }
       const payrollRecord = payrollRecords.find((r) => r.driver_id === driverId);
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
-      const afterHoursCount = periodDeliveries.filter((d) => d.after_hours_pickup).length;
+      const afterHoursPickupCount = periodDeliveries.filter((d) => d.after_hours_pickup && !d.patient_id && !String(d.delivery_id || '').toUpperCase().startsWith('IS')).length;
+      const afterHoursDeliveryCount = periodDeliveries.filter((d) => d.after_hours_pickup && (d.patient_id || String(d.delivery_id || '').toUpperCase().startsWith('IS'))).length;
+      const afterHoursCount = afterHoursPickupCount + afterHoursDeliveryCount;
       const noChargeCount = periodDeliveries.filter((d) => d.no_charge).length;
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.reduce(
@@ -341,7 +343,7 @@ export default function PayrollSummaryCard({
       return {
         driver: { ...driver, id: driverId }, payRate, extraKmRate, extraKmLimit, oversizedRate,
         totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphDeliveryUnits, graphBasePay, graphExtraKmPay, graphOversizedPay, totalExtraKm, totalExtraKmPay: extraKmPay,
-        oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, noChargeCount, failedCount, returnsCount,
+        oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, afterHoursPickupCount, afterHoursDeliveryCount, noChargeCount, failedCount, returnsCount,
         storeReturnCount, grandTotal: graphGrandTotal, gstHstEnabled, taxRate, taxAmount: graphTaxAmount, provinceCode,
         deductions: totalDeductions, deductionsArray, grossPay: graphGrossPay, netPay: graphNetPay, appFeePercentage, storedPaidAmount
       };
