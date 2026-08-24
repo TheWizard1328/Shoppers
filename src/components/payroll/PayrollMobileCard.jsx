@@ -194,7 +194,7 @@ export default function PayrollMobileCard({
             <>
                   <span style={{ color: 'var(--text-red-600)' }}>Failed: <span className="font-semibold">{data.failedCount}</span></span>
                   <span style={{ color: 'var(--text-orange-600)' }}>Returns: <span className="font-semibold">{data.returnsCount}</span></span>
-                  <span style={{ color: 'var(--text-slate-600)' }}>A/H: <span className="font-semibold">{Number(data.afterHoursCount) || 0}</span></span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>A/H: <span className="font-semibold">{Number(data.afterHoursPickupCount) || 0}p + {Number(data.afterHoursDeliveryCount) || 0}d</span></span>
                   <span style={{ color: 'var(--text-slate-600)' }}>N/C: <span className="font-semibold">{Number(data.noChargeCount) || 0}</span></span>
                 </>
             }
