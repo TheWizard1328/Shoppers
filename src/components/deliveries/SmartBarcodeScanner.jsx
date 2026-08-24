@@ -291,7 +291,6 @@ export default function SmartBarcodeScanner({
   // Native BarcodeDetector + ZXing fallback
   const nativeDetectorRef = useRef(null);
   const nativeScanLoopRef = useRef(null);
-  const zxingEdgeRef = useRef(null);
   const [cameraError, setCameraError] = useState(null);
 
   const configureTrack = useCallback((stream) => {
@@ -324,108 +323,60 @@ export default function SmartBarcodeScanner({
   // Extracted as a useCallback so it can be called from both the initial
   // startCamera path (no BarcodeDetector) and the BarcodeDetector failure path.
   const startZxingFallback = useCallback(() => {
-    // ── ZXing fallback — strip-cropped decode + edge-density pre-check ──
-  // On iOS (no native BarcodeDetector), we crop the decode canvas to a
-  // horizontal strip (~15% of frame height) aligned with the on-screen
-  // laser bar. This reduces pixels for ZXing by ~85% vs full-frame.
-  // A fast edge-density check skips decode entirely when no barcode-like
-  // patterns are present in the strip (saves CPU on blank walls, etc).
-  console.log('[SmartBarcodeScanner] Using ZXing strip-crop + edge-density (iOS fallback)');
-  codeReaderRef.current = new BrowserMultiFormatReader();
-  try {
-    const hints = new Map();
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-      BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
-      BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
-      BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
-      BarcodeFormat.ITF, BarcodeFormat.CODABAR
-    ]);
-    hints.set(DecodeHintType.ASSUME_GS1, false);
-        hints.set(DecodeHintType.TRY_HARDER, true); // spend more CPU per frame for better detection
-    hints.set(DecodeHintType.PURE_FORMATS, false); // false = allow noisy/real-world backgrounds (camera captures)
-    codeReaderRef.current.setHints(hints);
-  } catch {}
-
-  if (!zxingCanvasRef.current) zxingCanvasRef.current = document.createElement('canvas');
-  // Pre-allocate a tiny canvas for the edge-density check (1px-per-column sampled)
-  if (!zxingEdgeRef.current) zxingEdgeRef.current = document.createElement('canvas');
-  const zxingCanvas = zxingCanvasRef.current;
-  const zxingCtx = zxingCanvas.getContext('2d', { willReadFrequently: true });
-  const edgeCanvas = zxingEdgeRef.current;
-  const edgeCtx = edgeCanvas.getContext('2d', { willReadFrequently: true });
-
-  // Edge-density check: sample 1px-wide vertical strip from the crop zone,
-  // count sharp horizontal transitions (barcode bars = high transition count).
-  // Returns true if the strip looks like it contains a barcode.
-  const hasBarcodeEdgeDensity = (fullCtx, vw, vh) => {
-    // Crop zone: center 60% width, center 15% height
-    const cropW = Math.round(vw * 0.6);
-    const cropH = Math.round(vh * 0.15);
-    const cropX = Math.round((vw - cropW) / 2);
-    const cropY = Math.round((vh - cropH) / 2);
-    // Sample at 1px per ~4px for speed — 120px wide sample
-    const sampleW = Math.min(120, Math.round(cropW / 4));
-    const sampleH = 1;
-    edgeCanvas.width = sampleW;
-    edgeCanvas.height = sampleH;
-    edgeCtx.drawImage(videoRef.current, cropX, cropY + Math.round(cropH / 2), cropW, 4, 0, 0, sampleW, sampleH);
+    // ── ZXing fallback — full-frame decode ──
+    // Scans the FULL video frame (downscaled to max 640px wide for speed).
+    // Previous strip-crop approach (center 60% × 15%) was too narrow and
+    // missed barcodes that weren't perfectly aligned with the laser bar.
+    // Full-frame scanning trades some CPU for much better reliability.
+    if (codeReaderRef.current) return; // already running
+    console.log('[SmartBarcodeScanner] Using ZXing full-frame decode');
+    codeReaderRef.current = new BrowserMultiFormatReader();
     try {
-      const pix = edgeCtx.getImageData(0, 0, sampleW, sampleH).data;
-      let transitions = 0;
-      let prevLum = -1;
-      for (let i = 0; i < pix.length; i += 4) {
-        const lum = (pix[i] * 0.299 + pix[i+1] * 0.587 + pix[i+2] * 0.114) | 0;
-        if (prevLum >= 0 && Math.abs(lum - prevLum) > 40) transitions++;
-        prevLum = lum;
-      }
-      // Barcodes typically have 15+ transitions in this sample width
-      // (CODE_128 minimum: 6 bars + 6 spaces = 12 edges minimum)
-      return transitions >= 5; // lowered from 8 — small/partial barcodes can have fewer edges
-    } catch {
-      return true; // If getImageData fails (tainted canvas etc.), proceed to decode
-    }
-  };
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
+        BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+        BarcodeFormat.ITF, BarcodeFormat.CODABAR
+      ]);
+      hints.set(DecodeHintType.ASSUME_GS1, false);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      hints.set(DecodeHintType.PURE_FORMATS, false);
+      codeReaderRef.current.setHints(hints);
+    } catch {}
 
-  const decodeLoop = async () => {
-    if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) {
-      if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 100);
-      return;
-    }
-    try {
-      const vw = videoRef.current.videoWidth;
-      const vh = videoRef.current.videoHeight;
-      if (!vw || !vh) { nativeScanLoopRef.current = setTimeout(decodeLoop, 100); return; }
+    if (!zxingCanvasRef.current) zxingCanvasRef.current = document.createElement('canvas');
+    const zxingCanvas = zxingCanvasRef.current;
+    const zxingCtx = zxingCanvas.getContext('2d', { willReadFrequently: true });
 
-      // Step 1: Quick edge-density pre-check (~0.5ms)
-      // Skip full ZXing decode if no barcode-like patterns in the strip
-      if (!hasBarcodeEdgeDensity(zxingCtx, vw, vh)) {
-        if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 100);
+    const decodeLoop = () => {
+      if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) {
+        if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 120);
         return;
       }
+      try {
+        const vw = videoRef.current.videoWidth;
+        const vh = videoRef.current.videoHeight;
+        if (!vw || !vh) { nativeScanLoopRef.current = setTimeout(decodeLoop, 120); return; }
 
-      // Step 2: Crop to the alignment strip (center 60% × 15% of frame)
-      // Downscale to max 480px wide for ZXing decode
-      const cropW = Math.round(vw * 0.6);
-      const cropH = Math.round(vh * 0.15);
-      const cropX = Math.round((vw - cropW) / 2);
-      const cropY = Math.round((vh - cropH) / 2);
-      const scale = Math.min(1, 480 / cropW);
-      zxingCanvas.width = Math.round(cropW * scale);
-      zxingCanvas.height = Math.round(cropH * scale);
-      zxingCtx.drawImage(videoRef.current, cropX, cropY, cropW, cropH, 0, 0, zxingCanvas.width, zxingCanvas.height);
+        // Downscale full frame to max 640px wide for ZXing (keeps aspect ratio)
+        const scale = Math.min(1, 640 / vw);
+        zxingCanvas.width = Math.round(vw * scale);
+        zxingCanvas.height = Math.round(vh * scale);
+        zxingCtx.drawImage(videoRef.current, 0, 0, zxingCanvas.width, zxingCanvas.height);
 
-      // Step 3: Attempt ZXing decode on the small strip
-      const result = await codeReaderRef.current.decodeFromCanvas(zxingCanvas);
-      if (result) {
-        const text = result.getText ? result.getText() : String(result?.text || '');
-        if (text) handleCameraDetected(text);
+        // Attempt ZXing decode on full frame (synchronous, throws NotFoundException if none found)
+        const result = codeReaderRef.current.decodeFromCanvas(zxingCanvas);
+        if (result) {
+          const text = result.getText ? result.getText() : String(result?.text || '');
+          if (text) handleCameraDetected(text);
+        }
+      } catch {
+        // NotFoundException — no barcode this frame, normal
       }
-    } catch {
-      // No barcode found this frame — normal
-    }
-    if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 100);
-  };
-  decodeLoop();
+      if (isReaderActiveRef.current) nativeScanLoopRef.current = setTimeout(decodeLoop, 120);
+    };
+    decodeLoop();
 
   }, [handleCameraDetected]);
 
@@ -468,10 +419,28 @@ export default function SmartBarcodeScanner({
       const hasNative = typeof window !== 'undefined' && 'BarcodeDetector' in window && !isCapacitorNativeApp();
       if (hasNative) {
         try {
-          nativeDetectorRef.current = new window.BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar'] });
+          // Use getSupportedFormats() to avoid constructor throwing on unsupported formats.
+          // This was the root cause of the web/PWA breakage: adding ean_13/upc_a/etc to the
+          // constructor caused it to throw on Chrome versions that don't support those formats,
+          // which fell through to ZXing (with its narrow strip-crop).
+          const wantedFormats = ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar'];
+          let bdFormats = wantedFormats;
+          if (typeof window.BarcodeDetector.getSupportedFormats === 'function') {
+            try {
+              const supported = await window.BarcodeDetector.getSupportedFormats();
+              bdFormats = wantedFormats.filter(f => supported.includes(f));
+              if (bdFormats.length === 0) bdFormats = ['code_128', 'code_39']; // safe fallback
+              console.log('[SmartBarcodeScanner] BarcodeDetector supported formats:', bdFormats.join(', '));
+            } catch (e) {
+              console.warn('[SmartBarcodeScanner] getSupportedFormats() failed, using defaults:', e?.message);
+              bdFormats = ['code_128', 'code_39']; // safe fallback — known supported everywhere
+            }
+          }
+          nativeDetectorRef.current = new window.BarcodeDetector({ formats: bdFormats });
           let lastDetectAt = 0;
           let bdFailCount = 0;
           let bdWarnedAt = 0;
+          let bdEmptyCount = 0;
           nativeScanLoopRef.current = setInterval(async () => {
             if (!isReaderActiveRef.current || !videoRef.current || videoRef.current.readyState < 2) return;
             const now = Date.now();
@@ -479,16 +448,24 @@ export default function SmartBarcodeScanner({
             lastDetectAt = now;
             try {
               const barcodes = await nativeDetectorRef.current.detect(videoRef.current);
-              bdFailCount = 0; // reset on successful detect() call
+              bdFailCount = 0; // reset on successful detect() call (even if empty)
               if (barcodes?.length > 0) {
+                bdEmptyCount = 0;
                 const text = barcodes[0].rawValue || String(barcodes[0].value || '');
                 if (text) handleCameraDetected(text);
+              } else {
+                bdEmptyCount++;
+                // If detect() returns empty 50 times (5 seconds at 100ms), start ZXing as backup
+                if (bdEmptyCount === 50 && !codeReaderRef.current) {
+                  console.warn('[SmartBarcodeScanner] BarcodeDetector returning empty for 5s — starting ZXing backup');
+                  startZxingFallback();
+                }
               }
             } catch (e) {
               bdFailCount++;
               if (bdFailCount === 5 && now - bdWarnedAt > 10000) {
                 bdWarnedAt = now;
-                console.warn('[SmartBarcodeScanner] BarcodeDetector.detect() failed 5x:', e?.message, '— barcodes may not be detected');
+                console.warn('[SmartBarcodeScanner] BarcodeDetector.detect() failed 5x:', e?.message);
               }
               // After 10 consecutive failures, fall through to ZXing
               if (bdFailCount >= 10 && !codeReaderRef.current) {
@@ -496,8 +473,6 @@ export default function SmartBarcodeScanner({
                 try { clearInterval(nativeScanLoopRef.current); } catch {}
                 nativeScanLoopRef.current = null;
                 nativeDetectorRef.current = null;
-                // Trigger ZXing fallback by calling the code below
-                // We set a flag and let the startCamera continue to ZXing setup
                 startZxingFallback();
               }
             }
@@ -511,7 +486,7 @@ export default function SmartBarcodeScanner({
         }
       }
 
-      // ── ZXing fallback — strip-cropped decode + edge-density pre-check ──
+      // ── ZXing fallback — full-frame decode ──
       startZxingFallback();
     } catch (e) {
       console.warn('[SmartBarcodeScanner] Camera start failed:', e);
