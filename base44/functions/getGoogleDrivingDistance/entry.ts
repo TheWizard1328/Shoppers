@@ -25,16 +25,22 @@ Deno.serve(async (req) => {
 
         const url = `https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins=${encodeURIComponent(origins)}&destinations=${encodeURIComponent(destinations)}&key=${GOOGLE_MAPS_API_KEY}`;
 
-        // Resolve the caller identity so the API log attributes usage to a real user
+        // Resolve the caller identity so the API log attributes usage to a real user.
+        // Matches the other Google backend functions: store AppUser.id + AppUser.user_name
+        // (falls back to auth user.id / full_name when no AppUser record exists).
         let logUserId = null;
         let logUserName = null;
         try {
             const caller = await base44.auth.me();
             if (caller?.id) {
-                logUserId = caller.id;
                 logUserName = caller.full_name || null;
                 const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: caller.id }, '-updated_date', 1);
-                if (appUsers?.[0]?.user_name) logUserName = appUsers[0].user_name;
+                if (appUsers?.[0]) {
+                    logUserId = appUsers[0].id;
+                    if (appUsers[0].user_name) logUserName = appUsers[0].user_name;
+                } else {
+                    logUserId = caller.id;
+                }
             }
         } catch (_) { /* non-critical */ }
 
