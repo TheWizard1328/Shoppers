@@ -6,6 +6,10 @@
       "type": "string",
       "description": "Reference to the AppUser's user_id"
     },
+    "user_name": {
+      "type": "string",
+      "description": "Denormalized display name of the AppUser this device belongs to (for quick display without a join)"
+    },
     "device_identifier": {
       "type": "string",
       "description": "Stable UUID for this device, stored in localStorage and synced to backend"

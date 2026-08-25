@@ -175,6 +175,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
       // Create new device
       const newDevice = await base44.entities.UserDevice.create({
         user_id: currentUser.id,
+        user_name: currentUser.user_name || currentUser.full_name || '',
         device_identifier: deviceIdentifier,
         device_name: newDeviceName.trim(),
         is_primary_tracker: isPrimaryTracker,
