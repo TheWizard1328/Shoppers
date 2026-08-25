@@ -25,6 +25,19 @@ Deno.serve(async (req) => {
 
         const url = `https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins=${encodeURIComponent(origins)}&destinations=${encodeURIComponent(destinations)}&key=${GOOGLE_MAPS_API_KEY}`;
 
+        // Resolve the caller identity so the API log attributes usage to a real user
+        let logUserId = null;
+        let logUserName = null;
+        try {
+            const caller = await base44.auth.me();
+            if (caller?.id) {
+                logUserId = caller.id;
+                logUserName = caller.full_name || null;
+                const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: caller.id }, '-updated_date', 1);
+                if (appUsers?.[0]?.user_name) logUserName = appUsers[0].user_name;
+            }
+        } catch (_) { /* non-critical */ }
+
         const response = await fetch(url);
         const data = await response.json();
 
@@ -48,6 +61,8 @@ Deno.serve(async (req) => {
             api_type: 'Distance Matrix',
             purpose: 'calculating driving distance',
             function_name: 'getGoogleDrivingDistance',
+            user_id: logUserId,
+            user_name: logUserName,
             metadata: { origins, destinations, distance_km: distanceKm }
         }).catch(() => {});
 

@@ -35,7 +35,7 @@ const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 // Best-effort: logs each HERE API hit to GoogleAPILog so the admin badge stays accurate.
 // Never throws — logging failure must never block routing.
 
-async function logHereApiCall({ apiType, purpose, source, driverId, callCount = 1 }) {
+async function logHereApiCall({ apiType, purpose, source, driverId, userName, callCount = 1 }) {
   try {
     await base44.entities.GoogleAPILog.create({
       timestamp: new Date().toISOString(),
@@ -43,7 +43,7 @@ async function logHereApiCall({ apiType, purpose, source, driverId, callCount = 
       purpose: purpose || apiType,
       function_name: source || 'clientRouteEngine',
       user_id: driverId || null,
-      user_name: null,
+      user_name: userName || null,
       metadata: {
         provider: 'HERE',
         source: source || 'client',
@@ -274,7 +274,7 @@ const getDeliveryCoords = (delivery, patientMap, storeMap) => {
 
 // ─── HERE API: multi-stop route (replaces getHereDirections) ──────────────────
 
-async function getMultiStopRouteHere(points, transportMode, hereApiKey) {
+async function getMultiStopRouteHere(points, transportMode, hereApiKey, { driverId = null, userName = null } = {}) {
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
 
@@ -293,7 +293,7 @@ async function getMultiStopRouteHere(points, transportMode, hereApiKey) {
   const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
     signal: AbortSignal.timeout(20000), headers: { accept: 'application/json' }
   });
-  logHereApiCall({ apiType: 'Routes (HERE)', purpose: `Polyline generation — ${validPoints.length - 1} leg(s), mode=${hereTransportMode}`, source: 'getMultiStopRouteHere' }).catch(() => {});
+  logHereApiCall({ apiType: 'Routes (HERE)', purpose: `Polyline generation — ${validPoints.length - 1} leg(s), mode=${hereTransportMode}`, source: 'getMultiStopRouteHere', driverId, userName }).catch(() => {});
   const routeData = await routeResp.json().catch(() => null);
   const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
 
@@ -334,7 +334,7 @@ async function getMultiStopRouteHere(points, transportMode, hereApiKey) {
 
 // ─── HERE API: findsequence2 (waypoint sequencing) ────────────────────────────
 
-async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode, deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows }) {
+async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePosition, hereApiKey, hereTransportMode, deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows, driverId = null, userName = null }) {
   const params = new URLSearchParams();
   params.set('apiKey', hereApiKey);
   params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
@@ -358,7 +358,7 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
     signal: AbortSignal.timeout(8000)
   });
-  logHereApiCall({ apiType: 'Route Optimization (HERE)', purpose: `findsequence2 — ${stopsToSequence.length} stop(s), mode=${hereTransportMode}`, source: 'callHereSequence' }).catch(() => {});
+  logHereApiCall({ apiType: 'Route Optimization (HERE)', purpose: `findsequence2 — ${stopsToSequence.length} stop(s), mode=${hereTransportMode}`, source: 'callHereSequence', driverId, userName }).catch(() => {});
   const data = await response.json().catch(() => null);
   return { response, data, includeTimeWindows };
 }
@@ -469,6 +469,8 @@ export async function optimizeRouteClientSide({
   }
   // Soft-fallback: use empty object so downstream null-checks still work
   const _driverAppUser = driverAppUser || {};
+  // Denormalized driver display name for API usage log attribution
+  const _driverUserName = _driverAppUser?.user_name || null;
 
   const preferredTravelMode = String(_driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
   const effectiveTravelMode = preferredTravelMode === 'cycling' ? 'driving' : preferredTravelMode;
@@ -606,6 +608,8 @@ export async function optimizeRouteClientSide({
       source,
       hereApiKey,
       driverHomeLocation,
+      driverId,
+      userName: _driverUserName,
     });
   }
 
@@ -729,7 +733,8 @@ export async function optimizeRouteClientSide({
       sequenceStart, stopsToSequence: seqStops,
       resolvedHomePosition: withHome ? resolvedHomePosition : null,
       hereApiKey, hereTransportMode: hereMode,
-      deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: true
+      deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: true,
+      driverId, userName: _driverUserName
     });
     let result = Array.isArray(attempt.data?.results) ? attempt.data.results[0] : null;
     let waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
@@ -741,7 +746,8 @@ export async function optimizeRouteClientSide({
         sequenceStart, stopsToSequence: seqStops,
         resolvedHomePosition: withHome ? resolvedHomePosition : null,
         hereApiKey, hereTransportMode: hereMode,
-        deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: false
+        deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: false,
+        driverId, userName: _driverUserName
       });
       result = Array.isArray(attempt.data?.results) ? attempt.data.results[0] : null;
       waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
@@ -1054,7 +1060,7 @@ export async function optimizeRouteClientSide({
           group.fromPoint,
           ...group.stops.map(({ stop }) => ({ lat: stop.lat, lon: stop.lng }))
         ];
-        const result = await getMultiStopRouteHere(points, group.mode, hereApiKey).catch((err) => {
+        const result = await getMultiStopRouteHere(points, group.mode, hereApiKey, { driverId, userName: _driverUserName }).catch((err) => {
           console.error(`[clientRouteEngine] ${source} — HERE Router v8 THREW (mode=${group.mode}):`, err?.message || err);
           return { sections: [], usedFallbackPolyline: true };
         });
@@ -1371,7 +1377,7 @@ export async function optimizeRouteClientSide({
 
 // ─── Future route handler (light mode, no HERE call) ─────────────────────────
 
-async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, driverHomeLocation = null }) {
+async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, driverHomeLocation = null, driverId = null, userName = null }) {
   const startOrder = (startingStopOrder != null) ? startingStopOrder : completedDeliveries.length;
   const weekdayCode = getWeekdayCode(deliveryDate);
   const isWeekend = weekdayCode === 'sa' || weekdayCode === 'su';
@@ -1534,7 +1540,7 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
     }
     const groupResults = await Promise.all(modeGroups.map(async (group) => {
       const herePoints = [group.origin, ...group.points.map(p => ({ lat: p.lat, lon: p.lon }))];
-      const result = await getMultiStopRouteHere(herePoints, group.mode, hereApiKey).catch(() => ({ sections: [] }));
+      const result = await getMultiStopRouteHere(herePoints, group.mode, hereApiKey, { driverId, userName }).catch(() => ({ sections: [] }));
       return { group, sections: result.sections || [] };
     }));
     for (const { group, sections } of groupResults) {

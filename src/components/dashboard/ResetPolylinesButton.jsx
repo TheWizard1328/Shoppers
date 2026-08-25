@@ -61,7 +61,7 @@ function encodeGooglePolyline(points) {
  * Returns an array of { encoded_polyline, estimated_distance_km, estimated_duration_minutes }
  * — one entry per leg (N points → N-1 legs).
  */
-async function callHereMultiStop(points, transportMode, hereApiKey) {
+async function callHereMultiStop(points, transportMode, hereApiKey, { driverId = null, userName = null } = {}) {
   const valid = (points || []).filter(p => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (valid.length < 2) return [];
 
@@ -88,6 +88,8 @@ async function callHereMultiStop(points, transportMode, hereApiKey) {
     api_type: 'Directions (HERE)',
     purpose: `ResetPolylines — ${valid.length - 1} leg(s), mode=${hereMode}`,
     function_name: 'ResetPolylinesButton',
+    user_id: driverId || null,
+    user_name: userName || null,
     metadata: { provider: 'HERE', source: 'reset_polylines', call_count: 1 },
   }).catch(() => {});
 
@@ -249,6 +251,8 @@ export default function ResetPolylinesButton({
     const patientMap = new Map((patients || []).filter(Boolean).map(p => [p.id, p]));
     const storeMap = new Map((stores || []).filter(Boolean).map(s => [s.id, s]));
     const driverAppUser = driverAppUsers?.[0] || null;
+    const driverUserName = driverAppUser?.user_name || null;
+    const polylineLogCtx = { driverId, userName: driverUserName };
 
     // Home position as route origin for pass 1
     const homePosition = (() => {
@@ -296,7 +300,7 @@ export default function ResetPolylinesButton({
 
       if (allPoints.length >= 2) {
         try {
-          const sections = await callHereMultiStop(allPoints, 'driving', hereApiKey);
+          const sections = await callHereMultiStop(allPoints, 'driving', hereApiKey, polylineLogCtx);
           // sections[i] covers the leg arriving at allPoints[i+1]
           // allPoints[0] is origin (home), so sections[i] → stopPoints[i]
           const offset = originPoint ? 0 : 1; // when no origin, sections[i] → stopPoints[i+1]
@@ -355,7 +359,7 @@ export default function ResetPolylinesButton({
         if (loopPoints.length < 2) continue;
 
         try {
-          const sections = await callHereMultiStop(loopPoints, 'cycling', hereApiKey);
+          const sections = await callHereMultiStop(loopPoints, 'cycling', hereApiKey, polylineLogCtx);
           // sections[i] covers the leg arriving at loopPoints[i+1]
           sections.forEach((sec, i) => {
             const targetPt = loopPoints[i + 1];
