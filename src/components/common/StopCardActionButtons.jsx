@@ -194,6 +194,17 @@ export default function StopCardActionButtons(props) {
     return !priorWithPayment;
   }, [allDeliveries, delivery]);
 
+  // Driver duty status — the inline Complete button on the isNextDelivery card is only
+  // visible when the assigned driver is On Duty or On Break (Off Duty / Online-only
+  // drivers cannot complete stops).
+  const assignedDriverAppUser = useMemo(() => {
+    const appUsers = appData?.appUsers || [];
+    return appUsers.find((u) => u?.user_id === delivery?.driver_id) || null;
+  }, [appData?.appUsers, delivery?.driver_id]);
+  const driverOnDutyOrBreak =
+    assignedDriverAppUser?.driver_status === 'on_duty' ||
+    assignedDriverAppUser?.driver_status === 'on_break';
+
   // Direct synchronous Square POS launch — no modal, no state change before dispatch.
   // CRITICAL: Must stay synchronous within the gesture handler to preserve gesture trust
   // on Android WebView. Any React state update before launchSquarePOS breaks the chain.
@@ -376,6 +387,7 @@ export default function StopCardActionButtons(props) {
         {isNextDelivery &&
          !isFutureDate &&
          !isFinishedDelivery &&
+         driverOnDutyOrBreak &&
          delivery.status !== 'completed' &&
          delivery.status !== 'cancelled' &&
          delivery.status !== 'failed' &&
