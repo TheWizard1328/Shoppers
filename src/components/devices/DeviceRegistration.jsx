@@ -75,16 +75,16 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
 
     const checkDevice = async () => {
       try {
-        // 1) If a device identifier is stored locally, trust the cached registration first
         const storedDeviceId = localStorage.getItem(DEVICE_ID_KEY);
-        if (storedDeviceId && localStorage.getItem(`rxdeliver_device_registered_${storedDeviceId}`) === 'true') {
-          clearTimeout(safetyNet);
-          setIsLoading(false);
-          if (onDeviceRegistered) onDeviceRegistered({ user_id: currentUser.id, device_identifier: storedDeviceId });
-          return;
-        }
+        // CRITICAL: Do NOT trust the localStorage `rxdeliver_device_registered_*` flag
+        // alone — the backend UserDevice record is the source of truth (the manifest
+        // gate in useLayoutInit checks it). A stale local flag that says "registered"
+        // while the backend has no matching UserDevice record previously caused the
+        // boot to enter a limbo: this early-return called onDeviceRegistered without
+        // dispatching the resume event, so init never re-ran and the app sat on the
+        // loading spinner forever. Always validate against the backend instead.
 
-        // 2) Validate the stored identifier against the backend (bounded — 8s)
+        // 1) Validate the stored identifier against the backend (bounded — 8s)
         if (storedDeviceId) {
           let matches = null;
           try {
