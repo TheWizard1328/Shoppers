@@ -15,6 +15,7 @@ import {
   updateTrackingNotification,
   onStopTrackingFromNotification,
 } from "../utils/trackingNotification";
+import resolveNextStopDisplayName from "./nextStopDisplayName";
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -425,6 +426,13 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             // Scroll to the next stop card
             if (nextStop) {
               setTimeout(() => window.dispatchEvent(new CustomEvent('centerNextDeliveryCard')), 300);
+              // Refresh the persistent notification with the real next-stop name + count
+              updateTrackingNotification({
+                status: 'on_duty',
+                stopCount: allRouteDeliveries.filter(d => !['completed', 'failed', 'cancelled'].includes(d?.status)).length,
+                nextStop: resolveNextStopDisplayName(nextStop, appDataContext?.patients, appDataContext?.stores),
+                canStopTracking: true,
+              }).catch(() => {});
             }
 
             console.log(`[DriverStatusToggle] on_duty sync: ${updatedDeliveries.length} deliveries, nextStop=${nextStop?.id || 'none'} (${nextStop?.status || '-'})`);
@@ -598,7 +606,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         updateTrackingNotification({
           status,
           stopCount: remaining.length,
-          nextStop: nextStop?.patient_name || nextStop?.delivery_id || null,
+          nextStop: resolveNextStopDisplayName(nextStop, appDataContext?.patients, appDataContext?.stores),
           canStopTracking: true,
         }).catch(() => {});
       } catch (e) { /* non-critical */ }
