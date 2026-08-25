@@ -49,9 +49,9 @@ export default function GlobalOverlays({
       {/* Push Notification Permission Prompt */}
       <PushNotificationPrompt userId={currentUser?.id} />
 
-      {showCitySelectionPopup && currentUser && cities && cities.length > 0 &&
+      {showCitySelectionPopup && currentUser &&
       <CitySelectionPopup
-        cities={cities}
+        cities={cities || []}
         currentUser={currentUser}
         onCitySelected={handleCitySelected} />
       }

@@ -299,19 +299,22 @@ export function useLayoutInit({
             // the user on the cycling loading screen and preventing the patient
             // priority sync (5s timer below) from ever repopulating patient records.
             let freshCities = null, freshStores = null, freshAppUsers = null, freshSqConfigs = null;
+            // CRITICAL: fetch each entity with its OWN timeout — previously a single
+            // 20s timeout wrapped Promise.all, so a hanging City.list() call would
+            // also throw away already-resolved Stores/AppUsers and send the boot into
+            // the empty-cities deadlock (city = "waiting-for-selection" with no way
+            // to show the selection popup). Per-entity timeouts isolate the failure.
+            const _fetchOrNull = async (shouldFetch, fn, ms, label) =>
+              !shouldFetch ? null : _withTimeout(fn(), ms, label).catch((e) => { console.warn(`⚠️ [Init] ${label} failed:`, e.message); return null; });
             try {
-              [freshCities, freshStores, freshAppUsers, freshSqConfigs] = await _withTimeout(
-                Promise.all([
-                  (!citiesData.length || _forceReload)       ? base44.entities.City.list().catch(() => null)    : Promise.resolve(null),
-                  (!resolvedStores.length || _forceReload)   ? base44.entities.Store.list().catch(() => null)   : Promise.resolve(null),
-                  (!resolvedAppUsers.length || _forceReload) ? base44.entities.AppUser.list().catch(() => null) : Promise.resolve(null),
-                  (squareConfigsMissing || _forceReload)     ? base44.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => null) : Promise.resolve(null),
-                ]),
-                20000, 'priority entity fetch'
-              );
+              [freshCities, freshStores, freshAppUsers, freshSqConfigs] = await Promise.all([
+                _fetchOrNull(!citiesData.length || _forceReload,        () => base44.entities.City.list(), 10000, 'City.list'),
+                _fetchOrNull(!resolvedStores.length || _forceReload,    () => base44.entities.Store.list(), 12000, 'Store.list'),
+                _fetchOrNull(!resolvedAppUsers.length || _forceReload,  () => base44.entities.AppUser.list(), 12000, 'AppUser.list'),
+                _fetchOrNull(squareConfigsMissing || _forceReload,     () => base44.entities.SquareLocationConfig.filter({ status: 'active' }), 10000, 'SquareLocationConfig.filter'),
+              ]);
             } catch {
-              // Timeout — proceed with whatever offline data we have; background
-              // sync will repopulate once the UI is released.
+              // Should not reach here (each fetch swallows its own errors), but guard anyway.
             }
 
             if (freshCities?.length) {

@@ -1,14 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { MapPin, AlertCircle, Loader2 } from 'lucide-react';
 import { base44 } from "@/api/base44Client";
 
-export default function CitySelectionPopup({ cities, currentUser, onCitySelected }) {
+export default function CitySelectionPopup({ cities: citiesProp, currentUser, onCitySelected }) {
   const [selectedCityId, setSelectedCityId] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [cities, setCities] = useState(citiesProp || []);
+  const [isLoadingCities, setIsLoadingCities] = useState(!cities.length);
+
+  // Self-recover: if the boot reached the city-selection path but no cities
+  // were loaded from the offline DB / priority fetch (timeout or empty result),
+  // fetch them fresh here so the admin is not deadlocked on a blank screen
+  // with city = "waiting-for-selection" and no way to proceed.
+  useEffect(() => {
+    if (citiesProp?.length) { setCities(citiesProp); setIsLoadingCities(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await base44.entities.City.list();
+        if (cancelled) return;
+        const sorted = (fresh || []).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setCities(sorted);
+      } catch (e) {
+        setError('Failed to load cities. Please retry.');
+      } finally {
+        if (!cancelled) setIsLoadingCities(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [citiesProp]);
 
   const handleSave = async () => {
     if (!selectedCityId) {
@@ -92,6 +116,18 @@ export default function CitySelectionPopup({ cities, currentUser, onCitySelected
                   Select Your City *
                 </label>
                 <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto p-1">
+                  {isLoadingCities && (
+                    <div className="flex items-center justify-center py-8 gap-2" style={{ color: 'var(--text-slate-500)' }}>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm">Loading cities…</span>
+                    </div>
+                  )}
+                  {!isLoadingCities && !cities.length && (
+                    <div className="flex flex-col items-center justify-center py-8 gap-3" style={{ color: 'var(--text-slate-500)' }}>
+                      <span className="text-sm">No cities available.</span>
+                      <Button variant="outline" size="sm" onClick={() => { setIsLoadingCities(true); setError(null); setCities([]); }}>Retry</Button>
+                    </div>
+                  )}
                   {cities.map((city) => (
                     <button
                       key={city.id}
