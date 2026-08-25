@@ -82,14 +82,16 @@ export default function StopCardFooterMenu(props) {
     (isDriverOnly && !routeCompleted && (isActiveDelivery || isFinishedRegularDelivery))
   ));
 
+  // Backup Complete menu item — available on the popup menu for any incomplete stop
+  // that is NOT the current next-delivery (the inline Complete button on the action row
+  // already covers the isNextDelivery card). Applies to regular deliveries, store
+  // pickups, and inter-store stops alike.
   const canShowComplete = !!(
-    !isPickupForMenu &&
     !isFinishedDelivery &&
     !isNextDelivery &&
-    isActiveDelivery &&
+    isActiveStop &&
     handleCompleteAction &&
-    canManageStop &&
-    !isInterStore
+    canManageStop
   );
 
   const canShowFailCancel = !!(!isDispatcherOnly && onStatusUpdate && canManageStop && (
