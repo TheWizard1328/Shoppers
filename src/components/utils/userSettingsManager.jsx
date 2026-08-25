@@ -314,8 +314,17 @@ export async function loadUserSettings(userId) {
       const now = new Date().toISOString();
       const isMobile = deviceType === 'Mobile';
       
+      // Resolve denormalized user_name from AppUser so quick displays avoid a join.
+      let resolvedUserName = '';
+      try {
+        const { AppUser } = await import('@/entities/AppUser');
+        const matches = await AppUser.filter({ user_id: userId });
+        resolvedUserName = matches?.[0]?.user_name || '';
+      } catch (_) { /* non-critical — backfill job will populate later */ }
+
       const newRecord = await UserSettings.create({
         user_id: userId,
+        user_name: resolvedUserName,
         device_settings_profiles: {
           [deviceIdentifier]: {
             device_identifier: deviceIdentifier,

@@ -1,8 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
-// Backfills the denormalized `user_name` field on existing UserDevice records
-// by resolving each device's `user_id` against the AppUser collection.
-// Admin-only maintenance task.
+// Backfills the denormalized `user_name` field on existing UserDevice AND
+// UserSettings records by resolving each record's `user_id` against the
+// AppUser collection. Admin-only maintenance task.
 
 export default async function(req: Request): Promise<Response> {
   try {
@@ -22,47 +22,53 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
-    // 2) Load all UserDevice records (paginate to be safe)
-    let processed = 0;
-    let updated = 0;
-    let skipped = 0;
-    let page = 1;
-    const pageSize = 500;
-    let hasMore = true;
-
-    while (hasMore) {
-      const devices = await serviceRole.entities.UserDevice.list(undefined, pageSize);
-      if (!devices || devices.length === 0) break;
-
-      const updates: Array<{ id: string; user_name: string }> = [];
-      for (const d of devices) {
-        processed++;
-        const existing = (d as any).user_name;
-        const resolved = nameByUserId.get(d.user_id) || '';
-        if (!resolved) {
-          skipped++;
-          continue;
-        }
-        if (existing === resolved) continue; // already correct
-        updates.push({ id: d.id, user_name: resolved });
-      }
-
-      if (updates.length > 0) {
-        await serviceRole.entities.UserDevice.bulkUpdate(updates);
-        updated += updates.length;
-      }
-
-      hasMore = devices.length === pageSize;
-    }
-
-    return Response.json({
-      success: true,
-      processed,
-      updated,
-      skipped,
+    const result = {
+      userDevices: { processed: 0, updated: 0, skipped: 0 },
+      userSettings: { processed: 0, updated: 0, skipped: 0 },
       appUsersFound: nameByUserId.size
-    });
+    };
+
+    // 2) Backfill UserDevice records
+    await backfillEntity('UserDevice', serviceRole, nameByUserId, result.userDevices);
+
+    // 3) Backfill UserSettings records
+    await backfillEntity('UserSettings', serviceRole, nameByUserId, result.userSettings);
+
+    return Response.json({ success: true, ...result });
   } catch (error) {
     return Response.json({ error: (error as Error).message }, { status: 500 });
+  }
+}
+
+// Shared per-entity backfill: paginate, filter records needing an update,
+// and apply a single bulkUpdate per page.
+async function backfillEntity(entityName: string, serviceRole: any, nameByUserId: Map<string, string>, stats: { processed: number; updated: number; skipped: number }) {
+  let page = 0;
+  const pageSize = 500;
+  let hasMore = true;
+
+  while (hasMore) {
+    const records = await serviceRole.entities[entityName].list(undefined, pageSize);
+    if (!records || records.length === 0) break;
+
+    const updates: Array<{ id: string; user_name: string }> = [];
+    for (const r of records) {
+      stats.processed++;
+      const existing = (r as any).user_name;
+      const resolved = nameByUserId.get(r.user_id) || '';
+      if (!resolved) {
+        stats.skipped++;
+        continue;
+      }
+      if (existing === resolved) continue; // already correct
+      updates.push({ id: r.id, user_name: resolved });
+    }
+
+    if (updates.length > 0) {
+      await serviceRole.entities[entityName].bulkUpdate(updates);
+      stats.updated += updates.length;
+    }
+
+    hasMore = records.length === pageSize;
   }
 }
