@@ -867,7 +867,7 @@ export default function PatientForm({
   // flush with the nav's real top edge (the nav itself already sits above
   // that inset via .app-container's own padding-bottom).
   const mobileFormInsetStyle = isMobile ? {
-    top: `${mobileHeaderHeight}px`,
+    top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
     bottom: `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
   } : undefined;
 

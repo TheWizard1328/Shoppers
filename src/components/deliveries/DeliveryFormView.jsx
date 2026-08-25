@@ -480,7 +480,14 @@ export default function DeliveryFormView({
   // neither this overlay nor the nav render into. Add the safe-area inset to
   // close that gap (same formula already proven for BulkEditStopsPanel).
   const mobileFormInsetStyle = useMobileLayout && isMobileDevice ? {
-    top: `${mobileHeaderHeight}px`,
+    // `position: fixed` measures `top` from the TRUE viewport edge, ignoring
+    // ancestor padding. The mobile header sits BELOW the phone's safe-area
+    // top inset (that inset is .app-container's own padding-top, above the
+    // header) — so `top: headerHeight` alone is short by exactly the safe-area
+    // amount, causing the form to overlap the header. Add the safe-area inset
+    // to land flush below the header's real bottom edge (mirrors the `bottom`
+    // formula which already accounts for --native-safe-bottom).
+    top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
     bottom: `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
     background: 'var(--bg-white)'
   } : undefined;
