@@ -355,7 +355,13 @@ export default function StopCardActionButtons(props) {
           </div>
         </>
         }
-        {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && onStartDelivery &&
+        {/* On the current next-delivery card the stop is already started — show Complete, not Start.
+            All other non-finished stops keep the Start button. */}
+        {!isNextDelivery &&
+         delivery.status !== 'completed' &&
+         delivery.status !== 'cancelled' &&
+         delivery.status !== 'failed' &&
+         onStartDelivery &&
         <Button data-stopcard-action="start" type="button" onPointerDownCapture={handleStartAction} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCurrentCardStartLocked || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting} className={`${isRetroTiming ? 'bg-sky-300 hover:bg-sky-400 border-sky-200' : 'bg-blue-600 hover:bg-blue-700 border-blue-500'} px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white`} title="Start this delivery">
               {isCurrentCardStartLocked ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
               <span className="text-white">Start</span>
