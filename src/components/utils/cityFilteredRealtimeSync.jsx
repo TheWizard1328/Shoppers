@@ -251,6 +251,23 @@ class CityFilteredRealtimeSync {
       const coords = event.data ? `${event.data.current_latitude?.toFixed(6)}, ${event.data.current_longitude?.toFixed(6)}` : 'N/A';
       console.log(`📡 [Realtime AppUser] ${event.type} for ${event.data?.user_name || event.id} - coords: ${coords}, timestamp: ${event.data?.location_updated_at}`);
 
+      // SELF-ECHO SUPPRESSION: If this AppUser update was written by THIS device
+      // (tracked via window.__localAppUserWrites set in locationTrackerBroadcast),
+      // suppress the WS echo — this device already has the freshest data.
+      // Without this, the tablet's own heartbeat echoes (every 60s) get processed
+      // and can carry stale driver_status from the server, causing marker flicker.
+      if ((event.type === 'create' || event.type === 'update') && event.id) {
+        const localWrites = window.__localAppUserWrites;
+        if (localWrites && localWrites.has(event.id)) {
+          const writtenAt = localWrites.get(event.id);
+          if (Date.now() - writtenAt < 10000) {
+            console.log(`🔇 [CityRealtime] Self-echo suppressed for AppUser ${event.id} — originated from this device (${Math.round((Date.now() - writtenAt) / 1000)}s ago)`);
+            return;
+          }
+          localWrites.delete(event.id);
+        }
+      }
+
       // CRITICAL: ALWAYS dispatch appUserUpdated for ALL users so UI components
       // (DriverStatusToggle, LocationTrackingToggle) can react to their own status changes.
       // City filtering only applies to location broadcast and internal subscribers.

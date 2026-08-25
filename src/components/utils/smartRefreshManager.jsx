@@ -413,6 +413,19 @@ class LightweightRefreshManager {
                   location_updated_at: cached.location_updated_at,
                 };
               }
+              // Also preserve cached driver_status if the server snapshot is stale.
+              // The server may lag behind a recent status toggle (driver went on_duty
+              // but the list() snapshot was taken before the write propagated).
+              // If cached has an active status (on_duty/on_break) and server says off_duty,
+              // trust the cached value — it was set by a direct write from this or another device.
+              if (cached.driver_status &&
+                  serverUser.driver_status === 'off_duty' &&
+                  (cached.driver_status === 'on_duty' || cached.driver_status === 'on_break')) {
+                return {
+                  ...serverUser,
+                  driver_status: cached.driver_status,
+                };
+              }
               return serverUser;
             });
 

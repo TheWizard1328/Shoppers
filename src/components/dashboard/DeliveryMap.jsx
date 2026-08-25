@@ -143,7 +143,27 @@ const mergeAppUsersByFreshness = (currentUsers = [], incomingUsers = []) => {
     // causing the shared marker to freeze until the driver moved 50m, making Phase 2/3
     // pan only every ~10 updates. Removed: marker dedup is handled upstream by the
     // GPS upload interval (15-30s cadence), not here in the render path.
-    merged.set(key, { ...existing, ...user });
+    // Merge incoming over existing, but never let a location-only echo regress
+    // driver_status.  If the incoming record's driver_status differs from existing
+    // AND the incoming location_updated_at is identical (same WS tick), keep the
+    // existing status — it was likely set by an explicit status-toggle write that
+    // hasn't been reflected in this location-only echo yet.
+    const mergedUser = { ...existing, ...user };
+    if (existing.driver_status &&
+        user.driver_status &&
+        existing.driver_status !== user.driver_status) {
+      // If existing is on_duty/on_break and incoming says off_duty, this is likely
+      // a stale echo — preserve the active status unless the incoming timestamp is
+      // strictly newer (a genuine status change always updates location_updated_at).
+      const existingTs = new Date(existing.location_updated_at || existing.updated_date || 0).getTime();
+      const incomingTs = new Date(user.location_updated_at || user.updated_date || 0).getTime();
+      const isActiveExisting = existing.driver_status === 'on_duty' || existing.driver_status === 'on_break';
+      const isOffIncoming = user.driver_status === 'off_duty';
+      if (isActiveExisting && isOffIncoming && incomingTs <= existingTs) {
+        mergedUser.driver_status = existing.driver_status;
+      }
+    }
+    merged.set(key, mergedUser);
   });
   return Array.from(merged.values());
 };

@@ -478,12 +478,41 @@ export function useLayoutEventHandlers({
     // Listen for AppUser status/location updates and merge into Layout appUsers state immediately.
     // This drives onlineCounts (sidebar Drivers badge) and AppDataContext (DriverLegendBar).
     const handleAppUserUpdated = (event) => {
-      const { appUser } = event.detail || {};
+      const { appUser, fromLocationTracker } = event.detail || {};
       if (!appUser?.id) return;
       setAppUsers((prev) => {
         const m = new Map(prev.map((u) => [u.id, u]));
         const existing = m.get(appUser.id);
-        m.set(appUser.id, existing ? { ...existing, ...appUser } : appUser);
+
+        // FRESHNESS GATE: Prevent stale driver_status from overwriting a fresh on_duty/on_break
+        // status.  Location-only WebSocket echoes (from GPS uploads every 15s) carry the
+        // server's full entity, but the server's driver_status can lag behind a very recent
+        // status toggle that hasn't fully propagated yet.  If the incoming record has an older
+        // location_updated_at than what we already have, skip the merge entirely — the
+        // existing record is fresher.  When timestamps are equal/unknown, preserve the
+        // existing driver_status to prevent flicker between green (on_duty) and red (off_duty).
+        if (existing) {
+          const incomingTs = appUser.location_updated_at || appUser.updated_date;
+          const existingTs = existing.location_updated_at || existing.updated_date;
+          if (incomingTs && existingTs) {
+            const incomingTime = new Date(incomingTs).getTime();
+            const existingTime = new Date(existingTs).getTime();
+            // If incoming is OLDER, reject entirely — stale data
+            if (incomingTime < existingTime) {
+              return prev;
+            }
+          }
+          // Merge, but never let a location-only echo regress driver_status to off_duty
+          // unless the incoming record explicitly carries it AND the timestamp is newer.
+          const merged = { ...existing, ...appUser };
+          // If incoming doesn't have driver_status, preserve existing
+          if (appUser.driver_status === undefined || appUser.driver_status === null) {
+            merged.driver_status = existing.driver_status;
+          }
+          m.set(appUser.id, merged);
+        } else {
+          m.set(appUser.id, appUser);
+        }
         return Array.from(m.values());
       });
     };
