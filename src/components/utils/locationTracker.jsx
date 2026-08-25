@@ -154,6 +154,11 @@ class LocationTracker {
   setDriverStatus(status) {
     const previousStatus = this.driverStatus;
     this.driverStatus = status;
+    // CRITICAL: Keep currentUser.driver_status in sync so heartbeat broadcasts
+    // include the correct status. Without this, every 15s heartbeat spreads
+    // a stale driver_status (e.g. off_duty) to all connected devices via
+    // broadcastMutation, causing marker color flicker between green/red.
+    if (this.currentUser) this.currentUser.driver_status = status;
     
     console.log(`📍 [LocationTracker] Driver status changed: ${previousStatus} → ${status}`);
     
