@@ -366,9 +366,10 @@ export default function StopCardActionButtons(props) {
           </div>
         </>
         }
-        {/* On the current next-delivery card the stop is already started — show Complete, not Start.
-            All other non-finished stops keep the Start button. */}
-        {!isNextDelivery &&
+        {/* Start is shown for non-next stops. On the next-delivery card, Start replaces
+            Complete when the assigned driver is not On Duty/On Break (Off Duty or Online),
+            so the driver can still start the stop once they switch to a working status. */}
+        {(!isNextDelivery || !driverOnDutyOrBreak) &&
          delivery.status !== 'completed' &&
          delivery.status !== 'cancelled' &&
          delivery.status !== 'failed' &&
