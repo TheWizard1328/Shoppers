@@ -1,7 +1,8 @@
 import React, { useMemo, useCallback, useState } from "react";
 import { isMobileDevice } from '../utils/deviceUtils';
 import { Button } from "@/components/ui/button";
-import { Clock, Loader2, RotateCcw, Undo2 } from "lucide-react";
+import { CheckCircle, Clock, Loader2, RotateCcw, Undo2 } from "lucide-react";
+import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 import StopCardPOD from "./StopCardPOD";
 import StopCardFooterMenu from "./StopCardFooterMenu";
 import { _cachedSquareAppId as _sharedSquareAppIdCache } from "./StopCard";
@@ -91,6 +92,8 @@ export default function StopCardActionButtons(props) {
   // Retro (purple) timing only applies to today (after 21:00) and past-due dates.
   // Future delivery dates always use the regular button colors.
   const _isFutureDate = !!delivery?.delivery_date && delivery.delivery_date > _todayStr;
+  // Alias used by the action-row Complete button so the future-date hide rule reads cleanly.
+  const isFutureDate = _isFutureDate;
   const isRetroTiming = !_isFutureDate && !shouldUseRegularTiming({
     deliveryDate: delivery?.delivery_date,
     todayDateString: _todayStr,
@@ -357,6 +360,23 @@ export default function StopCardActionButtons(props) {
               {isCurrentCardStartLocked ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
               <span className="text-white">Start</span>
             </Button>
+        }
+        {/* Visible Complete button — only on the current next-delivery card, and only for
+            today/past deliveries. Future-dated stops keep Start only (the recent rule that
+            removed Complete everywhere was only ever meant to apply to future dates). */}
+        {isNextDelivery &&
+         !isFutureDate &&
+         !isPickup &&
+         !isInterStoreDelivery(delivery?.delivery_id) &&
+         !isFinishedDelivery &&
+         delivery.status !== 'completed' &&
+         delivery.status !== 'cancelled' &&
+         delivery.status !== 'failed' &&
+         handleCompleteAction &&
+        <Button data-stopcard-action="complete" type="button" onPointerDownCapture={(e) => { blockCardToggle(e); e.stopPropagation(); handleCompleteAction(e); }} onClickCapture={blockCardToggle} onPointerDown={(e) => {e.preventDefault();e.stopPropagation();}} onMouseDown={(e) => {e.preventDefault();e.stopPropagation();}} onTouchStart={(e) => {e.preventDefault();e.stopPropagation();}} onClick={(e) => {e.preventDefault();e.stopPropagation();}} size="sm" disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className="bg-emerald-600 hover:bg-emerald-700 border-emerald-500 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 dark:border-emerald-500" title="Complete this delivery">
+            {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+            <span className="text-white">Complete</span>
+          </Button>
         }
         {delivery.status !== 'failed' && ['completed', 'cancelled'].includes(delivery.status) && onRestart && !routeCompleted &&
         <Button data-stopcard-action="restart" type="button" onPointerDownCapture={handleRestartClick} onPointerDown={blockCardToggle} onMouseDown={blockCardToggle} onTouchStart={blockCardToggle} onClick={blockCardToggle} size="sm" className="bg-[#ff0000] text-primary-foreground px-3 text-sm font-medium rounded-r-none inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" disabled={isRestarting || isProcessingBackground || isFailing}>
