@@ -370,10 +370,11 @@ export default function StopCardActionButtons(props) {
         {/* Visible Complete button — only on the current next-delivery card, and only for
             today/past deliveries. Future-dated stops keep Start only (the recent rule that
             removed Complete everywhere was only ever meant to apply to future dates). */}
+        {/* On the isNextDelivery card the stop is already started — show Complete regardless
+            of stop type (patient delivery, store pickup, or inter-store). Only future dates,
+            already-finished stops, and terminal statuses are excluded. */}
         {isNextDelivery &&
          !isFutureDate &&
-         !isPickup &&
-         !isInterStoreDelivery(delivery?.delivery_id) &&
          !isFinishedDelivery &&
          delivery.status !== 'completed' &&
          delivery.status !== 'cancelled' &&
