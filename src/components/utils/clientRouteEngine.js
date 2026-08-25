@@ -388,7 +388,9 @@ const getLegTravelMinutes = ({ stop, leg, segmentPolyline, fallbackMinutes = 5 }
  * @param {string} params.driverId
  * @param {string} params.deliveryDate - YYYY-MM-DD
  * @param {string} params.hereApiKey
- * @param {Object} [params.currentLocation] - { lat, lon } override for origin
+ * @param {Object} [params.currentLocation] - DEPRECATED/IGNORED. Polyline origin is
+ *   always the most recent completed stop (or the driver's home when none completed),
+ *   never the driver's live GPS. Kept in the signature for backward compatibility only.
  * @param {string} [params.source] - Label for logging
  * @param {boolean} [params.preserveExistingOrder=false]
  * @param {boolean} [params.cyclingSegmentOnly=false]
@@ -616,45 +618,27 @@ export async function optimizeRouteClientSide({
   // ── Determine current position (origin) ───────────────────────────────────
   const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
   const explicitNextDelivery = incompleteDeliveries.find(d => d?.isNextDelivery === true) || null;
-  const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
   const latestFinishedCoords = latestFinishedDelivery ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap) : null;
-  const previousStopBeforeNext = explicitNextDelivery
-    ? allDeliveries
-        .filter(d => d?.id !== explicitNextDelivery.id)
-        .filter(d => Number(d?.stop_order || 0) < Number(explicitNextDelivery?.stop_order || 0))
-        .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null
-    : null;
-  const previousStopCoords = previousStopBeforeNext ? getDeliveryCoords(previousStopBeforeNext, patientMap, storeMap) : null;
-  const routeHasStarted = completedDeliveries.length > 0 || !!previousStopBeforeNext;
-  const shouldLockExplicitNextStop = !!explicitNextDelivery;
-
-  const driverGpsPosition = _driverAppUser.current_latitude != null && _driverAppUser.current_longitude != null
-    ? { lat: Number(_driverAppUser.current_latitude), lng: Number(_driverAppUser.current_longitude) }
-    : null;
-  console.log(`[clientRouteEngine] ${source} — driver location: gps=${driverGpsPosition ? `(${driverGpsPosition.lat.toFixed(4)},${driverGpsPosition.lng.toFixed(4)})` : 'null'}, home=${_driverAppUser.home_latitude != null ? `(${_driverAppUser.home_latitude},${_driverAppUser.home_longitude})` : 'null'}, travelMode=${preferredTravelMode}`);
+  console.log(`[clientRouteEngine] ${source} — home=${_driverAppUser.home_latitude != null ? `(${_driverAppUser.home_latitude},${_driverAppUser.home_longitude})` : 'null'}, travelMode=${preferredTravelMode}`);
 
   let currentPosition = null;
   let locationSource = null;
 
-  if (routeHasStarted && latestFinishedCoords) {
-    const distanceFromLastFinishedStop = driverGpsPosition
-      ? calculateCrowFliesDistance(driverGpsPosition.lat, driverGpsPosition.lng, latestFinishedCoords.lat, latestFinishedCoords.lng)
-      : null;
-    if (distanceFromLastFinishedStop != null && distanceFromLastFinishedStop > LAST_FINISHED_STOP_PROXIMITY_KM) {
-      currentPosition = driverGpsPosition;
-      locationSource = 'driver_gps_away_from_last_finished_stop';
-    } else {
-      currentPosition = latestFinishedCoords;
-      locationSource = 'last_finished_stop';
-    }
-  }
-  if (!currentPosition && previousStopCoords) { currentPosition = previousStopCoords; locationSource = 'previous_stop_before_next'; }
-  if (!currentPosition && explicitNextCoords) { currentPosition = explicitNextCoords; locationSource = 'next_delivery_stop'; }
-  if (!routeHasStarted && !currentPosition && driverGpsPosition) { currentPosition = driverGpsPosition; locationSource = 'driver_gps'; }
-  if (!currentPosition && _driverAppUser.home_latitude != null && _driverAppUser.home_longitude != null) {
+  // Polyline origin is NEVER the driver's live GPS. It must be either:
+  //   1. The most recent completed/finished stop's coordinates, OR
+  //   2. The driver's home location (when no stop has been completed yet).
+  // Using GPS as the origin makes the planned polyline "jump" with every GPS
+  // ping and diverge from the canonical snapped route.
+  if (latestFinishedCoords) {
+    currentPosition = latestFinishedCoords;
+    locationSource = 'last_finished_stop';
+  } else if (_driverAppUser.home_latitude != null && _driverAppUser.home_longitude != null) {
     currentPosition = { lat: Number(_driverAppUser.home_latitude), lng: Number(_driverAppUser.home_longitude) };
     locationSource = 'home';
   }
+
+  // Explicit segment-only overrides (cycling/driving regeneration) pass a
+  // hand-picked origin that is a stop location, not a live GPS fix.
   if (cyclingSegmentOnly && cyclingOrigin?.lat != null && (cyclingOrigin?.lon ?? cyclingOrigin?.lng) != null) {
     currentPosition = { lat: Number(cyclingOrigin.lat), lng: Number(cyclingOrigin.lon ?? cyclingOrigin.lng) };
     locationSource = 'cycling_origin_override';
@@ -663,15 +647,10 @@ export async function optimizeRouteClientSide({
     currentPosition = { lat: Number(drivingOrigin.lat), lng: Number(drivingOrigin.lon ?? drivingOrigin.lng) };
     locationSource = 'driving_origin_override';
   }
-  // Allow explicit currentLocation override (from caller)
-  if (!currentPosition && currentLocation && Number.isFinite(currentLocation.lat) && Number.isFinite(currentLocation.lon)) {
-    currentPosition = { lat: currentLocation.lat, lng: currentLocation.lon };
-    locationSource = 'caller_provided';
-  }
 
   if (!currentPosition) {
-    console.error(`[clientRouteEngine] ${source} — ABORT: no currentPosition resolved (no GPS, no home, no completed stops, no next delivery coords)`);
-    return { success: false, error: 'Driver location not available - no GPS, last completed, or home location set' };
+    console.error(`[clientRouteEngine] ${source} — ABORT: no polyline origin available (no completed stop, no home location set)`);
+    return { success: false, error: 'No polyline origin available — set a home location or complete a stop first' };
   }
   console.log(`[clientRouteEngine] ${source} — currentPosition=(${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)}) source=${locationSource}`);
 

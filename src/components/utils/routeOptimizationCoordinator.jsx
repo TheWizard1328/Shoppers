@@ -26,7 +26,6 @@ import { recalculateTrackingNumbersLocal } from '@/components/utils/recalculateT
  * @param {Object} params
  * @param {string} params.driverId
  * @param {string} params.deliveryDate       - YYYY-MM-DD
- * @param {Object} [params.currentLocation]   - { lat, lon } for polyline origin
  * @param {Array}  [params.deliveries]        - Local deliveries array (from React state/refs)
  * @param {Array}  [params.patients]          - Local patients array
  * @param {Array}  [params.stores]            - Local stores array
@@ -123,26 +122,13 @@ export async function performRouteOptimization({
     return { success: false, error: 'HERE API key not available' };
   }
 
-  // ── Resolve current location from AppUser if not provided ─────────────────
-  let resolvedCurrentLocation = currentLocation;
+  // ── NOTE: the polyline origin is the most recent completed stop (or the
+  // driver's home when none is completed). The engine NEVER uses the driver's
+  // live GPS as the origin, so we deliberately do NOT resolve current_latitude
+  // here. Keeping an AppUser lookup for location would be wasted work that
+  // silently leaks back into the origin later if the engine regains the
+  // "driver GPS" branch — see clientRouteEngine.js determine-current-position.
   let resolvedAppUsers = appUsers;
-
-  if (!resolvedCurrentLocation || !Number.isFinite(resolvedCurrentLocation?.lat) || !Number.isFinite(resolvedCurrentLocation?.lon)) {
-    // Try to resolve from appUsers first (if provided)
-    if (!resolvedAppUsers) {
-      try {
-        resolvedAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }).catch(() => []);
-      } catch (e) {
-        console.warn(`[RouteOptimization] ${source} — failed to fetch AppUser for location fallback:`, e?.message);
-      }
-    }
-    const driverAppUser = Array.isArray(resolvedAppUsers) ? resolvedAppUsers.find(au => au?.user_id === driverId) : null;
-    const fallbackLat = Number(driverAppUser?.current_latitude);
-    const fallbackLon = Number(driverAppUser?.current_longitude);
-    if (Number.isFinite(fallbackLat) && Number.isFinite(fallbackLon)) {
-      resolvedCurrentLocation = { lat: fallbackLat, lon: fallbackLon };
-    }
-  }
 
   // ── Fetch local data if not provided by caller ────────────────────────────
   // When the caller doesn't pass local data (e.g. legacy call sites), we fall back to
@@ -200,7 +186,6 @@ export async function performRouteOptimization({
         driverId,
         deliveryDate,
         hereApiKey,
-        currentLocation: resolvedCurrentLocation,
         source,
         preserveExistingOrder,
         cyclingSegmentOnly,
