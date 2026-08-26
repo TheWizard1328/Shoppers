@@ -74,7 +74,7 @@ export const purgeStaleServiceWorkerAndCaches = async () => {
   try {
     const idbDbs = await indexedDB.databases?.();
     await Promise.all(
-      (idbDbs || []).filter((db) => db?.name?.startsWith?.('rxdeliver')).map(async (db) => {
+      (idbDbs || []).filter((db) => db?.name?.startsWith?.('rxdeliver') && db?.name !== 'rxdeliver_persistent_offline_v2').map(async (db) => {
         try { await new Promise((res, rej) => {
           const req = indexedDB.deleteDatabase(db.name);
           req.onsuccess = res; req.onerror = rej; req.onblocked = res;
