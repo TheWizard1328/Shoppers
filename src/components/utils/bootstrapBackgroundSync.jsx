@@ -122,6 +122,12 @@ export const runBootstrapBackgroundSync = async (callbacks = {}) => {
       console.log(`✅ [BootstrapSync] InterStoreLocations synced: ${interStoreLocations.length}`);
     }
 
+    // Prune offline breadcrumbs older than 14 days on each bootstrap sync pass.
+    // Pure-local hygiene — bounded once-per-4h by the staleness gate above.
+    try {
+      await offlineDB.pruneOldBreadcrumbs(14);
+    } catch (_) { /* non-fatal */ }
+
     markSynced();
     console.log('✅ [BootstrapSync] Background sync complete');
   } catch (error) {

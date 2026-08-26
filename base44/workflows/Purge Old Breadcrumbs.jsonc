@@ -1,0 +1,47 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "purge_old_breadcrumbs",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "purge_breadcrumbs": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "purgeOldBreadcrumbs",
+            "args": {
+              "retention_days": 14
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Purge old breadcrumbs",
+            "description": "Delete DeliveryBreadcrumbs older than 14 days"
+          }
+        }
+      }
+    ]
+  },
+  "name": "Purge Old Breadcrumbs",
+  "description": "Daily purge of DeliveryBreadcrumbs records older than 14 days (both master timeline records and per-stop slices). The per-stop slices have already been written back to the Delivery.encoded_polyline once saved_to_route is true, so the raw breadcrumb data is redundant past the retention window.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 3 * * *",
+      "one_time_date": null,
+      "timezone": "America/Edmonton",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}

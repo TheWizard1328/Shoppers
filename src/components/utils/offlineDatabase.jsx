@@ -1373,6 +1373,55 @@ const pruneOldDeliveries = async () => {
   }
 };
 
+/**
+ * Prune offline DeliveryBreadcrumbs older than the retention window (default 14 days).
+ * Mirrors pruneOldDeliveries: enumerate → collect expired ids → per-record delete.
+ * The offline DB only holds THIS device's own breadcrumbs, so this is pure local
+ * hygiene — it keeps the master 'TODAY' record's ancestors from accumulating
+ * across route dates. Today's records (delivery_date >= cutoff) are always kept.
+ */
+const pruneOldBreadcrumbs = async (retentionDays = 14) => {
+  try {
+    const allBreadcrumbs = await getAll(STORES.DELIVERY_BREADCRUMBS);
+
+    if (!allBreadcrumbs || allBreadcrumbs.length === 0) {
+      return { success: true, removed: 0 };
+    }
+
+    // Edmonton-local date string N days ago — matches the delivery_date format
+    // used by locationBreadcrumbService (also Edmonton-local).
+    const d = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Edmonton',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(d);
+    const get = (t) => parts.find((p) => p.type === t)?.value;
+    const cutoffDateStr = `${get('year')}-${get('month')}-${get('day')}`;
+
+    const expiredIds = [];
+    for (const crumb of allBreadcrumbs) {
+      if (!crumb?.id) continue;
+      if (!crumb.delivery_date) continue; // keep records without a date (safety)
+      if (crumb.delivery_date < cutoffDateStr) expiredIds.push(crumb.id);
+    }
+
+    if (expiredIds.length === 0) {
+      return { success: true, removed: 0 };
+    }
+
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < expiredIds.length; i += BATCH_SIZE) {
+      const batch = expiredIds.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map((id) => deleteRecord(STORES.DELIVERY_BREADCRUMBS, id).catch(() => {})));
+    }
+
+    console.log(`[OfflineDB] Pruned ${expiredIds.length} breadcrumbs older than ${retentionDays} days (per-record delete)`);
+    return { success: true, removed: expiredIds.length };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 // Backward-compat alias — older callers reference the legacy name
 const pruneDeliveriesOlderThan60Days = pruneOldDeliveries;
 
@@ -1410,6 +1459,7 @@ export const offlineDB = {
   deleteDeliveriesByDate,
   pruneDeliveriesOlderThan60Days,
   pruneOldDeliveries,
+  pruneOldBreadcrumbs,
   getSyncMetadata,
   updateSyncMetadata,
   getCacheValidation,
