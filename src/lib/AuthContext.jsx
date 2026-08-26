@@ -270,6 +270,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     
+    // Clear breadcrumb trail cache to free memory
+    import('@/components/utils/locationBreadcrumbService').then(({ clearAllBreadcrumbCaches }) => clearAllBreadcrumbCaches()).catch(() => {});
     // Destroy the encryption key — IDB data becomes unreadable
     destroyKey();
     

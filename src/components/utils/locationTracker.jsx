@@ -12,7 +12,7 @@ import { getLocalDateString, getLocalTimestamp } from './localTimeHelper';
 import { calculateDistance, calculateDistanceInMeters } from './locationTrackerMath';
 import { syncUpdatedAppUser } from './locationTrackerBroadcast';
 import { remoteLogger } from './remoteLogger';
-import { collectBreadcrumbForTracker } from './locationBreadcrumbService';
+import { collectBreadcrumbForTracker, clearBreadcrumbCache, clearAllBreadcrumbCaches } from './locationBreadcrumbService';
 
 class LocationTracker {
     constructor() {
@@ -1654,8 +1654,12 @@ class LocationTracker {
    * Call this from Dashboard when date changes
    */
   setDeliveryDate(deliveryDate) {
+    // Clear the in-memory breadcrumb cache for the old date so the next breadcrumb
+    // starts fresh from IDB for the new date (prevents stale trail from previous day).
+    if (this.currentDeliveryDate && this.currentUser?.id && this.currentDeliveryDate !== deliveryDate) {
+      clearBreadcrumbCache(this.currentUser.id, this.currentDeliveryDate);
+    }
     this.currentDeliveryDate = deliveryDate;
-    console.log(`📅 [LocationTracker] Set delivery date for arrival tracking: ${deliveryDate}`);
   }
 
   async refreshNow(options = {}) {
