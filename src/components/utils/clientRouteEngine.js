@@ -980,22 +980,21 @@ export async function optimizeRouteClientSide({
   const activeRouteStops = routeStops.filter(s => s.delivery.status !== 'pending' || s.delivery.is_cycling_marker || (cyclingSegmentOnly && String(s.delivery.transport_mode || '').toLowerCase() === 'cycling'));
   console.log(`[clientRouteEngine] ${source} — POLYLINE PHASE: routeStops=${routeStops.length}, activeRouteStops=${activeRouteStops.length} (pending excluded from polylines)`);
   if (activeRouteStops.length > 0) {
-    // Polyline origin must NEVER be a pending stop's coords.
-    // Priority: last finished stop → driver GPS → home → first active stop coords.
+    // Polyline origin must NEVER be a pending stop's coords OR the driver's live GPS.
+    // For a new route (no completed stops) the origin is ALWAYS the driver's HOME,
+    // so the planned polyline starts at home — not where the driver happens to be.
+    // Priority: last finished stop → driver home → first active stop coords (fallback).
     const firstActiveStopCoords = activeRouteStops.length > 0
       ? { lat: activeRouteStops[0].lat, lon: activeRouteStops[0].lng }
       : null;
-    const driverGpsForPolyline = (_driverAppUser?.current_latitude != null && _driverAppUser?.current_longitude != null)
-      ? { lat: Number(_driverAppUser.current_latitude), lon: Number(_driverAppUser.current_longitude) }
-      : null;
     const polylineOrigin = (() => {
       if (latestFinishedCoords) return { lat: latestFinishedCoords.lat, lon: latestFinishedCoords.lng };
-      if (driverGpsForPolyline) return driverGpsForPolyline;
       if (resolvedHomePosition) return { lat: resolvedHomePosition.lat, lon: resolvedHomePosition.lng };
       if (firstActiveStopCoords) return firstActiveStopCoords;
       return { lat: currentPosition.lat, lon: currentPosition.lng };
     })();
-    console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'currentPos'}`);
+    const _polylineOriginSource = latestFinishedCoords ? 'lastFinished' : resolvedHomePosition ? 'home' : 'firstActive';
+    console.log(`[clientRouteEngine] ${source} — polylineOrigin=(${polylineOrigin.lat.toFixed(4)}, ${polylineOrigin.lon.toFixed(4)}) originSource=${_polylineOriginSource}`);
 
     // ── Mixed-mode polyline generation ──────────────────────────────────────
     // A cycling route has legs with different transport modes (car vs bicycle).
