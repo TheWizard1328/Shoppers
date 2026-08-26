@@ -275,6 +275,37 @@ export default function GoogleAPILogViewer() {
     return [firstRow, secondRow];
   }, [legendDriverNames, storeLegendNames]);
 
+  // Per-user API call totals within the current (filtered) date range
+  const userCallCounts = useMemo(() => {
+    const map = new Map();
+    filteredLogs.forEach((log) => {
+      if (!log.user_name) return;
+      map.set(log.user_name, (map.get(log.user_name) || 0) + getApiLogCallCount(log));
+    });
+    return map;
+  }, [filteredLogs]);
+
+  // Per-store API call totals within the current (filtered) date range
+  const storeCallCounts = useMemo(() => {
+    const map = new Map();
+    filteredLogs.forEach((log) => {
+      const sn = log.metadata?.store_name;
+      if (!sn) return;
+      map.set(sn, (map.get(sn) || 0) + getApiLogCallCount(log));
+    });
+    return map;
+  }, [filteredLogs]);
+
+  // Store legend split into rows of at most 6 per row
+  const storeLegendRows = useMemo(() => {
+    const chunkSize = 6;
+    const rows = [];
+    for (let i = 0; i < storeLegendNames.length; i += chunkSize) {
+      rows.push(storeLegendNames.slice(i, i + chunkSize));
+    }
+    return rows;
+  }, [storeLegendNames]);
+
   // Classify a log into one of the 4 tracked categories
   const getLogCategory = (log) => {
     const apiType = String(log?.api_type || '');
@@ -803,7 +834,7 @@ export default function GoogleAPILogViewer() {
             </div>{/* end relative wrapper */}
 
             {/* Legend — below the chart and X-axis */}
-            {uniqueUsers.length > 0 && (() => {
+            {(legendDriverNames.length > 0 || storeLegendRows.length > 0) && (() => {
               const isDriver = (n) => {
                 const au = userNameToAppUser.get(n);
                 if (!au) return false;
@@ -813,10 +844,20 @@ export default function GoogleAPILogViewer() {
               const row2 = legendDriverNames.filter(n => !isDriver(n));
               const renderItem = (name) => {
                 const idx = legendDriverNames.indexOf(name);
+                const count = userCallCounts.get(name) || 0;
                 return (
                   <div key={name} className="flex items-center gap-1.5 min-w-0">
                     <span className="block h-0.5 w-5 flex-shrink-0 rounded-full" style={{ background: userColors[idx % userColors.length] }} />
-                    <span className="truncate">{shortUserName(name)}</span>
+                    <span className="truncate">{shortUserName(name)} <span className="text-slate-400 dark:text-slate-500">({count})</span></span>
+                  </div>
+                );
+              };
+              const renderStoreItem = (name) => {
+                const count = storeCallCounts.get(name) || 0;
+                return (
+                  <div key={`store-${name}`} className="flex items-center gap-1.5 min-w-0">
+                    <span className="block h-0.5 w-5 flex-shrink-0 rounded-full bg-slate-400" />
+                    <span className="truncate">{name} <span className="text-slate-400 dark:text-slate-500">({count})</span></span>
                   </div>
                 );
               };
@@ -824,6 +865,11 @@ export default function GoogleAPILogViewer() {
                 <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">
                   {row1.length > 0 && <div className="flex flex-wrap gap-x-4 gap-y-1">{row1.map(renderItem)}</div>}
                   {row2.length > 0 && <div className="flex flex-wrap gap-x-4 gap-y-1">{row2.map(renderItem)}</div>}
+                  {storeLegendRows.map((row, rIdx) => (
+                    <div key={`store-row-${rIdx}`} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-x-4 gap-y-1">
+                      {row.map(renderStoreItem)}
+                    </div>
+                  ))}
                 </div>
               );
             })()}
