@@ -14,13 +14,34 @@
  */
 function extractPatientNamesFromReturnNotes(notes) {
   if (!notes) return null;
+  // Match "For: [Name]" then capture everything up to (RTN) or end of string.
+  // Supports multi-patient format: "For: Patient 1\nand Patient 2\nand Patient 3"
   const forMatch = notes.match(/For:\s*([\s\S]+?)(?=\(RTN\)|$)/i);
   if (!forMatch) return null;
 
-  const names = forMatch[1]
-    .split(/,|\n|\band\b/i)
-    .map(n => n.trim())
-    .filter(n => n.length > 0 && !/^for:/i.test(n) && !/^\(rtn\)$/i.test(n));
+  const rawNames = forMatch[1]
+    .split(/\n/)                          // split by line first
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
+
+  const names = [];
+  for (const line of rawNames) {
+    // First line: strip leading "For:" if present, extract name
+    // Subsequent lines: strip leading "and" if present
+    const cleaned = line
+      .replace(/^For:\s*/i, '')
+      .replace(/^and\s+/i, '')
+      .replace(/^\(RTN\)$/i, '')
+      .trim();
+    // Also handle inline "and" separators within a single line
+    const parts = cleaned.split(/\s+and\s+|\s*,\s*/i);
+    for (const p of parts) {
+      const trimmed = p.trim();
+      if (trimmed.length > 0 && !/^for:/i.test(trimmed) && !/^\(rtn\)$/i.test(trimmed)) {
+        names.push(trimmed);
+      }
+    }
+  }
 
   return names.length > 0 ? names.join(', ') : null;
 }
@@ -82,7 +103,7 @@ export const notificationRules = {
     buildMessage: ({ driverName, patientName, deliveryNotes }) => {
       const parsedNames = extractPatientNamesFromReturnNotes(deliveryNotes);
       const effectiveName = parsedNames || patientName || 'Unknown Patient';
-      return `${driverName} is En Route to return delivery for ${effectiveName}.`;
+      return `${driverName} is on route to return delivery for: ${effectiveName}.`;
     }
   },
   [NOTIFICATION_EVENTS.ADMIN_BROADCAST]: {

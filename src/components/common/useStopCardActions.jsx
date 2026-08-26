@@ -704,7 +704,7 @@ export default function useStopCardActions(params) {
         try {
           const backgroundTasks = [];
           if ((delivery.cod_total_amount_required || 0) > 0) backgroundTasks.push(deleteCODWithTimeout(delivery.id, 'Removed after creating return delivery'));
-          if (userHasRole(currentUser, 'driver')) backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery, store, appUsers }));
+          if (userHasRole(currentUser, 'driver')) backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery: createdReturnDelivery || delivery, store, appUsers }));
           await Promise.allSettled(backgroundTasks);
         } catch {}
       });

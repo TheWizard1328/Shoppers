@@ -2,7 +2,6 @@ import { invalidate } from '@/components/utils/dataManager';
 import { createDeliveryLocal } from '@/components/utils/offlineMutations';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
 import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
-import { notifyDriverReturn } from '@/components/utils/deliveryMessaging';
 import { getNextTrackingNumberInGroup } from '@/components/common/stopCardActionHelpers';
 import { buildReturnDeliveryData } from '@/components/utils/returnDeliveryBuilder';
 import { generateUniqueSID } from '@/components/dashboard/DashboardHelpers';
@@ -53,11 +52,6 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
 
     const createdReturnDelivery = await createDeliveryLocal(returnDeliveryData);
 
-    try {
-      await notifyDriverReturn({ driver: currentUser, patientName: returnPatient.full_name, delivery: originalDelivery, store, appUsers });
-    } catch (notifyError) {
-      console.warn('⚠️ [RETURN] Failed to send notification:', notifyError);
-    }
 
     invalidate('Delivery');
     try { await forceRefreshDriverDeliveries(originalDelivery.driver_id, routeDate); } catch (_) {}
