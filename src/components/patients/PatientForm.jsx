@@ -861,6 +861,34 @@ export default function PatientForm({
   const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50 dark:bg-red-950';
   const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
   const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
+
+  // KEYBOARD-AWARE BOTTOM INSET: see DeliveryFormView.jsx for full explanation.
+  // The static nav+safe-area formula assumes the true screen bottom is exposed;
+  // once the on-screen keyboard opens that space is occupied by the keyboard
+  // instead, so adding the static offset on top double-counts space and leaves
+  // a gap of dashboard content visible between the form and the keyboard.
+  const [keyboardInsetPx, setKeyboardInsetPx] = React.useState(0);
+  React.useEffect(() => {
+    if (!isMobile) return;
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const vv = window.visualViewport;
+    const KEYBOARD_THRESHOLD = 80;
+
+    const handleViewportResize = () => {
+      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+      setKeyboardInsetPx(inset > KEYBOARD_THRESHOLD ? inset : 0);
+    };
+
+    handleViewportResize();
+    vv.addEventListener('resize', handleViewportResize);
+    vv.addEventListener('scroll', handleViewportResize);
+    return () => {
+      vv.removeEventListener('resize', handleViewportResize);
+      vv.removeEventListener('scroll', handleViewportResize);
+    };
+  }, [isMobile]);
+
   // See DeliveryFormView.jsx for the full explanation: `bottom` on a fixed
   // overlay is measured from the true viewport edge, so it needs the
   // safe-area inset added on top of the nav's own height to actually land
@@ -868,7 +896,9 @@ export default function PatientForm({
   // that inset via .app-container's own padding-bottom).
   const mobileFormInsetStyle = isMobile ? {
     top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
-    bottom: `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
+    bottom: keyboardInsetPx > 0
+      ? `${keyboardInsetPx}px`
+      : `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
   } : undefined;
 
   return (

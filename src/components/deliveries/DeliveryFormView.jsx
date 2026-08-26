@@ -472,6 +472,45 @@ export default function DeliveryFormView({
 
   const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
   const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
+
+  // KEYBOARD-AWARE BOTTOM INSET (Android APK fix):
+  // When the on-screen keyboard opens, `window.visualViewport.height` shrinks to the
+  // actually-visible area above the keyboard, while `window.innerHeight` (used by the
+  // static bottom-nav/safe-area formula below) does NOT reflect that. The static formula
+  // assumes the true bottom of the SCREEN is exposed (nav bar + gesture-area safe inset) —
+  // but once a keyboard is showing, that assumption is wrong: the keyboard itself now
+  // occupies that space, there's no gesture-area gap to protect against, and the bottom
+  // nav is covered/irrelevant. Adding the static nav+safe-area offset ON TOP of the
+  // keyboard's own occlusion double-counts space, leaving a blank strip of dashboard
+  // content visible between the form's bottom edge and the keyboard's top edge.
+  // Fix: track the live keyboard inset via visualViewport and use it directly as the
+  // `bottom` offset whenever it's non-zero — this pins the form flush against the
+  // keyboard with no extra padding, exactly matching the visible area.
+  const [keyboardInsetPx, setKeyboardInsetPx] = React.useState(0);
+  React.useEffect(() => {
+    if (!useMobileLayout || !isMobileDevice) return;
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const vv = window.visualViewport;
+    // Threshold filters out minor viewport jitter (browser chrome show/hide, orientation
+    // settle) that isn't an actual keyboard — real Android keyboards are consistently
+    // 200px+ tall, so 80px is a safe cutoff.
+    const KEYBOARD_THRESHOLD = 80;
+
+    const handleViewportResize = () => {
+      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+      setKeyboardInsetPx(inset > KEYBOARD_THRESHOLD ? inset : 0);
+    };
+
+    handleViewportResize();
+    vv.addEventListener('resize', handleViewportResize);
+    vv.addEventListener('scroll', handleViewportResize);
+    return () => {
+      vv.removeEventListener('resize', handleViewportResize);
+      vv.removeEventListener('scroll', handleViewportResize);
+    };
+  }, [useMobileLayout, isMobileDevice]);
+
   // `position: fixed` measures `bottom` from the TRUE viewport edge, ignoring
   // ancestor padding. The bottom nav sits ABOVE the phone's safe-area inset
   // (that inset is reserved as .app-container's own padding-bottom, below the
@@ -488,7 +527,9 @@ export default function DeliveryFormView({
     // to land flush below the header's real bottom edge (mirrors the `bottom`
     // formula which already accounts for --native-safe-bottom).
     top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
-    bottom: `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
+    bottom: keyboardInsetPx > 0
+      ? `${keyboardInsetPx}px`
+      : `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
     background: 'var(--bg-white)'
   } : undefined;
 
