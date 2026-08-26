@@ -19,6 +19,13 @@ const ONLINE_SYNC_EVERY_N_SAVES = 3; // Sync on every 3rd offline save (3 × 5s 
 const MAX_BREADCRUMB_DISTANCE_M = 250;
 const MAX_BREADCRUMB_STALENESS_MS = 5 * 60 * 1000; // 5 minutes
 
+// Stationary dedup (Option 1): skip storing a breadcrumb when the new GPS fix
+// is within this radius of the last stored point. Collapses "at location" piles
+// (pre-arrival dwell, at-stop, post-completion lingering, traffic lights) no
+// matter which stop the driver is near. The 5-min heartbeat exception above
+// still stores one point per 5 min so a long stationary stay leaves an audit trail.
+const STATIONARY_DEDUP_RADIUS_M = 12; // ~within phone GPS noise (open-sky ~4m, urban ~10-15m)
+
 // Polyline encoding — 1e5 precision (~1m accuracy, standard Google/HERE polyline format)
 const POLY_PRECISION = 1e5;
 
@@ -169,6 +176,16 @@ export const collectBreadcrumbForTracker = async ({
       const dLon = (longitude - lastPoint[1]) * Math.PI / 180;
       const a = Math.sin(dLat / 2) ** 2 + Math.cos(lastPoint[0] * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
       const distanceM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      // ── Stationary dedup (Option 1) ───────────────────────────────────────
+      // Skip storing when the new fix is within the dedup radius of the last
+      // stored point — collapses piles at stops, red lights, traffic without
+      // needing geofence logic. The 5-min heartbeat exception (below) still
+      // leaves an audit trail for long stationary stays.
+      if (distanceM <= STATIONARY_DEDUP_RADIUS_M) {
+        console.log(`🍞 [Breadcrumbs] Stationary dedup — ${distanceM.toFixed(1)}m ≤ ${STATIONARY_DEDUP_RADIUS_M}m, skip store (timeline stays at ${existingPoints.length} pts)`);
+        return { deduped: true };
+      }
 
       if (distanceM > MAX_BREADCRUMB_DISTANCE_M) {
         console.warn(`🍞 [Breadcrumbs] Large GPS jump: ${distanceM.toFixed(0)}m > ${MAX_BREADCRUMB_DISTANCE_M}m — accepting (was previously rejected, causing gaps)`);

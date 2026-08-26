@@ -1631,9 +1631,18 @@ class LocationTracker {
         return;
       }
 
+      // A real GPS fix was processed — keep the watchdog calm even if the fix
+      // was deduped (stationary) so it doesn't force redundant GPS acquisitions.
+      this.lastBreadcrumbTickAt = timestamp; // Track for watchdog + gap detection
+
+      if (result.deduped) {
+        // Stationary fix within dedup radius — not stored, not synced.
+        // Don't advance lastBreadcrumbSavedAt so the 5s gate keeps trying.
+        return;
+      }
+
       this.lastBreadcrumbPosition = { latitude, longitude, timestamp };
       this.lastBreadcrumbSavedAt = timestamp;
-      this.lastBreadcrumbTickAt = timestamp; // Track for watchdog + gap detection
       console.log(`🍞 [LocationTracker] Collected breadcrumb for ${result.pendingKey}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
