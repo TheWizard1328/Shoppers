@@ -491,18 +491,18 @@ export default function DeliveryFormView({
   // fires a 'resize' event and flips the flag back correctly.
   const [isKeyboardLikelyOpen, setIsKeyboardLikelyOpen] = React.useState(false);
   const fullViewportHeightRef = React.useRef(typeof window !== 'undefined' ? window.innerHeight : 0);
+  const vvBaselineRef = React.useRef(0);
   React.useEffect(() => {
     if (!useMobileLayout || !isMobileDevice) return;
     if (typeof window === 'undefined') return;
 
     const KEYBOARD_DROP_RATIO = 0.15; // keyboards eat well over 15% of screen height
 
+    // Signal 1: window resize — adjustResize shrinks innerHeight when keyboard opens
     const handleResize = () => {
       const currentHeight = window.innerHeight;
       const baseline = fullViewportHeightRef.current;
       if (currentHeight > baseline) {
-        // Taller than anything seen so far — this IS the no-keyboard baseline (e.g. after
-        // rotation, or the very first layout pass). Update it and treat as closed.
         fullViewportHeightRef.current = currentHeight;
         setIsKeyboardLikelyOpen(false);
         return;
@@ -511,9 +511,69 @@ export default function DeliveryFormView({
       setIsKeyboardLikelyOpen(dropRatio > KEYBOARD_DROP_RATIO);
     };
 
+    // Signal 2: visualViewport resize — fires on keyboard open/close even when
+    // window.resize doesn't fire (some Android WebViews). Compare vv.height to
+    // its own stored baseline instead of window.innerHeight (they shrink
+    // together under adjustResize, so comparing them to each other is useless).
+    const handleVVResize = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      if (vvBaselineRef.current === 0 || vv.height > vvBaselineRef.current) {
+        vvBaselineRef.current = vv.height;
+        setIsKeyboardLikelyOpen(false);
+        return;
+      }
+      const dropRatio = (vvBaselineRef.current - vv.height) / vvBaselineRef.current;
+      setIsKeyboardLikelyOpen(dropRatio > KEYBOARD_DROP_RATIO);
+    };
+
+    // Signal 3: input focus — immediate response (no waiting for resize event).
+    // The "done/enter key doesn't fire blur" problem from Take 2 is handled
+    // because signals 1 and 2 will flip the flag back to false when the
+    // keyboard actually closes and the viewport restores.
+    const handleFocusIn = (e) => {
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        setIsKeyboardLikelyOpen(true);
+      }
+    };
+    const handleFocusOut = (e) => {
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        // Delay to allow focus to move to another input (keyboard stays open)
+        setTimeout(() => {
+          const active = document.activeElement;
+          const activeTag = active?.tagName;
+          if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && activeTag !== 'SELECT') {
+            // No input focused — check viewport to confirm keyboard actually closed
+            const vv = window.visualViewport;
+            if (vv && vvBaselineRef.current > 0) {
+              const dropRatio = (vvBaselineRef.current - vv.height) / vvBaselineRef.current;
+              if (dropRatio < KEYBOARD_DROP_RATIO) {
+                setIsKeyboardLikelyOpen(false);
+              }
+            } else {
+              setIsKeyboardLikelyOpen(false);
+            }
+          }
+        }, 150);
+      }
+    };
+
     handleResize();
+    if (window.visualViewport) {
+      handleVVResize();
+      window.visualViewport.addEventListener('resize', handleVVResize);
+    }
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('resize', handleVVResize);
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+    };
   }, [useMobileLayout, isMobileDevice]);
 
   // `position: fixed` measures `bottom` from the TRUE viewport edge, ignoring
