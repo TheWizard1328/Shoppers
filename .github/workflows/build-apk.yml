@@ -4,8 +4,10 @@ on:
   push:
     branches: [main]
     paths:
+      # Only trigger an APK rebuild when something that actually changes the
+      # native shell or build pipeline changes. Routine src/ changes propagate
+      # to the live app via WebView auto-refresh — no APK rebuild needed.
       - 'capacitor/**'
-      - 'src/**'
       - 'package.json'
       - 'package-lock.json'
       - 'vite.config.*'
