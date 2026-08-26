@@ -862,46 +862,36 @@ export default function PatientForm({
   const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
   const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
 
-  // KEYBOARD-AWARE BOTTOM INSET (take 2): see DeliveryFormView.jsx for the full
-  // explanation of why a visualViewport-vs-innerHeight diff doesn't work in this
-  // Capacitor WebView (it resizes the whole window around the keyboard, so both
-  // values shrink together and the diff never fires). Detecting keyboard state
-  // via focus on a text field is reliable regardless of the WebView's resize model.
+  // KEYBOARD-AWARE BOTTOM INSET (take 3): see DeliveryFormView.jsx for the full history —
+  // take 1 (viewport diff) never fired, take 2 (focus tracking) got stuck missing after a
+  // numeric field's keyboard "done" key closed the keyboard without firing a DOM blur. This
+  // version tracks the actual window resize the WebView performs (adjustResize) against a
+  // recorded no-keyboard baseline height — can't get stuck, since ANY keyboard dismissal
+  // restores window.innerHeight and fires a real 'resize' event.
   const patientFormContainerRef = React.useRef(null);
   const [isKeyboardLikelyOpen, setIsKeyboardLikelyOpen] = React.useState(false);
+  const fullViewportHeightRef = React.useRef(typeof window !== 'undefined' ? window.innerHeight : 0);
   React.useEffect(() => {
     if (!isMobile) return;
-    const container = patientFormContainerRef.current;
-    if (!container) return;
+    if (typeof window === 'undefined') return;
 
-    const isTextEntryElement = (el) => {
-      if (!el) return false;
-      const tag = el.tagName;
-      if (tag === 'TEXTAREA') return true;
-      if (tag === 'INPUT') {
-        const type = (el.getAttribute('type') || 'text').toLowerCase();
-        return !['checkbox', 'radio', 'button', 'submit', 'range', 'color', 'file'].includes(type);
+    const KEYBOARD_DROP_RATIO = 0.15;
+
+    const handleResize = () => {
+      const currentHeight = window.innerHeight;
+      const baseline = fullViewportHeightRef.current;
+      if (currentHeight > baseline) {
+        fullViewportHeightRef.current = currentHeight;
+        setIsKeyboardLikelyOpen(false);
+        return;
       }
-      return el.isContentEditable;
+      const dropRatio = (baseline - currentHeight) / baseline;
+      setIsKeyboardLikelyOpen(dropRatio > KEYBOARD_DROP_RATIO);
     };
 
-    const handleFocusIn = (e) => { if (isTextEntryElement(e.target)) setIsKeyboardLikelyOpen(true); };
-    const handleFocusOut = (e) => {
-      if (!isTextEntryElement(e.target)) return;
-      setTimeout(() => {
-        const active = document.activeElement;
-        if (!container.contains(active) || !isTextEntryElement(active)) {
-          setIsKeyboardLikelyOpen(false);
-        }
-      }, 50);
-    };
-
-    container.addEventListener('focusin', handleFocusIn);
-    container.addEventListener('focusout', handleFocusOut);
-    return () => {
-      container.removeEventListener('focusin', handleFocusIn);
-      container.removeEventListener('focusout', handleFocusOut);
-    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [isMobile]);
 
   // See DeliveryFormView.jsx for the full explanation: `bottom` on a fixed

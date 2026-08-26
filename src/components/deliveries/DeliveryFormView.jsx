@@ -473,57 +473,48 @@ export default function DeliveryFormView({
   const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
   const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
 
-  // KEYBOARD-AWARE BOTTOM INSET (Android APK fix, take 2):
-  // The first attempt compared window.innerHeight vs visualViewport.height to detect
-  // the keyboard — that only works when the OS keeps innerHeight fixed while shrinking
-  // the visual viewport (iOS Safari / Android adjustPan). This Capacitor WebView instead
-  // resizes the WHOLE window when the keyboard opens (adjustResize) — innerHeight and
-  // visualViewport.height shrink TOGETHER, so that diff stayed ~0 and the fix never
-  // fired, leaving the static nav+safe-area gap exactly as before (the bug the user
-  // saw persist). The static gap exists to protect content from the phone's real bottom
-  // edge (nav bar + gesture-area) — but once the window has already resized around the
-  // keyboard, that edge no longer exists inside the shrunk viewport; the keyboard IS the
-  // new bottom, and reserving extra nav/safe-area space on top of it just leaves dead
-  // space showing whatever's behind the form.
-  // Fix: detect keyboard state directly via focus — if a text input/textarea inside this
-  // form currently has focus, the on-screen keyboard is showing, so drop straight to the
-  // resized viewport's true bottom edge (0px) instead of adding the static offset.
+  // KEYBOARD-AWARE BOTTOM INSET (Android APK fix, take 3):
+  // Take 1 compared window.innerHeight vs visualViewport.height — doesn't work because this
+  // WebView uses adjustResize (both shrink together, diff stays ~0).
+  // Take 2 tracked focus on text inputs — this got the bottom nav / footer STUCK missing
+  // after the keyboard closed. Root cause: numeric fields (e.g. the COD amount input) get
+  // dismissed via the keyboard's own "done/enter" action key, which on this Android WebView
+  // does not reliably fire a DOM blur/focusout event — so isKeyboardLikelyOpen never flipped
+  // back to false, and the form kept sitting flush at 0px with the nav bar and footer both
+  // gone even though the keyboard was visually closed.
+  // Fix: track the real window resize directly instead of guessing from focus events. Since
+  // adjustResize genuinely shrinks window.innerHeight while the keyboard is up, we record the
+  // tallest height ever observed (the true no-keyboard baseline) and flag "keyboard open"
+  // whenever the current height drops more than 15% below that baseline. This is driven by
+  // the OS's own resize of the window, so it can't get stuck — closing the keyboard by ANY
+  // method (enter key, back button, tap-away) always restores innerHeight, which always
+  // fires a 'resize' event and flips the flag back correctly.
   const [isKeyboardLikelyOpen, setIsKeyboardLikelyOpen] = React.useState(false);
+  const fullViewportHeightRef = React.useRef(typeof window !== 'undefined' ? window.innerHeight : 0);
   React.useEffect(() => {
     if (!useMobileLayout || !isMobileDevice) return;
-    const container = formRef?.current;
-    if (!container) return;
+    if (typeof window === 'undefined') return;
 
-    const isTextEntryElement = (el) => {
-      if (!el) return false;
-      const tag = el.tagName;
-      if (tag === 'TEXTAREA') return true;
-      if (tag === 'INPUT') {
-        const type = (el.getAttribute('type') || 'text').toLowerCase();
-        return !['checkbox', 'radio', 'button', 'submit', 'range', 'color', 'file'].includes(type);
+    const KEYBOARD_DROP_RATIO = 0.15; // keyboards eat well over 15% of screen height
+
+    const handleResize = () => {
+      const currentHeight = window.innerHeight;
+      const baseline = fullViewportHeightRef.current;
+      if (currentHeight > baseline) {
+        // Taller than anything seen so far — this IS the no-keyboard baseline (e.g. after
+        // rotation, or the very first layout pass). Update it and treat as closed.
+        fullViewportHeightRef.current = currentHeight;
+        setIsKeyboardLikelyOpen(false);
+        return;
       }
-      return el.isContentEditable;
+      const dropRatio = (baseline - currentHeight) / baseline;
+      setIsKeyboardLikelyOpen(dropRatio > KEYBOARD_DROP_RATIO);
     };
 
-    const handleFocusIn = (e) => { if (isTextEntryElement(e.target)) setIsKeyboardLikelyOpen(true); };
-    const handleFocusOut = (e) => {
-      if (!isTextEntryElement(e.target)) return;
-      // Small delay so focus moving between two fields (tab/next) doesn't flicker closed.
-      setTimeout(() => {
-        const active = document.activeElement;
-        if (!container.contains(active) || !isTextEntryElement(active)) {
-          setIsKeyboardLikelyOpen(false);
-        }
-      }, 50);
-    };
-
-    container.addEventListener('focusin', handleFocusIn);
-    container.addEventListener('focusout', handleFocusOut);
-    return () => {
-      container.removeEventListener('focusin', handleFocusIn);
-      container.removeEventListener('focusout', handleFocusOut);
-    };
-  }, [useMobileLayout, isMobileDevice, formRef]);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [useMobileLayout, isMobileDevice]);
 
   // `position: fixed` measures `bottom` from the TRUE viewport edge, ignoring
   // ancestor padding. The bottom nav sits ABOVE the phone's safe-area inset
