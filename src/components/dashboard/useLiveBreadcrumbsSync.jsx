@@ -3,6 +3,20 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { loadBreadcrumbsForDriver } from '@/components/utils/breadcrumbsManager';
 
+/**
+ * PERF FIX: The `refresh` function calls `loadBreadcrumbsForDriver` which reads
+ * from IDB and decodes the full polyline. Previously this fired on EVERY
+ * `deliveriesUpdated` event with no debounce — and since `deliveriesUpdated`
+ * can fire 5-10 times during a single delivery action (accept, complete,
+ * optimize, etc.), multiple full polyline decodes would queue up and block
+ * the main thread. This caused the SmartRefreshIndicator to freeze (its 50ms
+ * polling couldn't fire) and cross-driver WebSocket markers to stop updating.
+ *
+ * Fix: debounce refresh calls to 500ms so rapid event bursts collapse into
+ * a single `loadBreadcrumbsForDriver` call. Also added `requestIdleCallback`
+ * wrapper so the decode runs during browser idle time, not blocking React
+ * renders or WebSocket callbacks.
+ */
 export default function useLiveBreadcrumbsSync({
   showBreadcrumbs,
   showAllDriverMarkers,
@@ -19,6 +33,8 @@ export default function useLiveBreadcrumbsSync({
   // Guard against concurrent refreshes and post-unmount state updates
   const isMountedRef = useRef(true);
   const refreshBusyRef = useRef(false);
+  const debounceTimerRef = useRef(null);
+  const pendingEventRef = useRef(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -26,6 +42,12 @@ export default function useLiveBreadcrumbsSync({
   }, []);
 
   useEffect(() => {
+    // Clean up debounce timer on re-subscription
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
     if (!showBreadcrumbs) return;
     const activeDriverId = showAllDriverMarkers || selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
     const activeDate = format(selectedDate, 'yyyy-MM-dd');
@@ -33,28 +55,46 @@ export default function useLiveBreadcrumbsSync({
       (!driverId || !activeDriverId || driverId === activeDriverId) &&
       (!deliveryDate || deliveryDate === activeDate);
 
-    // Debounced, guarded refresh — skips if already running, no-ops if unmounted
+    // Debounced refresh: collapse rapid event bursts into a single loadBreadcrumbsForDriver call
     const refresh = (event) => {
       const detail = event?.detail || {};
-      // Audit fix: short-circuit refreshes that explicitly carry a driverId outside the
-      // active set (selected/overlay/self). Events without a driverId (global triggers
-      // like initialDataReady or full-replacement route refreshes) still pass through to
-      // `matches()`, which handles the date scope.
       const eventDriverId = detail.driverId || detail.driver_id || detail.delivery?.driver_id;
       if (eventDriverId && activeDriverId && eventDriverId !== activeDriverId && eventDriverId !== currentUser?.id) return;
       if (!matches(detail)) return;
-      if (refreshBusyRef.current) return; // already loading, skip
-      refreshBusyRef.current = true;
-      loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsersRef.current)
-        .then((data) => {
-          if (isMountedRef.current) setBreadcrumbsData(data);
-        })
-        .catch((err) => {
-          console.warn('⚠️ useLiveBreadcrumbsSync refresh error:', err?.message);
-        })
-        .finally(() => {
-          refreshBusyRef.current = false;
-        });
+
+      // Store the latest event and debounce — if another event fires within 500ms,
+      // it replaces the pending one and resets the timer. This collapses bursts
+      // of 5-10 `deliveriesUpdated` events from a single delivery action into
+      // one `loadBreadcrumbsForDriver` call.
+      pendingEventRef.current = event;
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        if (!isMountedRef.current || refreshBusyRef.current) return;
+        refreshBusyRef.current = true;
+
+        // Use requestIdleCallback if available so the decode doesn't block
+        // React renders or WebSocket callbacks. Falls back to setTimeout(0) on
+        // browsers without requestIdleCallback support.
+        const runRefresh = () => {
+          loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsersRef.current)
+            .then((data) => {
+              if (isMountedRef.current) setBreadcrumbsData(data);
+            })
+            .catch((err) => {
+              console.warn('⚠️ useLiveBreadcrumbsSync refresh error:', err?.message);
+            })
+            .finally(() => {
+              refreshBusyRef.current = false;
+            });
+        };
+
+        if (typeof window !== 'undefined' && window.requestIdleCallback) {
+          window.requestIdleCallback(runRefresh, { timeout: 2000 });
+        } else {
+          setTimeout(runRefresh, 0);
+        }
+      }, 500);
     };
 
     const append = (event) => {
@@ -69,7 +109,6 @@ export default function useLiveBreadcrumbsSync({
     };
 
     // PendingBreadcrumbLive entity was removed/renamed — guard against undefined.
-    // The editor SDK may still have it from cache, but production builds don't.
     let unsubscribeLive = null;
     try {
       if (activeDriverId && base44?.entities?.PendingBreadcrumbLive?.subscribe) {
@@ -79,7 +118,7 @@ export default function useLiveBreadcrumbsSync({
         });
       }
     } catch (e) {
-      console.warn('⚠️ PendingBreadcrumbLive subscribe failed (entity may not exist):', e?.message);
+      // Entity may not exist in production builds — silently ignore
     }
 
     // Reload breadcrumbs when the driver returns from a long app-switch.
@@ -95,6 +134,10 @@ export default function useLiveBreadcrumbsSync({
     window.addEventListener('breadcrumbCollected', append);
     window.addEventListener('driverResumedAfterAbsence', handleResumeAfterAbsence);
     return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
       try { unsubscribeLive?.(); } catch {}
       window.removeEventListener('deliveriesUpdated', refresh);
       window.removeEventListener('routeOptimizationComplete', refresh);

@@ -15,9 +15,7 @@ const POLY_PRECISION = 1e5;
 function getEdmontonDateString(value = Date.now()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Edmonton',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
+    year: 'numeric', month: '2-digit', day: '2-digit'
   }).formatToParts(new Date(value));
   const year = parts.find((p) => p.type === 'year')?.value;
   const month = parts.find((p) => p.type === 'month')?.value;
@@ -49,18 +47,13 @@ function decodePolyline(encoded) {
   return coordinates;
 }
 
-// Detect corrupted points from the old bitwise-overflow encoder.
-// The old encoder zeroed out longitude for |lng| > ~107° at 1e5 precision.
-// Points with valid latitude (>1°) but near-zero longitude (<0.01°) are corrupted.
 function isCorruptedPoint(lat, lng) {
   return Math.abs(lat) > 1 && Math.abs(lng) < 0.01;
 }
 
-// Parse a breadcrumb record into { stop_order, lat/lng points array }
 function parseBreadcrumbRecord(record) {
   if (!record?.encoded_polyline) return null;
   const coords = decodePolyline(record.encoded_polyline);
-  // Filter out corrupted points from the old bitwise-overflow encoder
   const cleanCoords = coords.filter(c => !isCorruptedPoint(c[0], c[1]));
   if (cleanCoords.length === 0) return null;
   const tsArr = record.timestamps ? record.timestamps.split(',').map(Number) : [];
@@ -88,7 +81,6 @@ function extractLivePoints(record, filterDate) {
     timestamp: tsArr[i] || 0
   })).filter((point) => {
     if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return false;
-    // Skip corrupted points from the old bitwise-overflow encoder
     if (isCorruptedPoint(point.lat, point.lng)) return false;
     if (!point.timestamp) return true;
     return !filterDate || getEdmontonDateString(point.timestamp) === filterDate;
@@ -104,7 +96,7 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
   let masterLivePoints = []; // Points from the master TODAY record (live trail)
 
   try {
-    // ── Load from offline DB first ─────────────────────────────────────────
+    // ── Load from offline DB ────────────────────────────────────────────────
     const offlineBreadcrumbs = await offlineDB.getByCompoundIndex(
       offlineDB.STORES.DELIVERY_BREADCRUMBS,
       'date_driver',
@@ -118,7 +110,6 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
         if (Number(record.stop_order) === MASTER_STOP_ORDER) {
           // Master 'TODAY' record — extract as live points for the current trail
           const points = extractLivePoints(record, selectedDateStr);
-          // Only use this record if it has non-corrupted points
           if (points.length > 0) {
             masterLivePoints = points;
           }
@@ -135,17 +126,14 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
     if (historical.length === 0 && masterLivePoints.length === 0 && !_apiFetchedKeys.has(cacheKey)) {
       _apiFetchedKeys.add(cacheKey);
 
-      // Cheap probe: check if server has any data
       const probe = await base44.entities.DeliveryBreadcrumbs.filter(
         { driver_id: driverId, delivery_date: selectedDateStr },
-        '-created_date',
-        1
+        '-created_date', 1
       );
 
       if (Array.isArray(probe) && probe.length > 0) {
         const apiBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
-          driver_id: driverId,
-          delivery_date: selectedDateStr
+          driver_id: driverId, delivery_date: selectedDateStr
         });
 
         if (Array.isArray(apiBreadcrumbs) && apiBreadcrumbs.length > 0) {
@@ -155,9 +143,7 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
             if (!record?.encoded_polyline) continue;
             if (Number(record.stop_order) === MASTER_STOP_ORDER) {
               const points = extractLivePoints(record, selectedDateStr);
-              if (points.length > 0) {
-                masterLivePoints = points;
-              }
+              if (points.length > 0) masterLivePoints = points;
             } else {
               const parsed = parseBreadcrumbRecord(record);
               if (parsed) historical.push(parsed);
@@ -167,28 +153,23 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
       }
     }
   } catch (e) {
-    console.warn('⚠️ Failed to load breadcrumbs:', e.message);
+    // Silently handle — breadcrumbs are non-critical for route management
   }
 
   // ── Build 'current' live trail ─────────────────────────────────────────────
-  // Use the master TODAY offline key as the source for the live trail.
-  // This gives an unsliced, continuous path of where the driver has been today.
-  // We also supplement from the local offline key format for backward compatibility.
   let current = [...masterLivePoints];
 
   try {
     if (current.length === 0) {
-      // Fallback: check for old-style per-leg local offline keys (backward compatibility)
+      // Fallback: old-style per-leg local offline keys (backward compatibility)
       const allOffline = await offlineDB.getAll(offlineDB.STORES.DELIVERY_BREADCRUMBS);
       const liveRecords = (allOffline || []).filter((record) => {
         if (!record?.encoded_polyline || !record?.timestamps) return false;
         if (record.driver_id !== driverId) return false;
         if (record.delivery_date !== selectedDateStr) return false;
-        // Old format: local-only keys
         if (!(typeof record.id === 'string' && record.id.includes('__'))) return false;
         return true;
       });
-
       current = liveRecords.flatMap((record) => extractLivePoints(record, selectedDateStr));
     }
   } catch (_) {}

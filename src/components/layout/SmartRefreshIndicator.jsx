@@ -155,7 +155,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       const handlePollingComplete = () => setIsPollingActive(false);
 
       // Check smart refresh every 50ms for responsive updates
-      const smartRefreshInterval = setInterval(checkSmartRefresh, 50);
+      const smartRefreshInterval = setInterval(checkSmartRefresh, 250);
 
       // Track historical background sync via notifySyncStatus
       const unsubscribeHistorical = subscribeSyncStatus((status) => {

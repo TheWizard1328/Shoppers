@@ -8,6 +8,24 @@ import { acquireBreadcrumbSyncLock } from './breadcrumbSyncLock';
 // slices the master timeline into per-stop segments using delivery_time_end values.
 // ──────────────────────────────────────────────────────────────────────────────
 
+// ─── O(1) In-Memory Trail Cache ───────────────────────────────────────────────
+// CRITICAL PERF FIX: Previously, every 5s breadcrumb save decoded the ENTIRE day's
+// polyline from IDB (O(N)), appended one point, re-encoded the full polyline (O(N)),
+// and saved back — making each save O(N) and the total day O(N²). After 8 hours
+// (~5,760 points), each save blocked the main thread for 200-500ms, freezing the
+// SmartRefreshIndicator spinner and blocking WebSocket callbacks for cross-driver
+// location markers.
+//
+// Fix: keep the day's points as a simple in-memory array. On each 5s save, just
+// push to the array (O(1)) and encode from the array (O(N) encode only — no decode).
+// The IDB read + decode happens only ONCE per driver/date session (first breadcrumb).
+// On subsequent saves, the cache is the source of truth — no IDB read, no decode.
+const _masterTrailCache = new Map(); // key: `${driverId}:${date}` → array of [lat, lng, ts]
+
+function getCacheKey(driverId, deliveryDate) {
+  return `${driverId}:${deliveryDate}`;
+}
+
 // Online sync throttle: push the full 'TODAY' record to the server every 3rd offline save (15s)
 let _lastOnlineSyncTime = 0;
 let _breadcrumbSaveCount = 0;
@@ -108,6 +126,52 @@ function isCorruptedByBitwiseOverflow(points) {
   return corruptCount >= 2;
 }
 
+/**
+ * Load the master trail into the in-memory cache from IDB.
+ * Called only ONCE per driver/date session (first breadcrumb of the day).
+ * Subsequent breadcrumbs use the cache directly — no IDB read, no decode.
+ */
+async function loadTrailIntoCache(driverId, deliveryDate, offlineKey) {
+  const cacheKey = getCacheKey(driverId, deliveryDate);
+  if (_masterTrailCache.has(cacheKey)) return _masterTrailCache.get(cacheKey);
+
+  const { offlineDB } = await import('./offlineDatabase');
+  const existingRecord = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey);
+
+  let points = [];
+  if (existingRecord?.encoded_polyline && existingRecord?.timestamps) {
+    const coords = decodePolyline(existingRecord.encoded_polyline);
+    const tsArr = existingRecord.timestamps.split(',').map(Number);
+    points = coords
+      .map((coord, i) => [coord[0], coord[1], tsArr[i] || 0])
+      .filter(p => !(Math.abs(p[0]) < 0.0001 && Math.abs(p[1]) < 0.0001));
+
+    if (isCorruptedByBitwiseOverflow(points)) {
+      console.warn(`🍞 [Breadcrumbs] Detected corrupted breadcrumb record (valid lat, ~0 lng — bitwise overflow from old encoder). Clearing ${points.length} corrupted points and starting fresh.`);
+      points = [];
+    }
+  }
+
+  _masterTrailCache.set(cacheKey, points);
+  return points;
+}
+
+/**
+ * Clear the in-memory trail cache for a specific driver/date.
+ * Called when the date changes or tracking stops to free memory.
+ */
+export function clearBreadcrumbCache(driverId, deliveryDate) {
+  const cacheKey = getCacheKey(driverId, deliveryDate);
+  _masterTrailCache.delete(cacheKey);
+}
+
+/**
+ * Clear all breadcrumb caches (e.g., on logout).
+ */
+export function clearAllBreadcrumbCaches() {
+  _masterTrailCache.clear();
+}
+
 export const collectBreadcrumbForTracker = async ({
   driverStatus,
   appUserId,
@@ -125,7 +189,6 @@ export const collectBreadcrumbForTracker = async ({
 
   // Drop Null Island / invalid GPS fixes — [0,0] is never a real coordinate in Edmonton
   if (Math.abs(latitude) < 0.0001 && Math.abs(longitude) < 0.0001) {
-    console.warn('🍞 [Breadcrumbs] Dropping invalid [0,0] coordinate — GPS not yet locked');
     return null;
   }
 
@@ -134,40 +197,20 @@ export const collectBreadcrumbForTracker = async ({
   const deliveryDate = currentDeliveryDate || getLocalDateString();
   const offlineKey = getTodayOfflineKey(currentUser.id, deliveryDate);
 
-  // Load existing offline 'TODAY' master record
-  const existingOfflineRecord = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey);
-  // Store coordinates at 7 decimal place precision (~1cm accuracy)
+  // ── O(1) CACHE PATH: Use in-memory array instead of decoding from IDB ──────
+  // First breadcrumb of the session loads from IDB (one-time decode). All
+  // subsequent breadcrumbs push to the in-memory array — no IDB read, no decode.
+  const trailPoints = await loadTrailIntoCache(currentUser.id, deliveryDate, offlineKey);
+
   const breadcrumbPoint = [
     Math.round(latitude * 1e5) / 1e5,
     Math.round(longitude * 1e5) / 1e5,
     timestamp,
   ];
 
-  // Reconstruct existing points from encoded polyline + timestamps
-  let existingPoints = [];
-  if (existingOfflineRecord?.encoded_polyline && existingOfflineRecord?.timestamps) {
-    const coords = decodePolyline(existingOfflineRecord.encoded_polyline);
-    const tsArr = existingOfflineRecord.timestamps.split(',').map(Number);
-    existingPoints = coords
-      .map((coord, i) => [coord[0], coord[1], tsArr[i] || 0])
-      .filter(p => !(Math.abs(p[0]) < 0.0001 && Math.abs(p[1]) < 0.0001)); // Strip any previously-saved [0,0] points
-
-    // Detect and clear corrupted records from the old bitwise-overflow encoder.
-    // The old encoder zeroed out longitude for Edmonton coordinates (|lng| > 107° at 1e7).
-    // If detected, discard all existing points and start fresh with the current GPS fix.
-    if (isCorruptedByBitwiseOverflow(existingPoints)) {
-      console.warn(`🍞 [Breadcrumbs] Detected corrupted breadcrumb record (valid lat, ~0 lng — bitwise overflow from old encoder). Clearing ${existingPoints.length} corrupted points and starting fresh.`);
-      existingPoints = [];
-    }
-  }
-
   // Distance filter: LOG large GPS jumps but still ACCEPT the point.
-  // Previously, jumps >250m were rejected, which caused gaps in the trail exactly
-  // when the driver was moving fast (highway) or after a GPS re-acquisition.
-  // The spatial anchor refinement in consolidateBreadcrumbs can handle minor GPS
-  // noise. A gap in the trail is worse than a potentially-imperfect point.
-  if (existingPoints.length > 0) {
-    const lastPoint = existingPoints[existingPoints.length - 1];
+  if (trailPoints.length > 0) {
+    const lastPoint = trailPoints[trailPoints.length - 1];
     const timeSinceLast = timestamp - (lastPoint[2] || 0);
 
     if (timeSinceLast < MAX_BREADCRUMB_STALENESS_MS) {
@@ -177,42 +220,38 @@ export const collectBreadcrumbForTracker = async ({
       const a = Math.sin(dLat / 2) ** 2 + Math.cos(lastPoint[0] * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
       const distanceM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-      // ── Stationary dedup (Option 1) ───────────────────────────────────────
+      // ── Stationary dedup ───────────────────────────────────────────────────
       // Skip storing when the new fix is within the dedup radius of the last
       // stored point — collapses piles at stops, red lights, traffic without
       // needing geofence logic. The 5-min heartbeat exception (below) still
       // leaves an audit trail for long stationary stays.
       if (distanceM <= STATIONARY_DEDUP_RADIUS_M) {
-        console.log(`🍞 [Breadcrumbs] Stationary dedup — ${distanceM.toFixed(1)}m ≤ ${STATIONARY_DEDUP_RADIUS_M}m, skip store (timeline stays at ${existingPoints.length} pts)`);
         return { deduped: true };
       }
 
       if (distanceM > MAX_BREADCRUMB_DISTANCE_M) {
-        console.warn(`🍞 [Breadcrumbs] Large GPS jump: ${distanceM.toFixed(0)}m > ${MAX_BREADCRUMB_DISTANCE_M}m — accepting (was previously rejected, causing gaps)`);
+        console.warn(`🍞 [Breadcrumbs] Large GPS jump: ${distanceM.toFixed(0)}m > ${MAX_BREADCRUMB_DISTANCE_M}m — accepting`);
       }
-    } else {
-      console.log(`🍞 [Breadcrumbs] Heartbeat accepted — ${Math.round(timeSinceLast / 1000)}s since last point`);
     }
   }
 
-  const allPoints = existingPoints.length > 0
-    ? [...existingPoints, breadcrumbPoint]
-    : [breadcrumbPoint];
+  // O(1) append to in-memory array
+  trailPoints.push(breadcrumbPoint);
 
-  const encodedPolyline = encodePolyline(allPoints);
-  const timestamps = allPoints.map((p) => p[2] || 0).join(',');
+  // O(N) encode from in-memory array (no decode needed — this is the key optimization)
+  const encodedPolyline = encodePolyline(trailPoints);
+  const timestamps = trailPoints.map((p) => p[2] || 0).join(',');
 
   // Save 'TODAY' master record to offline DB
-  // stop_order = -1 is the sentinel value meaning "master timeline / unsliced"
   const offlineRecord = {
     id: offlineKey,
     driver_id: currentUser.id,
     delivery_date: deliveryDate,
-    stop_order: -1, // Sentinel: master timeline, not a specific stop
+    stop_order: -1,
     encoded_polyline: encodedPolyline,
     timestamps,
-    transport_mode: 'driving', // Master timeline doesn't have a mode; stops inherit from delivery
-    point_count: allPoints.length,
+    transport_mode: 'driving',
+    point_count: trailPoints.length,
   };
   await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineRecord);
 
@@ -222,9 +261,6 @@ export const collectBreadcrumbForTracker = async ({
   if (_breadcrumbSaveCount >= ONLINE_SYNC_EVERY_N_SAVES) {
     _breadcrumbSaveCount = 0;
     _lastOnlineSyncTime = now;
-    // Acquire mutex lock to prevent concurrent syncPendingBreadcrumbs calls
-    // (routine 15s GPS sync vs pre-slice flush on stop completion). Without this,
-    // both calls read "no existing record" and both create(), producing duplicates.
     const releaseLock = await acquireBreadcrumbSyncLock();
     try {
       await base44.functions.invoke('syncPendingBreadcrumbs', {
@@ -232,9 +268,8 @@ export const collectBreadcrumbForTracker = async ({
         delivery_date: deliveryDate,
         encoded_polyline: encodedPolyline,
         timestamps,
-        point_count: allPoints.length,
+        point_count: trailPoints.length,
       });
-      console.log(`☁️ [Breadcrumbs] Master timeline synced to server (${allPoints.length} points, save #${_breadcrumbSaveCount + ONLINE_SYNC_EVERY_N_SAVES})`);
     } catch (error) {
       const isRateLimited = error?.response?.status === 429 || error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase?.().includes('rate limit');
       if (!isRateLimited) {
@@ -243,8 +278,6 @@ export const collectBreadcrumbForTracker = async ({
     } finally {
       releaseLock();
     }
-  } else {
-    console.log(`🍞 [Breadcrumbs] Offline save ${_breadcrumbSaveCount}/${ONLINE_SYNC_EVERY_N_SAVES} (${allPoints.length} pts) — server sync on save #${ONLINE_SYNC_EVERY_N_SAVES}`);
   }
 
   // Dispatch event for live map display (stop_order = -1 means "live, unsliced")

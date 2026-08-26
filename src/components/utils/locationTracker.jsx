@@ -343,7 +343,7 @@ class LocationTracker {
           await this.collectBreadcrumb(freshPos.coords.latitude, freshPos.coords.longitude, now);
         } catch (e) {}
       }
-    }, 3000);
+    }, 10000);
   }
 
   /**
@@ -1334,7 +1334,7 @@ class LocationTracker {
               console.warn('🍞 [Breadcrumb Watchdog] Force fix failed:', e?.message);
             }
           }
-        }, 3000);
+        }, 10000);
 
         console.log(`✅ [${providerName} PROVIDER] Location tracking started${useNativeBackgroundWatcher ? ' - streaming native updates' : ` - uploads every ${this.updateInterval/1000}s`} | Breadcrumbs every ${this.breadcrumbSaveInterval/1000}s + 3s watchdog`);
 
