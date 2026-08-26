@@ -84,36 +84,44 @@ export const useInitialization = ({
           // PURGE + MIGRATE: Skip for App Owner (encryption bypassed — no encrypted records to purge/migrate)
           if (!isAppOwner(fetchedUser)) {
             // PURGE: Remove records encrypted with an old key (previous session token).
+            // SAFETY: wrap in try/catch and limit purge to a reasonable count. If the
+            // crypto key failed to derive (initEncryption returned false above), the
+            // purge would treat ALL encrypted records as undecryptable and delete
+            // everything. Guard against that by checking encryption is actually active.
             try {
-              const { STORES, PHI_STORES } = offlineDB;
-              let totalPurged = 0;
-              for (const storeName of Array.from(PHI_STORES)) {
-                const purged = await purgeUndecryptableRecords(storeName);
-                totalPurged += purged;
-              }
-              if (totalPurged > 0) {
-                console.log(`[InitManager] Purged ${totalPurged} undecryptable IDB records — server sync will repopulate`);
-                resetDecryptFailCounters();
+              const { isEncrypting } = await import('../utils/idbCrypto');
+              if (!isEncrypting()) {
+                console.warn('[InitManager] Encryption not active — skipping purge/migration to prevent data loss');
+              } else {
+                const { STORES, PHI_STORES } = offlineDB;
+                let totalPurged = 0;
+                for (const storeName of Array.from(PHI_STORES)) {
+                  const purged = await purgeUndecryptableRecords(storeName);
+                  totalPurged += purged;
+                }
+                if (totalPurged > 0) {
+                  console.log(`[InitManager] Purged ${totalPurged} undecryptable IDB records — server sync will repopulate`);
+                  resetDecryptFailCounters();
+                }
+
+                // Migrate existing plaintext records to encrypted form
+                const phiStores = Array.from(PHI_STORES);
+                for (const storeName of phiStores) {
+                  try {
+                    const allRecords = await offlineDB.getAll(storeName);
+                    if (allRecords.length > 0 && !allRecords[0]?.__encrypted) {
+                      console.log(`[InitManager] Migrating ${allRecords.length} records in ${storeName} to encrypted form...`);
+                      await offlineDB.clearStore(storeName);
+                      await offlineDB.bulkSave(storeName, allRecords);
+                      console.log(`[InitManager] Migrated ${storeName}: ${allRecords.length} records encrypted`);
+                    }
+                  } catch (migrateErr) {
+                    console.warn(`[InitManager] Migration failed for ${storeName}:`, migrateErr?.message);
+                  }
+                }
               }
             } catch (purgeErr) {
               console.warn('[InitManager] IDB purge failed:', purgeErr?.message);
-            }
-
-            // Migrate existing plaintext records to encrypted form
-            const { STORES, PHI_STORES } = offlineDB;
-            const phiStores = Array.from(PHI_STORES);
-            for (const storeName of phiStores) {
-              try {
-                const allRecords = await offlineDB.getAll(storeName);
-                if (allRecords.length > 0 && !allRecords[0]?.__encrypted) {
-                  console.log(`[InitManager] Migrating ${allRecords.length} records in ${storeName} to encrypted form...`);
-                  await offlineDB.clearStore(storeName);
-                  await offlineDB.bulkSave(storeName, allRecords);
-                  console.log(`[InitManager] Migrated ${storeName}: ${allRecords.length} records encrypted`);
-                }
-              } catch (migrateErr) {
-                console.warn(`[InitManager] Migration failed for ${storeName}:`, migrateErr?.message);
-              }
             }
           }
         }

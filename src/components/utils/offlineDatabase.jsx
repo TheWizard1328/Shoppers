@@ -89,7 +89,7 @@ const buildDataVersion = (records = []) => {
   return `${records.length}:${latestTimestamp}:${firstId}:${lastId}`;
 };
 
-const DB_OPEN_TIMEOUT_MS = 8000;
+const DB_OPEN_TIMEOUT_MS = 15000;
 
 /**
  * Best-effort wipe of the entire offline database. Only ever called when the
@@ -149,15 +149,20 @@ const openDatabase = async () => {
     const timeoutId = setTimeout(() => {
       if (settled) return;
       settled = true;
-      console.error(`[OfflineDB] Open timed out after ${DB_OPEN_TIMEOUT_MS}ms${wasBlocked ? ' (was blocked by another connection)' : ''} — wiping, entering 30s degraded mode, recreating ${DB_NAME}`);
+      console.error(`[OfflineDB] Open timed out after ${DB_OPEN_TIMEOUT_MS}ms${wasBlocked ? ' (was blocked by another connection)' : ''} — entering 30s degraded mode (data preserved, not wiped)`);
       dbOpenPromise = null;
       dbInstance = null;
       // Fast-fail every subsequent open for 30s so the boot proceeds instantly
       // with empty offline data instead of cascading 8s×N timeouts.
       _dbDegradedUntil = Date.now() + 30000;
-      deleteDatabaseSilently().finally(() => {
-        reject(new Error('IndexedDB open timed out — database was reset, please retry'));
-      });
+      // CRITICAL: Do NOT delete the database. The previous version called
+      // deleteDatabaseSilently() here, which permanently destroyed ALL offline
+      // data (deliveries, patients, app users, everything) whenever the open
+      // took longer than 8 seconds — common on phones with thousands of
+      // encrypted records. Instead, just skip the cache for this session;
+      // the data is still there and will be available on the next boot once
+      // the blocking connection clears.
+      reject(new Error('IndexedDB open timed out — entering degraded mode, data preserved'));
     }, DB_OPEN_TIMEOUT_MS);
 
     const request = indexedDB.open(DB_NAME, DB_VERSION);
