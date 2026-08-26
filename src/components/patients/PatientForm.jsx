@@ -862,30 +862,45 @@ export default function PatientForm({
   const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
   const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
 
-  // KEYBOARD-AWARE BOTTOM INSET: see DeliveryFormView.jsx for full explanation.
-  // The static nav+safe-area formula assumes the true screen bottom is exposed;
-  // once the on-screen keyboard opens that space is occupied by the keyboard
-  // instead, so adding the static offset on top double-counts space and leaves
-  // a gap of dashboard content visible between the form and the keyboard.
-  const [keyboardInsetPx, setKeyboardInsetPx] = React.useState(0);
+  // KEYBOARD-AWARE BOTTOM INSET (take 2): see DeliveryFormView.jsx for the full
+  // explanation of why a visualViewport-vs-innerHeight diff doesn't work in this
+  // Capacitor WebView (it resizes the whole window around the keyboard, so both
+  // values shrink together and the diff never fires). Detecting keyboard state
+  // via focus on a text field is reliable regardless of the WebView's resize model.
+  const patientFormContainerRef = React.useRef(null);
+  const [isKeyboardLikelyOpen, setIsKeyboardLikelyOpen] = React.useState(false);
   React.useEffect(() => {
     if (!isMobile) return;
-    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const container = patientFormContainerRef.current;
+    if (!container) return;
 
-    const vv = window.visualViewport;
-    const KEYBOARD_THRESHOLD = 80;
-
-    const handleViewportResize = () => {
-      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-      setKeyboardInsetPx(inset > KEYBOARD_THRESHOLD ? inset : 0);
+    const isTextEntryElement = (el) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag === 'TEXTAREA') return true;
+      if (tag === 'INPUT') {
+        const type = (el.getAttribute('type') || 'text').toLowerCase();
+        return !['checkbox', 'radio', 'button', 'submit', 'range', 'color', 'file'].includes(type);
+      }
+      return el.isContentEditable;
     };
 
-    handleViewportResize();
-    vv.addEventListener('resize', handleViewportResize);
-    vv.addEventListener('scroll', handleViewportResize);
+    const handleFocusIn = (e) => { if (isTextEntryElement(e.target)) setIsKeyboardLikelyOpen(true); };
+    const handleFocusOut = (e) => {
+      if (!isTextEntryElement(e.target)) return;
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (!container.contains(active) || !isTextEntryElement(active)) {
+          setIsKeyboardLikelyOpen(false);
+        }
+      }, 50);
+    };
+
+    container.addEventListener('focusin', handleFocusIn);
+    container.addEventListener('focusout', handleFocusOut);
     return () => {
-      vv.removeEventListener('resize', handleViewportResize);
-      vv.removeEventListener('scroll', handleViewportResize);
+      container.removeEventListener('focusin', handleFocusIn);
+      container.removeEventListener('focusout', handleFocusOut);
     };
   }, [isMobile]);
 
@@ -896,8 +911,8 @@ export default function PatientForm({
   // that inset via .app-container's own padding-bottom).
   const mobileFormInsetStyle = isMobile ? {
     top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
-    bottom: keyboardInsetPx > 0
-      ? `${keyboardInsetPx}px`
+    bottom: isKeyboardLikelyOpen
+      ? '0px'
       : `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`
   } : undefined;
 
@@ -908,6 +923,7 @@ export default function PatientForm({
       // form already computes its own bottom inset above, so the catch-all
       // adding padding-bottom too would double-count the safe area.
       role="dialog"
+      ref={patientFormContainerRef}
       className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 items-start' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
     style={mobileFormInsetStyle}>
       <motion.div

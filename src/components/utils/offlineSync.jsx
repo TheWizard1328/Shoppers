@@ -589,6 +589,15 @@ export const forceSyncAll = async () => {
     const PATIENT_BATCH_SIZE_FORCE = 200;
     let allOnlinePatientIds = new Set(); // track all IDs for orphan pruning
     let totalSyncedPatients = 0;
+    // SAFETY: only prune orphaned patients if EVERY store's fetch completed
+    // successfully. If any store errors out or we hit a rate limit and break
+    // early, allOnlinePatientIds is INCOMPLETE — pruning against an incomplete
+    // set would delete valid patients that simply weren't fetched this pass,
+    // instantly blanking any delivery card that joins on that patient (while
+    // cycling markers, which don't join patients, stay visible). This exact
+    // failure mode was reported live: deliveries vanishing from the dashboard
+    // the moment the Patients phase of a force sync ran.
+    let patientSyncFullyCompleted = true;
 
     for (let i = 0; i < allStores.length; i++) {
       const store = allStores[i];
@@ -610,22 +619,26 @@ export const forceSyncAll = async () => {
         notifySyncStatus({ status: 'syncing', entity: `Patients (${store.name || 'Store'} ${i+1}/${allStores.length})`, progress, count: totalSyncedPatients });
         await new Promise(r => setTimeout(r, STORE_COOLDOWN));
       } catch (storeError) {
+        patientSyncFullyCompleted = false;
         if (storeError?.response?.status === 429 || storeError?.message?.includes('429')) {
-          console.warn('⏰ [ForceSyncAll] Rate limited during patient sync, stopping');
+          console.warn('⏰ [ForceSyncAll] Rate limited during patient sync, stopping — skipping orphan prune this pass');
           break;
         }
         console.warn(`⚠️ [ForceSyncAll] Failed to sync patients for store ${store.name}:`, storeError.message);
       }
     }
 
-    // Prune patients that exist offline but no longer exist online
-    if (allOnlinePatientIds.size > 0) {
+    // Prune patients that exist offline but no longer exist online — ONLY when
+    // we're confident allOnlinePatientIds reflects every store (see safety note above).
+    if (patientSyncFullyCompleted && allOnlinePatientIds.size > 0) {
       const allOfflinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
       const orphanPatients = (allOfflinePatients || []).filter(p => p?.id && !p.id.startsWith('temp_') && !allOnlinePatientIds.has(p.id));
       if (orphanPatients.length > 0) {
         await Promise.all(orphanPatients.map(p => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id).catch(() => {})));
         console.log(`🗑️ [ForceSyncAll] Pruned ${orphanPatients.length} deleted patients from offline DB`);
       }
+    } else if (!patientSyncFullyCompleted) {
+      console.warn('⏭️ [ForceSyncAll] Skipping patient orphan prune — sync was interrupted for one or more stores');
     }
     invalidateEntityCache('Patient');
 
@@ -991,6 +1004,12 @@ export const restartDeliveryPatientSync = async () => {
     const allRestartOnlinePatientIds = new Set();
     const RESTART_STORE_COOLDOWN = 1500;
     const RESTART_PATIENT_BATCH = 200;
+    // SAFETY: only prune orphaned patients if EVERY store's fetch completed
+    // successfully — see matching note in forceSyncAll(). An incomplete fetch
+    // (per-store error or rate-limit break) must never trigger a delete pass,
+    // or valid patients simply missed this round get wiped, instantly
+    // blanking any delivery card that joins on them.
+    let restartPatientSyncFullyCompleted = true;
 
     for (let si = 0; si < allStoresForPatients.length; si++) {
       const store = allStoresForPatients[si];
@@ -1011,22 +1030,26 @@ export const restartDeliveryPatientSync = async () => {
         notifySyncStatus({ status: 'syncing', entity: `Patients (${store.name || 'Store'} ${si+1}/${allStoresForPatients.length})`, progress: batchProgress, count: totalRestartPatients });
         await new Promise(r => setTimeout(r, RESTART_STORE_COOLDOWN));
       } catch (err) {
+        restartPatientSyncFullyCompleted = false;
         if (err?.response?.status === 429 || err?.message?.includes('429')) {
-          console.warn('⏰ [OfflineSync] Rate limited during patient sync, stopping');
+          console.warn('⏰ [OfflineSync] Rate limited during patient sync, stopping — skipping orphan prune this pass');
           break;
         }
         console.warn(`⚠️ [OfflineSync] Failed store ${store.name}:`, err.message);
       }
     }
 
-    // Prune patients no longer in the online DB
-    if (allRestartOnlinePatientIds.size > 0) {
+    // Prune patients no longer in the online DB — ONLY when confident the
+    // fetch above covered every store (see safety note above).
+    if (restartPatientSyncFullyCompleted && allRestartOnlinePatientIds.size > 0) {
       const allOfflineForRestart = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
       const orphans = (allOfflineForRestart || []).filter(p => p?.id && !p.id.startsWith('temp_') && !allRestartOnlinePatientIds.has(p.id));
       if (orphans.length > 0) {
         await Promise.all(orphans.map(p => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id).catch(() => {})));
         console.log(`🗑️ [RestartSync] Pruned ${orphans.length} deleted patients`);
       }
+    } else if (!restartPatientSyncFullyCompleted) {
+      console.warn('⏭️ [RestartSync] Skipping patient orphan prune — sync was interrupted for one or more stores');
     }
     invalidateEntityCache('Patient');
 

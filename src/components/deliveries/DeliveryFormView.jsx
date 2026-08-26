@@ -473,43 +473,57 @@ export default function DeliveryFormView({
   const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
   const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
 
-  // KEYBOARD-AWARE BOTTOM INSET (Android APK fix):
-  // When the on-screen keyboard opens, `window.visualViewport.height` shrinks to the
-  // actually-visible area above the keyboard, while `window.innerHeight` (used by the
-  // static bottom-nav/safe-area formula below) does NOT reflect that. The static formula
-  // assumes the true bottom of the SCREEN is exposed (nav bar + gesture-area safe inset) —
-  // but once a keyboard is showing, that assumption is wrong: the keyboard itself now
-  // occupies that space, there's no gesture-area gap to protect against, and the bottom
-  // nav is covered/irrelevant. Adding the static nav+safe-area offset ON TOP of the
-  // keyboard's own occlusion double-counts space, leaving a blank strip of dashboard
-  // content visible between the form's bottom edge and the keyboard's top edge.
-  // Fix: track the live keyboard inset via visualViewport and use it directly as the
-  // `bottom` offset whenever it's non-zero — this pins the form flush against the
-  // keyboard with no extra padding, exactly matching the visible area.
-  const [keyboardInsetPx, setKeyboardInsetPx] = React.useState(0);
+  // KEYBOARD-AWARE BOTTOM INSET (Android APK fix, take 2):
+  // The first attempt compared window.innerHeight vs visualViewport.height to detect
+  // the keyboard — that only works when the OS keeps innerHeight fixed while shrinking
+  // the visual viewport (iOS Safari / Android adjustPan). This Capacitor WebView instead
+  // resizes the WHOLE window when the keyboard opens (adjustResize) — innerHeight and
+  // visualViewport.height shrink TOGETHER, so that diff stayed ~0 and the fix never
+  // fired, leaving the static nav+safe-area gap exactly as before (the bug the user
+  // saw persist). The static gap exists to protect content from the phone's real bottom
+  // edge (nav bar + gesture-area) — but once the window has already resized around the
+  // keyboard, that edge no longer exists inside the shrunk viewport; the keyboard IS the
+  // new bottom, and reserving extra nav/safe-area space on top of it just leaves dead
+  // space showing whatever's behind the form.
+  // Fix: detect keyboard state directly via focus — if a text input/textarea inside this
+  // form currently has focus, the on-screen keyboard is showing, so drop straight to the
+  // resized viewport's true bottom edge (0px) instead of adding the static offset.
+  const [isKeyboardLikelyOpen, setIsKeyboardLikelyOpen] = React.useState(false);
   React.useEffect(() => {
     if (!useMobileLayout || !isMobileDevice) return;
-    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const container = formRef?.current;
+    if (!container) return;
 
-    const vv = window.visualViewport;
-    // Threshold filters out minor viewport jitter (browser chrome show/hide, orientation
-    // settle) that isn't an actual keyboard — real Android keyboards are consistently
-    // 200px+ tall, so 80px is a safe cutoff.
-    const KEYBOARD_THRESHOLD = 80;
-
-    const handleViewportResize = () => {
-      const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-      setKeyboardInsetPx(inset > KEYBOARD_THRESHOLD ? inset : 0);
+    const isTextEntryElement = (el) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag === 'TEXTAREA') return true;
+      if (tag === 'INPUT') {
+        const type = (el.getAttribute('type') || 'text').toLowerCase();
+        return !['checkbox', 'radio', 'button', 'submit', 'range', 'color', 'file'].includes(type);
+      }
+      return el.isContentEditable;
     };
 
-    handleViewportResize();
-    vv.addEventListener('resize', handleViewportResize);
-    vv.addEventListener('scroll', handleViewportResize);
+    const handleFocusIn = (e) => { if (isTextEntryElement(e.target)) setIsKeyboardLikelyOpen(true); };
+    const handleFocusOut = (e) => {
+      if (!isTextEntryElement(e.target)) return;
+      // Small delay so focus moving between two fields (tab/next) doesn't flicker closed.
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (!container.contains(active) || !isTextEntryElement(active)) {
+          setIsKeyboardLikelyOpen(false);
+        }
+      }, 50);
+    };
+
+    container.addEventListener('focusin', handleFocusIn);
+    container.addEventListener('focusout', handleFocusOut);
     return () => {
-      vv.removeEventListener('resize', handleViewportResize);
-      vv.removeEventListener('scroll', handleViewportResize);
+      container.removeEventListener('focusin', handleFocusIn);
+      container.removeEventListener('focusout', handleFocusOut);
     };
-  }, [useMobileLayout, isMobileDevice]);
+  }, [useMobileLayout, isMobileDevice, formRef]);
 
   // `position: fixed` measures `bottom` from the TRUE viewport edge, ignoring
   // ancestor padding. The bottom nav sits ABOVE the phone's safe-area inset
@@ -527,8 +541,8 @@ export default function DeliveryFormView({
     // to land flush below the header's real bottom edge (mirrors the `bottom`
     // formula which already accounts for --native-safe-bottom).
     top: `calc(${mobileHeaderHeight}px + var(--native-safe-top, env(safe-area-inset-top, 0px)))`,
-    bottom: keyboardInsetPx > 0
-      ? `${keyboardInsetPx}px`
+    bottom: isKeyboardLikelyOpen
+      ? '0px'
       : `calc(${mobileBottomNavHeight}px + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))`,
     background: 'var(--bg-white)'
   } : undefined;
