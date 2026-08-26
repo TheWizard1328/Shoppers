@@ -1082,7 +1082,9 @@ export default function DeliveryForm({
         }
         if (statusChangedToCompletion) triggerPatientLastDeliverySync({ delivery: { ...delivery, ...dataToSave, status: formData.status, patient_id: delivery.patient_id, delivery_date: formData.delivery_date }, previousStatus: delivery.status });
         if (formData.status === 'completed') cleanupSquareCodCatalogForDate(formData.delivery_date);
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        // Only refresh stats on terminal status changes — pending/Staged edits don't affect stats
+        // (pending stops are already counted, staged stops aren't on the route yet).
+        if (statusChangedToCompletion) window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         if (!skipImmediateDeliveriesUpdatedEvent) { window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: travelModeOnly ? 'deliveryFormTravelModeOnly' : 'deliveryFormUpdate', preserveLocalState: true } })); }
       } else {
         if (buttonState === 'add' || buttonState === 'updateStaged' || buttonState === 'done') { setIsSaving(false); return false; }
@@ -1154,7 +1156,8 @@ export default function DeliveryForm({
       import('../utils/smartRefreshManager').then(({ smartRefreshManager }) => { smartRefreshManager.resume(); }).catch(() => {});
       import('../utils/routePolylineManager').then(({ routePolylineManager }) => routePolylineManager?.resume?.()).catch(() => {});
       import('../utils/fabControlEvents').then(({ fabControlEvents }) => fabControlEvents.resumeFAB()).catch(() => {});
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      // Removed refreshDeliveryStats — handleSubmit and handleBatchSave fire it conditionally.
+      // Form unmount fires after every interaction including staging-only, causing redundant IDB scans.
     };
   }, [setIsFormOverlayOpen]);
 
