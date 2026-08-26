@@ -88,7 +88,7 @@ export const runDeleteOnlyBatchRefresh = ({ deliveryDate, driverId, allDeletedWe
           triggeredBy: 'doneButtonDeletes'
         }
       }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      // Stats refresh handled by handleBatchSaveDelivery — staged deletes don't affect stats.
 
       const { fabControlEvents } = await import('../utils/fabControlEvents');
       fabControlEvents.notifyDataReady();
@@ -140,7 +140,7 @@ export const runCreateBatchRefresh = async ({ refreshDriverId, refreshDeliveryDa
         immediate: true
       }
     }));
-    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    // Stats refresh handled by handleBatchSaveDelivery (line 572) — no duplicate needed.
 
     const { fabControlEvents } = await import('../utils/fabControlEvents');
     fabControlEvents.notifyDataReady();

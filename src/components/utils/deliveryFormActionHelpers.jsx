@@ -124,7 +124,7 @@ export const flushPendingInterStoreOptimizations = async () => {
   }
 };
 
-export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, travelModeOnly = false, currentUser }) => {
+export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, travelModeOnly = false, currentUser, skipStatsRefresh = false }) => {
   if (!driverId || !deliveryDate || travelModeOnly) return;
 
   const syncKey = `${driverId}:${deliveryDate}:${hasTimeWindowChanges ? 'optimize' : 'eta'}`;
@@ -193,7 +193,8 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
           alreadyOptimized: hasTimeWindowChanges
         }
       }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      // Only refresh stats if not explicitly skipped (e.g. pending stop edits that don't affect stats)
+      if (!skipStatsRefresh) window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     } catch (error) {
       if (shouldCatchBackgroundDeliveryError(currentUser)) {
         console.warn(`⚠️ [DeliveryForm] Background ${hasTimeWindowChanges ? 'route optimization' : 'ETA refresh'} failed:`, error?.message || error);

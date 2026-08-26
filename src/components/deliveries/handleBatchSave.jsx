@@ -584,7 +584,7 @@ export async function handleBatchSave({
           }
         }
 
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        // Stats refresh already fired by handleBatchSaveDelivery (line 572) — removed duplicate.
       } catch (bgError) {
         console.error('⚠️ [AddToRoute] Background operations failed:', bgError);
       }

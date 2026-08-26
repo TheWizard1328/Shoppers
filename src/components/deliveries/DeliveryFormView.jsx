@@ -700,6 +700,7 @@ export default function DeliveryFormView({
           const _formDataSnapshot = { ...formData };
           const _deliverySnapshot = delivery ? { ...delivery } : null;
           const _allDeliveriesSnapshot = [...(allDeliveries || [])];
+          const _wasPendingStaysPending = String(_deliverySnapshot?.status || "") === "pending" && String(_formDataSnapshot?.status || "") === "pending";
           const _submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
           // CLOSE IMMEDIATELY — same as button onClick
@@ -763,7 +764,7 @@ export default function DeliveryFormView({
               }
 
               if (_travelModeOnly) {
-                runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser });
+                runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser, skipStatsRefresh: _wasPendingStaysPending });
                 return;
               }
 
@@ -774,7 +775,7 @@ export default function DeliveryFormView({
                   return recalculateAndUpdateStopOrders(rid, rd);
                 })
               );
-              runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser });
+              runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser, skipStatsRefresh: _wasPendingStaysPending });
             } catch (_) {}
           })();
         }
@@ -2075,6 +2076,7 @@ export default function DeliveryFormView({
                   const _formDataSnapshot = { ...formData };
                   const _deliverySnapshot = delivery ? { ...delivery } : null;
                   const _allDeliveriesSnapshot = [...(allDeliveries || [])];
+                  const _wasPendingStaysPending = String(_deliverySnapshot?.status || "") === "pending" && String(_formDataSnapshot?.status || "") === "pending";
                   const _submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
                   // Admin: propagate coordinate changes back to the shared CyclingLocation record
@@ -2155,7 +2157,7 @@ export default function DeliveryFormView({
                       }
 
                       if (_travelModeOnly) {
-                        runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser });
+                        runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser, skipStatsRefresh: _wasPendingStaysPending });
                         return;
                       }
 
@@ -2170,7 +2172,7 @@ export default function DeliveryFormView({
                           console.warn('[DeliveryForm] setNextDeliveryFlag (prev driver) failed:', e?.message);
                         }
                       }
-                      runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser });
+                      runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser, skipStatsRefresh: _wasPendingStaysPending });
                     } catch (_) {}
                   })();
                 }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={isSaving || effectiveDeliveryActionBusy || !isFormValid || isFormLockedByPayroll || requiresDriverSelection}>
