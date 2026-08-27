@@ -439,6 +439,7 @@ export default function DriverPayrollGrid({
                 <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors disabled:opacity-50" title="Refresh data">
                   <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 dark:hover:text-slate-300'}`} />
                 </button>
+                <span className="text-[10px] font-medium hidden lg:inline whitespace-nowrap" style={{ color: 'var(--text-slate-400)' }} title="Cell indicators shown next to daily delivery counts">− After Hours &nbsp;·&nbsp; + Oversized</span>
               </div>
 
               {/* Center: Period Navigation */}
