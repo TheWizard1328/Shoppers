@@ -562,6 +562,7 @@ export default function DashboardView({
           stopCardsHeight={!immersiveHidden && cardsReadyForFAB ? stopCardsBaseHeight : 0}
           hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0}
           immersiveHidden={immersiveHidden}
+          hideCheckbox={isDispatcher}
         >
           <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
         </StopCardCheckboxToggle>

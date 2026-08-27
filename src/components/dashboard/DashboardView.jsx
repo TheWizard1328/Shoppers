@@ -539,6 +539,7 @@ function DashboardView({
         stopCardsHeight={stopCardsBaseHeight}
         hasVisibleCards={deliveriesWithStopOrder.length > 0}
         immersiveHidden={immersiveHidden}
+        hideCheckbox={isDispatcher}
       >
         <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} setShowRoutes={setShowRoutes} setShowBreadcrumbs={setShowBreadcrumbs} showBreadcrumbs={showBreadcrumbs} showRoutes={showRoutes} />
       </StopCardCheckboxToggle>
