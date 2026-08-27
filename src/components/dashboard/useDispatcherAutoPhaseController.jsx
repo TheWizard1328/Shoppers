@@ -11,8 +11,9 @@ import { saveSetting } from '@/components/utils/userSettingsManager';
  * manual taps, scoped to the store currently selected by the dispatcher and
  * the dashboard's selected date.
  *
+ *   Assigned driver goes On Duty         → ACTIVATES the rules + Phase 2
+ *                                          (Active Drivers & Next Stops)
  *   Driver accepts / is assigned a stop  → Phase 3 (Show Incomplete & Pending)
- *   Assigned driver goes On Duty         → Phase 2 (Active Drivers & Next Stops)
  *   All selected-store stops complete    → Phase 1 (Show All Stops)
  *   New In-Transit / InterStore / pending→ Phase 3 (reactivate)
  *
@@ -114,9 +115,11 @@ export function useDispatcherAutoPhaseController({
   // Signature of the store+date slice, kept fresh from BOTH the deliveries
   // React state (post-commit) AND realtime window events (pre-commit, freshest).
   const signatureRef = useRef(new Map());
-  // Set of driver_ids that currently have at least one non-finished stop for
-  // the store+date (used to decide whether an on_duty change is relevant).
-  const activeDriverIdsRef = useRef(new Set());
+  // Set of driver_ids that currently appear on ANY stop (active or finished)
+  // for the selected store+date — i.e. the dispatcher's assigned drivers for
+  // that store today. An On Duty event from any of them is the engagement
+  // trigger that activates the auto-phase rules (per the approved PRD).
+  const sliceDriverIdsRef = useRef(new Set());
   // Per-driver previous driver_status, so we can detect a flip TO on_duty.
   const driverStatusRef = useRef(new Map());
   // Initialized keys (storeId:dateStr) — re-baselining without firing events.
@@ -208,11 +211,11 @@ export function useDispatcherAutoPhaseController({
   // ── Recompute activeDriverIds + driverStatus maps from current state ──────
   const refreshDriverMaps = useCallback(() => {
     const sig = signatureRef.current;
-    const active = new Set();
+    const sliceDrivers = new Set();
     for (const s of sig.values()) {
-      if (!s.finished) active.add(s.driver);
+      if (s.driver) sliceDrivers.add(s.driver);
     }
-    activeDriverIdsRef.current = active;
+    sliceDriverIdsRef.current = sliceDrivers;
     const statusMap = new Map();
     for (const au of appUsers || []) {
       if (au?.user_id) statusMap.set(au.user_id, au.driver_status || 'off_duty');
@@ -339,9 +342,13 @@ export function useDispatcherAutoPhaseController({
     const handleAppUserChange = (newStatus, userId) => {
       if (!enabledRef.current) return;
       if (newStatus !== 'on_duty') return;
-      const active = activeDriverIdsRef.current;
-      if (!userId || active.size === 0) return;
-      if (!active.has(userId)) return; // driver has no active stops for this store+date
+      // Engagement trigger: the dispatcher's assigned drivers are those with a
+      // stop in the selected store+date slice. When one of them flips to On Duty
+      // the auto-phase rules activate and advance to Phase 2 (Active Drivers &
+      // Next Stops) — transient, so it honours free-pan.
+      const sliceDrivers = sliceDriverIdsRef.current;
+      if (!userId || sliceDrivers.size === 0) return;
+      if (!sliceDrivers.has(userId)) return; // not one of this store's drivers today
       const prevStatus = driverStatusRef.current.get(userId);
       if (prevStatus === 'on_duty') return; // not a flip
       scheduleEvent(2, false /* transient — honour free-pan */);
