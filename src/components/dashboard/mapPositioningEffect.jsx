@@ -310,7 +310,7 @@ export function runMapPositioningEffect({
           if (driverAppUser?.driver_status === 'on_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
             phase2DispatcherCoords.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
           }
-          const driverNextStop = allDateDeliveries2.find((d) => d && d.driver_id === driverId && d.isNextDelivery);
+          const driverNextStop = allDateDeliveries2.find((d) => d && d.driver_id === driverId && d.isNextDelivery && dispatcherStoreIds2.has(String(d.store_id)));
           if (driverNextStop) {
             if (driverNextStop.is_cycling_start_marker && driverNextStop.cycling_start_latitude && driverNextStop.cycling_start_longitude) { phase2DispatcherCoords.push([driverNextStop.cycling_start_latitude, driverNextStop.cycling_start_longitude]); }
             else if (driverNextStop.is_cycling_marker && driverNextStop.cycling_latitude && driverNextStop.cycling_longitude) { phase2DispatcherCoords.push([driverNextStop.cycling_latitude, driverNextStop.cycling_longitude]); }
@@ -378,8 +378,11 @@ export function runMapPositioningEffect({
         let allDateDeliveries = deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStrPhase3);
         if (isDispatcher && !isAdmin && currentUser?.store_ids) {
           const dispatcherStoreIds = new Set(currentUser.store_ids);
-          const driversWithStoreDeliveries = new Set(allDateDeliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id)).map((d) => d.driver_id).filter(Boolean));
-          allDateDeliveries = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
+          // Phase 3 for dispatchers only includes the dispatcher's store stops
+          // (+ the relevant drivers' locations). Scope bounds to those stops
+          // directly — the old filter kept every other-store stop a dispatcher-
+          // store driver also visits.
+          allDateDeliveries = allDateDeliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id));
         }
         const incompleteAndPendingAllDrivers = allDateDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
         const driversWithIncompleteOrPendingStops = new Set(incompleteAndPendingAllDrivers.map((d) => d.driver_id).filter(Boolean));
@@ -403,8 +406,12 @@ export function runMapPositioningEffect({
         const allDriverDeliveries = deliveriesRef.current.filter(
           (d) => d && d.driver_id === targetDriverId && d.delivery_date === selectedDateStrPhase3
         );
+        // Dispatchers: scope to their own store's stops + the selected driver's location.
+        const p3ScopedDriverDeliveries = isDispatcher && !isAdmin && currentUser?.store_ids
+          ? (() => { const p3Ds = new Set(currentUser.store_ids); return allDriverDeliveries.filter((d) => p3Ds.has(d.store_id)); })()
+          : allDriverDeliveries;
         allCoordinatesPhase3.push(...collectPhase3SingleDriverCoordinates({
-          deliveriesWithStopOrder: allDriverDeliveries,
+          deliveriesWithStopOrder: p3ScopedDriverDeliveries,
           selectedDateStr: selectedDateStrPhase3,
           patients: patientsRef.current,
           stores: storesRef.current,
