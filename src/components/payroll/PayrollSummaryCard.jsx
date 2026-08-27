@@ -760,6 +760,7 @@ export default function PayrollSummaryCard({
     setIsFinalizing(true);
     try {
       const dwdList = payrollData.filter((d) => d.totalDeliveries > 0);
+      const finalizedById = new Map();
       for (const dd of dwdList) {
         const rec = getDriverPayrollRecord(dd.driver.id);
         const edit = driverEdits[dd.driver.id] || {};
@@ -774,15 +775,27 @@ export default function PayrollSummaryCard({
         const paidAmount = parsePaidAmount(edit.paidAmount, netAmount);
         if (rec) {
           const finalizedRecord = await base44.entities.Payroll.update(rec.id, { paid_amount: paidAmount, status: 'admin_finalized', admin_finalized_at: new Date().toISOString(), admin_finalized_by: currentUser?.id });
+          const mergedRecord = { ...rec, ...finalizedRecord, paid_amount: paidAmount, status: 'admin_finalized', admin_finalized_at: finalizedRecord?.admin_finalized_at || new Date().toISOString(), admin_finalized_by: currentUser?.id };
+          finalizedById.set(rec.id, mergedRecord);
           try {
             const { broadcastMutation } = await import('../utils/realtimeSync');
-            await broadcastMutation('Payroll', 'update', finalizedRecord.id || rec.id, { ...rec, ...finalizedRecord, paid_amount: paidAmount, status: 'admin_finalized', admin_finalized_at: finalizedRecord.admin_finalized_at || new Date().toISOString(), admin_finalized_by: currentUser?.id });
+            await broadcastMutation('Payroll', 'update', mergedRecord.id || rec.id, mergedRecord);
           } catch (e) {/* ignore */}
         }
       }
+      // CRITICAL: merge the finalized records into local state immediately so the
+      // UI reflects the finalized status. Do NOT call refreshPayrollRecords() here —
+      // that helper only re-filters the stale boot-loaded payrollData cache and
+      // would overwrite the just-finalized records back to their pre-finalize status
+      // (the UI "reverts to unfinalized" even though the entity is finalized).
+      // onPayrollRecordsChange also pushes the finalized records into the parent's
+      // payrollData.payrollRecords cache, so it stays fresh too.
+      if (finalizedById.size > 0) {
+        const nextPayrollRecords = payrollRecords.map((r) => finalizedById.get(r.id) || r);
+        setPayrollRecords(nextPayrollRecords);
+        if (onPayrollRecordsChange) onPayrollRecordsChange(nextPayrollRecords);
+      }
       await notifyAdminApprovedPayroll({ admin: currentUser, periodLabel: currentPeriod?.label || 'this period', driversWithDeliveries: dwdList, appUsers });
-      if (refreshPayrollRecords) {await refreshPayrollRecords();} else
-      {const records = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr });setPayrollRecords(records || []);if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);}
       if (onFinalizePayroll) onFinalizePayroll({ period: currentPeriod, payrollData: dwdList, grandTotals: { Gross: grandTotalAllDrivers, tax: grandTotalTax, deductions: grandTotalDeductions, Net: grandTotalGross } });
     } catch (error) {console.error('Failed to admin finalize payroll:', error);} finally
     {setIsFinalizing(false);setShowConfirmDialog(false);}
