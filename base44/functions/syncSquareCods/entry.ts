@@ -14,7 +14,7 @@ const iei = (v) => /^[a-f0-9]{24}$/i.test(String(v || ''));
 const ru = async (b) => { const u = await b.auth.me().catch(() => null); if (!u) throw new HE(401, 'Unauthorized'); return u; };
 
 function hasOfflinePayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['cash', 'other'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0); }
-function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Debit', 'Credit', 'Check', 'debit', 'credit', 'check', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
+function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Debit', 'Credit', 'Cheque', 'debit', 'credit', 'cheque', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
 
 function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   const [,month,day] = String(deliveryDate||'').split('-');

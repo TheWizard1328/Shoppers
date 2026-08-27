@@ -510,7 +510,7 @@ export async function handleBatchSave({
 
           const originalHasDebitCredit = originalPayments.some(p => p.type === 'Debit' || p.type === 'Credit');
           const updatedHasDebitCredit = updatedPayments.some(p => p.type === 'Debit' || p.type === 'Credit');
-          const updatedHasCashCheck = updatedPayments.some(p => p.type === 'Cash' || p.type === 'Check');
+          const updatedHasCashCheck = updatedPayments.some(p => p.type === 'Cash' || p.type === 'Cheque');
 
           // Delete catalog item if payment changed to Debit/Credit
           if (!originalHasDebitCredit && updatedHasDebitCredit && updatedAmount > 0) {

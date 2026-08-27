@@ -404,7 +404,7 @@ function DeliveryCard({
                         <SelectItem value="Cash">Cash</SelectItem>
                         <SelectItem value="Debit">Debit</SelectItem>
                         <SelectItem value="Credit">Credit</SelectItem>
-                        <SelectItem value="Check">Check</SelectItem>
+                        <SelectItem value="Cheque">Cheque</SelectItem>
                     </SelectContent>
                 </Select>
 

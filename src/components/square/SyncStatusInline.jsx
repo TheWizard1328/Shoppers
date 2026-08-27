@@ -10,7 +10,7 @@ import { format, formatDistanceToNow } from "date-fns";
 //
 // Desktop (md+): single inline row (rounded-full pill) —
 //   [icon] Synced • 18 min ago (@ 22:18:40) | Cash 229 · Debit 255 · Credit 67 · Cheque 0
-export default function SyncStatusInline({ syncStatus, isSyncing, error, collectedCodTypeBreakdown = { Cash: 0, Debit: 0, Credit: 0, Check: 0 } }) {
+export default function SyncStatusInline({ syncStatus, isSyncing, error, collectedCodTypeBreakdown = { Cash: 0, Debit: 0, Credit: 0, Cheque: 0 } }) {
   const catalogStatus = syncStatus?.catalog;
   const transactionStatus = syncStatus?.transactions;
   const lastSyncTime = catalogStatus?.lastSync || transactionStatus?.lastSync;
@@ -62,7 +62,7 @@ export default function SyncStatusInline({ syncStatus, isSyncing, error, collect
         <span className={`${pill}`}>Cash {collectedCodTypeBreakdown.Cash | 0}</span>
         <span className={`${pill}`}>Debit {collectedCodTypeBreakdown.Debit | 0}</span>
         <span className={`${pill}`}>Credit {collectedCodTypeBreakdown.Credit | 0}</span>
-        <span className={`${pill}`}>Cheque {collectedCodTypeBreakdown.Check | 0}</span>
+        <span className={`${pill}`}>Cheque {collectedCodTypeBreakdown.Cheque | 0}</span>
       </div>
     </div>
   );

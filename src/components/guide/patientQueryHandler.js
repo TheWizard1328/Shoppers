@@ -377,7 +377,7 @@ export function buildPatientResponse({ patient, delivery, stats, store, cityAdmi
   const codCounts = getCodTotals(patient.id || patient._id, deliveries);
   if (codCounts && codCounts.totalCount > 0) {
     const parts = [];
-    for (const type of ['Cash', 'Debit', 'Credit', 'Check', 'Other']) {
+    for (const type of ['Cash', 'Debit', 'Credit', 'Cheque', 'Other']) {
       if (codCounts[type]) parts.push(`${type}: ${codCounts[type]}`);
     }
     lines.push(`\n💵 COD's: ${parts.join(' | ')}`);

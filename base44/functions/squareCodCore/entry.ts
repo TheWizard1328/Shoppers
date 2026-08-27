@@ -29,7 +29,7 @@ const unwrapEntityRecord = (r) => { if (!r || typeof r !== 'object') return null
 const ensureSquareToken = () => { const t = Deno.env.get('SQUARE_ACCESS_TOKEN'); if (!t) throw new HttpError(500, 'Square credentials not configured'); return t; };
 const requireUser = async (b44) => { const u = await b44.auth.me().catch(() => null); if (!u) throw new HttpError(401, 'Unauthorized'); return u; };
 const requireAdminIfAuthenticated = async (b44) => { const ok = await b44.auth.isAuthenticated().catch(() => false); if (!ok) return null; const u = await b44.auth.me().catch(() => null); if (u?.role !== 'admin') throw new HttpError(403, 'Forbidden: Admin access required'); return u; };
-const hasCollectedCardPayment = (d) => (Array.isArray(d?.cod_payments)?d.cod_payments:[]).some((p)=>['Debit','Credit','Check'].includes(p?.type)&&Number(p?.amount||0)>0);
+const hasCollectedCardPayment = (d) => (Array.isArray(d?.cod_payments)?d.cod_payments:[]).some((p)=>['Debit','Credit','Cheque'].includes(p?.type)&&Number(p?.amount||0)>0);
 const hasCollectedOfflinePayment = (d) => (Array.isArray(d?.cod_payments)?d.cod_payments:[]).some((p)=>isOfflineCollectedPaymentMethod(p?.type)&&Number(p?.amount||0)>0);
 const shouldRefreshDeliveries = (at, force=false) => { if (force) return true; const ms = new Date(at||0).getTime(); return !Number.isFinite(ms)||ms<=0||Date.now()-ms>=DELIVERY_BULK_REFRESH_INTERVAL_MS; };
 const getTransactionRetentionStartMs = () => { const t = new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate()-TRANSACTION_RETENTION_DAYS); return t.getTime(); };

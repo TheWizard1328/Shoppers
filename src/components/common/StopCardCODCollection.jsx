@@ -131,7 +131,7 @@ export default function StopCardCODCollection({
                     <SelectItem value="Cash">Cash</SelectItem>
                     <SelectItem value="Debit">Debit</SelectItem>
                     <SelectItem value="Credit">Credit</SelectItem>
-                    <SelectItem value="Check">Check</SelectItem>
+                    <SelectItem value="Cheque">Cheque</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -187,7 +187,7 @@ export default function StopCardCODCollection({
 
                 // Process Square based on current COD collection type
                 const hasCash = codPayments.some((p) => p.type === 'Cash');
-                const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Check');
+                const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Cheque');
                 const totalAmount = codPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
                 if (hasCash && totalAmount > 0) {

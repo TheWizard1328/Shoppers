@@ -81,7 +81,7 @@
         "cash",
         "debit",
         "credit",
-        "check",
+        "cheque",
         "card"
       ],
       "description": "How the payment was collected"

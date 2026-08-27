@@ -54,8 +54,8 @@ export const getPaymentMethodBadge = (method) => {
       displayMethod = 'Credit';
     }
     className = 'bg-purple-100 text-purple-800';
-  } else if (normalizedMethod.startsWith('check')) {
-    displayMethod = 'Check';
+  } else if (normalizedMethod.startsWith('check') || normalizedMethod.startsWith('cheque')) {
+    displayMethod = 'Cheque';
     className = 'bg-amber-100 text-amber-800';
   }
   

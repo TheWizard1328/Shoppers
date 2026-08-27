@@ -1906,14 +1906,14 @@ export default function SquareManagement() {
   const codDeliveriesCount = useMemo(() => filteredDeliveryRows.length, [filteredDeliveryRows]);
 
   const collectedCodTypeBreakdown = useMemo(() => {
-    const counts = { Cash: 0, Debit: 0, Credit: 0, Check: 0, Other: 0 };
+    const counts = { Cash: 0, Debit: 0, Credit: 0, Cheque: 0, Other: 0 };
     filteredDeliveryRows.forEach((row) => {
       const delivery = row.rawDelivery;
       if (!delivery) return;
       const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
       if (codPayments.length > 0) {
-        const deliveryTypes = new Set(codPayments.filter((payment) => Number(payment?.amount || 0) > 0).map((payment) => payment?.type).filter((type) => ['Cash', 'Debit', 'Credit', 'Check', 'Other'].includes(type)));
-        deliveryTypes.forEach((type) => {counts[type] += 1;});
+        const deliveryTypes = new Set(codPayments.filter((payment) => Number(payment?.amount || 0) > 0).map((payment) => payment?.type).filter((type) => ['Cash', 'Debit', 'Credit', 'Cheque', 'Other'].includes(type)));
+        deliveryTypes.forEach((type) => {counts[type === 'Check' ? 'Cheque' : type] += 1;});
       }
     });
     return counts;

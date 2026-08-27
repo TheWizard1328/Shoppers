@@ -100,7 +100,7 @@ function flattenOrderItems(orders) {
 
 // ── Collection detection ──
 const PAYMENT_TYPE_LOWERCASE_OFFLINE = new Set(['cash', 'other']);
-const PAYMENT_TYPE_EXACT_CARD = new Set(['Debit', 'Credit', 'Check', 'card', 'debit', 'credit', 'check', 'Card']);
+const PAYMENT_TYPE_EXACT_CARD = new Set(['Debit', 'Credit', 'Cheque', 'card', 'debit', 'credit', 'cheque', 'Card']);
 function hasOfflinePayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => PAYMENT_TYPE_LOWERCASE_OFFLINE.has(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0); }
 function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => PAYMENT_TYPE_EXACT_CARD.has(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
 // Only card/check payments (Debit/Credit/Check) count as "already collected"
@@ -226,7 +226,7 @@ async function handleSyncCatalog(base44, payload={}) {
 
   // Build collected delivery IDs (from delivery status + cod_payments)
   // Only card/check payments count as 'collected' for cleanup — Cash items must stay in Square for register reconciliation (Check is treated like a card payment)
-  const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'Check', 'debit', 'credit', 'check', 'card']);
+  const COLLECTED_PAYMENT_TYPES = new Set(['Debit', 'Credit', 'Cheque', 'debit', 'credit', 'cheque', 'card']);
   const deliveryHasRecordedCodPayment = (d) => (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => Number(p?.amount || 0) > 0 && COLLECTED_PAYMENT_TYPES.has(String(p?.type || '')));
   const collectedDeliveryIds = new Set(
     safeDeliveries.filter((d) => d?.status === 'completed' && deliveryHasRecordedCodPayment(d)).map((d) => d?.id).filter(Boolean)

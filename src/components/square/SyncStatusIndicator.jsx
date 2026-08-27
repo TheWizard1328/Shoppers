@@ -4,7 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CheckCircle, AlertCircle, Clock, Loader2, ChevronDown } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
-export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codDeliveryCount = 0, catalogItemCount = 0, cardSpendCount = 0, salesCount = 0, collectedCodTypeBreakdown = { Cash: 0, Debit: 0, Credit: 0, Check: 0 } }) {
+export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codDeliveryCount = 0, catalogItemCount = 0, cardSpendCount = 0, salesCount = 0, collectedCodTypeBreakdown = { Cash: 0, Debit: 0, Credit: 0, Cheque: 0 } }) {
   const catalogStatus = syncStatus?.catalog;
   const transactionStatus = syncStatus?.transactions;
 

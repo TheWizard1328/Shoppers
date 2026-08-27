@@ -723,7 +723,7 @@ export default function DeliveryFormView({
                 const codPayments = _formDataSnapshot.cod_payments || [];
                 const codAmount = (_formDataSnapshot.cod_total_amount_required || 0) / 100;
                 const hasCash = codPayments.some((p) => p.type === 'Cash');
-                const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Check');
+                const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Cheque');
                 if (hasCash && codAmount > 0) {
                   const { base44: b44 } = await import('@/api/base44Client');
                   const storeRes = _formDataSnapshot.store_id ?
@@ -2116,7 +2116,7 @@ export default function DeliveryFormView({
                         const codPayments = _formDataSnapshot.cod_payments || [];
                         const codAmount = (_formDataSnapshot.cod_total_amount_required || 0) / 100;
                         const hasCash = codPayments.some((p) => p.type === 'Cash');
-                        const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Check');
+                        const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Cheque');
                         if (hasCash && codAmount > 0) {
                           const { base44: b44 } = await import('@/api/base44Client');
                           const storeRes = _formDataSnapshot.store_id ?

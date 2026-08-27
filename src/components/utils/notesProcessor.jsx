@@ -67,7 +67,7 @@ export const processDeliveryNotes = (rawNotes, deliveryData, patient = null, isP
         } else if (paymentType === 'credit') {
           paymentType = 'Credit';
         } else if (paymentType === 'check' || paymentType === 'cheque') {
-          paymentType = 'Check';
+          paymentType = 'Cheque';
         } else {
           paymentType = 'Cash';
         }
