@@ -165,9 +165,38 @@ const mergeVisibleDriversByFreshness = (current = [], incoming = []) => {
     // STRICT: incoming must be STRICTLY newer — equal timestamps keep existing to prevent flicker
     const incomingIsStrictlyNewer = nextTs > existingTs;
     const useIncomingCoords = incomingHasCoords && incomingIsStrictlyNewer;
+
+    // ── DRIVER_STATUS PROTECTION ──
+    // The poller reads from the server and may lag behind explicit status-change
+    // events by several seconds. If the existing record's driver_status was recently
+    // updated (within 15s), protect it from being overwritten by a stale echo with a
+    // different status — unless the incoming record has a strictly newer updated_date
+    // (genuine server-side update). This prevents the marker from flickering between
+    // the correct status (on_duty) and the stale status (off_duty) on the driver's
+    // other devices and on dispatcher screens.
+    const now = Date.now();
+    const existingUpdatedTs = new Date(existing?.updated_date || 0).getTime();
+    const incomingUpdatedTs = new Date(user?.updated_date || 0).getTime();
+    const RECENT_STATUS_CHANGE_MS = 15000;
+    const statusChanged = existing?.driver_status && user?.driver_status && existing.driver_status !== user.driver_status;
+    let protectedDriverStatus = existing?.driver_status;
+    if (statusChanged) {
+      const isRecentExisting = (now - existingUpdatedTs) < RECENT_STATUS_CHANGE_MS;
+      if (isRecentExisting && incomingUpdatedTs <= existingUpdatedTs) {
+        // Existing status was set recently — protect it from stale echo
+        protectedDriverStatus = existing.driver_status;
+      } else {
+        // Either the existing status is old, or the incoming is genuinely newer — accept it
+        protectedDriverStatus = user.driver_status;
+      }
+    } else {
+      protectedDriverStatus = user?.driver_status || existing?.driver_status;
+    }
+
     merged.set(key, {
       ...existing,
       ...user,
+      driver_status: protectedDriverStatus,
       current_latitude: useIncomingCoords ? user.current_latitude : existing?.current_latitude,
       current_longitude: useIncomingCoords ? user.current_longitude : existing?.current_longitude,
       location_updated_at: incomingIsStrictlyNewer
@@ -446,6 +475,62 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
     window.addEventListener('driverLocationsUpdated', handleLocationUpdates);
     return () => window.removeEventListener('driverLocationsUpdated', handleLocationUpdates);
+  }, [currentUser, selectedDate, isAdmin, isDispatcher, isDriver, deliveries, selectedDriverId, showOtherDriverDeliveries, overlayDriverId]);
+
+  // ── appUserUpdated listener: immediate driver_status sync ──
+  // When a driver goes on/off duty or on break, the appUserUpdated event fires
+  // with the correct driver_status BEFORE the poller has a chance to re-read
+  // from the server. Without this listener, the poller's stale driver_status
+  // (still off_duty) would overwrite the correct status in visibleDrivers,
+  // causing the marker to flicker (briefly hidden or wrong color) on the
+  // driver's own other devices.
+  useEffect(() => {
+    const handleAppUserUpdated = (event) => {
+      const appUser = event?.detail?.appUser;
+      if (!appUser) return;
+
+      // Normalize the incoming record
+      const normalized = normalizeDriverRecord(appUser);
+      const key = getDriverIdentityKey(normalized);
+      if (!key) return;
+
+      setVisibleDrivers((prev) => {
+        const prevList = Array.isArray(prev) ? prev : [];
+        // Check if this driver is already visible
+        const existingIdx = prevList.findIndex(d => getDriverIdentityKey(d) === key);
+        if (existingIdx === -1) {
+          // Driver not currently visible — if the new status makes them visible,
+          // add them (if they have coordinates and pass the filters)
+          if (!normalized.current_latitude || !normalized.current_longitude) return prevList;
+          if (!shouldShowMarker(normalized) || !passesDriverSelectionFilter(normalized)) return prevList;
+          const merged = mergeVisibleDriversByFreshness(prevList, [normalized]);
+          return dedupeVisibleDrivers(merged.filter(u => shouldShowMarker(u) && passesDriverSelectionFilter(u)));
+        }
+
+        // Driver IS visible — update their status in place without removing them.
+        // This is the critical anti-flicker path: we update the driver_status field
+        // on the existing record so the marker color changes instantly, and the
+        // shouldShowMarker re-check determines if they should stay visible.
+        const updated = [...prevList];
+        const existingRec = updated[existingIdx];
+        const mergedRec = { ...existingRec, driver_status: normalized.driver_status || existingRec.driver_status,
+                            location_tracking_enabled: normalized.location_tracking_enabled ?? existingRec.location_tracking_enabled,
+                            updated_date: normalized.updated_date || existingRec.updated_date };
+
+        // Re-check visibility with the new status
+        if (!shouldShowMarker(mergedRec) || !passesDriverSelectionFilter(mergedRec)) {
+          // New status means they should no longer be visible — remove them
+          updated.splice(existingIdx, 1);
+          return dedupeVisibleDrivers(updated);
+        }
+
+        updated[existingIdx] = mergedRec;
+        return dedupeVisibleDrivers(updated);
+      });
+    };
+
+    window.addEventListener('appUserUpdated', handleAppUserUpdated);
+    return () => window.removeEventListener('appUserUpdated', handleAppUserUpdated);
   }, [currentUser, selectedDate, isAdmin, isDispatcher, isDriver, deliveries, selectedDriverId, showOtherDriverDeliveries, overlayDriverId]);
 
   useEffect(() => {

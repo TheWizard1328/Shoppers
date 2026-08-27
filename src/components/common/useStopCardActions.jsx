@@ -148,12 +148,14 @@ export default function useStopCardActions(params) {
         try {
           const { offlineDB } = await import('../utils/offlineDatabase');
           const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
+          const nowIso = new Date().toISOString();
           const updatedRecord = {
             ...existingRecord,
             ...currentUser,
             driver_status: 'on_duty',
             location_tracking_enabled: true,
-            location_updated_at: new Date().toISOString(),
+            location_updated_at: nowIso,
+            updated_date: nowIso,
             id: appUserId,
           };
           await offlineDB.save(offlineDB.STORES.APP_USERS, updatedRecord);

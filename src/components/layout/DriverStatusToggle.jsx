@@ -533,12 +533,13 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         // fields — dispatching a partial object causes updateAppUsersLocally to inject a
         // partial record into the in-memory appUsers map, which then gets saved to IDB via
         // flushRealtimeBatch as a partial record, wiping app_roles, user_name, store_ids, etc.
-        let fullAppUserRecord = { id: appUserId, user_id: effectiveUser.id, ...updatePayload };
+        const nowIso = new Date().toISOString();
+        let fullAppUserRecord = { id: appUserId, user_id: effectiveUser.id, updated_date: nowIso, ...updatePayload };
         try {
           const { offlineDB } = await import('../utils/offlineDatabase');
           const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => null);
           if (existingRecord) {
-            fullAppUserRecord = { ...existingRecord, ...updatePayload, id: appUserId, user_id: effectiveUser.id };
+            fullAppUserRecord = { ...existingRecord, ...updatePayload, id: appUserId, user_id: effectiveUser.id, updated_date: nowIso };
           }
         } catch (_) {}
 
