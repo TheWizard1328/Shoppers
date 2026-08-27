@@ -13,8 +13,8 @@ const et = () => { const t = Deno.env.get('SQUARE_ACCESS_TOKEN'); if (!t) throw 
 const iei = (v) => /^[a-f0-9]{24}$/i.test(String(v || ''));
 const ru = async (b) => { const u = await b.auth.me().catch(() => null); if (!u) throw new HE(401, 'Unauthorized'); return u; };
 
-function hasOfflinePayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['cash', 'check', 'other'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0); }
-function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Debit', 'Credit', 'debit', 'credit', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
+function hasOfflinePayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['cash', 'other'].includes(String(p?.type || '').toLowerCase()) && Number(p?.amount || 0) > 0); }
+function hasCardPayment(d) { return (Array.isArray(d?.cod_payments) ? d.cod_payments : []).some((p) => ['Debit', 'Credit', 'Check', 'debit', 'credit', 'check', 'card', 'Card'].includes(String(p?.type || '')) && Number(p?.amount || 0) > 0); }
 
 function formatItemName(deliveryDate, storeAbbreviation, patientName) {
   const [,month,day] = String(deliveryDate||'').split('-');
@@ -114,13 +114,13 @@ async function handleCreateCodItem(b44, payload) {
   const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = payload || {};
   if (!deliveryId || codAmount == null || Number(codAmount) <= 0) throw new HE(400, 'Missing: deliveryId, codAmount');
   const dr = await b44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
-  // Skip terminal-status deliveries, and completed deliveries paid by card
-  // (Debit/Credit go through the card machine directly — no Square catalog
-  // item is ever needed for those). Cash/Check completions are NOT skipped:
-  // those are exactly the COD collections that still need a Square catalog
-  // item created so the store can ring them through the register for
-  // reconciliation. Only a completed SquareTransaction (checked below) means
-  // a Cash/Check item has actually been processed through Square and is done.
+  // Skip terminal-status deliveries, and completed deliveries paid by card or
+  // check (Debit/Credit/Check are treated as collected directly — no Square
+  // catalog item is needed for those, Check is treated like a card payment).
+  // Cash completions are NOT skipped: those still need a Square catalog item
+  // created so the store can ring them through the register for reconciliation.
+  // Only a completed SquareTransaction (checked below) means a Cash item has
+  // actually been processed through Square and is done.
   if (dr?.status === 'failed' || dr?.status === 'cancelled') {
     return { success: true, skipped: true, reason: `delivery_status_${dr.status}` };
   }
@@ -234,10 +234,11 @@ Deno.serve(async (req) => {
           return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result: r }] });
         }
         if (newStatus === 'completed' && Number(delivery?.cod_total_amount_required || 0) > 0) {
-          // Cash/Check completions must NOT delete the catalog item here — those need
+          // Cash completions must NOT delete the catalog item here — those need
           // to stay in Square for register reconciliation until an actual Square
-          // transaction collects them. Only card payments (bypass Square) and the
-          // generic completed_cod_delivery fallback (e.g. no payment info) delete.
+          // transaction collects them. Check is treated like a card payment (it
+          // bypasses the register), so card payments and the generic
+          // completed_cod_delivery fallback (e.g. no payment info) delete.
           if (hasOfflinePayment(delivery) && !hasCardPayment(delivery)) {
             return Response.json({ success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'noop', status: 'skipped', reason: 'offline_payment_needs_catalog_item' }] });
           }

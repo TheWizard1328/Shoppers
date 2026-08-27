@@ -21,7 +21,7 @@ const normalizeText = (v) => String(v || '').trim();
 const toAmountCents = (v) => Math.max(0, Math.round(Number(v || 0)));
 const isValidEntityId = (v) => /^[a-f0-9]{24}$/i.test(String(v || ''));
 const isRetryableSquareStatus = (s) => [408, 409, 429, 500, 502, 503, 504].includes(Number(s));
-const isOfflineCollectedPaymentMethod = (m) => ['cash', 'check', 'other'].includes(String(m || '').toLowerCase());
+const isOfflineCollectedPaymentMethod = (m) => ['cash', 'other'].includes(String(m || '').toLowerCase());
 const shouldIgnoreManualOrderLabel = (v) => ['top ups','top up','topup','tip','top'].includes(String(v||'').replace(/\s+/g,' ').trim().toLowerCase());
 const formatLocalDate = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const getLookbackStartAt = (days) => new Date(Date.now() - days * 86400000).toISOString();
@@ -29,7 +29,7 @@ const unwrapEntityRecord = (r) => { if (!r || typeof r !== 'object') return null
 const ensureSquareToken = () => { const t = Deno.env.get('SQUARE_ACCESS_TOKEN'); if (!t) throw new HttpError(500, 'Square credentials not configured'); return t; };
 const requireUser = async (b44) => { const u = await b44.auth.me().catch(() => null); if (!u) throw new HttpError(401, 'Unauthorized'); return u; };
 const requireAdminIfAuthenticated = async (b44) => { const ok = await b44.auth.isAuthenticated().catch(() => false); if (!ok) return null; const u = await b44.auth.me().catch(() => null); if (u?.role !== 'admin') throw new HttpError(403, 'Forbidden: Admin access required'); return u; };
-const hasCollectedCardPayment = (d) => (Array.isArray(d?.cod_payments)?d.cod_payments:[]).some((p)=>['Debit','Credit'].includes(p?.type)&&Number(p?.amount||0)>0);
+const hasCollectedCardPayment = (d) => (Array.isArray(d?.cod_payments)?d.cod_payments:[]).some((p)=>['Debit','Credit','Check'].includes(p?.type)&&Number(p?.amount||0)>0);
 const hasCollectedOfflinePayment = (d) => (Array.isArray(d?.cod_payments)?d.cod_payments:[]).some((p)=>isOfflineCollectedPaymentMethod(p?.type)&&Number(p?.amount||0)>0);
 const shouldRefreshDeliveries = (at, force=false) => { if (force) return true; const ms = new Date(at||0).getTime(); return !Number.isFinite(ms)||ms<=0||Date.now()-ms>=DELIVERY_BULK_REFRESH_INTERVAL_MS; };
 const getTransactionRetentionStartMs = () => { const t = new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate()-TRANSACTION_RETENTION_DAYS); return t.getTime(); };
@@ -730,7 +730,7 @@ async function handleSyncCatalogItems(base44, payload={}) {
     paidOrderItems.some((pi)=>structuredCodNamesMatch(pi.item_name,itemName,(pi.payment_date||pi.order_created_at||'').slice(0,10))===true)||
     recentSquareTx.some((t)=>{if(!t?.status||t.status==='pending')return false;const txDateIso=(t?.raw_square_data?.payment_date||t?.created_date||'').slice(0,10);return structuredCodNamesMatch(t?.item_name,itemName,txDateIso)===true;})||
     paidCatalogObjectIds.has(exTx[0]?.square_catalog_object_id||'');
-  const delForInvalid=!ac||!store?.square_location_config_id||!ac?.square_location_id||delivery?.status==='failed';const shouldDel=delForInvalid||hasSquarePaid;
+  const delForInvalid=!ac||!store?.square_location_config_id||!ac?.square_location_id||delivery?.status==='failed';const shouldDel=delForInvalid||hasSquarePaid||(delivery?.status==='completed'&&hasCard);
   if(catalogItem&&!isCatalogItemAtLocation(catalogItem,ac?.square_location_id)){itemsToDelete.push(catalogItem.id);catalogItem=null;}
   if(shouldDel){if(catalogItem?.id)itemsToDelete.push(catalogItem.id);for(const t of exTx){if(t.status!=='pending')continue;if(delForInvalid)txToCancel.push(t.id);else if(hasSquarePaid)txToComplete.push(t.id);}continue;}
   deliveriesToSync.push({delivery,itemName,patientName:rpn,patientId:rp?.id||(isValidEntityId(delivery.patient_id)?delivery.patient_id:null),amountCents,locationId:ac.square_location_id,existingCatalogItem:catalogItem});}

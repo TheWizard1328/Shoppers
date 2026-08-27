@@ -186,12 +186,12 @@ export default function StopCardCODCollection({
                 }
 
                 // Process Square based on current COD collection type
-                const hasCashCheck = codPayments.some((p) => p.type === 'Cash' || p.type === 'Check');
-                const hasDebitCredit = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit');
+                const hasCash = codPayments.some((p) => p.type === 'Cash');
+                const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Check');
                 const totalAmount = codPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
-                if (hasCashCheck && totalAmount > 0) {
-                  // Recreate catalog item for Cash/Check
+                if (hasCash && totalAmount > 0) {
+                  // Recreate catalog item for Cash (Check is treated like a card payment and deletes the item)
                   const store = allDeliveries?.find((d) => d?.id === delivery.id)?.store_id ?
                   await base44.entities.Store.filter({ id: delivery.store_id }) :
                   null;
@@ -203,8 +203,8 @@ export default function StopCardCODCollection({
                     deliveryDate: delivery.delivery_date,
                     storeId: delivery.store_id
                   }).catch(() => null);
-                } else if (hasDebitCredit && totalAmount > 0) {
-                  // Delete catalog item for Debit/Credit
+                } else if (hasCardOrCheck && totalAmount > 0) {
+                  // Delete catalog item for Debit/Credit/Check
                   await base44.functions.invoke('squareDeleteCodItem', {
                     deliveryId: delivery.id
                   }).catch(() => null);
@@ -216,7 +216,7 @@ export default function StopCardCODCollection({
                   // flows in useStopCardActions.jsx's executeTerminalAction.
                   await collapseExpandedStopCardsForDriver(delivery?.driver_id);
                   // Also sync Square catalog item when editing a completed delivery's COD
-                  if (hasCashCheck && totalAmount > 0) {
+                  if (hasCash && totalAmount > 0) {
                     const store = delivery.store_id
                       ? await base44.entities.Store.filter({ id: delivery.store_id })
                       : null;
@@ -228,7 +228,7 @@ export default function StopCardCODCollection({
                       deliveryDate: delivery.delivery_date,
                       storeId: delivery.store_id
                     }).catch(() => null);
-                  } else if (hasDebitCredit && totalAmount > 0) {
+                  } else if (hasCardOrCheck && totalAmount > 0) {
                     await base44.functions.invoke('squareDeleteCodItem', {
                       deliveryId: delivery.id
                     }).catch(() => null);

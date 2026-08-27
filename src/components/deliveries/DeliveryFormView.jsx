@@ -718,13 +718,13 @@ export default function DeliveryFormView({
                 smartRefreshManager.resume();
               }
 
-              // Sync Square catalog item if COD amount is set and payment type is Cash/Check
+              // Sync Square catalog item if COD amount is set and payment type is Cash (Check is treated like a card payment and deletes the item)
               if (_formDataSnapshot.patient_id && delivery?.id) {
                 const codPayments = _formDataSnapshot.cod_payments || [];
                 const codAmount = (_formDataSnapshot.cod_total_amount_required || 0) / 100;
-                const hasCashCheck = codPayments.some((p) => p.type === 'Cash' || p.type === 'Check');
-                const hasDebitCredit = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit');
-                if (hasCashCheck && codAmount > 0) {
+                const hasCash = codPayments.some((p) => p.type === 'Cash');
+                const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Check');
+                if (hasCash && codAmount > 0) {
                   const { base44: b44 } = await import('@/api/base44Client');
                   const storeRes = _formDataSnapshot.store_id ?
                   await b44.entities.Store.filter({ id: _formDataSnapshot.store_id }).catch(() => []) :
@@ -737,7 +737,7 @@ export default function DeliveryFormView({
                     deliveryDate: _formDataSnapshot.delivery_date,
                     storeId: _formDataSnapshot.store_id || ''
                   }).catch(() => null);
-                } else if (hasDebitCredit) {
+                } else if (hasCardOrCheck) {
                   const { base44: b44 } = await import('@/api/base44Client');
                   b44.functions.invoke('squareDeleteCodItem', { deliveryId: delivery.id }).catch(() => null);
                 }
@@ -2111,13 +2111,13 @@ export default function DeliveryFormView({
                         smartRefreshManager.resume();
                       }
 
-                      // Sync Square catalog item if COD amount is set and payment type is Cash/Check
+                      // Sync Square catalog item if COD amount is set and payment type is Cash (Check is treated like a card payment and deletes the item)
                       if (_formDataSnapshot.patient_id && delivery?.id) {
                         const codPayments = _formDataSnapshot.cod_payments || [];
                         const codAmount = (_formDataSnapshot.cod_total_amount_required || 0) / 100;
-                        const hasCashCheck = codPayments.some((p) => p.type === 'Cash' || p.type === 'Check');
-                        const hasDebitCredit = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit');
-                        if (hasCashCheck && codAmount > 0) {
+                        const hasCash = codPayments.some((p) => p.type === 'Cash');
+                        const hasCardOrCheck = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit' || p.type === 'Check');
+                        if (hasCash && codAmount > 0) {
                           const { base44: b44 } = await import('@/api/base44Client');
                           const storeRes = _formDataSnapshot.store_id ?
                           await b44.entities.Store.filter({ id: _formDataSnapshot.store_id }).catch(() => []) :
@@ -2130,7 +2130,7 @@ export default function DeliveryFormView({
                             deliveryDate: _formDataSnapshot.delivery_date,
                             storeId: _formDataSnapshot.store_id || ''
                           }).catch(() => null);
-                        } else if (hasDebitCredit) {
+                        } else if (hasCardOrCheck) {
                           const { base44: b44 } = await import('@/api/base44Client');
                           b44.functions.invoke('squareDeleteCodItem', { deliveryId: delivery.id }).catch(() => null);
                         }

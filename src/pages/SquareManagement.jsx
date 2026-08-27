@@ -1796,11 +1796,11 @@ export default function SquareManagement() {
         if (selectedDriverUserIds.size === 0) return false;
         if (!selectedDriverUserIds.has(delivery.driver_id)) return false;
       }
-      // Only Cash or Check payments belong in Reconcile — Debit/Credit are collected
-      // directly via card machine and don't need a matching Square catalog item.
+      // Only Cash payments belong in Reconcile — Debit/Credit/Check are collected
+      // directly via card machine (or treated like card) and don't need a matching Square catalog item.
       const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
-      const hasCashCheck = codPayments.some((p) => p?.type === 'Cash' || p?.type === 'Check');
-      if (!hasCashCheck) return false;
+      const hasCash = codPayments.some((p) => p?.type === 'Cash');
+      if (!hasCash) return false;
       return true;
     }).
     sort((a, b) => String(b.delivery_date || '').localeCompare(String(a.delivery_date || ''))).

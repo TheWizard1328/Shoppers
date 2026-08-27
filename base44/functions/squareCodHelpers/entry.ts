@@ -121,11 +121,11 @@ export function shouldRefreshDeliveries(lastRefreshedAt, forceRefresh = false) {
 }
 
 export function hasCollectedCardPayment(delivery) {
-  return (Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : []).some((p) => ['Debit', 'Credit'].includes(p?.type) && Number(p?.amount || 0) > 0);
+  return (Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : []).some((p) => ['Debit', 'Credit', 'Check'].includes(p?.type) && Number(p?.amount || 0) > 0);
 }
 
 export function isOfflineCollectedPaymentMethod(paymentMethod) {
-  return ['cash', 'check', 'other'].includes(String(paymentMethod || '').toLowerCase());
+  return ['cash', 'other'].includes(String(paymentMethod || '').toLowerCase());
 }
 
 export function hasCollectedOfflinePayment(delivery) {
