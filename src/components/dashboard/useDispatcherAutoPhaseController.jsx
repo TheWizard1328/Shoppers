@@ -16,6 +16,11 @@ import { saveSetting } from '@/components/utils/userSettingsManager';
  *   Driver accepts / is assigned a stop  → Phase 3 (Show Incomplete & Pending)
  *   All selected-store stops complete    → Phase 1 (Show All Stops)
  *   New In-Transit / InterStore / pending→ Phase 3 (reactivate)
+ *   All assigned drivers On Break        → Phase 1 *only* if the next stop is
+ *                                          an InterStore Drop-off (ISD) or a
+ *                                          pickup for the dispatcher's store;
+ *                                          otherwise Phase 3. [boundary]
+ *   ≥1 driver returns On Duty from break → Phase 3 (reactivate) [boundary]
  *
  * Clarifications honoured:
  *   - Manual pause: a manual FAB tap arms manualOverrideRef; the very next
@@ -79,6 +84,10 @@ const buildSignature = (deliveries, storeId, dateStr) => {
       status: d.status || '',
       interstore: isInterStore(d),
       finished: FINISHED_STATUSES.includes(d.status),
+      stopOrder: d.stop_order ?? Infinity,
+      isISD: String(d.delivery_id || '').toUpperCase().startsWith('ISD-'),
+      isStorePickup:
+        !d.patient_id && String(d.store_id) === String(storeId) && !isInterStore(d),
     });
   }
   return map;
@@ -122,6 +131,9 @@ export function useDispatcherAutoPhaseController({
   const sliceDriverIdsRef = useRef(new Set());
   // Per-driver previous driver_status, so we can detect a flip TO on_duty.
   const driverStatusRef = useRef(new Map());
+  // True while ALL assigned (slice) drivers are currently on_break. Used to
+  // detect return-from-break (→ Phase 3) vs a shift-start On Duty (→ Phase 2).
+  const wasAllOnBreakRef = useRef(false);
   // Initialized keys (storeId:dateStr) — re-baselining without firing events.
   const initializedKeysRef = useRef(new Set());
 
@@ -279,6 +291,10 @@ export function useDispatcherAutoPhaseController({
         status: data.status || '',
         interstore: isInterStore(data),
         finished: FINISHED_STATUSES.includes(data.status),
+        stopOrder: data.stop_order ?? Infinity,
+        isISD: String(data.delivery_id || '').toUpperCase().startsWith('ISD-'),
+        isStorePickup:
+          !data.patient_id && String(data.store_id) === String(storeId) && !isInterStore(data),
       };
 
       // Delete event → remove from signature, no auto-phase (let all-complete
@@ -339,19 +355,56 @@ export function useDispatcherAutoPhaseController({
   // ── AppUser driver_status changes → On Duty classification ────────────────
   useEffect(() => {
     if (!enabledRef.current) return;
-    const handleAppUserChange = (newStatus, userId) => {
+
+    // Phase 1 gate: Phase 1 activates ONLY when the next stop is an InterStore
+    // Drop-off (ISD) or a pickup for the dispatcher's store; otherwise Phase 3.
+    // The "next stop" is the non-finished stop in the slice with the smallest
+    // stop_order. Used by the all-on-break transition (per the approved PRD).
+    const choosePhase1Or3ForNextStop = () => {
+      const sig = signatureRef.current;
+      let next = null;
+      for (const s of sig.values()) {
+        if (s.finished) continue;
+        if (next === null || (s.stopOrder ?? Infinity) < (next.stopOrder ?? Infinity)) next = s;
+      }
+      if (!next) return 3;
+      return (next.isISD || next.isStorePickup) ? 1 : 3;
+    };
+
+    const handleAppUserChange = (newStatus, userId, prevStatus) => {
       if (!enabledRef.current) return;
-      if (newStatus !== 'on_duty') return;
-      // Engagement trigger: the dispatcher's assigned drivers are those with a
-      // stop in the selected store+date slice. When one of them flips to On Duty
-      // the auto-phase rules activate and advance to Phase 2 (Active Drivers &
-      // Next Stops) — transient, so it honours free-pan.
       const sliceDrivers = sliceDriverIdsRef.current;
-      if (!userId || sliceDrivers.size === 0) return;
-      if (!sliceDrivers.has(userId)) return; // not one of this store's drivers today
-      const prevStatus = driverStatusRef.current.get(userId);
-      if (prevStatus === 'on_duty') return; // not a flip
-      scheduleEvent(2, false /* transient — honour free-pan */);
+      if (!userId || sliceDrivers.size === 0 || !sliceDrivers.has(userId)) return;
+
+      const wereAllOnBreak = wasAllOnBreakRef.current;
+
+      // Recompute slice driver statuses AFTER this update.
+      const statuses = [];
+      for (const did of sliceDrivers) {
+        statuses.push(driverStatusRef.current.get(did) || 'off_duty');
+      }
+      const allOnBreak = statuses.length > 0 && statuses.every((s) => s === 'on_break');
+      const anyOnDuty = statuses.includes('on_duty');
+
+      // 1) All assigned drivers On Break → Phase 1 (gated) or Phase 3 [boundary].
+      if (allOnBreak && !wereAllOnBreak) {
+        wasAllOnBreakRef.current = true;
+        scheduleEvent(choosePhase1Or3ForNextStop(), true /* boundary — override free-pan */);
+        return;
+      }
+      if (!allOnBreak) wasAllOnBreakRef.current = false;
+
+      // 2) ≥1 driver returns On Duty from an all-break state → Phase 3 [boundary].
+      if (anyOnDuty && wereAllOnBreak && newStatus === 'on_duty') {
+        scheduleEvent(3, true /* boundary — override free-pan */);
+        return;
+      }
+
+      // 3) Shift-start On Duty (not returning from break) → activate Phase 2 [transient].
+      if (newStatus === 'on_duty' && prevStatus !== 'on_duty' && !wereAllOnBreak) {
+        scheduleEvent(2, false /* transient — honour free-pan */);
+        return;
+      }
     };
 
     const onAppUserUpdated = (e) => {
@@ -359,23 +412,24 @@ export function useDispatcherAutoPhaseController({
       if (!au?.user_id) return;
       const prev = driverStatusRef.current.get(au.user_id);
       const next = au.driver_status || 'off_duty';
-      // Update our per-driver status map immediately so subsequent events diff correctly.
       driverStatusRef.current.set(au.user_id, next);
-      handleAppUserChange(next, au.user_id);
+      handleAppUserChange(next, au.user_id, prev);
     };
     const onRealtimeAppUser = (e) => {
       const { data, changedFields } = e?.detail || {};
       if (!data?.user_id) return;
       if (Array.isArray(changedFields) && changedFields.length > 0 && !changedFields.includes('driver_status')) return;
+      const prev = driverStatusRef.current.get(data.user_id);
       const next = data.driver_status || 'off_duty';
       driverStatusRef.current.set(data.user_id, next);
-      handleAppUserChange(next, data.user_id);
+      handleAppUserChange(next, data.user_id, prev);
     };
     const onDriverStatusChanged = (e) => {
       const { userId, newStatus } = e?.detail || {};
       if (!userId || !newStatus) return;
+      const prev = driverStatusRef.current.get(userId);
       driverStatusRef.current.set(userId, newStatus);
-      handleAppUserChange(newStatus, userId);
+      handleAppUserChange(newStatus, userId, prev);
     };
 
     window.addEventListener('appUserUpdated', onAppUserUpdated);
