@@ -47,7 +47,7 @@ import { handleCreateReturn as _handleCreateReturn } from '@/components/dashboar
 import { handleStatusUpdate as _handleStatusUpdateImpl } from '@/components/dashboard/handleStatusUpdate';
 import { useFabControlEventHandler } from '@/components/dashboard/useFabControlEventHandler';
 import { useStopCardsBaseHeight } from '@/components/dashboard/useStopCardsBaseHeight';
-import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';import { useKittOptimizationMessages } from '@/components/dashboard/useKittOptimizationMessages';import { runAddDelay } from '@/components/dashboard/handleAddDelay';import { runDualDriverOptimization } from '@/components/dashboard/handleDualDriverOptimization';import { usePullToSyncDataReadyEffect } from '@/components/dashboard/usePullToSyncDataReadyEffect';import { useDataSourceChangedEffect } from '@/components/dashboard/useDataSourceChangedEffect';import { COMPLETED_ROUTE_RADIUS_KM, getCityRadiusBounds, resolveCompletedRouteCity } from '@/components/dashboard/completedRouteView';
+import { useStopCardCollapseTimer } from '@/components/utils/stopCardCollapseManager';import { useKittOptimizationMessages } from '@/components/dashboard/useKittOptimizationMessages';import { runAddDelay } from '@/components/dashboard/handleAddDelay';import { runDualDriverOptimization } from '@/components/dashboard/handleDualDriverOptimization';import { usePullToSyncDataReadyEffect } from '@/components/dashboard/usePullToSyncDataReadyEffect';import { useDataSourceChangedEffect } from '@/components/dashboard/useDataSourceChangedEffect';import { COMPLETED_ROUTE_RADIUS_KM, getCityRadiusBounds, resolveCompletedRouteCity } from '@/components/dashboard/completedRouteView';import { useDispatcherAutoPhaseController } from '@/components/dashboard/useDispatcherAutoPhaseController';
 
 const getEdmDate=()=>{const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Edmonton',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return`${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`;};const centerNextDeliveryCard=()=>{window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));};
 function Dashboard() {
@@ -650,7 +650,7 @@ function Dashboard() {
   const handleStatsPanelInteraction = useCallback(() => {}, []);
   useEffect(() => { setStatsPanelOpacity(1); }, []);
   const handleReoptimizeRouteRef = useRef(null);
-  useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, mapUserUnlockedRef, lastUserInteractionRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger, onOnDutyFromToggle: () => handleReoptimizeRouteRef.current?.() });
+  useFabControlEventHandler({ mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, phaseBeforeBreakRef, mapUserUnlockedRef, lastUserInteractionRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger, onOnDutyFromToggle: () => handleReoptimizeRouteRef.current?.() }); const _autoPhaseController = useDispatcherAutoPhaseController({ enabled: isDispatcher && !isAdmin && isDataLoaded && cardsReadyForFAB, currentUser, deliveries, appUsers, selectedDate, selectedStoreId: (() => { const sid = globalFilters.getSelectedStoreId(); return sid && sid !== 'all' ? sid : (currentUser?.store_ids || [])[0]; })(), isFormOverlayOpen: !!(showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant), mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef, mapUserUnlockedRef, setMapViewPhase, setIsMapViewLocked, setMapViewTrigger });
   useLocalPerformanceStats({ currentUser, isDataLoaded, isDispatcher, isAdmin, isDriver, selectedDriverId, filteredDeliveries, patients, appUsers, setPerformanceStats, setIsLoadingPayrollStats });
   const { dailyPolylineCount } = useDashboardPolylineMaintenance({ currentUser, selectedDate, deliveries, isDataLoaded, dataReadyForSelectedDate, isSnapshotModeActive, updateDeliveriesLocally });
   useLiveBreadcrumbsSync({ showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser, selectedDate, appUsers, setBreadcrumbsData });
@@ -971,7 +971,7 @@ function Dashboard() {
   // CRITICAL: Read phase and lock state from REFS, not closure values.
   // ── handleMapViewCycle — the ONLY source of phase advancement ────────────
   const handleMapViewCycle = useCallback(() => {
-    if (!isDriver && !isDispatcher && !isAdmin) return;
+    if (!isDriver && !isDispatcher && !isAdmin) return; if (isDispatcher && !isAdmin && _autoPhaseController) _autoPhaseController.setManualOverride();
 
     // Collapse any open stop card
     setIsExpanded(false);
