@@ -14,8 +14,39 @@ import { isCapacitorNativeApp, getCapacitorPlatform } from './locationProviders/
  *   versionLabel — "v1.0.N"  (for the sidebar badge)
  *   loaded       — true once the fetch completes
  */
+// Cache key for persisting the last successful GitHub API fetch.
+// CRITICAL: Multiple drivers on the same pharmacy WiFi share an IP address.
+// GitHub's unauthenticated API limit is 60 req/hr PER IP. With 2 calls per poll
+// and 5-min intervals, 3+ devices easily exceed the limit. When rate-limited,
+// buildNumber stays null and the "New" update badge never appears. Caching
+// the last successful fetch in localStorage ensures the badge still works
+// even when the API is rate-limited or the network is flaky.
+const BUILD_CACHE_KEY = 'rxdeliver_latest_apk_build';
+const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+function loadCachedBuildInfo() {
+  try {
+    const raw = localStorage.getItem(BUILD_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Cache expires after 1 hour — stale build info is better than none, but
+    // we don't want to show an outdated "New" badge forever.
+    if (Date.now() - (parsed.cachedAt || 0) > 60 * 60 * 1000) return null;
+    return { dateStr: parsed.dateStr || '', buildNumber: parsed.buildNumber || null, apkUrl: parsed.apkUrl || null };
+  } catch { return null; }
+}
+
+function saveCachedBuildInfo(info) {
+  try {
+    localStorage.setItem(BUILD_CACHE_KEY, JSON.stringify({ ...info, cachedAt: Date.now() }));
+  } catch {}
+}
+
 export function useLatestApkBuildInfo() {
-  const [buildInfo, setBuildInfo] = useState(null);
+  // Initialize from cache so the badge shows immediately on mount (before the
+  // network fetch completes). This fixes the "badge never appears" issue when
+  // GitHub API is rate-limited.
+  const [buildInfo, setBuildInfo] = useState(() => loadCachedBuildInfo());
 
   useEffect(() => {
     let cancelled = false;
@@ -24,7 +55,16 @@ export function useLatestApkBuildInfo() {
     const fetchData = async () => {
       const [releaseData, runsData] = await Promise.all([
         fetch('https://api.github.com/repos/TheWizard1328/Shoppers/releases/tags/apk-latest')
-          .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          .then((r) => {
+            if (!r.ok) return null;
+            // Check rate limit headers — if we're close to the limit, back off
+            const remaining = parseInt(r.headers.get('X-RateLimit-Remaining') || '999', 10);
+            if (remaining <= 5) {
+              console.warn(`⚠️ [BuildInfo] GitHub API rate limit low (${remaining} remaining) — skipping this poll`);
+              return null;
+            }
+            return r.json();
+          }).catch(() => null),
         fetch('https://api.github.com/repos/TheWizard1328/Shoppers/actions/workflows/build-apk.yml/runs?status=success&per_page=1')
           .then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
@@ -35,20 +75,27 @@ export function useLatestApkBuildInfo() {
         : '';
       const buildNumber = runsData?.workflow_runs?.[0]?.run_number || null;
       const apkUrl = (releaseData?.assets || []).find((a) => a.name && a.name.endsWith('.apk'))?.browser_download_url || null;
-      // Skip the state update when nothing changed — prevents needless re-renders each poll tick.
-      setBuildInfo((prev) => {
-        if (prev && prev.buildNumber === buildNumber && prev.dateStr === dateStr && prev.apkUrl === apkUrl) {
-          return prev;
+
+      // If we got valid data, update cache and state
+      if (buildNumber != null || apkUrl != null) {
+        const newInfo = { dateStr, buildNumber, apkUrl };
+        saveCachedBuildInfo(newInfo);
+        if (!cancelled) {
+          setBuildInfo((prev) => {
+            if (prev && prev.buildNumber === buildNumber && prev.dateStr === dateStr && prev.apkUrl === apkUrl) {
+              return prev;
+            }
+            return newInfo;
+          });
         }
-        return { dateStr, buildNumber, apkUrl };
-      });
+      }
+      // If both calls returned null (rate-limited or network error), keep the
+      // cached state — don't clear it. The cached build number is still valid
+      // for badge comparison.
     };
 
     fetchData();
-    // Re-poll every 5 minutes so the build number/date (and "New" badge) update live,
-    // without requiring a page refresh. ~24 req/hr per open tab — well within GitHub's
-    // 60/hr unauthenticated limit.
-    timer = setInterval(fetchData, 5 * 60 * 1000);
+    timer = setInterval(fetchData, POLL_INTERVAL);
 
     return () => {
       cancelled = true;

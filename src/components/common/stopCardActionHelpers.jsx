@@ -450,7 +450,16 @@ export async function collapseExpandedStopCardsForDriver(driverId) {
   });
   if (!expandedCard) return;
   collapseAllStopCards({ driverId });
-  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  // CRITICAL: Use Promise.race with a setTimeout fallback instead of bare double-RAF.
+  // requestAnimationFrame STOPS FIRING when the app is backgrounded or the screen
+  // turns off (Android WebView throttles/suspends RAF). A bare double-RAF await would
+  // never resolve, hanging the entire Start/Restart action flow — the spinner would
+  // cycle forever because resetActionLocks is never called. The 150ms setTimeout
+  // fallback ensures resolution even when backgrounded.
+  await Promise.race([
+    new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    new Promise((resolve) => setTimeout(resolve, 150)),
+  ]);
 }
 
 export function centerDeliveryCard(deliveryId) {

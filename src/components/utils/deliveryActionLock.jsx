@@ -44,6 +44,12 @@ export const clearDeliveryActionLock = () => {
   notifyListeners();
 };
 
+// Safety timeout: if a task hangs (e.g. RAF never fires while backgrounded, an
+// awaited import stalls, or a backend call never returns), force-release the lock
+// after 120s so the UI recovers instead of spinning forever. The hung task
+// continues in the background — we just stop blocking new actions.
+const ACTION_LOCK_TIMEOUT_MS = 120000;
+
 export const runWithDeliveryActionLock = async (actionName, task) => {
   const lock = acquireDeliveryActionLock(actionName);
   if (!lock) {
@@ -53,9 +59,19 @@ export const runWithDeliveryActionLock = async (actionName, task) => {
     };
   }
 
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    if (activeDeliveryAction?.token === lock.token) {
+      timedOut = true;
+      console.error(`⏱️ [deliveryActionLock] "${actionName}" timed out after ${ACTION_LOCK_TIMEOUT_MS / 1000}s — force-releasing lock`);
+      releaseDeliveryActionLock(lock);
+    }
+  }, ACTION_LOCK_TIMEOUT_MS);
+
   try {
     return await task(lock);
   } finally {
-    releaseDeliveryActionLock(lock);
+    clearTimeout(timeoutId);
+    if (!timedOut) releaseDeliveryActionLock(lock);
   }
 };
