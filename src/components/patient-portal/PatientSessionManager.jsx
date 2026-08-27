@@ -1,8 +1,9 @@
 /**
  * PatientSessionManager
  * Manages the lightweight session for the Patient Portal.
- * Session is stored in sessionStorage (cleared on tab close automatically).
- * Auto-logout: 1 hour after a successful delivery or return event.
+ * Session is stored in localStorage — persists across app restarts (PWA/APK/browser).
+ * No automatic expiration — patient stays logged in until explicit logout.
+ * The patient only sees their own delivery data, so persistent storage is safe.
  */
 
 const SESSION_KEY = 'rxdeliver_patient_session';
@@ -10,27 +11,27 @@ const SESSION_KEY = 'rxdeliver_patient_session';
 export const PatientSessionManager = {
   /**
    * Save patient session after successful login.
-   * No expiration set at login — expiration is only set after delivery/return.
+   * Stored in localStorage so it survives tab close / app kill / PWA restart.
    */
   login(patient) {
     const session = {
       patient,
       loggedInAt: Date.now(),
-      expiresAt: null, // set later via startExpirationTimer
     };
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   },
 
   /**
-   * Call this when a delivery is marked as completed OR when the patient
-   * clicks the "Return" / "Go Back" button after viewing a delivery.
-   * Starts the 1-hour countdown from NOW.
+   * Refresh the session data (e.g. when patient info is updated).
+   * Preserves the original loggedInAt timestamp.
    */
-  startExpirationTimer() {
-    const session = this.getSession();
-    if (!session) return;
-    session.expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour from now
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  refreshSession(patient) {
+    const existing = this.getSession();
+    const session = {
+      patient,
+      loggedInAt: existing?.loggedInAt || Date.now(),
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   },
 
   /**
@@ -38,7 +39,7 @@ export const PatientSessionManager = {
    */
   getSession() {
     try {
-      const raw = sessionStorage.getItem(SESSION_KEY);
+      const raw = localStorage.getItem(SESSION_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -53,24 +54,26 @@ export const PatientSessionManager = {
   },
 
   /**
-   * Returns true if a session exists and has not expired.
+   * Returns true if a session exists.
+   * No expiration check — session persists until explicit logout.
    */
   isValid() {
-    const session = this.getSession();
-    if (!session) return false;
-    // If expiresAt is set, check if it has passed
-    if (session.expiresAt && Date.now() > session.expiresAt) {
-      this.logout();
-      return false;
-    }
-    return true;
+    return !!this.getSession();
   },
 
   /**
    * Clear the session and redirect to patient login.
    */
   logout() {
-    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
     window.location.href = '/patient-login';
+  },
+
+  /**
+   * No-op — kept for backward compatibility with existing callers.
+   * Previously started a 1-hour expiration timer; now sessions persist indefinitely.
+   */
+  startExpirationTimer() {
+    // Intentionally empty — sessions persist until explicit logout.
   },
 };
