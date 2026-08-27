@@ -378,24 +378,55 @@ export function runMapPositioningEffect({
         let allDateDeliveries = deliveriesRef.current.filter((d) => d && d.delivery_date === selectedDateStrPhase3);
         if (isDispatcher && !isAdmin && currentUser?.store_ids) {
           const dispatcherStoreIds = new Set(currentUser.store_ids);
-          // Phase 3 for dispatchers only includes the dispatcher's store stops
-          // (+ the relevant drivers' locations). Scope bounds to those stops
-          // directly — the old filter kept every other-store stop a dispatcher-
-          // store driver also visits.
+          // Phase 3 for dispatchers: only the dispatcher's store stops
+          // (+ on-duty assigned drivers' locations).
           allDateDeliveries = allDateDeliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id));
-        }
-        const incompleteAndPendingAllDrivers = allDateDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
-        const driversWithIncompleteOrPendingStops = new Set(incompleteAndPendingAllDrivers.map((d) => d.driver_id).filter(Boolean));
-        incompleteAndPendingAllDrivers.forEach((delivery) => {
-          if (delivery.is_cycling_marker && delivery.cycling_latitude && delivery.cycling_longitude) { allCoordinatesPhase3.push([delivery.cycling_latitude, delivery.cycling_longitude]); }
-          else if (delivery.patient_id) { const patient = patientsRef.current.find((p) => p?.id === delivery.patient_id); if (patient?.latitude && patient?.longitude) allCoordinatesPhase3.push([patient.latitude, patient.longitude]); }
-          else if (delivery.store_id) { const store = storesRef.current.find((s) => s?.id === delivery.store_id); if (store?.latitude && store?.longitude) allCoordinatesPhase3.push([store.latitude, store.longitude]); }
-        });
-        if (isViewingTodayPhase3) {
-          driversWithIncompleteOrPendingStops.forEach((driverId) => {
-            const driverAppUser = appUsersRef.current?.find((au) => au?.user_id === driverId);
-            if (driverAppUser?.driver_status === 'on_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
+
+          // Build assigned driver set from store records (day-of-week aware).
+          const _dayIdx = new Date(selectedDateStrPhase3 + 'T00:00:00').getDay();
+          const _assignedIds = new Set();
+          for (const s of storesRef.current || []) {
+            if (!s || !dispatcherStoreIds.has(String(s.id))) continue;
+            if (_dayIdx === 6) { if (s.saturday_am_driver_id) _assignedIds.add(s.saturday_am_driver_id); if (s.saturday_pm_driver_id) _assignedIds.add(s.saturday_pm_driver_id); }
+            else if (_dayIdx === 0) { if (s.sunday_am_driver_id) _assignedIds.add(s.sunday_am_driver_id); if (s.sunday_pm_driver_id) _assignedIds.add(s.sunday_pm_driver_id); }
+            else { if (s.weekday_am_driver_id) _assignedIds.add(s.weekday_am_driver_id); if (s.weekday_pm_driver_id) _assignedIds.add(s.weekday_pm_driver_id); }
+          }
+
+          // Only include active stops from on-duty assigned drivers.
+          const onDutyAssignedIds = new Set();
+          for (const au of appUsersRef.current || []) {
+            if (au?.user_id && _assignedIds.has(au.user_id) && au.driver_status === 'on_duty') {
+              onDutyAssignedIds.add(au.user_id);
+            }
+          }
+          const incompleteAndPendingAllDrivers = allDateDeliveries.filter((d) =>
+            d && !finishedStatuses.includes(d.status) && d.driver_id && onDutyAssignedIds.has(d.driver_id)
+          );
+          incompleteAndPendingAllDrivers.forEach((delivery) => {
+            if (delivery.is_cycling_marker && delivery.cycling_latitude && delivery.cycling_longitude) { allCoordinatesPhase3.push([delivery.cycling_latitude, delivery.cycling_longitude]); }
+            else if (delivery.patient_id) { const patient = patientsRef.current.find((p) => p?.id === delivery.patient_id); if (patient?.latitude && patient?.longitude) allCoordinatesPhase3.push([patient.latitude, patient.longitude]); }
+            else if (delivery.store_id) { const store = storesRef.current.find((s) => s?.id === delivery.store_id); if (store?.latitude && store?.longitude) allCoordinatesPhase3.push([store.latitude, store.longitude]); }
           });
+          if (isViewingTodayPhase3) {
+            onDutyAssignedIds.forEach((driverId) => {
+              const driverAppUser = appUsersRef.current?.find((au) => au?.user_id === driverId);
+              if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
+            });
+          }
+        } else {
+          const incompleteAndPendingAllDrivers = allDateDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
+          const driversWithIncompleteOrPendingStops = new Set(incompleteAndPendingAllDrivers.map((d) => d.driver_id).filter(Boolean));
+          incompleteAndPendingAllDrivers.forEach((delivery) => {
+            if (delivery.is_cycling_marker && delivery.cycling_latitude && delivery.cycling_longitude) { allCoordinatesPhase3.push([delivery.cycling_latitude, delivery.cycling_longitude]); }
+            else if (delivery.patient_id) { const patient = patientsRef.current.find((p) => p?.id === delivery.patient_id); if (patient?.latitude && patient?.longitude) allCoordinatesPhase3.push([patient.latitude, patient.longitude]); }
+            else if (delivery.store_id) { const store = storesRef.current.find((s) => s?.id === delivery.store_id); if (store?.latitude && store?.longitude) allCoordinatesPhase3.push([store.latitude, store.longitude]); }
+          });
+          if (isViewingTodayPhase3) {
+            driversWithIncompleteOrPendingStops.forEach((driverId) => {
+              const driverAppUser = appUsersRef.current?.find((au) => au?.user_id === driverId);
+              if (driverAppUser?.driver_status === 'on_duty' && driverAppUser?.current_latitude && driverAppUser?.current_longitude) allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
+            });
+          }
         }
       } else {
         const targetDriverId = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : null;

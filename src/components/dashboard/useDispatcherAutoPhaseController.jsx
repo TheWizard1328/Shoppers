@@ -7,49 +7,34 @@ import { saveSetting } from '@/components/utils/userSettingsManager';
  * ----------------------------------------------------------------------------
  * Dispatcher-only auto-phase state machine for the MapCycleFAB.
  *
- * Drives the FAB's map-view phase (1/2/3) from live WebSocket state instead of
- * manual taps, scoped to the store currently selected by the dispatcher and
- * the dashboard's selected date.
+ * RULES:
+ *   1) Assigned driver goes On Duty from Off Duty → Phase 2 IF the driver's
+ *      next stop is the dispatcher's store; otherwise no action.
+ *   2) Assigned driver goes On Duty from On Break → Phase 3 (always).
+ *   3) Last assigned driver goes Off Duty → Phase 1.
+ *   4) All assigned drivers go On Break → Phase 1 (unconditionally).
  *
- *   Assigned driver goes On Duty         → ACTIVATES the rules + Phase 2
- *                                          (Active Drivers & Next Stops)
- *   Driver accepts / is assigned a stop  → Phase 3 (Show Incomplete & Pending)
- *   All selected-store stops complete    → Phase 1 (Show All Stops)
- *   New In-Transit / InterStore / pending→ Phase 3 (reactivate)
- *   All assigned drivers On Break        → Phase 1 *only* if the next stop is
- *                                          an InterStore Drop-off (ISD) or a
- *                                          pickup for the dispatcher's store;
- *                                          otherwise Phase 3. [boundary]
- *   ≥1 driver returns On Duty from break → Phase 3 (reactivate) [boundary]
+ * "Assigned drivers" = drivers assigned to the dispatcher's store via store
+ * records (weekday_am_driver_id, weekday_pm_driver_id, saturday_*, sunday_*),
+ * NOT just drivers who happen to have deliveries that day.
  *
- * Clarifications honoured:
- *   - Manual pause: a manual FAB tap arms manualOverrideRef; the very next
- *     qualifying store-scoped WebSocket state change clears it AND applies
- *     its auto phase (pause-until-next-event).
- *   - Selected store only: reactions are scoped to the store the dispatcher
- *     has selected (globalFilters selected store, or the dispatcher's first
- *     assigned store as the dispatcher dashboard effectively uses store_ids[0]).
- *   - Most-recent event wins: events within a ~400ms debounce window are
- *     coalesced; the last one's target phase is applied.
+ * Additional delivery-driven events:
+ *   - New stop created (pending / in_transit / en_route / InterStore) → Phase 3
+ *   - Driver accepts / is assigned a stop → Phase 3
+ *   - All selected-store stops completed → Phase 1
  *
- * Free-pan handling (per PRD):
- *   - Boundary events (all-complete → 1, new-work → 3) ALWAYS apply and clear
- *     the free-pan flag (strong state transitions).
- *   - Transient events (acceptance → 3, on_duty → 2) honour the free-pan flag
- *     (skip application while mapUserUnlockedRef.current === true).
+ * Free-pan handling:
+ *   - Boundary events (rules 2/3/4, all-complete→1, new-work→3) ALWAYS apply
+ *     and clear the free-pan flag (strong state transitions).
+ *   - Transient events (acceptance→3, rule 1 on-duty→2) honour the free-pan
+ *     flag (skip while mapUserUnlockedRef.current === true).
  *
- * The hook reuses the existing ref + setter pipeline that Dashboard owns
- * (mapViewPhaseRef, isMapViewLockedRef, pendingPhaseRef, setMapViewPhase,
- * setIsMapViewLocked, setMapViewTrigger) — the same path the existing
- * "route finished → reset to Phase 1" effect uses — so the visual FAB, lock
- * state, and map reposition all update together. No parallel setter.
+ * The hook reuses the existing ref + setter pipeline that Dashboard owns.
  *
  * Event sources (existing broadcast buses — no new sockets):
  *   - window 'realtimeUpdate_Delivery'  ({ type, id, data, changedFields })
  *   - window 'appUserUpdated'            ({ appUser, fromRealtime })
  *   - window 'driverStatusChanged'       ({ userId, newStatus })
- *   - window 'deliveriesUpdated'         (freshDeliveries / deletedIds) — used
- *     to keep the in-memory store-slice signature in sync after React commits.
  */
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
@@ -93,11 +78,33 @@ const buildSignature = (deliveries, storeId, dateStr) => {
   return map;
 };
 
+/**
+ * Compute the set of driver_ids assigned to a store for a given date,
+ * based on store driver-assignment fields (day-of-week aware).
+ */
+const getAssignedDriverIdsForStore = (store, dateStr) => {
+  if (!store || !dateStr) return new Set();
+  const dayIdx = new Date(dateStr + 'T00:00:00').getDay();
+  const ids = new Set();
+  if (dayIdx === 6) {
+    if (store.saturday_am_driver_id) ids.add(store.saturday_am_driver_id);
+    if (store.saturday_pm_driver_id) ids.add(store.saturday_pm_driver_id);
+  } else if (dayIdx === 0) {
+    if (store.sunday_am_driver_id) ids.add(store.sunday_am_driver_id);
+    if (store.sunday_pm_driver_id) ids.add(store.sunday_pm_driver_id);
+  } else {
+    if (store.weekday_am_driver_id) ids.add(store.weekday_am_driver_id);
+    if (store.weekday_pm_driver_id) ids.add(store.weekday_pm_driver_id);
+  }
+  return ids;
+};
+
 export function useDispatcherAutoPhaseController({
   enabled,
   currentUser,
   deliveries,
   appUsers,
+  stores,
   selectedDate,
   selectedStoreId,
   isFormOverlayOpen,
@@ -124,16 +131,12 @@ export function useDispatcherAutoPhaseController({
   // Signature of the store+date slice, kept fresh from BOTH the deliveries
   // React state (post-commit) AND realtime window events (pre-commit, freshest).
   const signatureRef = useRef(new Map());
-  // Set of driver_ids that currently appear on ANY stop (active or finished)
-  // for the selected store+date — i.e. the dispatcher's assigned drivers for
-  // that store today. An On Duty event from any of them is the engagement
-  // trigger that activates the auto-phase rules (per the approved PRD).
-  const sliceDriverIdsRef = useRef(new Set());
-  // Per-driver previous driver_status, so we can detect a flip TO on_duty.
+  // Set of driver_ids assigned to the dispatcher's store for the selected
+  // date (from store records, NOT from deliveries). This is the authoritative
+  // "assigned drivers" set used for all 4 rules.
+  const assignedDriverIdsRef = useRef(new Set());
+  // Per-driver previous driver_status, so we can detect flips.
   const driverStatusRef = useRef(new Map());
-  // True while ALL assigned (slice) drivers are currently on_break. Used to
-  // detect return-from-break (→ Phase 3) vs a shift-start On Duty (→ Phase 2).
-  const wasAllOnBreakRef = useRef(false);
   // Initialized keys (storeId:dateStr) — re-baselining without firing events.
   const initializedKeysRef = useRef(new Set());
 
@@ -220,20 +223,19 @@ export function useDispatcherAutoPhaseController({
     }, DEBOUNCE_MS);
   }, [enabledRef, isFormOverlayOpen, applyPhase]);
 
-  // ── Recompute activeDriverIds + driverStatus maps from current state ──────
+  // ── Recompute assigned driver IDs from store records + status maps ────────
   const refreshDriverMaps = useCallback(() => {
-    const sig = signatureRef.current;
-    const sliceDrivers = new Set();
-    for (const s of sig.values()) {
-      if (s.driver) sliceDrivers.add(s.driver);
-    }
-    sliceDriverIdsRef.current = sliceDrivers;
+    const storeId = storeIdRef.current;
+    const dateStr = dateStrRef.current;
+    const store = (stores || []).find((s) => s && String(s.id) === String(storeId));
+    assignedDriverIdsRef.current = getAssignedDriverIdsForStore(store, dateStr);
+
     const statusMap = new Map();
     for (const au of appUsers || []) {
       if (au?.user_id) statusMap.set(au.user_id, au.driver_status || 'off_duty');
     }
     driverStatusRef.current = statusMap;
-  }, [appUsers]);
+  }, [appUsers, stores]);
 
   // ── Re-baseline signature + driver maps from deliveries / appUsers state ──
   // Runs after React commits. Used for initialization and to keep the
@@ -262,12 +264,11 @@ export function useDispatcherAutoPhaseController({
       return;
     }
 
-    // Same key → merge immediate realtime patches may already be in prevSig;
-    // reconcile from the authoritative state but keep "newest wins" fields.
+    // Same key → reconcile from the authoritative state.
     nextSig._key = key;
     signatureRef.current = nextSig;
     refreshDriverMaps();
-  }, [enabled, selectedDate, deliveries, appUsers, refreshDriverMaps]);
+  }, [enabled, selectedDate, deliveries, appUsers, stores, refreshDriverMaps]);
 
   // ── Patch signature immediately from realtime Delivery events (pre-commit) ─
   useEffect(() => {
@@ -297,8 +298,7 @@ export function useDispatcherAutoPhaseController({
           !data.patient_id && String(data.store_id) === String(storeId) && !isInterStore(data),
       };
 
-      // Delete event → remove from signature, no auto-phase (let all-complete
-      // check fall through naturally on the next state sync if needed).
+      // Delete event → remove from signature, no auto-phase.
       if (type === 'delete') {
         if (prev) sig.delete(data.id);
         return;
@@ -307,12 +307,11 @@ export function useDispatcherAutoPhaseController({
       // Create event → new-work classification.
       if (type === 'create' || !prev) {
         sig.set(data.id, next);
-        // New stop matching new-work criteria → Phase 3 (reactivate).
         if (
-          ACTIVE_STATUSES.includes(next.status) || // pending / in_transit / en_route
-          next.interstore // ISP/ISD stop
+          ACTIVE_STATUSES.includes(next.status) ||
+          next.interstore
         ) {
-          scheduleEvent(3, true /* boundary — override free-pan */);
+          scheduleEvent(3, true /* boundary */);
         }
         return;
       }
@@ -327,7 +326,7 @@ export function useDispatcherAutoPhaseController({
       const driverAssigned =
         fields.includes('driver_id') && !prev.driver && !!next.driver && !next.finished;
       if (ackNowTrue || driverAssigned) {
-        scheduleEvent(3, false /* transient — honour free-pan */);
+        scheduleEvent(3, false /* transient */);
         return;
       }
 
@@ -352,57 +351,68 @@ export function useDispatcherAutoPhaseController({
     return () => window.removeEventListener('realtimeUpdate_Delivery', onDelivery);
   }, [enabled, scheduleEvent]);
 
-  // ── AppUser driver_status changes → On Duty classification ────────────────
+  // ── AppUser driver_status changes → auto-phase rules ──────────────────────
   useEffect(() => {
     if (!enabledRef.current) return;
 
-    // Phase 1 gate: Phase 1 activates ONLY when the next stop is an InterStore
-    // Drop-off (ISD) or a pickup for the dispatcher's store; otherwise Phase 3.
-    // The "next stop" is the non-finished stop in the slice with the smallest
-    // stop_order. Used by the all-on-break transition (per the approved PRD).
-    const choosePhase1Or3ForNextStop = () => {
-      const sig = signatureRef.current;
-      let next = null;
-      for (const s of sig.values()) {
-        if (s.finished) continue;
-        if (next === null || (s.stopOrder ?? Infinity) < (next.stopOrder ?? Infinity)) next = s;
+    /**
+     * Check if the driver's next stop (isNextDelivery) belongs to the
+     * dispatcher's store. Used for Rule 1 (On Duty from Off Duty → Phase 2).
+     */
+    const isNextStopForDispatcherStore = (driverId) => {
+      const storeId = storeIdRef.current;
+      const dateStr = dateStrRef.current;
+      if (!storeId || !dateStr || !driverId) return false;
+      for (const d of deliveries || []) {
+        if (!d || d.driver_id !== driverId) continue;
+        if (d.delivery_date !== dateStr) continue;
+        if (d.isNextDelivery !== true) continue;
+        return String(d.store_id) === String(storeId);
       }
-      if (!next) return 3;
-      return (next.isISD || next.isStorePickup) ? 1 : 3;
+      return false;
     };
 
     const handleAppUserChange = (newStatus, userId, prevStatus) => {
       if (!enabledRef.current) return;
-      const sliceDrivers = sliceDriverIdsRef.current;
-      if (!userId || sliceDrivers.size === 0 || !sliceDrivers.has(userId)) return;
+      const assignedDrivers = assignedDriverIdsRef.current;
+      if (!userId || assignedDrivers.size === 0 || !assignedDrivers.has(userId)) return;
 
-      const wereAllOnBreak = wasAllOnBreakRef.current;
-
-      // Recompute slice driver statuses AFTER this update.
+      // Get all assigned drivers' current statuses.
       const statuses = [];
-      for (const did of sliceDrivers) {
+      for (const did of assignedDrivers) {
         statuses.push(driverStatusRef.current.get(did) || 'off_duty');
       }
       const allOnBreak = statuses.length > 0 && statuses.every((s) => s === 'on_break');
       const anyOnDuty = statuses.includes('on_duty');
 
-      // 1) All assigned drivers On Break → Phase 1 (gated) or Phase 3 [boundary].
-      if (allOnBreak && !wereAllOnBreak) {
-        wasAllOnBreakRef.current = true;
-        scheduleEvent(choosePhase1Or3ForNextStop(), true /* boundary — override free-pan */);
-        return;
-      }
-      if (!allOnBreak) wasAllOnBreakRef.current = false;
-
-      // 2) ≥1 driver returns On Duty from an all-break state → Phase 3 [boundary].
-      if (anyOnDuty && wereAllOnBreak && newStatus === 'on_duty') {
-        scheduleEvent(3, true /* boundary — override free-pan */);
+      // RULE 2: Assigned driver goes On Duty from On Break → Phase 3 (boundary).
+      // Takes priority over Rule 1 — return from break, not shift start.
+      if (newStatus === 'on_duty' && prevStatus === 'on_break') {
+        scheduleEvent(3, true /* boundary */);
         return;
       }
 
-      // 3) Shift-start On Duty (not returning from break) → activate Phase 2 [transient].
-      if (newStatus === 'on_duty' && prevStatus !== 'on_duty' && !wereAllOnBreak) {
-        scheduleEvent(2, false /* transient — honour free-pan */);
+      // RULE 1: Assigned driver goes On Duty from Off Duty → Phase 2 IF the
+      // driver's next stop is the dispatcher's store (transient — honour free-pan).
+      if (newStatus === 'on_duty' && (prevStatus === 'off_duty' || !prevStatus)) {
+        if (isNextStopForDispatcherStore(userId)) {
+          scheduleEvent(2, false /* transient */);
+        }
+        // If next stop is NOT the dispatcher's store, no action.
+        return;
+      }
+
+      // RULE 3: Last assigned driver goes Off Duty → Phase 1 (boundary).
+      // Fires when a driver transitions to off_duty AND no assigned drivers
+      // are on_duty anymore.
+      if (newStatus === 'off_duty' && !anyOnDuty) {
+        scheduleEvent(1, true /* boundary */);
+        return;
+      }
+
+      // RULE 4: All assigned drivers On Break → Phase 1 (boundary, unconditional).
+      if (allOnBreak) {
+        scheduleEvent(1, true /* boundary */);
         return;
       }
     };
@@ -440,17 +450,14 @@ export function useDispatcherAutoPhaseController({
       window.removeEventListener('realtimeUpdate_AppUser', onRealtimeAppUser);
       window.removeEventListener('driverStatusChanged', onDriverStatusChanged);
     };
-  }, [enabled, scheduleEvent]);
+  }, [enabled, scheduleEvent, deliveries]);
 
-  // ── Keep activeDriverIds fresh for the on_duty relevance check ────────────
-  // The signature effect already calls refreshDriverMaps; this light pass keeps
-  // activeDriverIds synced even when only appUsers update without a delivery change.
-  useEffect(() => { refreshDriverMaps(); }, [appUsers, refreshDriverMaps]);
+  // ── Keep assigned driver IDs + status maps fresh ──────────────────────────
+  useEffect(() => { refreshDriverMaps(); }, [appUsers, stores, refreshDriverMaps]);
 
   // ── Public API: arm the manual-pause flag (called on dispatcher FAB tap) ─
   const setManualOverride = useCallback(() => {
     manualOverrideRef.current = true;
-    // Clear any pending auto-apply so the manual choice isn't immediately undone.
     if (debounceTimerRef.current) { clearTimeout(debounceTimerRef.current); debounceTimerRef.current = null; }
     lastScheduledEventRef.current = null;
   }, []);
