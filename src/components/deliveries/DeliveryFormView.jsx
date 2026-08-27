@@ -527,17 +527,31 @@ export default function DeliveryFormView({
       setIsKeyboardLikelyOpen(dropRatio > KEYBOARD_DROP_RATIO);
     };
 
+    // Native picker input types (time/date/datetime-local/month/week) open an OS-level
+    // floating dialog on Android — NOT a soft keyboard. That dialog never resizes the
+    // WebView viewport (signals 1 & 2 never fire), and Android typically keeps DOM focus
+    // on the input after the picker closes (signal 3's focusout never fires either). Any
+    // of these inputs setting isKeyboardLikelyOpen=true on focus would get PERMANENTLY
+    // stuck true — collapsing the footer's safe-area/nav-bar reserved space to 0px forever,
+    // hiding the form footer behind the phone's nav bar until some unrelated resize event
+    // happens to fire. Fix: these input types never need the keyboard-reserved space, so
+    // they're excluded from triggering the "keyboard open" state entirely.
+    const NATIVE_PICKER_TYPES = new Set(['time', 'date', 'datetime-local', 'month', 'week']);
+    const isNativePickerInput = (el) => el?.tagName === 'INPUT' && NATIVE_PICKER_TYPES.has(el?.type);
+
     // Signal 3: input focus — immediate response (no waiting for resize event).
     // The "done/enter key doesn't fire blur" problem from Take 2 is handled
     // because signals 1 and 2 will flip the flag back to false when the
     // keyboard actually closes and the viewport restores.
     const handleFocusIn = (e) => {
+      if (isNativePickerInput(e.target)) return;
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
         setIsKeyboardLikelyOpen(true);
       }
     };
     const handleFocusOut = (e) => {
+      if (isNativePickerInput(e.target)) return;
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
         // Delay to allow focus to move to another input (keyboard stays open)
@@ -560,6 +574,16 @@ export default function DeliveryFormView({
       }
     };
 
+    // Defensive belt-and-suspenders: if a native picker input somehow left the flag
+    // stuck true (e.g. it was focused right as a text field's keyboard was closing),
+    // force it false the moment the picker dialog confirms a value — 'change' on these
+    // input types only ever fires once the OS dialog has fully closed.
+    const handleNativePickerChange = (e) => {
+      if (isNativePickerInput(e.target)) {
+        setIsKeyboardLikelyOpen(false);
+      }
+    };
+
     handleResize();
     if (window.visualViewport) {
       handleVVResize();
@@ -568,11 +592,13 @@ export default function DeliveryFormView({
     window.addEventListener('resize', handleResize);
     document.addEventListener('focusin', handleFocusIn);
     document.addEventListener('focusout', handleFocusOut);
+    document.addEventListener('change', handleNativePickerChange, true);
     return () => {
       window.removeEventListener('resize', handleResize);
       window.visualViewport?.removeEventListener('resize', handleVVResize);
       document.removeEventListener('focusin', handleFocusIn);
       document.removeEventListener('focusout', handleFocusOut);
+      document.removeEventListener('change', handleNativePickerChange, true);
     };
   }, [useMobileLayout, isMobileDevice]);
 
