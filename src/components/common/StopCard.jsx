@@ -797,7 +797,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     window.dispatchEvent(new CustomEvent('inkbirdReconnectRequest'));
   }, [delivery?.fridge_item]);
 
-  const handleStartActionWithBle    = useCallback((e) => { dispatchBleReconnect(); return handleStartAction(e);    }, [dispatchBleReconnect, handleStartAction]);
+  // Start no longer fires a BLE reconnect — the driver's device picker shouldn't
+  // pop up just because they tapped Start on a fridge-item delivery. Other actions
+  // (Complete/Fail/Retry/Return/Restart) still fire dispatchBleReconnect.
+  const handleStartActionWithBle    = useCallback((e) => handleStartAction(e), [handleStartAction]);
   const handleCompleteActionWithBle = useCallback((e) => { dispatchBleReconnect(); return handleCompleteAction(e); }, [dispatchBleReconnect, handleCompleteAction]);
   const handleFailureConfirmWithBle = useCallback((...args) => { dispatchBleReconnect(); return handleFailureConfirm(...args); }, [dispatchBleReconnect, handleFailureConfirm]);
   const handleRetryDeliveryWithBle  = useCallback((e) => { dispatchBleReconnect(); return handleRetryDelivery(e);  }, [dispatchBleReconnect, handleRetryDelivery]);
