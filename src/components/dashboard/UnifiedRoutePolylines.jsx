@@ -316,12 +316,11 @@ function UnifiedRoutePolylines({
     const hasFinished = stops.complete.length > 0;
 
     // Current leg (blue): from last-finished or home → isNextDelivery stop.
-    // Also render when driver is off-duty/pre-departure but the first stop already has an
-    // encoded polyline — this makes the first-stop route visible to ALL users immediately.
+    // HIDDEN while the assigned driver is off_duty or on_break — the leg to the
+    // first incomplete stop reappears only once the driver is back on_duty.
     const _incompleteForFirstCheck = [...stops.incomplete].sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
-    const _firstStopHasPolyline = !!_incompleteForFirstCheck[0]?.encoded_polyline;
 
-    if (!offDutyDriverIds.has(driverId) || _firstStopHasPolyline) {
+    if (!offDutyDriverIds.has(driverId)) {
       const orderedIncomplete = _incompleteForFirstCheck;
 
       const currentStop =
