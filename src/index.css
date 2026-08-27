@@ -324,3 +324,21 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
   0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
   50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.2; }
 }
+
+/* Conversation-card blink for dispatchers when a new direct message arrives
+   while the Messages panel is already open on a different conversation.
+   Calm, accessible pulse with light & dark variants per the token system. */
+@keyframes blink-new-message {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: hsl(152 90% 96%); }
+}
+@keyframes blink-new-message-dark {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: hsl(152 45% 22% / 0.45); }
+}
+.blink-new-message { animation: blink-new-message 1.2s ease-in-out infinite; }
+.dark .blink-new-message { animation: blink-new-message-dark 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .blink-new-message { animation: none; background-color: hsl(152 90% 96%); }
+  .dark .blink-new-message { animation: none; background-color: hsl(152 45% 22% / 0.45); }
+}

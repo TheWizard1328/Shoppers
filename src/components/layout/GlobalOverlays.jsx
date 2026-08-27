@@ -10,7 +10,7 @@ import InviteQRCodeModal from '../common/InviteQRCodeModal';
 import ConflictManager from '../dashboard/ConflictManager';
 import MessageNotificationBalloon from '../messaging/MessageNotificationBalloon';
 import WebSocketDiagnosticsCard from './WebSocketDiagnosticsCard';
-import { isAppOwner } from '../utils/userRoles';
+import { isAppOwner, userHasRole } from '../utils/userRoles';
 import { useDevice } from '../utils/DeviceContext';
 
 /**
@@ -36,6 +36,8 @@ export default function GlobalOverlays({
   setUnreadMessageCount,
   setShowInviteQRModal,
   setSidebarOpen,
+  pendingBlinkConversationId,
+  setPendingBlinkConversationId,
 }) {
   const { isMobile, isTabletPortrait } = useDevice();
   return (
@@ -77,7 +79,10 @@ export default function GlobalOverlays({
           setInitialConversation(null);
         }}
         initialConversation={initialConversation}
-        onUnreadCountChange={setUnreadMessageCount} />
+        onUnreadCountChange={setUnreadMessageCount}
+        pendingBlinkConversationId={pendingBlinkConversationId}
+        onClearBlink={setPendingBlinkConversationId}
+      />
       }
 
       {showInviteQRModal &&
@@ -95,6 +100,7 @@ export default function GlobalOverlays({
                                {currentUser && !showMessaging &&
       <MessageNotificationBalloon
         currentUser={currentUser}
+        suppressBalloon={userHasRole(currentUser, 'dispatcher')}
         onOpenConversation={(conversationId, otherUserId, otherUserName) => {
           setInitialConversation({ conversationId, otherUserId, otherUserName });
           setShowMessaging(true);

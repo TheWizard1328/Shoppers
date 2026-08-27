@@ -8,7 +8,7 @@ import { format, subDays } from 'date-fns';
 import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import { isHiddenSystemBroadcastMessageForThisDevice } from './updateBroadcastConfig';
 
-export default function ConversationsList({ currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange }) {
+export default function ConversationsList({ currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange, pendingBlinkConversationId }) {
   const [messages, setMessages] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -281,11 +281,13 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
           </div>
         )}
 
-        {filteredConversations.map(conv => (
+        {filteredConversations.map(conv => {
+          const isBlinking = conv.id === pendingBlinkConversationId && conv.unreadCount > 0 && selectedConversationId !== conv.id;
+          return (
           <div
             key={conv.id}
             onClick={() => onSelectConversation(conv.id, conv.otherUserId, conv.otherUserName)}
-            className="p-3 cursor-pointer transition-colors group"
+            className={`p-3 cursor-pointer transition-colors group${isBlinking ? ' blink-new-message' : ''}`}
             style={{ 
               borderBottom: '1px solid var(--border-slate-200)',
               background: selectedConversationId === conv.id ? 'var(--bg-slate-100)' : 'transparent'
@@ -326,7 +328,8 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {/* New conversation options - only shown when searching */}
         {availableUsers.length > 0 && (

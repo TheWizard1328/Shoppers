@@ -16,7 +16,8 @@ function ChatWindow({
   otherUserId,
   otherUserName,
   onBack,
-  onMessagesRead
+  onMessagesRead,
+  autoFocus
 }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -147,6 +148,19 @@ function ChatWindow({
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  // Auto-focus the reply input when the panel was opened via auto-open
+  // (dispatcher auto-open / deep-link) so the dispatcher can reply immediately.
+  // Desktop only — on mobile we avoid stealing focus so the keyboard doesn't pop.
+  useEffect(() => {
+    if (!autoFocus || isSystemUpdatesConversation || isLoading) return;
+    shouldRestoreFocusRef.current = true;
+    intentionalBlurRef.current = false;
+    const t = window.setTimeout(() => {
+      if (!isMobileRef.current) restoreInputFocus(0);
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [autoFocus, isSystemUpdatesConversation, isLoading, restoreInputFocus]);
 
   useEffect(() => {
     if (!shouldRestoreFocusRef.current || isSending || isSystemUpdatesConversation) return;
@@ -348,7 +362,8 @@ const areChatWindowPropsEqual = (prevProps, nextProps) => {
     prevProps.currentUser?.id === nextProps.currentUser?.id &&
     (prevProps.currentUser?.user_name || prevProps.currentUser?.full_name) === (nextProps.currentUser?.user_name || nextProps.currentUser?.full_name) &&
     prevProps.onBack === nextProps.onBack &&
-    prevProps.onMessagesRead === nextProps.onMessagesRead
+    prevProps.onMessagesRead === nextProps.onMessagesRead &&
+    prevProps.autoFocus === nextProps.autoFocus
   );
 };
 

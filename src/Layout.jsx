@@ -82,6 +82,7 @@ import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
 import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/utils/useBuildInfo';
 import GlobalOverlays from './components/layout/GlobalOverlays';
+import { useDispatcherMessageAutoOpen } from './components/messaging/useDispatcherMessageAutoOpen';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -212,6 +213,7 @@ export default function Layout({ children, currentPageName }) {
   const [showMessaging, setShowMessaging] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [initialConversation, setInitialConversation] = useState(null);
+  const [pendingBlinkConversationId, setPendingBlinkConversationId] = useState(null);
   const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
 
@@ -900,6 +902,15 @@ export default function Layout({ children, currentPageName }) {
     return unsubscribe;
   }, [dataLoaded]);
 
+  useDispatcherMessageAutoOpen({
+    currentUser,
+    isFormOverlayOpen,
+    showMessaging,
+    setShowMessaging,
+    setInitialConversation,
+    setPendingBlinkConversationId,
+  });
+
   const filteredDeliveries = useMemo(() => {
     if (!deliveries.length || !currentUser) return [];
     let data = deliveries.filter((delivery) => delivery);
@@ -1267,6 +1278,8 @@ export default function Layout({ children, currentPageName }) {
         setUnreadMessageCount={setUnreadMessageCount}
         setShowInviteQRModal={setShowInviteQRModal}
         setSidebarOpen={setSidebarOpen}
+        pendingBlinkConversationId={pendingBlinkConversationId}
+        setPendingBlinkConversationId={setPendingBlinkConversationId}
       />
 
       {isLoadingLayout ?

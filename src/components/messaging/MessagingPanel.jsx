@@ -13,7 +13,7 @@ import {
 } from './updateBroadcastConfig';
 
 
-function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange }) {
+function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange, pendingBlinkConversationId, onClearBlink }) {
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
   const [isBroadcastingUpdate, setIsBroadcastingUpdate] = useState(false);
   const [updateBroadcastSent, setUpdateBroadcastSent] = useState(false);
@@ -27,7 +27,11 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
 
   const handleSelectConversation = useCallback((conversationId, otherUserId, otherUserName) => {
     setSelectedConversation({ conversationId, otherUserId, otherUserName });
-  }, []);
+    // Stop the blink the moment the dispatcher opens the blinking conversation
+    if (onClearBlink && conversationId === pendingBlinkConversationId) {
+      onClearBlink(null);
+    }
+  }, [onClearBlink, pendingBlinkConversationId]);
 
   const handleCloseMessaging = useCallback(() => {
     onClose();
@@ -131,6 +135,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
               onSelectConversation={handleSelectConversation}
               selectedConversationId={selectedConversation?.conversationId}
               onUnreadCountChange={onUnreadCountChange}
+              pendingBlinkConversationId={pendingBlinkConversationId}
             />
           </div>
 
@@ -146,6 +151,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
                 otherUserName={selectedConversation.otherUserName}
                 onBack={handleBack}
                 onMessagesRead={handleMessagesRead}
+                autoFocus={!!(initialConversation && initialConversation.conversationId === selectedConversation.conversationId)}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--text-slate-500)' }}>
@@ -174,6 +180,8 @@ const areMessagingPanelPropsEqual = (prevProps, nextProps) => {
     prevProps.initialConversation?.conversationId === nextProps.initialConversation?.conversationId &&
     prevProps.initialConversation?.otherUserId === nextProps.initialConversation?.otherUserId &&
     prevProps.initialConversation?.otherUserName === nextProps.initialConversation?.otherUserName &&
+    prevProps.pendingBlinkConversationId === nextProps.pendingBlinkConversationId &&
+    prevProps.onClearBlink === nextProps.onClearBlink &&
     getMessagingUsersSignature(prevProps.users) === getMessagingUsersSignature(nextProps.users)
   );
 };

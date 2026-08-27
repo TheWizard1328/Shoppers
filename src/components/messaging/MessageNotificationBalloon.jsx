@@ -8,7 +8,7 @@ import {
   isHiddenSystemBroadcastMessageForThisDevice,
 } from './updateBroadcastConfig';
 
-export default function MessageNotificationBalloon({ currentUser, onOpenConversation, onDismiss }) {
+export default function MessageNotificationBalloon({ currentUser, onOpenConversation, onDismiss, suppressBalloon }) {
   const [notification, setNotification] = useState(null);
   const [updatePromptMessage, setUpdatePromptMessage] = useState(null);
   const [lastSeenMessageId, setLastSeenMessageId] = useState(null);
@@ -37,6 +37,10 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
       }
 
       if (event.type === 'create' || (event.type === 'update' && !event.data.read)) {
+        // Dispatchers use the auto-open in-app messaging flow; suppress the toast
+        // balloon for them. App-update broadcasts are handled above via UpdateAppPrompt
+        // regardless of this flag, so the update prompt still reaches everyone.
+        if (suppressBalloon) return;
         const currentLastSeen = localStorage.getItem(`lastSeenMessageId_${currentUser.id}`);
 
         if (event.data.id !== currentLastSeen) {
