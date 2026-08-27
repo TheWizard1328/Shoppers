@@ -6,7 +6,7 @@ import DeliveryPopup from './DeliveryPopup';
 import MarkerInfoBalloon from './MarkerInfoBalloon';
 import { createSimpleCircleIcon, createDeliveryIcon, createCyclingStartIcon, createCyclingEndIcon, createCyclingSplitIcon } from './MapIcons';
 import { getStoreColor } from '../utils/colorGenerator';
-import { isInterStoreDelivery, getInterStoreLocationSync } from '../utils/interStoreDisplayName';
+import { getMarkerStopLabel } from './markerStopLabel';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -378,10 +378,7 @@ function DeliveryMarkers({
                               {sg.stops.map((m) => {
                                 const isDone = DONE.includes(m.status);
                                 const stopNum = m.number || m.stop_order || '?';
-                                const ispLocC = isInterStoreDelivery(m.delivery_id) ? getInterStoreLocationSync(m.delivery_id) : null;
-                                const name = ispLocC
-                                  ? `${String(m.delivery_id).toUpperCase().startsWith('ISP-') ? 'ISP' : 'ISD'}: ${ispLocC.store_name || 'Inter-Store'}`
-                                  : m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
+                                const name = getMarkerStopLabel(m);
                                 const timeLabel = isDone
                                    ? (m.actual_delivery_time ? new Date(m.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : null)
                                   : (m.delivery_time_eta || null);
@@ -481,10 +478,7 @@ function DeliveryMarkers({
                                 {sg.stops.map((m) => {
                                   const isDone = DONE.includes(m.status);
                                   const stopNum = m.number || m.stop_order;
-                                  const ispLocO = isInterStoreDelivery(m.delivery_id) ? getInterStoreLocationSync(m.delivery_id) : null;
-                                  const name = ispLocO
-                                    ? `${String(m.delivery_id).toUpperCase().startsWith('ISP-') ? 'ISP' : 'ISD'}: ${ispLocO.store_name || 'Inter-Store'}`
-                                    : m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
+                                  const name = getMarkerStopLabel(m);
                                   const timeLabel = isDone
                                     ? (m.actual_delivery_time ? new Date(m.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : null)
                                     : (m.delivery_time_eta || null);

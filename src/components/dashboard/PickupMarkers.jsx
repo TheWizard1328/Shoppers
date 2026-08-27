@@ -7,6 +7,7 @@ import DeliveryPopup from './DeliveryPopup';
 import MarkerInfoBalloon from './MarkerInfoBalloon';
 import { createSimpleCircleIcon, createStoreIcon, createDeliveryIcon } from './MapIcons';
 import { getStoreColor } from '../utils/colorGenerator';
+import { getMarkerStopLabel } from './markerStopLabel';
 
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -142,7 +143,7 @@ export default function PickupMarkers({
                             {sg.stops.map((m) => {
                               const isDone = DONE.includes(m.status);
                               const stopNum = m.number || m.stop_order || '?';
-                              const name = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
+                              const name = getMarkerStopLabel(m);
                               const timeLabel = isDone
                                 ? (m.actual_delivery_time ? new Date(m.actual_delivery_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false}) : null)
                                 : (m.delivery_time_eta || null);
@@ -227,7 +228,7 @@ export default function PickupMarkers({
                                 {sg.stops.map((m) => {
                                   const isDone = DONE.includes(m.status);
                                   const stopNum = m.number || m.stop_order;
-                                  const name = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
+                                  const name = getMarkerStopLabel(m);
                                   const timeLabel = isDone
                                     ? (m.actual_delivery_time ? new Date(m.actual_delivery_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false}) : null)
                                     : (m.delivery_time_eta || null);
