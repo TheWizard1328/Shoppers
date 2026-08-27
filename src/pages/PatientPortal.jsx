@@ -520,7 +520,10 @@ export default function PatientPortal() {
       <div className="flex-1 flex flex-col md:ml-72 overflow-hidden">
 
         {/* Top Bar */}
-        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3 flex-shrink-0 z-10">
+        <div
+          className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3 flex-shrink-0 z-10"
+          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+        >
           <button
             onClick={() => setSidebarOpen(true)}
             className="md:hidden w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
@@ -611,7 +614,10 @@ export default function PatientPortal() {
         </div>
 
         {/* Map */}
-        <div className="flex-1 px-4 pb-4 overflow-hidden relative">
+        <div
+          className="flex-1 px-4 overflow-hidden relative"
+          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+        >
           {showLiveTracking && driverLocation && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
               <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 dark:bg-green-950 text-green-700 border-green-200' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700'}`}>
