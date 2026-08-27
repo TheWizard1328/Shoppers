@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2, CheckCircle } from "lucide-react";
+import { LogIn, Mail, Lock, Loader2, CheckCircle, HeartPulse } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import { initEncryption } from "@/components/utils/idbCrypto";
 import GoogleIcon from "@/components/GoogleIcon";
@@ -83,6 +83,12 @@ export default function Login() {
           <Link to="/register" className="text-primary font-medium hover:underline">
             Create one
           </Link>
+          <div className="mt-4 pt-4 border-t border-border">
+            <Link to="/patient-login" className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center justify-center gap-1.5">
+              <HeartPulse className="w-3.5 h-3.5" />
+              Are you a patient? Access the Patient Portal
+            </Link>
+          </div>
         </>
       }
     >
