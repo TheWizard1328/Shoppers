@@ -152,15 +152,30 @@ const mergeAppUsersByFreshness = (currentUsers = [], incomingUsers = []) => {
     if (existing.driver_status &&
         user.driver_status &&
         existing.driver_status !== user.driver_status) {
-      // If existing is on_duty/on_break and incoming says off_duty, this is likely
-      // a stale echo — preserve the active status unless the incoming timestamp is
-      // strictly newer (a genuine status change always updates location_updated_at).
+      // Protect against stale status echoes from the poller. The poller reads
+      // from the server and may lag behind explicit status-change events by
+      // several seconds. If the existing status was set recently (within 15s),
+      // NEVER let a different incoming status overwrite it unless the incoming
+      // record has a strictly newer updated_date (genuine server-side update).
       const existingTs = new Date(existing.location_updated_at || existing.updated_date || 0).getTime();
       const incomingTs = new Date(user.location_updated_at || user.updated_date || 0).getTime();
-      const isActiveExisting = existing.driver_status === 'on_duty' || existing.driver_status === 'on_break';
-      const isOffIncoming = user.driver_status === 'off_duty';
-      if (isActiveExisting && isOffIncoming && incomingTs <= existingTs) {
+      const existingUpdatedTs = new Date(existing.updated_date || 0).getTime();
+      const incomingUpdatedTs = new Date(user.updated_date || 0).getTime();
+      const now = Date.now();
+      const RECENT_STATUS_CHANGE_MS = 15000;
+
+      // If the existing status was set very recently (within 15s), it came from
+      // an explicit status-change event — protect it from any poller echo that
+      // doesn't have a strictly newer updated_date.
+      if ((now - existingUpdatedTs) < RECENT_STATUS_CHANGE_MS && incomingUpdatedTs <= existingUpdatedTs) {
         mergedUser.driver_status = existing.driver_status;
+      }
+      // Also protect active→off_duty regressions when timestamps are equal
+      // (same-tick WS echo, common with location-only updates).
+      else if (existing.driver_status === 'on_duty' || existing.driver_status === 'on_break') {
+        if (user.driver_status === 'off_duty' && incomingTs <= existingTs) {
+          mergedUser.driver_status = existing.driver_status;
+        }
       }
     }
     merged.set(key, mergedUser);
@@ -370,14 +385,26 @@ function DeliveryMap({
       map.setView([lat, lng], radiusZoom, { animate: true, duration: 0.6 });
     };
 
+    // Listen for explicit driver_status changes (On Duty / Off Duty / On Break)
+    // and merge them immediately into realtimeAppUsers. This prevents the poller
+    // from overwriting a fresh status change with stale off_duty data, which
+    // causes the driver's shared location marker to flicker on other devices.
+    const handleAppUserUpdated = (event) => {
+      const appUser = event?.detail?.appUser;
+      if (!appUser?.id && !appUser?.user_id) return;
+      setRealtimeAppUsers((prev) => mergeAppUsersByFreshness(prev, [appUser]));
+    };
+
     window.addEventListener("driverLocationsUpdated", handleDriverLocationUpdate);
     window.addEventListener("deliveriesUpdated", handleDeliveriesUpdate);
     window.addEventListener("routeOptimizationComplete", handleDeliveriesUpdate);
     window.addEventListener("centerMapOnStore", handleCenterMapOnStore);
+    window.addEventListener("appUserUpdated", handleAppUserUpdated);
     return () => {
       window.removeEventListener("driverLocationsUpdated", handleDriverLocationUpdate);
       window.removeEventListener("deliveriesUpdated", handleDeliveriesUpdate);
       window.removeEventListener("routeOptimizationComplete", handleDeliveriesUpdate);
+      window.removeEventListener("appUserUpdated", handleAppUserUpdated);
       window.removeEventListener("centerMapOnStore", handleCenterMapOnStore);
     };
   }, [map]);
