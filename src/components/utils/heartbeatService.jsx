@@ -96,24 +96,35 @@ export const heartbeatService = {
     currentAppUserId = appUserId;
     isDispatcher = isDispatcherRole;
 
-    // CRITICAL: Check if this is the primary device BEFORE starting heartbeat.
-    // Non-primary devices (desktop browsers, secondary tablets, PWA on non-primary)
-    // must NOT write location_updated_at — only the primary device owns the timestamp.
+    // CRITICAL: The is_primary_tracker device check is a DRIVER-ONLY concept — it
+    // prevents multiple devices (phone + tablet) from fighting over GPS
+    // location_updated_at writes. Dispatchers have no GPS; the primary-tracker
+    // flag is irrelevant to them and is never exposed in the DeviceRegistration
+    // UI for dispatchers. Without this bypass, dispatchers whose only device
+    // has is_primary_tracker=false (the default for "Windows PC" devices) never
+    // send heartbeats at all — silently breaking all sidebar online counts and
+    // the Stores page green dots.
     if (userId) {
-      try {
-        const currentDevice = await getCurrentDevice(userId);
-        isPrimaryDevice = currentDevice !== null && currentDevice?.status !== 'inactive' && currentDevice?.is_primary_tracker === true;
-        currentDeviceName = currentDevice?.device_name || 'Unknown';
-        const platform = isCapacitorNativeApp() ? 'Native-' + getCapacitorPlatform() : 'Web/PWA';
-        if (!isPrimaryDevice) {
-          console.log('[HeartbeatService] Non-primary device (' + (currentDeviceName || 'unregistered') + ') — heartbeat disabled (no timestamp writes)');
-          remoteLogger.warn('[HEARTBEAT] SKIP-NON-PRIMARY | ' + platform + ' | ' + (currentDeviceName || 'Unknown') + ' | isPrimary=false');
-          return; // Don't start the interval at all
+      if (isDispatcherRole) {
+        // Dispatchers always get heartbeats — no GPS primary-tracker gating.
+        isPrimaryDevice = true;
+        currentDeviceName = 'Dispatcher (no GPS)';
+      } else {
+        try {
+          const currentDevice = await getCurrentDevice(userId);
+          isPrimaryDevice = currentDevice !== null && currentDevice?.status !== 'inactive' && currentDevice?.is_primary_tracker === true;
+          currentDeviceName = currentDevice?.device_name || 'Unknown';
+          const platform = isCapacitorNativeApp() ? 'Native-' + getCapacitorPlatform() : 'Web/PWA';
+          if (!isPrimaryDevice) {
+            console.log('[HeartbeatService] Non-primary device (' + (currentDeviceName || 'unregistered') + ') — heartbeat disabled (no timestamp writes)');
+            remoteLogger.warn('[HEARTBEAT] SKIP-NON-PRIMARY | ' + platform + ' | ' + (currentDeviceName || 'Unknown') + ' | isPrimary=false');
+            return; // Don't start the interval at all
+          }
+        } catch (err) {
+          console.warn('[HeartbeatService] Device check failed — defaulting to non-primary (safe):', err?.message);
+          isPrimaryDevice = false;
+          return;
         }
-      } catch (err) {
-        console.warn('[HeartbeatService] Device check failed — defaulting to non-primary (safe):', err?.message);
-        isPrimaryDevice = false;
-        return;
       }
     }
 
