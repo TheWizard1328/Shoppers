@@ -651,8 +651,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   useEffect(() => {
     const isActiveUser = delivery?.driver_id === currentUser?.id;
-    // Only show on the driver's primary device — non-primary devices must not pop this dialog
-    if (!isActivePatientStop || !hasArrived || coLocatedCount === 0 || !isActiveUser || !isPrimaryDevice || !clusterHasNextDelivery) return;
+    // Only show on the driver's primary device — non-primary devices must not pop this dialog.
+    // CRITICAL: Gate on isWithinActiveStopRange (the live 100m GPS proximity check), NOT hasArrived.
+    // hasArrived includes delivery.arrival_time which persists in IDB across app restarts — if a
+    // driver arrived at this stop yesterday, arrival_time is still set today, so the dialog would
+    // pop immediately on restart or when isNextDelivery flips on a clustered stop, even if the
+    // driver is kilometres away. The multi-arrival dialog must only open when the driver is
+    // physically within 100m of the stop right now.
+    if (!isActivePatientStop || !isWithinActiveStopRange || coLocatedCount === 0 || !isActiveUser || !isPrimaryDevice || !clusterHasNextDelivery) return;
     if (!clusterKey) return;
     // Only the first card in a cluster opens the dialog
     if (_openClusterKeys.has(clusterKey)) return;
@@ -664,7 +670,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     // closed when the card is already selected). This fires exactly once per dialog-open, not
     // on every re-render, so it never fights a manual re-expand while the dialog stays open.
     if (isSelectedRef.current) onClickRef.current && onClickRef.current(deliveryRef.current);
-  }, [hasArrived, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey, isPrimaryDevice, clusterHasNextDelivery]);
+  }, [isWithinActiveStopRange, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey, isPrimaryDevice, clusterHasNextDelivery]);
 
   // Derived: driver has physically arrived at this pickup stop AND there are pending deliveries to accept.
   // Triggers on arrival_time (30s stationary) OR immediately when within 100m (same
