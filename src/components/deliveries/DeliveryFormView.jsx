@@ -1204,6 +1204,7 @@ export default function DeliveryFormView({
                           handleSearchKeyDown={handleSearchKeyDown}
                           scheduledDriverMap={scheduledDriverMap}
                           allDeliveries={allDeliveries}
+                          locked={patientSearch === '__locked__'}
                           onTabKey={() => codAmountInputRef?.current?.focus()} />
                         </div>
 
@@ -1255,6 +1256,7 @@ export default function DeliveryFormView({
                           handleSearchKeyDown={handleSearchKeyDown}
                           scheduledDriverMap={scheduledDriverMap}
                           allDeliveries={allDeliveries}
+                          locked={patientSearch === '__locked__'}
                           onTabKey={() => codAmountInputRef?.current?.focus()} />
                         </div>
 

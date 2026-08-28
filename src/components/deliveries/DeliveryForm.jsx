@@ -544,7 +544,7 @@ export default function DeliveryForm({
     return 'add';
   }, [openMode, delivery, editingStagedId, stagedDeliveries.length, hasFormData, hasPendingDeletes, isPickupMode, isInterStoreMode, selectedPickupOption, formData.store_id, formData.delivery_notes, formData.after_hours_pickup, pickupsAddedCount]);
 
-  const cancelButtonState = useMemo(() => openMode === 'add_to_route' ? 'cancel' : (hasFormData ? 'clear' : 'cancel'), [openMode, hasFormData]);
+  const cancelButtonState = useMemo(() => (hasFormData || !!editingStagedId) ? 'clear' : 'cancel', [hasFormData, editingStagedId]);
   const isCompletionStatus = useMemo(() => ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status), [formData.status]);
   const isFormLockedByPayroll = useMemo(() => {
     if (!delivery || !isPayrollLocked) return false;
@@ -558,7 +558,10 @@ export default function DeliveryForm({
     }
   }, [formData.status, delivery, isCompletionStatus]);
 
-  const isPatientSelectionRequired = !isPickupMode && !delivery && openMode !== 'add_to_route';
+  // In Add-to-Route mode, the detail section (notes, options, COD, patient address, etc.)
+  // must stay disabled until a patient is selected — Pickup and InterStore sub-modes have
+  // their own fields and don't need a patient, so they're excluded here.
+  const isPatientSelectionRequired = !isPickupMode && !isInterStoreMode && !delivery;
   const isFormDisabled = isPatientSelectionRequired && !selectedPatient && !editingStagedId;
 
   const selectedDateObj = useMemo(() => {
