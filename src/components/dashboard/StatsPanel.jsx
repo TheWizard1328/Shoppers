@@ -239,27 +239,37 @@ export default function StatsPanel({
   };
 
   // Dispatcher store online-status dots — App Owner only, non-mobile only.
-  // Mirrors StoreOnlineStatusBanner.jsx's exact logic: green = at least one
-  // dispatcher marked 'online' with a fresh (<5 min) heartbeat, orange = marked
-  // online but heartbeat is stale/missing, grey = no dispatcher currently online.
+  // UNIFIED with Layout.jsx sidebar logic: primary online signal is heartbeat activity
+  // (location_updated_at within 5 min), NOT driver_status. The driver_status field can
+  // lag behind the actual heartbeat — the server-side monitor updates it asynchronously.
+  // Green = at least one dispatcher with a fresh heartbeat; orange = dispatcher marked
+  // 'online' but heartbeat is stale/missing; grey = no sign of activity.
   const showStoreStatusRow = !isMobile && isAppOwner(currentUser);
+  const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
   const storeStatusData = showStoreStatusRow ?
   (stores || [])
     .filter((s) => s && s.status === 'active')
     .map((store) => {
-      const onlineDispatchers = (appUsers || []).filter(
+      const storeDispatchers = (appUsers || []).filter(
         (au) => au?.app_roles?.includes('dispatcher') &&
-        au.driver_status === 'online' &&
         au.store_ids?.includes(store.id)
       );
-      let color = '#cbd5e1'; // grey — offline (no dispatcher online)
-      if (onlineDispatchers.length > 0) {
-        const now = Date.now();
-        const isStale = onlineDispatchers.some((au) => {
-          if (!au.location_updated_at) return true;
-          return now - new Date(au.location_updated_at).getTime() > 5 * 60 * 1000;
-        });
-        color = isStale ? '#f97316' : '#10b981'; // orange (stale) : green (online)
+      const now = Date.now();
+      // Primary: fresh heartbeat = online (matches sidebar onlineStoresCount logic)
+      const hasFreshHeartbeat = storeDispatchers.some((au) => {
+        if (!au?.location_updated_at) return false;
+        return (now - new Date(au.location_updated_at).getTime()) < ONLINE_THRESHOLD_MS;
+      });
+      // Secondary: driver_status still 'online' but no fresh heartbeat = stale (orange)
+      const hasStaleOnlineStatus = !hasFreshHeartbeat && storeDispatchers.some(
+        (au) => au?.driver_status === 'online'
+      );
+
+      let color = '#cbd5e1'; // grey — offline
+      if (hasFreshHeartbeat) {
+        color = '#10b981'; // green — active heartbeat
+      } else if (hasStaleOnlineStatus) {
+        color = '#f97316'; // orange — marked online but heartbeat stale
       }
       return {
         id: store.id,
