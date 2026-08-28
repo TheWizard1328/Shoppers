@@ -340,7 +340,7 @@ export default function DeliveryStatusAndTiming({
           }
             <div className="flex-1 space-y-1">
               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                Completion Time *
+                Completed At *
               </Label>
               <TimeField
               ref={completionTimeRef}
