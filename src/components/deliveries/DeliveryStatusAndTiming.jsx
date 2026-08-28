@@ -211,8 +211,8 @@ export default function DeliveryStatusAndTiming({
           .compact-time-input::-webkit-clear-button, .compact-time-input::-webkit-inner-spin-button { display: none; }
           .compact-time-input::-moz-focus-inner { border: 0; }
         `}</style>
-        <div className="flex gap-3 items-end">
-          <div className="flex-1 space-y-1">
+        <div className="grid grid-cols-10 gap-2 items-end">
+          <div className="col-span-4 space-y-1">
             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Cycling Status</Label>
             <Select value={effectiveStatus} onValueChange={handleStatusChange} disabled={isSaving}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -223,7 +223,7 @@ export default function DeliveryStatusAndTiming({
             </Select>
           </div>
           {isAppOwner(currentUser) &&
-            <div className="flex-1 space-y-1">
+            <div className="col-span-3 space-y-1">
               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Arrival Time</Label>
               <TimeField
                 value={formData.arrival_time !== undefined ? formData.arrival_time : delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : ''}
@@ -232,7 +232,7 @@ export default function DeliveryStatusAndTiming({
                 isSaving={isSaving} />
             </div>
           }
-          <div className="flex-1 space-y-1">
+          <div className={`${isAppOwner(currentUser) ? 'col-span-3' : 'col-span-6'} space-y-1`}>
             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
             <TimeField
               ref={completionTimeRef}
