@@ -827,7 +827,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-[95vh] max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : isInterStoreMode ? 'max-w-[620px] h-auto max-h-[95vh]' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isCyclingMarkerMode && !delivery ? 'max-w-[480px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-auto max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
         style={useMobileLayout && isMobileDevice ? { height: '100%', maxHeight: '100%' } : undefined}>
         <Card
           onKeyDown={handleGlobalKeyDown}
@@ -865,12 +865,15 @@ export default function DeliveryFormView({
                   const showTimer = openMode === 'add_to_route' && !isInterStoreMode;
                   if (!showTimer) return null;
                   const pct = Math.max(0, Math.min(1, autoCommitProgress));
-                  const mins = Math.ceil(pct * 5);
+                  const totalRemainingSeconds = Math.ceil(pct * 5 * 60);
+                  const isUnderOneMin = totalRemainingSeconds < 60;
+                  const timeLabel = isUnderOneMin ? `${totalRemainingSeconds}s` : `${Math.ceil(totalRemainingSeconds / 60)}m`;
+                  const timeTitle = isUnderOneMin ? `${totalRemainingSeconds} sec` : `${Math.ceil(totalRemainingSeconds / 60)} min`;
                   const ringColor = pct < 0.2 ? '#ef4444' : pct < 0.5 ? '#f59e0b' : '#10b981';
                   return (
                     <div
                       className="flex items-center gap-1.5 select-none cursor-pointer"
-                      title={`Auto-save in ${mins} min — tap to reset`}
+                      title={`Auto-save in ${timeTitle} — tap to reset`}
                       onClick={() => { if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant(); else window.dispatchEvent(new CustomEvent('openGuideAssistant')); }}
                     >
                       <div className="relative" style={{ width: 28, height: 28 }}>
@@ -884,7 +887,7 @@ export default function DeliveryFormView({
                       </div>
                       {!useMobileLayout || !isMobileDevice ? (
                         <span className="text-xs font-medium tabular-nums" style={{ color: ringColor }}>
-                          {mins}m
+                          {timeLabel}
                         </span>
                       ) : null}
                     </div>
