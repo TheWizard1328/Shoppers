@@ -1538,7 +1538,8 @@ export default function DeliveryFormView({
                             focusTrigger={formData._barcode_focus_token || 0}
                             onManualInputOverrideApplied={() => setFormData((prev) => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
                             disabled={isSaving || !isMobileDevice && !delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)}
-                            barcodeInputRef={barcodeInputRef} />
+                            barcodeInputRef={barcodeInputRef}
+                            onTabForward={() => codAmountInputRef?.current?.focus()} />
                         
 
                           </div>
