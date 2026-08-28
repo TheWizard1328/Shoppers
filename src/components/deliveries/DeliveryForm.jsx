@@ -223,6 +223,7 @@ export default function DeliveryForm({
   const [highlightedPatientIndex, setHighlightedPatientIndex] = useState(-1);
   const patientSearchInputRef = useRef(null);
   const codAmountInputRef = useRef(null);
+  const barcodeInputRef = useRef(null);
   const addPatientButtonRef = useRef(null);
   const patientNameInputRef = useRef(null);
   const patientAddressInputRef = useRef(null);
@@ -536,7 +537,6 @@ export default function DeliveryForm({
   [formData]);
 
   const buttonState = useMemo(() => {
-    if (openMode === 'add_to_route' && !delivery && !editingStagedId && !isInterStoreMode) return 'done';
     if (delivery) return 'update';
     if (editingStagedId) return 'updateStaged';
     if (!isInterStoreMode && (stagedDeliveries.length > 0 || hasPendingDeletes) && !hasFormData && !(isPickupMode && !delivery && (selectedPickupOption || formData.store_id || formData.delivery_notes || formData.after_hours_pickup))) return 'done';
@@ -709,7 +709,7 @@ export default function DeliveryForm({
     setFormData({ ...updatedFormData, store_id: patient.store_id, puid: chosenPickup?.stop_id || chosenPickup?.puid || '' });
     if (!updatedFormData.driver_id) setForceOpenDriverSelectOnLoad(true);
     if (!autoAddToStaged) {
-      if (shouldAutoFocusFields) { setTimeout(() => { if (updatedFormData.driver_id) { codAmountInputRef.current?.focus?.(); return; } window.dispatchEvent(new CustomEvent('forceOpenDeliveryDriverSelect')); }, 0); }
+      if (shouldAutoFocusFields) { setTimeout(() => { if (updatedFormData.driver_id) { barcodeInputRef.current?.focus?.(); return; } window.dispatchEvent(new CustomEvent('forceOpenDeliveryDriverSelect')); }, 0); }
       setPatientSearch(openMode === 'add_to_route' ? '__locked__' : '');
       setHighlightedPatientIndex(-1);
       driverLocationPoller.resume();
@@ -1533,7 +1533,7 @@ export default function DeliveryForm({
       showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup} setActiveRecurringType={setActiveRecurringType}
       handleRecurringChange={handleRecurringChange} handleFrequencyChange={handleFrequencyChange} handleWeeklyDaysDone={handleWeeklyDaysDone}
       pidInputValue={pidInputValue} setPidInputValue={setPidInputValue} pidLookupStatus={pidLookupStatus} setPidLookupStatus={setPidLookupStatus}
-      originalPidRef={originalPidRef} updatePatientLocal={updatePatientLocal} codAmountInputRef={codAmountInputRef}
+      originalPidRef={originalPidRef} updatePatientLocal={updatePatientLocal} codAmountInputRef={codAmountInputRef} barcodeInputRef={barcodeInputRef}
       handleCancelClick={handleCancelClick} handleBatchSave={handleBatchSave} handleUpdateStaged={handleUpdateStaged} handleAddToStaging={handleAddToStaging} handleAddInterStoreTransfer={handleAddInterStoreTransfer}
       handleSubmit={handleSubmit} buttonState={buttonState} cancelButtonState={cancelButtonState} pickupsAddedCount={pickupsAddedCount}
       isFormValid={isFormValid} hasChanges={hasChanges} isPatientFormOpen={isPatientFormOpen}

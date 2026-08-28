@@ -139,7 +139,7 @@ export default function DeliveryFormView({
   handleRecurringChange, handleFrequencyChange, handleWeeklyDaysDone,
   // PID
   pidInputValue, setPidInputValue, pidLookupStatus, setPidLookupStatus,
-  originalPidRef, updatePatientLocal, codAmountInputRef,
+  originalPidRef, updatePatientLocal, codAmountInputRef, barcodeInputRef,
   // Actions
   handleCancelClick, handleBatchSave, handleUpdateStaged, handleAddToStaging, handleAddInterStoreTransfer,
   handleSubmit, handleClearForm: _handleClearForm,
@@ -151,7 +151,6 @@ export default function DeliveryFormView({
   autoCommitProgress = 1
 }) {
   const activeFieldScrollFrameRef = useRef(null);
-  const barcodeInputRef = useRef(null);
 
   // Broadcast delivery-form open/close so the global Guide Assistant FAB can
   // relocate into this header (mobile only) while the form is visible.
@@ -624,14 +623,14 @@ export default function DeliveryFormView({
     background: 'var(--bg-white)'
   } : undefined;
 
-  // Auto-focus COD amount when a staged or pending item is selected (desktop only)
+  // Auto-focus the barcode scanner manual input when a staged or pending item is selected (desktop only)
   React.useEffect(() => {
     if (editingStagedId && shouldAutoFocusFields) {
       setTimeout(() => {
-        try {codAmountInputRef?.current?.focus?.();} catch {}
+        try {barcodeInputRef?.current?.focus?.();} catch {}
       }, 120);
     }
-  }, [editingStagedId, shouldAutoFocusFields, codAmountInputRef]);
+  }, [editingStagedId, shouldAutoFocusFields, barcodeInputRef]);
 
   React.useEffect(() => {
     if (!useMobileLayout) return;
@@ -1230,7 +1229,7 @@ export default function DeliveryFormView({
                               setHasChanges(true);
                             }
                             setForceOpenDriverSelect(false);
-                            if (newDriverId && shouldAutoFocusFields) setTimeout(() => codAmountInputRef?.current?.focus(), 80);
+                            if (newDriverId && shouldAutoFocusFields) setTimeout(() => barcodeInputRef?.current?.focus(), 80);
                           }} disabled={isSaving}>
                               <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
                               <SelectContent className="z-[999999]">
@@ -1281,7 +1280,7 @@ export default function DeliveryFormView({
                             setHasChanges(true);
                           }
                           setForceOpenDriverSelect(false);
-                          if (newDriverId && shouldAutoFocusFields) setTimeout(() => codAmountInputRef?.current?.focus(), 80);
+                          if (newDriverId && shouldAutoFocusFields) setTimeout(() => barcodeInputRef?.current?.focus(), 80);
                         }} disabled={isSaving}>
                             <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
                             <SelectContent className="z-[999999]">
@@ -1430,7 +1429,7 @@ export default function DeliveryFormView({
                                     {formData.cod_total_amount_required >= 0 &&
                                   <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm">$</span>
-                                        <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} onKeyDown={(e) => {if (e.key === 'Tab') {e.preventDefault();barcodeInputRef.current?.focus();}}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
+                                        <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
                                       </div>
                                   }
                                   </div>
@@ -1638,7 +1637,8 @@ export default function DeliveryFormView({
                           focusTrigger={formData._barcode_focus_token || 0}
                           onManualInputOverrideApplied={() => setFormData((prev) => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
                           disabled={isSaving || !isMobileDevice && !delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)}
-                          barcodeInputRef={barcodeInputRef} />
+                          barcodeInputRef={barcodeInputRef}
+                          onTabForward={() => codAmountInputRef?.current?.focus()} />
 
 
                           </div>

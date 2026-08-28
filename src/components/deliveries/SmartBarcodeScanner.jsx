@@ -107,6 +107,7 @@ export default function SmartBarcodeScanner({
   focusTrigger = 0,
   onManualInputOverrideApplied = () => {},
   barcodeInputRef: externalBarcodeInputRef = null,
+  onTabForward = null,
 }) {
   const [manualInput, setManualInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
@@ -205,6 +206,13 @@ export default function SmartBarcodeScanner({
   const handleInputKeyDown = (e) => {
     if (disabled) return;
     const key = e.key;
+    // Tab (without Shift) forwards focus to the COD amount field so the natural
+    // flow is barcode input → COD input. Shift+Tab keeps default behavior.
+    if (key === 'Tab' && !e.shiftKey && typeof onTabForward === 'function') {
+      e.preventDefault();
+      onTabForward();
+      return;
+    }
     const isChar = key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
     const now = Date.now();
     const delta = now - (lastKeyAtRef.current || 0);

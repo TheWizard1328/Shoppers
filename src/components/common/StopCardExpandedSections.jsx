@@ -17,7 +17,15 @@ export function StopCardPhoneRow({ isPickup, finalDisplayPhone, alternateDisplay
     <div className="flex items-center gap-2 text-lg flex-wrap" style={{ color: 'var(--text-slate-600)' }}>
       {finalDisplayPhone && <span className="font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>}
       {finalDisplayPhone && alternateDisplayPhone && <span>•</span>}
-      {alternateDisplayPhone && <span className="font-medium text-blue-600">{formatPhoneNumber(alternateDisplayPhone)}</span>}
+      {alternateDisplayPhone && (
+        <a
+          href={`tel:${String(alternateDisplayPhone).replace(/[^0-9+]/g, '')}`}
+          className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 no-underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {formatPhoneNumber(alternateDisplayPhone)}
+        </a>
+      )}
     </div>);
 
 }
