@@ -233,7 +233,7 @@ export default function DeliveryStatusAndTiming({
             </div>
           }
           <div className={`${isAppOwner(currentUser) ? 'col-span-3' : 'col-span-6'} space-y-1`}>
-            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
+            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completed At *</Label>
             <TimeField
               ref={completionTimeRef}
               value={completionTime}
