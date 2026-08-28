@@ -34,6 +34,7 @@ import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager"
 import { sortUsers } from "@/components/utils/sorting";
 import { countLegendStops } from "@/components/dashboard/legendStopCounter";
 import { getInterStoreMode, subscribeInterStore, setInterStorePickup, setInterStoreDropoff } from "@/components/dashboard/interStoreToggleStore";
+import { isAppOwner } from "@/components/utils/userRoles";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -236,6 +237,39 @@ export default function StatsPanel({
     if (status === 'on_break') return '#f97316';
     return '#dc2626';
   };
+
+  // Dispatcher store online-status dots — App Owner only, non-mobile only.
+  // Mirrors StoreOnlineStatusBanner.jsx's exact logic: green = at least one
+  // dispatcher marked 'online' with a fresh (<5 min) heartbeat, orange = marked
+  // online but heartbeat is stale/missing, grey = no dispatcher currently online.
+  const showStoreStatusRow = !isMobile && isAppOwner(currentUser);
+  const storeStatusData = showStoreStatusRow ?
+  (stores || [])
+    .filter((s) => s && s.status === 'active')
+    .map((store) => {
+      const onlineDispatchers = (appUsers || []).filter(
+        (au) => au?.app_roles?.includes('dispatcher') &&
+        au.driver_status === 'online' &&
+        au.store_ids?.includes(store.id)
+      );
+      let color = '#cbd5e1'; // grey — offline (no dispatcher online)
+      if (onlineDispatchers.length > 0) {
+        const now = Date.now();
+        const isStale = onlineDispatchers.some((au) => {
+          if (!au.location_updated_at) return true;
+          return now - new Date(au.location_updated_at).getTime() > 5 * 60 * 1000;
+        });
+        color = isStale ? '#f97316' : '#10b981'; // orange (stale) : green (online)
+      }
+      return {
+        id: store.id,
+        abbreviation: store.abbreviation || store.name,
+        color,
+        sort_order: store.sort_order ?? Infinity
+      };
+    })
+    .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)) :
+  [];
 
   const isDispatcherLockedExpanded = isDispatcher;
   const showExpandedContent = isDispatcherLockedExpanded || isExpanded;
@@ -762,52 +796,69 @@ export default function StatsPanel({
           </AnimatePresence>
         </motion.div>
 
-            {legendData.length > 0 && !(isDriver && !isAdmin && !isDispatcher && isDateFinished) &&
-          <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full" style={{ background: 'var(--bg-white)', opacity: 1, borderColor: 'var(--border-slate-200)' }}
-          onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
-            <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
-              {legendData.map((route) => {
-                const isActiveDriver = selectedDriverId === route.driverId;
-                // Underline BOTH the active (selected) driver AND the overlaid (extra) driver — only 1 extra at a time.
-                const isOverlaidDriver = !!(overlayDriverId === route.driverId && showAllDriverMarkers && isDriver && !isAdmin);
-                const shouldUnderline = isActiveDriver || isOverlaidDriver;
-                const useLegacyClick = isAdmin || isDispatcher;
-                return (
-                  <button
-                    key={route.driverId}
-                    type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors px-0.5 py-0 h-[20px]    ${shouldUnderline ? 'underline underline-offset-2 font-semibold' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (useLegacyClick) {
-                        // Admins/Dispatchers: toggle selectedDriverId (legacy behavior)
-                        handleDriverChange(selectedDriverId === route.driverId ? 'all' : route.driverId);
-                      } else {
-                        // Non-admin drivers: overlay state machine (active-only ↔ overlay ↔ Full Show All)
-                        handleDriverLegendClick?.(route.driverId);
-                      }
-                    }}>
-                  <div className="relative flex items-center justify-center w-2.5 h-2.5 flex-shrink-0">
-                    {route.hasHeartbeat &&
-                      <div
-                        className="absolute inset-0 rounded-full animate-ping opacity-75"
-                        style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
+            {(() => {
+              const showDriverLegendRow = legendData.length > 0 && !(isDriver && !isAdmin && !isDispatcher && isDateFinished);
+              const showStoreRow = showStoreStatusRow && storeStatusData.length > 0;
+              if (!showDriverLegendRow && !showStoreRow) return null;
+              return (
+                <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full" style={{ background: 'var(--bg-white)', opacity: 1, borderColor: 'var(--border-slate-200)' }}
+                onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
+                  {showDriverLegendRow &&
+                  <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
+                    {legendData.map((route) => {
+                      const isActiveDriver = selectedDriverId === route.driverId;
+                      // Underline BOTH the active (selected) driver AND the overlaid (extra) driver — only 1 extra at a time.
+                      const isOverlaidDriver = !!(overlayDriverId === route.driverId && showAllDriverMarkers && isDriver && !isAdmin);
+                      const shouldUnderline = isActiveDriver || isOverlaidDriver;
+                      const useLegacyClick = isAdmin || isDispatcher;
+                      return (
+                        <button
+                          key={route.driverId}
+                          type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors px-0.5 py-0 h-[20px]    ${shouldUnderline ? 'underline underline-offset-2 font-semibold' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (useLegacyClick) {
+                              // Admins/Dispatchers: toggle selectedDriverId (legacy behavior)
+                              handleDriverChange(selectedDriverId === route.driverId ? 'all' : route.driverId);
+                            } else {
+                              // Non-admin drivers: overlay state machine (active-only ↔ overlay ↔ Full Show All)
+                              handleDriverLegendClick?.(route.driverId);
+                            }
+                          }}>
+                        <div className="relative flex items-center justify-center w-2.5 h-2.5 flex-shrink-0">
+                          {route.hasHeartbeat &&
+                            <div
+                              className="absolute inset-0 rounded-full animate-ping opacity-75"
+                              style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
 
-                      }
-                    <div
-                        className="relative w-2.5 h-2.5 rounded-full shadow-sm"
-                        style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
+                            }
+                          <div
+                              className="relative w-2.5 h-2.5 rounded-full shadow-sm"
+                              style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
 
+                        </div>
+                        <span className="text-sm font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
+                        {!(isDriver && !isAdmin) &&
+                          <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
+                          }
+                      </button>);
+
+                    })}
                   </div>
-                  <span className="text-sm font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
-                  {!(isDriver && !isAdmin) &&
-                    <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
-                    }
-                </button>);
-
-              })}
-            </div>
-          </div>
-          }
+                  }
+                  {showStoreRow &&
+                  <div className={`flex h-auto flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 ${showDriverLegendRow ? 'border-t mt-0.5 pt-0.5' : ''}`} style={{ borderColor: 'var(--border-slate-200)' }}>
+                    {storeStatusData.map((store) => (
+                      <div key={store.id} className="text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center px-0.5 py-0 h-[18px]" title={store.abbreviation}>
+                        <div className="relative w-2 h-2 rounded-full shadow-sm flex-shrink-0" style={{ backgroundColor: store.color }} />
+                        <span className="text-xs font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{store.abbreviation}</span>
+                      </div>
+                    ))}
+                  </div>
+                  }
+                </div>
+              );
+            })()}
         </div>{/* end stats card + legend */}
 
         {/* TravelModeDialog rendered OUTSIDE AnimatePresence so it survives StatsCard collapse */}
