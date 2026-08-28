@@ -536,7 +536,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
               disabled={isSaving} />
             
               <TimePickerField
-              label="Completion Time"
+              label="Completed At"
               required
               value={(() => {
                 const v = formData.actual_delivery_time || '';
