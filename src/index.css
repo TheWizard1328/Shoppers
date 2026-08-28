@@ -246,6 +246,23 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
   border-width: 3px !important;
 }
 
+/* Hide the native dropdown/clock caret on all delivery-form time inputs (Add To / Edit).
+   The custom X clear button (.absolute button) is untouched; only the browser's
+   built-in picker indicator is removed so the field edge stays clean on mobile. */
+input[type="time"].compact-time-input::-webkit-calendar-picker-indicator,
+input[type="time"].compact-time-input::-webkit-inner-spin-button,
+input[type="time"].compact-time-input::-webkit-clear-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+input[type="time"].compact-time-input {
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: none;
+}
+input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus { outline: none; }
+
 .leaflet-popup.custom-popup .leaflet-popup-content-wrapper {
   background: var(--bg-white) !important;
   color: var(--text-slate-900) !important;
