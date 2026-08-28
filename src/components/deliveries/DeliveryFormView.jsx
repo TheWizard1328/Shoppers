@@ -859,38 +859,35 @@ export default function DeliveryFormView({
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                {useMobileLayout && isMobileDevice && (() => {
-                  // Only show countdown ring in add_to_route mode
-                  const showRing = openMode === 'add_to_route' && !isInterStoreMode;
+                {(() => {
+                  // Universal auto-save timer pill — works on all device types.
+                  // Only visible in add_to_route mode (not InterStore, not editing).
+                  const showTimer = openMode === 'add_to_route' && !isInterStoreMode;
+                  if (!showTimer) return null;
+                  const pct = Math.max(0, Math.min(1, autoCommitProgress));
+                  const mins = Math.ceil(pct * 5);
+                  const ringColor = pct < 0.2 ? '#ef4444' : pct < 0.5 ? '#f59e0b' : '#10b981';
                   return (
-                <div className="relative" style={showRing ? { width: 36, height: 36 } : undefined}>
-                  {showRing && (() => {
-                    const size = 36, stroke = 2.5, r = (size - stroke) / 2;
-                    const circumference = 2 * Math.PI * r;
-                    const dash = circumference * Math.max(0, Math.min(1, autoCommitProgress));
-                    const ringColor = autoCommitProgress < 0.2 ? '#ef4444' : autoCommitProgress < 0.5 ? '#f59e0b' : '#10b981';
-                    return (
-                      <svg width={size} height={size} className="absolute inset-0 pointer-events-none" style={{ transform: 'rotate(-90deg)' }}>
-                        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="opacity-10" />
-                        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={ringColor} strokeWidth={stroke}
-                          strokeDasharray={`${dash} ${circumference - dash}`}
-                          strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s linear, stroke 0.3s ease' }} />
-                      </svg>
-                    );
-                  })()}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant();else
-                      window.dispatchEvent(new CustomEvent('openGuideAssistant'));
-                    }}
-                    disabled={isSaving}
-                    title={showRing ? `Auto-save in ${Math.ceil(autoCommitProgress * 5)} min — tap to reset` : 'Open guide assistant'}
-                    aria-label="Open guide assistant">
-                      <Sparkles className="w-4 h-4 text-emerald-600" />
-                    </Button>
-                </div>
+                    <div
+                      className="flex items-center gap-1.5 select-none cursor-pointer"
+                      title={`Auto-save in ${mins} min — tap to reset`}
+                      onClick={() => { if (typeof window.__openGuideAssistant === 'function') window.__openGuideAssistant(); else window.dispatchEvent(new CustomEvent('openGuideAssistant')); }}
+                    >
+                      <div className="relative" style={{ width: 28, height: 28 }}>
+                        <svg width={28} height={28} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
+                          <circle cx={14} cy={14} r={12} fill="none" stroke="currentColor" strokeWidth={2} className="opacity-10" />
+                          <circle cx={14} cy={14} r={12} fill="none" stroke={ringColor} strokeWidth={2}
+                            strokeDasharray={`${2 * Math.PI * 12 * pct} ${2 * Math.PI * 12 * (1 - pct)}`}
+                            strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s linear, stroke 0.3s ease' }} />
+                        </svg>
+                        <Sparkles className="w-3 h-3 text-emerald-600 absolute inset-0 m-auto pointer-events-none" />
+                      </div>
+                      {!useMobileLayout || !isMobileDevice ? (
+                        <span className="text-xs font-medium tabular-nums" style={{ color: ringColor }}>
+                          {mins}m
+                        </span>
+                      ) : null}
+                    </div>
                   );
                 })()}
                 <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving}><X className="w-4 h-4" /></Button>

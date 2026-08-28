@@ -214,6 +214,7 @@ export default function DeliveryForm({
   const autoCommitInProgressRef = useRef(false);
   // Refs to always call the latest versions after state updates
   const handleBatchSaveRef = useRef(null);
+  const handleAddToStagingRef = useRef(null);
   // Countdown ring progress: 1.0 = full time remaining, 0.0 = about to auto-commit
   const [autoCommitProgress, setAutoCommitProgress] = useState(1);
   const [error, setError] = useState(null);
@@ -969,6 +970,7 @@ export default function DeliveryForm({
 
   // Keep ref in sync so auto-commit can call the latest version after staged state updates
   useEffect(() => { handleBatchSaveRef.current = handleBatchSave; }, [handleBatchSave]);
+  useEffect(() => { handleAddToStagingRef.current = handleAddToStaging; }, [handleAddToStaging]);
 
   const handleSearchKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
@@ -1397,7 +1399,7 @@ export default function DeliveryForm({
           // If there's an in-progress form with enough data, commit it first
           if (hasFormData && formData.delivery_date && formData.driver_id && formData.store_id) {
             console.log('[AddToRoute] Auto-committing in-progress form entry before batch save');
-            await handleAddToStaging();
+            await handleAddToStagingRef.current();
             // Wait for React to flush the stagedDeliveries state update so the
             // batch-save closure (recreated via useCallback deps) sees the new item.
             await new Promise(r => setTimeout(r, 100));
@@ -1426,8 +1428,7 @@ export default function DeliveryForm({
     const intervalId = setInterval(checkInactivity, 10_000); // check every 10s
     return () => { clearInterval(intervalId); clearInterval(progressId); };
   }, [openMode, isInterStoreMode, delivery, isSaving, stagedDeliveries.length, hasPendingDeletes,
-      hasFormData, formData.delivery_date, formData.driver_id, formData.store_id,
-      handleAddToStaging, handleBatchSave]);
+      hasFormData, formData.delivery_date, formData.driver_id, formData.store_id]);
 
   // ── Track user interactions to reset the inactivity clock ──
   // Scoped to the form container so background dashboard activity doesn't reset the timer.

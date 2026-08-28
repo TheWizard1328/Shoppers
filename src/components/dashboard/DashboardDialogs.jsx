@@ -87,7 +87,7 @@ export default function DashboardDialogs({
   return (
     <>
       <AnimatePresence>
-        {showDeliveryForm && <DeliveryForm delivery={editingDelivery} patients={patients} stores={stores} drivers={drivers} cities={cities} onSave={handleSaveDelivery} onCancel={() => { setShowDeliveryForm(false); setEditingDelivery(null); }} suggestedDate={format(selectedDate, 'yyyy-MM-dd')} currentUser={currentUser} allDeliveries={deliveries} onCreatePatient={handleCreatePatientFromDelivery} defaultToPickupMode={!!editingDelivery && !editingDelivery.patient_id} openMode={interstorePrefill ? 'interstore_add' : (editingDelivery && isInterStoreDelivery(editingDelivery.delivery_id) ? 'interstore_edit' : null)} interStorePrefill={interstorePrefill} />}
+        {showDeliveryForm && <DeliveryForm delivery={editingDelivery} patients={patients} stores={stores} drivers={drivers} cities={cities} onSave={handleSaveDelivery} onCancel={() => { setShowDeliveryForm(false); setEditingDelivery(null); }} suggestedDate={format(selectedDate, 'yyyy-MM-dd')} currentUser={currentUser} allDeliveries={deliveries} onCreatePatient={handleCreatePatientFromDelivery} defaultToPickupMode={!!editingDelivery && !editingDelivery.patient_id} openMode={interstorePrefill ? 'interstore_add' : (editingDelivery && isInterStoreDelivery(editingDelivery.delivery_id) ? 'interstore_edit' : 'add_to_route')} interStorePrefill={interstorePrefill} />}
       </AnimatePresence>
 
       <AnimatePresence>
