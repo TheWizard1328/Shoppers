@@ -215,6 +215,8 @@ export default function DeliveryForm({
   // Refs to always call the latest versions after state updates
   const handleBatchSaveRef = useRef(null);
   const handleAddToStagingRef = useRef(null);
+  const handleUpdateStagedRef = useRef(null);
+  const isSavingRef = useRef(false);
   // Countdown ring progress: 1.0 = full time remaining, 0.0 = about to auto-commit
   const [autoCommitProgress, setAutoCommitProgress] = useState(1);
   const [error, setError] = useState(null);
@@ -965,12 +967,14 @@ export default function DeliveryForm({
       ? [...(allDeliveries || []), ...alreadyCreatedPickups]
       : allDeliveries;
     addedPickupRecordsRef.current = [];
-    return runHandleBatchSave({ batchSaveLockRef, isSaving, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops, currentUser, patients, appUsers });
-  }, [isSaving, stagedDeliveries, hasPendingDeletes, formData, allDeliveries, stores, onCancel, onSave, isNewRouteWithZeroStops, handleClearForm, openMode, delivery, selectedPatient, setStagedDeliveries, setHasChanges]);
+    return runHandleBatchSave({ batchSaveLockRef, isSaving: isSavingRef.current, blockPredictions, stagedDeliveries: stagedDeliveriesForSave, hasPendingDeletes, allDeletedWerePending, setStagedDeliveries, setProjectedDeliveries, setHasPendingDeletes, setHasChanges, hasLoadedPending, unblockPredictions, setIsLoadingPredictions, handleClearForm, onCancel, formData, allDeliveries: allDeliveriesWithPickups, stores, setIsSaving, setError, setBatchFormSaving, updateDeliveryLocal, updatePatientLocal, onSave, isNewRouteWithZeroStops, currentUser, patients, appUsers });
+  }, [stagedDeliveries, hasPendingDeletes, formData, allDeliveries, stores, onCancel, onSave, isNewRouteWithZeroStops, handleClearForm, openMode, delivery, selectedPatient, setStagedDeliveries, setHasChanges]);
 
   // Keep ref in sync so auto-commit can call the latest version after staged state updates
   useEffect(() => { handleBatchSaveRef.current = handleBatchSave; }, [handleBatchSave]);
   useEffect(() => { handleAddToStagingRef.current = handleAddToStaging; }, [handleAddToStaging]);
+  useEffect(() => { handleUpdateStagedRef.current = handleUpdateStaged; }, [handleUpdateStaged]);
+  useEffect(() => { isSavingRef.current = isSaving; }, [isSaving]);
 
   const handleSearchKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
@@ -1380,29 +1384,55 @@ export default function DeliveryForm({
     if (openMode !== 'add_to_route' || isInterStoreMode || delivery) return;
 
     const checkInactivity = () => {
-      if (autoCommitInProgressRef.current || isSaving) return;
+      // Use refs for isSaving so we always have the CURRENT value, not a stale closure copy.
+      // The closure's isSaving can be stale if a save started/ended between effect re-runs.
+      if (autoCommitInProgressRef.current || isSavingRef.current) {
+        console.log('[AddToRoute] Auto-commit skipped: in progress or saving');
+        return;
+      }
       const elapsed = Date.now() - lastInteractionRef.current;
       if (elapsed < INACTIVITY_TIMEOUT_MS) return;
 
-      // Need staged deliveries, pending deletes, OR an in-progress form to auto-commit
-      if (stagedDeliveries.length === 0 && !hasPendingDeletes && !hasFormData) return;
+      // Need staged deliveries, pending deletes, OR an in-progress form to auto-commit.
+      // Check hasFormData (patient fields) OR core form fields (covers pickup mode where
+      // hasFormData is false but store/date/driver are filled).
+      const hasCoreFormFields = !!(formData.delivery_date && formData.driver_id && formData.store_id);
+      const hasData = stagedDeliveries.length > 0 || hasPendingDeletes || hasFormData || hasCoreFormFields;
+      if (!hasData) {
+        console.log('[AddToRoute] Auto-commit skipped: no data to save');
+        return;
+      }
 
       autoCommitInProgressRef.current = true;
       console.log('[AddToRoute] Auto-commit triggered after 5 min inactivity', {
         stagedCount: stagedDeliveries.length,
         hasFormData: hasFormData,
-        hasPendingDeletes
+        hasCoreFormFields,
+        hasPendingDeletes,
+        editingStagedId: !!editingStagedId
       });
 
       (async () => {
         try {
-          // If there's an in-progress form with enough data, commit it first
-          if (hasFormData && formData.delivery_date && formData.driver_id && formData.store_id) {
+          // If editing a staged delivery, update it instead of adding a new one
+          if (editingStagedId && hasFormData) {
+            console.log('[AddToRoute] Auto-commit: updating staged delivery', editingStagedId);
+            await handleUpdateStagedRef.current();
+            await new Promise(r => setTimeout(r, 300));
+          }
+          // If there's an in-progress form with enough data, stage it first
+          else if (hasFormData && formData.delivery_date && formData.driver_id && formData.store_id) {
             console.log('[AddToRoute] Auto-committing in-progress form entry before batch save');
             await handleAddToStagingRef.current();
             // Wait for React to flush the stagedDeliveries state update so the
             // batch-save closure (recreated via useCallback deps) sees the new item.
-            await new Promise(r => setTimeout(r, 100));
+            await new Promise(r => setTimeout(r, 300));
+          }
+          // If there are core fields but no patient data (pickup mode), try staging as pickup
+          else if (!hasFormData && hasCoreFormFields && isPickupMode) {
+            console.log('[AddToRoute] Auto-committing pickup form entry before batch save');
+            await handleAddToStagingRef.current();
+            await new Promise(r => setTimeout(r, 300));
           }
 
           // Now batch-save all staged deliveries to Pending.
@@ -1414,6 +1444,7 @@ export default function DeliveryForm({
         } finally {
           autoCommitInProgressRef.current = false;
           lastInteractionRef.current = Date.now();
+          console.log('[AddToRoute] Auto-commit complete, timer reset');
         }
       })();
     };
@@ -1426,9 +1457,24 @@ export default function DeliveryForm({
     }, 1000);
 
     const intervalId = setInterval(checkInactivity, 10_000); // check every 10s
-    return () => { clearInterval(intervalId); clearInterval(progressId); };
-  }, [openMode, isInterStoreMode, delivery, isSaving, stagedDeliveries.length, hasPendingDeletes,
-      hasFormData, formData.delivery_date, formData.driver_id, formData.store_id]);
+
+    // Instant check on foreground return — don't wait up to 10s for the interval
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[AddToRoute] Visibility changed to visible, checking inactivity');
+        checkInactivity();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      clearInterval(progressId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [openMode, isInterStoreMode, delivery, stagedDeliveries.length, hasPendingDeletes,
+      hasFormData, formData.delivery_date, formData.driver_id, formData.store_id,
+      editingStagedId, isPickupMode]);
 
   // ── Track user interactions to reset the inactivity clock ──
   // Scoped to the form container so background dashboard activity doesn't reset the timer.
