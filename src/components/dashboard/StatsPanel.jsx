@@ -846,15 +846,31 @@ export default function StatsPanel({
                     })}
                   </div>
                   }
-                  {showStoreRow &&
-                  <div className={`flex h-auto flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 ${showDriverLegendRow ? 'border-t mt-0.5 pt-0.5' : ''}`} style={{ borderColor: 'var(--border-slate-200)' }}>
-                    {storeStatusData.map((store) => (
-                      <div key={store.id} className="text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center px-0.5 py-0 h-[18px]" title={store.abbreviation}>
-                        <div className="relative w-2 h-2 rounded-full shadow-sm flex-shrink-0" style={{ backgroundColor: store.color }} />
-                        <span className="text-xs font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{store.abbreviation}</span>
+                  {showStoreRow && (() => {
+                    // Split stores into balanced rows: even count → equal halves;
+                    // odd count → extra store goes on the first row (e.g. 11 → 6+5).
+                    const total = storeStatusData.length;
+                    const numRows = Math.ceil(total / 6);
+                    const perRow = Math.ceil(total / numRows);
+                    const rows = [];
+                    for (let i = 0; i < total; i += perRow) {
+                      rows.push(storeStatusData.slice(i, i + perRow));
+                    }
+                    return (
+                      <div className={`${showDriverLegendRow ? 'border-t mt-0.5 pt-0.5' : ''}`} style={{ borderColor: 'var(--border-slate-200)' }}>
+                        {rows.map((row, rowIdx) => (
+                          <div key={rowIdx} className="flex h-auto flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
+                            {row.map((store) => (
+                              <div key={store.id} className="text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center px-0.5 py-0 h-[18px]" title={store.abbreviation}>
+                                <div className="relative w-2 h-2 rounded-full shadow-sm flex-shrink-0" style={{ backgroundColor: store.color }} />
+                                <span className="text-xs font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{store.abbreviation}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()
                   }
                 </div>
               );
