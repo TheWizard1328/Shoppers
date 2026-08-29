@@ -8,6 +8,7 @@ import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { requestDeferredOptimization } from '../utils/optimizationDebouncer';
 import { executeOfflineBatchAction } from '../utils/offlineBatchAction';
 import { notifyDispatcherAssignedStops } from './dispatcherAssignedStopsNotifier';
+import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 
 export async function handleBatchSave({
   batchSaveLockRef,
@@ -173,13 +174,21 @@ export async function handleBatchSave({
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
       // Determine when to trigger route optimization on Done:
-      // - Options 2/3/4 (interstore, pickup, cycling): ALWAYS optimize — new stops added to active route
-      // - Option 1 (standard adds): only optimize if at least one new stop is in_transit
-      //   (pending-only adds must NOT trigger optimization or polyline regeneration)
-      hasInTransitTransition = newDeliveries.some((d) => d?.status === 'in_transit');
-      const isActiveRouteMode = ['interstore', 'pickup', 'cycling'].includes(formData?.openMode);
-      const hasNewActiveSops = newDeliveries.some((d) => d?.status && !['pending', 'Staged'].includes(d.status));
-      routeStructureChanged = isActiveRouteMode ? true : hasInTransitTransition;
+      // Only trigger optimization when stops are transitioning to in_transit.
+      // This covers:
+      // - New deliveries explicitly set to in_transit by the user (bypassing Staged->Pending)
+      // - New Staged interstore stops that will activate to in_transit via getStagedActivationStatus
+      // - Existing deliveries being directly edited to in_transit
+      // - Existing Staged interstore stops being activated to in_transit
+      // Staged->Pending and Staged->en_route (pickup containers) do NOT trigger optimization.
+      hasInTransitTransition = newDeliveries.some((d) =>
+        d?.status === 'in_transit' ||
+        (d?.status === 'Staged' && isInterStoreDelivery(d?.delivery_id))
+      ) || deliveriesToUpdate.some((d) =>
+        (d?._wasEdited && d?.status === 'in_transit') ||
+        (d?.status === 'Staged' && isInterStoreDelivery(d?.delivery_id))
+      );
+      routeStructureChanged = hasInTransitTransition;
 
       // Fire KITT bar immediately — we know optimization will run after save completes
       if (routeStructureChanged && routeDriverId && routeDeliveryDate) {
@@ -273,8 +282,8 @@ export async function handleBatchSave({
 
       creatorFlowEnsuredPickups = normalizedDefaultPickups;
       // NOTE: creating pickup containers does NOT by itself force routeStructureChanged —
-      // see the final assignment below (routeStructureChanged = hasNewActiveSops), which is
-      // the one that actually matters for the optimization decision.
+      // routeStructureChanged only fires when stops transition to in_transit, not when
+      // pickup containers (en_route) are created.
       let newPickupsCreated = normalizedDefaultPickups.length > 0;
 
       // Build a set of driver/date pairs that already have ISP/ISD stops (no pickup needed)
@@ -392,18 +401,8 @@ export async function handleBatchSave({
       ).values());
       
       // CRITICAL FIX: Newly-created/ensured pickup CONTAINERS are always persisted with
-      // status 'en_route' by design (that's just their resting/default status — it does NOT
-      // mean the driver started moving). Treating that as an "active pickup created" signal
-      // previously forced routeStructureChanged=true (and triggered the HERE optimizer +
-      // orange "Optimizing Route" banner) on essentially EVERY normal "stage some patient
-      // stops, click Done" workflow, since staging a store's first stop of the day always
-      // needs a fresh pickup container. That's exactly the "staged→pending shouldn't hit the
-      // HERE API" case the user reported. Route structure only actually needs re-optimization
-      // when one of the newly staged DELIVERIES itself is genuinely active (e.g. in_transit —
-      // the driver is being told to go there right now), which hasNewActiveSops already
-      // captures from the user-set status. Pickup-container creation alone must never force it.
-      // routeStructureChanged is already set correctly above (isActiveRouteMode or hasInTransitTransition).
-
+      // status 'en_route' by design. Pickup-container creation alone must never force
+      // routeStructureChanged. Only stops transitioning to in_transit trigger optimization.
       const ensuredPickupByKey = new Map(
         ensuredPickupRecords
           .filter((pickup) => pickup && !pickup.patient_id)
@@ -578,8 +577,8 @@ export async function handleBatchSave({
           // Pure staged→pending transitions (deliveriesToUpdate > 0, newDeliveries === 0)
           // must NEVER trigger optimization or polyline regeneration — they don't change
           // the active route and should never show the orange overlay or hit the HERE API.
-          const isPureStagedToPendingTransition = newDeliveries.length === 0 && deliveriesToUpdate.length > 0;
-          if (routeStructureChanged && !isPureStagedToPendingTransition) {
+          // routeStructureChanged already correctly excludes pure Staged->Pending transitions.
+          if (routeStructureChanged) {
             requestDeferredOptimization(refreshDriverId, refreshDeliveryDate, true);
           }
         }

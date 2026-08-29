@@ -49,7 +49,6 @@ class LocationTracker {
         this.deviceCapabilities = null;
         this.locationProvider = getLocationProvider();
         this.isPrimaryDevice = false;
-        this.allowNonPrimaryPolylineRefresh = false;
 
         // Event-driven updates tracking
         this._pendingEventUpdate = false;
@@ -61,10 +60,6 @@ class LocationTracker {
         this.lastEtaRefreshAt = 0;
         this.minEtaRefreshDistance = 500;
         this.minTimeBetweenEtaRefresh = 120000;
-        this.lastPolylineRefreshPosition = null;
-        this.lastPolylineRefreshAt = 0;
-        this.minPolylineRefreshDistance = 100;
-        this.minTimeBetweenPolylineRefresh = 30000;
         this.lastBreadcrumbSavedAt = 0;
         this.breadcrumbSaveInterval = 5000; // 5 seconds — offline DB write frequency
         this.breadcrumbInterval = null; // Independent 5s timer for breadcrumb collection (fallback)
@@ -356,13 +351,6 @@ class LocationTracker {
     this._eventUpdateTime = Date.now();
   }
 
-  enableNonPrimaryPolylineRefresh() {
-    this.allowNonPrimaryPolylineRefresh = true;
-  }
-
-  disableNonPrimaryPolylineRefresh() {
-    this.allowNonPrimaryPolylineRefresh = false;
-  }
 
   /**
    * Signal that location sharing was toggled
@@ -786,35 +774,11 @@ class LocationTracker {
           });
         }
 
-        const previousPolylinePosition = this.lastPolylineRefreshPosition;
-        const distanceSincePolylineRefresh = previousPolylinePosition
-          ? this.calculateDistanceInMeters(
-              previousPolylinePosition.latitude,
-              previousPolylinePosition.longitude,
-              latitude,
-              longitude
-            )
-          : Infinity;
-        const enoughTimeForPolyline = now - this.lastPolylineRefreshAt >= this.minTimeBetweenPolylineRefresh;
-        const movedEnoughForPolyline = !previousPolylinePosition || distanceSincePolylineRefresh >= this.minPolylineRefreshDistance;
-        const canRefreshPolylineFromThisDevice = this.isPrimaryDevice || this.allowNonPrimaryPolylineRefresh === true;
-
-        if (movedEnoughForPolyline && enoughTimeForPolyline && canRefreshPolylineFromThisDevice) {
-          this.lastPolylineRefreshPosition = { latitude, longitude };
-          this.lastPolylineRefreshAt = now;
-          import('@/components/utils/routeOptimizationCoordinator').then(({ performRouteOptimization }) =>
-            performRouteOptimization({
-              driverId: this.currentUser.id,
-              deliveryDate: this.currentDeliveryDate,
-              currentLocation: { lat: latitude, lon: longitude },
-              preserveExistingOrder: true,
-              bypassDriverStatus: true,
-              source: 'gps_polyline_refresh',
-            })
-          ).catch((polylineError) => {
-            console.warn('⚠️ [LocationTracker] Polyline refresh skipped:', polylineError?.message || polylineError);
-          });
-        }
+        // GPS-triggered polyline refresh REMOVED.
+        // The only thing that should update polylines/ETAs from locationTracker is
+        // route deviation detection (not yet implemented — pending discussion).
+        // All other polyline regeneration is handled by explicit route-change flows
+        // (handleBatchSave, entityMutations, accept/complete/cancel actions).
       }
 
       console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
@@ -1458,9 +1422,6 @@ class LocationTracker {
     this.lastBreadcrumbTickAt = 0;
     this.lastEtaRefreshPosition = null;
     this.lastEtaRefreshAt = 0;
-    this.lastPolylineRefreshPosition = null;
-    this.lastPolylineRefreshAt = 0;
-    this.allowNonPrimaryPolylineRefresh = false;
     this.lastHeartbeatAt = 0;
     this.lastFocusLostAt = 0;
 
