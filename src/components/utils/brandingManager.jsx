@@ -2,7 +2,12 @@ import { base44 } from '@/api/base44Client';
 
 const DEFAULT_BRANDING = {
   name: 'RxDeliver',
-  logo_url: '',
+  // The actual App Logo set via the Base44 dashboard (Dashboard → Edit App Logo).
+  // Served by the platform at /apple-touch-icon.png for every install; used as the
+  // default so freshly-installed / fully-reset devices show the real logo before
+  // any Company branding is fetched. The sidebar explicitly filters out any URL
+  // containing "placehold", so placeholder Company logos fall back to this.
+  logo_url: '/apple-touch-icon.png',
   favicon_url: '',
   primary_color: '#000000',
   secondary_color: '#FFFFFF',
@@ -59,9 +64,14 @@ export async function getCompanyBranding(companyId) {
     }
 
     if (company && company.length > 0) {
+      // Treat placeholder Company logo URLs (e.g. "https://placehold.co/...") as
+      // empty so they fall back to the default App Logo instead of rendering the
+      // green Rx badge (the sidebar hides any URL containing "placehold").
+      const rawLogo = company[0].logo_url || '';
+      const safeLogo = rawLogo && !rawLogo.includes('placehold') ? rawLogo : '';
       cachedBranding = {
         name: company[0].name || DEFAULT_BRANDING.name,
-        logo_url: company[0].logo_url || DEFAULT_BRANDING.logo_url,
+        logo_url: safeLogo || DEFAULT_BRANDING.logo_url,
         favicon_url: company[0].favicon_url || DEFAULT_BRANDING.favicon_url,
         primary_color: company[0].primary_color || DEFAULT_BRANDING.primary_color,
         secondary_color: company[0].secondary_color || DEFAULT_BRANDING.secondary_color,

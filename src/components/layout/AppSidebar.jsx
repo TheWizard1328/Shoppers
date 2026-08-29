@@ -219,7 +219,7 @@ export default function AppSidebar({
           </button>
               }
 
-        {branding.logo_url && !branding.logo_url.includes('placehold') && !logoFailed_placeholder_search ?
+        {branding.logo_url && !branding.logo_url.includes('placehold') && !logoFailed ?
               <img
                 src={branding.logo_url}
                 alt="RxDeliver"
