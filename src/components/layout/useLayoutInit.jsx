@@ -236,7 +236,14 @@ export function useLayoutInit({
               getCompanyBranding(fetchedUser.company_id),
               15000, 'getCompanyBranding'
             );
-            setBranding(b);
+            // Preserve a previously-applied logo when the fresh fetch falls back or
+            // returns an empty logo_url (API timeout / failure / Company missing) —
+            // overwriting it with empty would blank the logo for the whole session.
+            setBranding((prev) => ({
+              ...prev,
+              ...b,
+              logo_url: b?.logo_url || prev?.logo_url || ''
+            }));
             const { applyBrandingStyles } = await import('../utils/brandingManager');
             applyBrandingStyles(b);
             if (b?._fallback) {

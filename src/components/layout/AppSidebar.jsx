@@ -74,6 +74,12 @@ export default function AppSidebar({
   const { isMobile, isTabletPortrait, isWideScreenMobile, deviceType } = useDevice();
   const navigate = useNavigate();
 
+  // Tracks a logo image that failed to load (expired/signed URL, CDN blip) so we
+  // swap to the green Rx badge fallback instead of leaving a blank gap. Resets
+  // whenever a new logo URL is supplied.
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => { setLogoFailed(false); }, [branding?.logo_url]);
+
   // Native Android APK update check — lights up a "New" badge beside the User
   // Settings link when a newer build is available (same check as the Settings
   // page Native App section, using the build number Layout already fetches).
@@ -213,7 +219,7 @@ export default function AppSidebar({
           </button>
               }
 
-        {branding.logo_url && !branding.logo_url.includes('placehold') ?
+        {branding.logo_url && !branding.logo_url.includes('placehold') && !logoFailed ?
               <img
                 src={branding.logo_url}
                 alt="RxDeliver"
@@ -221,7 +227,7 @@ export default function AppSidebar({
                 title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
                 className={`rounded object-contain w-12 h-12 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}
                 style={{ filter: 'var(--image-filter, none)' }}
-                onError={(e) => {e.currentTarget.style.display = 'none';}} /> :
+                onError={() => setLogoFailed(true)} /> :
 
 
               <div

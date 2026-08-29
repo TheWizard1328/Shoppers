@@ -67,7 +67,12 @@ export async function getCompanyBranding(companyId) {
         secondary_color: company[0].secondary_color || DEFAULT_BRANDING.secondary_color,
         accent_color: company[0].accent_color || DEFAULT_BRANDING.accent_color
       };
-      try { localStorage.setItem(BRANDING_LS_KEY, JSON.stringify(cachedBranding)); } catch {}
+      // Only persist to localStorage when we actually got a logo URL — an empty
+      // logo_url here would otherwise overwrite a previously-good cached logo,
+      // killing the logo on every future boot (the intermittent "missing logo").
+      if (cachedBranding.logo_url) {
+        try { localStorage.setItem(BRANDING_LS_KEY, JSON.stringify(cachedBranding)); } catch {}
+      }
       return cachedBranding;
     }
   } catch (error) {

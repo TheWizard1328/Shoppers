@@ -39,6 +39,11 @@ export default function MobileHeader({
   // renders). Kept as a div badge (not a <button>) to preserve the original circular
   // avatar styling — tap gesture is wired via onClick + role/keyboard handlers.
   const [immersiveTestActive, setImmersiveTestActive] = useState(false);
+  // Tracks a logo image that failed to load (expired/signed URL, CDN blip) so we
+  // swap to the green Rx badge fallback instead of leaving a blank gap. Resets
+  // whenever a new logo URL is supplied.
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => { setLogoFailed(false); }, [logo]);
 
   useEffect(() => {
     const onState = (e) => setImmersiveTestActive(!!e?.detail?.active);
@@ -122,16 +127,15 @@ export default function MobileHeader({
                 onMessagingClick?.();
               }
             }}>
-            {logo && !logo.includes('placehold') ? (
+            {logo && !logo.includes('placehold') && !logoFailed ? (
               <img
                 src={logo}
                 alt="RxDeliver"
                 className="w-8 h-8 rounded object-contain"
                 style={{ filter: 'var(--image-filter, none)' }}
-                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling && (e.currentTarget.nextSibling.style.display = 'flex'); }}
+                onError={() => setLogoFailed(true)}
               />
-            ) : null}
-            {(!logo || logo.includes('placehold')) && (
+            ) : (
               <div className="w-8 h-8 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-xs">Rx</span>
               </div>
