@@ -188,8 +188,15 @@ export const AppDataProvider = ({ children, value }) => {
       }
 
       if (patientsChanged) {
+        // CRITICAL: Read from window.__appPatients (synchronously updated by updatePatientsLocally)
+        // rather than patientsRef.current (which is updated by useEffect — async, after paint).
+        // This prevents the race where flushRealtimeBatch builds nextPatients from a stale
+        // snapshot that doesn't yet include the latest patient state from optimistic writes.
+        // Same fix pattern as window.__appDeliveries for the delivery path above.
+        const currentPatients = (typeof window !== 'undefined' && Array.isArray(window.__appPatients) && window.__appPatients.length > 0)
+          ? window.__appPatients
+          : patientsRef.current || [];
         const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-        const currentPatients = patientsRef.current || [];
         const deleteSet = new Set(patientDeletes);
         const patientById = new Map(currentPatients.filter(Boolean).map((item) => [item.id, item]));
         (Array.isArray(offlinePatients) ? offlinePatients : []).forEach((item) => {
@@ -367,7 +374,7 @@ export const AppDataProvider = ({ children, value }) => {
             deletedIds: patientDeletes,
             deletedId: patientDeletes.length === 1 ? patientDeletes[0] : undefined,
             fromRealtime: true,
-            fullReplacement: true
+            fullReplacement: false
           }
         }));
       }
@@ -460,6 +467,14 @@ export const AppDataProvider = ({ children, value }) => {
   useEffect(() => { deliveriesRef.current = value.deliveries; }, [value.deliveries]);
   useEffect(() => { appUsersRef.current = value.appUsers; }, [value.appUsers]);
   useEffect(() => { patientsRef.current = value.patients; }, [value.patients]);
+  // CRITICAL: Expose current patients to window synchronously so flushRealtimeBatch
+  // can read the latest patient state without waiting for useEffect (which runs after paint).
+  // Same pattern as window.__appDeliveries.
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.__appPatients = value.patients;
+    }
+  }, [value.patients]);
   // CRITICAL: Expose current deliveries to window so realtimeSync full-replacement guard
   // can preserve optimistic isNextDelivery=true flags before backend confirms them.
   useEffect(() => {

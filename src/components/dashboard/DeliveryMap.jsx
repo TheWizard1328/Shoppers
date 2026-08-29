@@ -1678,20 +1678,26 @@ function DeliveryMap({
         <Pane name="completedBreadcrumbPane" style={{ zIndex: 460 }} />
         <Pane name="currentLegPane" style={{ zIndex: 620 }} />
 
-        {currentDriverMarker && (
-          <Marker key="current-driver-location" position={[currentDriverMarker.latitude, currentDriverMarker.longitude]} icon={createLiveLocationDot()} zIndexOffset={6000} eventHandlers={{ click: () => onMarkerClick?.(currentDriverMarker, "driver") }}>
-            <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
-              <div className="min-w-[150px]">
-                <div className="font-semibold text-xs">Your Location</div>
-                {currentDriverMarker.timestamp && <div className="text-[11px] text-gray-600 dark:text-slate-400 dark:text-slate-500">Updated: {format(new Date(currentDriverMarker.timestamp), "HH:mm:ss")}</div>}
-              </div>
-            </Popup>
-          </Marker>
-        )}
+        {/* CRITICAL: Driver markers pane — must always render above ALL other markers
+            (delivery, pickup, home, interstore) and ALL polylines (route, breadcrumb).
+            markerPane=600, popupPane=700, tooltipPane=650, overlayPane=400.
+            This pane at 1000 ensures driver/live location markers are never occluded. */}
+        <Pane name="driverMarkerPane" style={{ zIndex: 1000 }}>
+          {currentDriverMarker && (
+            <Marker key="current-driver-location" position={[currentDriverMarker.latitude, currentDriverMarker.longitude]} icon={createLiveLocationDot()} zIndexOffset={6000} pane="driverMarkerPane" eventHandlers={{ click: () => onMarkerClick?.(currentDriverMarker, "driver") }}>
+              <Popup autoPan={false} closeButton={false} offset={[0, -10]} className="custom-popup">
+                <div className="min-w-[150px]">
+                  <div className="font-semibold text-xs">Your Location</div>
+                  {currentDriverMarker.timestamp && <div className="text-[11px] text-gray-600 dark:text-slate-400 dark:text-slate-500">Updated: {format(new Date(currentDriverMarker.timestamp), "HH:mm:ss")}</div>}
+                </div>
+              </Popup>
+            </Marker>
+          )}
 
-        {mapReady && (
-          <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} selectedDriverId={selectedDriverId} showOtherDriverDeliveries={showOtherDriverDeliveries} overlayDriverId={overlayDriverId} />
-        )}
+          {mapReady && (
+            <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} selectedDriverId={selectedDriverId} showOtherDriverDeliveries={showOtherDriverDeliveries} overlayDriverId={overlayDriverId} />
+          )}
+        </Pane>
 
         {mapReady && !showBreadcrumbs && (showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
           <UnifiedRoutePolylines

@@ -769,6 +769,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
             position={position}
             icon={stableIcon}
             zIndexOffset={zIndexValue}
+            pane="driverMarkerPane"
             ref={(ref) => {
               if (ref) markerRefs.current[stableKey] = ref;
             }}

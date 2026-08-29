@@ -220,14 +220,24 @@ export function useLayoutEventHandlers({
       // Handle deletes first
       const idsToRemove = new Set([...(deletedIds || []), ...(deletedId ? [deletedId] : [])]);
       if (idsToRemove.size > 0) {
-        setPatients((prev) => prev.filter((p) => p?.id && !idsToRemove.has(p.id)));
+        setPatients((prev) => {
+          const _next = prev.filter((p) => p?.id && !idsToRemove.has(p.id));
+          if (typeof window !== 'undefined') window.__appPatients = _next;
+          return _next;
+        });
       }
       // Handle upserts / full replacement
       if (freshPatients && freshPatients.length > 0) {
         if (fullReplacement) {
-          setPatients(freshPatients.filter(Boolean));
+          const _nextPatients = freshPatients.filter(Boolean);
+          if (typeof window !== 'undefined') window.__appPatients = _nextPatients;
+          setPatients(_nextPatients);
         } else {
-          setPatients((prev) => mergePatients(prev.filter((p) => p?.id && !idsToRemove.has(p.id)), freshPatients));
+          setPatients((prev) => {
+            const merged = mergePatients(prev.filter((p) => p?.id && !idsToRemove.has(p.id)), freshPatients);
+            if (typeof window !== 'undefined') window.__appPatients = merged;
+            return merged;
+          });
         }
       }
     };
@@ -358,6 +368,7 @@ export function useLayoutEventHandlers({
         try {
           invalidate('Patient');
           const freshPatients = await getData('Patient', null, null, true);
+          if (typeof window !== 'undefined') window.__appPatients = freshPatients;
           setPatients(freshPatients);
           console.log(`✅ [Layout] Patient data synced: ${freshPatients.length} patients`);
         } catch (error) {
@@ -534,7 +545,11 @@ export function useLayoutEventHandlers({
         }
       }
       if (freshPatients && freshPatients.length > 0) {
-        setPatients((prev) => mergePatients(prev, freshPatients));
+        setPatients((prev) => {
+          const merged = mergePatients(prev, freshPatients);
+          if (typeof window !== 'undefined') window.__appPatients = merged;
+          return merged;
+        });
       }
       if (freshStores && freshStores.length > 0) {
         // CRITICAL: Merge — never replace. Incoming freshStores may be a city-filtered
@@ -557,7 +572,11 @@ export function useLayoutEventHandlers({
       try {
         const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
         if (freshPatients && freshPatients.length > 0) {
-          setPatients((prev) => mergePatients(prev, freshPatients));
+          setPatients((prev) => {
+            const merged = mergePatients(prev, freshPatients);
+            if (typeof window !== 'undefined') window.__appPatients = merged;
+            return merged;
+          });
           console.log(`✅ [Layout] Patient DB priority sync applied — ${freshPatients.length} patients in state`);
         }
       } catch (_) {}
