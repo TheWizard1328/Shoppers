@@ -219,7 +219,15 @@ export default async function(req: Request): Promise<Response> {
         company_id: company_id || store?.company_id || '',
         extra_info: extra_info || '',
         status: hasAssignedDrivers ? 'waiting' : 'escalated',
-        assigned_driver_ids: hasAssignedDrivers ? assignedDriverIds : [],
+        // IMPORTANT: assigned_driver_ids must always mirror exactly who actually
+        // received a push (assignedDrivers, filtered to active users) — never the
+        // raw store roster (assignedDriverIds / targetDriverIds), which can include
+        // inactive drivers who were filtered out of the push recipients, or (in the
+        // specific_driver_id case) the store's FULL roster instead of just the one
+        // chosen driver. Either mismatch breaks the "did ALL assigned drivers say
+        // no" check in driver_response — it waits forever on drivers who were never
+        // actually notified, so auto-escalation never fires.
+        assigned_driver_ids: hasAssignedDrivers ? assignedDrivers.map(d => d.user_id) : [],
         assigned_driver_responses: [],
         excluded_driver_ids: [],
         timeout_expires_at: hasAssignedDrivers ? timeoutExpires : undefined,
