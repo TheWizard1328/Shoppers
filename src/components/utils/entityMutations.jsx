@@ -343,7 +343,7 @@ export const updatePatient = async (patientId, updates, options = {}) => {
     if (!existing) {
       // Not in IndexedDB - update backend directly, then sync to local
       try {
-        const backendPatient = await base44.entities.Patient.update(patientId, updates);
+        const backendPatient = await base44.entities.Patient.update(patientId, { id: patientId, ...updates });
         offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]).catch(() => {});
         import('./dataManager').then(({ updateCache }) => updateCache('Patient', patientId, backendPatient));
         notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
@@ -365,10 +365,12 @@ export const updatePatient = async (patientId, updates, options = {}) => {
     const updated = { ...existing, ...updates, updated_date: new Date().toISOString() };
     offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updated]).catch(() => {});
 
-    // ─── STEP 3: Sync to backend ─────────────────────────────────────────────
+    // ─── STEP 3: Sync to backend (FULL merged record, not just changed fields) ───
+    // Sending the complete record ensures the WS echo carries all fields atomically,
+    // eliminating partial-payload merge races that can revert individual fields.
     try {
-      const backendPatient = await base44.entities.Patient.update(patientId, updates);
-      console.log('☁️ [EntityMutations] Backend updated patient:', patientId);
+      const backendPatient = await base44.entities.Patient.update(patientId, updated);
+      console.log('☁️ [EntityMutations] Backend updated patient (full record):', patientId);
       
       offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]).catch(() => {});
       refreshOfflineEntitySnapshots('Patient', backendPatient).catch(() => {});
@@ -614,10 +616,13 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       : optimistic;
     offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [toStore]).catch(() => {}); // fire-and-forget
 
-    // ─── STEP 3: Write to backend ───────────────────────────────────────────
+    // ─── STEP 3: Write to backend (FULL merged record, not just changed fields) ──
+    // Sending the complete record ensures the WS echo carries all fields atomically,
+    // eliminating partial-payload merge races (e.g. isNextDelivery flag getting wiped
+    // by an out-of-order echo that carries only stop_order or status).
     try {
-      const backendDelivery = await base44.entities.Delivery.update(deliveryId, sanitizedUpdates);
-      console.log('☁️ [EntityMutations] Backend updated for:', deliveryId);
+      const backendDelivery = await base44.entities.Delivery.update(deliveryId, toStore);
+      console.log('☁️ [EntityMutations] Backend updated (full record):', deliveryId);
       
       // ─── STEP 4: Merge backend response into IDB (preserve polylines) ──────
       const deliveryToStore = existing ? {

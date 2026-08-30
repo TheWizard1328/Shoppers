@@ -739,6 +739,22 @@ const subscribeToEntity = (entityName) => {
         localWrites.delete(id);
       }
     }
+
+    // SELF-ECHO SUPPRESSION: If this Patient update was written by this exact device
+    // (tracked via window.__localPatientWrites set in broadcastMutation),
+    // drop the incoming WS echo — the offline DB and UI state are already up to date.
+    // We suppress for 15 seconds from the write time to cover WebSocket round-trip latency.
+    if (entityName === 'Patient') {
+      const localWrites = window.__localPatientWrites;
+      if (localWrites && localWrites.has(id)) {
+        const writtenAt = localWrites.get(id);
+        if (Date.now() - writtenAt < 15000) {
+          console.log(`🔇 [RealtimeSync] Self-echo suppressed for Patient ${type}:${id} — originated from this device (${Math.round((Date.now() - writtenAt) / 1000)}s ago)`);
+          return;
+        }
+        localWrites.delete(id);
+      }
+    }
       
       // Get current user name for "updatedBy"
       let updatedBy = 'System';
@@ -1332,6 +1348,13 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           const _existingTs = window.__localDeliveryWrites.get(id);
           const _isExtended = _existingTs != null && _existingTs > Date.now() + 1000;
           if (!_isExtended) window.__localDeliveryWrites.set(id, Date.now());
+        }
+        // Track local Patient writes so the WS self-echo can be suppressed.
+        // Full-record writes mean the echo carries the same data we just saved —
+        // suppressing it prevents the flushBuffered fullReplacement from clobbering UI.
+        if (entity === 'Patient' && id) {
+          if (!window.__localPatientWrites) window.__localPatientWrites = new Map();
+          window.__localPatientWrites.set(id, Date.now());
         }
         // CRITICAL: Merge AppUser/Payroll data with existing offline record before saving.
         // broadcastMutation may be called with a partial payload (e.g. only deductions or only

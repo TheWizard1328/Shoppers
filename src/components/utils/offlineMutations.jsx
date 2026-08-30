@@ -278,11 +278,13 @@ export const updatePatientLocal = async (patientId, updates) => {
       data: updatedPatient 
     });
 
-    // Try immediate backend sync
+    // Try immediate backend sync (FULL merged record — not just changed fields)
+    // Sending the complete record ensures the WS echo carries all fields atomically,
+    // eliminating partial-payload merge races that can revert individual fields.
     try {
       const { base44 } = await import('@/api/base44Client');
-      await base44.entities.Patient.update(patientId, updates);
-      console.log('✅ [Sync] Patient synced to backend immediately:', patientId);
+      await base44.entities.Patient.update(patientId, updatedPatient);
+      console.log('✅ [Sync] Patient synced to backend (full record):', patientId);
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
@@ -530,6 +532,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         // Update backend immediately
         const { base44 } = await import('@/api/base44Client');
         const backendDelivery = await base44.entities.Delivery.update(deliveryId, meaningfulUpdates);
+        // NOTE: When not in IDB we don't have a full record to merge — meaningfulUpdates is the best we have.
         console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
 
         // Broadcast to other tabs/clients
@@ -684,8 +687,12 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       // but smartRefreshManager has already registered the delivery ID, so
       // the echo arrives as a no-op (data is identical). This eliminates the
       // blocking server round-trip that was causing 3-30s completion delays.
+      // Send FULL merged record to backend — not just meaningfulUpdates.
+      // This ensures the WS echo carries all fields atomically, eliminating
+      // partial-payload merge races (e.g. isNextDelivery getting wiped by an
+      // out-of-order echo carrying only status or stop_order).
       import('@/api/base44Client').then(({ base44 }) => {
-        base44.entities.Delivery.update(deliveryId, meaningfulUpdates)
+        base44.entities.Delivery.update(deliveryId, updatedDelivery)
           .then(() => {
             window.dispatchEvent(new CustomEvent('deliveryUpdated', {
               detail: { deliveryId, updates: meaningfulUpdates, source: 'updateDeliveryLocal' }
