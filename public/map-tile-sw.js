@@ -382,12 +382,18 @@ function resolvePwaUrl(targetUrl) {
   if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
     return targetUrl;
   }
-  if (targetUrl.startsWith('/?')) {
-    const query = targetUrl.slice(1);
-    return scope + (scope.endsWith('/') ? query.slice(1) : query);
-  }
+  // BUG FIX: the old '/?' branch stripped BOTH the leading '/' AND the '?'
+  // (via query.slice(1) when scope ends with '/', which is virtually always),
+  // then concatenated with no separator at all — turning
+  // '/?availability_request=X&openChat=Y' into
+  // 'https://domain.com/availability_request=X&openChat=Y' (no '?'), which
+  // the router then treated as a literal page PATH ("Page Not Found:
+  // availability_request=X&openChat=Y") instead of a query string. Fixed by
+  // always normalizing to base-without-trailing-slash + the original path,
+  // which naturally preserves the '?' since we never strip it from targetUrl.
+  const base = scope.endsWith('/') ? scope.slice(0, -1) : scope;
   if (targetUrl.startsWith('/')) {
-    return scope + (scope.endsWith('/') ? targetUrl.slice(1) : targetUrl);
+    return `${base}${targetUrl}`;
   }
   return new URL(targetUrl, scope).href;
 }
