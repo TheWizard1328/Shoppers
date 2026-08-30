@@ -170,7 +170,7 @@ export default async function(req: Request): Promise<Response> {
 
         for (const driver of assignedDrivers) {
           const driverName = driver.user_name || 'Driver';
-          await base44.functions.invoke('sendPushNotification', {
+          await base44.asServiceRole.functions.invoke('sendPushNotification', {
             user_id: driver.user_id,
             title: pushTitle,
             body: pushBody,
@@ -267,7 +267,7 @@ export default async function(req: Request): Promise<Response> {
         });
 
         // Send push notification back to dispatcher
-        await base44.functions.invoke('sendPushNotification', {
+        await base44.asServiceRole.functions.invoke('sendPushNotification', {
           user_id: request.dispatcher_id,
           title: `${driverName} is available`,
           body: `${driverName} accepted your pickup request for ${request.store_name || 'your store'}.`,
@@ -411,7 +411,7 @@ async function doBroadcast(base44, request, dispatcherId, dispatcherName, store,
     `${dispatcherName} at ${request.store_name || store?.name || 'Store'} is requesting a driver for pickup`;
 
   for (const driver of broadcastDrivers) {
-    await base44.functions.invoke('sendPushNotification', {
+    await base44.asServiceRole.functions.invoke('sendPushNotification', {
       user_id: driver.user_id,
       title: pushTitle,
       body: pushBody,
