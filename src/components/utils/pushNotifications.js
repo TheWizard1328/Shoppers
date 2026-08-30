@@ -50,7 +50,17 @@ async function writePushConfigToCache() {
     if (!serverUrl || !appId) return;
     const functionUrl = `${serverUrl}/api/apps/${appId}/functions/updatePushLastUsed`;
     const cache = await caches.open(PUSH_CONFIG_CACHE);
-    const response = new Response(JSON.stringify({ functionUrl }), {
+    // IMPORTANT: also cache serverUrl + appId directly (not just the one
+    // pre-built functionUrl) so the SW's generic callBackendFunction() helper
+    // can build a URL for ANY function name (mark_read, driver_response, etc.)
+    // without trying to parse the appId out of the page URL path. That parsing
+    // only worked on the editor/preview `/apps/{appId}/...` path shape — it
+    // silently failed (returned null, no fetch made) on custom domains like
+    // wizardworxx.com or preview--rx-deliver-2408a9d6.base44.app, which have
+    // no `/apps/{appId}/` segment at all. This is why notification action
+    // buttons (availability_yes/no, mark_read, acknowledge, reply, update_now)
+    // appeared to do nothing on those domains.
+    const response = new Response(JSON.stringify({ functionUrl, serverUrl, appId }), {
       headers: { 'Content-Type': 'application/json' }
     });
     await cache.put(new Request(window.location.origin + PUSH_CONFIG_KEY), response);

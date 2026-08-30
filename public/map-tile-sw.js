@@ -443,6 +443,19 @@ async function getBridgeToken() {
   }
 }
 
+// ─── Push config cache reader (shared by updatePushLastUsed + callBackendFunction) ─
+async function getPushConfig() {
+  try {
+    const cache = await caches.open(PUSH_CONFIG_CACHE);
+    const keyUrl = new URL(PUSH_CONFIG_KEY, self.registration.scope).href;
+    const response = await cache.match(keyUrl);
+    if (!response) return null;
+    return await response.json();
+  } catch (_) {
+    return null;
+  }
+}
+
 // ─── Backend API call helper ─────────────────────────────────────────────────
 async function callBackendFunction(functionName, body) {
   try {
@@ -451,19 +464,35 @@ async function callBackendFunction(functionName, body) {
       console.warn('[SW] No auth token in bridge — cannot call backend function');
       return null;
     }
-    const scope = self.registration.scope;
-    // Extract origin + base path from scope (e.g. https://base44.com/apps/xxx/)
-    // The function API endpoint is: {origin}/api/apps/{appId}/functions/{functionName}
-    // We read the appId from the scope path.
-    const scopeUrl = new URL(scope);
-    const pathParts = scopeUrl.pathname.split('/').filter(Boolean)
-    // Find 'apps' in path and grab the next segment as appId
-    let appId = null;
-    for (let i = 0; i < pathParts.length - 1; i++) {
-      if (pathParts[i] === 'apps') { appId = pathParts[i + 1]; break; }
+    // Read appId + serverUrl from the cached push-config (written by the client
+    // via app-params, which resolves correctly on ANY domain — editor preview,
+    // custom preview subdomain, or the production custom domain). We deliberately
+    // do NOT try to parse these out of self.registration.scope — that only works
+    // for the `/apps/{appId}/...` editor URL shape and silently fails (no `/apps/`
+    // segment at all) on custom domains like wizardworxx.com or
+    // preview--rx-deliver-2408a9d6.base44.app, which is why action-button backend
+    // calls (mark_read, acknowledge, reply, update_now, availability_yes/no) were
+    // previously silent no-ops on those domains.
+    const config = await getPushConfig();
+    let apiUrl = null;
+    if (config?.serverUrl && config?.appId) {
+      apiUrl = `${config.serverUrl}/api/apps/${config.appId}/functions/${functionName}`;
+    } else {
+      // Fallback: try the old scope-parsing approach in case the cache hasn't
+      // been populated yet (e.g. very first push before any page load wrote it).
+      const scope = self.registration.scope;
+      const scopeUrl = new URL(scope);
+      const pathParts = scopeUrl.pathname.split('/').filter(Boolean);
+      let appId = null;
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        if (pathParts[i] === 'apps') { appId = pathParts[i + 1]; break; }
+      }
+      if (!appId) {
+        console.warn('[SW] callBackendFunction: no push-config cached and no /apps/{appId}/ in scope — cannot resolve API URL');
+        return null;
+      }
+      apiUrl = `${scopeUrl.origin}/api/apps/${appId}/functions/${functionName}`;
     }
-    if (!appId) return null;
-    const apiUrl = `${scopeUrl.origin}/api/apps/${appId}/functions/${functionName}`;
     const resp = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -472,6 +501,9 @@ async function callBackendFunction(functionName, body) {
       },
       body: JSON.stringify(body)
     });
+    if (!resp.ok) {
+      console.warn('[SW] callBackendFunction: non-OK response', functionName, resp.status);
+    }
     return resp.ok;
   } catch (e) {
     console.warn('[SW] Backend function call failed:', e?.message || e);
