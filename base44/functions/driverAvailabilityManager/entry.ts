@@ -110,28 +110,64 @@ export default async function(req: Request): Promise<Response> {
       const { store_id, store_name, city_id, city_name, company_id, extra_info, specific_driver_id } = body;
       if (!store_id) return Response.json({ error: 'store_id required' }, { status: 400 });
 
+      const now = Date.now();
+
+      // Auto-cleanup: delete terminal requests older than 24 hours to prevent
+      // unbounded growth. Only runs when this dispatcher creates a new request
+      // (no separate cron needed).
+      const oldRequests = await base44.asServiceRole.entities.DriverAvailabilityRequest.filter({
+        dispatcher_id: user.id,
+        store_id
+      });
+      const terminalStatuses = ['completed', 'expired', 'cancelled'];
+      for (const r of (oldRequests || [])) {
+        if (terminalStatuses.includes(r.status)) {
+          const created = new Date(r.created_date || r.created_at || 0).getTime();
+          if (created < now - 24 * 60 * 60 * 1000) {
+            base44.asServiceRole.entities.DriverAvailabilityRequest.delete(r.id).catch(() => {});
+          }
+        }
+      }
+
       // Check for existing active/cooldown request
       const existing = await base44.asServiceRole.entities.DriverAvailabilityRequest.filter({
         dispatcher_id: user.id,
         store_id
       });
-      const now = Date.now();
-      // A 'waiting' request whose timeout has already expired is NOT blocking —
-      // it should have been escalated by the frontend poller but if that never
-      // ran (page closed, app killed, etc.), we auto-expire it here instead of
-      // returning a 409 that blocks all future requests.
-      const activeExisting = (existing || []).find(r => {
+      // Auto-expire any stale requests before checking for active blockers.
+      // A 'waiting' request is stale if its 2-min timeout has passed.
+      // An 'escalated' request is stale if its 5-min cooldown has passed.
+      // Both cases happen when the dispatcher closed the page / killed the app
+      // without clicking Cancel — the request sits forever and blocks all
+      // future requests with a 409.
+      const staleIds = [];
+      for (const r of (existing || [])) {
         if (r.status === 'waiting') {
-          // Check if the 2-min timeout has already passed
           const timeoutMs = r.timeout_expires_at ? new Date(r.timeout_expires_at).getTime() : 0;
-          if (timeoutMs > 0 && timeoutMs <= now) {
-            // Stale — don't block. Mark it as expired so it stops showing up.
-            base44.asServiceRole.entities.DriverAvailabilityRequest.update(r.id, { status: 'expired' }).catch(() => {});
-            return false;
+          if (timeoutMs > 0 && timeoutMs <= now) staleIds.push(r.id);
+        } else if (r.status === 'escalated') {
+          const cooldownMs = r.cooldown_expires_at ? new Date(r.cooldown_expires_at).getTime() : 0;
+          if (cooldownMs > 0 && cooldownMs <= now) staleIds.push(r.id);
+          // Also expire escalated requests with no cooldown set (safety net)
+          else if (!r.cooldown_expires_at) {
+            const ageMs = now - new Date(r.created_date || r.created_at || now).getTime();
+            if (ageMs > 10 * 60 * 1000) staleIds.push(r.id); // >10 min old
           }
-          return true;
         }
-        if (r.status === 'escalated') return true;
+      }
+      // Fire-and-forget expiry of stale requests
+      for (const sid of staleIds) {
+        base44.asServiceRole.entities.DriverAvailabilityRequest.update(sid, { status: 'expired' }).catch(() => {});
+      }
+
+      const activeExisting = (existing || []).find(r => {
+        if (staleIds.includes(r.id)) return false;
+        if (r.status === 'waiting') return true;
+        if (r.status === 'escalated') {
+          // Only blocks if cooldown hasn't expired
+          const cooldownMs = r.cooldown_expires_at ? new Date(r.cooldown_expires_at).getTime() : 0;
+          return cooldownMs > 0 && cooldownMs > now;
+        }
         if (r.cooldown_expires_at && new Date(r.cooldown_expires_at).getTime() > now) return true;
         return false;
       });

@@ -283,13 +283,16 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
   }, [canUse, currentUser]);
 
   // ── Submit request ──
+  // If the backend returns 409 (stale request blocking), we auto-cancel the
+  // stale request and retry once — the dispatcher shouldn't have to manually
+  // clear dead state just to send a new request.
   const handleSubmit = useCallback(async () => {
     if (dispatcherStoreIds.length === 0) return;
     setSubmitting(true);
     setError(null);
     try {
       const store = dispatcherStores[0];
-      const result = await base44.functions.invoke('driverAvailabilityManager', {
+      const payload = {
         action: 'create_request',
         store_id: store.id,
         store_name: store.name,
@@ -297,28 +300,85 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         company_id: companyId,
         extra_info: extraInfo.trim() || undefined,
         specific_driver_id: selectedDriverId
-      });
-      if (result.error) {
+      };
+      let result = await base44.functions.invoke('driverAvailabilityManager', payload);
+
+      // 409 = a previous request is still "active" (likely stale). The backend
+      // already auto-expires stale ones, but if it still returned 409, cancel
+      // the blocking request and retry once.
+      if (result?.error && result?.request?.id) {
+        try {
+          await base44.functions.invoke('driverAvailabilityManager', {
+            action: 'cancel',
+            request_id: result.request.id
+          });
+          result = await base44.functions.invoke('driverAvailabilityManager', payload);
+        } catch (_) { /* retry failed — fall through to error display */ }
+      }
+
+      if (result?.error) {
         setError(result.error);
         return;
       }
       setShowDialog(false);
       setExtraInfo('');
       setSelectedDriverId('all');
-      if (result.request) {
+      if (result?.request) {
         setActiveRequest(result.request);
         if (result.phase === 'waiting') {
           setPhase('waiting');
         } else if (result.phase === 'broadcast') {
           setPhase('broadcast');
         }
+      } else {
+        // No request returned — something went wrong, show error
+        setError('Unexpected response from server');
       }
     } catch (e) {
-      setError(e?.message || 'Failed to send request');
+      // base44.functions.invoke throws on non-200 HTTP status
+      const msg = e?.message || 'Failed to send request';
+      // If it's a 409, try to recover by fetching and cancelling the active request
+      if (msg.includes('409') || msg.includes('Conflict') || msg.includes('already active')) {
+        try {
+          const activeResult = await base44.functions.invoke('driverAvailabilityManager', {
+            action: 'get_active',
+            dispatcher_id: currentUser?.id
+          });
+          if (activeResult?.active_request?.id) {
+            await base44.functions.invoke('driverAvailabilityManager', {
+              action: 'cancel',
+              request_id: activeResult.active_request.id
+            });
+            // Retry
+            const store = dispatcherStores[0];
+            const retryResult = await base44.functions.invoke('driverAvailabilityManager', {
+              action: 'create_request',
+              store_id: store.id,
+              store_name: store.name,
+              city_id: cityId,
+              company_id: companyId,
+              extra_info: extraInfo.trim() || undefined,
+              specific_driver_id: selectedDriverId
+            });
+            if (!retryResult?.error) {
+              setShowDialog(false);
+              setExtraInfo('');
+              setSelectedDriverId('all');
+              if (retryResult?.request) {
+                setActiveRequest(retryResult.request);
+                if (retryResult.phase === 'waiting') setPhase('waiting');
+                else if (retryResult.phase === 'broadcast') setPhase('broadcast');
+              }
+              return;
+            }
+          }
+        } catch (_) { /* auto-recovery failed */ }
+      }
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
-  }, [dispatcherStoreIds, dispatcherStores, cityId, companyId, extraInfo, selectedDriverId]);
+  }, [dispatcherStoreIds, dispatcherStores, cityId, companyId, extraInfo, selectedDriverId, currentUser]);
 
   // ── Escalate Now ──
   const handleEscalate = useCallback(async () => {
