@@ -59,6 +59,29 @@ export async function initNativePushNotifications(userId) {
     if (!_registrationListenerAdded) {
       _registrationListenerAdded = true;
 
+      // ── Register native action types for interactive notifications ─────────
+      // Android notification action buttons (e.g. the desktop-parity "Yes, I'm
+      // available" / "No" buttons on Driver Availability Request pushes) require
+      // Capacitor's LocalNotifications action types to be registered BEFORE any
+      // notification using them is scheduled. This must happen once at startup.
+      try {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        await LocalNotifications.registerActionTypes({
+          types: [
+            {
+              id: 'AVAILABILITY_ACTIONS',
+              actions: [
+                { id: 'availability_yes', title: "Yes, I'm available" },
+                { id: 'availability_no', title: 'No' },
+              ],
+            },
+          ],
+        });
+        console.log('[NativePush] Action types registered');
+      } catch (err) {
+        console.error('[NativePush] Failed to register action types:', err?.message);
+      }
+
       PushNotifications.addListener('registration', async (token) => {
         console.log('[NativePush] FCM token received:', token.value?.substring(0, 20) + '...');
         _lastRegistrationResult = { ok: true, reason: 'token_received', token: token.value?.substring(0, 30), ts: Date.now() };
@@ -87,35 +110,41 @@ export async function initNativePushNotifications(userId) {
       });
 
       PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-        console.log('[NativePush] Notification received in foreground:', JSON.stringify(notification).substring(0, 200));
+        console.log('[NativePush] Notification received:', JSON.stringify(notification).substring(0, 200));
 
-        // When the app is in the foreground, Capacitor does NOT auto-display
-        // FCM messages as system notifications (unlike background/killed state).
-        // We must create a LocalNotification so the user actually sees it.
-        // Try multiple property paths — Capacitor's plugin structure varies
-        // between notification-only, data-only, and combined payloads.
+        // Interactive pushes (Driver Availability Request, etc.) are sent by the
+        // backend as DATA-ONLY FCM messages specifically so they always land here
+        // — in foreground AND background/killed states — instead of being
+        // auto-displayed by the OS with no way to attach action buttons. Try
+        // multiple property paths — Capacitor's plugin structure varies between
+        // notification-only, data-only, and combined payloads.
         const notifTitle = notification.title || notification.data?.title || notification.data?.gcm?.notification?.title || 'RxDeliver';
         const notifBody = notification.body || notification.data?.body || notification.data?.gcm?.notification?.body || '';
         const extraData = notification.data || {};
+        const isInteractive = extraData.__interactive === 'true' && !!extraData.actions;
 
         // Store for debugging — user can check window.__receivedPushNotifs
         if (!window.__receivedPushNotifs) window.__receivedPushNotifs = [];
-        window.__receivedPushNotifs.push({ ts: Date.now(), title: notifTitle, body: notifBody, data: extraData });
+        window.__receivedPushNotifs.push({ ts: Date.now(), title: notifTitle, body: notifBody, data: extraData, isInteractive });
 
         try {
           const { LocalNotifications } = await import('@capacitor/local-notifications');
           const notifId = Math.floor(Math.random() * 100000) + 1;
-          await LocalNotifications.schedule({
-            notifications: [{
-              id: notifId,
-              title: notifTitle,
-              body: notifBody,
-              extra: extraData,
-            }],
-          });
-          console.log('[NativePush] Foreground local notification displayed:', notifId, notifTitle);
+          const notifConfig = {
+            id: notifId,
+            title: notifTitle,
+            body: notifBody,
+            extra: extraData,
+          };
+          // Attach the registered action type so real tappable buttons render —
+          // this is what gives Android parity with the desktop Web Push buttons.
+          if (isInteractive && extraData.request_id) {
+            notifConfig.actionTypeId = 'AVAILABILITY_ACTIONS';
+          }
+          await LocalNotifications.schedule({ notifications: [notifConfig] });
+          console.log('[NativePush] Local notification displayed:', notifId, notifTitle, 'interactive:', isInteractive);
         } catch (err) {
-          console.error('[NativePush] Failed to display foreground notification:', err?.message);
+          console.error('[NativePush] Failed to display local notification:', err?.message);
         }
       });
 
@@ -127,12 +156,38 @@ export async function initNativePushNotifications(userId) {
         }
       });
 
-      // Handle taps on foreground-created local notifications
+      // Handle taps on the LocalNotifications we build ourselves — this is where
+      // the "Yes, I'm available" / "No" action button taps land for interactive
+      // notifications (regular non-action taps also land here with actionId 'tap').
       try {
         const { LocalNotifications } = await import('@capacitor/local-notifications');
-        LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
-          console.log('[NativePush] Local notif tapped:', action.notification?.extra);
-          const extra = action.notification?.extra;
+        LocalNotifications.addListener('localNotificationActionPerformed', async (action) => {
+          console.log('[NativePush] Local notif action performed:', action.actionId, action.notification?.extra);
+          const extra = action.notification?.extra || {};
+          const actionId = action.actionId;
+
+          if ((actionId === 'availability_yes' || actionId === 'availability_no') && extra.request_id) {
+            try {
+              const result = await base44.functions.invoke('driverAvailabilityManager', {
+                action: 'driver_response',
+                request_id: extra.request_id,
+                response: actionId === 'availability_yes' ? 'yes' : 'no',
+              });
+              console.log('[NativePush] Availability response sent:', actionId, result);
+            } catch (err) {
+              console.error('[NativePush] Failed to send availability response:', err?.message);
+            }
+            // "Yes" opens the app to the chat with the dispatcher; "No" is silent —
+            // no need to bring the app to the foreground.
+            if (actionId === 'availability_yes' && extra.dispatcher_id) {
+              const sep = (extra.url || '/').includes('?') ? '&' : '?';
+              window.location.hash = (extra.url || '/') + sep + 'openChat=' + encodeURIComponent(extra.dispatcher_id) +
+                (extra.dispatcher_name ? '&openChatName=' + encodeURIComponent(extra.dispatcher_name) : '');
+            }
+            return;
+          }
+
+          // Default: body tap (or any other action) — navigate to the notification's URL.
           if (extra?.url) {
             window.location.hash = extra.url;
           }

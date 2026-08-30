@@ -194,15 +194,32 @@ Deno.serve(async (req) => {
           return;
         }
         try {
-          const fcmPayload = {
-            message: {
-              token: fcmToken,
-              notification: { title, body },
-              data: Object.fromEntries(
-                Object.entries({ url: url || '/', ...(data || {}) }).map(([k, v]) => [k, String(v)])
-              ),
-              android: {
-                priority: 'high',
+          // ── Interactive notifications (with action buttons) MUST be sent as
+          // data-only FCM messages. Android's OS auto-displays "notification"-type
+          // FCM messages directly (no JS involved) when the app is backgrounded/
+          // killed — and the OS's default display has NO way to show custom action
+          // buttons. Data-only messages, by contrast, always route through the
+          // app's JS (Capacitor's pushNotificationReceived), even when backgrounded,
+          // letting us build a native LocalNotification with a registered
+          // actionTypeId (real tappable buttons) for parity with desktop Web Push.
+          // Non-interactive notifications keep the reliable notification+data
+          // hybrid (unchanged) to avoid any delivery-reliability regression.
+          const isInteractive = Array.isArray(actions) && actions.length > 0;
+
+          const fcmDataPayload = Object.fromEntries(
+            Object.entries({
+              url: url || '/',
+              ...(data || {}),
+              ...(isInteractive ? { title, body, actions: JSON.stringify(actions), __interactive: 'true' } : {}),
+            }).map(([k, v]) => [k, String(v)])
+          );
+
+          const fcmMessage: any = {
+            token: fcmToken,
+            data: fcmDataPayload,
+            android: {
+              priority: 'high',
+              ...(isInteractive ? {} : {
                 notification: {
                   tag: tag || undefined,
                   channel_id: 'default',
@@ -210,9 +227,15 @@ Deno.serve(async (req) => {
                   // intent action name, not a URL. Capacitor's tap handler
                   // reads the URL from notification.data.url instead.
                 },
-              },
+              }),
             },
           };
+
+          if (!isInteractive) {
+            fcmMessage.notification = { title, body };
+          }
+
+          const fcmPayload = { message: fcmMessage };
 
           const fcmResponse = await fetch(
             `https://fcm.googleapis.com/v1/projects/${fcmProjectId}/messages:send`,
