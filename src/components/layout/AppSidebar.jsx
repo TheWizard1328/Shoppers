@@ -79,7 +79,7 @@ export default function AppSidebar({
   // swap to the green Rx badge fallback instead of leaving a blank gap. Resets
   // whenever a new logo URL is supplied.
   const [logoFailed, setLogoFailed] = useState(false);
-  useEffect(() => { setLogoFailed(false); }, [branding?.logo_url]);
+  useEffect(() => {setLogoFailed(false);}, [branding?.logo_url]);
 
   // Native Android APK update check — lights up a "New" badge beside the User
   // Settings link when a newer build is available (same check as the Settings
@@ -90,7 +90,7 @@ export default function AppSidebar({
   // for dispatchers (who don't get the sidebar link). Admins/drivers keep their
   // normal sidebar link.
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') &&
-    !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver');
+  !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver');
   const handleLogoClick = (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();
@@ -170,8 +170,8 @@ export default function AppSidebar({
         } else if (userHasRole(currentUser, 'dispatcher')) {
           const allMyRequests = await base44.entities.DocAccessRequest.filter({ requester_id: currentUser.id }, '-requested_at', 100);
           const now = new Date();
-          const pending = (allMyRequests || []).filter(r => r.status === 'pending').length;
-          const approvedUnviewed = (allMyRequests || []).filter(r => {
+          const pending = (allMyRequests || []).filter((r) => r.status === 'pending').length;
+          const approvedUnviewed = (allMyRequests || []).filter((r) => {
             if (r.status !== 'approved') return false;
             if (r.first_viewed_at) return false; // already viewed
             if (r.expires_at && now > new Date(r.expires_at)) return false; // expired
@@ -226,7 +226,7 @@ export default function AppSidebar({
                 alt="RxDeliver"
                 onClick={handleLogoClick}
                 title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
-                className={`rounded object-contain w-12 h-12 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}
+                className={`rounded object-contain w-14 h-14 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}
                 style={{ filter: 'var(--image-filter, none)' }}
                 onError={() => setLogoFailed(true)} /> :
 
@@ -573,24 +573,24 @@ export default function AppSidebar({
               }}>
           <FolderLock className="w-5 h-5" />
           <span className="font-semibold">Documents</span>
-          {userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ? (
-            <div className="ml-auto flex items-center gap-1">
-              {dispatcherDocBadges.pending > 0 && (
+          {userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ?
+              <div className="ml-auto flex items-center gap-1">
+              {dispatcherDocBadges.pending > 0 &&
                 <Badge className="justify-center rounded-[10px] px-2" style={{ background: '#fee2e2', color: '#991b1b' }}>
                   {dispatcherDocBadges.pending}
                 </Badge>
-              )}
-              {dispatcherDocBadges.approvedUnviewed > 0 && (
+                }
+              {dispatcherDocBadges.approvedUnviewed > 0 &&
                 <Badge className="justify-center rounded-[10px] px-2" style={{ background: '#dcfce7', color: '#166534' }}>
                   {dispatcherDocBadges.approvedUnviewed}
                 </Badge>
-              )}
-            </div>
-          ) : pendingDocRequestCount > 0 && (
-            <Badge className="ml-auto justify-center rounded-[10px] px-2" style={{ background: '#dcfce7', color: '#166534' }}>
+                }
+            </div> :
+              pendingDocRequestCount > 0 &&
+              <Badge className="ml-auto justify-center rounded-[10px] px-2" style={{ background: '#dcfce7', color: '#166534' }}>
               {pendingDocRequestCount}
             </Badge>
-          )}
+              }
         </Link>
             }
 
