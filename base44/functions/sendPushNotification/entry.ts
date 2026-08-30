@@ -232,7 +232,11 @@ Deno.serve(async (req) => {
           };
 
           if (!isInteractive) {
-            fcmMessage.notification = { title, body };
+            // icon: Android status bar small icon (monochrome). The resource
+            // name must exist in the APK's res/drawable-* folders.
+            // color: tint for the small icon in the expanded shade — matches
+            // the app's brand navy so it's not pure white.
+            fcmMessage.notification = { title, body, icon: 'ic_stat_notify', color: '#0f172a' };
           }
 
           const fcmPayload = { message: fcmMessage };

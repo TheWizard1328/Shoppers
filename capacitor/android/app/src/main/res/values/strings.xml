@@ -4,4 +4,8 @@
     <string name="title_activity_main">RxDeliver</string>
     <string name="package_name">com.rxdeliver.driver</string>
     <string name="custom_url_scheme">com.rxdeliver.driver</string>
+    <!-- BackgroundGeolocation foreground-service notification icon + color -->
+    <!-- Uses the same monochrome silhouette as other notifications -->
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_notify</string>
+    <string name="capacitor_background_geolocation_notification_color">#0f172a</string>
 </resources>
