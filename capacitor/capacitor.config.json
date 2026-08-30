@@ -1,29 +1,33 @@
 {
-    "appId": "com.rxdeliver.driver",
-    "appName": "RxDeliver",
-    "webDir": "dist",
-    "server": {
-        "url": "https://wizardworxx.com",
-        "cleartext": false,
-        "allowNavigation": [
-            "*.github.com",
-            "*.githubusercontent.com",
-            "github.com",
-            "preview--rx-deliver-2408a9d6.base44.app"
-        ]
-    },
-    "android": {
-        "allowMixedContent": false,
-        "backgroundColor": "#ffffff"
-    },
-    "plugins": {
-        "BackgroundGeolocation": {
-            "notificationTitle": "RxDeliver GPS Active",
-            "notificationText": "Location tracking is running",
-            "notificationIcon": "ic_notification"
-        },
-        "BluetoothLe": {
-            "askForPermissions": true
-        }
-    }
+	"appId": "com.rxdeliver.driver",
+	"appName": "RxDeliver",
+	"webDir": "dist",
+	"server": {
+		"url": "https://wizardworxx.com",
+		"cleartext": false,
+		"allowNavigation": [
+			"*.github.com",
+			"*.githubusercontent.com",
+			"github.com",
+			"preview--rx-deliver-2408a9d6.base44.app"
+		]
+	},
+	"android": {
+		"allowMixedContent": false,
+		"backgroundColor": "#ffffff"
+	},
+	"plugins": {
+		"BackgroundGeolocation": {
+			"notificationTitle": "RxDeliver GPS Active",
+			"notificationText": "Location tracking is running",
+			"notificationIcon": "ic_stat_notify"
+		},
+		"BluetoothLe": {
+			"askForPermissions": true
+		},
+		"LocalNotifications": {
+			"smallIcon": "ic_stat_notify",
+			"iconColor": "#0f172a"
+		}
+	}
 }

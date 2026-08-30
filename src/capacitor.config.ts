@@ -14,10 +14,13 @@ const config: CapacitorConfig = {
   },
   plugins: {
     LocalNotifications: {
-      smallIcon: 'ic_stat_icon_config_sample',
+      smallIcon: 'ic_stat_notify',
       iconColor: '#0f172a'
     }
   },
+  // NOTE: This file is NOT the config used by the actual native Android build —
+  // that's capacitor/capacitor.config.json (different appId: com.rxdeliver.driver
+  // vs com.rxdeliver.app here). Kept in sync anyway to avoid future confusion.
   server: {
     androidScheme: 'https'
   }
