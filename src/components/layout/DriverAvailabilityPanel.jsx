@@ -130,7 +130,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
       });
       const data = result?.data ?? result;
       if (data.active_request) {
-        const req = result.active_request;
+        const req = data.active_request;
         // If the request is 'waiting' but its timeout already expired, immediately
         // trigger the timeout check instead of showing a stale countdown — this
         // auto-escalates or clears the request so the dispatcher isn't stuck.
@@ -546,7 +546,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               <span className="text-[11px] font-semibold text-emerald-700 truncate flex-1">
-                {activeRequest.responded_driver_name || 'A driver'} is available ✓
+                {activeRequest.responded_driver_name || 'A driver'} has accepted your pickup request ✓
               </span>
             </div>
             <Button

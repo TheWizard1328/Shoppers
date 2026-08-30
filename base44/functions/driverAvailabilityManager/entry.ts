@@ -332,12 +332,15 @@ export default async function(req: Request): Promise<Response> {
           read: false,
         });
 
-        // Send push notification back to dispatcher
+        // Send push notification back to dispatcher. Body tap just opens the app
+        // (no auto-opened chat) — the sidebar panel already shows "[Driver] has
+        // accepted your pickup request". The explicit "Reply" action button still
+        // opens the chat on demand via its own data payload (reply_to/reply_to_name).
         await base44.asServiceRole.functions.invoke('sendPushNotification', {
           user_id: request.dispatcher_id,
           title: `${driverName} is available`,
           body: `${driverName} accepted your pickup request for ${request.store_name || 'your store'}.`,
-          url: '/?openChat=' + encodeURIComponent(user.id) + '&openChatName=' + encodeURIComponent(driverName),
+          url: '/',
           tag: 'availability_response_' + request_id,
           actions: [{ action: 'reply', title: 'Reply' }],
           data: {
@@ -415,7 +418,7 @@ export default async function(req: Request): Promise<Response> {
       const requests = await base44.asServiceRole.entities.DriverAvailabilityRequest.filter({ id: request_id });
       const request = requests?.[0];
       if (!request) return Response.json({ error: 'Request not found' }, { status: 404 });
-      if (request.status !== 'waiting') return Response.json({ ok: true, status: request.status });
+      if (request.status !== 'waiting') return Response.json({ ok: true, status: request.status, request });
 
       const now = Date.now();
       const timeout = request.timeout_expires_at ? new Date(request.timeout_expires_at).getTime() : 0;
