@@ -128,7 +128,8 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         action: 'get_active',
         dispatcher_id: currentUser.id
       });
-      if (result.active_request) {
+      const data = result?.data ?? result;
+      if (data.active_request) {
         const req = result.active_request;
         // If the request is 'waiting' but its timeout already expired, immediately
         // trigger the timeout check instead of showing a stale countdown — this
@@ -141,8 +142,9 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
                 action: 'check_timeout',
                 request_id: req.id
               });
-              if (timeoutResult.status === 'escalated' || timeoutResult.phase === 'broadcast') {
-                setActiveRequest(timeoutResult.request || { ...req, status: 'escalated' });
+              const tcd = timeoutResult?.data ?? timeoutResult;
+              if (tcd.status === 'escalated' || tcd.phase === 'broadcast') {
+                setActiveRequest(tcd.request || { ...req, status: 'escalated' });
                 setPhase('broadcast');
                 return;
               }
@@ -186,11 +188,12 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
           action: 'check_timeout',
           request_id: activeRequest.id
         });
-        if (result.status === 'escalated' || result.phase === 'broadcast') {
-          setActiveRequest(result.request || { ...activeRequest, status: 'escalated' });
+        const td = result?.data ?? result;
+        if (td.status === 'escalated' || td.phase === 'broadcast') {
+          setActiveRequest(td.request || { ...activeRequest, status: 'escalated' });
           setPhase('broadcast');
-        } else if (result.status === 'completed') {
-          setActiveRequest(result.request || { ...activeRequest, status: 'completed' });
+        } else if (td.status === 'completed') {
+          setActiveRequest(td.request || { ...activeRequest, status: 'completed' });
           setPhase('response');
         }
       } catch (e) {
@@ -216,14 +219,15 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
           action: 'get_request',
           request_id: activeRequest.id
         });
-        if (!result.request) return;
-        if (result.request.status === 'completed') {
-          setActiveRequest(result.request);
+        const rd = result?.data ?? result;
+        if (!rd.request) return;
+        if (rd.request.status === 'completed') {
+          setActiveRequest(rd.request);
           setPhase('response');
         } else {
           // Still escalated — refresh so live response counts/names update
           // (e.g. "2 driver(s) available") without flipping phase.
-          setActiveRequest(result.request);
+          setActiveRequest(rd.request);
         }
       } catch (e) {
         console.error('[DriverAvailabilityPanel] Broadcast poll failed:', e);
@@ -302,6 +306,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         specific_driver_id: selectedDriverId
       };
       let result = await base44.functions.invoke('driverAvailabilityManager', payload);
+      result = result?.data ?? result;
 
       // 409 = a previous request is still "active" (likely stale). The backend
       // already auto-expires stale ones, but if it still returned 409, cancel
@@ -313,6 +318,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
             request_id: result.request.id
           });
           result = await base44.functions.invoke('driverAvailabilityManager', payload);
+          result = result?.data ?? result;
         } catch (_) { /* retry failed — fall through to error display */ }
       }
 
@@ -344,10 +350,11 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
             action: 'get_active',
             dispatcher_id: currentUser?.id
           });
-          if (activeResult?.active_request?.id) {
+          const ard = activeResult?.data ?? activeResult;
+          if (ard?.active_request?.id) {
             await base44.functions.invoke('driverAvailabilityManager', {
               action: 'cancel',
-              request_id: activeResult.active_request.id
+              request_id: ard.active_request.id
             });
             // Retry
             const store = dispatcherStores[0];
@@ -360,14 +367,15 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
               extra_info: extraInfo.trim() || undefined,
               specific_driver_id: selectedDriverId
             });
-            if (!retryResult?.error) {
+            const rrd = retryResult?.data ?? retryResult;
+            if (!rrd?.error) {
               setShowDialog(false);
               setExtraInfo('');
               setSelectedDriverId('all');
-              if (retryResult?.request) {
-                setActiveRequest(retryResult.request);
-                if (retryResult.phase === 'waiting') setPhase('waiting');
-                else if (retryResult.phase === 'broadcast') setPhase('broadcast');
+              if (rrd?.request) {
+                setActiveRequest(rrd.request);
+                if (rrd.phase === 'waiting') setPhase('waiting');
+                else if (rrd.phase === 'broadcast') setPhase('broadcast');
               }
               return;
             }
@@ -389,8 +397,9 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         action: 'escalate_now',
         request_id: activeRequest.id
       });
-      if (result.request) {
-        setActiveRequest(result.request);
+      const ed = result?.data ?? result;
+      if (ed.request) {
+        setActiveRequest(ed.request);
         setPhase('broadcast');
       }
     } catch (e) {
