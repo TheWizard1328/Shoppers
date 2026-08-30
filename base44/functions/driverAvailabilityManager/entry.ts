@@ -292,7 +292,7 @@ export default async function(req: Request): Promise<Response> {
           receiver_id: request.dispatcher_id,
           receiver_name: request.dispatcher_name || 'Dispatcher',
           conversation_id: conversationId,
-          content: `I am available. — ${driverName}`,
+          content: `I am available. — See you shortly`,
           read: false,
         });
 
