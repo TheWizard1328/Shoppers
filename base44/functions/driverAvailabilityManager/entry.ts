@@ -245,7 +245,7 @@ export default async function(req: Request): Promise<Response> {
             requireInteraction: true,
             actions: [
               { action: 'availability_yes', title: "Yes, I'm available" },
-              { action: 'availability_no', title: 'No' }
+              { action: 'availability_no', title: 'Unavailable' }
             ],
             data: {
               request_id: created.id,
@@ -499,7 +499,7 @@ async function doBroadcast(base44, request, dispatcherId, dispatcherName, store,
       requireInteraction: true,
       actions: [
         { action: 'availability_yes', title: "Yes, I'm available" },
-        { action: 'availability_no', title: 'No' }
+        { action: 'availability_no', title: 'Unavailable' }
       ],
       data: {
         request_id: request.id,

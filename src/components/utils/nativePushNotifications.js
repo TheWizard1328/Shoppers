@@ -77,7 +77,7 @@ export async function initNativePushNotifications(userId) {
 
       // ── Register native action types for interactive notifications ─────────
       // Android notification action buttons (e.g. the desktop-parity "Yes, I'm
-      // available" / "No" buttons on Driver Availability Request pushes) require
+      // available" / "Unavailable" buttons on Driver Availability Request pushes) require
       // Capacitor's LocalNotifications action types to be registered BEFORE any
       // notification using them is scheduled. This must happen once at startup.
       try {
@@ -88,7 +88,7 @@ export async function initNativePushNotifications(userId) {
               id: 'AVAILABILITY_ACTIONS',
               actions: [
                 { id: 'availability_yes', title: "Yes, I'm available" },
-                { id: 'availability_no', title: 'No' },
+                { id: 'availability_no', title: 'Unavailable' },
               ],
             },
           ],
@@ -173,7 +173,7 @@ export async function initNativePushNotifications(userId) {
       });
 
       // Handle taps on the LocalNotifications we build ourselves — this is where
-      // the "Yes, I'm available" / "No" action button taps land for interactive
+      // the "Yes, I'm available" / "Unavailable" action button taps land for interactive
       // notifications (regular non-action taps also land here with actionId 'tap').
       try {
         const { LocalNotifications } = await import('@capacitor/local-notifications');
