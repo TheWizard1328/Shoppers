@@ -129,13 +129,41 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         dispatcher_id: currentUser.id
       });
       if (result.active_request) {
-        setActiveRequest(result.active_request);
-        if (result.active_request.status === 'waiting') {
+        const req = result.active_request;
+        // If the request is 'waiting' but its timeout already expired, immediately
+        // trigger the timeout check instead of showing a stale countdown — this
+        // auto-escalates or clears the request so the dispatcher isn't stuck.
+        if (req.status === 'waiting' && req.timeout_expires_at) {
+          const expired = new Date(req.timeout_expires_at).getTime() <= Date.now();
+          if (expired) {
+            try {
+              const timeoutResult = await base44.functions.invoke('driverAvailabilityManager', {
+                action: 'check_timeout',
+                request_id: req.id
+              });
+              if (timeoutResult.status === 'escalated' || timeoutResult.phase === 'broadcast') {
+                setActiveRequest(timeoutResult.request || { ...req, status: 'escalated' });
+                setPhase('broadcast');
+                return;
+              }
+            } catch (_) { /* fall through to stale handling */ }
+            // If timeout check didn't escalate, treat as stale — go idle
+            setActiveRequest(null);
+            setPhase('idle');
+            return;
+          }
+        }
+        setActiveRequest(req);
+        if (req.status === 'waiting') {
           setPhase('waiting');
-        } else if (result.active_request.status === 'escalated') {
+        } else if (req.status === 'escalated') {
           setPhase('broadcast');
-        } else if (result.active_request.status === 'completed') {
+        } else if (req.status === 'completed') {
           setPhase('response');
+        } else if (req.status === 'expired' || req.status === 'cancelled') {
+          // Stale request — don't show it, just go idle
+          setActiveRequest(null);
+          setPhase('idle');
         }
       }
     } catch (e) {

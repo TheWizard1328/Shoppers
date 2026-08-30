@@ -101,10 +101,25 @@ export default async function(req: Request): Promise<Response> {
         store_id
       });
       const now = Date.now();
-      const activeExisting = (existing || []).find(r =>
-        r.status === 'waiting' || r.status === 'escalated' ||
-        (r.cooldown_expires_at && new Date(r.cooldown_expires_at).getTime() > now)
-      );
+      // A 'waiting' request whose timeout has already expired is NOT blocking —
+      // it should have been escalated by the frontend poller but if that never
+      // ran (page closed, app killed, etc.), we auto-expire it here instead of
+      // returning a 409 that blocks all future requests.
+      const activeExisting = (existing || []).find(r => {
+        if (r.status === 'waiting') {
+          // Check if the 2-min timeout has already passed
+          const timeoutMs = r.timeout_expires_at ? new Date(r.timeout_expires_at).getTime() : 0;
+          if (timeoutMs > 0 && timeoutMs <= now) {
+            // Stale — don't block. Mark it as expired so it stops showing up.
+            base44.asServiceRole.entities.DriverAvailabilityRequest.update(r.id, { status: 'expired' }).catch(() => {});
+            return false;
+          }
+          return true;
+        }
+        if (r.status === 'escalated') return true;
+        if (r.cooldown_expires_at && new Date(r.cooldown_expires_at).getTime() > now) return true;
+        return false;
+      });
       if (activeExisting) {
         return Response.json({ error: 'A request is already active or in cooldown', request: activeExisting }, { status: 409 });
       }
