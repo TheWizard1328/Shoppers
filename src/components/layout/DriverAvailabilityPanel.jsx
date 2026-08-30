@@ -482,12 +482,12 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         {/* WAITING STATE */}
         {phase === 'waiting' && activeRequest && (
           <div className="rounded-lg border p-2 flex flex-col gap-1.5" style={{ borderColor: '#c7d2fe', background: 'linear-gradient(135deg, #eef2ff, #f5f3ff)' }}>
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
-              <span className="text-[11px] font-semibold text-indigo-700 truncate flex-1">
+            <div className="flex items-start gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-indigo-500 animate-pulse mt-0.5 shrink-0" />
+              <span className="text-[11px] font-semibold text-indigo-700 flex-1 whitespace-normal break-words">
                 Waiting for assigned driver(s)...
               </span>
-              <span className="text-[11px] font-bold text-indigo-600 tabular-nums">
+              <span className="text-[11px] font-bold text-indigo-600 tabular-nums shrink-0">
                 {formatCountdown(countdownMs)}
               </span>
             </div>
@@ -528,9 +528,9 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         {/* BROADCAST STATE */}
         {phase === 'broadcast' && activeRequest && (
           <div className="rounded-lg border p-2 flex flex-col gap-1.5" style={{ borderColor: '#fde68a', background: 'linear-gradient(135deg, #fffbeb, #fefce8)' }}>
-            <div className="flex items-center gap-1.5">
-              <Radio className="w-3.5 h-3.5 text-amber-500" />
-              <span className="text-[11px] font-semibold text-amber-700 truncate flex-1">
+            <div className="flex items-start gap-1.5">
+              <Radio className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+              <span className="text-[11px] font-semibold text-amber-700 flex-1 whitespace-normal break-words">
                 Request sent to all drivers in city...
               </span>
             </div>
@@ -553,9 +553,9 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         {/* RESPONSE STATE */}
         {phase === 'response' && activeRequest && (
           <div className="rounded-lg border p-2 flex flex-col gap-1" style={{ borderColor: '#bbf7d0', background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)' }}>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-[11px] font-semibold text-emerald-700 truncate flex-1">
+            <div className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+              <span className="text-[11px] font-semibold text-emerald-700 flex-1 whitespace-normal break-words">
                 {activeRequest.responded_driver_name || 'A driver'} has accepted your pickup request ✓
               </span>
             </div>
@@ -573,9 +573,9 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         {/* COOLDOWN STATE */}
         {phase === 'cooldown' && (
           <div className="rounded-lg border p-2 flex flex-col gap-0.5" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-[11px] font-semibold text-slate-500 truncate flex-1">
+            <div className="flex items-start gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+              <span className="text-[11px] font-semibold text-slate-500 flex-1 whitespace-normal break-words">
                 Available in {formatCountdown(countdownMs)}
               </span>
             </div>
