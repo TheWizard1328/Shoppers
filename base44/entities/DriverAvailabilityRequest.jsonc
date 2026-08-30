@@ -1,0 +1,52 @@
+{
+  "properties": {
+    "assigned_driver_ids": {
+      "items": { "type": "string" },
+      "type": "array",
+      "description": "Driver IDs assigned to the store's schedule for the day"
+    },
+    "assigned_driver_responses": {
+      "items": {
+        "properties": {
+          "driver_id": { "type": "string" },
+          "driver_name": { "type": "string" },
+          "response": { "enum": ["yes", "no"], "type": "string" },
+          "timestamp": { "type": "string" }
+        },
+        "type": "object"
+      },
+      "type": "array",
+      "description": "Responses from assigned drivers during the waiting phase"
+    },
+    "broadcast_sent_at": { "type": "string", "description": "When the city-wide broadcast was sent" },
+    "broadcast_driver_ids": {
+      "items": { "type": "string" },
+      "type": "array",
+      "description": "Driver IDs included in the broadcast"
+    },
+    "city_id": { "type": "string" },
+    "city_name": { "type": "string" },
+    "company_id": { "type": "string" },
+    "cooldown_expires_at": { "type": "string", "description": "5-minute cooldown after request completes/expired" },
+    "dispatcher_id": { "type": "string" },
+    "dispatcher_name": { "type": "string" },
+    "excluded_driver_ids": {
+      "items": { "type": "string" },
+      "type": "array",
+      "description": "Drivers who said No during assigned phase — excluded from broadcast"
+    },
+    "extra_info": { "maxLength": 200, "type": "string" },
+    "request_escalated_at": { "type": "string", "description": "When the request escalated from waiting to broadcast" },
+    "responded_driver_id": { "type": "string", "description": "First driver who said Yes — marks the request as completed" },
+    "responded_driver_name": { "type": "string" },
+    "store_id": { "type": "string" },
+    "store_name": { "type": "string" },
+    "status": {
+      "enum": ["waiting", "escalated", "completed", "expired", "cancelled"],
+      "type": "string"
+    },
+    "timeout_expires_at": { "type": "string", "description": "When the 2-minute assigned-driver wait expires" }
+  },
+  "required": ["dispatcher_id", "store_id", "status"],
+  "type": "object"
+}
