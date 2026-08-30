@@ -559,7 +559,7 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  if (action === 'mark_read' || action === 'acknowledge' || action === 'reply' || action === 'update_now') {
+  if (action === 'mark_read' || action === 'acknowledge' || action === 'reply' || action === 'update_now' || action === 'availability_yes' || action === 'availability_no') {
     event.notification.close();
 
     const notifData = event.notification.data || {};
@@ -584,6 +584,13 @@ self.addEventListener('notificationclick', (event) => {
           action: 'mark_read',
           message_id: notifData.message_id
         });
+      } else if ((action === 'availability_yes' || action === 'availability_no') && notifData.request_id) {
+        // Driver responds to availability request
+        result = await callBackendFunction('driverAvailabilityManager', {
+          action: 'driver_response',
+          request_id: notifData.request_id,
+          response: action === 'availability_yes' ? 'yes' : 'no'
+        });
       }
 
       // Post a message to any open client so the UI can update in real-time
@@ -597,19 +604,26 @@ self.addEventListener('notificationclick', (event) => {
             message_id: notifData.message_id,
             delivery_ids: notifData.delivery_ids,
             reply_to: notifData.reply_to,
-            reply_to_name: notifData.reply_to_name
+            reply_to_name: notifData.reply_to_name,
+            request_id: notifData.request_id,
+            availability_response: action === 'availability_yes' ? 'yes' : (action === 'availability_no' ? 'no' : undefined)
           });
         }
       }
 
       // reply + update_now also focus/navigate the app so the user lands on
       // the right screen (conversation / reload) even when the app was closed.
-      if (action === 'reply' || action === 'update_now') {
+      if (action === 'reply' || action === 'update_now' || action === 'availability_yes') {
         let rawUrl = notifData.url || '/';
         if (action === 'reply' && notifData.reply_to) {
           const sep = rawUrl.includes('?') ? '&' : '?';
           rawUrl = rawUrl + sep + 'openChat=' + encodeURIComponent(notifData.reply_to) +
             (notifData.reply_to_name ? '&openChatName=' + encodeURIComponent(notifData.reply_to_name) : '');
+        }
+        if (action === 'availability_yes' && notifData.dispatcher_id) {
+          const sep = rawUrl.includes('?') ? '&' : '?';
+          rawUrl = rawUrl + sep + 'openChat=' + encodeURIComponent(notifData.dispatcher_id) +
+            (notifData.dispatcher_name ? '&openChatName=' + encodeURIComponent(notifData.dispatcher_name) : '');
         }
         const fullUrl = resolvePwaUrl(rawUrl);
         const clientsList = await clients.matchAll({ type: 'window', includeUncontrolled: true });

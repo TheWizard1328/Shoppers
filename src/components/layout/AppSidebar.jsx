@@ -30,6 +30,7 @@ import LocationTrackingToggle from './LocationTrackingToggle';
 import SidebarDivider from './SidebarDivider';
 import SidebarSectionLabel from './SidebarSectionLabel';
 import SidebarUserFooter from './SidebarUserFooter';
+import DriverAvailabilityPanel from './DriverAvailabilityPanel';
 import AdminNavigationSection from './AdminNavigationSection';
 import QuickStats from './DashboardQuickStats';
 import BatteryIndicator from './BatteryIndicator';
@@ -640,6 +641,12 @@ export default function AppSidebar({
         </div>
           }
   </div>
+
+  <DriverAvailabilityPanel
+          currentUser={currentUser}
+          stores={stores}
+          appUsers={appUsers}
+          deliveries={filteredDeliveries} />
 
   <SidebarUserFooter
           currentUser={currentUser}
