@@ -155,10 +155,10 @@ export async function initNativePushNotifications(userId) {
             // next to the title/body. Android's resource system auto-selects
             // drawable-night/ variant for dark theme.
             largeIcon: 'ic_notification_large',
-            // Small status-bar icon — white monochrome silhouette (required by
-            // Android Lollipop+). Tinted by iconColor from capacitor.config.json.
+            // Small status-bar icon — monochrome silhouette (required by
+            // Android Lollipop+, OS discards RGB and only uses alpha). Tinted brand green via iconColor.
             smallIcon: 'ic_stat_notify',
-            iconColor: '#0f172a',
+            iconColor: '#22c55e',
           };
           // Attach the registered action type so real tappable buttons render —
           // this is what gives Android parity with the desktop Web Push buttons.

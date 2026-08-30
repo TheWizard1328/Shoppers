@@ -15,7 +15,7 @@ const config: CapacitorConfig = {
   plugins: {
     LocalNotifications: {
       smallIcon: 'ic_stat_notify',
-      iconColor: '#0f172a'
+      iconColor: '#22c55e'
     }
   },
   // NOTE: This file is NOT the config used by the actual native Android build —
