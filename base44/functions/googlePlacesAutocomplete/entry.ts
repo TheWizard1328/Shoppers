@@ -1,5 +1,6 @@
 // Redeployed on 2026-03-28
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { resolveFeatureSecretName } from '../../shared/apiKeyResolver.ts';
 
 const logApiUsage = async ({
   base44,
@@ -47,6 +48,7 @@ Deno.serve(async (req) => {
   let latitude = null;
   let longitude = null;
   let googleApiCallCount = 0;
+  let provider = 'google';
   const startedAt = Date.now();
 
   try {
@@ -66,7 +68,10 @@ Deno.serve(async (req) => {
       return Response.json({ predictions: [] });
     }
 
-    const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    const secretName = await resolveFeatureSecretName(base44, 'places_autocomplete');
+    const isGoogle = secretName === 'GOOGLE_MAPS_API_KEY';
+    provider = isGoogle ? 'google' : 'here';
+    const apiKey = Deno.env.get(secretName);
     if (!apiKey) {
       return Response.json({ error: 'API key not configured' }, { status: 500 });
     }
@@ -76,6 +81,66 @@ Deno.serve(async (req) => {
       userAppUser = userAppUsers?.[0] || null;
     } catch (_) {}
 
+    // ── HERE Autosuggest path ───────────────────────────────────────────
+    if (!isGoogle) {
+      const params = new URLSearchParams();
+      params.set('q', input);
+      params.set('apiKey', apiKey);
+      params.set('language', 'en');
+      if (latitude && longitude) {
+        params.set('at', `${latitude},${longitude};r=50000`);
+      } else {
+        params.set('in', 'countryCode:CAN');
+      }
+      googleApiCallCount += 1;
+      const response = await fetch(`https://autosuggest.search.hereapi.com/v1/autosuggest?${params.toString()}`, {
+        signal: AbortSignal.timeout(15000),
+        headers: { accept: 'application/json' },
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const errorMsg = data?.title || 'HERE Autosuggest error';
+        await logApiUsage({
+          base44, appUserId: userAppUser?.id, appUserName: userAppUser?.user_name || user.full_name,
+          provider, apiType: 'Places Autocomplete', purpose: 'Address autocomplete search',
+          functionName: 'googlePlacesAutocomplete', success: false, durationMs: Date.now() - startedAt,
+          errorMessage: errorMsg, callCount: googleApiCallCount,
+          metadata: { input, has_location_bias: !!(latitude && longitude), status_code: response.status },
+        });
+        return Response.json({ error: errorMsg, details: data }, { status: response.status });
+      }
+
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const predictions = items
+        .filter((item) => item && item.id)
+        .map((item) => ({
+          description: item.title || '',
+          place_id: item.id,
+          distance: Number.isFinite(Number(item.distance))
+            ? parseFloat((Number(item.distance) / 1000).toFixed(2))
+            : null,
+        }))
+        .filter((p) => p.description);
+
+      predictions.sort((a, b) => {
+        if (a.distance === null && b.distance === null) return 0;
+        if (a.distance === null) return 1;
+        if (b.distance === null) return -1;
+        return a.distance - b.distance;
+      });
+
+      await logApiUsage({
+        base44, appUserId: userAppUser?.id, appUserName: userAppUser?.user_name || user.full_name,
+        provider, apiType: 'Places Autocomplete', purpose: 'Address autocomplete search',
+        functionName: 'googlePlacesAutocomplete', success: true, durationMs: Date.now() - startedAt,
+        callCount: googleApiCallCount,
+        metadata: { input, has_location_bias: !!(latitude && longitude), suggestion_count: predictions.length },
+      });
+      return Response.json({ predictions });
+    }
+
+    // ── Google Places Autocomplete path (unchanged) ─────────────────────
     const url = 'https://places.googleapis.com/v1/places:autocomplete';
     const requestBody = {
       input,
@@ -84,18 +149,9 @@ Deno.serve(async (req) => {
     };
 
     if (latitude && longitude) {
-      requestBody.origin = {
-        latitude,
-        longitude
-      };
+      requestBody.origin = { latitude, longitude };
       requestBody.locationBias = {
-        circle: {
-          center: {
-            latitude,
-            longitude
-          },
-          radius: 50000
-        }
+        circle: { center: { latitude, longitude }, radius: 50000 }
       };
     }
 
@@ -113,11 +169,7 @@ Deno.serve(async (req) => {
     let data = await response.json();
 
     if (!response.ok && latitude && longitude) {
-      const fallbackBody = {
-        input,
-        languageCode: 'en',
-        includedRegionCodes: ['CA']
-      };
+      const fallbackBody = { input, languageCode: 'en', includedRegionCodes: ['CA'] };
       googleApiCallCount += 1;
       response = await fetch(url, {
         method: 'POST',
@@ -134,22 +186,11 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       const errorMsg = data.error?.message || 'Places API error';
       await logApiUsage({
-        base44,
-        appUserId: userAppUser?.id,
-        appUserName: userAppUser?.user_name || user.full_name,
-        provider: 'google',
-        apiType: 'Places Autocomplete',
-        purpose: 'Address autocomplete search',
-        functionName: 'googlePlacesAutocomplete',
-        success: false,
-        durationMs: Date.now() - startedAt,
-        errorMessage: errorMsg,
-        callCount: googleApiCallCount,
-        metadata: {
-          input,
-          has_location_bias: !!(latitude && longitude),
-          status_code: response.status,
-        },
+        base44, appUserId: userAppUser?.id, appUserName: userAppUser?.user_name || user.full_name,
+        provider, apiType: 'Places Autocomplete', purpose: 'Address autocomplete search',
+        functionName: 'googlePlacesAutocomplete', success: false, durationMs: Date.now() - startedAt,
+        errorMessage: errorMsg, callCount: googleApiCallCount,
+        metadata: { input, has_location_bias: !!(latitude && longitude), status_code: response.status },
       });
       return Response.json({ error: errorMsg, details: data }, { status: response.status });
     }
@@ -175,41 +216,21 @@ Deno.serve(async (req) => {
     });
 
     await logApiUsage({
-      base44,
-      appUserId: userAppUser?.id,
-      appUserName: userAppUser?.user_name || user.full_name,
-      provider: 'google',
-      apiType: 'Places Autocomplete',
-      purpose: 'Address autocomplete search',
-      functionName: 'googlePlacesAutocomplete',
-      success: true,
-      durationMs: Date.now() - startedAt,
+      base44, appUserId: userAppUser?.id, appUserName: userAppUser?.user_name || user.full_name,
+      provider, apiType: 'Places Autocomplete', purpose: 'Address autocomplete search',
+      functionName: 'googlePlacesAutocomplete', success: true, durationMs: Date.now() - startedAt,
       callCount: googleApiCallCount,
-      metadata: {
-        input,
-        has_location_bias: !!(latitude && longitude),
-        suggestion_count: predictions.length,
-      },
+      metadata: { input, has_location_bias: !!(latitude && longitude), suggestion_count: predictions.length },
     });
     return Response.json({ predictions });
   } catch (error) {
     console.error('[googlePlacesAutocomplete] Error:', error.message);
     await logApiUsage({
-      base44,
-      appUserId: userAppUser?.id,
-      appUserName: userAppUser?.user_name || null,
-      provider: 'google',
-      apiType: 'Places Autocomplete',
-      purpose: 'Address autocomplete search',
-      functionName: 'googlePlacesAutocomplete',
-      success: false,
-      durationMs: Date.now() - startedAt,
-      errorMessage: error.message,
-      callCount: googleApiCallCount || 1,
-      metadata: {
-        input,
-        has_location_bias: !!(latitude && longitude),
-      },
+      base44, appUserId: userAppUser?.id, appUserName: userAppUser?.user_name || null,
+      provider, apiType: 'Places Autocomplete', purpose: 'Address autocomplete search',
+      functionName: 'googlePlacesAutocomplete', success: false, durationMs: Date.now() - startedAt,
+      errorMessage: error.message, callCount: googleApiCallCount || 1,
+      metadata: { input, has_location_bias: !!(latitude && longitude) },
     });
     return Response.json({ error: error.message }, { status: 500 });
   }

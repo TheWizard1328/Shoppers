@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { resolveFeatureSecretName } from '../../shared/apiKeyResolver.ts';
 
 const logApiUsage = async ({
   base44,
@@ -41,10 +42,11 @@ const logApiUsage = async ({
 Deno.serve(async (req) => {
   let base44 = null;
   let appUser = null;
+  let provider = 'google';
   const startedAt = Date.now();
   try {
     base44 = createClientFromRequest(req);
-    
+
     // Verify user is authenticated
     const user = await base44.auth.me();
     if (!user) {
@@ -54,44 +56,77 @@ Deno.serve(async (req) => {
     const { place_id } = await req.json();
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1);
     appUser = appUsers?.[0] || null;
-    
+
     if (!place_id) {
       return Response.json({ error: 'place_id is required' }, { status: 400 });
     }
 
-    const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    const secretName = await resolveFeatureSecretName(base44, 'place_details');
+    const isGoogle = secretName === 'GOOGLE_MAPS_API_KEY';
+    provider = isGoogle ? 'google' : 'here';
+    const apiKey = Deno.env.get(secretName);
     if (!apiKey) {
       return Response.json({ error: 'API key not configured' }, { status: 500 });
     }
 
-    // Call Google Places API (New) v1 to get full address details
+    // ── HERE Places Lookup path ─────────────────────────────────────────
+    if (!isGoogle) {
+      const url = `https://lookup.search.hereapi.com/v1/lookup?id=${encodeURIComponent(place_id)}&apiKey=${apiKey}`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { accept: 'application/json' } });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('HERE Lookup API error:', errorText);
+        await logApiUsage({
+          base44, appUserId: appUser?.id, appUserName: appUser?.user_name || user.full_name,
+          provider, apiType: 'Place Details', purpose: 'Fetch place details',
+          functionName: 'googlePlaceDetails', success: false, durationMs: Date.now() - startedAt,
+          errorMessage: errorText, metadata: { place_id },
+        });
+        return Response.json({ error: 'HERE Lookup API error: ' + errorText }, { status: response.status || 500 });
+      }
+      const result = await response.json();
+      const addr = result?.address || {};
+      const street = `${addr.houseNumber ? addr.houseNumber + ' ' : ''}${addr.street || ''}`.trim();
+      const formatted = result?.title || addr.label || '';
+      const position = result?.position || {};
+
+      await logApiUsage({
+        base44, appUserId: appUser?.id, appUserName: appUser?.user_name || user.full_name,
+        provider, apiType: 'Place Details', purpose: 'Fetch place details',
+        functionName: 'googlePlaceDetails', success: true, durationMs: Date.now() - startedAt,
+        metadata: { place_id },
+      });
+
+      return Response.json({
+        address: street,
+        unit: '',
+        formatted_address: formatted,
+        latitude: position.lat ?? null,
+        longitude: position.lng ?? null,
+      });
+    }
+
+    // ── Google Places Details path (unchanged) ─────────────────────────
     const url = `https://places.googleapis.com/v1/places/${place_id}?fields=addressComponents,formattedAddress,location&key=${apiKey}`;
-    
+
     const response = await fetch(url, {
       headers: {
         'X-Goog-FieldMask': 'addressComponents,formattedAddress,location'
       }
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Google Places API error:', errorText);
       await logApiUsage({
-        base44,
-        appUserId: appUser?.id,
-        appUserName: appUser?.user_name || user.full_name,
-        provider: 'google',
-        apiType: 'Place Details',
-        purpose: 'Fetch place details',
-        functionName: 'googlePlaceDetails',
-        success: false,
-        durationMs: Date.now() - startedAt,
-        errorMessage: errorText,
-        metadata: { place_id },
+        base44, appUserId: appUser?.id, appUserName: appUser?.user_name || user.full_name,
+        provider, apiType: 'Place Details', purpose: 'Fetch place details',
+        functionName: 'googlePlaceDetails', success: false, durationMs: Date.now() - startedAt,
+        errorMessage: errorText, metadata: { place_id },
       });
       return Response.json({ error: 'Places API error: ' + errorText }, { status: response.status || 500 });
     }
-    
+
     const result = await response.json();
     const addressComponents = result.addressComponents || [];
 
@@ -114,15 +149,9 @@ Deno.serve(async (req) => {
     const unit = subpremise;
 
     await logApiUsage({
-      base44,
-      appUserId: appUser?.id,
-      appUserName: appUser?.user_name || user.full_name,
-      provider: 'google',
-      apiType: 'Place Details',
-      purpose: 'Fetch place details',
-      functionName: 'googlePlaceDetails',
-      success: true,
-      durationMs: Date.now() - startedAt,
+      base44, appUserId: appUser?.id, appUserName: appUser?.user_name || user.full_name,
+      provider, apiType: 'Place Details', purpose: 'Fetch place details',
+      functionName: 'googlePlaceDetails', success: true, durationMs: Date.now() - startedAt,
       metadata: { place_id },
     });
 
@@ -137,15 +166,9 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error in googlePlaceDetails:', error);
     await logApiUsage({
-      base44,
-      appUserId: appUser?.id,
-      appUserName: appUser?.user_name || null,
-      provider: 'google',
-      apiType: 'Place Details',
-      purpose: 'Fetch place details',
-      functionName: 'googlePlaceDetails',
-      success: false,
-      durationMs: Date.now() - startedAt,
+      base44, appUserId: appUser?.id, appUserName: appUser?.user_name || null,
+      provider, apiType: 'Place Details', purpose: 'Fetch place details',
+      functionName: 'googlePlaceDetails', success: false, durationMs: Date.now() - startedAt,
       errorMessage: error.message,
     });
     return Response.json({ error: error.message }, { status: 500 });

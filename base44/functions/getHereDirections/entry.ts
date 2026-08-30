@@ -1,24 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
 
-// Module-level HERE API key cache — avoids an AppSettings query on every routing call.
-// Cache TTL is 5 minutes so key rotation takes effect promptly without hammering the DB.
-const _HERE_SECRET_MAP = { HERE_API_KEY: 'HERE_API_KEY', Here_API_Key_2: 'Here_API_Key_2', Here_API_Key_3: 'Here_API_Key_3' };
-let _hereSecretName = null;
-let _hereSecretExpiresAt = 0;
-const _HERE_CACHE_TTL_MS = 5 * 60 * 1000;
-
-async function getHereApiKey(base44) {
-  const now = Date.now();
-  if (_hereSecretName && now < _hereSecretExpiresAt) {
-    return Deno.env.get(_hereSecretName) || null;
-  }
-  const settings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
-  const val = settings?.[0]?.setting_value || {};
-  const selected = val.selected_api_key || val.selected_here_api_key || 'HERE_API_KEY';
-  _hereSecretName = _HERE_SECRET_MAP[selected] || 'HERE_API_KEY';
-  _hereSecretExpiresAt = now + _HERE_CACHE_TTL_MS;
-  return Deno.env.get(_hereSecretName) || null;
-}
+// Per-feature key resolution — the HERE findsequence2 (route optimization) call
+// uses the 'route_optimization' slot, while HERE Router v8 (polyline geometry)
+// uses the separate 'polylines' slot. Both are cached per-feature by the resolver.
+const getRouteOptimizationKey = (base44) => resolveFeatureApiKey(base44, 'route_optimization');
+const getPolylineKey = (base44) => resolveFeatureApiKey(base44, 'polylines');
 
 const logApiUsage = async ({
   base44,
@@ -669,8 +656,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
     }
 
-    const hereApiKey = await getHereApiKey(base44);
-    if (!hereApiKey) {
+    const routeOptimizationKey = await getRouteOptimizationKey(base44);
+    const polylineKey = await getPolylineKey(base44);
+    if (!routeOptimizationKey || !polylineKey) {
       return Response.json({ error: 'HERE API key secret not configured' }, { status: 500 });
     }
 
@@ -712,7 +700,7 @@ Deno.serve(async (req) => {
       result = { waypoints: returnedWaypoints, interconnections };
     } else {
       const params = new URLSearchParams();
-      params.set('apiKey', hereApiKey);
+      params.set('apiKey', routeOptimizationKey);
       params.set('departure', buildLocalIso(dateStr, departureTime));
       params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
       // improveFor=time: reliable solver that always returns a result.
@@ -784,7 +772,7 @@ Deno.serve(async (req) => {
         // a wasted call. Now: one meaningful retry with no windows.
         console.warn(`[getHereDirections] time+windows failed (status=${resp.status}, waypoints=${returnedWaypoints.length}) — retry: no windows (caller=${caller})`);
         const retryParams = new URLSearchParams();
-        retryParams.set('apiKey', hereApiKey);
+        retryParams.set('apiKey', routeOptimizationKey);
         retryParams.set('departure', buildLocalIso(dateStr, departureTime));
         retryParams.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
         retryParams.set('improveFor', 'time');
@@ -932,7 +920,7 @@ Deno.serve(async (req) => {
     }
 
     const routedGeometry = await buildRoutingSections({
-      hereApiKey,
+      hereApiKey: polylineKey,
       orderedStops,
       originLat,
       originLng,

@@ -29,14 +29,10 @@ Deno.serve(async (req) => {
 
     const refreshConfig = appSettings?.[0]?.setting_value || {};
 
-    const SECRET_NAME_MAP = {
-      HERE_API_KEY: 'HERE_API_KEY',
-      Here_API_Key_2: 'Here_API_Key_2',
-      Here_API_Key_3: 'Here_API_Key_3',
-    };
-    const selectedSecretName = refreshConfig.selected_api_key || 'HERE_API_KEY';
-    const resolvedSecretName = SECRET_NAME_MAP[selectedSecretName] || 'HERE_API_KEY';
-    const hereApiKey = Deno.env.get(resolvedSecretName) || null;
+    // Resolve the 'map_tiles' feature key (HERE) for tile URL construction.
+    const { resolveFeatureSecretName } = await import('../../shared/apiKeyResolver.ts');
+    const tilesSecretName = await resolveFeatureSecretName(base44, 'map_tiles', refreshConfig);
+    const hereApiKey = Deno.env.get(tilesSecretName) || null;
 
     return Response.json({
       success: true,

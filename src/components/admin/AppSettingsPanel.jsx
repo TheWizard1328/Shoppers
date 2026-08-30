@@ -11,6 +11,7 @@ import { Settings, Save, RefreshCw, Loader2, Clock, AlertCircle, RotateCcw, Powe
 import { base44 } from '@/api/base44Client';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { realtimeSync } from '../utils/realtimeSync';
+import PerFeatureApiKeysCard from './PerFeatureApiKeysCard';
 
 // Default refresh intervals (in milliseconds)
 const DEFAULT_INTERVALS = {
@@ -120,8 +121,6 @@ export default function AppSettingsPanel() {
   const [savedAppFees, setSavedAppFees] = useState('0.00');
   const [squareAppId, setSquareAppId] = useState('');
   const [savedSquareAppId, setSavedSquareAppId] = useState('');
-  const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
-  const [savedSelectedApiKey, setSavedSelectedApiKey] = useState('HERE_API_KEY');
   const [availableApiKeys, setAvailableApiKeys] = useState([
     'HERE_API_KEY',
     'Here_API_Key_2',
@@ -178,14 +177,6 @@ export default function AppSettingsPanel() {
           : ['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY'];
         setAvailableApiKeys(configuredApiKeys);
 
-        const activeApiKey = settings[0].setting_value.selected_api_key
-          || settings[0].setting_value.selected_here_api_key
-          || settings[0].setting_value.selected_google_maps_api_key
-          || configuredApiKeys[0]
-          || 'HERE_API_KEY';
-        setSelectedApiKey(activeApiKey);
-        setSavedSelectedApiKey(activeApiKey);
-        
         if (!smartRefreshManager._initialized) {
           const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
           setSmartRefreshEnabled(enabled);
@@ -197,8 +188,6 @@ export default function AppSettingsPanel() {
         setIntervals(DEFAULT_INTERVALS);
         setSavedIntervals(DEFAULT_INTERVALS);
         setAvailableApiKeys(['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY']);
-        setSelectedApiKey('HERE_API_KEY');
-        setSavedSelectedApiKey('HERE_API_KEY');
         if (!smartRefreshManager._initialized) {
           setSmartRefreshEnabled(true);
           setSavedSmartRefreshEnabled(true);
@@ -209,8 +198,6 @@ export default function AppSettingsPanel() {
       setIntervals(DEFAULT_INTERVALS);
       setSavedIntervals(DEFAULT_INTERVALS);
       setAvailableApiKeys(['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY']);
-      setSelectedApiKey('HERE_API_KEY');
-      setSavedSelectedApiKey('HERE_API_KEY');
     } finally {
       setIsLoading(false);
     }
@@ -245,11 +232,10 @@ export default function AppSettingsPanel() {
       const intervalsChanged = Object.keys(intervals).some(key => intervals[key] !== savedIntervals[key]);
       const enabledChanged = smartRefreshEnabled !== savedSmartRefreshEnabled;
       const feesChanged = appFeesPerDelivery !== savedAppFees;
-      const apiKeyChanged = selectedApiKey !== savedSelectedApiKey;
       const squareAppIdChanged = squareAppId !== savedSquareAppId;
-      setHasChanges(intervalsChanged || enabledChanged || feesChanged || apiKeyChanged || squareAppIdChanged);
+      setHasChanges(intervalsChanged || enabledChanged || feesChanged || squareAppIdChanged);
     }
-  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appFeesPerDelivery, savedAppFees, selectedApiKey, savedSelectedApiKey, squareAppId, savedSquareAppId]);
+  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appFeesPerDelivery, savedAppFees, squareAppId, savedSquareAppId]);
 
   const handleIntervalChange = (key, value) => {
     setIntervals(prev => ({ ...prev, [key]: value }));
@@ -265,8 +251,7 @@ export default function AppSettingsPanel() {
         ...currentSettings,
         smartRefreshEnabled,
         app_fees_per_delivery: parseFloat(appFeesPerDelivery || 0),
-        available_api_keys: availableApiKeys,
-        selected_api_key: selectedApiKey
+        available_api_keys: availableApiKeys
       };
 
       let savedRecord;
@@ -292,7 +277,6 @@ export default function AppSettingsPanel() {
       smartRefreshManager._initialized = true;
       setSavedSmartRefreshEnabled(smartRefreshEnabled);
       setSavedAppFees(appFeesPerDelivery);
-      setSavedSelectedApiKey(selectedApiKey);
       setTopSectionSaved(true);
     } catch (error) {
       console.error('Failed to auto-save top settings:', error);
@@ -300,7 +284,7 @@ export default function AppSettingsPanel() {
     } finally {
       setIsTopSectionSaving(false);
     }
-  }, [smartRefreshEnabled, appFeesPerDelivery, availableApiKeys, selectedApiKey]);
+  }, [smartRefreshEnabled, appFeesPerDelivery, availableApiKeys]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -308,8 +292,6 @@ export default function AppSettingsPanel() {
     let changedSection = null;
     if (smartRefreshEnabled !== savedSmartRefreshEnabled) {
       changedSection = 'refresh';
-    } else if (selectedApiKey !== savedSelectedApiKey) {
-      changedSection = 'apiKeys';
     } else if (appFeesPerDelivery !== savedAppFees) {
       changedSection = 'adminSettings';
     }
@@ -337,8 +319,6 @@ export default function AppSettingsPanel() {
     savedSmartRefreshEnabled,
     appFeesPerDelivery,
     savedAppFees,
-    selectedApiKey,
-    savedSelectedApiKey,
     saveTopSectionSettings
   ]);
 
@@ -350,7 +330,6 @@ export default function AppSettingsPanel() {
         smartRefreshEnabled: smartRefreshEnabled,
         app_fees_per_delivery: parseFloat(appFeesPerDelivery),
         available_api_keys: availableApiKeys,
-        selected_api_key: selectedApiKey,
         square_app_id: squareAppId.trim()
       };
 
@@ -390,7 +369,6 @@ export default function AppSettingsPanel() {
       setSavedIntervals({ ...intervals });
       setSavedSmartRefreshEnabled(smartRefreshEnabled);
       setSavedAppFees(appFeesPerDelivery);
-      setSavedSelectedApiKey(selectedApiKey);
       setSavedSquareAppId(squareAppId.trim());
       setHasChanges(false);
       alert('Settings saved successfully! Other users will see the new version on their next refresh.');
@@ -515,38 +493,7 @@ export default function AppSettingsPanel() {
         </CardContent>
       </Card>
 
-        <Card className={`transition-colors ${activeTopSection === 'apiKeys' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'apiKeys' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPinned className="w-5 h-5" />
-              API Provider Keys
-            </CardTitle>
-            <CardDescription>
-              Choose the single active API key from all saved mapping API keys.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <Label className="text-sm font-medium mb-1.5 block">Active Maps API Key</Label>
-                <Select value={selectedApiKey} onValueChange={setSelectedApiKey}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select active API key" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableApiKeys.map((apiKey) => (
-                      <SelectItem key={apiKey} value={apiKey}>{apiKey}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="rounded-lg border bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 flex items-start gap-2">
-                <KeyRound className="w-4 h-4 mt-0.5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
-                <span>The dropdown reads from the <code className="mx-1 rounded bg-slate-200 px-1 py-0.5">available_api_keys</code> app setting, so updating that list will update what appears here.</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <PerFeatureApiKeysCard availableApiKeys={availableApiKeys} />
 
         <Card className={`transition-colors ${activeTopSection === 'adminSettings' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'adminSettings' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
