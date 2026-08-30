@@ -1,6 +1,22 @@
 import { isCapacitorNativeApp, getCapacitorPlatform } from './locationProviders/capacitorRuntime';
 import { base44 } from '@/api/base44Client';
 
+// ── In-app navigation helper for BrowserRouter ────────────────────────────
+// The app uses react-router's BrowserRouter (not HashRouter), so setting
+// window.location.hash does NOT trigger a route change. This helper uses
+// pushState + popstate to navigate without a full page reload, with a
+// location.href fallback for edge cases.
+function navigateInApp(targetUrl) {
+  try {
+    window.history.pushState({}, '', targetUrl);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  } catch (e) {
+    window.location.href = targetUrl;
+  }
+}
+
+
+
 /**
  * Native FCM Push Notifications (Capacitor Android)
  *
@@ -152,7 +168,7 @@ export async function initNativePushNotifications(userId) {
         console.log('[NativePush] Notification tapped:', action.notification?.data);
         const data = action.notification?.data;
         if (data?.url) {
-          window.location.hash = data.url;
+          navigateInApp(data.url);
         }
       });
 
@@ -181,15 +197,16 @@ export async function initNativePushNotifications(userId) {
             // no need to bring the app to the foreground.
             if (actionId === 'availability_yes' && extra.dispatcher_id) {
               const sep = (extra.url || '/').includes('?') ? '&' : '?';
-              window.location.hash = (extra.url || '/') + sep + 'openChat=' + encodeURIComponent(extra.dispatcher_id) +
+              const targetUrl = (extra.url || '/') + sep + 'openChat=' + encodeURIComponent(extra.dispatcher_id) +
                 (extra.dispatcher_name ? '&openChatName=' + encodeURIComponent(extra.dispatcher_name) : '');
+              navigateInApp(targetUrl);
             }
             return;
           }
 
           // Default: body tap (or any other action) — navigate to the notification's URL.
           if (extra?.url) {
-            window.location.hash = extra.url;
+            navigateInApp(extra.url);
           }
         });
       } catch (_) { /* non-critical */ }
