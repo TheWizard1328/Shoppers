@@ -116,8 +116,6 @@ export default function AppSettingsPanel() {
   const [savedIntervals, setSavedIntervals] = useState(null);
   const [savedSmartRefreshEnabled, setSavedSmartRefreshEnabled] = useState(() => smartRefreshManager._enabled);
   const [lastRefreshTimes, setLastRefreshTimes] = useState({});
-  const [appVersion, setAppVersion] = useState({ major: 1, minor: 0, build: 0 });
-  const [savedAppVersion, setSavedAppVersion] = useState({ major: 1, minor: 0, build: 0 });
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState('0.00');
   const [savedAppFees, setSavedAppFees] = useState('0.00');
   const [squareAppId, setSquareAppId] = useState('');
@@ -155,12 +153,6 @@ export default function AppSettingsPanel() {
         const loaded = { ...DEFAULT_INTERVALS, ...settings[0].setting_value };
         setIntervals(loaded);
         setSavedIntervals(loaded);
-        
-        // Load version from settings
-        if (settings[0].setting_value.appVersion) {
-          setAppVersion(settings[0].setting_value.appVersion);
-          setSavedAppVersion(settings[0].setting_value.appVersion);
-        }
         
         // Load app fees from settings
         if (settings[0].setting_value.app_fees_per_delivery !== undefined) {
@@ -252,15 +244,12 @@ export default function AppSettingsPanel() {
     if (savedIntervals) {
       const intervalsChanged = Object.keys(intervals).some(key => intervals[key] !== savedIntervals[key]);
       const enabledChanged = smartRefreshEnabled !== savedSmartRefreshEnabled;
-      const versionChanged = appVersion.major !== savedAppVersion.major || 
-                            appVersion.minor !== savedAppVersion.minor || 
-                            appVersion.build !== savedAppVersion.build;
       const feesChanged = appFeesPerDelivery !== savedAppFees;
       const apiKeyChanged = selectedApiKey !== savedSelectedApiKey;
       const squareAppIdChanged = squareAppId !== savedSquareAppId;
-      setHasChanges(intervalsChanged || enabledChanged || versionChanged || feesChanged || apiKeyChanged || squareAppIdChanged);
+      setHasChanges(intervalsChanged || enabledChanged || feesChanged || apiKeyChanged || squareAppIdChanged);
     }
-  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appVersion, savedAppVersion, appFeesPerDelivery, savedAppFees, selectedApiKey, savedSelectedApiKey, squareAppId, savedSquareAppId]);
+  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appFeesPerDelivery, savedAppFees, selectedApiKey, savedSelectedApiKey, squareAppId, savedSquareAppId]);
 
   const handleIntervalChange = (key, value) => {
     setIntervals(prev => ({ ...prev, [key]: value }));
@@ -275,7 +264,6 @@ export default function AppSettingsPanel() {
       const updatedSettings = {
         ...currentSettings,
         smartRefreshEnabled,
-        appVersion,
         app_fees_per_delivery: parseFloat(appFeesPerDelivery || 0),
         available_api_keys: availableApiKeys,
         selected_api_key: selectedApiKey
@@ -303,7 +291,6 @@ export default function AppSettingsPanel() {
       smartRefreshManager._enabled = smartRefreshEnabled;
       smartRefreshManager._initialized = true;
       setSavedSmartRefreshEnabled(smartRefreshEnabled);
-      setSavedAppVersion({ ...appVersion });
       setSavedAppFees(appFeesPerDelivery);
       setSavedSelectedApiKey(selectedApiKey);
       setTopSectionSaved(true);
@@ -313,19 +300,13 @@ export default function AppSettingsPanel() {
     } finally {
       setIsTopSectionSaving(false);
     }
-  }, [smartRefreshEnabled, appVersion, appFeesPerDelivery, availableApiKeys, selectedApiKey]);
+  }, [smartRefreshEnabled, appFeesPerDelivery, availableApiKeys, selectedApiKey]);
 
   useEffect(() => {
     if (isLoading) return;
 
     let changedSection = null;
-    if (
-      appVersion.major !== savedAppVersion.major ||
-      appVersion.minor !== savedAppVersion.minor ||
-      appVersion.build !== savedAppVersion.build
-    ) {
-      changedSection = 'version';
-    } else if (smartRefreshEnabled !== savedSmartRefreshEnabled) {
+    if (smartRefreshEnabled !== savedSmartRefreshEnabled) {
       changedSection = 'refresh';
     } else if (selectedApiKey !== savedSelectedApiKey) {
       changedSection = 'apiKeys';
@@ -354,8 +335,6 @@ export default function AppSettingsPanel() {
     isLoading,
     smartRefreshEnabled,
     savedSmartRefreshEnabled,
-    appVersion,
-    savedAppVersion,
     appFeesPerDelivery,
     savedAppFees,
     selectedApiKey,
@@ -369,7 +348,6 @@ export default function AppSettingsPanel() {
       const settingsToSave = {
         ...intervals,
         smartRefreshEnabled: smartRefreshEnabled,
-        appVersion: appVersion,
         app_fees_per_delivery: parseFloat(appFeesPerDelivery),
         available_api_keys: availableApiKeys,
         selected_api_key: selectedApiKey,
@@ -411,7 +389,6 @@ export default function AppSettingsPanel() {
 
       setSavedIntervals({ ...intervals });
       setSavedSmartRefreshEnabled(smartRefreshEnabled);
-      setSavedAppVersion({ ...appVersion });
       setSavedAppFees(appFeesPerDelivery);
       setSavedSelectedApiKey(selectedApiKey);
       setSavedSquareAppId(squareAppId.trim());
@@ -461,40 +438,6 @@ export default function AppSettingsPanel() {
     }
   };
 
-  const handleIncrementBuild = async () => {
-    const newVersion = { ...appVersion, build: appVersion.build + 1 };
-    setAppVersion(newVersion);
-    
-    // Auto-save to database immediately
-    try {
-      const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-      const currentSettings = existing?.[0]?.setting_value || {};
-      const updatedSettings = { ...currentSettings, appVersion: newVersion };
-      
-      let savedRecord;
-      if (existing && existing.length > 0) {
-        savedRecord = await base44.entities.AppSettings.update(existing[0].id, {
-          setting_value: updatedSettings
-        });
-      } else {
-        savedRecord = await base44.entities.AppSettings.create({
-          setting_key: 'refresh_intervals',
-          setting_value: updatedSettings,
-          description: 'Smart refresh interval and app version settings'
-        });
-      }
-      realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
-      window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
-        detail: { data: savedRecord, source: 'AppSettingsPanel' }
-      }));
-      setSavedAppVersion(newVersion);
-      alert(`Build incremented to v${newVersion.major}.${newVersion.minor}.${newVersion.build}`);
-    } catch (error) {
-      console.error('Failed to save version:', error);
-      alert('Failed to save version: ' + error.message);
-    }
-  };
-
   if (isLoading) {
     return (
       <Card>
@@ -508,69 +451,7 @@ export default function AppSettingsPanel() {
 
   return (
     <div className="space-y-4 md:space-y-6 h-full min-h-0 overflow-y-auto pb-2 md:pb-0">
-      <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-5 gap-6">
-        <Card className={`transition-colors ${activeTopSection === 'version' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'version' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="w-5 h-5" />
-              App Version
-            </CardTitle>
-            <CardDescription>
-              Manage application version (Major.Minor.Build) - all users will see this after they refresh
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div>
-                <Label htmlFor="major" className="text-sm font-medium">Major</Label>
-                <Input
-                  id="major"
-                  type="number"
-                  min="0"
-                  value={appVersion.major}
-                  onChange={(e) => setAppVersion(prev => ({ ...prev, major: parseInt(e.target.value) || 0 }))}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="minor" className="text-sm font-medium">Minor</Label>
-                <Input
-                  id="minor"
-                  type="number"
-                  min="0"
-                  value={appVersion.minor}
-                  onChange={(e) => setAppVersion(prev => ({ ...prev, minor: parseInt(e.target.value) || 0 }))}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="build" className="text-sm font-medium">Build</Label>
-                <Input
-                  id="build"
-                  type="number"
-                  min="0"
-                  value={appVersion.build}
-                  onChange={(e) => setAppVersion(prev => ({ ...prev, build: parseInt(e.target.value) || 0 }))}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-mono font-bold text-slate-900 dark:text-slate-100">
-                v{appVersion.major}.{appVersion.minor}.{appVersion.build}
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={handleIncrementBuild}
-                className="gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Increment Build
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <Card className={`${!smartRefreshEnabled ? 'border-red-300 bg-red-50 dark:bg-red-950' : ''} ${activeTopSection === 'refresh' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'refresh' && isTopSectionSaving ? 'border-emerald-300' : ''}`.trim()}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -601,7 +482,7 @@ export default function AppSettingsPanel() {
                 try {
                   const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
                   const currentSettings = existing?.[0]?.setting_value || {};
-                  const updatedSettings = { ...currentSettings, smartRefreshEnabled: checked, appVersion: appVersion };
+                  const updatedSettings = { ...currentSettings, smartRefreshEnabled: checked };
                   
                   let savedRecord;
                   if (existing && existing.length > 0) {
