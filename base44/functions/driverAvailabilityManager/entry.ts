@@ -84,7 +84,22 @@ export default async function(req: Request): Promise<Response> {
         dispatcher_id: did,
         status: 'escalated'
       });
-      const all = [...(active || []), ...(escalated || [])];
+      // Also surface a request that JUST completed (driver said yes) — without
+      // this, a page reload/re-mount during the response window (e.g. dispatcher
+      // switching tabs right as a driver responds) would show nothing at all,
+      // since 'completed' wasn't checked here before.
+      const completed = await base44.asServiceRole.entities.DriverAvailabilityRequest.filter({
+        dispatcher_id: did,
+        status: 'completed'
+      });
+      const recentCompleted = (completed || []).filter(r => {
+        const respondedAt = r.assigned_driver_responses?.length
+          ? r.assigned_driver_responses[r.assigned_driver_responses.length - 1]?.timestamp
+          : null;
+        if (!respondedAt) return false;
+        return Date.now() - new Date(respondedAt).getTime() < 2 * 60 * 1000; // last 2 min
+      });
+      const all = [...(active || []), ...(escalated || []), ...recentCompleted];
       // Return the most recent active one
       all.sort((a, b) => new Date(b.created_date || b.created_at || 0).getTime() - new Date(a.created_date || a.created_at || 0).getTime());
       return Response.json({ active_request: all[0] || null });
@@ -341,6 +356,19 @@ export default async function(req: Request): Promise<Response> {
           return Response.json({ ok: true, response: 'no', phase: 'broadcast' });
         }
       }
+    }
+
+    // ── get_request: Fetch the fresh full record by id (used for polling
+    // the broadcast/cooldown phase, where check_timeout's minimal response
+    // isn't enough — the dispatcher UI needs assigned_driver_responses,
+    // responded_driver_name, cooldown_expires_at, etc.) ───────────────────
+    if (action === 'get_request') {
+      const { request_id } = body;
+      if (!request_id) return Response.json({ error: 'request_id required' }, { status: 400 });
+      const requests = await base44.asServiceRole.entities.DriverAvailabilityRequest.filter({ id: request_id });
+      const request = requests?.[0];
+      if (!request) return Response.json({ error: 'Request not found' }, { status: 404 });
+      return Response.json({ ok: true, request });
     }
 
     // ── check_timeout: Check if waiting request has timed out ────────────

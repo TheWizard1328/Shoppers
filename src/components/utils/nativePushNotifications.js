@@ -193,14 +193,9 @@ export async function initNativePushNotifications(userId) {
             } catch (err) {
               console.error('[NativePush] Failed to send availability response:', err?.message);
             }
-            // "Yes" opens the app to the chat with the dispatcher; "No" is silent —
-            // no need to bring the app to the foreground.
-            if (actionId === 'availability_yes' && extra.dispatcher_id) {
-              const sep = (extra.url || '/').includes('?') ? '&' : '?';
-              const targetUrl = (extra.url || '/') + sep + 'openChat=' + encodeURIComponent(extra.dispatcher_id) +
-                (extra.dispatcher_name ? '&openChatName=' + encodeURIComponent(extra.dispatcher_name) : '');
-              navigateInApp(targetUrl);
-            }
+            // Both "Yes" and "No" are intentionally silent — the driver just wants
+            // to submit their response without the app popping open, reloading, or
+            // navigating to the chat. The backend call above already handles it.
             return;
           }
 

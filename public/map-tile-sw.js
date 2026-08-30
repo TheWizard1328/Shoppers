@@ -649,19 +649,16 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
 
-      // reply + update_now also focus/navigate the app so the user lands on
-      // the right screen (conversation / reload) even when the app was closed.
-      if (action === 'reply' || action === 'update_now' || action === 'availability_yes') {
+      // reply + update_now focus/navigate the app so the user lands on the
+      // right screen (conversation / reload) even when the app was closed.
+      // availability_yes/no are intentionally silent — the driver just wants
+      // to submit their response without the app popping open or reloading.
+      if (action === 'reply' || action === 'update_now') {
         let rawUrl = notifData.url || '/';
         if (action === 'reply' && notifData.reply_to) {
           const sep = rawUrl.includes('?') ? '&' : '?';
           rawUrl = rawUrl + sep + 'openChat=' + encodeURIComponent(notifData.reply_to) +
             (notifData.reply_to_name ? '&openChatName=' + encodeURIComponent(notifData.reply_to_name) : '');
-        }
-        if (action === 'availability_yes' && notifData.dispatcher_id) {
-          const sep = rawUrl.includes('?') ? '&' : '?';
-          rawUrl = rawUrl + sep + 'openChat=' + encodeURIComponent(notifData.dispatcher_id) +
-            (notifData.dispatcher_name ? '&openChatName=' + encodeURIComponent(notifData.dispatcher_name) : '');
         }
         const fullUrl = resolvePwaUrl(rawUrl);
         const clientsList = await clients.matchAll({ type: 'window', includeUncontrolled: true });

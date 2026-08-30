@@ -190,7 +190,7 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
           setActiveRequest(result.request || { ...activeRequest, status: 'escalated' });
           setPhase('broadcast');
         } else if (result.status === 'completed') {
-          setActiveRequest(prev => ({ ...prev, status: 'completed' }));
+          setActiveRequest(result.request || { ...activeRequest, status: 'completed' });
           setPhase('response');
         }
       } catch (e) {
@@ -199,6 +199,38 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
     }, POLL_INTERVAL);
     return () => clearInterval(interval);
   }, [phase, activeRequest]);
+
+  // ── Poll for driver responses while broadcasting/in cooldown ──
+  // All entity writes here use asServiceRole, which does NOT trigger WebSocket
+  // broadcasts (see project convention: service-role writes are invisible to
+  // realtime sync). The old code had NO polling at all once the request left
+  // the 'waiting' phase, so a driver saying "Yes" during the broadcast window
+  // was completely invisible to the dispatcher until they manually reloaded.
+  // This keeps polling for as long as the request is escalated and not yet
+  // resolved, so "X driver(s) available" actually shows up live.
+  useEffect(() => {
+    if ((phase !== 'broadcast' && phase !== 'cooldown') || !activeRequest || activeRequest.status !== 'escalated') return;
+    const interval = setInterval(async () => {
+      try {
+        const result = await base44.functions.invoke('driverAvailabilityManager', {
+          action: 'get_request',
+          request_id: activeRequest.id
+        });
+        if (!result.request) return;
+        if (result.request.status === 'completed') {
+          setActiveRequest(result.request);
+          setPhase('response');
+        } else {
+          // Still escalated — refresh so live response counts/names update
+          // (e.g. "2 driver(s) available") without flipping phase.
+          setActiveRequest(result.request);
+        }
+      } catch (e) {
+        console.error('[DriverAvailabilityPanel] Broadcast poll failed:', e);
+      }
+    }, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [phase, activeRequest?.id, activeRequest?.status]);
 
   // ── Countdown timer ──
   useEffect(() => {
@@ -323,19 +355,24 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
     }
   }, [activeRequest]);
 
-  // ── When broadcast completes, transition to cooldown ──
+  // ── Broadcast → cooldown is a visual-only sub-phase switch ──
+  // The dispatcher sees "Request sent... X notified" for the first 60s after
+  // broadcast (time to actually notice responses coming in), then the display
+  // switches to the quieter "Available in M:SS" cooldown look. The response
+  // poll above keeps running the whole time regardless of this — a driver
+  // saying "Yes" at any point still gets caught and shown immediately.
   useEffect(() => {
-    if (phase === 'broadcast' && activeRequest?.cooldown_expires_at) {
-      const cooldownEnd = new Date(activeRequest.cooldown_expires_at).getTime();
-      if (Date.now() < cooldownEnd) {
-        // Show broadcast status briefly, then transition to cooldown view
-        const timer = setTimeout(() => {
-          setPhase('cooldown');
-        }, 3000);
-        return () => clearTimeout(timer);
-      }
+    if (phase !== 'broadcast' || !activeRequest?.broadcast_sent_at) return;
+    const sentAt = new Date(activeRequest.broadcast_sent_at).getTime();
+    const msSinceBroadcast = Date.now() - sentAt;
+    const remaining = 60000 - msSinceBroadcast;
+    if (remaining <= 0) {
+      setPhase('cooldown');
+      return;
     }
-  }, [phase, activeRequest]);
+    const timer = setTimeout(() => setPhase('cooldown'), remaining);
+    return () => clearTimeout(timer);
+  }, [phase, activeRequest?.broadcast_sent_at]);
 
   // ── Render ──
   if (!canUse || dispatcherStoreIds.length === 0) return null;
