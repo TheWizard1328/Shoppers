@@ -435,7 +435,7 @@ export default async function(req: Request): Promise<Response> {
         return await doBroadcast(base44, request, request.dispatcher_id, request.dispatcher_name, store, request.extra_info, excluded);
       }
 
-      return Response.json({ ok: true, status: 'waiting', time_remaining_ms: timeout - now });
+      return Response.json({ ok: true, status: 'waiting', time_remaining_ms: timeout - now, request });
     }
 
     // ── cancel: Dispatcher cancels an active request ─────────────────────

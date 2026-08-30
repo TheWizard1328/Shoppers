@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Truck, Clock, AlertCircle, CheckCircle2, Radio, X, Loader2, ChevronUp } from 'lucide-react';
+import { Truck, Clock, AlertCircle, CheckCircle2, Radio, X, XCircle, Loader2, ChevronUp } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { userHasRole } from '@/components/utils/userRoles';
 
@@ -195,6 +195,10 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
         } else if (td.status === 'completed') {
           setActiveRequest(td.request || { ...activeRequest, status: 'completed' });
           setPhase('response');
+        } else if (td.status === 'waiting' && td.request) {
+          // Still waiting — refresh activeRequest so rejection responses
+          // (assigned_driver_responses) are visible to the dispatcher live.
+          setActiveRequest(td.request);
         }
       } catch (e) {
         console.error('[DriverAvailabilityPanel] Timeout poll failed:', e);
@@ -492,6 +496,12 @@ export default function DriverAvailabilityPanel({ currentUser, stores, appUsers,
                 {activeRequest.assigned_driver_ids.length} driver(s) notified
               </p>
             )}
+            {activeRequest.assigned_driver_responses?.filter(r => r.response === 'no').map(r => (
+              <p key={r.driver_id} className="text-[10px] text-red-500 px-0.5 flex items-center gap-1">
+                <XCircle className="w-2.5 h-2.5" />
+                {r.driver_name || 'Driver'} declined
+              </p>
+            ))}
             <div className="flex gap-1">
               <Button
                 size="sm"
