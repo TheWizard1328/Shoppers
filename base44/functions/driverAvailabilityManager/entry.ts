@@ -34,7 +34,7 @@ function getAssignedDriverIdsForStore(store, dateStr) {
     if (store.weekday_am_driver_id) ids.push(store.weekday_am_driver_id);
     if (store.weekday_pm_driver_id) ids.push(store.weekday_pm_driver_id);
   }
-  return [...new Set(ids.filter(Boolean))];
+  return Array.from(new Set(ids.filter(Boolean)));
 }
 
 export default async function(req: Request): Promise<Response> {
@@ -68,7 +68,7 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({
         guard_passed: active.length === 0,
         blocking_count: active.length,
-        blocking_drivers: [...new Set(active.map(d => d.driver_id).filter(Boolean))]
+        blocking_drivers: Array.from(new Set(active.map(d => d.driver_id).filter(Boolean)))
       });
     }
 
@@ -289,7 +289,7 @@ export default async function(req: Request): Promise<Response> {
         ];
 
         // Add to excluded list
-        const updatedExcluded = [...new Set([...(request.excluded_driver_ids || []), user.id])];
+        const updatedExcluded = Array.from(new Set([...(request.excluded_driver_ids || []), user.id]));
 
         if (request.status === 'waiting') {
           // Check if ALL assigned drivers have responded No
