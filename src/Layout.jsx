@@ -329,7 +329,7 @@ export default function Layout({ children, currentPageName }) {
   // while the app is open, the SW posts a message that main.jsx re-dispatches
   // as a 'notification_action' CustomEvent. Update the UI accordingly.
   const handleNotificationAction = useCallback((event) => {
-    const { action, result, message_id, delivery_ids, reply_to, reply_to_name } = event?.detail || {};
+    const { action, result, message_id, delivery_ids, reply_to, reply_to_name, request_id, availability_response } = event?.detail || {};
     if (action === 'mark_read' && result && message_id) {
       // Decrement unread count — the backend already marked the message as read
       setUnreadMessageCount((prev) => Math.max(0, prev - 1));
@@ -345,6 +345,17 @@ export default function Layout({ children, currentPageName }) {
     } else if (action === 'update_now') {
       // Reload the app to apply the pending update
       window.location.reload();
+    } else if (action === 'availability_yes' && result && request_id) {
+      // Driver said Yes to availability request — open chat with dispatcher
+      if (reply_to) {
+        const openName = reply_to_name ? decodeURIComponent(reply_to_name) : 'Dispatcher';
+        const conversationId = currentUser?.id ? [currentUser.id, reply_to].sort().join('_') : '';
+        setInitialConversation({ conversationId, otherUserId: reply_to, otherUserName: openName });
+        setShowMessaging(true);
+      }
+      setUnreadMessageCount((prev) => prev + 1);
+    } else if (action === 'availability_no') {
+      // Driver said No — silently dismissed. Dispatcher UI updates via WS poll.
     }
   }, [setUnreadMessageCount, currentUser?.id]);
 
