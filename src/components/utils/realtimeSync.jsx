@@ -243,7 +243,22 @@ async function flushBuffered(entityName) {
         }
       }
 
-      if (Array.isArray(item.changedFields) && item.changedFields.includes('isNextDelivery') && item.data?.isNextDelivery) {
+      // Detect the isNextDelivery transition by comparing the incoming value against
+      // the current in-memory deliveries (window.__appDeliveries). changedFields is only
+      // populated when the per-subscription entityDataCache already holds the OLD record
+      // — but on boot, reconnect, or the first WS event for a delivery, that cache is empty
+      // so changedFields is [] and a false→true isNextDelivery change would be silently
+      // missed (the card would never auto-center). Comparing against the live app state
+      // catches the transition in every case. (Self-echo is already suppressed above, so
+      // this only fires on receiving devices — the originating device centers via its own
+      // handleStartDelivery path.)
+      const _isNowNext = item.data?.isNextDelivery === true;
+      const _wasNext = (() => {
+        const local = (typeof window !== 'undefined' ? window.__appDeliveries : null) || [];
+        const existing = local.find((d) => d?.id === item.id);
+        return existing?.isNextDelivery === true;
+      })();
+      if (_isNowNext && !_wasNext) {
         scheduleAfterUISettled(() => {
           triggerCenterNextDeliveryCard({
             source: 'realtimeSyncIsNextDelivery',
