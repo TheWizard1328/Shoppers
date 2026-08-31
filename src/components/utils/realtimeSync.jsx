@@ -350,7 +350,10 @@ async function flushBuffered(entityName) {
       // true from this device's stale local state. Without this, receiving devices kept the
       // old next stop flagged true (overwriting the incoming false) until a manual refresh.
       const isNextExplicitlyChangedIds = new Set(
-        items.filter(it => Array.isArray(it.changedFields) && it.changedFields.includes('isNextDelivery')).map(it => it.id)
+        items.filter(it =>
+          (Array.isArray(it.changedFields) && it.changedFields.includes('isNextDelivery')) ||
+          (it.data && typeof it.data === 'object' && 'isNextDelivery' in it.data)
+        ).map(it => it.id)
       );
       const localDeliveries = window.__appDeliveries;
       if (Array.isArray(localDeliveries)) {
