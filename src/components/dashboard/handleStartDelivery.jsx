@@ -22,6 +22,7 @@ import { backgroundSyncManager } from '@/components/utils/backgroundSyncManager'
 import { notifyDriverStarted } from '@/components/utils/deliveryMessaging';
 import { determinePolylineSegment, fetchPolylineForSegment } from '@/components/utils/dynamicPolylineManager';
 import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
+import { clearAllNextDeliveryFlags } from '@/components/dashboard/clearAllNextDeliveryFlags';
 
 export async function handleStartDelivery({
   deliveryId,
@@ -134,37 +135,30 @@ export async function handleStartDelivery({
     }));
     console.log('✅ [handleStartDelivery] Step 3 complete — UI updated from local state');
 
-    // ─── STEP 4: Ordered sync — demote FIRST, promote LAST ───────────────
-    // Receiving devices must see the isNextDelivery=false event before the
-    // isNextDelivery=true event so the next-stop handoff centers cleanly on the
-    // newly-promoted card. We await all demotion writes (isNextDelivery=false)
-    // before issuing the promotion write (isNextDelivery=true + status +
-    // stop_order + ETA), guaranteeing the platform broadcasts false first.
-    const demotePromises = [];
-    for (const d of mutatedDeliveries) {
-      if (!d || !transitionedIds.has(d.id)) continue;
-      if (d.id === deliveryId) continue; // promotion handled in phase 2
-      demotePromises.push(
-        base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch((err) => {
-          console.warn(`⚠️ [handleStartDelivery] Demote sync failed for ${d.id}:`, err?.message);
-        })
-      );
-    }
-    await Promise.all(demotePromises);
-    console.log(`✅ [handleStartDelivery] Step 4a complete — ${demotePromises.length} demotions synced (isNextDelivery=false broadcast first)`);
-
-    // Phase 2: promote the target stop LAST so its isNextDelivery=true event
-    // arrives after every demotion on receiving devices.
+    // ─── STEP 4: Authoritative clear-all-then-promote (ordered broadcast) ────
+    // Phase 1: write the target stop's status/stop_order/ETA WITHOUT isNextDelivery,
+    //   so the true flag is controlled solely by phases 2+3 below.
+    // Phase 2: clear ALL isNextDelivery=true flags on this driver+date route via a
+    //   server-side query (authoritative — catches stale trues the local snapshot
+    //   missed), excluding the target. Awaited so every false broadcasts first.
+    // Phase 3: promote the target to isNextDelivery=true LAST.
     await base44.entities.Delivery.update(deliveryId, {
-      isNextDelivery: true,
       status: newStatus,
       stop_order: nextStopOrder,
       delivery_time_start: etaString,
       delivery_time_eta: etaString,
     }).catch((err) => {
+      console.warn(`⚠️ [handleStartDelivery] Status sync failed for ${deliveryId}:`, err?.message);
+    });
+    console.log(`✅ [handleStartDelivery] Step 4a complete — target status/stop_order/ETA synced`);
+
+    const clearedIds = await clearAllNextDeliveryFlags(driverId, deliveryDate, deliveryId);
+    console.log(`✅ [handleStartDelivery] Step 4b complete — cleared ${clearedIds.length} stale isNextDelivery=true flag(s) before promotion`);
+
+    await base44.entities.Delivery.update(deliveryId, { isNextDelivery: true }).catch((err) => {
       console.warn(`⚠️ [handleStartDelivery] Promote sync failed for ${deliveryId}:`, err?.message);
     });
-    console.log(`✅ [handleStartDelivery] Step 4b complete — promotion synced (isNextDelivery=true broadcast last)`);
+    console.log(`✅ [handleStartDelivery] Step 4c complete — promotion synced (isNextDelivery=true broadcast last)`);
 
     // Brief pause to let DB writes propagate before the optimizer reads the delivery list.
     // Without this the optimizer may race the status writes and see the pickup as still 'pending'.

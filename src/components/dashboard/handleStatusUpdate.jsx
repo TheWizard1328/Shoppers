@@ -17,6 +17,7 @@ import { roundCompletionTime } from '@/components/dashboard/DashboardHelpers';
 import { lockDeliveryFields } from '@/components/utils/completionLockout';
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { buildHistoryEntry, appendToHistory } from '@/components/utils/patientHistoryUtils';
+import { clearAllNextDeliveryFlags } from '@/components/dashboard/clearAllNextDeliveryFlags';
 
 const getEdmDate = () => {
   const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -275,25 +276,34 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       return update;
     };
 
-    // ── Ordered broadcast: demote (isNextDelivery=false + the completed stop's
-    // full status payload) FIRST, promote (isNextDelivery=true) LAST ──
-    // Receiving devices must see the false event before the true event so the
-    // next-stop handoff centers cleanly on the newly-promoted card. The demote
-    // set carries the completed stop's status/stop_order/payload; the promote
-    // set carries the promoted next stop's isNextDelivery=true.
-    const demoteRecords = allAffectedRecords.filter((rec) => rec?.isNextDelivery !== true);
-    const promoteRecords = allAffectedRecords.filter((rec) => rec?.isNextDelivery === true);
+    // ── Authoritative clear-all-then-promote (ordered broadcast) ──
+    // Phase 1: write every affected record's status fields EXCEPT isNextDelivery so
+    //   the flag is controlled solely by phases 2+3. For complete/fail/cancel the
+    //   target carries status+actual_delivery_time+travel_dist+breadcrumbs+COD;
+    //   siblings only had isNextDelivery changes → empty payload after stripping → skipped.
+    // Phase 2: authoritatively clear ALL isNextDelivery=true on the route (server query
+    //   — catches stale trues the local snapshot missed), excluding the promoted stop.
+    //   Awaited so every false broadcasts first.
+    // Phase 3: promote the next stop to isNextDelivery=true LAST.
+    const promotedId = isCyclingMarkerStart
+      ? deliveryId
+      : (siblingUpdates.find((s) => s.record.isNextDelivery === true)?.id || null);
 
-    await Promise.all(demoteRecords.map((rec) => {
-      const update = buildStatusUpdatePayload(rec);
-      if (Object.keys(update).length === 0) return Promise.resolve(null);
-      return base44.entities.Delivery.update(rec.id, update).catch(() => null);
+    const writeStatusExcludingFlag = (rec) => {
+      const { isNextDelivery: _drop, ...statusPayload } = buildStatusUpdatePayload(rec);
+      return statusPayload;
+    };
+    await Promise.all(allAffectedRecords.map((rec) => {
+      const payload = writeStatusExcludingFlag(rec);
+      if (Object.keys(payload).length === 0) return Promise.resolve(null);
+      return base44.entities.Delivery.update(rec.id, payload).catch(() => null);
     }));
-    await Promise.all(promoteRecords.map((rec) => {
-      const update = buildStatusUpdatePayload(rec);
-      if (Object.keys(update).length === 0) return Promise.resolve(null);
-      return base44.entities.Delivery.update(rec.id, update).catch(() => null);
-    }));
+
+    await clearAllNextDeliveryFlags(driverId, deliveryDate, promotedId);
+
+    if (promotedId) {
+      await base44.entities.Delivery.update(promotedId, { isNextDelivery: true }).catch(() => null);
+    }
     window.dispatchEvent(new CustomEvent('deliveryUpdated', { detail: { deliveryId, affectedIds: allAffectedRecords.map((r) => r.id), updates: updateData, driverId, deliveryDate, source: 'statusUpdate' } }));
     if (pendingBreadcrumbDriverAppUserId) {
       await offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, pendingBreadcrumbDriverAppUserId);
