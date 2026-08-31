@@ -113,9 +113,27 @@ class CityFilteredRealtimeSync {
               const freshDelivery = event.data;
               if (!freshDelivery?.id) return;
 
-              // Save to offline DB
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery]);
-              console.log(`✅ [Realtime Delivery] Saved to offline DB: ${freshDelivery.patient_name || freshDelivery.id}`);
+              // CRITICAL: Merge incoming WS payload with existing IDB record BEFORE saving.
+              // The WS event data is PARTIAL (only changed fields). A raw bulkSave would
+              // REPLACE the entire IDB record with just the changed fields, wiping out
+              // status, patient_name, delivery_time_eta, encoded_polyline, and all other
+              // fields that weren't in this particular WS broadcast. This was the root
+              // cause of the completion revert (status='completed' wiped by a follow-up
+              // WS event carrying only stop_order + isNextDelivery) and the Start Delivery
+              // delay (time windows + ETA wiped by partial WS payloads).
+              let mergedDelivery = freshDelivery;
+              try {
+                const existing = await offlineDB.getById(offlineDB.STORES.DELIVERIES, freshDelivery.id);
+                if (existing) {
+                  mergedDelivery = { ...existing, ...freshDelivery };
+                }
+              } catch (mergeErr) {
+                console.warn('⚠️ [cityFilteredRealtimeSync] IDB merge failed, using raw payload:', mergeErr?.message);
+              }
+
+              // Save MERGED record to offline DB (preserves all existing fields)
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [mergedDelivery]);
+              console.log(`✅ [Realtime Delivery] Saved to offline DB: ${mergedDelivery.patient_name || mergedDelivery.id}`);
 
               // CRITICAL: Notify subscribers FIRST (AppDataContext listens for this)
               console.log(`📡 [Realtime Delivery] Notifying ${this.updateCallbacks.size} subscribers about ${event.type}`);
@@ -128,11 +146,11 @@ class CityFilteredRealtimeSync {
               // Event 1: deliveryUpdated for specific listeners
               window.dispatchEvent(new CustomEvent('deliveryUpdated', {
                 detail: { 
-                  delivery: freshDelivery,
-                  deliveries: [freshDelivery],
-                  freshDeliveries: [freshDelivery],
+                  delivery: mergedDelivery,
+                  deliveries: [mergedDelivery],
+                  freshDeliveries: [mergedDelivery],
                   immediate: true,
-                  deliveryDate: freshDelivery.delivery_date,
+                  deliveryDate: mergedDelivery.delivery_date,
                   type: event.type,
                   source: 'realtime_sync',
                   fromRealtime: true
@@ -142,10 +160,10 @@ class CityFilteredRealtimeSync {
               // Event 2: deliveriesUpdated for map/dashboard refresh
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                 detail: { 
-                  deliveries: [freshDelivery],
-                  freshDeliveries: [freshDelivery],
+                  deliveries: [mergedDelivery],
+                  freshDeliveries: [mergedDelivery],
                   immediate: true,
-                  deliveryDate: freshDelivery.delivery_date,
+                  deliveryDate: mergedDelivery.delivery_date,
                   triggeredBy: 'realtimeWebSocket',
                   source: 'realtime_sync',
                   fromRealtime: true,
@@ -165,7 +183,7 @@ class CityFilteredRealtimeSync {
               try {
                 const reconciler = await getReconciler();
                 if (reconciler) {
-                  reconciler.onDeliveryWebSocketEvent(freshDelivery);
+                  reconciler.onDeliveryWebSocketEvent(mergedDelivery);
                 }
               } catch (reconcilerError) {
                 console.warn('⚠️ [Realtime] Reconciler trigger failed:', reconcilerError.message);

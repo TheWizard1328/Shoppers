@@ -220,12 +220,23 @@ const flushCompletionJob = async (entry) => {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
 
           // Then write to server (batch silent mode still active)
+          // CRITICAL: Include `status` and `actual_delivery_time` in EVERY server
+          // write, even if computeNextDeliveryState didn't change them. The WS
+          // broadcast only carries CHANGED fields — if `status` is absent from
+          // the write, the WS event won't include it, and a remote device that
+          // hasn't processed the completion WS event yet will see a partial
+          // payload (only stop_order + isNextDelivery) and preserve the stale
+          // `status: 'in_transit'` from IDB. Including `status` ensures the WS
+          // broadcast carries it, so the remote device sees the correct status
+          // even if this WS event arrives before the completion status event.
           for (const d of result.changedDeliveries) {
             const update = {};
             if (d.stop_order != null) update.stop_order = d.stop_order;
             if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
             if (d.first_leg_origin_lat != null) update.first_leg_origin_lat = d.first_leg_origin_lat;
             if (d.first_leg_origin_lng != null) update.first_leg_origin_lng = d.first_leg_origin_lng;
+            if (d.status) update.status = d.status;
+            if (d.actual_delivery_time != null) update.actual_delivery_time = d.actual_delivery_time;
             if (Object.keys(update).length > 0) {
               base44.entities.Delivery.update(d.id, update).catch(() => null);
             }

@@ -1122,6 +1122,10 @@ export default function useStopCardActions(params) {
                 const update = {};
                 if (d.stop_order != null) update.stop_order = d.stop_order;
                 if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
+                // Include status + delivery_time_eta so the WS broadcast carries
+                // enough data for remote devices even if this event arrives first.
+                if (d.status) update.status = d.status;
+                if (d.delivery_time_eta) update.delivery_time_eta = d.delivery_time_eta;
                 if (Object.keys(update).length > 0) base44.entities.Delivery.update(d.id, update).catch(() => null);
               }
             }
