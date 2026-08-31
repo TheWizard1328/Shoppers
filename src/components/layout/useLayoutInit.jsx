@@ -178,7 +178,7 @@ export function useLayoutInit({
         } catch {setUserSettingsLoaded(true);}
 
         const ms = manifest.appSettings || {};
-        smartRefreshManager._enabled = ms.smartRefreshEnabled !== false;
+        // Smart Refresh is always on — toggle/interval UI has been removed.
         smartRefreshManager._initialized = true;
         if (ms.appVersion) {const v = ms.appVersion;setAppVersion(`v${v.major}.${v.minor}.${v.build}`);}
         setAdminImportEnabled(ms.adminImportEnabled === true);

@@ -3,130 +3,23 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Settings, Save, RefreshCw, Loader2, Clock, AlertCircle, RotateCcw, Power, MapPinned, KeyRound, Thermometer } from 'lucide-react';
+import { Settings, Save, Loader2, Thermometer } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { realtimeSync } from '../utils/realtimeSync';
 import PerFeatureApiKeysCard from './PerFeatureApiKeysCard';
 
-// Default refresh intervals (in milliseconds)
-const DEFAULT_INTERVALS = {
-  driverLocation: 30000,      // 30s
-  activeDeliveries: 30000,    // 30s
-  todayDeliveries: 45000,     // 45s
-  appUsers: 60000,            // 60s
-  todayPatients: 120000,      // 2min
-  patients: 900000,           // 15min
-  stores: 1800000,            // 30min
-  unifiedRefreshTick: 45000,  // 45s - Layout unified refresh interval
-  messageNotifications: 90000, // 90s
-  unreadMessageCount: 600000  // 10min
-};
-
-// Human-readable labels for each interval
-const INTERVAL_LABELS = {
-  driverLocation: 'Driver GPS Locations',
-  activeDeliveries: 'Active Delivery Statuses',
-  todayDeliveries: "Today's Deliveries",
-  appUsers: 'App Users (Driver Status)',
-  todayPatients: "Today's Route Patients",
-  patients: 'All Patients (Background)',
-  stores: 'Stores (Background)',
-  unifiedRefreshTick: 'Main Refresh Cycle',
-  messageNotifications: 'Message Notifications',
-  unreadMessageCount: 'Unread Message Badge'
-};
-
-// Priority levels for display
-const PRIORITY_LEVELS = {
-  driverLocation: 'high',
-  activeDeliveries: 'high',
-  todayDeliveries: 'high',
-  appUsers: 'high',
-  todayPatients: 'medium',
-  patients: 'low',
-  stores: 'low',
-  unifiedRefreshTick: 'system',
-  messageNotifications: 'medium',
-  unreadMessageCount: 'low'
-};
-
-const formatInterval = (ms) => {
-  if (ms >= 60000) {
-    const mins = ms / 60000;
-    return `${mins} min${mins !== 1 ? 's' : ''}`;
-  }
-  return `${ms / 1000}s`;
-};
-
-const IntervalSlider = ({ id, label, value, onChange, min, max, step, priority }) => {
-  const priorityColors = {
-    high: 'bg-red-100 text-red-800',
-    medium: 'bg-yellow-100 text-yellow-800',
-    low: 'bg-green-100 text-green-800',
-    system: 'bg-blue-100 text-blue-800'
-  };
-
-  return (
-    <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-      <div className="flex items-center justify-between">
-        <Label htmlFor={id} className="font-medium text-slate-700 dark:text-slate-300">{label}</Label>
-        <div className="flex items-center gap-2">
-          <Badge className={priorityColors[priority] || 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200'}>
-            {priority}
-          </Badge>
-          <Badge variant="outline" className="font-mono">
-            {formatInterval(value)}
-          </Badge>
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        <Slider
-          id={id}
-          value={[value]}
-          onValueChange={([v]) => onChange(v)}
-          min={min}
-          max={max}
-          step={step}
-          className="flex-1"
-        />
-        <Input
-          type="number"
-          value={value / 1000}
-          onChange={(e) => onChange(parseInt(e.target.value) * 1000 || min)}
-          className="w-20 text-right font-mono"
-          min={min / 1000}
-          max={max / 1000}
-        />
-        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 w-4">sec</span>
-      </div>
-    </div>
-  );
-};
+const DEFAULT_API_KEYS = ['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY'];
 
 export default function AppSettingsPanel() {
-  const [intervals, setIntervals] = useState(DEFAULT_INTERVALS);
-  const [smartRefreshEnabled, setSmartRefreshEnabled] = useState(() => smartRefreshManager._enabled);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [savedIntervals, setSavedIntervals] = useState(null);
-  const [savedSmartRefreshEnabled, setSavedSmartRefreshEnabled] = useState(() => smartRefreshManager._enabled);
-  const [lastRefreshTimes, setLastRefreshTimes] = useState({});
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState('0.00');
   const [savedAppFees, setSavedAppFees] = useState('0.00');
   const [squareAppId, setSquareAppId] = useState('');
   const [savedSquareAppId, setSavedSquareAppId] = useState('');
-  const [availableApiKeys, setAvailableApiKeys] = useState([
-    'HERE_API_KEY',
-    'Here_API_Key_2',
-    'Here_API_Key_3',
-    'GOOGLE_MAPS_API_KEY'
-  ]);
+  const [availableApiKeys, setAvailableApiKeys] = useState(DEFAULT_API_KEYS);
+
+  // Top-section (App Fees / Square App ID) auto-save indicator
   const [isTopSectionSaving, setIsTopSectionSaving] = useState(false);
   const [topSectionSaved, setTopSectionSaved] = useState(false);
   const [activeTopSection, setActiveTopSection] = useState(null);
@@ -142,62 +35,35 @@ export default function AppSettingsPanel() {
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
     try {
-      if (smartRefreshManager._initialized) {
-        setSmartRefreshEnabled(smartRefreshManager._enabled);
-        setSavedSmartRefreshEnabled(smartRefreshManager._enabled);
-      }
-      
       const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       if (settings && settings.length > 0 && settings[0].setting_value) {
-        const loaded = { ...DEFAULT_INTERVALS, ...settings[0].setting_value };
-        setIntervals(loaded);
-        setSavedIntervals(loaded);
-        
-        // Load app fees from settings
-        if (settings[0].setting_value.app_fees_per_delivery !== undefined) {
-          const fees = parseFloat(settings[0].setting_value.app_fees_per_delivery).toFixed(2);
+        const v = settings[0].setting_value;
+
+        if (v.app_fees_per_delivery !== undefined) {
+          const fees = parseFloat(v.app_fees_per_delivery).toFixed(2);
           setAppFeesPerDelivery(fees);
           setSavedAppFees(fees);
         }
 
-        // Load Square App ID
-        const sqAppId = settings[0].setting_value.square_app_id || '';
+        const sqAppId = v.square_app_id || '';
         setSquareAppId(sqAppId);
         setSavedSquareAppId(sqAppId);
 
-        // Load fridge temp settings
-        if (settings[0].setting_value.fridge_temp_settings) {
-          const ft = settings[0].setting_value.fridge_temp_settings;
-          setFridgeTempSettings(ft);
-          setSavedFridgeTempSettings(ft);
+        if (v.fridge_temp_settings) {
+          setFridgeTempSettings(v.fridge_temp_settings);
+          setSavedFridgeTempSettings(v.fridge_temp_settings);
         }
 
-        const configuredApiKeys = Array.isArray(settings[0].setting_value.available_api_keys) && settings[0].setting_value.available_api_keys.length > 0
-          ? settings[0].setting_value.available_api_keys
-          : ['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY'];
+        const configuredApiKeys = Array.isArray(v.available_api_keys) && v.available_api_keys.length > 0
+          ? v.available_api_keys
+          : DEFAULT_API_KEYS;
         setAvailableApiKeys(configuredApiKeys);
-
-        if (!smartRefreshManager._initialized) {
-          const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
-          setSmartRefreshEnabled(enabled);
-          setSavedSmartRefreshEnabled(enabled);
-          smartRefreshManager._enabled = enabled;
-          smartRefreshManager._initialized = true;
-        }
       } else {
-        setIntervals(DEFAULT_INTERVALS);
-        setSavedIntervals(DEFAULT_INTERVALS);
-        setAvailableApiKeys(['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY']);
-        if (!smartRefreshManager._initialized) {
-          setSmartRefreshEnabled(true);
-          setSavedSmartRefreshEnabled(true);
-        }
+        setAvailableApiKeys(DEFAULT_API_KEYS);
       }
     } catch (error) {
       console.error('Failed to load app settings:', error);
-      setIntervals(DEFAULT_INTERVALS);
-      setSavedIntervals(DEFAULT_INTERVALS);
-      setAvailableApiKeys(['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY']);
+      setAvailableApiKeys(DEFAULT_API_KEYS);
     } finally {
       setIsLoading(false);
     }
@@ -213,34 +79,11 @@ export default function AppSettingsPanel() {
       if (updatedSetting?.setting_key !== 'refresh_intervals') return;
       await loadSettings();
     };
-
     window.addEventListener('appSettingsUpdated', handleAppSettingsUpdated);
     return () => window.removeEventListener('appSettingsUpdated', handleAppSettingsUpdated);
   }, [loadSettings]);
 
-  useEffect(() => {
-    const updateRefreshTimes = () => {
-      setLastRefreshTimes({ ...smartRefreshManager.lastRefreshTimes });
-    };
-    updateRefreshTimes();
-    const interval = setInterval(updateRefreshTimes, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (savedIntervals) {
-      const intervalsChanged = Object.keys(intervals).some(key => intervals[key] !== savedIntervals[key]);
-      const enabledChanged = smartRefreshEnabled !== savedSmartRefreshEnabled;
-      const feesChanged = appFeesPerDelivery !== savedAppFees;
-      const squareAppIdChanged = squareAppId !== savedSquareAppId;
-      setHasChanges(intervalsChanged || enabledChanged || feesChanged || squareAppIdChanged);
-    }
-  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appFeesPerDelivery, savedAppFees, squareAppId, savedSquareAppId]);
-
-  const handleIntervalChange = (key, value) => {
-    setIntervals(prev => ({ ...prev, [key]: value }));
-  };
-
+  // Auto-save App Fees + Square App ID (debounced 3s)
   const saveTopSectionSettings = useCallback(async () => {
     setIsTopSectionSaving(true);
     setTopSectionSaved(false);
@@ -249,8 +92,8 @@ export default function AppSettingsPanel() {
       const currentSettings = existing?.[0]?.setting_value || {};
       const updatedSettings = {
         ...currentSettings,
-        smartRefreshEnabled,
         app_fees_per_delivery: parseFloat(appFeesPerDelivery || 0),
+        square_app_id: squareAppId.trim(),
         available_api_keys: availableApiKeys
       };
 
@@ -258,13 +101,13 @@ export default function AppSettingsPanel() {
       if (existing && existing.length > 0) {
         savedRecord = await base44.entities.AppSettings.update(existing[0].id, {
           setting_value: updatedSettings,
-          description: 'Smart refresh interval and app version settings'
+          description: 'App-wide administrative settings'
         });
       } else {
         savedRecord = await base44.entities.AppSettings.create({
           setting_key: 'refresh_intervals',
           setting_value: updatedSettings,
-          description: 'Smart refresh interval and app version settings'
+          description: 'App-wide administrative settings'
         });
       }
 
@@ -273,10 +116,8 @@ export default function AppSettingsPanel() {
         detail: { data: savedRecord, source: 'AppSettingsPanel' }
       }));
 
-      smartRefreshManager._enabled = smartRefreshEnabled;
-      smartRefreshManager._initialized = true;
-      setSavedSmartRefreshEnabled(smartRefreshEnabled);
       setSavedAppFees(appFeesPerDelivery);
+      setSavedSquareAppId(squareAppId.trim());
       setTopSectionSaved(true);
     } catch (error) {
       console.error('Failed to auto-save top settings:', error);
@@ -284,26 +125,17 @@ export default function AppSettingsPanel() {
     } finally {
       setIsTopSectionSaving(false);
     }
-  }, [smartRefreshEnabled, appFeesPerDelivery, availableApiKeys]);
+  }, [appFeesPerDelivery, squareAppId, availableApiKeys]);
 
   useEffect(() => {
     if (isLoading) return;
+    if (appFeesPerDelivery === savedAppFees && squareAppId === savedSquareAppId) return;
 
-    let changedSection = null;
-    if (smartRefreshEnabled !== savedSmartRefreshEnabled) {
-      changedSection = 'refresh';
-    } else if (appFeesPerDelivery !== savedAppFees) {
-      changedSection = 'adminSettings';
-    }
-
-    if (!changedSection) return;
-
-    setActiveTopSection(changedSection);
+    setActiveTopSection('adminSettings');
     setTopSectionSaved(false);
     if (topSectionAutoSaveTimeoutRef.current) {
       clearTimeout(topSectionAutoSaveTimeoutRef.current);
     }
-
     topSectionAutoSaveTimeoutRef.current = setTimeout(() => {
       saveTopSectionSettings();
     }, 3000);
@@ -313,78 +145,7 @@ export default function AppSettingsPanel() {
         clearTimeout(topSectionAutoSaveTimeoutRef.current);
       }
     };
-  }, [
-    isLoading,
-    smartRefreshEnabled,
-    savedSmartRefreshEnabled,
-    appFeesPerDelivery,
-    savedAppFees,
-    saveTopSectionSettings
-  ]);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const settingsToSave = {
-        ...intervals,
-        smartRefreshEnabled: smartRefreshEnabled,
-        app_fees_per_delivery: parseFloat(appFeesPerDelivery),
-        available_api_keys: availableApiKeys,
-        square_app_id: squareAppId.trim()
-      };
-
-      const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-      
-      let savedRecord;
-      if (existing && existing.length > 0) {
-        savedRecord = await base44.entities.AppSettings.update(existing[0].id, {
-          setting_value: settingsToSave,
-          description: 'Smart refresh interval and app version settings'
-        });
-      } else {
-        savedRecord = await base44.entities.AppSettings.create({
-          setting_key: 'refresh_intervals',
-          setting_value: settingsToSave,
-          description: 'Smart refresh interval and app version settings'
-        });
-      }
-
-      realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
-      window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
-        detail: { data: savedRecord, source: 'AppSettingsPanel' }
-      }));
-
-      smartRefreshManager._enabled = smartRefreshEnabled;
-      smartRefreshManager._initialized = true;
-      smartRefreshManager.intervals = {
-        driverLocation: intervals.driverLocation,
-        activeDeliveries: intervals.activeDeliveries,
-        todayDeliveries: intervals.todayDeliveries,
-        appUsers: intervals.appUsers,
-        todayPatients: intervals.todayPatients,
-        patients: intervals.patients,
-        stores: intervals.stores
-      };
-
-      setSavedIntervals({ ...intervals });
-      setSavedSmartRefreshEnabled(smartRefreshEnabled);
-      setSavedAppFees(appFeesPerDelivery);
-      setSavedSquareAppId(squareAppId.trim());
-      setHasChanges(false);
-      alert('Settings saved successfully! Other users will see the new version on their next refresh.');
-    } catch (error) {
-      console.error('Failed to save app settings:', error);
-      alert('Failed to save settings: ' + error.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleResetToDefaults = () => {
-    if (window.confirm('Reset all intervals to default values?')) {
-      setIntervals(DEFAULT_INTERVALS);
-    }
-  };
+  }, [isLoading, appFeesPerDelivery, savedAppFees, squareAppId, savedSquareAppId, saveTopSectionSettings]);
 
   const handleSaveFridgeTemp = async () => {
     setIsSavingFridgeTemp(true);
@@ -400,7 +161,7 @@ export default function AppSettingsPanel() {
         savedRecord = await base44.entities.AppSettings.create({
           setting_key: 'refresh_intervals',
           setting_value: updatedSettings,
-          description: 'Smart refresh interval and app version settings'
+          description: 'App-wide administrative settings'
         });
       }
       realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
@@ -421,7 +182,7 @@ export default function AppSettingsPanel() {
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
-          <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Loading settings...</span>
+          <span className="text-slate-600 dark:text-slate-400">Loading settings...</span>
         </CardContent>
       </Card>
     );
@@ -429,70 +190,7 @@ export default function AppSettingsPanel() {
 
   return (
     <div className="space-y-4 md:space-y-6 h-full min-h-0 overflow-y-auto pb-2 md:pb-0">
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <Card className={`${!smartRefreshEnabled ? 'border-red-300 bg-red-50 dark:bg-red-950' : ''} ${activeTopSection === 'refresh' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'refresh' && isTopSectionSaving ? 'border-emerald-300' : ''}`.trim()}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Power className={`w-5 h-5 ${smartRefreshEnabled ? 'text-emerald-500' : 'text-red-500'}`} />
-            Smart Refresh
-          </CardTitle>
-          <CardDescription>
-            Master toggle to enable or disable all automatic data refreshing.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-lg border">
-            <div>
-              <Label className="font-medium text-slate-900 dark:text-slate-100">Enable Smart Refresh</Label>
-              <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                {smartRefreshEnabled 
-                  ? 'Data will automatically refresh in the background' 
-                  : 'All automatic refreshing is disabled - data will only update on page reload'}
-              </p>
-            </div>
-            <Switch
-              checked={smartRefreshEnabled}
-              onCheckedChange={async (checked) => {
-                setSmartRefreshEnabled(checked);
-                smartRefreshManager._enabled = checked;
-                smartRefreshManager._initialized = true;
-                
-                try {
-                  const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                  const currentSettings = existing?.[0]?.setting_value || {};
-                  const updatedSettings = { ...currentSettings, smartRefreshEnabled: checked };
-                  
-                  let savedRecord;
-                  if (existing && existing.length > 0) {
-                    savedRecord = await base44.entities.AppSettings.update(existing[0].id, {
-                      setting_value: updatedSettings
-                    });
-                  } else {
-                    savedRecord = await base44.entities.AppSettings.create({
-                      setting_key: 'refresh_intervals',
-                      setting_value: updatedSettings,
-                      description: 'Smart refresh interval and app version settings'
-                    });
-                  }
-                  realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
-                  window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
-                    detail: { data: savedRecord, source: 'AppSettingsPanel' }
-                  }));
-                  setSavedSmartRefreshEnabled(checked);
-                } catch (error) {
-                  console.error('Failed to save smart refresh toggle:', error);
-                }
-              }}
-            />
-          </div>
-          {!smartRefreshEnabled && (
-            <div className="mt-3 p-3 bg-red-100 text-red-800 rounded-lg text-sm font-medium">
-              ⚠️ Smart Refresh is DISABLED. The app will not automatically update data.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         <PerFeatureApiKeysCard availableApiKeys={availableApiKeys} />
 
         <Card className={`transition-colors ${activeTopSection === 'adminSettings' && topSectionSaved ? 'border-green-500 bg-green-50 dark:bg-green-950/40' : activeTopSection === 'adminSettings' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
@@ -532,9 +230,9 @@ export default function AppSettingsPanel() {
                     placeholder="0.00"
                     className="w-32"
                   />
-                  <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">per finished delivery</span>
+                  <span className="text-sm text-slate-500 dark:text-slate-400">per finished delivery</span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   This fee will be used to calculate monthly charges for stores that are marked as paying app fees.
                 </p>
               </div>
@@ -551,7 +249,7 @@ export default function AppSettingsPanel() {
                   placeholder="sq0idp-..."
                   className="font-mono text-sm"
                 />
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Required for the Square POS button on stop cards. Find this in your Square Developer Dashboard.
                 </p>
               </div>
@@ -587,7 +285,7 @@ export default function AppSettingsPanel() {
                   step={0.5}
                   className="w-full"
                 />
-                <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 mt-1">
+                <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 mt-1">
                   <span>-10°C</span>
                   <span>25°C</span>
                 </div>
@@ -603,13 +301,13 @@ export default function AppSettingsPanel() {
                     onChange={(e) => setFridgeTempSettings(p => ({ ...p, danger_buffer: parseFloat(e.target.value) || 0 }))}
                     className="w-24 font-mono"
                   />
-                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">warning ± safe zone</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">warning ± safe zone</span>
                 </div>
               </div>
             </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 border p-3 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-1">
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 border p-3 text-xs text-slate-600 dark:text-slate-400 space-y-1">
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-cyan-500 inline-block" /> Safe: {fridgeTempSettings.safe_min}°C – {fridgeTempSettings.safe_max}°C</div>
-              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" /> Warning: {+(fridgeTempSettings.safe_min - fridgeTempSettings.danger_buffer).toFixed(1)}°C – {fridgeTempSettings.safe_min}°C &amp; {fridgeTempSettings.safe_max}°C – {+(fridgeTempSettings.safe_max + fridgeTempSettings.danger_buffer).toFixed(1)}°C</div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" /> Warning: {+(fridgeTempSettings.safe_min - fridgeTempSettings.danger_buffer).toFixed(1)}°C – {fridgeTempSettings.safe_min}°C & {fridgeTempSettings.safe_max}°C – {+(fridgeTempSettings.safe_max + fridgeTempSettings.danger_buffer).toFixed(1)}°C</div>
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Out of range: below {+(fridgeTempSettings.safe_min - fridgeTempSettings.danger_buffer).toFixed(1)}°C or above {+(fridgeTempSettings.safe_max + fridgeTempSettings.danger_buffer).toFixed(1)}°C</div>
             </div>
             <Button
@@ -623,217 +321,6 @@ export default function AppSettingsPanel() {
             </Button>
           </CardContent>
         </Card>
-      </div>
-
-      <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-6">
-      <Card className={!smartRefreshEnabled ? 'opacity-50 pointer-events-none' : ''}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Refresh Interval Settings
-          </CardTitle>
-          <CardDescription>
-            Configure how often different types of data are refreshed. Lower values = more real-time but higher API usage.
-            <br />
-            <span className="text-amber-600 font-medium">⚠️ Warning: Setting intervals too low may cause rate limiting (429 errors).</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center gap-4 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-300">Priority:</span>
-            <Badge className="bg-red-100 text-red-800">high</Badge>
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">= Real-time critical</span>
-            <Badge className="bg-yellow-100 text-yellow-800">medium</Badge>
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">= Important</span>
-            <Badge className="bg-green-100 text-green-800">low</Badge>
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">= Background</span>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-500" />
-              High Priority (Real-time Map Updates)
-            </h3>
-            <div className="grid gap-3">
-              <IntervalSlider
-                id="driverLocation"
-                label={INTERVAL_LABELS.driverLocation}
-                value={intervals.driverLocation}
-                onChange={(v) => handleIntervalChange('driverLocation', v)}
-                min={10000}
-                max={120000}
-                step={5000}
-                priority="high"
-              />
-              <IntervalSlider
-                id="activeDeliveries"
-                label={INTERVAL_LABELS.activeDeliveries}
-                value={intervals.activeDeliveries}
-                onChange={(v) => handleIntervalChange('activeDeliveries', v)}
-                min={10000}
-                max={120000}
-                step={5000}
-                priority="high"
-              />
-              <IntervalSlider
-                id="todayDeliveries"
-                label={INTERVAL_LABELS.todayDeliveries}
-                value={intervals.todayDeliveries}
-                onChange={(v) => handleIntervalChange('todayDeliveries', v)}
-                min={15000}
-                max={180000}
-                step={5000}
-                priority="high"
-              />
-              <IntervalSlider
-                id="appUsers"
-                label={INTERVAL_LABELS.appUsers}
-                value={intervals.appUsers}
-                onChange={(v) => handleIntervalChange('appUsers', v)}
-                min={15000}
-                max={180000}
-                step={5000}
-                priority="high"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Medium Priority</h3>
-            <div className="grid gap-3">
-              <IntervalSlider
-                id="todayPatients"
-                label={INTERVAL_LABELS.todayPatients}
-                value={intervals.todayPatients}
-                onChange={(v) => handleIntervalChange('todayPatients', v)}
-                min={30000}
-                max={300000}
-                step={10000}
-                priority="medium"
-              />
-              <IntervalSlider
-                id="messageNotifications"
-                label={INTERVAL_LABELS.messageNotifications}
-                value={intervals.messageNotifications}
-                onChange={(v) => handleIntervalChange('messageNotifications', v)}
-                min={30000}
-                max={300000}
-                step={10000}
-                priority="medium"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Low Priority (Background)</h3>
-            <div className="grid gap-3">
-              <IntervalSlider
-                id="patients"
-                label={INTERVAL_LABELS.patients}
-                value={intervals.patients}
-                onChange={(v) => handleIntervalChange('patients', v)}
-                min={60000}
-                max={1800000}
-                step={60000}
-                priority="low"
-              />
-              <IntervalSlider
-                id="stores"
-                label={INTERVAL_LABELS.stores}
-                value={intervals.stores}
-                onChange={(v) => handleIntervalChange('stores', v)}
-                min={60000}
-                max={3600000}
-                step={60000}
-                priority="low"
-              />
-              <IntervalSlider
-                id="unreadMessageCount"
-                label={INTERVAL_LABELS.unreadMessageCount}
-                value={intervals.unreadMessageCount}
-                onChange={(v) => handleIntervalChange('unreadMessageCount', v)}
-                min={60000}
-                max={1800000}
-                step={60000}
-                priority="low"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">System (Layout)</h3>
-            <div className="grid gap-3">
-              <IntervalSlider
-                id="unifiedRefreshTick"
-                label={INTERVAL_LABELS.unifiedRefreshTick}
-                value={intervals.unifiedRefreshTick}
-                onChange={(v) => handleIntervalChange('unifiedRefreshTick', v)}
-                min={15000}
-                max={120000}
-                step={5000}
-                priority="system"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t">
-            <Button 
-              variant="outline" 
-              onClick={handleResetToDefaults}
-              className="gap-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset to Defaults
-            </Button>
-            <div className="flex items-center gap-3">
-              {hasChanges && (
-                <span className="text-sm text-amber-600 font-medium">Unsaved changes</span>
-              )}
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving || !hasChanges}
-                className="gap-2"
-              >
-                {isSaving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                {isSaving ? 'Saving...' : 'Save Settings'}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="w-5 h-5" />
-            Current Refresh Status
-          </CardTitle>
-          <CardDescription>
-            Live view of when each entity type was last refreshed.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {Object.keys(lastRefreshTimes).map(key => {
-              const lastTime = lastRefreshTimes[key];
-              const timeSince = lastTime ? Math.round((Date.now() - lastTime) / 1000) : null;
-              
-              return (
-                <div key={key} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">{INTERVAL_LABELS[key] || key}</div>
-                  <div className="font-mono text-sm">
-                    {timeSince !== null ? `${timeSince}s ago` : 'Never'}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
       </div>
     </div>
   );

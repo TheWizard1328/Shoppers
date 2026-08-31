@@ -60,7 +60,7 @@ class LightweightRefreshManager {
     try {
       const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       if (settings && settings.length > 0 && settings[0].setting_value) {
-        this._enabled = settings[0].setting_value.smartRefreshEnabled !== false;
+        this._enabled = true; // always on — Smart Refresh toggle removed from admin settings
       } else {
         this._enabled = true;
       }
