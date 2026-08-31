@@ -158,20 +158,23 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
   }, [saveFeature]);
 
   return (
-    <Card className="transition-colors">
+    <Card
+      className="rounded-[14px] border border-[#3a2e24] transition-all"
+      style={{ backgroundColor: '#241c17', color: '#ffffff' }}
+    >
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MapPinned className="w-5 h-5" />
+        <CardTitle className="flex items-center gap-2 text-base font-bold tracking-tight" style={{ color: '#ffffff' }}>
+          <MapPinned className="w-5 h-5 text-amber-500" />
           API Provider Keys
         </CardTitle>
-        <CardDescription>
+        <CardDescription style={{ color: '#a89b8f' }}>
           Choose which API key each map feature uses. Distribute quota across HERE and Google keys per feature.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-2.5">
           {isLoading ? (
-            <div className="text-sm text-slate-500 dark:text-slate-400 py-2">Loading…</div>
+            <div className="text-sm py-2" style={{ color: '#a89b8f' }}>Loading…</div>
           ) : (
             FEATURE_SLOTS.map((slot) => {
               const value = perFeatureKeys[slot.key] || DEFAULT_KEY_BY_PROVIDER[slot.provider];
@@ -180,27 +183,40 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
               return (
                 <div
                   key={slot.key}
-                  className={`flex items-center justify-between gap-3 rounded-lg border p-2.5 transition-colors ${
+                  className={`flex items-center justify-between gap-3 rounded-[10px] border p-2.5 transition-all ${
                     isSaved
-                      ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
+                      ? 'border-amber-500 bg-amber-500/10'
                       : isSaving
-                        ? 'border-emerald-300'
-                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                        ? 'border-amber-400 bg-amber-500/5'
+                        : 'border-[#3a2e24]'
                   }`}
+                  style={!isSaved && !isSaving ? { backgroundColor: '#1a1410' } : undefined}
                 >
-                  <Label className="text-sm font-medium text-slate-700 dark:text-slate-200 flex-1 truncate">
+                  <Label className="text-sm font-medium flex-1 truncate" style={{ color: '#d6cfc7' }}>
                     {slot.label}
                   </Label>
                   <Select
                     value={value}
                     onValueChange={(key) => handleFeatureChange(slot.key, key)}
                   >
-                    <SelectTrigger className="w-[200px] h-9 dark:bg-slate-900 dark:border-slate-700">
+                    <SelectTrigger
+                      className="w-[200px] h-9 border-[#3a2e24] focus:border-amber-500"
+                      style={{ backgroundColor: '#241c17', color: '#ffffff' }}
+                    >
                       <SelectValue placeholder="Select key" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent
+                      className="border-[#3a2e24]"
+                      style={{ backgroundColor: '#241c17', color: '#ffffff' }}
+                    >
                       {availableApiKeys.map((apiKey) => (
-                        <SelectItem key={apiKey} value={apiKey}>{apiKey}</SelectItem>
+                        <SelectItem
+                          key={apiKey}
+                          value={apiKey}
+                          className="focus:bg-amber-500/20 focus:text-white data-[highlighted]:bg-amber-500/20 data-[highlighted]:text-white"
+                        >
+                          {apiKey}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -208,8 +224,11 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
               );
             })
           )}
-          <div className="rounded-lg border bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-400 flex items-start gap-2">
-            <KeyRound className="w-4 h-4 mt-0.5 text-slate-500 dark:text-slate-400 shrink-0" />
+          <div
+            className="rounded-[10px] border border-[#3a2e24] p-3 text-xs flex items-start gap-2"
+            style={{ backgroundColor: '#1a1410', color: '#a89b8f' }}
+          >
+            <KeyRound className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
             <span>
               Each feature can use any saved key. HERE keys power routing, polylines and map tiles (plus HERE geocoding when chosen); the Google key powers address lookup, Places and distance (plus Google routing when chosen). Changes take effect within ~5 minutes as backend caches refresh.
             </span>
