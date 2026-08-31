@@ -135,6 +135,19 @@ class CityFilteredRealtimeSync {
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [mergedDelivery]);
               console.log(`✅ [Realtime Delivery] Saved to offline DB: ${mergedDelivery.patient_name || mergedDelivery.id}`);
 
+              // ── CACHE INVALIDATION: Update window.__appDeliveries in-place ──
+              // The merged record is authoritative. Update the in-memory cache so
+              // subsequent UI reads (deliveriesUpdated handlers, stop card renders)
+              // get fresh data, not stale snapshots that cause momentary reversion.
+              if (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries)) {
+                const idx = window.__appDeliveries.findIndex(d => d?.id === mergedDelivery.id);
+                if (idx !== -1) {
+                  window.__appDeliveries[idx] = mergedDelivery;
+                } else {
+                  window.__appDeliveries.push(mergedDelivery);
+                }
+              }
+
               // CRITICAL: Notify subscribers FIRST (AppDataContext listens for this)
               console.log(`📡 [Realtime Delivery] Notifying ${this.updateCallbacks.size} subscribers about ${event.type}`);
               this.notifySubscribers('Delivery', event.type, freshDelivery);

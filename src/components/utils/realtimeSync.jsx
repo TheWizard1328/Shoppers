@@ -1086,6 +1086,30 @@ const subscribeToEntity = (entityName) => {
                 ? (data?.user_name || data?.full_name || data?.email || data?.id || 'AppUser')
                 : entityName;
             console.log(`💾 [RealtimeSync] [${rsTime()}] Saved ${savedLabel} to offline DB - changed: ${changedFields.join(', ')}`);
+
+            // ── CACHE INVALIDATION: Update in-memory caches in-place ──
+            // With full-record WS broadcasts, the incoming data is authoritative.
+            // We update the in-memory cache immediately so the UI dispatch in
+            // flushBuffered reads fresh data, not stale snapshots that would
+            // cause momentary reversion of stop_order, isNextDelivery, status, etc.
+            if (finalDataToSave?.id && typeof window !== 'undefined') {
+              if (entityName === 'Delivery' && Array.isArray(window.__appDeliveries)) {
+                const idx = window.__appDeliveries.findIndex(d => d?.id === finalDataToSave.id);
+                if (idx !== -1) {
+                  window.__appDeliveries[idx] = finalDataToSave;
+                } else {
+                  window.__appDeliveries.push(finalDataToSave);
+                }
+              }
+              if (entityName === 'Patient' && Array.isArray(window.__appPatients)) {
+                const idx = window.__appPatients.findIndex(p => p?.id === finalDataToSave.id);
+                if (idx !== -1) {
+                  window.__appPatients[idx] = finalDataToSave;
+                } else {
+                  window.__appPatients.push(finalDataToSave);
+                }
+              }
+            }
           }
 
           // PATIENT DATA SINK: For new deliveries only, silently save the patient to offline DB.
@@ -1399,16 +1423,33 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           if (!window.__localPatientWrites) window.__localPatientWrites = new Map();
           window.__localPatientWrites.set(id, Date.now());
         }
-        // CRITICAL: Merge AppUser/Payroll data with existing offline record before saving.
-        // broadcastMutation may be called with a partial payload (e.g. only deductions or only
-        // driver_status + location fields) — saving that partial record directly via IndexedDB
-        // `put` would REPLACE the full record and lose app_roles, user_name (AppUser) or
-        // driver_notes, deductions array, bonus_pay, paid_amount (Payroll).
+        // ── FULL-RECORD ENRICHMENT (Delivery & Patient) ──
+        // broadcastMutation may be called with a partial payload (e.g. only delivery_time_eta).
+        // To guarantee receiving devices get ALL fields, we enrich the payload with the full
+        // record from IDB before broadcasting. For Delivery, we strip encoded_polyline (sent
+        // separately via dedicated WS events) to keep the payload small. The IDB merge on the
+        // receiving side naturally preserves the existing polyline when absent from the payload.
+        //
+        // For AppUser/Payroll: partial payloads are merged with existing IDB records (same as
+        // before) to prevent replacing the full record with a partial one via IndexedDB `put`.
         let dataToSave = data;
-        if ((entity === 'AppUser' || entity === 'Payroll') && id) {
+        let broadcastData = data;
+        if (id && (entity === 'Delivery' || entity === 'Patient' || entity === 'AppUser' || entity === 'Payroll')) {
           try {
             const existing = await offlineDB.getById(storeName, id);
-            if (existing) dataToSave = { ...existing, ...data };
+            if (existing) {
+              // Merge partial data onto full existing record — this is the authoritative update.
+              const enriched = { ...existing, ...data };
+              // For Delivery: strip encoded_polyline from the broadcast payload (sent separately).
+              // Keep it in dataToSave so the local IDB record retains its polyline.
+              dataToSave = enriched;
+              if (entity === 'Delivery') {
+                const { encoded_polyline: _ep, ...withoutPolyline } = enriched;
+                broadcastData = withoutPolyline;
+              } else {
+                broadcastData = enriched;
+              }
+            }
           } catch (_) {}
         }
         await offlineDB.save(storeName, dataToSave);
@@ -1431,7 +1472,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     console.warn(`⚠️ [RealtimeSync] [${rsTime()}] Broadcast offline DB sync failed for ${entity}:`, error.message);
   }
 
-  // Dispatch to all listeners
+  // Dispatch to all listeners (using enriched broadcastData — full record minus polyline)
   listeners.forEach(callback => {
     try {
       callback({
@@ -1439,7 +1480,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
         entity,
         eventType: action,
         type: action,
-        data,
+        data: broadcastData,
         id,
         ids
       });
@@ -1451,7 +1492,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
   // Dispatch custom event
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entity}`, {
-      detail: { type: action, id, ids, data }
+      detail: { type: action, id, ids, data: broadcastData }
     }));
 
     if (entity === 'Delivery') {
@@ -1461,8 +1502,8 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
         const localDeliveries = window.__appDeliveries;
         const base = Array.isArray(localDeliveries) ? localDeliveries : [];
         const snapshotMap = new Map(base.map(d => [d.id, d]));
-        const existing = snapshotMap.get(data.id);
-        snapshotMap.set(data.id, existing ? { ...existing, ...data } : data);
+        const existing = snapshotMap.get(broadcastData.id);
+        snapshotMap.set(broadcastData.id, existing ? { ...existing, ...broadcastData } : broadcastData);
         const mergedDeliveries = Array.from(snapshotMap.values());
         window.__appDeliveries = mergedDeliveries;
         const selectedDate = window.__appSelectedDate || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
