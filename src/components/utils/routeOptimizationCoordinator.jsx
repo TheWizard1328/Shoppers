@@ -145,6 +145,15 @@ export async function performRouteOptimization({
     console.warn(`[RouteOptimization] ${source} — polyline config resolve failed, defaulting to HERE:`, e?.message);
   }
 
+  // ── HERE map-matching flag ─────────────────────────────────────────────────
+  // map_tiles is always HERE (the only tile provider), so whenever the polylines
+  // slot is Google we re-snap each Google leg onto HERE's road network before
+  // rendering so the drawn route aligns with the HERE tiles the driver sees.
+  // When polylines = HERE this stays false and no match call is ever made — the
+  // existing HERE-only behavior is preserved exactly with no extra API calls.
+  const mapMatchToHere = polylineProvider === 'google';
+  console.log(`[RouteOptimization] ${source} — mapMatchToHere=${mapMatchToHere}`);
+
   // ── NOTE: the polyline origin is the most recent completed stop (or the
   // driver's home when none is completed). The engine NEVER uses the driver's
   // live GPS as the origin, so we deliberately do NOT resolve current_latitude
@@ -211,6 +220,7 @@ export async function performRouteOptimization({
         hereApiKey,
         polylineProvider,
         polylineApiKey,
+        mapMatchToHere,
         source,
         preserveExistingOrder,
         cyclingSegmentOnly,

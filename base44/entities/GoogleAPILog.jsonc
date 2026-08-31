@@ -17,7 +17,8 @@
         "Geocoding",
         "Map Tiles",
         "Directions (HERE)",
-        "Map Tiles (HERE)"
+        "Map Tiles (HERE)",
+        "Route Matching (HERE)"
       ],
       "description": "Type of Google/HERE API used"
     },

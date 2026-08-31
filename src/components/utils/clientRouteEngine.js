@@ -428,6 +428,7 @@ export async function optimizeRouteClientSide({
   startingStopOrder = null,
   polylineProvider = 'here',
   polylineApiKey = null,
+  mapMatchToHere = false,
 }) {
   if (!driverId || !deliveryDate) {
     return { success: false, error: 'Missing driverId or deliveryDate' };
@@ -617,6 +618,7 @@ export async function optimizeRouteClientSide({
       hereApiKey,
       polylineProvider,
       polylineApiKey,
+      mapMatchToHere,
       driverHomeLocation,
       driverId,
       userName: _driverUserName,
@@ -1048,7 +1050,7 @@ export async function optimizeRouteClientSide({
         ];
         const useGooglePoly = polylineProvider === 'google' && polylineApiKey;
         const result = useGooglePoly
-          ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { driverId, userName: _driverUserName }).catch((err) => {
+          ? await getMultiStopRouteGoogle(points, group.mode, polylineApiKey, { mapMatchToHere, driverId, userName: _driverUserName }).catch((err) => {
               console.error(`[clientRouteEngine] ${source} — Google Directions THREW (mode=${group.mode}):`, err?.message || err);
               return { sections: [], usedFallbackPolyline: true };
             })
@@ -1369,7 +1371,7 @@ export async function optimizeRouteClientSide({
 
 // ─── Future route handler (light mode, no HERE call) ─────────────────────────
 
-async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, polylineProvider = 'here', polylineApiKey = null, driverHomeLocation = null, driverId = null, userName = null }) {
+async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap, deliveryDate, startingStopOrder, completedDeliveries, currentMinutes, source, hereApiKey, polylineProvider = 'here', polylineApiKey = null, mapMatchToHere = false, driverHomeLocation = null, driverId = null, userName = null }) {
   const startOrder = (startingStopOrder != null) ? startingStopOrder : completedDeliveries.length;
   const weekdayCode = getWeekdayCode(deliveryDate);
   const isWeekend = weekdayCode === 'sa' || weekdayCode === 'su';
@@ -1534,7 +1536,7 @@ async function _handleFutureRoute({ optimizableDeliveries, storeMap, patientMap,
       const herePoints = [group.origin, ...group.points.map(p => ({ lat: p.lat, lon: p.lon }))];
       const useGooglePolyF = polylineProvider === 'google' && polylineApiKey;
       const result = useGooglePolyF
-        ? await getMultiStopRouteGoogle(herePoints, group.mode, polylineApiKey, { driverId, userName }).catch(() => ({ sections: [] }))
+        ? await getMultiStopRouteGoogle(herePoints, group.mode, polylineApiKey, { mapMatchToHere, driverId, userName }).catch(() => ({ sections: [] }))
         : await getMultiStopRouteHere(herePoints, group.mode, hereApiKey, { driverId, userName }).catch(() => ({ sections: [] }));
       return { group, sections: result.sections || [] };
     }));

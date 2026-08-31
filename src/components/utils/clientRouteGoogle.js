@@ -50,7 +50,13 @@ function encodeGooglePolyline(points) {
  * @param {string} _googleApiKey UNUSED — the backend resolves the Google key server-side.
  * @param {{driverId?:string, userName?:string}} _opts unused (backend logs usage)
  */
+// Short-lived in-memory cache: raw Google encoded_polyline → HERE-matched section.
+// Avoids re-matching identical legs across frequent re-optimizations within a session.
+const _hereMatchCache = new Map();
+const HERE_MATCH_CACHE_MAX = 200;
+
 export async function getMultiStopRouteGoogle(points, transportMode, _googleApiKey, _opts = {}) {
+  const { mapMatchToHere = false } = _opts || {};
   const validPoints = (points || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
   if (validPoints.length < 2) return { sections: [], usedFallbackPolyline: false };
 
@@ -60,10 +66,52 @@ export async function getMultiStopRouteGoogle(points, transportMode, _googleApiK
       transportMode,
     });
     const data = res?.data || res || {};
-    return {
-      sections: Array.isArray(data.sections) ? data.sections : [],
-      usedFallbackPolyline: !!data.usedFallbackPolyline,
-    };
+    let sections = Array.isArray(data.sections) ? data.sections : [];
+    let usedFallbackPolyline = !!data.usedFallbackPolyline;
+
+    // ── HERE map-matching ──────────────────────────────────────────────────
+    // When map tiles are HERE and polylines are Google, re-snap each Google leg
+    // onto HERE's road network so the drawn line aligns with the HERE tiles.
+    // On any failure or mismatched result, the raw Google polylines are kept.
+    if (mapMatchToHere && sections.length > 0) {
+      try {
+        const allCached = sections.every((s) => s?.encoded_polyline && _hereMatchCache.has(s.encoded_polyline));
+        if (allCached) {
+          sections = sections.map((s) => _hereMatchCache.get(s.encoded_polyline));
+        } else {
+          const matchRes = await base44.functions.invoke('matchPolylineToHere', {
+            legs: sections.map((s) => ({
+              encoded_polyline: s.encoded_polyline,
+              transport_mode: s.transport_mode || transportMode || 'driving',
+            })),
+          });
+          const matchData = matchRes?.data || matchRes || {};
+          const matched = Array.isArray(matchData.sections) ? matchData.sections : [];
+          if (matched.length === sections.length) {
+            sections = sections.map((s, i) => {
+              const m = matched[i];
+              const merged = {
+                encoded_polyline: m.encoded_polyline || s.encoded_polyline,
+                estimated_distance_km: m.estimated_distance_km ?? s.estimated_distance_km ?? null,
+                estimated_duration_minutes: m.estimated_duration_minutes ?? s.estimated_duration_minutes ?? null,
+                transport_mode: m.transport_mode || s.transport_mode || transportMode || 'driving',
+              };
+              if (s.encoded_polyline && _hereMatchCache.size < HERE_MATCH_CACHE_MAX) {
+                _hereMatchCache.set(s.encoded_polyline, merged);
+              }
+              return merged;
+            });
+            usedFallbackPolyline = usedFallbackPolyline || !!matchData.usedFallbackPolyline;
+          } else {
+            console.warn('[clientRouteGoogle] HERE map-match returned mismatched section count, keeping raw Google');
+          }
+        }
+      } catch (err) {
+        console.warn('[clientRouteGoogle] HERE map-match failed, keeping raw Google polylines:', err?.message || err);
+      }
+    }
+
+    return { sections, usedFallbackPolyline };
   } catch (err) {
     console.warn('[clientRouteGoogle] backend Google Directions call failed, using local crow-flies:', err?.message || err);
     // Local crow-flies fallback so routing degrades gracefully if the backend call fails.
