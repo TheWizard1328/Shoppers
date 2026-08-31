@@ -258,7 +258,23 @@ async function flushBuffered(entityName) {
         const existing = local.find((d) => d?.id === item.id);
         return existing?.isNextDelivery === true;
       })();
-      if (_isNowNext && !_wasNext) {
+      // OPTION A: Center on EVERY relevant incoming isNextDelivery=true event, not only
+      // on a detected false→true transition. The transition check (_wasNext) fails in the
+      // same-user two-device case: the receiving device often pulls a fresh server snapshot
+      // (smart refresh / data load) that already reflects the new true flag, so the
+      // transition reads as true→true and the centering event was never dispatched — the
+      // data updated fine but the card never scrolled. A 30s same-card dedupe prevents
+      // re-centering the already-centered card on every subsequent WS echo for that stop.
+      if (_isNowNext) {
+        const _isTransition = !_wasNext;
+        const _alreadyCenteredRecently =
+          _lastAutoCenteredDeliveryId === item.id &&
+          (Date.now() - _lastAutoCenteredAt) < 30000;
+        if (_alreadyCenteredRecently) return; // skip this item in the forEach
+
+        _lastAutoCenteredDeliveryId = item.id;
+        _lastAutoCenteredAt = Date.now();
+
         scheduleAfterUISettled(() => {
           triggerCenterNextDeliveryCard({
             source: 'realtimeSyncIsNextDelivery',
@@ -266,24 +282,24 @@ async function flushBuffered(entityName) {
             driverId: item.data?.driver_id,
             deliveryDate: item.data?.delivery_date
           });
-          // CRITICAL: Re-engage FAB lock in phases 2/3 when the next stop flag is set.
-          // This handles the case where handleStartDelivery or optimizeRemainingStops
-          // updates isNextDelivery on the backend and it arrives via WebSocket.
-          // Resolve next stop location — include cycling marker coords if applicable
-          const _nextStopData = item.data;
-          let _nextStopLocation = null;
-          if (_nextStopData?.is_cycling_start_marker && _nextStopData?.cycling_start_latitude && _nextStopData?.cycling_start_longitude) {
-            _nextStopLocation = { latitude: _nextStopData.cycling_start_latitude, longitude: _nextStopData.cycling_start_longitude };
-          }
-          window.dispatchEvent(new CustomEvent('isNextDeliveryFlagUpdated', {
-            detail: {
-              deliveryId: item.id,
-              driverId: item.data?.driver_id,
-              deliveryDate: item.data?.delivery_date,
-              nextStopId: item.id,
-              nextStopLocation: _nextStopLocation,
+          // Re-engage FAB lock in phases 2/3 ONLY on a genuine false→true transition.
+          // Re-locking on every echo would fight the user's manual map control.
+          if (_isTransition) {
+            const _nextStopData = item.data;
+            let _nextStopLocation = null;
+            if (_nextStopData?.is_cycling_start_marker && _nextStopData?.cycling_start_latitude && _nextStopData?.cycling_start_longitude) {
+              _nextStopLocation = { latitude: _nextStopData.cycling_start_latitude, longitude: _nextStopData.cycling_start_longitude };
             }
-          }));
+            window.dispatchEvent(new CustomEvent('isNextDeliveryFlagUpdated', {
+              detail: {
+                deliveryId: item.id,
+                driverId: item.data?.driver_id,
+                deliveryDate: item.data?.delivery_date,
+                nextStopId: item.id,
+                nextStopLocation: _nextStopLocation,
+              }
+            }));
+          }
         });
       }
     });
@@ -502,6 +518,10 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 
 // Helpers for auto-centering the "next delivery" card after UI settles
 let centerEventTimer = null;
+// OPTION A: Track the last delivery we auto-centered + when, so repeated WS echoes
+// for the same already-centered card don't re-scroll the rail every time.
+let _lastAutoCenteredDeliveryId = null;
+let _lastAutoCenteredAt = 0;
 const scheduleAfterUISettled = (fn) => {
   if (typeof window === 'undefined') return;
   const raf = window.requestAnimationFrame || ((cb) => setTimeout(cb, 16));
