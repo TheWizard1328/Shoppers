@@ -612,12 +612,17 @@ const triggerCenterNextDeliveryCard = (payload) => {
     clearTimeout(centerEventTimer);
     centerEventTimer = null;
   }
-  // Debounce slightly to coalesce bursts of updates
+  // Debounce slightly to coalesce bursts of updates.
+  // NOTE: We intentionally do NOT gate this on window._userMapControlUntil here.
+  // That flag is set whenever the user pans/zooms the MAP (MapController), and GPS-
+  // driven refits are frequently misclassified as user gestures — keeping the flag
+  // active and silently swallowing the centerNextDeliveryCard event so the next-
+  // delivery card never auto-scrolled on WebSocket receipt. The card-swipe guard
+  // (window.__suppressCardAutoCenterUntil) is checked in the HorizontalStopCards
+  // handler, which is the correct place to suppress centering only when the user
+  // is actively scrolling the card rail itself.
   centerEventTimer = setTimeout(() => {
     if (typeof window !== 'undefined') {
-      if ((window._userMapControlUntil || 0) > Date.now()) {
-        return;
-      }
       window.dispatchEvent(new CustomEvent('centerNextDeliveryCard', { detail: payload }));
     }
   }, 50);
