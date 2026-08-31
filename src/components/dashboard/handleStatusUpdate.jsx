@@ -289,12 +289,21 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       ? deliveryId
       : (siblingUpdates.find((s) => s.record.isNextDelivery === true)?.id || null);
 
-    const writeStatusExcludingFlag = (rec) => {
-      const { isNextDelivery: _drop, ...statusPayload } = buildStatusUpdatePayload(rec);
-      return statusPayload;
+    // Phase 1: write status fields + every DEMOTION (isNextDelivery=false). Promotions
+    // (isNextDelivery=true) are deferred to Phase 3 so the single true is broadcast LAST.
+    // Writing the completed/cancelled/failed stop's isNextDelivery=false HERE (with its
+    // status) means its WS event carries false — receivers never briefly see a finished
+    // stop as the active next and center on it before the real promote arrives.
+    const writeStatusDemotingFlag = (rec) => {
+      const full = buildStatusUpdatePayload(rec);
+      if (full.isNextDelivery === true) {
+        const { isNextDelivery: _drop, ...rest } = full;
+        return rest;
+      }
+      return full;
     };
     await Promise.all(allAffectedRecords.map((rec) => {
-      const payload = writeStatusExcludingFlag(rec);
+      const payload = writeStatusDemotingFlag(rec);
       if (Object.keys(payload).length === 0) return Promise.resolve(null);
       return base44.entities.Delivery.update(rec.id, payload).catch(() => null);
     }));
