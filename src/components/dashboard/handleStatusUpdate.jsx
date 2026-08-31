@@ -17,7 +17,6 @@ import { roundCompletionTime } from '@/components/dashboard/DashboardHelpers';
 import { lockDeliveryFields } from '@/components/utils/completionLockout';
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { buildHistoryEntry, appendToHistory } from '@/components/utils/patientHistoryUtils';
-import { clearAllNextDeliveryFlags } from '@/components/dashboard/clearAllNextDeliveryFlags';
 
 const getEdmDate = () => {
   const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -308,10 +307,14 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       return base44.entities.Delivery.update(rec.id, payload).catch(() => null);
     }));
 
-    await clearAllNextDeliveryFlags(driverId, deliveryDate, promotedId);
-
-    if (promotedId) {
-      await base44.entities.Delivery.update(promotedId, { isNextDelivery: true }).catch(() => null);
+    // Authoritative server-side clear-all-then-promote (asServiceRole, primary read):
+    // clears every stale isNextDelivery=true on this driver+date route EXCEPT the
+    // promoted stop, awaits all false broadcasts, then promotes LAST so the single
+    // true arrives after every false on every receiving device.
+    try {
+      await base44.functions.invoke('clearAndSetNextDelivery', { driverId, deliveryDate, promoteId: promotedId });
+    } catch (err) {
+      console.warn(`⚠️ [handleStatusUpdate] clearAndSetNextDelivery failed:`, err?.message);
     }
     window.dispatchEvent(new CustomEvent('deliveryUpdated', { detail: { deliveryId, affectedIds: allAffectedRecords.map((r) => r.id), updates: updateData, driverId, deliveryDate, source: 'statusUpdate' } }));
     if (pendingBreadcrumbDriverAppUserId) {

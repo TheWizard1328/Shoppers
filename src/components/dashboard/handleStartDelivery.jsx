@@ -22,7 +22,6 @@ import { backgroundSyncManager } from '@/components/utils/backgroundSyncManager'
 import { notifyDriverStarted } from '@/components/utils/deliveryMessaging';
 import { determinePolylineSegment, fetchPolylineForSegment } from '@/components/utils/dynamicPolylineManager';
 import { performRouteOptimization } from '@/components/utils/routeOptimizationCoordinator';
-import { clearAllNextDeliveryFlags } from '@/components/dashboard/clearAllNextDeliveryFlags';
 
 export async function handleStartDelivery({
   deliveryId,
@@ -152,13 +151,17 @@ export async function handleStartDelivery({
     });
     console.log(`✅ [handleStartDelivery] Step 4a complete — target status/stop_order/ETA synced`);
 
-    const clearedIds = await clearAllNextDeliveryFlags(driverId, deliveryDate, deliveryId);
-    console.log(`✅ [handleStartDelivery] Step 4b complete — cleared ${clearedIds.length} stale isNextDelivery=true flag(s) before promotion`);
-
-    await base44.entities.Delivery.update(deliveryId, { isNextDelivery: true }).catch((err) => {
-      console.warn(`⚠️ [handleStartDelivery] Promote sync failed for ${deliveryId}:`, err?.message);
-    });
-    console.log(`✅ [handleStartDelivery] Step 4c complete — promotion synced (isNextDelivery=true broadcast last)`);
+    // Authoritative server-side clear-all-then-promote (asServiceRole, primary read):
+    // clears every stale isNextDelivery=true on this driver+date route EXCEPT the
+    // target, awaits all false broadcasts, then promotes the target LAST so the single
+    // true arrives after every false on every receiving device.
+    try {
+      const res = await base44.functions.invoke('clearAndSetNextDelivery', { driverId, deliveryDate, promoteId: deliveryId });
+      const clearedCount = (res?.data?.clearedIds || res?.clearedIds || []).length;
+      console.log(`✅ [handleStartDelivery] Step 4b complete — cleared ${clearedCount} stale isNextDelivery=true flag(s), promoted ${deliveryId} (broadcast last)`);
+    } catch (err) {
+      console.warn(`⚠️ [handleStartDelivery] clearAndSetNextDelivery failed:`, err?.message);
+    }
 
     // Brief pause to let DB writes propagate before the optimizer reads the delivery list.
     // Without this the optimizer may race the status writes and see the pickup as still 'pending'.
