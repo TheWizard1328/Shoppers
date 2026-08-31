@@ -1498,7 +1498,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     if (entity === 'Delivery') {
       // For create/update: dispatch deliveriesUpdated immediately so the local device
       // doesn't wait for the WebSocket echo to see its own changes reflected in the UI.
-      if ((action === 'create' || action === 'update') && data) {
+      if ((action === 'create' || action === 'update') && broadcastData) {
         const localDeliveries = window.__appDeliveries;
         const base = Array.isArray(localDeliveries) ? localDeliveries : [];
         const snapshotMap = new Map(base.map(d => [d.id, d]));
@@ -1596,9 +1596,9 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     if (entity === 'AppUser') {
       window.dispatchEvent(new CustomEvent('appUsersUpdated', {
         detail: {
-          appUsers: data ? [data] : undefined,
+          appUsers: broadcastData ? [broadcastData] : undefined,
           deletedId: action === 'delete' ? id : undefined,
-          singleUpdate: data,
+          singleUpdate: broadcastData,
           fromRealtime: true
         }
       }));
@@ -1615,7 +1615,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     if (entity === 'Patient') {
       window.dispatchEvent(new CustomEvent('patientsUpdated', {
         detail: {
-          patients: data ? [data] : undefined,
+          patients: broadcastData ? [broadcastData] : undefined,
           deletedId: action === 'delete' ? id : undefined,
           deletedIds: action === 'delete' ? [id] : [],
           fromRealtime: true
@@ -1623,17 +1623,17 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
       }));
     }
 
-    if (entity === 'Store' && data) {
+    if (entity === 'Store' && broadcastData) {
       window.dispatchEvent(new CustomEvent('storeUpdated', {
-        detail: { storeId: id, updatedStore: data, fromRealtime: true }
+        detail: { storeId: id, updatedStore: broadcastData, fromRealtime: true }
       }));
     }
 
     if (entity === 'Payroll') {
       window.dispatchEvent(new CustomEvent('payrollUpdated', {
         detail: {
-          payrollRecord: data,
-          payrollRecords: data ? [data] : undefined,
+          payrollRecord: broadcastData,
+          payrollRecords: broadcastData ? [broadcastData] : undefined,
           deletedId: action === 'delete' ? id : undefined,
           fromRealtime: true
         }
