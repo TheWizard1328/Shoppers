@@ -345,6 +345,13 @@ async function flushBuffered(entityName) {
       // CRITICAL: Skip any delivery that has an active completion lockout — the lockout means
       // an in-flight complete action has already set isNextDelivery=false on that stop, and
       // the localDeliveries loop must not re-apply the stale pre-optimistic true value.
+      // ALSO skip any delivery whose isNextDelivery was EXPLICITLY changed in this flush —
+      // a remote clear (isNextDelivery=false) is authoritative and must NOT be re-applied as
+      // true from this device's stale local state. Without this, receiving devices kept the
+      // old next stop flagged true (overwriting the incoming false) until a manual refresh.
+      const isNextExplicitlyChangedIds = new Set(
+        items.filter(it => Array.isArray(it.changedFields) && it.changedFields.includes('isNextDelivery')).map(it => it.id)
+      );
       const localDeliveries = window.__appDeliveries;
       if (Array.isArray(localDeliveries)) {
         const { isFieldLocked } = await import('./completionLockout');
@@ -352,6 +359,8 @@ async function flushBuffered(entityName) {
           if (!local?.id || !local.isNextDelivery) return;
           // Don't override if this delivery's isNextDelivery is actively locked
           if (isFieldLocked(local.id, 'isNextDelivery')) return;
+          // Don't override if the incoming flush explicitly set isNextDelivery on this delivery
+          if (isNextExplicitlyChangedIds.has(local.id)) return;
           const snap = snapshotMap.get(local.id);
           if (snap && !snap.isNextDelivery) {
             snapshotMap.set(local.id, { ...snap, isNextDelivery: true });
