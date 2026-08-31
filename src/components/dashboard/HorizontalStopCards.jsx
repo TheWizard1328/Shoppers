@@ -173,8 +173,19 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       }
     };
 
-    const handleCenterNextDeliveryCard = () => {
+    const handleCenterNextDeliveryCard = (event) => {
       if (typeof window !== 'undefined' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
+      // Prefer the explicit deliveryId from the event (realtimeSync sends the specific
+      // promoted stop). Re-deriving from validCards races the React state update — on
+      // receiving devices validCards can still hold the OLD next as true when this
+      // handler fires, so centering on validCards.find(isNextDelivery) lands on the
+      // stale card. Centering by the explicit id works as soon as the card is rendered,
+      // independent of whether the isNextDelivery flag has re-rendered yet.
+      const explicitId = event?.detail?.deliveryId;
+      if (explicitId) {
+        centerCardById(explicitId);
+        return;
+      }
       const nextCard = validCards.find((card) => card?.isNextDelivery === true);
       centerCardById(nextCard?.id);
       // CRITICAL: Do NOT call onCenteredCardChange for programmatic FAB-initiated scrolls.

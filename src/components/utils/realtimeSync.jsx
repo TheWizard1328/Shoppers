@@ -508,11 +508,23 @@ async function flushBuffered(entityName) {
   }
 
 
-  // Center next delivery card when the next-stop flag becomes active on any relevant device
-  if (entityName === 'Delivery' && items.some(it => shouldCenterForDeliveryUpdate(it.data, it.changedFields))) {
-    scheduleAfterUISettled(() => {
-      triggerCenterNextDeliveryCard({ source: 'realtimeSyncBuffered' });
-    });
+  // Center next delivery card when the next-stop flag becomes active on any relevant device.
+  // CRITICAL: Pass the specific promoted deliveryId. triggerCenterNextDeliveryCard debounces
+  // (last-write-wins), so a payload WITHOUT deliveryId would overwrite the per-item dispatch
+  // above (which carries the id) and force the handler to re-derive from possibly-stale
+  // validCards — landing on the old next card on receiving devices.
+  if (entityName === 'Delivery') {
+    const centerItem = items.find((it) => shouldCenterForDeliveryUpdate(it.data, it.changedFields));
+    if (centerItem) {
+      scheduleAfterUISettled(() => {
+        triggerCenterNextDeliveryCard({
+          source: 'realtimeSyncBuffered',
+          deliveryId: centerItem.id,
+          driverId: centerItem.data?.driver_id,
+          deliveryDate: centerItem.data?.delivery_date
+        });
+      });
+    }
   }
 }
 
