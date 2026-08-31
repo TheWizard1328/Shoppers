@@ -255,8 +255,7 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     // CRITICAL: Only write changed fields to server — NOT full records.
     // Writing full in-memory records can null out server-side encoded_polyline
     // and other large fields that may be absent from the in-memory representation.
-    await Promise.all(allAffectedRecords.map((rec) => {
-      if (!rec?.id) return Promise.resolve(null);
+    const buildStatusUpdatePayload = (rec) => {
       const update = {};
       if (typeof rec.status === 'string') update.status = rec.status;
       if (rec.actual_delivery_time !== undefined) update.actual_delivery_time = rec.actual_delivery_time;
@@ -273,6 +272,25 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       if (rec.delivery_time_start != null) update.delivery_time_start = rec.delivery_time_start;
       if (rec.delivery_time_eta != null) update.delivery_time_eta = rec.delivery_time_eta;
       if (rec.delivery_time_end != null) update.delivery_time_end = rec.delivery_time_end;
+      return update;
+    };
+
+    // ── Ordered broadcast: demote (isNextDelivery=false + the completed stop's
+    // full status payload) FIRST, promote (isNextDelivery=true) LAST ──
+    // Receiving devices must see the false event before the true event so the
+    // next-stop handoff centers cleanly on the newly-promoted card. The demote
+    // set carries the completed stop's status/stop_order/payload; the promote
+    // set carries the promoted next stop's isNextDelivery=true.
+    const demoteRecords = allAffectedRecords.filter((rec) => rec?.isNextDelivery !== true);
+    const promoteRecords = allAffectedRecords.filter((rec) => rec?.isNextDelivery === true);
+
+    await Promise.all(demoteRecords.map((rec) => {
+      const update = buildStatusUpdatePayload(rec);
+      if (Object.keys(update).length === 0) return Promise.resolve(null);
+      return base44.entities.Delivery.update(rec.id, update).catch(() => null);
+    }));
+    await Promise.all(promoteRecords.map((rec) => {
+      const update = buildStatusUpdatePayload(rec);
       if (Object.keys(update).length === 0) return Promise.resolve(null);
       return base44.entities.Delivery.update(rec.id, update).catch(() => null);
     }));
