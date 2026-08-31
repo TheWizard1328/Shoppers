@@ -1109,6 +1109,19 @@ const subscribeToEntity = (entityName) => {
                   window.__appPatients.push(finalDataToSave);
                 }
               }
+              // AppUser cache invalidation — same pattern as Deliveries/Patients.
+              // Without this, AppDataContext.flushRealtimeBatch (120ms after the WS event)
+              // reads from appUsersRef.current which is updated by useEffect AFTER paint,
+              // so it can build nextAppUsers from stale state and call setAppUsers with a
+              // full replacement that reverts location/status changes from the previous event.
+              if (entityName === 'AppUser' && Array.isArray(window.__appUsers)) {
+                const idx = window.__appUsers.findIndex(u => u?.id === finalDataToSave.id);
+                if (idx !== -1) {
+                  window.__appUsers[idx] = finalDataToSave;
+                } else {
+                  window.__appUsers.push(finalDataToSave);
+                }
+              }
             }
           }
 

@@ -216,10 +216,15 @@ export const AppDataProvider = ({ children, value }) => {
         // slingshot bounce: the driver's marker snaps to an old location then snaps back
         // when the WS path fires with the real fresh coords a few ms later.
         //
-        // Use the same in-memory merge strategy that deliveries already use: merge
-        // appUserUpserts (the fresh WS data) directly into appUsersRef.current.
-        // The IDB write above ensures persistence; we do not need to re-read it here.
-        const currentAppUsers = appUsersRef.current || [];
+        // CRITICAL: Read from window.__appUsers (synchronously updated by updateAppUsersLocally
+        // and the WS receive path in realtimeSync.jsx) rather than appUsersRef.current
+        // (which is updated by useEffect AFTER paint and can be stale).
+        // Same fix pattern as window.__appDeliveries / window.__appPatients.
+        // Without this, flushRealtimeBatch builds nextAppUsers from stale state and the
+        // full-replacement setAppUsers call reverts location/status from prior WS events.
+        const currentAppUsers = (typeof window !== 'undefined' && Array.isArray(window.__appUsers) && window.__appUsers.length > 0)
+          ? window.__appUsers
+          : appUsersRef.current || [];
         const deleteSet = new Set(appUserDeletes);
         const ts = (item) => {
           const v = item?.last_seen_at || item?.location_updated_at || item?.updated_date || item?.created_date;
@@ -264,31 +269,36 @@ export const AppDataProvider = ({ children, value }) => {
       nextDeliveries = Array.from(byId.values());
     }
 
-    if (appUsersChanged && !nextAppUsers.length && appUsersRef.current?.length) {
-      const ts = (item) => {
-        const value = item?.last_seen_at || item?.location_updated_at || item?.updated_date || item?.created_date;
-        return value ? new Date(value).getTime() : 0;
-      };
+    if (appUsersChanged && !nextAppUsers.length) {
+      const _fallbackAppUsers = (typeof window !== 'undefined' && Array.isArray(window.__appUsers) && window.__appUsers.length > 0)
+        ? window.__appUsers
+        : (appUsersRef.current || []);
+      if (_fallbackAppUsers.length > 0) {
+        const ts = (item) => {
+          const value = item?.last_seen_at || item?.location_updated_at || item?.updated_date || item?.created_date;
+          return value ? new Date(value).getTime() : 0;
+        };
 
-      const byId = new Map(
-        appUsersRef.current
-          .filter((item) => item?.id && !appUserDeletes.includes(item.id))
-          .map((item) => [item.id, item])
-      );
-
-      appUserUpserts.forEach((item) => {
-        if (!item?.id) return;
-        const current = byId.get(item.id);
-        const coordsChanged = !!current && (
-          Number(current?.current_latitude) !== Number(item?.current_latitude) ||
-          Number(current?.current_longitude) !== Number(item?.current_longitude)
+        const byId = new Map(
+          _fallbackAppUsers
+            .filter((item) => item?.id && !appUserDeletes.includes(item.id))
+            .map((item) => [item.id, item])
         );
-        if (!current || coordsChanged || ts(item) >= ts(current)) {
-          byId.set(item.id, item);
-        }
-      });
 
-      nextAppUsers = Array.from(byId.values());
+        appUserUpserts.forEach((item) => {
+          if (!item?.id) return;
+          const current = byId.get(item.id);
+          const coordsChanged = !!current && (
+            Number(current?.current_latitude) !== Number(item?.current_latitude) ||
+            Number(current?.current_longitude) !== Number(item?.current_longitude)
+          );
+          if (!current || coordsChanged || ts(item) >= ts(current)) {
+            byId.set(item.id, item);
+          }
+        });
+
+        nextAppUsers = Array.from(byId.values());
+      }
     }
 
     if (patientsChanged && !nextPatients.length && patientsRef.current?.length) {

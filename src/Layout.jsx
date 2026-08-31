@@ -504,16 +504,26 @@ export default function Layout({ children, currentPageName }) {
   // Granular AppUser update function for immediate UI synchronization
   const updateAppUsersLocally = useCallback((newAppUsers, isFullReplacement = false) => {
     if (isFullReplacement) {
-      setAppUsers((prev) => newAppUsers?.filter(Boolean).length || !prev.length ? [...newAppUsers.filter(Boolean)] : prev);
+      setAppUsers((prev) => {
+        const next = newAppUsers?.filter(Boolean).length || !prev.length ? [...newAppUsers.filter(Boolean)] : prev;
+        // Sync window.__appUsers SYNCHRONOUSLY so flushRealtimeBatch sees latest
+        // state immediately — before the useEffect in AppDataContext fires after paint.
+        if (typeof window !== 'undefined') window.__appUsers = next;
+        return next;
+      });
     } else {
       setAppUsers((prevAppUsers) => {
         const updatesMap = new Map(newAppUsers.map((u) => [u.id, u]));
-        return prevAppUsers.map((appUser) => {
+        const next = prevAppUsers.map((appUser) => {
           if (!appUser) return appUser;
           const update = updatesMap.get(appUser.id);
           if (update) return { ...appUser, ...update };
           return appUser;
         });
+        // Sync window.__appUsers SYNCHRONOUSLY so flushRealtimeBatch sees latest
+        // state immediately — before the useEffect in AppDataContext fires after paint.
+        if (typeof window !== 'undefined') window.__appUsers = next;
+        return next;
       });
     }
   }, []);

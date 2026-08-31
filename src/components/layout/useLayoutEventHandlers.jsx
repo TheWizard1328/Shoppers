@@ -119,7 +119,7 @@ export function useLayoutEventHandlers({
           setCities((prev) => prev.filter((c) => c?.id !== mutation.id));
         } else if (mutation.entity === 'AppUser') {
           await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, mutation.id).catch(() => {});
-          setAppUsers((prev) => prev.filter((a) => a?.id !== mutation.id));
+          setAppUsers((prev) => { const _next = prev.filter((a) => a?.id !== mutation.id); if (typeof window !== 'undefined') window.__appUsers = _next; return _next; });
           setUsers((prev) => prev.filter((u) => u?.id !== mutation.id));
         }
         return;
@@ -163,7 +163,9 @@ export function useLayoutEventHandlers({
         } else if (mutation.entity === 'AppUser') {
           setAppUsers((prev) => {
             const exists = prev.some((a) => a?.id === mutation.id);
-            return exists ? prev : [...prev, mutation.data];
+            const _next = exists ? prev : [...prev, mutation.data];
+            if (typeof window !== 'undefined') window.__appUsers = _next;
+            return _next;
           });
 
           // Dispatch with appUsers array so DriverLocationMarkers can merge it properly.
@@ -191,7 +193,7 @@ export function useLayoutEventHandlers({
         } else if (mutation.entity === 'City') {
           setCities((prev) => prev.map((c) => c?.id === mutation.id ? { ...c, ...mutation.data } : c));
         } else if (mutation.entity === 'AppUser') {
-          setAppUsers((prev) => prev.map((a) => a?.id === mutation.id ? { ...a, ...mutation.data } : a));
+          setAppUsers((prev) => { const _next = prev.map((a) => a?.id === mutation.id ? { ...a, ...mutation.data } : a); if (typeof window !== 'undefined') window.__appUsers = _next; return _next; });
 
           // Dispatch with appUsers array so DriverLocationMarkers can merge it properly.
           // Never use appUsers:null + singleUpdate — DriverLocationMarkers bails on null appUsers.
@@ -285,7 +287,9 @@ export function useLayoutEventHandlers({
             map.set(updated.id, { ...existing, ...updated });
           }
         });
-        return Array.from(map.values());
+        const _next = Array.from(map.values());
+        if (typeof window !== 'undefined') window.__appUsers = _next;
+        return _next;
       });
 
       // Update merged users with new roles for navigation
@@ -511,7 +515,11 @@ export function useLayoutEventHandlers({
         } else {
           m.set(appUser.id, appUser);
         }
-        return Array.from(m.values());
+        const next = Array.from(m.values());
+        // Sync window.__appUsers SYNCHRONOUSLY so flushRealtimeBatch sees latest
+        // state immediately — before the useEffect in AppDataContext fires after paint.
+        if (typeof window !== 'undefined') window.__appUsers = next;
+        return next;
       });
     };
     window.addEventListener('appUserUpdated', handleAppUserUpdated);
@@ -549,7 +557,7 @@ export function useLayoutEventHandlers({
         });
       }
       if (freshAppUsers && freshAppUsers.length > 0) {
-        setAppUsers((prev) => {const m = new Map(prev.map((u) => [u.id, u]));freshAppUsers.forEach((u) => {if (u?.id) m.set(u.id, u);});return Array.from(m.values());});
+        setAppUsers((prev) => {const m = new Map(prev.map((u) => [u.id, u]));freshAppUsers.forEach((u) => {if (u?.id) m.set(u.id, u);});const _next = Array.from(m.values());if (typeof window !== 'undefined') window.__appUsers = _next;return _next;});
       }
     };
     window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
@@ -700,7 +708,9 @@ export function useLayoutEventHandlers({
           setAppUsers((prev) => {
             const m = new Map((prev || []).map((u) => [u.id, u]));
             (locationUpdates.appUsers || []).forEach((u) => { if (u?.id) m.set(u.id, u); });
-            return Array.from(m.values());
+            const _next = Array.from(m.values());
+            if (typeof window !== 'undefined') window.__appUsers = _next;
+            return _next;
           });
         }
 

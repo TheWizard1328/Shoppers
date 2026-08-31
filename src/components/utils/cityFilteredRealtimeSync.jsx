@@ -322,10 +322,32 @@ class CityFilteredRealtimeSync {
       // Process the event
       try {
         if (event.type === 'create' || event.type === 'update') {
-          // Save to offline DB
-          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [event.data]);
+          // Merge with existing IDB record to avoid wiping fields absent from a partial WS payload
+          // (same pattern as realtimeSync.jsx AppUser merge).
+          let appUserToSave = event.data;
+          if (event.data?.id) {
+            try {
+              const existing = await offlineDB.getById(offlineDB.STORES.APP_USERS, event.data.id);
+              if (existing) appUserToSave = { ...existing, ...event.data };
+            } catch (_) { /* non-critical */ }
+          }
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [appUserToSave]);
           console.log(`✅ [Realtime AppUser] Saved ${event.data.user_name} to offline DB - coords: ${coords}`);
-          
+
+          // ── CACHE INVALIDATION: Update window.__appUsers in-place ──
+          // Same pattern as window.__appDeliveries for Delivery events.
+          // Without this, AppDataContext.flushRealtimeBatch (120ms later) reads from
+          // appUsersRef.current (stale, updated by useEffect after paint) and can
+          // revert location/status changes from prior WS events.
+          if (typeof window !== 'undefined' && Array.isArray(window.__appUsers) && appUserToSave?.id) {
+            const idx = window.__appUsers.findIndex(u => u?.id === appUserToSave.id);
+            if (idx !== -1) {
+              window.__appUsers[idx] = appUserToSave;
+            } else {
+              window.__appUsers.push(appUserToSave);
+            }
+          }
+
           // CRITICAL: Broadcast location update directly to Dashboard - ALWAYS broadcast, not just when tracking
           console.log(`📢 [Realtime AppUser] LOCATION BROADCAST - ${event.data.user_name} at ${coords} (${event.data.location_updated_at})`);
           
