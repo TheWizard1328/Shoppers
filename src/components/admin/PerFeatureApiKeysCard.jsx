@@ -5,32 +5,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MapPinned, KeyRound } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { realtimeSync } from '../utils/realtimeSync';
+import { classifyKeyProvider, keySupportsFeature, PROVIDER_LABEL } from '@/components/utils/apiKeyProviders';
 
 // Feature slot definitions — order here is the order shown in the card.
-// `defaultKey` is used during migration from the legacy single selected_api_key
-// (HERE features inherit the legacy key when it is a HERE key; Google-default
-// features fall back to GOOGLE_MAPS_API_KEY).
+// `providers` lists which providers the feature's implementation actually supports;
+// the dropdown only offers keys whose classified provider is in this list.
+// `defaultKey` is used during migration from the legacy single selected_api_key.
 const FEATURE_SLOTS = [
-  { key: 'route_optimization', label: 'Route optimization', provider: 'here' },
-  { key: 'polylines', label: 'Polylines', provider: 'here' },
-  { key: 'map_tiles', label: 'Map tiles', provider: 'here' },
-  { key: 'address_lookup', label: 'Address lookup', provider: 'google' },
-  { key: 'places_autocomplete', label: 'Places autocomplete', provider: 'google' },
-  { key: 'place_details', label: 'Place Details', provider: 'google' },
-  { key: 'eta_distance', label: 'ETA / distance', provider: 'google' },
+  { key: 'route_optimization', label: 'Route optimization', providers: ['here'], defaultKey: 'HERE_API_KEY' },
+  { key: 'polylines', label: 'Polylines', providers: ['here', 'google'], defaultKey: 'HERE_API_KEY' },
+  { key: 'map_tiles', label: 'Map tiles', providers: ['here'], defaultKey: 'HERE_API_KEY' },
+  { key: 'address_lookup', label: 'Address lookup', providers: ['here', 'google'], defaultKey: 'GOOGLE_MAPS_API_KEY' },
+  { key: 'places_autocomplete', label: 'Places autocomplete', providers: ['google'], defaultKey: 'GOOGLE_MAPS_API_KEY' },
+  { key: 'place_details', label: 'Place Details', providers: ['google'], defaultKey: 'GOOGLE_MAPS_API_KEY' },
+  { key: 'eta_distance', label: 'ETA / distance', providers: ['here', 'google'], defaultKey: 'GOOGLE_MAPS_API_KEY' },
 ];
-
-const DEFAULT_KEY_BY_PROVIDER = { here: 'HERE_API_KEY', google: 'GOOGLE_MAPS_API_KEY' };
 
 function migratePerFeatureKeys(raw) {
   const map = (raw && typeof raw === 'object') ? raw : {};
-  const legacyKey = map.__legacy || null; // placeholder, unused
   // Detect a previously-saved per_feature_api_keys map
   const existing = map.per_feature_api_keys;
   if (existing && typeof existing === 'object') {
     const result = {};
     for (const slot of FEATURE_SLOTS) {
-      result[slot.key] = existing[slot.key] || DEFAULT_KEY_BY_PROVIDER[slot.provider];
+      const saved = existing[slot.key];
+      // Keep the saved key if it still supports this slot; otherwise fall back to the default.
+      result[slot.key] = saved && keySupportsFeature(saved, slot.key) ? saved : slot.defaultKey;
     }
     return result;
   }
@@ -39,10 +39,10 @@ function migratePerFeatureKeys(raw) {
   const isHereLegacy = legacySelected && legacySelected !== 'GOOGLE_MAPS_API_KEY';
   const result = {};
   for (const slot of FEATURE_SLOTS) {
-    if (slot.provider === 'here' && isHereLegacy && legacySelected) {
+    if (slot.providers.includes('here') && isHereLegacy && legacySelected && keySupportsFeature(legacySelected, slot.key)) {
       result[slot.key] = legacySelected;
     } else {
-      result[slot.key] = DEFAULT_KEY_BY_PROVIDER[slot.provider];
+      result[slot.key] = slot.defaultKey;
     }
   }
   return result;
@@ -50,7 +50,7 @@ function migratePerFeatureKeys(raw) {
 
 export default function PerFeatureApiKeysCard({ availableApiKeys }) {
   const [perFeatureKeys, setPerFeatureKeys] = useState(() =>
-    Object.fromEntries(FEATURE_SLOTS.map((s) => [s.key, DEFAULT_KEY_BY_PROVIDER[s.provider]])),
+    Object.fromEntries(FEATURE_SLOTS.map((s) => [s.key, s.defaultKey])),
   );
   const [savedPerFeatureKeys, setSavedPerFeatureKeys] = useState(null);
   const [savingFeature, setSavingFeature] = useState(null);
@@ -168,7 +168,7 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
           API Provider Keys
         </CardTitle>
         <CardDescription style={{ color: '#a89b8f' }}>
-          Choose which API key each map feature uses. Distribute quota across HERE and Google keys per feature.
+          Choose which API key each map feature uses. Each dropdown only lists keys whose provider that feature supports.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -177,9 +177,16 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
             <div className="text-sm py-2" style={{ color: '#a89b8f' }}>Loading…</div>
           ) : (
             FEATURE_SLOTS.map((slot) => {
-              const value = perFeatureKeys[slot.key] || DEFAULT_KEY_BY_PROVIDER[slot.provider];
+              const value = perFeatureKeys[slot.key] || slot.defaultKey;
               const isSaving = savingFeature === slot.key;
               const isSaved = savedFeature === slot.key;
+              // Only offer keys whose provider this feature's implementation supports.
+              const allowedKeys = (availableApiKeys || []).filter((k) => keySupportsFeature(k, slot.key));
+              // If the currently-saved key is outside this slot's supported providers
+              // (e.g. a legacy migration left a Google key on a HERE-only slot), surface it
+              // as a disabled item with a hint rather than hiding it.
+              const valueProviderOk = keySupportsFeature(value, slot.key);
+              const showUnsupportedCurrent = !valueProviderOk && value && !allowedKeys.includes(value);
               return (
                 <div
                   key={slot.key}
@@ -200,7 +207,7 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
                     onValueChange={(key) => handleFeatureChange(slot.key, key)}
                   >
                     <SelectTrigger
-                      className="w-[200px] h-9 border-[#3a2e24] focus:border-amber-500"
+                      className="w-[220px] h-9 border-[#3a2e24] focus:border-amber-500"
                       style={{ backgroundColor: '#241c17', color: '#ffffff' }}
                     >
                       <SelectValue placeholder="Select key" />
@@ -209,13 +216,30 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
                       className="border-[#3a2e24]"
                       style={{ backgroundColor: '#241c17', color: '#ffffff' }}
                     >
-                      {availableApiKeys.map((apiKey) => (
+                      {showUnsupportedCurrent && (
+                        <SelectItem
+                          key={`__unsupported_${value}`}
+                          value={value}
+                          disabled
+                          className="opacity-50 data-[highlighted]:bg-transparent"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="text-amber-600/80">[{PROVIDER_LABEL[classifyKeyProvider(value)] || '?'}]</span>
+                            <span>{value}</span>
+                            <span className="text-xs italic" style={{ color: '#a89b8f' }}>— switch provider</span>
+                          </span>
+                        </SelectItem>
+                      )}
+                      {allowedKeys.map((apiKey) => (
                         <SelectItem
                           key={apiKey}
                           value={apiKey}
                           className="focus:bg-amber-500/20 focus:text-white data-[highlighted]:bg-amber-500/20 data-[highlighted]:text-white"
                         >
-                          {apiKey}
+                          <span className="flex items-center gap-2">
+                            <span className="text-amber-500/90">[{PROVIDER_LABEL[classifyKeyProvider(apiKey)] || '?'}]</span>
+                            <span>{apiKey}</span>
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -230,7 +254,7 @@ export default function PerFeatureApiKeysCard({ availableApiKeys }) {
           >
             <KeyRound className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
             <span>
-              Each feature can use any saved key. HERE keys power routing, polylines and map tiles (plus HERE geocoding when chosen); the Google key powers address lookup, Places and distance (plus Google routing when chosen). Changes take effect within ~5 minutes as backend caches refresh.
+              HERE keys power routing, polylines and map tiles (plus HERE geocoding/distance when chosen); the Google key powers address lookup, Places, distance — and now polylines when assigned. Each dropdown only shows keys usable for that feature. Changes take effect within ~5 minutes as backend caches refresh.
             </span>
           </div>
         </div>

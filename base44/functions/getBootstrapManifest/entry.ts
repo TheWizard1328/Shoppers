@@ -34,6 +34,13 @@ Deno.serve(async (req) => {
     const tilesSecretName = await resolveFeatureSecretName(base44, 'map_tiles', refreshConfig);
     const hereApiKey = Deno.env.get(tilesSecretName) || null;
 
+    // Resolve the polylines feature — provider + key.
+    // For HERE polylines the client reuses the map-tiles key (hereApiKey above),
+    // so we only ship a separate key when the provider is Google.
+    const polylineSecretName = await resolveFeatureSecretName(base44, 'polylines', refreshConfig);
+    const polylineProvider = polylineSecretName === 'GOOGLE_MAPS_API_KEY' ? 'google' : 'here';
+    const polylineApiKey = polylineProvider === 'google' ? (Deno.env.get(polylineSecretName) || null) : null;
+
     return Response.json({
       success: true,
       deviceRegistered: (devices || []).length > 0,
@@ -42,6 +49,8 @@ Deno.serve(async (req) => {
         adminImportEnabled: refreshConfig.adminImportEnabled === true,
         appVersion: refreshConfig.appVersion || null,
         hereApiKey,
+        polylineProvider,
+        polylineApiKey,
       },
     });
   } catch (error) {

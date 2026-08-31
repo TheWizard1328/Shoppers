@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
+import { resolveFeatureApiKey, resolveFeatureSecretName } from '../../shared/apiKeyResolver.ts';
 
 // Per-feature key resolution — the HERE findsequence2 (route optimization) call
 // uses the 'route_optimization' slot, while HERE Router v8 (polyline geometry)
@@ -601,6 +601,100 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
   };
 };
 
+// Google Directions branch — used when the polylines slot resolves to the Google key.
+// Returns the same shape as buildRoutingSections so the rest of the handler is unchanged.
+const buildGoogleRoutingSections = async ({ googleApiKey, orderedStops, originLat, originLng, destinationLat, destinationLng, normalizedTransportMode }) => {
+  const round5Local = (v) => Number(Number(v).toFixed(5));
+  const lastStop = orderedStops[orderedStops.length - 1];
+  const lastIsDest = lastStop && round5Local(lastStop.lat) === round5Local(destinationLat) && round5Local(lastStop.lng) === round5Local(destinationLng);
+  const orderedPoints = [
+    { lat: originLat, lng: originLng },
+    ...orderedStops.map((s) => ({ lat: s.lat, lng: s.lng })),
+    ...(lastIsDest ? [] : [{ lat: destinationLat, lng: destinationLng }]),
+  ].filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  if (orderedPoints.length < 2) return { sections: [], combinedEncodedPolyline: null, combinedCoordinates: null, usedCrowFliesFallback: false };
+
+  const travelMode = normalizedTransportMode === 'cycling' ? 'bicycling' : normalizedTransportMode === 'pedestrian' ? 'walking' : 'driving';
+  const MAX_POINTS = 25;
+  const chunks = [];
+  if (orderedPoints.length <= MAX_POINTS) {
+    chunks.push(orderedPoints);
+  } else {
+    let idx = 0;
+    while (idx < orderedPoints.length - 1) {
+      const end = Math.min(idx + MAX_POINTS, orderedPoints.length);
+      chunks.push(orderedPoints.slice(idx, end));
+      if (end >= orderedPoints.length) break;
+      idx = end - 1;
+    }
+  }
+
+  const sections = [];
+  const combinedCoords = [];
+  let anyFallback = false;
+
+  for (const chunk of chunks) {
+    if (chunk.length < 2) continue;
+    const params = new URLSearchParams();
+    params.set('origin', `${chunk[0].lat},${chunk[0].lng}`);
+    params.set('destination', `${chunk[chunk.length - 1].lat},${chunk[chunk.length - 1].lng}`);
+    params.set('key', googleApiKey);
+    params.set('mode', travelMode);
+    const wps = chunk.slice(1, -1).map((p) => `${p.lat},${p.lng}`);
+    if (wps.length) params.set('waypoints', wps.join('|'));
+
+    let data = null;
+    let ok = false;
+    try {
+      const resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`, { signal: AbortSignal.timeout(20000), headers: { accept: 'application/json' } });
+      ok = resp.ok;
+      data = await resp.json().catch(() => null);
+    } catch (e) {
+      console.warn('[getHereDirections] Google Directions fetch threw', e?.message);
+    }
+    const legs = Array.isArray(data?.routes?.[0]?.legs) ? data.routes[0].legs : [];
+
+    if (!ok || legs.length === 0) {
+      console.warn('[getHereDirections] Google Directions returned no legs', { status: data?.status, error: data?.error_message, pointsCount: chunk.length });
+      for (let i = 0; i < chunk.length - 1; i++) {
+        const from = chunk[i], to = chunk[i + 1];
+        const d = calculateCrowFliesDistance(from.lat, from.lng, to.lat, to.lng);
+        const ep = encodeGooglePolyline([[from.lat, from.lng], [to.lat, to.lng]]);
+        sections.push({ polyline: null, encoded_polyline: ep, estimated_distance_km: Number(d.toFixed(3)), estimated_duration_minutes: Math.ceil((d / 40) * 60), coordinates: [from, to] });
+        combinedCoords.push([[from.lat, from.lng], [to.lat, to.lng]]);
+        anyFallback = true;
+      }
+      continue;
+    }
+
+    legs.forEach((leg) => {
+      const coords = [];
+      for (const step of (leg.steps || [])) {
+        const s = decodeGooglePolyline(step?.polyline?.points);
+        if (!s.length) continue;
+        if (coords.length && coords[coords.length - 1][0] === s[0][0] && coords[coords.length - 1][1] === s[0][1]) coords.push(...s.slice(1));
+        else coords.push(...s);
+      }
+      const ep = coords.length > 1 ? encodeGooglePolyline(coords) : null;
+      const distKm = Number(leg?.distance?.value) ? Number((Number(leg.distance.value) / 1000).toFixed(3)) : null;
+      const durMin = Number(leg?.duration?.value) ? Math.ceil(Number(leg.duration.value) / 60) : null;
+      if (coords.length > 1) combinedCoords.push(coords);
+      sections.push({ polyline: null, encoded_polyline: ep, estimated_distance_km: distKm, estimated_duration_minutes: durMin, coordinates: coords.length > 1 ? coords.map(([lat, lng]) => ({ lat, lng })) : [] });
+    });
+  }
+
+  const combinedCoordinates = combinedCoords.reduce((acc, c) => {
+    if (!Array.isArray(c) || c.length === 0) return acc;
+    if (acc.length === 0) return [...c];
+    const [fLat, fLng] = c[0];
+    const [lLat, lLng] = acc[acc.length - 1] || [];
+    if (lLat === fLat && lLng === fLng) return [...acc, ...c.slice(1)];
+    return [...acc, ...c];
+  }, []);
+
+  return { sections, combinedEncodedPolyline: combinedCoordinates.length > 1 ? encodeGooglePolyline(combinedCoordinates) : null, combinedCoordinates: combinedCoordinates.length > 1 ? combinedCoordinates.map(([lat, lng]) => ({ lat, lng })) : null, usedCrowFliesFallback: anyFallback };
+};
+
 Deno.serve(async (req) => {
   let origin = null;
   let destination = null;
@@ -658,8 +752,15 @@ Deno.serve(async (req) => {
 
     const routeOptimizationKey = await getRouteOptimizationKey(base44);
     const polylineKey = await getPolylineKey(base44);
-    if (!routeOptimizationKey || !polylineKey) {
-      return Response.json({ error: 'HERE API key secret not configured' }, { status: 500 });
+    // Resolve the polylines-slot provider so the routing (polyline geometry) call can
+    // branch to Google Directions when the slot is the Google key.
+    const polylineSecretName = await resolveFeatureSecretName(base44, 'polylines');
+    const polylineProvider = polylineSecretName === 'GOOGLE_MAPS_API_KEY' ? 'google' : 'here';
+    const missing = [];
+    if (!routeOptimizationKey) missing.push('route_optimization');
+    if (!polylineKey) missing.push('polylines');
+    if (missing.length > 0) {
+      return Response.json({ error: `API key secret not configured for: ${missing.join(', ')}` }, { status: 500 });
     }
 
     const dateStr = String(body?.deliveryDate || body?.date || new Date().toISOString().slice(0, 10));
@@ -919,15 +1020,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    const routedGeometry = await buildRoutingSections({
-      hereApiKey: polylineKey,
-      orderedStops,
-      originLat,
-      originLng,
-      destinationLat,
-      destinationLng,
-      normalizedTransportMode
-    });
+    const routedGeometry = polylineProvider === 'google'
+      ? await buildGoogleRoutingSections({
+          googleApiKey: polylineKey,
+          orderedStops,
+          originLat,
+          originLng,
+          destinationLat,
+          destinationLng,
+          normalizedTransportMode
+        })
+      : await buildRoutingSections({
+          hereApiKey: polylineKey,
+          orderedStops,
+          originLat,
+          originLng,
+          destinationLat,
+          destinationLng,
+          normalizedTransportMode
+        });
     if ((routedGeometry.sections || []).length > 0) {
       routeCallCount += 1;
     }
@@ -966,8 +1077,8 @@ Deno.serve(async (req) => {
         base44,
         appUserId: appUser?.id,
         appUserName: appUser?.user_name || user.full_name,
-        provider: 'here',
-        apiType: 'Directions (HERE)',
+        provider: polylineProvider === 'google' ? 'google' : 'here',
+        apiType: polylineProvider === 'google' ? 'Directions' : 'Directions (HERE)',
         purpose: `Calculate route directions${caller !== 'unknown_here_caller' ? ` (${caller})` : ''}`,
         functionName: `getHereDirections:${caller}`,
         success: true,

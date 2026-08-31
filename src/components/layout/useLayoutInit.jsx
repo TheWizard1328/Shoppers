@@ -192,6 +192,10 @@ export function useLayoutInit({
           const { seedHereApiKey } = await import('../utils/hereApiKeyStore');
           seedHereApiKey(ms.hereApiKey);
         }
+        if (ms.polylineProvider) {
+          const { seedPolylineConfig } = await import('../utils/polylineKeyStore');
+          seedPolylineConfig({ provider: ms.polylineProvider, apiKey: ms.polylineApiKey });
+        }
 
         if (userHasRole(fetchedUser, 'dispatcher') && fetchedUser.status === 'inactive' && !userHasRole(fetchedUser, 'admin')) {
           sessionStorage.clear();clearUserCache();clearSettingsCache();

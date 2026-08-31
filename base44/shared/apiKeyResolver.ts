@@ -100,3 +100,38 @@ export function clearFeatureApiKeyCache(feature?: string): void {
 export function isGoogleKey(secretNameOrKey: string): boolean {
   return secretNameOrKey === 'GOOGLE_MAPS_API_KEY';
 }
+
+// Provider matrix — which providers each feature's implementation supports.
+// Used to filter the admin UI dropdown and to decide which keys to ship to the client.
+export const FEATURE_PROVIDERS: Record<string, string[]> = {
+  route_optimization: ['here'],
+  polylines: ['here', 'google'],
+  map_tiles: ['here'],
+  address_lookup: ['here', 'google'],
+  places_autocomplete: ['google'],
+  place_details: ['google'],
+  eta_distance: ['here', 'google'],
+};
+
+/**
+ * Classify a resolved secret name as 'here' | 'google' | null.
+ */
+export function classifyProvider(secretName: string): string | null {
+  if (!secretName) return null;
+  if (secretName === 'GOOGLE_MAPS_API_KEY') return 'google';
+  if (SECRET_NAME_MAP[secretName]) return 'here';
+  return null;
+}
+
+/**
+ * Resolve the provider ('here' | 'google' | null) for a feature.
+ * Pass refreshConfig to skip the AppSettings query when the caller already has it.
+ */
+export async function resolveFeatureProvider(
+  base44: any,
+  feature: string,
+  refreshConfig: Record<string, any> | null = null,
+): Promise<string | null> {
+  const secretName = await resolveFeatureSecretName(base44, feature, refreshConfig);
+  return classifyProvider(secretName);
+}

@@ -17,6 +17,7 @@ import { base44 } from '@/api/base44Client';
 import { invalidate } from '@/components/utils/dataManager';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { getOrFetchHereApiKey } from '@/components/utils/hereApiKeyStore';
+import { getOrFetchPolylineConfig } from '@/components/utils/polylineKeyStore';
 import { optimizeRouteClientSide } from '@/components/utils/clientRouteEngine';
 import { recalculateTrackingNumbersLocal } from '@/components/utils/recalculateTrackingNumbersLocal';
 
@@ -122,6 +123,19 @@ export async function performRouteOptimization({
     return { success: false, error: 'HERE API key not available' };
   }
 
+  // ── Resolve polylines-slot provider + key (HERE or Google) ────────────────
+  // For HERE polylines, polylineApiKey stays null and the engine reuses hereApiKey.
+  let polylineProvider = 'here';
+  let polylineApiKey = null;
+  try {
+    const polyConfig = await getOrFetchPolylineConfig();
+    polylineProvider = polyConfig?.provider || 'here';
+    polylineApiKey = polyConfig?.apiKey || null;
+    console.log(`[RouteOptimization] ${source} — polylines provider=${polylineProvider}, googleKey=${polylineApiKey ? 'set' : 'null'}`);
+  } catch (e) {
+    console.warn(`[RouteOptimization] ${source} — polyline config resolve failed, defaulting to HERE:`, e?.message);
+  }
+
   // ── NOTE: the polyline origin is the most recent completed stop (or the
   // driver's home when none is completed). The engine NEVER uses the driver's
   // live GPS as the origin, so we deliberately do NOT resolve current_latitude
@@ -186,6 +200,8 @@ export async function performRouteOptimization({
         driverId,
         deliveryDate,
         hereApiKey,
+        polylineProvider,
+        polylineApiKey,
         source,
         preserveExistingOrder,
         cyclingSegmentOnly,
