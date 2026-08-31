@@ -74,12 +74,12 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
   };
 
   const statusColor = statusColors[status] || '#94A3B8';
-  const driverColor = isNextDelivery ? '#E1E100' : borderColor;
+  const driverColor = isNextDelivery ? '#ffff00ff' : borderColor;
 
   const outerRingColor = isOtherDriver ? '#FFFFFF' : statusColor;
   // For placeholder/other-driver circles: fill with store color if provided, else fall back to borderColor (driver color)
   const innerCircleColor = isOtherDriver
-    ? (isNextDelivery && !FINISHED_STATUSES.includes(status) ? '#E1E100' : (storeColor || borderColor))
+    ? (isNextDelivery && !FINISHED_STATUSES.includes(status) ? '#ffff00ff' : (storeColor || borderColor))
     : driverColor;
 
   let baseSize = 24 * 0.75;
@@ -168,7 +168,7 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextYellow = isNextDelivery && !isFinished && hasIncompleteStops;
 
-  const innerColor = shouldShowNextYellow ? '#E1E100' : getInnerSymbolColor(status, true);
+  const innerColor = shouldShowNextYellow ? '#ffff00ff' : getInnerSymbolColor(status, true);
   const showNumber = zBucket >= ZOOM_LEVELS.HIDE_NUMBERS && number;
   const hasDuplicates = duplicateCount > 1;
 
