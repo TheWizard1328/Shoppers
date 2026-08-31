@@ -74,12 +74,12 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, borderColor = 
   };
 
   const statusColor = statusColors[status] || '#94A3B8';
-  const driverColor = isNextDelivery ? '#EAB308' : borderColor;
+  const driverColor = isNextDelivery ? '#E1E100' : borderColor;
 
   const outerRingColor = isOtherDriver ? '#FFFFFF' : statusColor;
   // For placeholder/other-driver circles: fill with store color if provided, else fall back to borderColor (driver color)
   const innerCircleColor = isOtherDriver
-    ? (isNextDelivery && !FINISHED_STATUSES.includes(status) ? '#EAB308' : (storeColor || borderColor))
+    ? (isNextDelivery && !FINISHED_STATUSES.includes(status) ? '#E1E100' : (storeColor || borderColor))
     : driverColor;
 
   let baseSize = 24 * 0.75;
@@ -168,7 +168,7 @@ export const createStoreIcon = (status, storeColor = '#6B7280', isActive = false
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextYellow = isNextDelivery && !isFinished && hasIncompleteStops;
 
-  const innerColor = shouldShowNextYellow ? '#EAB308' : getInnerSymbolColor(status, true);
+  const innerColor = shouldShowNextYellow ? '#E1E100' : getInnerSymbolColor(status, true);
   const showNumber = zBucket >= ZOOM_LEVELS.HIDE_NUMBERS && number;
   const hasDuplicates = duplicateCount > 1;
 
@@ -266,7 +266,7 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
   // Returns: orange only when completed; yellow when isNextInLine (not finished); teal for fridge in-transit; white when in_transit
   const baseStatusColor = (isReturn && status === 'completed')
     ? '#F97316'
-    : (shouldShowNextYellow ? '#EAB308' : getInnerSymbolColor(status, false));
+    : (shouldShowNextYellow ? '#E1E100' : getInnerSymbolColor(status, false));
   const statusColor = (isFridgeItem && isInTransit && !shouldShowNextYellow) ? '#A5F3FC' : baseStatusColor;
   const hasYellowHalo = isFirstTime && zBucket >= ZOOM_LEVELS.SIMPLIFY_ROUTES;
   const hasDuplicates = duplicateCount > 1;
