@@ -179,24 +179,73 @@ const flushCompletionJob = async (entry) => {
     );
   }
 
-  // CRITICAL: Wait for ALL status writes to commit BEFORE calling setNextDeliveryFlag.
-  // If they run in parallel, setNextDeliveryFlag fetches deliveries from the server
-  // and may see the completed stop as still 'in_transit' (status write not committed
-  // yet), causing it to include the completed stop in the active set and potentially
-  // set isNextDelivery=true on it — resulting in two stops flagged as next.
+  // CRITICAL: Wait for ALL status writes to commit BEFORE computing next delivery state.
+  // The client-side computation needs the updated delivery statuses to be reflected
+  // in the in-memory records (already updated locally via IDB pre-seeding).
   entry.inFlight = Promise.allSettled(statusWritePromises);
   try {
     await entry.inFlight;
 
-    // 3b. Set isNextDelivery flag on backend — runs AFTER status writes are committed.
-    //     This ensures setNextDeliveryFlag sees the correct status when it fetches
-    //     deliveries from the server. It also repairs stop_order server-side.
-    if (driverId && deliveryDate) {
-      await base44.functions.invoke('setNextDeliveryFlag', {
-        driverId,
-        deliveryDate,
-        targetDeliveryId: nextDeliveryId || null
-      }).catch(() => null);
+    // 3b. Client-side next delivery computation — replaces backend setNextDeliveryFlag.
+    // Computes stop_order repairs and isNextDelivery flags locally, then writes
+    // the results to the server in a single batch. No backend function call needed.
+    if (driverId && deliveryDate && Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0) {
+      try {
+        const { computeNextDeliveryState } = await import('./clientNextDelivery');
+        const { offlineDB } = await import('./offlineDatabase');
+
+        // Load all driver+date deliveries from IDB (authoritative local state)
+        const allDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+        const driverDeliveries = (allDeliveries || []).filter(d => d?.driver_id === driverId);
+
+        // Determine driver status from AppUser
+        let driverStatus = 'on_duty';
+        try {
+          const { getEffectiveUser } = await import('./auth');
+          const effectiveUser = getEffectiveUser?.() || {};
+          if (effectiveUser.id === driverId) {
+            driverStatus = effectiveUser.driver_status || 'on_duty';
+          }
+        } catch (_) {}
+
+        const result = computeNextDeliveryState({
+          deliveries: driverDeliveries,
+          driverStatus,
+          targetDeliveryId: nextDeliveryId || null,
+        });
+
+        // Write computed stop_order and isNextDelivery to server + IDB
+        if (result.changedDeliveries.length > 0) {
+          // Update IDB first (local-first)
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
+
+          // Then write to server (batch silent mode still active)
+          for (const d of result.changedDeliveries) {
+            const update = {};
+            if (d.stop_order != null) update.stop_order = d.stop_order;
+            if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
+            if (d.first_leg_origin_lat != null) update.first_leg_origin_lat = d.first_leg_origin_lat;
+            if (d.first_leg_origin_lng != null) update.first_leg_origin_lng = d.first_leg_origin_lng;
+            if (Object.keys(update).length > 0) {
+              base44.entities.Delivery.update(d.id, update).catch(() => null);
+            }
+          }
+
+          // Merge computed changes into affectedFullRecords so they get broadcast
+          const changedMap = new Map(result.changedDeliveries.map(d => [d.id, d]));
+          for (const rec of affectedFullRecords) {
+            const changed = changedMap.get(rec?.id);
+            if (changed) {
+              if (changed.stop_order != null) rec.stop_order = changed.stop_order;
+              if (changed.isNextDelivery !== undefined) rec.isNextDelivery = changed.isNextDelivery;
+              if (changed.first_leg_origin_lat != null) rec.first_leg_origin_lat = changed.first_leg_origin_lat;
+              if (changed.first_leg_origin_lng != null) rec.first_leg_origin_lng = changed.first_leg_origin_lng;
+            }
+          }
+        }
+      } catch (computeErr) {
+        console.warn('⚠️ [CompleteQueue] Client-side nextDelivery computation failed:', computeErr?.message || computeErr);
+      }
     }
 
     exitBatchSilentMode();
@@ -212,25 +261,18 @@ const flushCompletionJob = async (entry) => {
     if (Array.isArray(affectedFullRecords) && affectedFullRecords.length > 0 && driverId && deliveryDate) {
       try {
         const { broadcastMutation } = await import('./realtimeSync');
-        for (const rec of affectedFullRecords) {
-          if (!rec?.id) continue;
-          // Broadcast ONLY changed fields — full records can null out
-          // encoded_polyline and other large fields on receiving devices' IDB
-          const update = {};
-          if (typeof rec.status === 'string') update.status = rec.status;
-          if (rec.actual_delivery_time != null) update.actual_delivery_time = rec.actual_delivery_time;
-          if (rec.arrival_time != null) update.arrival_time = rec.arrival_time;
-          if (rec.isNextDelivery !== undefined) update.isNextDelivery = rec.isNextDelivery;
-          if (rec.stop_order != null) update.stop_order = rec.stop_order;
-          if ('finished_leg_encoded_polyline' in rec) update.finished_leg_encoded_polyline = rec.finished_leg_encoded_polyline;
-          if ('finished_leg_transport_mode' in rec) update.finished_leg_transport_mode = rec.finished_leg_transport_mode;
-          if ('PolylineUpdated' in rec) update.PolylineUpdated = rec.PolylineUpdated;
-          if (rec.cod_payments != null) update.cod_payments = rec.cod_payments;
-          if (rec.signature_image_url != null) update.signature_image_url = rec.signature_image_url;
-          if (rec.delivery_route_breadcrumbs != null) update.delivery_route_breadcrumbs = rec.delivery_route_breadcrumbs;
-          if (typeof rec.travel_dist === 'number') update.travel_dist = rec.travel_dist;
-          if (rec.delivery_time_eta != null) update.delivery_time_eta = rec.delivery_time_eta;
-          if (Object.keys(update).length > 0) broadcastMutation('Delivery', 'update', rec.id, update).catch(() => null);
+        // Broadcast FULL records (minus polyline) sorted by stop_order.
+        // Receiving devices do a full IDB merge — no partial-payload logic needed.
+        // Polyline is excluded because it's sent via its own dedicated WS event
+        // when route optimization completes. The IDB merge on the receiving side
+        // naturally preserves the existing polyline when it's absent from the payload.
+        const sortedRecords = [...affectedFullRecords]
+          .filter(r => r?.id)
+          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+        for (const rec of sortedRecords) {
+          // Strip polyline fields — they're sent separately via dedicated WS events
+          const { encoded_polyline, polyline_saved_at, ...fullRecord } = rec;
+          broadcastMutation('Delivery', 'update', rec.id, fullRecord).catch(() => null);
         }
       } catch (_) {}
     }

@@ -436,14 +436,8 @@ export function useLayoutEventHandlers({
             if (d?.id && !idsToRemove.has(d.id)) {
               const existing = map.get(d.id);
               const merged = existing ? { ...existing, ...d } : d;
-              // trustIsNextDelivery: the backend has already set the authoritative flag
-              // (e.g. onDutyFlagSync / ensureDriverOnline). Don't let stale in-memory
-              // true values override the server-confirmed value for other stops.
-              if (!trustIsNextDelivery && existing?.isNextDelivery === true && !merged.isNextDelivery) {
-                map.set(d.id, { ...merged, isNextDelivery: true });
-              } else {
-                map.set(d.id, merged);
-              }
+              // Full-record IDB merge model: trust the incoming data unconditionally.
+              map.set(d.id, merged);
             }
           });
           return Array.from(map.values());
@@ -470,14 +464,7 @@ export function useLayoutEventHandlers({
             } else {
               merged = existing ? { ...existing, ...d } : d;
             }
-            // CRITICAL: Preserve isNextDelivery=true from in-memory state —
-            // UNLESS this is a trusted authoritative sync (trustIsNextDelivery=true).
-            // setNextDeliveryFlag runs async — incoming data (from reconciler, smartRefresh,
-            // or WebSocket flush) may still carry false on the next stop while the backend
-            // hasn't committed yet. Never allow an incoming false to clobber a local true.
-            if (!trustIsNextDelivery && existing?.isNextDelivery === true && !merged.isNextDelivery) {
-              merged = { ...merged, isNextDelivery: true };
-            }
+            // Full-record IDB merge model: trust the incoming data unconditionally.
             map.set(d.id, merged);
           });
           return Array.from(map.values());

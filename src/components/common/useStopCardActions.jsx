@@ -1103,17 +1103,32 @@ export default function useStopCardActions(params) {
           if (!isNotFound) console.warn('⚠️ [Start] handleStartDelivery failed:', startErr?.message || startErr);
         });
 
-        // ── setNextDeliveryFlag (fire-and-forget) ──
-        // The optimistic update already set isNextDelivery on the correct stop and
-        // cleared it on the previous one via direct Delivery.update calls. This
-        // backend function also repairs stop_order — but the optimizer assigns its
-        // own stop_order via the HERE engine and writes it atomically through
-        // bulkUpdateDeliveries, making the repair redundant. Running it without await
-        // saves 2-5s on the Start critical path while still confirming isNextDelivery
-        // and repairing any edge-case stop_order issues in the background.
-        base44.functions.invoke('setNextDeliveryFlag', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }).catch((repairErr) => {
-          console.warn('⚠️ [Start] setNextDeliveryFlag failed:', repairErr?.message || repairErr);
-        });
+        // ── Client-side stop_order + isNextDelivery repair (fire-and-forget) ──
+        // Replaces backend setNextDeliveryFlag with local computation.
+        (async () => {
+          try {
+            const { computeNextDeliveryState } = await import('../utils/clientNextDelivery');
+            const { offlineDB } = await import('../utils/offlineDatabase');
+            const allDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, delivery.delivery_date);
+            const driverDeliveries = (allDeliveries || []).filter(d => d?.driver_id === delivery.driver_id);
+            const result = computeNextDeliveryState({
+              deliveries: driverDeliveries,
+              driverStatus: 'on_duty',
+              targetDeliveryId: null,
+            });
+            if (result.changedDeliveries.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
+              for (const d of result.changedDeliveries) {
+                const update = {};
+                if (d.stop_order != null) update.stop_order = d.stop_order;
+                if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
+                if (Object.keys(update).length > 0) base44.entities.Delivery.update(d.id, update).catch(() => null);
+              }
+            }
+          } catch (repairErr) {
+            console.warn('⚠️ [Start] Client-side stopOrder repair failed:', repairErr?.message || repairErr);
+          }
+        })();
 
         // ── Unlock UI immediately — optimization/polyline work runs in background ──
         // OPTIMIZATION: Only resume driverLocationPoller (needed for GPS tracking).
@@ -1370,8 +1385,12 @@ export default function useStopCardActions(params) {
       }
     }
 
-    // 5. Single authoritative isNextDelivery write — this is the ONLY place it fires
-    await setAndCenterNextDelivery({
+    // 5. Single authoritative isNextDelivery write — LOCAL ONLY (persistToBackend: false).
+    // Server persistence is handled by the batch write in scheduleCompletionSideEffects
+    // (completeRequestQueue.jsx), which computes stop_order + isNextDelivery client-side
+    // and writes them to the server in a single batch. This eliminates the separate
+    // server writes that caused WS broadcast interleaving and the revert dance.
+    const _setAndCenterResult = await setAndCenterNextDelivery({
       driverDeliveries: allDriverDeliveries,
       targetDeliveryId: nextStop?.id || null,
       updateDeliveryLocal,
@@ -1379,7 +1398,7 @@ export default function useStopCardActions(params) {
       driverId: delivery.driver_id,
       deliveryDate: delivery.delivery_date,
       skipBackgroundSync: true,
-      persistToBackend: true,
+      persistToBackend: false,
     });
 
     // 6. ETA cascade — fire-and-forget so it never blocks the lock or races the flag
@@ -1472,13 +1491,15 @@ export default function useStopCardActions(params) {
     // CRITICAL: Pass affectedFullRecords so scheduleCompletionSideEffects can:
     //   (a) pre-seed IDB with the correct optimistic state
     //   (b) register all affected IDs in smartRefreshManager to suppress WS echoes
-    //       from setNextDeliveryFlag's asServiceRole writes
-    // Without this, setNextDeliveryFlag's WS broadcasts arrive as "remote" updates
-    // and overwrite the optimistic UI state, causing the completion bounce.
+    //   (c) compute stop_order + isNextDelivery client-side and write to server in one batch
+    //   (d) broadcast full records (minus polyline) to remote devices in stop_order
+    // Build affectedFullRecords from the setAndCenterNextDelivery result so travel_dist
+    // and isNextDelivery changes are included in the batch server write + broadcast.
+    const _changedMap = new Map((_setAndCenterResult?.changedDeliveries || []).map(d => [d?.id, d]));
     const affectedFullRecords = [
-      { ...delivery, ...criticalUpdate, isNextDelivery: false },
-      ...(nextStop ? [{ ...nextStop, isNextDelivery: true }] : []),
-      ...(incompleteDeliveries.filter((d) => d.id !== nextStop?.id).map((d) => ({ ...d }))),
+      { ...delivery, ...criticalUpdate, isNextDelivery: false, ...(_changedMap.get(delivery.id) || {}) },
+      ...(nextStop ? [{ ...nextStop, isNextDelivery: true, ...(_changedMap.get(nextStop.id) || {}) }] : []),
+      ...(incompleteDeliveries.filter((d) => d.id !== nextStop?.id).map((d) => ({ ...d, ...(_changedMap.get(d.id) || {}) }))),
     ];
     Promise.resolve().then(() =>
       params.scheduleCompletionSideEffects({

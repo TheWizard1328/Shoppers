@@ -341,35 +341,11 @@ async function flushBuffered(entityName) {
         }
       });
 
-      // Read the in-memory Layout deliveries to find locally-set isNextDelivery=true flags.
-      // CRITICAL: Skip any delivery that has an active completion lockout — the lockout means
-      // an in-flight complete action has already set isNextDelivery=false on that stop, and
-      // the localDeliveries loop must not re-apply the stale pre-optimistic true value.
-      // ALSO skip any delivery whose isNextDelivery was EXPLICITLY changed in this flush —
-      // a remote clear (isNextDelivery=false) is authoritative and must NOT be re-applied as
-      // true from this device's stale local state. Without this, receiving devices kept the
-      // old next stop flagged true (overwriting the incoming false) until a manual refresh.
-      const isNextExplicitlyChangedIds = new Set(
-        items.filter(it =>
-          (Array.isArray(it.changedFields) && it.changedFields.includes('isNextDelivery')) ||
-          (it.data && typeof it.data === 'object' && 'isNextDelivery' in it.data)
-        ).map(it => it.id)
-      );
-      const localDeliveries = window.__appDeliveries;
-      if (Array.isArray(localDeliveries)) {
-        const { isFieldLocked } = await import('./completionLockout');
-        localDeliveries.forEach(local => {
-          if (!local?.id || !local.isNextDelivery) return;
-          // Don't override if this delivery's isNextDelivery is actively locked
-          if (isFieldLocked(local.id, 'isNextDelivery')) return;
-          // Don't override if the incoming flush explicitly set isNextDelivery on this delivery
-          if (isNextExplicitlyChangedIds.has(local.id)) return;
-          const snap = snapshotMap.get(local.id);
-          if (snap && !snap.isNextDelivery) {
-            snapshotMap.set(local.id, { ...snap, isNextDelivery: true });
-          }
-        });
-      }
+      // Full-record IDB merge model: IDB is the authoritative source. The snapshot already
+      // contains the correct merged state (incoming data was saved to IDB before buffering).
+      // No preserve-stale-true logic needed — the IDB merge ({ ...existing, ...incoming })
+      // naturally preserves fields not in the WS payload and applies fields that are.
+      // Completion lockout still protects in-flight optimistic writes via IDB merge.
       fullReplacementData = Array.from(snapshotMap.values());
     }
 
@@ -434,19 +410,8 @@ async function flushBuffered(entityName) {
         (item.changedFields.includes('delivery_time_eta') || item.changedFields.includes('estimated_duration_minutes'))
       );
 
-      // CRITICAL: If any buffered item EXPLICITLY changed isNextDelivery, the server has
-      // authoritatively committed that value — including demotions to false (the
-      // clearAllNextDeliveryFlags path). Signal trustIsNextDelivery so the Layout's
-      // preserve-true guard does NOT re-impose a stale local true on the demoted stop,
-      // which would leave the old stop's map marker yellow alongside the new one.
-      // Non-flag WS echoes (e.g. a COD update on a next-delivery stop) do NOT include
-      // isNextDelivery in changedFields, so the preserve guard still protects optimistic
-      // local true flags in that case.
-      const hasIsNextDeliveryChange = relevantItems.some((item) =>
-        (Array.isArray(item.changedFields) && item.changedFields.includes('isNextDelivery')) ||
-        (item?.data && typeof item.data === 'object' && 'isNextDelivery' in item.data)
-      );
-
+      // Full-record IDB merge model: trustIsNextDelivery is always true now.
+      // The IDB snapshot is authoritative — no stale-true preservation needed.
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveries: allDateDeliveries,
@@ -463,7 +428,7 @@ async function flushBuffered(entityName) {
           skipDriverLocationRefresh: true,
           forceETAUpdate: hasETAChanges,
           forcePolylineUpdate: hasPolylineUpdates,
-          trustIsNextDelivery: hasIsNextDeliveryChange,
+          trustIsNextDelivery: true,
         }
       }));
     }
