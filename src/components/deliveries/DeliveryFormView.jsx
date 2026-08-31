@@ -2165,23 +2165,34 @@ export default function DeliveryFormView({
                         }
                       }
 
-                      // Single authority: backend setNextDeliveryFlag runs buildStopOrderRepairs for ALL stop_order sequencing
-                      // (includes cycling markers, unlike the old client-side resort that excluded them).
-                      // Local recalculateAndUpdateStopOrders runs first for immediate IDB/UI update,
-                      // then setNextDeliveryFlag ensures the server DB matches.
+                      // Client-side stop_order + isNextDelivery repair (replaces backend setNextDeliveryFlag)
                       const routeDriverId = _formDataSnapshot.driver_id || _deliverySnapshot?.driver_id;
                       const routeDate = _formDataSnapshot.delivery_date || _deliverySnapshot?.delivery_date;
                       if (routeDriverId && routeDate) {
                         // Local IDB sort first (immediate UI response)
                         await recalculateAndUpdateStopOrders(routeDriverId, routeDate);
-                        // Backend authority (ensures server DB is correct, includes cycling markers)
+                        // Client-side computation + server write (includes cycling markers)
                         try {
-                          const { base44: b44 } = await import('@/api/base44Client');
-                          const result = await b44.functions.invoke('setNextDeliveryFlag', { driverId: routeDriverId, deliveryDate: routeDate });
-                          // setNextDeliveryFlag doesn't return repairedDeliveries, but recalculateAndUpdateStopOrders
-                          // already updated local IDB. Server DB is now authoritative.
+                          const { computeNextDeliveryState } = await import('../utils/clientNextDelivery');
+                          const { offlineDB } = await import('../utils/offlineDatabase');
+                          const allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, routeDate);
+                          const driverDeliveries = (allDateDeliveries || []).filter(d => d?.driver_id === routeDriverId);
+                          const result = computeNextDeliveryState({
+                            deliveries: driverDeliveries,
+                            driverStatus: 'on_duty',
+                            targetDeliveryId: null,
+                          });
+                          if (result.changedDeliveries.length > 0) {
+                            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
+                            for (const d of result.changedDeliveries) {
+                              const update = {};
+                              if (d.stop_order != null) update.stop_order = d.stop_order;
+                              if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
+                              if (Object.keys(update).length > 0) base44.entities.Delivery.update(d.id, update).catch(() => null);
+                            }
+                          }
                         } catch (e) {
-                          console.warn('[DeliveryForm] setNextDeliveryFlag failed:', e?.message);
+                          console.warn('[DeliveryForm] Client-side stopOrder repair failed:', e?.message);
                         }
                       }
 
@@ -2194,11 +2205,26 @@ export default function DeliveryFormView({
                       if (_previousDriverId && _previousDeliveryDate) {
                         await recalculateAndUpdateStopOrders(_previousDriverId, _previousDeliveryDate);
                         try {
-                          const { base44: b44 } = await import('@/api/base44Client');
-                          const prevResult = await b44.functions.invoke('setNextDeliveryFlag', { driverId: _previousDriverId, deliveryDate: _previousDeliveryDate });
-                          // setNextDeliveryFlag handles the server-side repair; local IDB already updated above.
+                          const { computeNextDeliveryState } = await import('../utils/clientNextDelivery');
+                          const { offlineDB } = await import('../utils/offlineDatabase');
+                          const prevDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, _previousDeliveryDate);
+                          const prevDriverDeliveries = (prevDeliveries || []).filter(d => d?.driver_id === _previousDriverId);
+                          const prevResult = computeNextDeliveryState({
+                            deliveries: prevDriverDeliveries,
+                            driverStatus: 'on_duty',
+                            targetDeliveryId: null,
+                          });
+                          if (prevResult.changedDeliveries.length > 0) {
+                            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, prevResult.changedDeliveries).catch(() => null);
+                            for (const d of prevResult.changedDeliveries) {
+                              const update = {};
+                              if (d.stop_order != null) update.stop_order = d.stop_order;
+                              if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
+                              if (Object.keys(update).length > 0) base44.entities.Delivery.update(d.id, update).catch(() => null);
+                            }
+                          }
                         } catch (e) {
-                          console.warn('[DeliveryForm] setNextDeliveryFlag (prev driver) failed:', e?.message);
+                          console.warn('[DeliveryForm] Client-side stopOrder repair (prev driver) failed:', e?.message);
                         }
                       }
                       runPostDeliveryUpdateSync({ driverId: _driverId, deliveryDate: _deliveryDate, hasTimeWindowChanges: _shouldOptimizeInBackground, travelModeOnly: _travelModeOnly, currentUser, skipStatsRefresh: _wasPendingStaysPending });

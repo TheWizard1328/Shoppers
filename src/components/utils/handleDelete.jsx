@@ -29,12 +29,28 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
       console.log(`✅ [DELETE Handler] UI state updated (${updatedDeliveries.length} remaining)`);
     }
 
-    // Backend authority: resequence ALL remaining stops (including cycling markers)
+    // Client-side stop_order + isNextDelivery repair (replaces backend setNextDeliveryFlag)
     try {
-      const repairResult = await base44.functions.invoke('setNextDeliveryFlag', { driverId, deliveryDate });
-      // setNextDeliveryFlag runs buildStopOrderRepairs on the server; local UI already updated above.
+      const { computeNextDeliveryState } = await import('./clientNextDelivery');
+      const { offlineDB } = await import('./offlineDatabase');
+      const allDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+      const driverDeliveries = (allDeliveries || []).filter(d => d?.driver_id === driverId && d?.id !== deliveryId);
+      const result = computeNextDeliveryState({
+        deliveries: driverDeliveries,
+        driverStatus: 'on_duty',
+        targetDeliveryId: null,
+      });
+      if (result.changedDeliveries.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
+        for (const d of result.changedDeliveries) {
+          const update = {};
+          if (d.stop_order != null) update.stop_order = d.stop_order;
+          if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
+          if (Object.keys(update).length > 0) base44.entities.Delivery.update(d.id, update).catch(() => null);
+        }
+      }
     } catch (repairErr) {
-      console.warn('⚠️ [DELETE Handler] setNextDeliveryFlag failed:', repairErr?.message || repairErr);
+      console.warn('⚠️ [DELETE Handler] Client-side stopOrder repair failed:', repairErr?.message || repairErr);
     }
 
     if (selectedCardId === deliveryId) {

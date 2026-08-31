@@ -44,14 +44,26 @@ export async function resetNextDeliveryFlag({ driverId, deliveryDate, allDeliver
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
     }
 
-    // Sync to backend in background (don't block)
+    // Sync to backend in background using client-side computation (replaces backend setNextDeliveryFlag)
     Promise.resolve().then(async () => {
       try {
-        await base44.functions.invoke('setNextDeliveryFlag', {
-          driverId,
-          deliveryDate,
-          targetDeliveryId: nextDelivery?.id || null
+        const { computeNextDeliveryState } = await import('./clientNextDelivery');
+        const allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+        const driverDeliveries = (allDateDeliveries || []).filter(d => d?.driver_id === driverId);
+        const result = computeNextDeliveryState({
+          deliveries: driverDeliveries,
+          driverStatus: 'on_duty',
+          targetDeliveryId: nextDelivery?.id || null,
         });
+        if (result.changedDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
+          for (const d of result.changedDeliveries) {
+            const update = {};
+            if (d.stop_order != null) update.stop_order = d.stop_order;
+            if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
+            if (Object.keys(update).length > 0) base44.entities.Delivery.update(d.id, update).catch(() => null);
+          }
+        }
       } catch (error) {
         console.warn('[resetNextDeliveryFlag] Background sync failed:', error?.message || error);
       }

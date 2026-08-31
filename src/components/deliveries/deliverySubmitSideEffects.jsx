@@ -77,18 +77,28 @@ export async function runDeliverySubmitSideEffects({
         .filter((d) => d.id !== delivery.id && !completionStatuses.includes(d.status) && d.status !== 'pending')
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-      // Always call setNextDeliveryFlag — it runs buildStopOrderRepairs which
-      // sequences ALL stops (including cycling markers) by actual_delivery_time.
-      // The old `incompleteDeliveries.length > 0` guard prevented repairs on
-      // fully completed routes, leaving duplicate stop_orders unfixed.
+      // Client-side stop_order + isNextDelivery repair (replaces backend setNextDeliveryFlag)
       try {
-        await base44.functions.invoke('setNextDeliveryFlag', {
-          driverId: formData.driver_id,
-          deliveryDate: formData.delivery_date,
-          targetDeliveryId: incompleteDeliveries[0]?.id || null
+        const { computeNextDeliveryState } = await import('../utils/clientNextDelivery');
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, formData.delivery_date);
+        const driverDeliveries = (allDateDeliveries || []).filter(d => d?.driver_id === formData.driver_id);
+        const result = computeNextDeliveryState({
+          deliveries: driverDeliveries,
+          driverStatus: 'on_duty',
+          targetDeliveryId: incompleteDeliveries[0]?.id || null,
         });
+        if (result.changedDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
+          for (const d of result.changedDeliveries) {
+            const update = {};
+            if (d.stop_order != null) update.stop_order = d.stop_order;
+            if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
+            if (Object.keys(update).length > 0) base44.entities.Delivery.update(d.id, update).catch(() => null);
+          }
+        }
       } catch (error) {
-        console.warn('[DeliveryForm] setNextDeliveryFlag failed:', error?.message);
+        console.warn('[DeliveryForm] Client-side stopOrder repair failed:', error?.message);
       }
 
       if (incompleteDeliveries.length > 0 && delivery.isNextDelivery && skipRouteOptimization) {
