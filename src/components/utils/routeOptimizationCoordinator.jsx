@@ -17,6 +17,7 @@ import { base44 } from '@/api/base44Client';
 import { invalidate } from '@/components/utils/dataManager';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { getOrFetchHereApiKey } from '@/components/utils/hereApiKeyStore';
+import { getOrFetchRoutingKey } from '@/components/utils/routingKeyStore';
 import { getOrFetchPolylineConfig } from '@/components/utils/polylineKeyStore';
 import { optimizeRouteClientSide } from '@/components/utils/clientRouteEngine';
 import { recalculateTrackingNumbersLocal } from '@/components/utils/recalculateTrackingNumbersLocal';
@@ -110,16 +111,24 @@ export async function performRouteOptimization({
     window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: true } }));
   }
 
-  // ── Resolve HERE API key ──────────────────────────────────────────────────
+  // ── Resolve HERE API key for ROUTE SEQUENCING (findsequence2) ─────────────
+  // Uses the 'route_optimization' slot key — NOT the map_tiles key. The two slots
+  // can point at different HERE secrets, and the client engine must respect the
+  // route_optimization assignment so a dead map_tiles key doesn't poison routing.
   let hereApiKey = null;
   try {
-    hereApiKey = await getOrFetchHereApiKey();
-    console.log(`[RouteOptimization] ${source} — HERE API key resolved: ${hereApiKey ? '✅ available' : '❌ NULL'}`);
+    hereApiKey = await getOrFetchRoutingKey();
+    console.log(`[RouteOptimization] ${source} — route-optimization HERE key resolved: ${hereApiKey ? '✅ available' : '❌ NULL'}`);
   } catch (e) {
-    console.error(`[RouteOptimization] ${source} — failed to get HERE API key:`, e?.message);
+    console.error(`[RouteOptimization] ${source} — failed to get route-optimization key:`, e?.message);
   }
   if (!hereApiKey) {
-    console.error(`[RouteOptimization] ${source} — BAILING: HERE API key not available (check getActiveHereApiKey backend function + bootstrap manifest)`);
+    // Last-resort fallback to the map-tiles key so routing degrades gracefully
+    // instead of hard-failing when the route_optimization slot isn't configured.
+    try { hereApiKey = await getOrFetchHereApiKey(); } catch (_) {}
+  }
+  if (!hereApiKey) {
+    console.error(`[RouteOptimization] ${source} — BAILING: no HERE API key available for route optimization`);
     return { success: false, error: 'HERE API key not available' };
   }
 

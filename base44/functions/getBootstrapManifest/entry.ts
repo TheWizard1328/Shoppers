@@ -41,6 +41,14 @@ Deno.serve(async (req) => {
     const polylineProvider = polylineSecretName === 'GOOGLE_MAPS_API_KEY' ? 'google' : 'here';
     const polylineApiKey = polylineProvider === 'google' ? (Deno.env.get(polylineSecretName) || null) : null;
 
+    // Resolve the route_optimization feature — the HERE key the client engine uses
+    // for findsequence2 (stop sequencing). This is a SEPARATE slot from map_tiles:
+    // the tile layer uses hereApiKey (map_tiles), while route sequencing uses
+    // routeOptimizationKey. They can point at different HERE secrets, and a dead
+    // map_tiles key must not poison route optimization.
+    const routeOptSecretName = await resolveFeatureSecretName(base44, 'route_optimization', refreshConfig);
+    const routeOptimizationKey = Deno.env.get(routeOptSecretName) || null;
+
     return Response.json({
       success: true,
       deviceRegistered: (devices || []).length > 0,
@@ -51,6 +59,7 @@ Deno.serve(async (req) => {
         hereApiKey,
         polylineProvider,
         polylineApiKey,
+        routeOptimizationKey,
       },
     });
   } catch (error) {

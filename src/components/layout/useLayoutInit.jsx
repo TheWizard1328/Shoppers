@@ -196,6 +196,12 @@ export function useLayoutInit({
           const { seedPolylineConfig } = await import('../utils/polylineKeyStore');
           seedPolylineConfig({ provider: ms.polylineProvider, apiKey: ms.polylineApiKey });
         }
+        // Seed the route_optimization slot key (HERE) used by the client engine
+        // for findsequence2 stop sequencing. Distinct from the map_tiles key above.
+        if (ms.routeOptimizationKey) {
+          const { seedRoutingKey } = await import('../utils/routingKeyStore');
+          seedRoutingKey(ms.routeOptimizationKey);
+        }
 
         if (userHasRole(fetchedUser, 'dispatcher') && fetchedUser.status === 'inactive' && !userHasRole(fetchedUser, 'admin')) {
           sessionStorage.clear();clearUserCache();clearSettingsCache();
