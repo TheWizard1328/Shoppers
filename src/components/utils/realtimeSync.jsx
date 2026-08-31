@@ -443,7 +443,8 @@ async function flushBuffered(entityName) {
       // isNextDelivery in changedFields, so the preserve guard still protects optimistic
       // local true flags in that case.
       const hasIsNextDeliveryChange = relevantItems.some((item) =>
-        Array.isArray(item.changedFields) && item.changedFields.includes('isNextDelivery')
+        (Array.isArray(item.changedFields) && item.changedFields.includes('isNextDelivery')) ||
+        (item?.data && typeof item.data === 'object' && 'isNextDelivery' in item.data)
       );
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
