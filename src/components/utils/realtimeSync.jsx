@@ -431,6 +431,18 @@ async function flushBuffered(entityName) {
         (item.changedFields.includes('delivery_time_eta') || item.changedFields.includes('estimated_duration_minutes'))
       );
 
+      // CRITICAL: If any buffered item EXPLICITLY changed isNextDelivery, the server has
+      // authoritatively committed that value — including demotions to false (the
+      // clearAllNextDeliveryFlags path). Signal trustIsNextDelivery so the Layout's
+      // preserve-true guard does NOT re-impose a stale local true on the demoted stop,
+      // which would leave the old stop's map marker yellow alongside the new one.
+      // Non-flag WS echoes (e.g. a COD update on a next-delivery stop) do NOT include
+      // isNextDelivery in changedFields, so the preserve guard still protects optimistic
+      // local true flags in that case.
+      const hasIsNextDeliveryChange = relevantItems.some((item) =>
+        Array.isArray(item.changedFields) && item.changedFields.includes('isNextDelivery')
+      );
+
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
           deliveries: allDateDeliveries,
@@ -447,6 +459,7 @@ async function flushBuffered(entityName) {
           skipDriverLocationRefresh: true,
           forceETAUpdate: hasETAChanges,
           forcePolylineUpdate: hasPolylineUpdates,
+          trustIsNextDelivery: hasIsNextDeliveryChange,
         }
       }));
     }
