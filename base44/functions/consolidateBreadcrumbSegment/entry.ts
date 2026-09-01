@@ -211,6 +211,11 @@ Deno.serve(async (req) => {
       // skip is bypassed for them (force re-clip). Unlisted stops are left alone,
       // and the orphan-cleanup step is skipped so we don't nuke untouched crumbs.
       selected_stop_orders = null,
+      // When true, re-clip ALL segments regardless of saved_to_route status,
+      // preserving the existing saved_to_route value on the updated record.
+      // Used by snapMasterTimeline after a master re-snap so stale saved
+      // segments are replaced with fresh slices from the snapped master.
+      force_replace = false,
     } = body || {};
 
     if (!driver_id || !delivery_date) {
@@ -574,11 +579,11 @@ Deno.serve(async (req) => {
 
       const existing = existingByStopOrder.get(stopOrder);
 
-      // When the admin explicitly re-clips selected stops, preserve the existing
-      // saved_to_route status so the new cut REPLACES the old one without resetting
-      // it to "unsaved" (which would let auto-consolidation overwrite it again).
-      // For non-explicit runs (auto-consolidation), always set false as before.
-      const preserveSavedToRoute = explicitlySelected && existing?.saved_to_route === true;
+      // When the admin explicitly re-clips selected stops OR force_replace is set,
+      // preserve the existing saved_to_route status so the new cut REPLACES the old
+      // one without resetting it to "unsaved" (which would let auto-consolidation
+      // overwrite it again). For non-explicit auto-consolidation, set false as before.
+      const preserveSavedToRoute = (explicitlySelected || force_replace) && existing?.saved_to_route === true;
 
       const payload = {
         driver_id,
@@ -595,8 +600,8 @@ Deno.serve(async (req) => {
       if (existing?.id) {
         existingByStopOrder.delete(stopOrder); // mark as handled
         // Skip overwriting legs that have already been manually saved — UNLESS
-        // the caller explicitly selected this stop (force re-clip on demand).
-        if (!explicitlySelected && existing.saved_to_route === true) {
+        // the caller explicitly selected this stop OR force_replace is set.
+        if (!explicitlySelected && !force_replace && existing.saved_to_route === true) {
           console.log(`⏭️ [consolidateBreadcrumbSegment] Skipping stop #${stopOrder} — already saved_to_route`);
           results.push({
             stop_order: stopOrder,

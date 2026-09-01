@@ -339,11 +339,21 @@ Deno.serve(async (req) => {
       preview_only = false,
       analyze_only = false,
       gap_threshold_m = GAP_THRESHOLD_M,
+      // Save-only mode: when the client already ran the snap (preview step) and
+      // has the pre-computed snapped polyline, it passes these so we skip all
+      // gap analysis + HERE API calls and just save + consolidate.
+      save_polyline = null,
+      save_timestamps = null,
+      save_point_count = null,
+      save_zones_snapped = null,
+      force_replace = false,
     } = body;
 
     if (!driver_id || !delivery_date) {
       return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
     }
+
+    const isSaveOnly = typeof save_polyline === 'string' && save_polyline.length > 0;
 
     // ── 1. Fetch master record ────────────────────────────────────────────────
     const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
@@ -393,8 +403,55 @@ Deno.serve(async (req) => {
       })),
     };
 
+    // ── SAVE-ONLY MODE ──────────────────────────────────────────────────────
+    // The client already computed the snapped polyline (preview step) and passes
+    // it here. Skip all gap analysis + HERE API calls — just decode/validate,
+    // save to the master record, and re-consolidate.
+    if (isSaveOnly) {
+      const saveCoords = decodePolyline(save_polyline);
+      const saveTs: number[] = typeof save_timestamps === 'string'
+        ? save_timestamps.split(',').map(Number)
+        : [];
+      const savePointCount = Number.isFinite(save_point_count) ? save_point_count : saveCoords.length;
+
+      if (saveCoords.length < 2) {
+        return Response.json({ success: false, error: 'save_polyline decoded to fewer than 2 points' }, { status: 400 });
+      }
+
+      const snappedPolyline = save_polyline;
+      const snappedTimestamps = save_ts.length === saveCoords.length ? save_ts.join(',') : saveCoords.map((_, i) => saveTs[i] || 0).join(',');
+
+      // Save the pre-computed snapped polyline to the master record
+      await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(master.id, {
+        encoded_polyline: snappedPolyline,
+        timestamps: snappedTimestamps,
+        point_count: savePointCount,
+      });
+
+      console.log(`[snapMasterTimeline] ✅ Save-only — ${savePointCount} pts, ${save_zones_snapped ?? 0} zone(s) from preview`);
+
+      // Re-consolidate using the proximity-based slicer with force_replace so
+      // stale saved_to_route segments are overwritten with fresh slices.
+      let consolidateResult = null;
+      if (run_consolidate) {
+        consolidateResult = await base44.functions
+          .invoke('consolidateBreadcrumbSegment', { driver_id, delivery_date, force_replace: true })
+          .catch((e: Error) => ({ error: e?.message }));
+      }
+
+      return Response.json({
+        success: true,
+        save_only: true,
+        driver_id,
+        delivery_date,
+        snapped_point_count: savePointCount,
+        zones_snapped: save_zones_snapped ?? 0,
+        api_calls_made: 0,
+        consolidate_result: consolidateResult,
+      });
+    }
+
     if (analyze_only) {
-      // ── Enrich zone_details with the stop numbers the gap falls between ──────
       // Fetch all delivery stops for this driver/date, sorted by stop_order.
       // For each zone, find the stop whose breadcrumb timestamps bracket the gap.
       try {
@@ -658,11 +715,11 @@ Deno.serve(async (req) => {
 
     console.log(`[snapMasterTimeline] ✅ Saved — ${masterPoints.length} pts → ${resultCoords.length} pts, ${zones.length} zones snapped in ${totalApiCalls} API call(s)`);
 
-    // ── 9. Re-consolidate stop segments ──────────────────────────────────────
+    // ── 9. Re-consolidate stop segments (proximity-based, force-replace) ────
     let consolidateResult = null;
     if (run_consolidate) {
       consolidateResult = await base44.functions
-        .invoke('consolidateBreadcrumbs', { driver_id, delivery_date })
+        .invoke('consolidateBreadcrumbSegment', { driver_id, delivery_date, force_replace: true })
         .catch((e: Error) => ({ error: e?.message }));
     }
 

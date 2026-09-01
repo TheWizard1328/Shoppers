@@ -1217,6 +1217,7 @@ export default function PolylineViewer({ users = [] }) {
         save_point_count: snapPreview.pointCount,
         save_zones_snapped: snapPreview.zonesSnapped,
         run_consolidate: true,
+        force_replace: true,
       });
       const data = res?.data ?? res;
       if (data?.success) {
