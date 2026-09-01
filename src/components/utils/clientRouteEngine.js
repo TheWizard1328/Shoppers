@@ -360,7 +360,7 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   });
 
   const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
-    signal: AbortSignal.timeout(15000)
+    signal: AbortSignal.timeout(25000)
   });
   logHereApiCall({ apiType: 'Route Optimization (HERE)', purpose: `findsequence2 — ${stopsToSequence.length} stop(s), mode=${hereTransportMode}`, source: 'callHereSequence', driverId, userName }).catch(() => {});
   const data = await response.json().catch(() => null);
