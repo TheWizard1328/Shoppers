@@ -18,6 +18,7 @@ import {
   deleteGenericEntityLocal
 } from './offlineGenericMutations';
 import { getLocalTimestamp } from './localTimeHelper';
+import { markDeleted } from './deletedDeliveryRegistry';
 
 const normalizeComparableValue = (value) => {
   if (Array.isArray(value)) return JSON.stringify(value);
@@ -754,6 +755,17 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       if (!window.__localDeliveryWrites) window.__localDeliveryWrites = new Map();
       window.__localDeliveryWrites.set(deliveryId, Date.now());
     }
+
+    // CRITICAL: Register this delete in the deleted-delivery registry BEFORE
+    // the actual delete completes. This ensures that even if a WS echo or
+    // another device's stale cache merge races with the delete, the delivery
+    // cannot be resurrected in this device's IDB or window.__appDeliveries.
+    // Fetch the existing record first for content signature matching.
+    let existingForRegistry = null;
+    try {
+      existingForRegistry = await offlineDB.getById(offlineDB.STORES.DELIVERIES, deliveryId);
+    } catch (_) { /* non-critical */ }
+    markDeleted(deliveryId, existingForRegistry);
 
     // Step 1: CRITICAL - Delete from BOTH offline DB AND backend simultaneously
     const offlineDeletePromise = (async () => {

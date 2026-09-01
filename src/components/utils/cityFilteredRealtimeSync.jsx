@@ -2,6 +2,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
+import { isDeleted, filterDeleted } from "./deletedDeliveryRegistry";
 
 class CityFilteredRealtimeSync {
   constructor() {
@@ -140,11 +141,16 @@ class CityFilteredRealtimeSync {
               // subsequent UI reads (deliveriesUpdated handlers, stop card renders)
               // get fresh data, not stale snapshots that cause momentary reversion.
               if (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries)) {
-                const idx = window.__appDeliveries.findIndex(d => d?.id === mergedDelivery.id);
-                if (idx !== -1) {
-                  window.__appDeliveries[idx] = mergedDelivery;
+                // CRITICAL: Skip cache update for deleted deliveries.
+                if (isDeleted(mergedDelivery.id)) {
+                  console.log(`🛡️ [cityFilteredRealtimeSync] Skipping cache update for deleted delivery ${mergedDelivery.id}`);
                 } else {
-                  window.__appDeliveries.push(mergedDelivery);
+                  const idx = window.__appDeliveries.findIndex(d => d?.id === mergedDelivery.id);
+                  if (idx !== -1) {
+                    window.__appDeliveries[idx] = mergedDelivery;
+                  } else {
+                    window.__appDeliveries.push(mergedDelivery);
+                  }
                 }
               }
 

@@ -14,6 +14,7 @@ import { offlineDB } from './offlineDatabase';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 import { getLocalTimestampFromDate } from './localTimeHelper';
 import { applyRealtimeMergeWithLockout } from './completionLockout';
+import { isDeleted, filterDeleted, markDeleted } from "./deletedDeliveryRegistry";
 
 const rsTime = () => new Date().toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -117,7 +118,10 @@ async function flushBuffered(entityName) {
             const existing = snapshotMap.get(itemData.id);
             snapshotMap.set(itemData.id, existing ? { ...existing, ...itemData } : itemData);
           });
-          fullReplacementData = Array.from(snapshotMap.values());
+          // CRITICAL: Filter out deleted deliveries from the fallback snapshot.
+          // If IDB returned empty but the cache has stale entries, we must NOT
+          // resurrect deliveries that were recently deleted.
+          fullReplacementData = filterDeleted(Array.from(snapshotMap.values()));
         }
       }
     } else if (entityName === 'AppUser') {
@@ -378,7 +382,11 @@ async function flushBuffered(entityName) {
       // entirely. Data is already in IDB; no React re-render needed.
       console.log(`⏭️ [RealtimeSync] [${rsTime()}] Skipping deliveriesUpdated — no items for selected driver (${items.length} items for other drivers)`);
     } else {
-      let allDateDeliveries = (fullReplacementData || []).filter((delivery) => {
+      // CRITICAL: Filter out deleted deliveries from the full replacement data.
+      // This is the final safety net — if any deleted delivery somehow made it
+      // through the IDB read or cache fallback, it's caught here.
+      const safeFullReplacement = filterDeleted(fullReplacementData || []);
+      let allDateDeliveries = safeFullReplacement.filter((delivery) => {
         if (!delivery) return false;
         // CRITICAL: Exclude deliveries with no delivery_date — they slip through the old
         // filter (falsy delivery_date made the && short-circuit, bypassing the return false).
@@ -809,6 +817,20 @@ const subscribeToEntity = (entityName) => {
       }
     }
       
+
+    // ── DELETED-DELIVERY REGISTRY GUARD ──
+    // If this delivery was recently deleted on THIS device, drop any incoming
+    // WS create/update that would resurrect it. The delete was already applied
+    // to IDB and the server; a stale echo, mutation replay, or another device's
+    // stale cache should NOT bring it back. This is the single most important
+    // guard against the "reappearing pickup" bug.
+    if (entityName === 'Delivery' && (type === 'create' || type === 'update') && id) {
+      if (isDeleted(id)) {
+        console.log(`🛡️ [RealtimeSync] Dropped ${type} for deleted delivery ${id} — recently deleted, refusing to resurrect`);
+        return;
+      }
+    }
+
       // Get current user name for "updatedBy"
       let updatedBy = 'System';
       let currentUserName = 'System';
@@ -1107,7 +1129,7 @@ const subscribeToEntity = (entityName) => {
                 const idx = window.__appDeliveries.findIndex(d => d?.id === finalDataToSave.id);
                 if (idx !== -1) {
                   window.__appDeliveries[idx] = finalDataToSave;
-                } else {
+                } else if (!isDeleted(finalDataToSave.id)) {
                   window.__appDeliveries.push(finalDataToSave);
                 }
               }
@@ -1164,6 +1186,11 @@ const subscribeToEntity = (entityName) => {
 
           if (storeName) {
             await offlineDB.deleteRecord(storeName, id);
+            // CRITICAL: Register the delete so no subsequent WS create/update or
+            // cache merge can resurrect this delivery on this device.
+            if (entityName === 'Delivery') {
+              markDeleted(id, data);
+            }
             const deletedLabel = entityName === 'Patient' ? (data?.full_name || id) : id;
             console.log(`💾 [RealtimeSync] [${rsTime()}] Deleted ${entityName} from offline DB: ${deletedLabel}`);
           }
@@ -1527,8 +1554,14 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
         const base = Array.isArray(localDeliveries) ? localDeliveries : [];
         const snapshotMap = new Map(base.map(d => [d.id, d]));
         const existing = snapshotMap.get(broadcastData.id);
-        snapshotMap.set(broadcastData.id, existing ? { ...existing, ...broadcastData } : broadcastData);
-        const mergedDeliveries = Array.from(snapshotMap.values());
+        // CRITICAL: Only add to cache if not in the deleted registry.
+        // A local mutation for a deleted delivery should not resurrect it in the cache.
+        if (isDeleted(broadcastData.id)) {
+          console.log(`🛡️ [RealtimeSync] Skipping broadcast cache update for deleted delivery ${broadcastData.id}`);
+        } else {
+          snapshotMap.set(broadcastData.id, existing ? { ...existing, ...broadcastData } : broadcastData);
+        }
+        const mergedDeliveries = filterDeleted(Array.from(snapshotMap.values()));
         window.__appDeliveries = mergedDeliveries;
         const selectedDate = window.__appSelectedDate || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
