@@ -348,6 +348,7 @@ Deno.serve(async (req) => {
       save_point_count = null,
       save_zones_snapped = null,
       force_replace = false,
+      master_id = null,
     } = body;
 
     if (!driver_id || !delivery_date) {
@@ -362,7 +363,15 @@ Deno.serve(async (req) => {
       delivery_date,
       stop_order: -1,
     }).catch(() => []);
-    const master = (masterRecords as any[])?.[0] ?? null;
+    // Prefer the SPECIFIC master record the caller is viewing (master_id) when
+    // provided. With duplicate master records (a syncPendingBreadcrumbs race),
+    // masterRecords[0] may be a DIFFERENT duplicate than the one the user snapped.
+    // Saving to the wrong one + dedup-deleting the viewed one leaves the other
+    // device showing pre-snap gaps. Pinning to master_id ensures the snapped data
+    // lands on the exact record being viewed, then dedup cleans the rest.
+    const master = (master_id
+      ? (masterRecords as any[])?.find((m: any) => m.id === master_id)
+      : null) ?? (masterRecords as any[])?.[0] ?? null;
 
     if (!master?.encoded_polyline || !master?.timestamps) {
       return Response.json({ success: false, error: 'No master timeline record found (stop_order = -1)' }, { status: 404 });

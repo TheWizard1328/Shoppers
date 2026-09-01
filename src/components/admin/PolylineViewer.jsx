@@ -1227,6 +1227,7 @@ export default function PolylineViewer({ users = [] }) {
       const res = await base44.functions.invoke('snapMasterTimeline', {
         driver_id: snapPreview.item.driver_id,
         delivery_date: snapPreview.item.delivery_date,
+        master_id: snapPreview.item.id,
         save_polyline: snapPreview.encodedPolyline,
         save_timestamps: snapPreview.timestamps,
         save_point_count: snapPreview.pointCount,
@@ -1267,9 +1268,20 @@ export default function PolylineViewer({ users = [] }) {
           });
         }
 
-        // Focus on the master breadcrumb (stop_order = -1) for this driver/date
-        const masterCrumb = freshCrumbs?.find(c => c.stop_order === -1) || null;
+        // Focus on the master breadcrumb (stop_order = -1) for this driver/date.
+        // Prefer the is_snapped one in case stale duplicate masters still exist on
+        // this device's offline cache — the backend dedup removes them server-side,
+        // but the local cache may lag.
+        const masterCrumbs = (freshCrumbs || []).filter(c => c.stop_order === -1);
+        const masterCrumb = masterCrumbs.find(c => c.is_snapped) || masterCrumbs[0] || null;
         setFocusedItem(masterCrumb);
+
+        // Broadcast the master update so other devices/views (Dashboard map,
+        // other PolylineViewer instances) refresh their breadcrumb display
+        // immediately instead of waiting for the next poll.
+        if (masterCrumb) {
+          broadcastMutation('DeliveryBreadcrumbs', 'update', masterCrumb.id, masterCrumb);
+        }
       } else {
         toast.error(`Save failed: ${data?.error || 'Unknown error'}`);
         setSnapPreview(p => ({ ...p, isSaving: false }));
