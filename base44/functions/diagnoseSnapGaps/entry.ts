@@ -1,5 +1,6 @@
 // Diagnostic: extract gap coordinates from the master breadcrumb and test HERE routing
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
 
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000;
@@ -84,7 +85,7 @@ Deno.serve(async (req) => {
     }
 
     // For each gap, call HERE Router v8 directly
-    const hereApiKey = await resolveFeatureApiKeySimple(base44);
+    const hereApiKey = await resolveFeatureApiKey(base44, "route_optimization");
     const gapDiagnostics = [];
 
     for (const gap of gaps.slice(0, 5)) {
