@@ -453,8 +453,13 @@ async function flushBuffered(entityName) {
       if (key) window.__wsAppUserLastUpdate.set(key, now);
     });
 
-    // Dispatch the raw incoming data — IDB save already completed above this point.
-    const incomingUsers = items.map(i => i.data).filter(Boolean);
+    // CRITICAL: Merge incoming WS data with window.__appUsers so DriverLocationMarkers
+    // gets full records (driver_status, location_tracking_enabled, etc.) — not partial
+    // payloads that cause shouldShowMarker() to fail and silently drop location updates.
+    const incomingUsers = items.map(i => {
+      const merged = (Array.isArray(window.__appUsers) ? window.__appUsers.find(u => u?.id === i.data?.id) : null);
+      return merged || i.data;
+    }).filter(Boolean);
     incomingUsers.forEach((itemData) => {
       window.dispatchEvent(new CustomEvent('appUserUpdated', {
         detail: { appUser: itemData, fromRealtime: true }

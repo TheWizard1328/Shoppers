@@ -353,7 +353,7 @@ class CityFilteredRealtimeSync {
           
           // Dispatch event for Dashboard to pick up immediately
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: [event.data], fromRealtime: true, singleUpdate: true }
+            detail: { appUsers: [appUserToSave], fromRealtime: true, singleUpdate: true }
           }));
           
           // Notify all internal subscribers (e.g. AppDataContext)

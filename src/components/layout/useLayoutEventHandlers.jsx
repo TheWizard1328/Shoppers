@@ -195,11 +195,15 @@ export function useLayoutEventHandlers({
         } else if (mutation.entity === 'AppUser') {
           setAppUsers((prev) => { const _next = prev.map((a) => a?.id === mutation.id ? { ...a, ...mutation.data } : a); if (typeof window !== 'undefined') window.__appUsers = _next; return _next; });
 
-          // Dispatch with appUsers array so DriverLocationMarkers can merge it properly.
-          // Never use appUsers:null + singleUpdate — DriverLocationMarkers bails on null appUsers.
-          if (mutation.data?.current_latitude && mutation.data?.current_longitude) {
+          // CRITICAL: Dispatch the MERGED record (from window.__appUsers), not the raw
+          // mutation.data — partial payloads lack driver_status/location_tracking_enabled
+          // which DriverLocationMarkers.shouldShowMarker() needs to decide visibility.
+          const mergedForDispatch = (typeof window !== 'undefined' && Array.isArray(window.__appUsers))
+            ? window.__appUsers.find((a) => a?.id === mutation.id) || mutation.data
+            : mutation.data;
+          if (mergedForDispatch?.current_latitude && mergedForDispatch?.current_longitude) {
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: [mutation.data], mergeMode: 'merge' }
+              detail: { appUsers: [mergedForDispatch], mergeMode: 'merge' }
             }));
           }
         }
