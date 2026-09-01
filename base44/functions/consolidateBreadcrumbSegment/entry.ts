@@ -572,6 +572,14 @@ Deno.serve(async (req) => {
         segTransportMode = 'cycling';
       }
 
+      const existing = existingByStopOrder.get(stopOrder);
+
+      // When the admin explicitly re-clips selected stops, preserve the existing
+      // saved_to_route status so the new cut REPLACES the old one without resetting
+      // it to "unsaved" (which would let auto-consolidation overwrite it again).
+      // For non-explicit runs (auto-consolidation), always set false as before.
+      const preserveSavedToRoute = explicitlySelected && existing?.saved_to_route === true;
+
       const payload = {
         driver_id,
         delivery_date,
@@ -580,10 +588,9 @@ Deno.serve(async (req) => {
         timestamps: segTimestamps,
         transport_mode: segTransportMode,
         point_count: seg.pointCount,
-        saved_to_route: false,
+        saved_to_route: preserveSavedToRoute ? true : false,
       };
 
-      const existing = existingByStopOrder.get(stopOrder);
       let savedRecord;
       if (existing?.id) {
         existingByStopOrder.delete(stopOrder); // mark as handled
