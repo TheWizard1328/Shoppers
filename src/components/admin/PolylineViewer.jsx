@@ -964,6 +964,13 @@ export default function PolylineViewer({ users = [] }) {
     // ── Regular stop breadcrumb: save breadcrumb + update matching Delivery polyline ──
     try {
       const { offlineDB } = await import('../utils/offlineDatabase').catch(() => ({ offlineDB: null }));
+      // Persist the actual decoded point count + polyline to the online
+      // breadcrumb record too — previously only the Delivery record + offline
+      // DB were updated, so the breadcrumb's point_count stayed stale (e.g. 5
+      // while the polyline actually decoded to 273).
+      const onlineBcUpdate = base44.entities.DeliveryBreadcrumbs
+        .update(item.id, { encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true })
+        .catch(e => console.warn('[PolylineViewer] breadcrumb point_count persist failed', e?.message));
       const [res] = await Promise.all([
         saveCrumbPolylineToDelivery({
           driverId: item.driver_id,
@@ -971,10 +978,11 @@ export default function PolylineViewer({ users = [] }) {
           stopOrder: item.stop_order,
           cleanedEncodedPolyline: polyToSave,
         }),
+        onlineBcUpdate,
         offlineDB
           ? offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, item.id)
               .then(existing => existing
-                ? offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: polyToSave, point_count: points.length })
+                ? offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true })
                 : Promise.resolve()
               ).catch(() => {})
           : Promise.resolve(),
