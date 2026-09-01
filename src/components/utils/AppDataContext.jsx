@@ -9,6 +9,7 @@ import ImmediateNextDeliveryController from './ImmediateNextDeliveryController';
 import { globalFilters } from './globalFilters';
 import { seedHereApiKey, initHereApiKey } from './hereApiKeyStore';
 import { computeRouteStarted, persistRouteStarted, readPersistedRouteStarted } from './routeStartedFlag';
+import { filterDeleted } from './deletedDeliveryRegistry';
 
 const AppDataContext = createContext(null);
 
@@ -489,7 +490,11 @@ export const AppDataProvider = ({ children, value }) => {
   // can preserve optimistic isNextDelivery=true flags before backend confirms them.
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.__appDeliveries = value.deliveries;
+      // CRITICAL: Filter out deleted deliveries before syncing to window.
+      // This prevents the React state → window.__appDeliveries path from
+      // re-injecting deliveries that were deleted but linger in React state
+      // for one render cycle.
+      window.__appDeliveries = filterDeleted(value.deliveries);
     }
   }, [value.deliveries]);
 

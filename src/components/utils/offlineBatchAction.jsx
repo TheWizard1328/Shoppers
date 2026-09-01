@@ -20,6 +20,7 @@
 
 import { offlineDB } from './offlineDatabase';
 import { enterBatchSilentMode, exitBatchSilentMode } from './entityMutations';
+import { isDeleted } from './deletedDeliveryRegistry';
 
 // ── Sync pause/resume helpers ─────────────────────────────────────────────────
 
@@ -108,10 +109,16 @@ const flushToOnlineDB = async (records) => {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [created]);
 
       // Swap temp → real in window.__appDeliveries so duplicate guard works correctly.
+      // CRITICAL: Skip if the delivery was deleted while the create was in-flight.
       if (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries)) {
-        window.__appDeliveries = window.__appDeliveries.map(d =>
-          d?.id === _tempId ? { ...created } : d
-        );
+        if (isDeleted(created.id) || isDeleted(_tempId)) {
+          console.log(`🛡️ [OfflineBatch] Skipping temp→real swap for deleted delivery ${_tempId}`);
+          window.__appDeliveries = window.__appDeliveries.filter(d => d?.id !== _tempId);
+        } else {
+          window.__appDeliveries = window.__appDeliveries.map(d =>
+            d?.id === _tempId ? { ...created } : d
+          );
+        }
       }
     } catch (err) {
       console.warn('[OfflineBatch] Create failed, will retry via pending mutations:', err.message);

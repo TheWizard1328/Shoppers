@@ -13,6 +13,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
+import { isDeleted, filterDeleted } from './deletedDeliveryRegistry';
 
 // ========================================
 // UTILITY: Sanitize actual_delivery_time
@@ -547,9 +548,16 @@ export const createDelivery = async (deliveryData, options = {}) => {
       // Also swap temp→real in window.__appDeliveries so subsequent IDB snapshot reads
       // (e.g. for WS echo fullReplacementData) never see a stale temp record.
       if (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries)) {
-        window.__appDeliveries = window.__appDeliveries.map(d =>
-          d?.id === tempId ? { ...backendDelivery } : d
-        );
+        // CRITICAL: If this delivery was deleted while the create was syncing,
+        // don't swap it into the cache. The temp ID should stay (or be removed).
+        if (isDeleted(backendDelivery.id) || isDeleted(tempId)) {
+          console.log(`🛡️ [EntityMutations] Skipping temp→real swap for deleted delivery ${tempId} → ${backendDelivery.id}`);
+          window.__appDeliveries = window.__appDeliveries.filter(d => d?.id !== tempId);
+        } else {
+          window.__appDeliveries = window.__appDeliveries.map(d =>
+            d?.id === tempId ? { ...backendDelivery } : d
+          );
+        }
       }
       notifyMutation({ type: 'replace', entity: 'Delivery', oldId: tempId, newId: backendDelivery.id, data: backendDelivery });
       if (typeof window !== 'undefined') {
@@ -597,6 +605,12 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
   // ─── STEP 1: INSTANT optimistic UI update from in-memory state ──────────
   // Use window.__appDeliveries (Layout's current state mirror) so we never
   // have to wait for an IDB read before the UI responds.
+  // CRITICAL: If this delivery is in the deleted registry, return null —
+  // don't allow a stale cache hit to resurrect it.
+  if (isDeleted(deliveryId)) {
+    console.log(`🛡️ [EntityMutations] updateDeliveryLocal: delivery ${deliveryId} is in deleted registry, returning null`);
+    return null;
+  }
   const inMemory = Array.isArray(window.__appDeliveries)
     ? window.__appDeliveries.find(d => d?.id === deliveryId)
     : null;

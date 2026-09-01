@@ -12,6 +12,7 @@ import { updateDeliveryLocal } from '@/components/utils/offlineMutations';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
 import { addMinutesToTime, generateUniqueSID, populateTemporaryStartTimes } from '@/components/dashboard/DashboardHelpers';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
+import { filterDeleted } from '@/components/utils/deletedDeliveryRegistry';
 import { requestDeferredOptimization, pauseDeferredOptimization } from '@/components/utils/optimizationDebouncer';
 import { recalculateAndUpdateStopOrders } from '@/components/utils/stopOrderManager';
 
@@ -191,7 +192,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
               const localDeliveries = window.__appDeliveries || [];
               const snapshotMap = new Map(localDeliveries.filter(Boolean).map((d) => [d.id, d]));
               snapshotMap.set(savedRecord.id, savedRecord);
-              const mergedDeliveries = Array.from(snapshotMap.values());
+              const mergedDeliveries = filterDeleted(Array.from(snapshotMap.values()));
               window.__appDeliveries = mergedDeliveries;
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                 detail: {

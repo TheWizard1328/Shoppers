@@ -26,6 +26,7 @@ import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
 import { getDriverDisplayName } from './components/utils/driverUtils';
+import { filterDeleted } from './components/utils/deletedDeliveryRegistry';
 import { formatPhoneNumber } from './components/utils/phoneFormatter';
 import { sortUsers, sortStores } from './components/utils/sorting';
 import { UserProvider } from './components/utils/UserContext';
@@ -498,7 +499,9 @@ export default function Layout({ children, currentPageName }) {
         next = next.length || !prev.length ? next : prev;
         // Sync window.__appDeliveries SYNCHRONOUSLY so flushRealtimeBatch sees latest
         // state immediately — before the useEffect in AppDataContext fires after paint.
-        if (typeof window !== 'undefined') window.__appDeliveries = next;
+        // CRITICAL: Filter out any deliveries in the deleted registry — this is the
+        // last line of defense against resurrection via React state reconciliation.
+        if (typeof window !== 'undefined') window.__appDeliveries = filterDeleted(next);
         return next;
       });
     } else {
@@ -517,7 +520,8 @@ export default function Layout({ children, currentPageName }) {
         const next = Array.from(merged.values());
         // Sync window.__appDeliveries SYNCHRONOUSLY so flushRealtimeBatch sees latest
         // state immediately — before the useEffect in AppDataContext fires after paint.
-        if (typeof window !== 'undefined') window.__appDeliveries = next;
+        // CRITICAL: Filter out any deliveries in the deleted registry.
+        if (typeof window !== 'undefined') window.__appDeliveries = filterDeleted(next);
         return next;
       });
     }

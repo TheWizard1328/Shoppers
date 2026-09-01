@@ -1,6 +1,7 @@
 import { offlineDB } from './offlineDatabase';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 import { getSyncPaused } from './offlineSyncState';
+import { isDeleted, isDeletedByContent } from './deletedDeliveryRegistry';
 
 const getMutationEntityClient = (entityName) => OFFLINE_SYNC_ENTITY_CLIENTS[entityName] || null;
 
@@ -129,6 +130,26 @@ export const processPendingMutationsInternal = async () => {
       }
 
       if (mutation.operation === 'create') {
+        // CRITICAL: Guard against resurrecting a deleted delivery via a stale
+        // create mutation. If the mutation's record ID or content signature
+        // matches a recently deleted delivery, discard the mutation instead
+        // of replaying it. This prevents the "reappearing pickup" bug where a
+        // device's offline create queue replays after the delivery was deleted
+        // by another device.
+        if (mutation.entity === 'Delivery') {
+          if (mutation.recordId && isDeleted(mutation.recordId)) {
+            console.log(`🛡️ [OfflineSync] Discarding create mutation for deleted delivery ${mutation.recordId}`);
+            await offlineDB.removePendingMutation(mutation.mutationId);
+            successCount++;
+            continue;
+          }
+          if (isDeletedByContent(deliveryPayload)) {
+            console.log(`🛡️ [OfflineSync] Discarding create mutation — content matches recently deleted delivery`);
+            await offlineDB.removePendingMutation(mutation.mutationId);
+            successCount++;
+            continue;
+          }
+        }
         const createdRecord = await Entity.create(mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
         const storeName = getOfflineStoreName(offlineDB, mutation.entity);
         if (storeName) {
@@ -147,6 +168,13 @@ export const processPendingMutationsInternal = async () => {
           }));
         }
       } else if (mutation.operation === 'update') {
+        // CRITICAL: Skip update mutations for deleted deliveries.
+        if (mutation.entity === 'Delivery' && mutation.recordId && isDeleted(mutation.recordId)) {
+          console.log(`🛡️ [OfflineSync] Discarding update mutation for deleted delivery ${mutation.recordId}`);
+          await offlineDB.removePendingMutation(mutation.mutationId);
+          successCount++;
+          continue;
+        }
         await Entity.update(mutation.recordId, mutation.entity === 'Delivery' ? deliveryPayload : mutation.payload);
       }
 
