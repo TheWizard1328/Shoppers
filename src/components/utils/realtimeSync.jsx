@@ -457,8 +457,13 @@ async function flushBuffered(entityName) {
     // gets full records (driver_status, location_tracking_enabled, etc.) — not partial
     // payloads that cause shouldShowMarker() to fail and silently drop location updates.
     const incomingUsers = items.map(i => {
-      const merged = (Array.isArray(window.__appUsers) ? window.__appUsers.find(u => u?.id === i.data?.id) : null);
-      return merged || i.data;
+      const cached = (Array.isArray(window.__appUsers) ? window.__appUsers.find(u => u?.id === i.data?.id) : null);
+      // CRITICAL: Merge the fresh WS fields ONTO the cached record — not the reverse.
+      // The previous `cached || i.data` returned the stale cached record when it existed,
+      // ignoring the new location coordinates from the WS payload. Using { ...cached, ...i.data }
+      // ensures the fresh location_updated_at / current_latitude / current_longitude overwrite
+      // the stale values while preserving city_ids, driver_status, location_tracking_enabled, etc.
+      return cached ? { ...cached, ...i.data } : i.data;
     }).filter(Boolean);
     incomingUsers.forEach((itemData) => {
       window.dispatchEvent(new CustomEvent('appUserUpdated', {

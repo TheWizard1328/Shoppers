@@ -218,6 +218,21 @@ class CityFilteredRealtimeSync {
              const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
              const selectedDriverId = (typeof window !== 'undefined' ? window.__appSelectedDriverId : null) || localStorage.getItem('global_selected_driver') || localStorage.getItem('app_selectedDriver');
 
+             // CRITICAL: Track the deleted ID on this device so future syncOnFilterChange
+             // calls don't resurrect it from the server (propagation lag or another device's
+             // pending mutation re-creating it). Without this, only the originating device
+             // has the ID in sessionStorage.__deletedDeliveryIds — receiving devices would
+             // re-save it from the next server fetch via filterChangeSync Step 3d.
+             try {
+               if (typeof window !== 'undefined') {
+                 const _stored = JSON.parse(sessionStorage.getItem('__deletedDeliveryIds') || '[]');
+                 if (!_stored.includes(event.id)) {
+                   _stored.push(event.id);
+                   sessionStorage.setItem('__deletedDeliveryIds', JSON.stringify(_stored));
+                 }
+               }
+             } catch (_) { /* non-critical */ }
+
              // Remove from offline DB, then force a fresh reload of the selected date slice
               await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
               console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
@@ -309,14 +324,28 @@ class CityFilteredRealtimeSync {
       }
 
       // Filter by the currently selected city (not user's cities) for location/dashboard updates
+      // CRITICAL: Location-only WS payloads (current_latitude, current_longitude, location_updated_at)
+      // do NOT include city_ids. Before the city filter, enrich event.data with the existing
+      // record from window.__appUsers or IDB so city_ids is available for the filter decision.
+      // Without this, location-only updates from other drivers in the same city get silently dropped.
       if (event.type !== 'delete' && event.data) {
-        const appUserCityIds = event.data.city_ids || (event.data.city_id ? [event.data.city_id] : []);
+        let _cityLookupData = event.data;
+        if (!event.data.city_ids && !event.data.city_id) {
+          // Try window.__appUsers first (fastest, already merged)
+          if (typeof window !== 'undefined' && Array.isArray(window.__appUsers)) {
+            const _cached = window.__appUsers.find(u => u?.id === event.data.id);
+            if (_cached) _cityLookupData = { ..._cached, ...event.data };
+          }
+        }
+        const appUserCityIds = _cityLookupData.city_ids || (_cityLookupData.city_id ? [_cityLookupData.city_id] : []);
         const hasMatchingCity = appUserCityIds.includes(cityId);
         
         if (!hasMatchingCity) {
           console.log(`⏭️ [Realtime AppUser] Skipping city-filtered updates - different city (user cities: ${appUserCityIds.join(',')}, current city: ${cityId})`);
           return;
         }
+        // Use the enriched data downstream so the merge below has full records
+        event.data = _cityLookupData;
       }
 
       // Process the event

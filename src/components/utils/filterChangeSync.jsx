@@ -110,8 +110,26 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
     if (staleIds.length > 0) {
       await Promise.all(staleIds.map(id => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {})));
     }
-    if (freshDeliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+    // CRITICAL: Filter out locally-deleted delivery IDs before saving to IDB.
+    // If the server still returns a just-deleted delivery (propagation lag or another
+    // device re-created it via pending mutations), bulkSave would resurrect it in IDB,
+    // and the subsequent IDB read in Step 4 would merge it back into React state via
+    // updateDeliveriesLocally — bypassing the getDeletedDeliveryIds() filter that
+    // handleDeliveriesUpdated applies. This is the ghost-pickup resurrection path.
+    let _deliveriesToSave = freshDeliveries;
+    try {
+      const _storedDeleted = JSON.parse(sessionStorage.getItem('__deletedDeliveryIds') || '[]');
+      if (_storedDeleted.length > 0) {
+        const _deletedSet = new Set(_storedDeleted);
+        _deliveriesToSave = freshDeliveries.filter(d => d?.id && !_deletedSet.has(d.id));
+        if (_deliveriesToSave.length < freshDeliveries.length) {
+          console.log(`👻 [FilterSync] Filtered ${freshDeliveries.length - _deliveriesToSave.length} deleted deliveries from fresh server data before IDB save`);
+        }
+      }
+    } catch (_) { /* non-critical */ }
+
+    if (_deliveriesToSave.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, _deliveriesToSave).catch(() => {});
     }
     invalidateEntityCache('Delivery');
 

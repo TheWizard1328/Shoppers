@@ -476,9 +476,26 @@ export default function Layout({ children, currentPageName }) {
 
   // Granular delivery update function for immediate UI synchronization
   const updateDeliveriesLocally = useCallback((newDeliveries, isFullReplacement = false) => {
+    // CRITICAL: Build the deleted-IDs set once per call so both branches filter consistently.
+    // This prevents syncOnFilterChange → applyFullDataToState → updateDeliveriesLocally
+    // from resurrecting deleted deliveries that the server returned due to propagation lag.
+    // handleDeliveriesUpdated already filters via getDeletedDeliveryIds(), but this function
+    // is called from a DIFFERENT path (applyFullDataToState) that bypasses that handler.
+    let _deletedIds = null;
+    try {
+      const _stored = JSON.parse(sessionStorage.getItem('__deletedDeliveryIds') || '[]');
+      if (_stored.length > 0) _deletedIds = new Set(_stored);
+    } catch (_) {}
+
     if (isFullReplacement) {
       setDeliveries((prev) => {
-        const next = newDeliveries?.filter(Boolean).length || !prev.length ? [...(newDeliveries || []).filter(Boolean)] : prev;
+        let next = [...(newDeliveries || []).filter(Boolean)];
+        // Filter out deleted IDs from the replacement set
+        if (_deletedIds && _deletedIds.size > 0) {
+          next = next.filter(d => d?.id && !_deletedIds.has(d.id));
+        }
+        // Only use the replacement if it has content or prev is empty
+        next = next.length || !prev.length ? next : prev;
         // Sync window.__appDeliveries SYNCHRONOUSLY so flushRealtimeBatch sees latest
         // state immediately — before the useEffect in AppDataContext fires after paint.
         if (typeof window !== 'undefined') window.__appDeliveries = next;
@@ -487,8 +504,13 @@ export default function Layout({ children, currentPageName }) {
     } else {
       setDeliveries((prevDeliveries) => {
         const merged = new Map((prevDeliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
+        // Purge any deleted IDs that might be present in prev from a previous resurrection
+        if (_deletedIds && _deletedIds.size > 0) {
+          for (const id of _deletedIds) merged.delete(id);
+        }
         (newDeliveries || []).filter(Boolean).forEach((delivery) => {
           if (!delivery?.id) return;
+          if (_deletedIds && _deletedIds.has(delivery.id)) return; // NEVER re-insert deleted stops
           const existing = merged.get(delivery.id);
           merged.set(delivery.id, existing ? { ...existing, ...delivery } : delivery);
         });
