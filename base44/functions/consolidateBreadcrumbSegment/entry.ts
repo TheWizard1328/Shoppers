@@ -222,6 +222,10 @@ Deno.serve(async (req) => {
       // called immediately after snapMasterTimeline saves the snapped polyline.
       master_polyline = null,
       master_timestamps = null,
+      // When true, run the proximity slicing but DON'T save anything — return the
+      // projected point count per stop so the Reclip dialog can show
+      // "current → projected" before the user commits.
+      preview_only = false,
     } = body || {};
 
     if (!driver_id || !delivery_date) {
@@ -583,6 +587,40 @@ Deno.serve(async (req) => {
     }
 
     console.log(`🍞 [consolidateBreadcrumbSegment] Sliced ${segments.length} segments: ${segments.map(s => `#${s.stopOrder}:${s.pointCount}pts`).join(', ')}`);
+
+    // ── PREVIEW MODE ─────────────────────────────────────────────────────────
+    // Return projected point counts per stop WITHOUT writing. Used by
+    // ResegmentStopsDialog to show "current → projected" before committing.
+    if (preview_only) {
+      const existingSegs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+        driver_id,
+        delivery_date,
+      }).catch(() => []);
+      const currentByStop = new Map();
+      for (const rec of (existingSegs || [])) {
+        if (rec && rec.stop_order != null && rec.stop_order !== -1) {
+          currentByStop.set(Number(rec.stop_order), rec.point_count ?? 0);
+        }
+      }
+      const preview = segments.map((seg) => {
+        const so = Number(seg.delivery.stop_order);
+        return {
+          stop_order: so,
+          delivery_id: seg.delivery.delivery_id || seg.delivery.id,
+          projected_point_count: seg.pointCount,
+          current_point_count: currentByStop.has(so) ? currentByStop.get(so) : null,
+          match_distance_m: Math.round(seg.matchDistance),
+        };
+      });
+      return Response.json({
+        success: true,
+        preview_only: true,
+        driver_id,
+        delivery_date,
+        master_point_count: masterPoints.length,
+        segments: preview,
+      });
+    }
 
     // ── 7. Save each segment to DeliveryBreadcrumbs ────────────────────────────
     // Fetch existing segments for this driver/date (all stop_orders except -1)

@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, Scissors, Save, X, MapPin } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -87,6 +88,38 @@ export default function ResegmentStopsDialog({
       computeBreadcrumbMap(breadcrumbs, driver_id, delivery_date)
     )
   );
+
+  // Preview of projected point counts per stop (from a preview-only slice call).
+  // Keyed by stop_order → { projected_point_count, current_point_count }.
+  const [previewMap, setPreviewMap] = useState({});
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  useEffect(() => {
+    if (!driver_id || !delivery_date) return;
+    let cancelled = false;
+    setPreviewLoading(true);
+    (async () => {
+      try {
+        const res = await base44.functions.invoke('consolidateBreadcrumbSegment', {
+          driver_id,
+          delivery_date,
+          preview_only: true,
+        });
+        const data = res?.data ?? res;
+        if (cancelled || !data?.success) return;
+        const map = {};
+        (data.segments || []).forEach((s) => {
+          map[Number(s.stop_order)] = s;
+        });
+        if (!cancelled) setPreviewMap(map);
+      } catch (_) {
+        // non-critical — dialog falls back to current counts only
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [driver_id, delivery_date]);
 
   if (!masterItem) return null;
 
@@ -204,7 +237,25 @@ export default function ResegmentStopsDialog({
                   </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0 text-right">
                     <div className="truncate max-w-[100px]">{d.delivery_id || d.tracking_number || '—'}</div>
-                    <div>{bc?.point_count ?? 0} pts</div>
+                    <div>
+                      {(() => {
+                        const current = bc?.point_count ?? 0;
+                        const projected = previewMap[so]?.projected_point_count;
+                        if (previewLoading && projected == null) {
+                          return <span className="text-slate-400">{current} pts <Loader2 className="w-3 h-3 inline animate-spin ml-0.5" /></span>;
+                        }
+                        if (projected == null) return <span>{current} pts</span>;
+                        const changed = projected !== current;
+                        return (
+                          <span>
+                            <span className={changed ? 'text-slate-400 line-through' : ''}>{current}</span>
+                            <span className="mx-0.5 text-slate-400">→</span>
+                            <span className={changed ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>{projected}</span>
+                            <span className="ml-0.5">pts</span>
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
               );
