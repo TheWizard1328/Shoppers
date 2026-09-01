@@ -168,10 +168,33 @@ Deno.serve(async (req) => {
       console.log(`🍞 [syncPendingBreadcrumbs] Skipped ${corruptedSkipped} corrupted points from existing record(s) (bitwise overflow)`);
     }
 
-    // Merge by timestamp — prefer incoming points (they are the latest from client)
+    // Merge by timestamp — but NEVER let raw incoming GPS points overwrite
+    // existing SNAPPED points. When snapMasterTimeline fills a gap zone, it
+    // interpolates unique strictly-increasing timestamps for the HERE-routed
+    // bridge points. However, the driver's device still has the ORIGINAL raw
+    // GPS points (with the original timestamps) in its offline buffer, and
+    // flushes them on every 15s sync. Without this guard, those raw points
+    // at the original timestamps would overwrite the snapped bridge points
+    // — silently undoing the snap and restoring the gaps.
+    // When the existing master is snapped, we keep its points for any
+    // timestamp it already covers, and only ADD incoming points for
+    // timestamps the snapped master doesn't have (i.e. new GPS collected
+    // AFTER the snap was saved).
+    const hasSnappedMaster = sortedExisting.some((r) => r?.is_snapped === true);
     const tsMap = new Map();
     for (const pt of existingPoints) tsMap.set(pt[2], pt);
-    for (const pt of incomingPoints) { if (pt[2]) tsMap.set(pt[2], pt); }
+    if (hasSnappedMaster) {
+      // Snapped master exists — only add incoming points for NEW timestamps
+      // not already covered by the snapped trail. This preserves all snapped
+      // bridge points while still appending any genuinely new GPS data.
+      for (const pt of incomingPoints) {
+        if (pt[2] && !tsMap.has(pt[2])) tsMap.set(pt[2], pt);
+      }
+      console.log(`🍞 [syncPendingBreadcrumbs] Snapped master detected — preserving ${existingPoints.length} snapped pts, only adding new timestamps from incoming ${incomingPoints.length} pts`);
+    } else {
+      // No snapped master — original behavior: incoming points win on conflict
+      for (const pt of incomingPoints) { if (pt[2]) tsMap.set(pt[2], pt); }
+    }
 
     const mergedPoints = Array.from(tsMap.values()).sort((a, b) => a[2] - b[2]);
 
@@ -182,6 +205,11 @@ Deno.serve(async (req) => {
     const encodedPolyline = encodePolyline(mergedPoints);
     const timestamps = mergedPoints.map((p) => p[2]).join(',');
 
+    // Preserve is_snapped flag: if the existing master was snapped, the merged
+    // result (which preserves all snapped bridge points) is still snapped.
+    // Don't silently downgrade a snapped master back to raw by omitting the flag.
+    const isSnapped = hasSnappedMaster || (existingRecord?.is_snapped === true);
+
     const masterRecord = {
       driver_id,
       delivery_date,
@@ -190,6 +218,7 @@ Deno.serve(async (req) => {
       timestamps,
       transport_mode: 'driving',
       point_count: mergedPoints.length,
+      ...(isSnapped ? { is_snapped: true } : {}),
     };
 
     if (existingRecord?.id) {
@@ -220,7 +249,8 @@ Deno.serve(async (req) => {
         const postOldest = postSorted[0];
         const postDupIds = postSorted.slice(1).map((r) => r.id).filter(Boolean);
 
-        // Re-merge points from all records
+        // Re-merge points from all records — snapped records take priority
+        const postHasSnapped = postSorted.some((r) => r?.is_snapped === true);
         const postPointsMap = new Map();
         for (const rec of postSorted) {
           if (!rec?.encoded_polyline || !rec?.timestamps) continue;
@@ -232,8 +262,13 @@ Deno.serve(async (req) => {
             postPointsMap.set(ts, [coord[0], coord[1], ts]);
           });
         }
-        // Also include incoming points
-        for (const pt of incomingPoints) { if (pt[2]) postPointsMap.set(pt[2], pt); }
+        // Only add incoming raw points for timestamps not already covered
+        // (preserves snapped bridge points from overwrite)
+        if (postHasSnapped) {
+          for (const pt of incomingPoints) { if (pt[2] && !postPointsMap.has(pt[2])) postPointsMap.set(pt[2], pt); }
+        } else {
+          for (const pt of incomingPoints) { if (pt[2]) postPointsMap.set(pt[2], pt); }
+        }
         const postMerged = Array.from(postPointsMap.values()).sort((a, b) => a[2] - b[2]);
 
         if (postMerged.length > 0 && postOldest?.id) {
