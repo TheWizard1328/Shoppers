@@ -461,6 +461,7 @@ Deno.serve(async (req) => {
             master_polyline: snappedPolyline,
             master_timestamps: snappedTimestamps,
           })
+          .then((r: any) => r?.data ?? r)
           .catch((e: Error) => ({ error: e?.message }));
       }
 
@@ -569,6 +570,7 @@ Deno.serve(async (req) => {
             master_polyline: existingPolyline,
             master_timestamps: existingTimestamps,
           })
+          .then((r: any) => r?.data ?? r)
           .catch((e: Error) => ({ error: e?.message }));
       }
 
@@ -801,6 +803,7 @@ Deno.serve(async (req) => {
           master_polyline: snappedPolyline,
           master_timestamps: snappedTimestamps,
         })
+        .then((r: any) => r?.data ?? r)
         .catch((e: Error) => ({ error: e?.message }));
     }
 
