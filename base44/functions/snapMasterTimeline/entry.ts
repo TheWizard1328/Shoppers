@@ -575,6 +575,21 @@ Deno.serve(async (req) => {
       routedCoordsByZoneIndex.set(seg.zoneIndex, routedResults[0]);
     }
 
+    // ── 6b. Log HERE API usage to the API counter (GoogleAPILog) ──────────────
+    if (totalApiCalls > 0) {
+      try {
+        await base44.asServiceRole.entities.GoogleAPILog.create({
+          timestamp: new Date().toISOString(),
+          api_type: 'Directions (HERE)',
+          purpose: `HERE route snap of breadcrumb gaps — ${zones.length} zone(s) for driver ${driver_id} on ${delivery_date}`,
+          function_name: 'snapMasterTimeline',
+          user_id: user.id || null,
+          user_name: user.full_name || user.email || null,
+          metadata: { provider: 'here', source: 'backend', call_count: totalApiCalls, zone_count: zones.length, driver_id, delivery_date },
+        });
+      } catch { /* non-critical */ }
+    }
+
     // ── 7. Stitch results back into master points ─────────────────────────────
     const resultCoords: [number, number][] = masterPoints.map(p => [p[0], p[1]]);
     const resultTs: number[] = masterPoints.map(p => p[2]);
