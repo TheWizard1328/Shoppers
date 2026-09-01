@@ -216,6 +216,11 @@ Deno.serve(async (req) => {
       // Used by snapMasterTimeline after a master re-snap so stale saved
       // segments are replaced with fresh slices from the snapped master.
       force_replace = false,
+      // When provided, use these directly instead of reading the master record
+      // from the DB. This eliminates read-after-write consistency gaps when
+      // called immediately after snapMasterTimeline saves the snapped polyline.
+      master_polyline = null,
+      master_timestamps = null,
     } = body || {};
 
     if (!driver_id || !delivery_date) {
@@ -231,32 +236,18 @@ Deno.serve(async (req) => {
     console.log(`🍞 [consolidateBreadcrumbSegment] Proximity slicing for driver=${driver_id}, date=${delivery_date}${_triggeredDeliveryId ? `, triggered by ${_triggeredDeliveryId}` : ''}`);
 
     // ── 1. Read the master trail (stop_order = -1) ─────────────────────────────
-    const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
-      driver_id,
-      delivery_date,
-      stop_order: -1
-    });
-
-    // NOTE: there is a known race in syncPendingBreadcrumbs where two concurrent
-    // syncs (the routine 15s GPS loop + the "flush before slice" call fired on
-    // every stop action) can both create() a fresh master record instead of one
-    // updating the other, producing duplicate -1 rows. syncPendingBreadcrumbs
-    // self-heals this on its next run, but slicing can race ahead of that heal —
-    // so defensively merge points across ALL matching master records here rather
-    // than trusting masterRecords[0], which is only ever a PARTIAL trail when
-    // duplicates exist (this is what previously caused "one correct, rest partial"
-    // master files: whichever duplicate got picked was whatever last synced,
-    // not the full day's trail).
-    const hasMultipleMasters = Array.isArray(masterRecords) && masterRecords.length > 1;
-    if (hasMultipleMasters) {
-      console.warn(`⚠️ [consolidateBreadcrumbSegment] Found ${masterRecords.length} duplicate master records for driver=${driver_id} date=${delivery_date} — merging points from all before slicing.`);
-    }
+    // When master_polyline is passed directly (from snapMasterTimeline), use it
+    // instead of reading from the DB to avoid read-after-write consistency gaps.
+    const usePassedMaster = typeof master_polyline === 'string' && master_polyline.length > 0;
 
     const masterPointsMap = new Map();
-    for (const rec of (Array.isArray(masterRecords) ? masterRecords : [])) {
-      if (!rec?.encoded_polyline || !rec?.timestamps) continue;
-      const coords = decodePolyline(rec.encoded_polyline);
-      const tsArr = rec.timestamps.split(',').map(Number);
+
+    if (usePassedMaster) {
+      console.log(`🍞 [consolidateBreadcrumbSegment] Using PASSED master polyline (${master_polyline.length} chars) — skipping DB read`);
+      const coords = decodePolyline(master_polyline);
+      const tsArr = typeof master_timestamps === 'string'
+        ? master_timestamps.split(',').map(Number)
+        : [];
       coords.forEach((coord, i) => {
         const ts = tsArr[i] || 0;
         const pt = [coord[0], coord[1], ts];
@@ -267,7 +258,45 @@ Deno.serve(async (req) => {
           masterPointsMap.set(ts, pt);
         }
       });
+    } else {
+      const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+        driver_id,
+        delivery_date,
+        stop_order: -1
+      });
+
+      // NOTE: there is a known race in syncPendingBreadcrumbs where two concurrent
+      // syncs (the routine 15s GPS loop + the "flush before slice" call fired on
+      // every stop action) can both create() a fresh master record instead of one
+      // updating the other, producing duplicate -1 rows. syncPendingBreadcrumbs
+      // self-heals this on its next run, but slicing can race ahead of that heal —
+      // so defensively merge points across ALL matching master records here rather
+      // than trusting masterRecords[0], which is only ever a PARTIAL trail when
+      // duplicates exist (this is what previously caused "one correct, rest partial"
+      // master files: whichever duplicate got picked was whatever last synced,
+      // not the full day's trail).
+      const hasMultipleMasters = Array.isArray(masterRecords) && masterRecords.length > 1;
+      if (hasMultipleMasters) {
+        console.warn(`⚠️ [consolidateBreadcrumbSegment] Found ${masterRecords.length} duplicate master records for driver=${driver_id} date=${delivery_date} — merging points from all before slicing.`);
+      }
+
+      for (const rec of (Array.isArray(masterRecords) ? masterRecords : [])) {
+        if (!rec?.encoded_polyline || !rec?.timestamps) continue;
+        const coords = decodePolyline(rec.encoded_polyline);
+        const tsArr = rec.timestamps.split(',').map(Number);
+        coords.forEach((coord, i) => {
+          const ts = tsArr[i] || 0;
+          const pt = [coord[0], coord[1], ts];
+          if (
+            Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && Number.isFinite(pt[2]) &&
+            !isCorruptedPoint(pt[0], pt[1]) && ts
+          ) {
+            masterPointsMap.set(ts, pt);
+          }
+        });
+      }
     }
+
     const masterPoints = Array.from(masterPointsMap.values()).sort((a, b) => a[2] - b[2]);
 
     if (masterPoints.length === 0) {

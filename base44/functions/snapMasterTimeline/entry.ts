@@ -432,10 +432,17 @@ Deno.serve(async (req) => {
 
       // Re-consolidate using the proximity-based slicer with force_replace so
       // stale saved_to_route segments are overwritten with fresh slices.
+      // Pass the snapped master data directly to avoid read-after-write gaps.
       let consolidateResult = null;
       if (run_consolidate) {
         consolidateResult = await base44.functions
-          .invoke('consolidateBreadcrumbSegment', { driver_id, delivery_date, force_replace: true })
+          .invoke('consolidateBreadcrumbSegment', {
+            driver_id,
+            delivery_date,
+            force_replace: true,
+            master_polyline: snappedPolyline,
+            master_timestamps: snappedTimestamps,
+          })
           .catch((e: Error) => ({ error: e?.message }));
       }
 
@@ -716,10 +723,17 @@ Deno.serve(async (req) => {
     console.log(`[snapMasterTimeline] ✅ Saved — ${masterPoints.length} pts → ${resultCoords.length} pts, ${zones.length} zones snapped in ${totalApiCalls} API call(s)`);
 
     // ── 9. Re-consolidate stop segments (proximity-based, force-replace) ────
+    // Pass the snapped master data directly to avoid read-after-write gaps.
     let consolidateResult = null;
     if (run_consolidate) {
       consolidateResult = await base44.functions
-        .invoke('consolidateBreadcrumbSegment', { driver_id, delivery_date, force_replace: true })
+        .invoke('consolidateBreadcrumbSegment', {
+          driver_id,
+          delivery_date,
+          force_replace: true,
+          master_polyline: snappedPolyline,
+          master_timestamps: snappedTimestamps,
+        })
         .catch((e: Error) => ({ error: e?.message }));
     }
 
