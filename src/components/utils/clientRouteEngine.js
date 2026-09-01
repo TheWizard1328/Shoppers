@@ -362,6 +362,7 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
     signal: AbortSignal.timeout(25000)
   });
+  console.log(`🌐 [HERE findsequence2] URL params:`, Object.fromEntries(params.entries()));
   logHereApiCall({ apiType: 'Route Optimization (HERE)', purpose: `findsequence2 — ${stopsToSequence.length} stop(s), mode=${hereTransportMode}`, source: 'callHereSequence', driverId, userName }).catch(() => {});
   const data = await response.json().catch(() => null);
   return { response, data, includeTimeWindows };
@@ -730,6 +731,7 @@ export async function optimizeRouteClientSide({
     let interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
 
     if ((!attempt.response.ok || !result || waypoints.length === 0) && attempt.includeTimeWindows) {
+      console.warn(`⚠️ [clientRouteEngine] ${source} — HERE time-window attempt FAILED (status=${attempt.response.status}), retrying WITHOUT time windows`);
       usedTimeWindows = false;
       attempt = await callHereSequence({
         sequenceStart, stopsToSequence: seqStops,
@@ -741,6 +743,8 @@ export async function optimizeRouteClientSide({
       result = Array.isArray(attempt.data?.results) ? attempt.data.results[0] : null;
       waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
       interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+    } else {
+      console.log(`✅ [clientRouteEngine] ${source} — HERE sequencing ${usedTimeWindows ? 'WITH time windows' : 'WITHOUT time windows'} (status=${attempt.response.status}, ${waypoints.length} waypoints)`);
     }
 
     if (!attempt.response.ok || !result || waypoints.length === 0) {
@@ -904,22 +908,115 @@ export async function optimizeRouteClientSide({
       directionsLegs = stitchedLegs;
 
     } else {
-      // Pure driving (or no cycling segment) — single HERE call as before
+      // Pure driving (or no cycling segment) — HERE sequencing with time-window grouping.
+      //
+      // HERE findsequence2's `acc` constraints allow arriving BEFORE the time window
+      // and waiting, so it optimizes for driving time — NOT time-window compliance.
+      // This results in afternoon-window stops being scheduled for morning arrival
+      // (with multi-hour waits), which doesn't match the user's delivery windows.
+      //
+      // Fix: sort stops by their time window start, group into 2-hour buckets, and
+      // sequence each bucket with HERE independently. This gives HERE's driving
+      // optimization WITHIN each time group while preserving chronological order
+      // across groups (morning → afternoon → evening → late).
       const seqOrigin = routeOriginStop ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng } : currentPosition;
-      const { orderedStops, legs } = await runHereSequence({
-        sequenceStart: seqOrigin,
-        stops: stopsToSequence,
-        origin: seqOrigin,
-        hereMode: cyclingSegmentOnly ? cyclingHereMode : hereTransportMode,
-        withHome: true
-      });
-      routeStops = [...routeStops, ...orderedStops];
-      directionsLegs = routeOriginStop
-        ? [
-            (() => { const d = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, routeOriginStop.lat, routeOriginStop.lng); return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 }; })(),
-            ...legs
-          ]
-        : legs;
+      const hereMode = cyclingSegmentOnly ? cyclingHereMode : hereTransportMode;
+
+      const hasTimeWindows = stopsToSequence.some(s =>
+        s.windowStart && parseTimeToMinutes(s.windowStart) > 0
+      );
+
+      if (hasTimeWindows) {
+        // ── Time-bucket grouping ───────────────────────────────────────────
+        const TIME_BUCKET_MINUTES = 120; // 2-hour buckets
+
+        // Sort all stops by their time window start (chronological order)
+        const sortedByWindow = [...stopsToSequence].sort((a, b) => {
+          const aMin = parseTimeToMinutes(a.windowStart || a.delivery.delivery_time_start || '99:99');
+          const bMin = parseTimeToMinutes(b.windowStart || b.delivery.delivery_time_start || '99:99');
+          return aMin - bMin;
+        });
+
+        // Group into buckets: stops whose windowStart is within TIME_BUCKET_MINUTES
+        // of the bucket's first stop belong to the same group.
+        const buckets = [];
+        for (const stop of sortedByWindow) {
+          const stopMin = parseTimeToMinutes(stop.windowStart || stop.delivery.delivery_time_start || '99:99');
+          const lastBucket = buckets[buckets.length - 1];
+          if (lastBucket && lastBucket.length > 0) {
+            const bucketStartMin = parseTimeToMinutes(
+              lastBucket[0].windowStart || lastBucket[0].delivery.delivery_time_start || '99:99'
+            );
+            if (stopMin - bucketStartMin <= TIME_BUCKET_MINUTES) {
+              lastBucket.push(stop);
+              continue;
+            }
+          }
+          buckets.push([stop]);
+        }
+
+        console.log(`[clientRouteEngine] ${source} — TIME-WINDOW grouping: ${buckets.length} buckets for ${stopsToSequence.length} stops: ${buckets.map(b => {
+          const s = parseTimeToMinutes(b[0].windowStart || b[0].delivery.delivery_time_start || '99:99');
+          return `${formatMinutesToTime(s)}(${b.length})`;
+        }).join(' → ')}`);
+
+        // Sequence each bucket with HERE, concatenate in chronological order
+        let allOrderedStops = [];
+        let allLegs = [];
+        let groupOrigin = seqOrigin;
+
+        for (const bucket of buckets) {
+          if (bucket.length === 0) continue;
+          const { orderedStops: bucketStops, legs: bucketLegs } = await runHereSequence({
+            sequenceStart: groupOrigin,
+            stops: bucket,
+            origin: groupOrigin,
+            hereMode,
+            withHome: buckets.indexOf(bucket) === buckets.length - 1 // only anchor last bucket to home
+          });
+
+          // If this isn't the first group, add a connector leg from the previous
+          // group's last stop to this group's first stop (crow-flies estimate).
+          if (allOrderedStops.length > 0 && bucketStops.length > 0) {
+            const lastPrev = allOrderedStops[allOrderedStops.length - 1];
+            const firstNext = bucketStops[0];
+            const d = calculateCrowFliesDistance(lastPrev.lat, lastPrev.lng, firstNext.lat, firstNext.lng);
+            allLegs.push({ duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 });
+          }
+
+          allOrderedStops.push(...bucketStops);
+          allLegs.push(...bucketLegs);
+
+          // Next group's origin = this group's last stop
+          if (bucketStops.length > 0) {
+            groupOrigin = { lat: bucketStops[bucketStops.length - 1].lat, lng: bucketStops[bucketStops.length - 1].lng };
+          }
+        }
+
+        routeStops = [...routeStops, ...allOrderedStops];
+        directionsLegs = routeOriginStop
+          ? [
+              (() => { const d = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, routeOriginStop.lat, routeOriginStop.lng); return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 }; })(),
+              ...allLegs
+            ]
+          : allLegs;
+      } else {
+        // No time windows — single HERE call as before (HERE optimizes for driving time)
+        const { orderedStops, legs } = await runHereSequence({
+          sequenceStart: seqOrigin,
+          stops: stopsToSequence,
+          origin: seqOrigin,
+          hereMode,
+          withHome: true
+        });
+        routeStops = [...routeStops, ...orderedStops];
+        directionsLegs = routeOriginStop
+          ? [
+              (() => { const d = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, routeOriginStop.lat, routeOriginStop.lng); return { duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 }; })(),
+              ...legs
+            ]
+          : legs;
+      }
     }
   }
 
