@@ -731,12 +731,29 @@ Deno.serve(async (req) => {
       const adjStart = zone.startIdx + offset;
       const adjEnd = zone.endIdx + offset;
 
-      // Assign timestamps proportionally across snapped points
+      // Assign timestamps by INTERPOLATING across the zone's real start/end
+      // timestamps — NOT by reusing the (only 2-3) original raw timestamps.
+      // A gap zone typically has only 2-3 raw points, but HERE's road-snapped
+      // bridge can have dozens of points. Reusing the tiny set of original
+      // timestamps means many new points end up sharing an identical ts.
+      // That's silently catastrophic: syncPendingBreadcrumbs (and any other
+      // consumer) merges breadcrumb points by exact timestamp key — so the
+      // next time the driver's device flushes its own raw GPS buffer for
+      // this date, its raw points at those SAME original timestamps clobber
+      // the snapped points back to the original (gapped) coordinates,
+      // completely undoing the snap and wasting the HERE API call.
+      // Interpolating gives every new point its own unique, monotonically
+      // increasing ms timestamp, so there is no collision surface at all.
       const zoneTs = masterPoints.slice(zone.startIdx, zone.endIdx + 1).map(p => p[2]);
+      const zoneStartTs = zoneTs[0];
+      const zoneEndTs = zoneTs[zoneTs.length - 1];
+      let prevTs = zoneStartTs - 1;
       const snappedZoneTs: number[] = snappedZone.map((_, i) => {
         const ratio = snappedZone.length > 1 ? i / (snappedZone.length - 1) : 0;
-        const srcIdx = Math.min(Math.round(ratio * (zoneTs.length - 1)), zoneTs.length - 1);
-        return zoneTs[srcIdx];
+        let ts = Math.round(zoneStartTs + ratio * (zoneEndTs - zoneStartTs));
+        if (ts <= prevTs) ts = prevTs + 1; // guarantee strictly increasing / unique
+        prevTs = ts;
+        return ts;
       });
 
       const deleteCount = adjEnd - adjStart + 1;
