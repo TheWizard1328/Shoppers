@@ -40,6 +40,11 @@
       "type": "boolean",
       "default": false,
       "description": "True once this breadcrumb's cleaned polyline has been saved back to the Delivery route record"
+    },
+    "is_snapped": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this master trail (stop_order = -1) has been road-snapped via snapMasterTimeline (HERE Route Matching). Used by consolidateBreadcrumbSegment to prefer the snapped master over stale raw duplicates created by the syncPendingBreadcrumbs race, and to clean up those duplicates."
     }
   },
   "required": [

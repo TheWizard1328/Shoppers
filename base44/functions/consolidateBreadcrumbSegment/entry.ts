@@ -1,5 +1,6 @@
 /* global Deno */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { pickBestMaster } from '../../shared/masterBreadcrumbDedup.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // consolidateBreadcrumbSegment — Proximity-Based Breadcrumb Slicing
@@ -280,23 +281,27 @@ Deno.serve(async (req) => {
         console.warn(`⚠️ [consolidateBreadcrumbSegment] Found ${masterRecords.length} duplicate master records for driver=${driver_id} date=${delivery_date} — merging points from all before slicing.`);
       }
 
-      // CRITICAL: Sort duplicate master records by updated_date ASCENDING before
-      // merging. The Map is keyed by timestamp, so the LAST record iterated wins
-      // for any overlapping timestamps. The most recently updated record (e.g. the
-      // just-snapped master from snapMasterTimeline) must be iterated LAST so its
-      // road-following points overwrite the raw GPS points from older duplicates.
-      // Without this, a stale unsnapped duplicate can overwrite the snapped master
-      // and the recut slices from the original unsnapped trail.
-      const sortedMasterRecords = [...(Array.isArray(masterRecords) ? masterRecords : [])].sort((a, b) => {
-        const aTime = new Date(a?.updated_date || a?.created_date || 0).getTime();
-        const bTime = new Date(b?.updated_date || b?.created_date || 0).getTime();
-        return aTime - bTime;
-      });
+      // CRITICAL: Pick the BEST master record — prefer is_snapped=true (the
+      // road-snapped master from snapMasterTimeline), else the most recently
+      // updated. syncPendingBreadcrumbs can create duplicate stop_order=-1 rows
+      // via a race; if we merge all of them by timestamp, a stale RAW duplicate
+      // can overwrite the snapped master for overlapping timestamps and the
+      // recut slices from the original unsnapped trail.
+      //
+      // When a snapped master exists, use ONLY it (it is the complete snapped
+      // trail) and delete the stale raw duplicates. When none is snapped, fall
+      // back to merging all duplicates (newest wins) to preserve the full trail.
+      const { best: bestMaster, rest: dupMasters } = pickBestMaster(masterRecords);
 
-      for (const rec of sortedMasterRecords) {
-        if (!rec?.encoded_polyline || !rec?.timestamps) continue;
-        const coords = decodePolyline(rec.encoded_polyline);
-        const tsArr = rec.timestamps.split(',').map(Number);
+      if (bestMaster?.is_snapped === true) {
+        console.log(`🍞 [consolidateBreadcrumbSegment] Using SNAPPED master ${bestMaster.id} (${bestMaster.point_count ?? 0} pts) — deleting ${dupMasters.length} stale duplicate(s)`);
+        for (const dup of dupMasters) {
+          if (dup?.id) {
+            await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(dup.id).catch(() => null);
+          }
+        }
+        const coords = decodePolyline(bestMaster.encoded_polyline);
+        const tsArr = bestMaster.timestamps.split(',').map(Number);
         coords.forEach((coord, i) => {
           const ts = tsArr[i] || 0;
           const pt = [coord[0], coord[1], ts];
@@ -307,6 +312,35 @@ Deno.serve(async (req) => {
             masterPointsMap.set(ts, pt);
           }
         });
+      } else {
+        // No snapped master — merge all duplicates (newest-updated wins per
+        // timestamp) to preserve the full raw trail, then delete the older
+        // duplicates so future runs see a single authoritative master.
+        for (const dup of dupMasters) {
+          if (dup?.id) {
+            await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(dup.id).catch(() => null);
+          }
+        }
+        const sortedMasterRecords = [...(Array.isArray(masterRecords) ? masterRecords : [])].sort((a, b) => {
+          const aTime = new Date(a?.updated_date || a?.created_date || 0).getTime();
+          const bTime = new Date(b?.updated_date || b?.created_date || 0).getTime();
+          return aTime - bTime;
+        });
+        for (const rec of sortedMasterRecords) {
+          if (!rec?.encoded_polyline || !rec?.timestamps) continue;
+          const coords = decodePolyline(rec.encoded_polyline);
+          const tsArr = rec.timestamps.split(',').map(Number);
+          coords.forEach((coord, i) => {
+            const ts = tsArr[i] || 0;
+            const pt = [coord[0], coord[1], ts];
+            if (
+              Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && Number.isFinite(pt[2]) &&
+              !isCorruptedPoint(pt[0], pt[1]) && ts
+            ) {
+              masterPointsMap.set(ts, pt);
+            }
+          });
+        }
       }
     }
 

@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
+import { dedupMasterBreadcrumbs } from '../../shared/masterBreadcrumbDedup.ts';
 
 // ─── snapMasterTimeline ────────────────────────────────────────────────────────
 // Surgical gap-fill snapping of the master GPS breadcrumb timeline (stop_order = -1).
@@ -426,7 +427,15 @@ Deno.serve(async (req) => {
         encoded_polyline: snappedPolyline,
         timestamps: snappedTimestamps,
         point_count: savePointCount,
+        is_snapped: true,
       });
+
+      // Delete any duplicate master records so only the snapped one remains.
+      // syncPendingBreadcrumbs can create duplicate stop_order=-1 rows via a
+      // race; if left, consolidate's merge can let a raw duplicate overwrite
+      // the snapped master, causing reclips to slice from the raw trail.
+      const saveOnlyDedup = await dedupMasterBreadcrumbs(base44, driver_id, delivery_date, master.id);
+      if (saveOnlyDedup > 0) console.log(`[snapMasterTimeline] Deleted ${saveOnlyDedup} duplicate master record(s)`);
 
       console.log(`[snapMasterTimeline] ✅ Save-only — ${savePointCount} pts, ${save_zones_snapped ?? 0} zone(s) from preview`);
 
@@ -762,7 +771,12 @@ Deno.serve(async (req) => {
       encoded_polyline: snappedPolyline,
       timestamps: snappedTimestamps,
       point_count: resultCoords.length,
+      is_snapped: true,
     });
+
+    // Delete any duplicate master records so only the snapped one remains.
+    const snapDedup = await dedupMasterBreadcrumbs(base44, driver_id, delivery_date, master.id);
+    if (snapDedup > 0) console.log(`[snapMasterTimeline] Deleted ${snapDedup} duplicate master record(s)`);
 
     console.log(`[snapMasterTimeline] ✅ Saved — ${masterPoints.length} pts → ${resultCoords.length} pts, ${zones.length} zones snapped in ${totalApiCalls} API call(s)`);
 
