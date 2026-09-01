@@ -1103,36 +1103,15 @@ export default function useStopCardActions(params) {
           if (!isNotFound) console.warn('⚠️ [Start] handleStartDelivery failed:', startErr?.message || startErr);
         });
 
-        // ── Client-side stop_order + isNextDelivery repair (fire-and-forget) ──
-        // Replaces backend setNextDeliveryFlag with local computation.
-        (async () => {
-          try {
-            const { computeNextDeliveryState } = await import('../utils/clientNextDelivery');
-            const { offlineDB } = await import('../utils/offlineDatabase');
-            const allDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, delivery.delivery_date);
-            const driverDeliveries = (allDeliveries || []).filter(d => d?.driver_id === delivery.driver_id);
-            const result = computeNextDeliveryState({
-              deliveries: driverDeliveries,
-              driverStatus: 'on_duty',
-              targetDeliveryId: null,
-            });
-            if (result.changedDeliveries.length > 0) {
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, result.changedDeliveries).catch(() => null);
-              for (const d of result.changedDeliveries) {
-                const update = {};
-                if (d.stop_order != null) update.stop_order = d.stop_order;
-                if (d.isNextDelivery !== undefined) update.isNextDelivery = d.isNextDelivery;
-                // Include status + delivery_time_eta so the WS broadcast carries
-                // enough data for remote devices even if this event arrives first.
-                if (d.status) update.status = d.status;
-                if (d.delivery_time_eta) update.delivery_time_eta = d.delivery_time_eta;
-                if (Object.keys(update).length > 0) base44.entities.Delivery.update(d.id, update).catch(() => null);
-              }
-            }
-          } catch (repairErr) {
-            console.warn('⚠️ [Start] Client-side stopOrder repair failed:', repairErr?.message || repairErr);
-          }
-        })();
+        // ── REMOVED: computeNextDeliveryState repair ──
+        // This fire-and-forget repair ran CONCURRENTLY with the background optimizer and
+        // wrote OLD stop_order values to the server via individual Delivery.update calls.
+        // The optimizer writes NEW stop_order via bulkUpdateDeliveries 2-5s later.
+        // If the repair's individual server writes landed AFTER the optimizer's bulk
+        // write, the server ended up with a partially-reverted stop_order — the started
+        // stop was repositioned but remaining stops kept their old order, making it look
+        // like the optimizer didn't re-sequence. The optimizer already handles both
+        // stop_order AND isNextDelivery in its writeBatch, so this repair is fully redundant.
 
         // ── Unlock UI immediately — optimization/polyline work runs in background ──
         // OPTIMIZATION: Only resume driverLocationPoller (needed for GPS tracking).
@@ -1227,6 +1206,14 @@ export default function useStopCardActions(params) {
             const refreshedList = coordResult?.freshDeliveries || null;
             const _refreshPolyCount = Array.isArray(refreshedList) ? refreshedList.filter(d => d?.encoded_polyline).length : 0;
             console.log(`[Start bg] optimizer returned ${refreshedList?.length || 0} deliveries, ${_refreshPolyCount} with polylines`);
+            // Diagnostic: log stop_order before and after optimization
+            if (Array.isArray(refreshedList) && refreshedList.length > 0) {
+              const _before = _startFullDeliveries.filter(d => d?.status !== 'completed' && d?.status !== 'failed' && d?.status !== 'cancelled').sort((a, b) => (Number(a?.stop_order) || 999) - (Number(b?.stop_order) || 999)).map(d => `${d?.stop_order || '?'}:${d?.patient_id ? 'del' : 'pup'}`);
+              const _after = refreshedList.filter(d => d?.status !== 'completed' && d?.status !== 'failed' && d?.status !== 'cancelled').sort((a, b) => (Number(a?.stop_order) || 999) - (Number(b?.stop_order) || 999)).map(d => `${d?.stop_order || '?'}:${d?.patient_id ? 'del' : 'pup'}:${d?.isNextDelivery ? 'NEXT' : ''}`);
+              console.log(`[Start bg] stop_order BEFORE: [${_before.join(' ')}]`);
+              console.log(`[Start bg] stop_order AFTER:  [${_after.join(' ')}]`);
+              console.log(`[Start bg] routeChanged=${coordResult?.optimizeData?.routeChanged}, usedFallbackOrdering=${coordResult?.usedFallbackOrdering}`);
+            }
 
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
               // OPTIMIZATION: Coordinator already wrote freshDeliveries to IDB (line 337 of

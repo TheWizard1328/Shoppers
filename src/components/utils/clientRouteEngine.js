@@ -360,7 +360,7 @@ async function callHereSequence({ sequenceStart, stopsToSequence, resolvedHomePo
   });
 
   const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
-    signal: AbortSignal.timeout(8000)
+    signal: AbortSignal.timeout(15000)
   });
   logHereApiCall({ apiType: 'Route Optimization (HERE)', purpose: `findsequence2 — ${stopsToSequence.length} stop(s), mode=${hereTransportMode}`, source: 'callHereSequence', driverId, userName }).catch(() => {});
   const data = await response.json().catch(() => null);
@@ -763,6 +763,10 @@ export async function optimizeRouteClientSide({
     }
 
     console.log(`[clientRouteEngine] ${source} — HERE sequencing OK (mode=${hereMode}): ${waypoints.length} waypoints`);
+    const _seqOrder = waypoints.filter(wp => wp.id !== 'driverStart' && wp.id !== 'driverEnd').sort((a, b) => (a.sequence || 0) - (b.sequence || 0)).map(wp => wp.id);
+    const _existingOrder = seqStops.map(s => s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id);
+    const _orderChanged = _seqOrder.length === _existingOrder.length && _seqOrder.some((id, i) => id !== _existingOrder[i]);
+    console.log(`[clientRouteEngine] ${source} — HERE seq order: [${_seqOrder.join(',')}] vs existing: [${_existingOrder.join(',')}] changed=${_orderChanged}`);
     const ordered = waypoints
       .filter(wp => wp.id !== 'driverStart' && wp.id !== 'driverEnd')
       .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
