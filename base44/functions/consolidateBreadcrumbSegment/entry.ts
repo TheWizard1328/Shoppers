@@ -280,7 +280,20 @@ Deno.serve(async (req) => {
         console.warn(`⚠️ [consolidateBreadcrumbSegment] Found ${masterRecords.length} duplicate master records for driver=${driver_id} date=${delivery_date} — merging points from all before slicing.`);
       }
 
-      for (const rec of (Array.isArray(masterRecords) ? masterRecords : [])) {
+      // CRITICAL: Sort duplicate master records by updated_date ASCENDING before
+      // merging. The Map is keyed by timestamp, so the LAST record iterated wins
+      // for any overlapping timestamps. The most recently updated record (e.g. the
+      // just-snapped master from snapMasterTimeline) must be iterated LAST so its
+      // road-following points overwrite the raw GPS points from older duplicates.
+      // Without this, a stale unsnapped duplicate can overwrite the snapped master
+      // and the recut slices from the original unsnapped trail.
+      const sortedMasterRecords = [...(Array.isArray(masterRecords) ? masterRecords : [])].sort((a, b) => {
+        const aTime = new Date(a?.updated_date || a?.created_date || 0).getTime();
+        const bTime = new Date(b?.updated_date || b?.created_date || 0).getTime();
+        return aTime - bTime;
+      });
+
+      for (const rec of sortedMasterRecords) {
         if (!rec?.encoded_polyline || !rec?.timestamps) continue;
         const coords = decodePolyline(rec.encoded_polyline);
         const tsArr = rec.timestamps.split(',').map(Number);

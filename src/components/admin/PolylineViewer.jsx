@@ -1104,10 +1104,18 @@ export default function PolylineViewer({ users = [] }) {
     }
     setIsResegmenting(true);
     try {
+      // CRITICAL: Pass the master polyline + timestamps directly from the
+      // currently-displayed (snapped) master record. Without this, the backend
+      // reads the master from the DB — and if duplicate master records exist
+      // (a known race in syncPendingBreadcrumbs), the raw unsnapped one can
+      // overwrite the snapped one in the merge, causing the recut to slice
+      // from the ORIGINAL unsnapped trail instead of the snapped one.
       const res = await base44.functions.invoke('consolidateBreadcrumbSegment', {
         driver_id: item.driver_id,
         delivery_date: item.delivery_date,
         selected_stop_orders: selectedStopOrders,
+        master_polyline: item.encoded_polyline,
+        master_timestamps: item.timestamps,
       });
       const data = res?.data ?? res;
       if (data?.success) {
