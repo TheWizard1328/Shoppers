@@ -429,7 +429,7 @@ Deno.serve(async (req) => {
       }
 
       const snappedPolyline = save_polyline;
-      const snappedTimestamps = save_ts.length === saveCoords.length ? save_ts.join(',') : saveCoords.map((_, i) => saveTs[i] || 0).join(',');
+      const snappedTimestamps = saveTs.length === saveCoords.length ? saveTs.join(',') : saveCoords.map((_, i) => saveTs[i] || 0).join(',');
 
       // Save the pre-computed snapped polyline to the master record
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(master.id, {
