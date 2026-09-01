@@ -1206,9 +1206,14 @@ export default function PolylineViewer({ users = [] }) {
     if (!snapPreview) return;
     setSnapPreview(p => ({ ...p, isSaving: true }));
     try {
+      // Save the already-computed preview polyline directly — no recompute.
       const res = await base44.functions.invoke('snapMasterTimeline', {
         driver_id: snapPreview.item.driver_id,
         delivery_date: snapPreview.item.delivery_date,
+        save_preview: true,
+        preview_polyline: snapPreview.encodedPolyline,
+        preview_timestamps: snapPreview.timestamps,
+        preview_point_count: snapPreview.pointCount,
         run_consolidate: true,
       });
       const data = res?.data ?? res;

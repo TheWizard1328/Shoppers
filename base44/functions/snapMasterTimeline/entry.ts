@@ -354,11 +354,57 @@ Deno.serve(async (req) => {
       run_consolidate = true,
       preview_only = false,
       analyze_only = false,
+      save_preview = false,
+      preview_polyline = null,
+      preview_timestamps = null,
+      preview_point_count = null,
       gap_threshold_m = GAP_THRESHOLD_M,
     } = body;
 
     if (!driver_id || !delivery_date) {
       return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
+    }
+
+    // ── SAVE_PREVIEW mode: persist the already-computed preview polyline directly ──
+    // The frontend ran preview_only=true, got the snapped result, and now wants to
+    // save it. We skip recomputing (no HERE API calls) and save the provided data
+    // directly to the master record, then optionally re-consolidate segments.
+    if (save_preview && preview_polyline) {
+      // Fetch master record
+      const masterRecs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+        driver_id, delivery_date, stop_order: -1,
+      }).catch(() => []);
+      const masterRec = (masterRecs as any[])?.[0] ?? null;
+      if (!masterRec?.id) {
+        return Response.json({ success: false, error: 'No master timeline record found' }, { status: 404 });
+      }
+
+      const ptCount = preview_point_count || 0;
+      await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(masterRec.id, {
+        encoded_polyline: preview_polyline,
+        timestamps: preview_timestamps || '',
+        point_count: ptCount,
+      });
+
+      console.log(`[snapMasterTimeline] ✅ save_preview: ${ptCount} pts saved to master ${masterRec.id}`);
+
+      let consolidateResult = null;
+      if (run_consolidate) {
+        consolidateResult = await base44.functions
+          .invoke('consolidateBreadcrumbSegment', { driver_id, delivery_date })
+          .catch((e: Error) => ({ error: e?.message }));
+      }
+
+      return Response.json({
+        success: true,
+        save_preview: true,
+        driver_id,
+        delivery_date,
+        snapped_point_count: ptCount,
+        zones_snapped: 0, // not recomputed
+        api_calls_made: 0,
+        consolidate_result: consolidateResult,
+      });
     }
 
     // ── 1. Fetch master record ────────────────────────────────────────────────
@@ -663,7 +709,7 @@ Deno.serve(async (req) => {
     let consolidateResult = null;
     if (run_consolidate) {
       consolidateResult = await base44.functions
-        .invoke('consolidateBreadcrumbs', { driver_id, delivery_date })
+        .invoke('consolidateBreadcrumbSegment', { driver_id, delivery_date })
         .catch((e: Error) => ({ error: e?.message }));
     }
 
