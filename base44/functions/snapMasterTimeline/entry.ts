@@ -516,10 +516,54 @@ Deno.serve(async (req) => {
     }
 
     if (zones.length === 0) {
+      // Master is already clean (no gaps). But the per-stop segments may still be
+      // stale (sliced from an earlier unsnapped master). Return the existing master
+      // as the "snapped" result so the preview UI can proceed, and run consolidate
+      // so stale segments get re-sliced from the already-snapped master.
+      const existingPolyline = encodePolyline(masterPoints.map(p => [p[0], p[1]]));
+      const existingTimestamps = masterPoints.map(p => p[2]).join(',');
+
+      if (preview_only) {
+        return Response.json({
+          success: true,
+          preview_only: true,
+          driver_id,
+          delivery_date,
+          ...analysisResult,
+          snapped_point_count: masterPoints.length,
+          zones_snapped: 0,
+          api_calls_made: 0,
+          snapped_polyline: existingPolyline,
+          snapped_timestamps: existingTimestamps,
+          preview_zone_segments: [],
+          message: 'Master already clean — 0 gaps. Accept to re-slice per-stop segments.',
+        });
+      }
+
+      // Non-preview: save the (already clean) master + re-consolidate stale segments
+      let consolidateResult = null;
+      if (run_consolidate) {
+        consolidateResult = await base44.functions
+          .invoke('consolidateBreadcrumbSegment', {
+            driver_id,
+            delivery_date,
+            force_replace: true,
+            master_polyline: existingPolyline,
+            master_timestamps: existingTimestamps,
+          })
+          .catch((e: Error) => ({ error: e?.message }));
+      }
+
       return Response.json({
         success: true,
-        message: 'No gaps found above threshold — master timeline is already clean.',
+        driver_id,
+        delivery_date,
         ...analysisResult,
+        snapped_point_count: masterPoints.length,
+        zones_snapped: 0,
+        api_calls_made: 0,
+        consolidate_result: consolidateResult,
+        message: 'No gaps found — master already clean. Segments re-consolidated.',
       });
     }
 
