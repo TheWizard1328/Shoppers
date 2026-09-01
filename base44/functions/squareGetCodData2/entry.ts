@@ -502,6 +502,26 @@ async function handleGetCodData(base44, payload={}) {
         if (!storeId) storeId = matchedDelivery.store_id || null;
       }
     }
+    // Fallback: parse delivery_id directly from the Square catalog item's
+    // description field (format: "COD for <name> | Delivery <24-hex-id>").
+    // This handles catalog items created with fallback patient names
+    // ("Delivery XXXXXX") where matchDeliveryForItem fails because it
+    // requires patient name matching. Without this fallback, delivery_id
+    // stays null on the catalog record, which breaks the frontend's
+    // catalogDeliveryIds check and causes infinite re-creation loops.
+    if (!deliveryId) {
+      const descDeliveryId = extractDeliveryIdFromCatalog(item);
+      if (descDeliveryId) {
+        deliveryId = descDeliveryId;
+        // Try to enrich patient/store from the matched delivery
+        const descMatchedDelivery = (activeDeliveriesWithAmounts || []).find((d) => d?.id === descDeliveryId);
+        if (descMatchedDelivery) {
+          const descMatchedPatient = patientsById.get(descMatchedDelivery.patient_id);
+          patientId = descMatchedPatient?.id || descMatchedDelivery.patient_id || null;
+          if (!storeId) storeId = descMatchedDelivery.store_id || null;
+        }
+      }
+    }
     acc.push({ id: item?.id, square_catalog_object_id: item?.id, square_catalog_version: item?.version || null, item_name: itemName, description: item?.item_data?.description || '', amount: ac / 100, amount_cents: ac, delivery_id: deliveryId, delivery_date: toIsoDate(itemName), patient_id: patientId, store_id: storeId || store?.id || null, location_id: rl, status: 'active' });
     return acc;
   }, []);
@@ -739,6 +759,13 @@ async function handleGetCodData(base44, payload={}) {
     for (const cr of filteredCatalogRecords) {
       const existing = existingCatalogByObjId.get(cr.square_catalog_object_id);
       if (existing) {
+        // Safety net: preserve existing delivery_id if the new one is null.
+        // Step 4's matchDeliveryForItem can fail for items with fallback patient
+        // names, producing null delivery_id. Overwriting a correctly-set
+        // delivery_id to null breaks the frontend's catalogDeliveryIds link
+        // check and causes infinite re-creation loops.
+        if (!cr.delivery_id && existing.delivery_id) cr.delivery_id = existing.delivery_id;
+        if (!cr.patient_id && existing.patient_id) cr.patient_id = existing.patient_id;
         const changed = existing.item_name !== cr.item_name || existing.amount !== cr.amount || existing.delivery_id !== cr.delivery_id || existing.status !== cr.status;
         if (changed) catalogOps.push({ type: 'update', id: existing.id, data: cr });
       } else {
