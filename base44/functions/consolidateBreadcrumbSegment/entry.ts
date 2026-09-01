@@ -296,29 +296,20 @@ Deno.serve(async (req) => {
         }
         pushDecodedCoords(bestMaster.encoded_polyline, bestMaster.timestamps);
       } else {
-        // No snapped master — merge all duplicates by timestamp (newest-updated
-        // wins per timestamp) to dedup overlapping points, then delete the older
-        // duplicates so future runs see a single authoritative master.
+        // No snapped master — use the best (most complete) master's decoded
+        // polyline directly, keeping ALL points. Delete the stale duplicates.
+        // (Previously this merged all duplicates by timestamp, but keying by ts
+        // collapses points that share a timestamp — very common with 1 Hz /
+        // batched GPS — which deflates the trail. pickBestMaster already
+        // selects the most complete single master, so merging is unnecessary.)
+        console.log(`🍞 [consolidateBreadcrumbSegment] Using master ${bestMaster?.id} (${bestMaster?.point_count ?? 0} pts) — deleting ${dupMasters.length} duplicate(s)`);
         for (const dup of dupMasters) {
           if (dup?.id) {
             await base44.asServiceRole.entities.DeliveryBreadcrumbs.delete(dup.id).catch(() => null);
           }
         }
-        const sortedMasterRecords = [...(Array.isArray(masterRecords) ? masterRecords : [])].sort((a, b) => {
-          const aTime = new Date(a?.updated_date || a?.created_date || 0).getTime();
-          const bTime = new Date(b?.updated_date || b?.created_date || 0).getTime();
-          return aTime - bTime;
-        });
-        for (const rec of sortedMasterRecords) {
-          if (!rec?.encoded_polyline) continue;
-          const coords = decodePolyline(rec.encoded_polyline);
-          const tsArr = rec.timestamps ? rec.timestamps.split(',').map(Number) : [];
-          for (let i = 0; i < coords.length; i++) {
-            const lat = coords[i][0], lng = coords[i][1];
-            if (!Number.isFinite(lat) || !Number.isFinite(lng) || isCorruptedPoint(lat, lng)) continue;
-            const ts = Number(tsArr[i]) || 0;
-            if (ts) masterPointsMap.set(ts, [lat, lng, ts]);
-          }
+        if (bestMaster?.encoded_polyline) {
+          pushDecodedCoords(bestMaster.encoded_polyline, bestMaster.timestamps);
         }
       }
     }
