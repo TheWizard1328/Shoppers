@@ -964,6 +964,13 @@ export default function PolylineViewer({ users = [] }) {
     // ── Regular stop breadcrumb: save breadcrumb + update matching Delivery polyline ──
     try {
       const { offlineDB } = await import('../utils/offlineDatabase').catch(() => ({ offlineDB: null }));
+      // Persist the actual decoded point count + polyline to the online
+      // breadcrumb record too — previously only the Delivery record + offline
+      // DB were updated, so the breadcrumb's point_count stayed stale (e.g. 5
+      // while the polyline actually decoded to 273).
+      const onlineBcUpdate = base44.entities.DeliveryBreadcrumbs
+        .update(item.id, { encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true })
+        .catch(e => console.warn('[PolylineViewer] breadcrumb point_count persist failed', e?.message));
       const [res] = await Promise.all([
         saveCrumbPolylineToDelivery({
           driverId: item.driver_id,
@@ -971,10 +978,11 @@ export default function PolylineViewer({ users = [] }) {
           stopOrder: item.stop_order,
           cleanedEncodedPolyline: polyToSave,
         }),
+        onlineBcUpdate,
         offlineDB
           ? offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, item.id)
               .then(existing => existing
-                ? offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: polyToSave, point_count: points.length })
+                ? offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, { ...existing, encoded_polyline: polyToSave, point_count: points.length, saved_to_route: true })
                 : Promise.resolve()
               ).catch(() => {})
           : Promise.resolve(),
@@ -1104,6 +1112,9 @@ export default function PolylineViewer({ users = [] }) {
     }
     setIsResegmenting(true);
     try {
+      // The backend reads the master from the DB and uses pickBestMaster to
+      // prefer the is_snapped master (and delete stale raw duplicates), so we
+      // don't pass master_polyline here — the backend dedup is authoritative.
       const res = await base44.functions.invoke('consolidateBreadcrumbSegment', {
         driver_id: item.driver_id,
         delivery_date: item.delivery_date,
@@ -1124,6 +1135,18 @@ export default function PolylineViewer({ users = [] }) {
             const map = new Map(prev.map(b => [b.id, b]));
             fresh.forEach(b => map.set(b.id, b));
             return Array.from(map.values());
+          });
+          // CRITICAL: Update focusedItem + focusedGroup snapshots so the map
+          // re-renders with the freshly re-clipped polyline. Without this,
+          // the map keeps showing the stale snapshot from before the reclip.
+          const freshById = new Map(fresh.map(b => [b.id, b]));
+          setFocusedItem(prev => prev ? (freshById.get(prev.id) || prev) : prev);
+          setFocusedGroup(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              breadcrumb: prev.breadcrumb ? (freshById.get(prev.breadcrumb.id) || prev.breadcrumb) : prev.breadcrumb,
+            };
           });
         }
       } else {
@@ -1201,35 +1224,72 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
-  // ── STEP 3a: Accept preview — save + re-consolidate ──────────────────────
+  // ── STEP 3a: Accept preview — save the pre-computed polyline + re-consolidate ─
+  // Passes the already-snapped polyline from the preview so the backend skips all
+  // HERE API calls and just saves + re-consolidates. Then refreshes from the SERVER
+  // (not offline) so the re-consolidated stop segments appear immediately.
   const handleSnapAccept = async () => {
     if (!snapPreview) return;
     setSnapPreview(p => ({ ...p, isSaving: true }));
     try {
-      // Save the already-computed preview polyline directly — no recompute.
       const res = await base44.functions.invoke('snapMasterTimeline', {
         driver_id: snapPreview.item.driver_id,
         delivery_date: snapPreview.item.delivery_date,
-        save_preview: true,
-        preview_polyline: snapPreview.encodedPolyline,
-        preview_timestamps: snapPreview.timestamps,
-        preview_point_count: snapPreview.pointCount,
+        master_id: snapPreview.item.id,
+        save_polyline: snapPreview.encodedPolyline,
+        save_timestamps: snapPreview.timestamps,
+        save_point_count: snapPreview.pointCount,
+        save_zones_snapped: snapPreview.zonesSnapped,
         run_consolidate: true,
+        force_replace: true,
       });
       const data = res?.data ?? res;
       if (data?.success) {
         toast.success(`Saved — ${data.zones_snapped} zone(s) snapped, ${data.snapped_point_count} pts. Segments re-consolidated.`);
-        // Update local state immediately so the map re-renders without a full reload
-        const savedPolyline = snapPreview.encodedPolyline;
-        const savedItem = snapPreview.item;
-        const updatedItem = { ...savedItem, encoded_polyline: savedPolyline, point_count: data.snapped_point_count };
-        setBreadcrumbs(prev => prev.map(b => b.id === savedItem.id ? updatedItem : b));
-        setFocusedItem(updatedItem);
+
+        // Clear preview + cleaning state first so the viewer returns to regular breadcrumb view
         setSnapPreview(null);
         setIsCleaningMode(false);
         setCleanedPoints([]);
         setUndoStack([]);
-        await loadData();
+        // Ensure we're in breadcrumbs view
+        setViewMode('breadcrumbs');
+
+        // Refresh breadcrumbs from the SERVER so the re-consolidated stop segments
+        // appear immediately (offline DB may be stale until the next sync).
+        const [freshCrumbs, freshDels] = await Promise.all([
+          base44.entities.DeliveryBreadcrumbs.filter({ driver_id: snapPreview.item.driver_id, delivery_date: snapPreview.item.delivery_date }, '-stop_order', 200).catch(() => []),
+          base44.entities.Delivery.filter({ driver_id: snapPreview.item.driver_id, delivery_date: snapPreview.item.delivery_date }, 'stop_order', 200).catch(() => []),
+        ]);
+        if (freshCrumbs?.length) {
+          setBreadcrumbs(prev => {
+            const map = new Map(prev.map(b => [b.id, b]));
+            freshCrumbs.forEach(c => { if (c?.id) map.set(c.id, c); });
+            return Array.from(map.values());
+          });
+        }
+        if (freshDels?.length) {
+          setDeliveries(prev => {
+            const map = new Map(prev.map(d => [d.id, d]));
+            freshDels.forEach(d => { if (d?.id) map.set(d.id, d); });
+            return Array.from(map.values());
+          });
+        }
+
+        // Focus on the master breadcrumb (stop_order = -1) for this driver/date.
+        // Prefer the is_snapped one in case stale duplicate masters still exist on
+        // this device's offline cache — the backend dedup removes them server-side,
+        // but the local cache may lag.
+        const masterCrumbs = (freshCrumbs || []).filter(c => c.stop_order === -1);
+        const masterCrumb = masterCrumbs.find(c => c.is_snapped) || masterCrumbs[0] || null;
+        setFocusedItem(masterCrumb);
+
+        // Broadcast the master update so other devices/views (Dashboard map,
+        // other PolylineViewer instances) refresh their breadcrumb display
+        // immediately instead of waiting for the next poll.
+        if (masterCrumb) {
+          broadcastMutation('DeliveryBreadcrumbs', 'update', masterCrumb.id, masterCrumb);
+        }
       } else {
         toast.error(`Save failed: ${data?.error || 'Unknown error'}`);
         setSnapPreview(p => ({ ...p, isSaving: false }));

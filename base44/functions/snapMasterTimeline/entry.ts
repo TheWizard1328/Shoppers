@@ -1,4 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
+import { dedupMasterBreadcrumbs } from '../../shared/masterBreadcrumbDedup.ts';
 
 // ─── snapMasterTimeline ────────────────────────────────────────────────────────
 // Surgical gap-fill snapping of the master GPS breadcrumb timeline (stop_order = -1).
@@ -162,28 +164,11 @@ function consolidateGapsIntoZones(gaps: GapInfo[], minDensePoints: number): Snap
   return zones;
 }
 
-// ── HERE API key cache (mirrors getHereDirections to avoid extra DB round-trip) ──
-const _HERE_SECRET_MAP_SNAP: Record<string, string> = {
-  HERE_API_KEY: 'HERE_API_KEY',
-  Here_API_Key_2: 'Here_API_Key_2',
-  Here_API_Key_3: 'Here_API_Key_3',
-};
-let _snapHereSecretName: string | null = null;
-let _snapHereSecretExpiresAt = 0;
-
+// ── HERE API key resolved from the per-feature API Provider Keys settings ──
+// Uses the 'route_optimization' slot so the snap function always uses the same
+// HERE key the admin assigned to route optimization (e.g. Here_API_Key_2).
 async function getSnapHereApiKey(base44: any): Promise<string | null> {
-  const now = Date.now();
-  if (_snapHereSecretName && now < _snapHereSecretExpiresAt) {
-    return Deno.env.get(_snapHereSecretName) || null;
-  }
-  const settings = await base44.asServiceRole.entities.AppSettings.filter(
-    { setting_key: 'refresh_intervals' }, '-updated_date', 1
-  );
-  const val = settings?.[0]?.setting_value || {};
-  const selected = val.selected_api_key || val.selected_here_api_key || 'HERE_API_KEY';
-  _snapHereSecretName = _HERE_SECRET_MAP_SNAP[selected] || 'HERE_API_KEY';
-  _snapHereSecretExpiresAt = now + 5 * 60 * 1000;
-  return Deno.env.get(_snapHereSecretName) || null;
+  return resolveFeatureApiKey(base44, 'route_optimization');
 }
 
 // ── Decode Google polyline returned by HERE (via encodeGooglePolyline in getHereDirections) ──
@@ -354,58 +339,23 @@ Deno.serve(async (req) => {
       run_consolidate = true,
       preview_only = false,
       analyze_only = false,
-      save_preview = false,
-      preview_polyline = null,
-      preview_timestamps = null,
-      preview_point_count = null,
       gap_threshold_m = GAP_THRESHOLD_M,
+      // Save-only mode: when the client already ran the snap (preview step) and
+      // has the pre-computed snapped polyline, it passes these so we skip all
+      // gap analysis + HERE API calls and just save + consolidate.
+      save_polyline = null,
+      save_timestamps = null,
+      save_point_count = null,
+      save_zones_snapped = null,
+      force_replace = false,
+      master_id = null,
     } = body;
 
     if (!driver_id || !delivery_date) {
       return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
     }
 
-    // ── SAVE_PREVIEW mode: persist the already-computed preview polyline directly ──
-    // The frontend ran preview_only=true, got the snapped result, and now wants to
-    // save it. We skip recomputing (no HERE API calls) and save the provided data
-    // directly to the master record, then optionally re-consolidate segments.
-    if (save_preview && preview_polyline) {
-      // Fetch master record
-      const masterRecs = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
-        driver_id, delivery_date, stop_order: -1,
-      }).catch(() => []);
-      const masterRec = (masterRecs as any[])?.[0] ?? null;
-      if (!masterRec?.id) {
-        return Response.json({ success: false, error: 'No master timeline record found' }, { status: 404 });
-      }
-
-      const ptCount = preview_point_count || 0;
-      await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(masterRec.id, {
-        encoded_polyline: preview_polyline,
-        timestamps: preview_timestamps || '',
-        point_count: ptCount,
-      });
-
-      console.log(`[snapMasterTimeline] ✅ save_preview: ${ptCount} pts saved to master ${masterRec.id}`);
-
-      let consolidateResult = null;
-      if (run_consolidate) {
-        consolidateResult = await base44.functions
-          .invoke('consolidateBreadcrumbSegment', { driver_id, delivery_date })
-          .catch((e: Error) => ({ error: e?.message }));
-      }
-
-      return Response.json({
-        success: true,
-        save_preview: true,
-        driver_id,
-        delivery_date,
-        snapped_point_count: ptCount,
-        zones_snapped: 0, // not recomputed
-        api_calls_made: 0,
-        consolidate_result: consolidateResult,
-      });
-    }
+    const isSaveOnly = typeof save_polyline === 'string' && save_polyline.length > 0;
 
     // ── 1. Fetch master record ────────────────────────────────────────────────
     const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
@@ -413,7 +363,15 @@ Deno.serve(async (req) => {
       delivery_date,
       stop_order: -1,
     }).catch(() => []);
-    const master = (masterRecords as any[])?.[0] ?? null;
+    // Prefer the SPECIFIC master record the caller is viewing (master_id) when
+    // provided. With duplicate master records (a syncPendingBreadcrumbs race),
+    // masterRecords[0] may be a DIFFERENT duplicate than the one the user snapped.
+    // Saving to the wrong one + dedup-deleting the viewed one leaves the other
+    // device showing pre-snap gaps. Pinning to master_id ensures the snapped data
+    // lands on the exact record being viewed, then dedup cleans the rest.
+    const master = (master_id
+      ? (masterRecords as any[])?.find((m: any) => m.id === master_id)
+      : null) ?? (masterRecords as any[])?.[0] ?? null;
 
     if (!master?.encoded_polyline || !master?.timestamps) {
       return Response.json({ success: false, error: 'No master timeline record found (stop_order = -1)' }, { status: 404 });
@@ -455,8 +413,71 @@ Deno.serve(async (req) => {
       })),
     };
 
+    // ── SAVE-ONLY MODE ──────────────────────────────────────────────────────
+    // The client already computed the snapped polyline (preview step) and passes
+    // it here. Skip all gap analysis + HERE API calls — just decode/validate,
+    // save to the master record, and re-consolidate.
+    if (isSaveOnly) {
+      const saveCoords = decodePolyline(save_polyline);
+      const saveTs: number[] = typeof save_timestamps === 'string'
+        ? save_timestamps.split(',').map(Number)
+        : [];
+      const savePointCount = Number.isFinite(save_point_count) ? save_point_count : saveCoords.length;
+
+      if (saveCoords.length < 2) {
+        return Response.json({ success: false, error: 'save_polyline decoded to fewer than 2 points' }, { status: 400 });
+      }
+
+      const snappedPolyline = save_polyline;
+      const snappedTimestamps = saveTs.length === saveCoords.length ? saveTs.join(',') : saveCoords.map((_, i) => saveTs[i] || 0).join(',');
+
+      // Save the pre-computed snapped polyline to the master record
+      await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(master.id, {
+        encoded_polyline: snappedPolyline,
+        timestamps: snappedTimestamps,
+        point_count: savePointCount,
+        is_snapped: true,
+      });
+
+      // Delete any duplicate master records so only the snapped one remains.
+      // syncPendingBreadcrumbs can create duplicate stop_order=-1 rows via a
+      // race; if left, consolidate's merge can let a raw duplicate overwrite
+      // the snapped master, causing reclips to slice from the raw trail.
+      const saveOnlyDedup = await dedupMasterBreadcrumbs(base44, driver_id, delivery_date, master.id);
+      if (saveOnlyDedup > 0) console.log(`[snapMasterTimeline] Deleted ${saveOnlyDedup} duplicate master record(s)`);
+
+      console.log(`[snapMasterTimeline] ✅ Save-only — ${savePointCount} pts, ${save_zones_snapped ?? 0} zone(s) from preview`);
+
+      // Re-consolidate using the proximity-based slicer with force_replace so
+      // stale saved_to_route segments are overwritten with fresh slices.
+      // Pass the snapped master data directly to avoid read-after-write gaps.
+      let consolidateResult = null;
+      if (run_consolidate) {
+        consolidateResult = await base44.functions
+          .invoke('consolidateBreadcrumbSegment', {
+            driver_id,
+            delivery_date,
+            force_replace: true,
+            master_polyline: snappedPolyline,
+            master_timestamps: snappedTimestamps,
+          })
+          .then((r: any) => r?.data ?? r)
+          .catch((e: Error) => ({ error: e?.message }));
+      }
+
+      return Response.json({
+        success: true,
+        save_only: true,
+        driver_id,
+        delivery_date,
+        snapped_point_count: savePointCount,
+        zones_snapped: save_zones_snapped ?? 0,
+        api_calls_made: 0,
+        consolidate_result: consolidateResult,
+      });
+    }
+
     if (analyze_only) {
-      // ── Enrich zone_details with the stop numbers the gap falls between ──────
       // Fetch all delivery stops for this driver/date, sorted by stop_order.
       // For each zone, find the stop whose breadcrumb timestamps bracket the gap.
       try {
@@ -514,10 +535,55 @@ Deno.serve(async (req) => {
     }
 
     if (zones.length === 0) {
+      // Master is already clean (no gaps). But the per-stop segments may still be
+      // stale (sliced from an earlier unsnapped master). Return the existing master
+      // as the "snapped" result so the preview UI can proceed, and run consolidate
+      // so stale segments get re-sliced from the already-snapped master.
+      const existingPolyline = encodePolyline(masterPoints.map(p => [p[0], p[1]]));
+      const existingTimestamps = masterPoints.map(p => p[2]).join(',');
+
+      if (preview_only) {
+        return Response.json({
+          success: true,
+          preview_only: true,
+          driver_id,
+          delivery_date,
+          ...analysisResult,
+          snapped_point_count: masterPoints.length,
+          zones_snapped: 0,
+          api_calls_made: 0,
+          snapped_polyline: existingPolyline,
+          snapped_timestamps: existingTimestamps,
+          preview_zone_segments: [],
+          message: 'Master already clean — 0 gaps. Accept to re-slice per-stop segments.',
+        });
+      }
+
+      // Non-preview: save the (already clean) master + re-consolidate stale segments
+      let consolidateResult = null;
+      if (run_consolidate) {
+        consolidateResult = await base44.functions
+          .invoke('consolidateBreadcrumbSegment', {
+            driver_id,
+            delivery_date,
+            force_replace: true,
+            master_polyline: existingPolyline,
+            master_timestamps: existingTimestamps,
+          })
+          .then((r: any) => r?.data ?? r)
+          .catch((e: Error) => ({ error: e?.message }));
+      }
+
       return Response.json({
         success: true,
-        message: 'No gaps found above threshold — master timeline is already clean.',
+        driver_id,
+        delivery_date,
         ...analysisResult,
+        snapped_point_count: masterPoints.length,
+        zones_snapped: 0,
+        api_calls_made: 0,
+        consolidate_result: consolidateResult,
+        message: 'No gaps found — master already clean. Segments re-consolidated.',
       });
     }
 
@@ -637,6 +703,21 @@ Deno.serve(async (req) => {
       routedCoordsByZoneIndex.set(seg.zoneIndex, routedResults[0]);
     }
 
+    // ── 6b. Log HERE API usage to the API counter (GoogleAPILog) ──────────────
+    if (totalApiCalls > 0) {
+      try {
+        await base44.asServiceRole.entities.GoogleAPILog.create({
+          timestamp: new Date().toISOString(),
+          api_type: 'Directions (HERE)',
+          purpose: `HERE route snap of breadcrumb gaps — ${zones.length} zone(s) for driver ${driver_id} on ${delivery_date}`,
+          function_name: 'snapMasterTimeline',
+          user_id: user.id || null,
+          user_name: user.full_name || user.email || null,
+          metadata: { provider: 'here', source: 'backend', call_count: totalApiCalls, zone_count: zones.length, driver_id, delivery_date },
+        });
+      } catch { /* non-critical */ }
+    }
+
     // ── 7. Stitch results back into master points ─────────────────────────────
     const resultCoords: [number, number][] = masterPoints.map(p => [p[0], p[1]]);
     const resultTs: number[] = masterPoints.map(p => p[2]);
@@ -701,15 +782,28 @@ Deno.serve(async (req) => {
       encoded_polyline: snappedPolyline,
       timestamps: snappedTimestamps,
       point_count: resultCoords.length,
+      is_snapped: true,
     });
+
+    // Delete any duplicate master records so only the snapped one remains.
+    const snapDedup = await dedupMasterBreadcrumbs(base44, driver_id, delivery_date, master.id);
+    if (snapDedup > 0) console.log(`[snapMasterTimeline] Deleted ${snapDedup} duplicate master record(s)`);
 
     console.log(`[snapMasterTimeline] ✅ Saved — ${masterPoints.length} pts → ${resultCoords.length} pts, ${zones.length} zones snapped in ${totalApiCalls} API call(s)`);
 
-    // ── 9. Re-consolidate stop segments ──────────────────────────────────────
+    // ── 9. Re-consolidate stop segments (proximity-based, force-replace) ────
+    // Pass the snapped master data directly to avoid read-after-write gaps.
     let consolidateResult = null;
     if (run_consolidate) {
       consolidateResult = await base44.functions
-        .invoke('consolidateBreadcrumbSegment', { driver_id, delivery_date })
+        .invoke('consolidateBreadcrumbSegment', {
+          driver_id,
+          delivery_date,
+          force_replace: true,
+          master_polyline: snappedPolyline,
+          master_timestamps: snappedTimestamps,
+        })
+        .then((r: any) => r?.data ?? r)
         .catch((e: Error) => ({ error: e?.message }));
     }
 
