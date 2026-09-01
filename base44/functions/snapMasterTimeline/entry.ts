@@ -339,53 +339,10 @@ Deno.serve(async (req) => {
       preview_only = false,
       analyze_only = false,
       gap_threshold_m = GAP_THRESHOLD_M,
-      save_polyline,
-      save_timestamps,
-      save_point_count,
-      save_zones_snapped,
     } = body;
 
     if (!driver_id || !delivery_date) {
       return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
-    }
-
-    // ── 0. Save-only mode: accept a pre-computed snapped polyline (from preview)
-    //    and persist it directly, skipping all HERE API calls. Then re-consolidate.
-    if (save_polyline) {
-      const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
-        driver_id,
-        delivery_date,
-        stop_order: -1,
-      }).catch(() => []);
-      const masterSave = (masterRecords as any[])?.[0] ?? null;
-      if (!masterSave?.id) {
-        return Response.json({ success: false, error: 'No master timeline record found (stop_order = -1)' }, { status: 404 });
-      }
-
-      const ptsCount = save_point_count || save_polyline.replace(/[^A-Za-z0-9_-]/g, '').length;
-      await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(masterSave.id, {
-        encoded_polyline: save_polyline,
-        timestamps: save_timestamps || masterSave.timestamps || '',
-        point_count: ptsCount,
-      });
-
-      let consolidateResult = null;
-      if (run_consolidate) {
-        consolidateResult = await base44.functions
-          .invoke('consolidateBreadcrumbs', { driver_id, delivery_date })
-          .catch((e: Error) => ({ error: e?.message }));
-      }
-
-      return Response.json({
-        success: true,
-        driver_id,
-        delivery_date,
-        saved: true,
-        snapped_point_count: ptsCount,
-        zones_snapped: save_zones_snapped || 0,
-        api_calls_made: 0,
-        consolidate_result: consolidateResult,
-      });
     }
 
     // ── 1. Fetch master record ────────────────────────────────────────────────
