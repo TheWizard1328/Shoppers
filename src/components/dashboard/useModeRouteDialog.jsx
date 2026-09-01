@@ -338,60 +338,28 @@ export default function useModeRouteDialog({
         console.log('[useModeRouteDialog] Optimization suppressed — Accept All will handle it');
         toast.success('Cycling stops selected — optimizing route…');
       } else {
-        // Standalone cycling setup: run the two-stage optimization sequentially.
+        // Standalone cycling setup: SINGLE optimization call.
+        // The engine detects cycling markers and runs two-leg sequencing internally:
+        //   Leg 1 (cycling): origin=last finished stop, dest=end marker, waypoints=cycling stops (bicycle)
+        //   Leg 2 (driving): origin=end marker, dest=home, waypoints=driving stops (car)
+        // Then a single polyline generation pass on the stitched route.
+        // This replaces the old two-stage approach that made 10-13 HERE API calls
+        // (each stage ran its own sequencing + polylines, and stage 2 hit time-bucket grouping).
         const { performRouteOptimization } = await import('@/components/utils/routeOptimizationCoordinator');
 
-        // Stage 1: Cycling loop
-        // Origin = Cycling Start marker coords → Destination = Cycling End marker coords
-        // Waypoints = selected stops (in crow-flies pre-sorted order)
-        const stage1Result = await performRouteOptimization({
+        const result = await performRouteOptimization({
           driverId: currentUser.id,
           deliveryDate: deliveryDateStr,
           deliveries: mergedDeliveries,
           patients,
           stores,
           appUsers,
-          source: 'cyclingMode:stage1',
+          source: 'cyclingMode:single',
           bypassDriverStatus: true,
-          cyclingSegmentOnly: true,
-          cyclingOrigin: startCoords,
-          cyclingDestination: endCoords,
-          cyclingStopIds: [startMarker.id, endMarker.id, ...crowSortedIds],
-          startingStopOrder: maxCompletedOrder,
           skipPolyline: false,
-        }).catch((e) => { console.warn('[useModeRouteDialog] Stage 1 failed:', e?.message); return null; });
+        }).catch((e) => { console.warn('[useModeRouteDialog] Optimization failed:', e?.message); return null; });
 
-        // Merge stage 1 results into the delivery list before running stage 2
-        const stage1WriteMap = new Map((stage1Result?.optimizeData?.writeBatch || []).map(({ id, data }) => [id, data]));
-        const mergedAfterStage1 = mergedDeliveries.map((d) => {
-          const patch = stage1WriteMap.get(d.id);
-          return patch ? { ...d, ...patch } : d;
-        });
-
-        // Stage 2: Driving segment
-        // Origin = Cycling End marker coords (driver exits cycling loop here)
-        // Remaining driving stops are RE-SEQUENCED by HERE with home as the end anchor.
-        // preserveExistingOrder=false → HERE optimizes the order; home is the final destination.
-        const stage2Result = await performRouteOptimization({
-          driverId: currentUser.id,
-          deliveryDate: deliveryDateStr,
-          deliveries: mergedAfterStage1,
-          patients,
-          stores,
-          appUsers,
-          source: 'cyclingMode:stage2',
-          bypassDriverStatus: true,
-          drivingSegmentOnly: true,
-          drivingOrigin: endCoords,
-          excludeStopIds: [startMarker.id, endMarker.id, ...crowSortedIds],
-          startingStopOrder: endMarkerOrder,
-          preserveExistingOrder: false,
-          skipPolyline: false,
-        }).catch((e) => { console.warn('[useModeRouteDialog] Stage 2 failed:', e?.message); return null; });
-
-        console.log('[useModeRouteDialog] Stage 1+2 complete', {
-          stage1: stage1Result?.success, stage2: stage2Result?.success,
-        });
+        console.log('[useModeRouteDialog] Single optimization complete', { success: result?.success });
 
         toast.success('Cycling route set — route optimized.');
       }

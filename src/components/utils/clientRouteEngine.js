@@ -717,11 +717,11 @@ export async function optimizeRouteClientSide({
 
   // ── Run HERE sequencing or fallback ────────────────────────────────────────
   // Helper: run callHereSequence with time-window fallback, return ordered stops + directionsLegs
-  const runHereSequence = async ({ sequenceStart, stops: seqStops, origin, hereMode, withHome }) => {
+  const runHereSequence = async ({ sequenceStart, stops: seqStops, origin, hereMode, withHome, destination }) => {
     if (seqStops.length === 0) return { orderedStops: [], legs: [] };
     let attempt = await callHereSequence({
       sequenceStart, stopsToSequence: seqStops,
-      resolvedHomePosition: withHome ? resolvedHomePosition : null,
+      resolvedHomePosition: destination || (withHome ? resolvedHomePosition : null),
       hereApiKey, hereTransportMode: hereMode,
       deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: true,
       driverId, userName: _driverUserName
@@ -735,7 +735,7 @@ export async function optimizeRouteClientSide({
       usedTimeWindows = false;
       attempt = await callHereSequence({
         sequenceStart, stopsToSequence: seqStops,
-        resolvedHomePosition: withHome ? resolvedHomePosition : null,
+        resolvedHomePosition: destination || (withHome ? resolvedHomePosition : null),
         hereApiKey, hereTransportMode: hereMode,
         deliveryDate, currentLocalTime, currentMinutes, includeTimeWindows: false,
         driverId, userName: _driverUserName
@@ -805,22 +805,27 @@ export async function optimizeRouteClientSide({
 
     // ── Mixed-mode sequencing ─────────────────────────────────────────────
     // Detect whether we have a cycling segment (Start marker + End marker + cycling stops).
-    // If so, sequence driving stops and cycling stops separately with their correct HERE modes,
-    // then stitch: [locked next] → [sequenced driving before cycling] → [Start marker]
-    //              → [sequenced cycling stops] → [End marker] → [sequenced driving after cycling]
-    const startMarker = stopsToSequence.find(s =>
+    // If so, run TWO-LEG sequencing within this single optimization call:
+    //   Leg 1 (cycling): origin = last finished stop (or locked next), dest = end marker, mode = bicycle
+    //   Leg 2 (driving): origin = end marker, dest = driver home, mode = car
+    // Then stitch: [locked next] → [start marker] → [cycling stops (HERE-ordered)] → [end marker] → [driving stops (HERE-ordered)]
+    // The start marker is NOT a HERE waypoint — it's a fixed positional anchor placed before cycling stops.
+    // The end marker is the destination anchor for the cycling leg AND the origin for the driving leg.
+
+    // Search ALL ordered stops (not just stopsToSequence) because the start marker
+    // may be the locked isNextDelivery stop (routeOriginStop) and thus excluded from stopsToSequence.
+    const startMarker = orderedOptimizationStops.find(s =>
       s.delivery.is_cycling_marker && (s.delivery.delivery_notes || '').toLowerCase().includes('start')
     ) || null;
-    const endMarker = stopsToSequence.find(s =>
+    const endMarker = orderedOptimizationStops.find(s =>
       s.delivery.is_cycling_marker && (s.delivery.delivery_notes || '').toLowerCase().includes('end')
     ) || null;
     const hasCyclingSegment = !!(startMarker && endMarker);
 
     if (hasCyclingSegment) {
-      // Split stopsToSequence into three pools:
+      // Split stopsToSequence into two pools (markers are NOT waypoints):
       //   drivingPool: non-cycling, non-marker stops
       //   cyclingPool: stops with transport_mode='cycling' (excludes the markers themselves)
-      //   markers: Start + End (fixed positionally — not passed to HERE)
       const drivingPool = stopsToSequence.filter(s =>
         !s.delivery.is_cycling_marker &&
         String(s.delivery.transport_mode || 'driving').toLowerCase() !== 'cycling'
@@ -832,81 +837,82 @@ export async function optimizeRouteClientSide({
 
       console.log(`[clientRouteEngine] ${source} — mixed-mode sequencing: ${drivingPool.length} driving, ${cyclingPool.length} cycling, 2 markers`);
 
-      // Sequence driving stops (car mode, home as end anchor)
-      const drivingOrigin = routeOriginStop
+      // Leg 1: Cycling leg
+      // Origin = last finished stop (currentPosition) or locked next stop, whichever is closer to cycling
+      // Destination = cycling end marker (HERE 'end' anchor)
+      // Waypoints = cycling-mode stops only (bicycle mode)
+      const cyclingLegOrigin = routeOriginStop
         ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng }
         : currentPosition;
+      const cyclingDest = { lat: endMarker.lat, lng: endMarker.lng };
+      const { orderedStops: orderedCycling, legs: cyclingLegs } = await runHereSequence({
+        sequenceStart: cyclingLegOrigin,
+        stops: cyclingPool,
+        origin: cyclingLegOrigin,
+        hereMode: 'bicycle',
+        destination: cyclingDest
+      });
+
+      // Leg 2: Driving leg
+      // Origin = cycling end marker (driver exits cycling loop here, gets back in car)
+      // Destination = driver's home (HERE 'end' anchor via withHome=true)
+      // Waypoints = driving-mode stops only (car mode)
+      const drivingLegOrigin = { lat: endMarker.lat, lng: endMarker.lng };
       const { orderedStops: orderedDriving, legs: drivingLegs } = await runHereSequence({
-        sequenceStart: drivingOrigin,
+        sequenceStart: drivingLegOrigin,
         stops: drivingPool,
-        origin: drivingOrigin,
+        origin: drivingLegOrigin,
         hereMode: 'car',
         withHome: true
       });
 
-      // Sequence cycling stops (bicycle mode, no home end-anchor)
-      const cyclingOriginCoords = startMarker
-        ? { lat: startMarker.lat, lng: startMarker.lng }
-        : drivingOrigin;
-      const { orderedStops: orderedCycling, legs: cyclingLegs } = await runHereSequence({
-        sequenceStart: cyclingOriginCoords,
-        stops: cyclingPool,
-        origin: cyclingOriginCoords,
-        hereMode: 'bicycle',
-        withHome: false
-      });
-
       // Stitch the final route:
-      // [locked next stop (if any)] → [driving stops] → [Start marker] → [cycling stops] → [End marker] → (remaining driving continues from home sort)
-      // The driving stops are already sorted to minimize home distance so they naturally precede the cycling segment.
+      // [locked next (if any)] → [start marker] → [cycling stops (HERE-ordered)] → [end marker] → [driving stops (HERE-ordered)]
+      // If the start marker IS the locked next stop, don't duplicate it.
+      const isRouteOriginStart = routeOriginStop && startMarker &&
+        routeOriginStop.delivery.id === startMarker.delivery.id;
       const stitchedStops = [
         ...(routeOriginStop ? [routeOriginStop] : []),
-        ...orderedDriving,
-        startMarker,
+        ...(isRouteOriginStart ? [] : [startMarker]),
         ...orderedCycling,
         endMarker,
+        ...orderedDriving,
       ];
 
-      // Build directionsLegs for stitched stops:
-      // Leg[0] = origin → stop[0]: from currentPosition
-      // Legs for driving pool: from drivingLegs (relative to drivingOrigin)
-      // Leg for startMarker: crow-flies from last driving stop (or drivingOrigin if no driving stops)
-      // Legs for cycling pool: from cyclingLegs (relative to startMarker)
-      // Leg for endMarker: crow-flies from last cycling stop (or startMarker if no cycling stops)
+      // Build directionsLegs for stitched stops
       const stitchedLegs = [];
       let legCursor = currentPosition;
 
       for (const stop of stitchedStops) {
         const isLockedNext = routeOriginStop && stop.delivery.id === routeOriginStop.delivery.id;
-        const isDrivingStop = orderedDriving.includes(stop);
-        const isCyclingStop = orderedCycling.includes(stop);
-        const isStart = startMarker && stop.delivery.id === startMarker.delivery.id;
+        const isStart = !isLockedNext && startMarker && stop.delivery.id === startMarker.delivery.id;
         const isEnd = endMarker && stop.delivery.id === endMarker.delivery.id;
+        const isCyclingStop = orderedCycling.includes(stop);
+        const isDrivingStop = orderedDriving.includes(stop);
 
         if (isLockedNext) {
           const d = calculateCrowFliesDistance(legCursor.lat, legCursor.lng, stop.lat, stop.lng);
           stitchedLegs.push({ duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 });
-        } else if (isDrivingStop) {
-          const idx = orderedDriving.indexOf(stop);
-          stitchedLegs.push(drivingLegs[idx] || { duration: 0, distance: 0 });
         } else if (isStart) {
-          // Drive from last driving stop (or origin) to Start marker
+          // Drive from locked next (or currentPosition) to Start marker
           const d = calculateCrowFliesDistance(legCursor.lat, legCursor.lng, stop.lat, stop.lng);
           stitchedLegs.push({ duration: Math.ceil((d / 40) * 60 * 60 * 1.3), distance: d * 1000 });
         } else if (isCyclingStop) {
           const idx = orderedCycling.indexOf(stop);
           stitchedLegs.push(cyclingLegs[idx] || { duration: 0, distance: 0 });
         } else if (isEnd) {
-          // Cycle from last cycling stop (or startMarker) to End marker
+          // Cycle from last cycling stop (or start marker) to End marker
           const d = calculateCrowFliesDistance(legCursor.lat, legCursor.lng, stop.lat, stop.lng);
-          stitchedLegs.push({ duration: Math.ceil((d / 20) * 60 * 60 * 1.2), distance: d * 1000 }); // bicycle speed approx
+          stitchedLegs.push({ duration: Math.ceil((d / 20) * 60 * 60 * 1.2), distance: d * 1000 });
+        } else if (isDrivingStop) {
+          const idx = orderedDriving.indexOf(stop);
+          stitchedLegs.push(drivingLegs[idx] || { duration: 0, distance: 0 });
         }
         legCursor = { lat: stop.lat, lng: stop.lng };
       }
 
       routeStops = stitchedStops;
       directionsLegs = stitchedLegs;
-
     } else {
       // Pure driving (or no cycling segment) — HERE sequencing with time-window grouping.
       //
