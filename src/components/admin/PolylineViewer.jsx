@@ -1125,6 +1125,18 @@ export default function PolylineViewer({ users = [] }) {
             fresh.forEach(b => map.set(b.id, b));
             return Array.from(map.values());
           });
+          // CRITICAL: Update focusedItem + focusedGroup snapshots so the map
+          // re-renders with the freshly re-clipped polyline. Without this,
+          // the map keeps showing the stale snapshot from before the reclip.
+          const freshById = new Map(fresh.map(b => [b.id, b]));
+          setFocusedItem(prev => prev ? (freshById.get(prev.id) || prev) : prev);
+          setFocusedGroup(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              breadcrumb: prev.breadcrumb ? (freshById.get(prev.breadcrumb.id) || prev.breadcrumb) : prev.breadcrumb,
+            };
+          });
         }
       } else {
         toast.error(`Reclip failed: ${data?.error || 'Unknown error'}`);
