@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     }
 
     // For each gap, call HERE Router v8 directly
-    const hereApiKey = await resolveFeatureApiKey(base44, 'route_optimization');
+    const hereApiKey = await resolveFeatureApiKeySimple(base44);
     const gapDiagnostics = [];
 
     for (const gap of gaps.slice(0, 5)) {
