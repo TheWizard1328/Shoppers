@@ -1201,7 +1201,10 @@ export default function PolylineViewer({ users = [] }) {
     }
   };
 
-  // ── STEP 3a: Accept preview — save + re-consolidate ──────────────────────
+  // ── STEP 3a: Accept preview — save the pre-computed polyline + re-consolidate ─
+  // Passes the already-snapped polyline from the preview so the backend skips all
+  // HERE API calls and just saves + re-consolidates. Then refreshes from the SERVER
+  // (not offline) so the re-consolidated stop segments appear immediately.
   const handleSnapAccept = async () => {
     if (!snapPreview) return;
     setSnapPreview(p => ({ ...p, isSaving: true }));
@@ -1209,22 +1212,48 @@ export default function PolylineViewer({ users = [] }) {
       const res = await base44.functions.invoke('snapMasterTimeline', {
         driver_id: snapPreview.item.driver_id,
         delivery_date: snapPreview.item.delivery_date,
+        save_polyline: snapPreview.encodedPolyline,
+        save_timestamps: snapPreview.timestamps,
+        save_point_count: snapPreview.pointCount,
+        save_zones_snapped: snapPreview.zonesSnapped,
         run_consolidate: true,
       });
       const data = res?.data ?? res;
       if (data?.success) {
         toast.success(`Saved — ${data.zones_snapped} zone(s) snapped, ${data.snapped_point_count} pts. Segments re-consolidated.`);
-        // Update local state immediately so the map re-renders without a full reload
-        const savedPolyline = snapPreview.encodedPolyline;
-        const savedItem = snapPreview.item;
-        const updatedItem = { ...savedItem, encoded_polyline: savedPolyline, point_count: data.snapped_point_count };
-        setBreadcrumbs(prev => prev.map(b => b.id === savedItem.id ? updatedItem : b));
-        setFocusedItem(updatedItem);
+
+        // Clear preview + cleaning state first so the viewer returns to regular breadcrumb view
         setSnapPreview(null);
         setIsCleaningMode(false);
         setCleanedPoints([]);
         setUndoStack([]);
-        await loadData();
+        // Ensure we're in breadcrumbs view
+        setViewMode('breadcrumbs');
+
+        // Refresh breadcrumbs from the SERVER so the re-consolidated stop segments
+        // appear immediately (offline DB may be stale until the next sync).
+        const [freshCrumbs, freshDels] = await Promise.all([
+          base44.entities.DeliveryBreadcrumbs.filter({ driver_id: snapPreview.item.driver_id, delivery_date: snapPreview.item.delivery_date }, '-stop_order', 200).catch(() => []),
+          base44.entities.Delivery.filter({ driver_id: snapPreview.item.driver_id, delivery_date: snapPreview.item.delivery_date }, 'stop_order', 200).catch(() => []),
+        ]);
+        if (freshCrumbs?.length) {
+          setBreadcrumbs(prev => {
+            const map = new Map(prev.map(b => [b.id, b]));
+            freshCrumbs.forEach(c => { if (c?.id) map.set(c.id, c); });
+            return Array.from(map.values());
+          });
+        }
+        if (freshDels?.length) {
+          setDeliveries(prev => {
+            const map = new Map(prev.map(d => [d.id, d]));
+            freshDels.forEach(d => { if (d?.id) map.set(d.id, d); });
+            return Array.from(map.values());
+          });
+        }
+
+        // Focus on the master breadcrumb (stop_order = -1) for this driver/date
+        const masterCrumb = freshCrumbs?.find(c => c.stop_order === -1) || null;
+        setFocusedItem(masterCrumb);
       } else {
         toast.error(`Save failed: ${data?.error || 'Unknown error'}`);
         setSnapPreview(p => ({ ...p, isSaving: false }));

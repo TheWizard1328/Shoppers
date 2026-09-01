@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { resolveFeatureApiKey } from '../../shared/apiKeyResolver.ts';
 
 // ─── snapMasterTimeline ────────────────────────────────────────────────────────
 // Surgical gap-fill snapping of the master GPS breadcrumb timeline (stop_order = -1).
@@ -162,28 +163,11 @@ function consolidateGapsIntoZones(gaps: GapInfo[], minDensePoints: number): Snap
   return zones;
 }
 
-// ── HERE API key cache (mirrors getHereDirections to avoid extra DB round-trip) ──
-const _HERE_SECRET_MAP_SNAP: Record<string, string> = {
-  HERE_API_KEY: 'HERE_API_KEY',
-  Here_API_Key_2: 'Here_API_Key_2',
-  Here_API_Key_3: 'Here_API_Key_3',
-};
-let _snapHereSecretName: string | null = null;
-let _snapHereSecretExpiresAt = 0;
-
+// ── HERE API key resolved from the per-feature API Provider Keys settings ──
+// Uses the 'route_optimization' slot so the snap function always uses the same
+// HERE key the admin assigned to route optimization (e.g. Here_API_Key_2).
 async function getSnapHereApiKey(base44: any): Promise<string | null> {
-  const now = Date.now();
-  if (_snapHereSecretName && now < _snapHereSecretExpiresAt) {
-    return Deno.env.get(_snapHereSecretName) || null;
-  }
-  const settings = await base44.asServiceRole.entities.AppSettings.filter(
-    { setting_key: 'refresh_intervals' }, '-updated_date', 1
-  );
-  const val = settings?.[0]?.setting_value || {};
-  const selected = val.selected_api_key || val.selected_here_api_key || 'HERE_API_KEY';
-  _snapHereSecretName = _HERE_SECRET_MAP_SNAP[selected] || 'HERE_API_KEY';
-  _snapHereSecretExpiresAt = now + 5 * 60 * 1000;
-  return Deno.env.get(_snapHereSecretName) || null;
+  return resolveFeatureApiKey(base44, 'route_optimization');
 }
 
 // ── Decode Google polyline returned by HERE (via encodeGooglePolyline in getHereDirections) ──
@@ -355,10 +339,53 @@ Deno.serve(async (req) => {
       preview_only = false,
       analyze_only = false,
       gap_threshold_m = GAP_THRESHOLD_M,
+      save_polyline,
+      save_timestamps,
+      save_point_count,
+      save_zones_snapped,
     } = body;
 
     if (!driver_id || !delivery_date) {
       return Response.json({ error: 'driver_id and delivery_date are required' }, { status: 400 });
+    }
+
+    // ── 0. Save-only mode: accept a pre-computed snapped polyline (from preview)
+    //    and persist it directly, skipping all HERE API calls. Then re-consolidate.
+    if (save_polyline) {
+      const masterRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+        driver_id,
+        delivery_date,
+        stop_order: -1,
+      }).catch(() => []);
+      const masterSave = (masterRecords as any[])?.[0] ?? null;
+      if (!masterSave?.id) {
+        return Response.json({ success: false, error: 'No master timeline record found (stop_order = -1)' }, { status: 404 });
+      }
+
+      const ptsCount = save_point_count || save_polyline.replace(/[^A-Za-z0-9_-]/g, '').length;
+      await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(masterSave.id, {
+        encoded_polyline: save_polyline,
+        timestamps: save_timestamps || masterSave.timestamps || '',
+        point_count: ptsCount,
+      });
+
+      let consolidateResult = null;
+      if (run_consolidate) {
+        consolidateResult = await base44.functions
+          .invoke('consolidateBreadcrumbs', { driver_id, delivery_date })
+          .catch((e: Error) => ({ error: e?.message }));
+      }
+
+      return Response.json({
+        success: true,
+        driver_id,
+        delivery_date,
+        saved: true,
+        snapped_point_count: ptsCount,
+        zones_snapped: save_zones_snapped || 0,
+        api_calls_made: 0,
+        consolidate_result: consolidateResult,
+      });
     }
 
     // ── 1. Fetch master record ────────────────────────────────────────────────

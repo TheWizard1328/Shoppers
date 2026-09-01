@@ -1411,6 +1411,8 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
       : (id || (ids ? ids.length + ' ids' : ''));
   console.log(`📡 [RealtimeSync] [${rsTime()}] Broadcasting ${entity} ${action}: ${displayId}`);
 
+  let broadcastData = data;
+
   try {
     const storeName = entity === 'AppUser' ? offlineDB.STORES.APP_USERS :
       entity === 'Delivery' ? offlineDB.STORES.DELIVERIES :
@@ -1451,7 +1453,6 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
         // For AppUser/Payroll: partial payloads are merged with existing IDB records (same as
         // before) to prevent replacing the full record with a partial one via IndexedDB `put`.
         let dataToSave = data;
-        let broadcastData = data;
         if (id && (entity === 'Delivery' || entity === 'Patient' || entity === 'AppUser' || entity === 'Payroll')) {
           try {
             const existing = await offlineDB.getById(storeName, id);
