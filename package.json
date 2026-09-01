@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@base44/sdk": "^0.8.44",
-    "@base44/vite-plugin": "^1.0.33",
+    "@base44/vite-plugin": "^1.0.34",
     "@capacitor-community/bluetooth-le": "^8.3.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.1",
