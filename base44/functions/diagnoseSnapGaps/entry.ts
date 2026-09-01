@@ -155,6 +155,12 @@ Deno.serve(async (req) => {
         first_5_routed_points: allCoords.slice(0, 5).map(p => [p[0].toFixed(6), p[1].toFixed(6)]),
         last_5_routed_points: allCoords.slice(-5).map(p => [p[0].toFixed(6), p[1].toFixed(6)]),
         here_error: data?.error_description || data?.error || null,
+        here_raw_polyline: sections[0]?.polyline?.substring(0, 200) || null,
+        here_route_action: sections[0]?.action || sections[0]?.actions || null,
+        here_section_count: sections.length,
+        here_route_notices: data?.routes?.[0]?.notices || null,
+        here_response_keys: Object.keys(data || {}),
+        here_route_keys: data?.routes?.[0] ? Object.keys(data.routes[0]) : null,
       });
     }
 
