@@ -833,7 +833,7 @@ const subscribeToEntity = (entityName) => {
       // created a NEW delivery with the same patient_id + delivery_date + store_id
       // + driver_id as one we recently deleted (e.g. stale offline create replay
       // from a device that hasn't synced the deletion yet).
-      if (type === 'create' && incomingData && isDeletedByContent(incomingData)) {
+      if (type === 'create' && data && isDeletedByContent(data)) {
         console.log(`🛡️ [RealtimeSync] Dropped create for new delivery ${id} — content matches recently deleted delivery`);
         return;
       }

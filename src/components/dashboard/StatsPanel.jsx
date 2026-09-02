@@ -238,6 +238,16 @@ export default function StatsPanel({
     return '#dc2626';
   };
 
+  // Driver → AppUser lookup so the driver-filter dropdown can show a live
+  // status dot (off-duty / on-duty / on-break) next to each name.
+  const appUserByDriverId = useMemo(() => {
+    const map = new Map();
+    (appUsers || []).forEach((au) => {
+      if (au?.user_id) map.set(au.user_id, au);
+    });
+    return map;
+  }, [appUsers]);
+
   // Dispatcher store online-status dots — App Owner only, non-mobile only.
   // UNIFIED with Layout.jsx sidebar logic: primary online signal is heartbeat activity
   // (location_updated_at within 5 min), NOT driver_status. The driver_status field can
@@ -570,11 +580,22 @@ export default function StatsPanel({
                     {isDispatcher && driversList.length === 0 &&
                       <SelectItem value="__none__" disabled style={{ color: 'var(--text-slate-400)' }}>No Drivers</SelectItem>
                       }
-                    {driversList.map((driver) =>
-                      <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
-                        {driver.user_name || driver.full_name}
-                      </SelectItem>
-                      )}
+                    {driversList.map((driver) => {
+                      const au = appUserByDriverId.get(driver.user_id || driver.id);
+                      const driverStatus = au?.driver_status || 'off_duty';
+                      return (
+                        <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-sm"
+                              style={{ backgroundColor: getStatusColor(driverStatus) }}
+                              aria-hidden="true"
+                            />
+                            <span>{driver.user_name || driver.full_name}</span>
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
 

@@ -228,7 +228,7 @@ export default function AppSidebar({
                 alt="RxDeliver"
                 onClick={handleLogoClick}
                 title={isDispatcherOnly ? 'Ctrl + Click for Settings' : ''}
-                className={`rounded object-contain w-14 h-14 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}
+                className={`rounded object-contain w-16 h-16 ${isDispatcherOnly ? 'cursor-pointer select-none' : ''}`}
                 style={{ filter: 'var(--image-filter, none)' }}
                 onError={() => setLogoFailed(true)} /> :
 

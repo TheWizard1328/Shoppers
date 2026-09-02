@@ -11,6 +11,7 @@
  *
  * Cache-busting query param ensures the CDN doesn't serve a stale copy.
  */
+/* global __WEB_BUILD_ID__ */
 import { useState, useEffect, useRef } from 'react';
 
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
