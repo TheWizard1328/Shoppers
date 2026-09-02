@@ -2,7 +2,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
-import { isDeleted, filterDeleted } from "./deletedDeliveryRegistry";
+import { isDeleted, isDeletedByContent, filterDeleted } from "./deletedDeliveryRegistry";
 
 class CityFilteredRealtimeSync {
   constructor() {
@@ -113,6 +113,14 @@ class CityFilteredRealtimeSync {
 
               const freshDelivery = event.data;
               if (!freshDelivery?.id) return;
+
+              // CRITICAL: Content-signature guard. If another device created a
+              // NEW delivery (new server ID) with the same patient_id + delivery_date
+              // + store_id + driver_id as one we recently deleted, block it.
+              if (event.type === 'create' && isDeletedByContent(freshDelivery)) {
+                console.log(`🛡️ [cityFilteredRealtimeSync] Dropped create for new delivery ${freshDelivery.id} — content matches recently deleted delivery`);
+                return;
+              }
 
               // CRITICAL: Merge incoming WS payload with existing IDB record BEFORE saving.
               // The WS event data is PARTIAL (only changed fields). A raw bulkSave would

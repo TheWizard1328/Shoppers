@@ -14,7 +14,7 @@ import { offlineDB } from './offlineDatabase';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 import { getLocalTimestampFromDate } from './localTimeHelper';
 import { applyRealtimeMergeWithLockout } from './completionLockout';
-import { isDeleted, filterDeleted, markDeleted } from "./deletedDeliveryRegistry";
+import { isDeleted, isDeletedByContent, filterDeleted, markDeleted } from "./deletedDeliveryRegistry";
 
 const rsTime = () => new Date().toLocaleTimeString('en-CA', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -827,6 +827,14 @@ const subscribeToEntity = (entityName) => {
     if (entityName === 'Delivery' && (type === 'create' || type === 'update') && id) {
       if (isDeleted(id)) {
         console.log(`🛡️ [RealtimeSync] Dropped ${type} for deleted delivery ${id} — recently deleted, refusing to resurrect`);
+        return;
+      }
+      // Also check content signature — catches the case where another device
+      // created a NEW delivery with the same patient_id + delivery_date + store_id
+      // + driver_id as one we recently deleted (e.g. stale offline create replay
+      // from a device that hasn't synced the deletion yet).
+      if (type === 'create' && incomingData && isDeletedByContent(incomingData)) {
+        console.log(`🛡️ [RealtimeSync] Dropped create for new delivery ${id} — content matches recently deleted delivery`);
         return;
       }
     }
