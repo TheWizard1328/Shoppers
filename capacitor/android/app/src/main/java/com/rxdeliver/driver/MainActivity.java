@@ -639,13 +639,13 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         activityResumed = true;
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
         activityResumed = false;
     }
