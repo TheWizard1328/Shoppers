@@ -78,9 +78,9 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       if (!log) return;
       const category = getApiLogCategory(log);
       const count = Number(log?.metadata?.call_count ?? 1);
-      if (category === 'google') setGoogleCount((prev) => (prev ?? 0) + count);
-      else if (category === 'here_routing') setHereRoutingCount((prev) => (prev ?? 0) + count);
-      else if (category === 'here_tiles') setHereTileCount((prev) => (prev ?? 0) + count);
+      if (category === 'google') setGoogleCount((prev) => (prev ?? 0) + count);else
+      if (category === 'here_routing') setHereRoutingCount((prev) => (prev ?? 0) + count);else
+      if (category === 'here_tiles') setHereTileCount((prev) => (prev ?? 0) + count);
     };
 
     window.addEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
@@ -125,7 +125,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
         <TooltipTrigger asChild>
           <button
-          type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm bg-transparent opacity-50 hover:opacity-100 transition-opacity duration-200"
+          type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm bg-transparent hover:opacity-100 transition-opacity duration-200 opacity-100"
           onTouchStart={showApiTooltipForTouch}
           onClick={showApiTooltipForTouch}
           style={{ background: "transparent", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
