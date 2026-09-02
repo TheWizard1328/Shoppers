@@ -13,15 +13,15 @@ export default function StopCardCheckboxToggle({
   const bottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight : 0) + 10;
   return (
     <div
-      className="absolute z-[100] pointer-events-auto flex items-center gap-2 bg-transparent opacity-50 hover:opacity-100 transition-opacity duration-200"
+      className="absolute z-[100] pointer-events-auto flex items-center gap-2 rounded-lg px-2 py-1 bg-white/50 dark:bg-slate-900/50 transition-colors duration-200"
       style={{ left: "0.75rem", bottom: `${bottomPixels}px` }}
     >
       {!immersiveHidden && !hideCheckbox && (
-        <label className="flex items-center cursor-pointer">
+        <label className="flex items-center cursor-pointer opacity-100">
           <Checkbox checked={checked} onCheckedChange={onCheckedChange} aria-label="Show stop checkboxes" />
         </label>
       )}
-      {children}
+      <div className="opacity-100">{children}</div>
     </div>
   );
 }
