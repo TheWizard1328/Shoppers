@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu
 import SettingsMenu from './SettingsMenu';
 import DriverStatusToggle from './DriverStatusToggle';
 import BackgroundLocationNudge from './BackgroundLocationNudge';
+import ProximityForegroundNudge from './ProximityForegroundNudge';
 import BatteryIndicator from './BatteryIndicator';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { getDriverDisplayName } from '../utils/driverUtils';
@@ -256,6 +257,10 @@ export default function MobileHeader({
       {/* Background GPS nudge — shown to drivers on Android after going on duty */}
       {userHasRole(currentUser, 'driver') &&
       <BackgroundLocationNudge isOnDuty={currentUser?.driver_status === 'on_duty'} />
+      }
+      {/* Overlay-permission nudge for proximity auto-foreground (native APK drivers) */}
+      {userHasRole(currentUser, 'driver') &&
+      <ProximityForegroundNudge />
       }
     </header>);
 

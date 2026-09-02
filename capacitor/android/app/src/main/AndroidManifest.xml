@@ -93,6 +93,16 @@
     <!-- Wake lock (keep CPU alive for GPS + BLE during screen off) -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Proximity auto-foreground (isNextDelivery approach trigger) -->
+    <!-- Full-screen intent notification: launches the app over the lock screen
+         when the driver approaches their next stop with the screen off. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- "Display over other apps" — grants the official Background Activity
+         Launch exemption so the app can truly bring itself to the front while
+         backgrounded (screen ON case). Users grant this manually via the
+         system settings page (requestOverlayPermission bridge opens it). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- APK self-update: DownloadManager handles the .apk download (shows the
          native "Download complete" notification), then the install intent
          needs this permission to prompt the install screen on tap. -->

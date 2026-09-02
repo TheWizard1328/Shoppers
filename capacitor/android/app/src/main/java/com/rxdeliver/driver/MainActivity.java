@@ -369,6 +369,10 @@ public class MainActivity extends BridgeActivity {
 
         super.onCreate(savedInstanceState);
 
+        // If the activity was (re)launched by the proximity auto-foreground
+        // trigger, show over the lock screen and wake the display.
+        applyProximityLaunchFlags(getIntent());
+
         WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
         WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
         if (controller != null) {
@@ -584,6 +588,66 @@ public class MainActivity extends BridgeActivity {
                 launchBareSquarePOS();
             }
         }
+    }
+
+    // ── Proximity auto-foreground helpers ────────────────────────────────────
+
+    // Launch intent for the proximity trigger. MainActivity is singleTask, so
+    // this reorders the existing task to the front instead of spawning a copy.
+    private Intent buildProximityLaunchIntent() {
+        Intent intent = new Intent(MainActivity.this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+            | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.putExtra(PROXIMITY_LAUNCH_EXTRA, true);
+        return intent;
+    }
+
+    private void ensureProximityChannel() {
+        if (Build.VERSION.SDK_INT < 26) return;
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm == null || nm.getNotificationChannel(PROXIMITY_CHANNEL_ID) != null) return;
+        NotificationChannel channel = new NotificationChannel(
+            PROXIMITY_CHANNEL_ID,
+            "Stop proximity alerts",
+            NotificationManager.IMPORTANCE_HIGH
+        );
+        channel.setDescription("Brings RxDeliver to the front when you approach your next delivery stop");
+        channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(channel);
+    }
+
+    // When launched by the proximity trigger (direct or via full-screen intent),
+    // show over the lock screen and wake the screen — the driver is mid-route.
+    private void applyProximityLaunchFlags(Intent intent) {
+        if (intent != null && intent.getBooleanExtra(PROXIMITY_LAUNCH_EXTRA, false)) {
+            if (Build.VERSION.SDK_INT < 27) return; // setShowWhenLocked/setTurnScreenOn are API 27+
+            try {
+                setShowWhenLocked(true);
+                setTurnScreenOn(true);
+            } catch (Exception e) {
+                android.util.Log.w("RxDeliver", "Proximity launch flags failed: " + e.getMessage());
+            }
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // singleTask launchMode: re-launches of a running activity arrive here
+        applyProximityLaunchFlags(intent);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        activityResumed = true;
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        activityResumed = false;
     }
 
     private void setupDownloadListener() {
