@@ -77,12 +77,30 @@ const getFreshCachedAuthUser = () => {
   const cached = readStorageJson(localStorage, AUTH_BOOT_CACHE_KEY) || readStorageJson(sessionStorage, AUTH_BOOT_CACHE_KEY);
   if (!cached?.user || !cached?.timestamp) return null;
   if ((Date.now() - cached.timestamp) > AUTH_BOOT_CACHE_TTL_MS) return null;
+  // CRITICAL: If the access token has changed since the cache was created
+  // (e.g. Base44's "View As User" feature swapped the token), invalidate
+  // the cache. This forces a fresh base44.auth.me() call with the new token,
+  // which returns the impersonated user instead of the previous admin user.
+  const currentToken = (typeof localStorage !== 'undefined' && localStorage.getItem('base44_access_token')) || '';
+  if (cached.token && cached.token !== currentToken) {
+    console.warn('[auth.js] Access token changed since boot cache was created — invalidating cache (likely View As User)');
+    removeStorageKey(localStorage, AUTH_BOOT_CACHE_KEY);
+    removeStorageKey(sessionStorage, AUTH_BOOT_CACHE_KEY);
+    return null;
+  }
   return cached.user;
 };
 
 const persistAuthUser = (authUser) => {
   if (!authUser) return;
-  const payload = { user: authUser, timestamp: Date.now() };
+  // CRITICAL: Store the access token alongside the cached auth user so that
+  // getFreshCachedAuthUser can detect when the token has changed (e.g. when
+  // Base44's "View As User" feature swaps the token). Without this, the 24h
+  // boot cache would keep returning the previous admin user even after the
+  // token has changed, causing the app to run with admin permissions instead
+  // of the impersonated user's permissions.
+  const currentToken = (typeof localStorage !== 'undefined' && localStorage.getItem('base44_access_token')) || '';
+  const payload = { user: authUser, timestamp: Date.now(), token: currentToken };
   writeStorageJson(localStorage, AUTH_BOOT_CACHE_KEY, payload);
   writeStorageJson(sessionStorage, AUTH_BOOT_CACHE_KEY, payload);
 };
