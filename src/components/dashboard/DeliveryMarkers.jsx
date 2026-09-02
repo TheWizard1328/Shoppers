@@ -118,6 +118,42 @@ function DeliveryMarkers({
     return result;
   }, [cyclingPairsByLocation]);
 
+  // Total distance traveled (km) for a cycling loop, keyed by the start marker's id.
+  // Sum of travel_dist across every stop strictly after the Start marker up through
+  // (and including) the End marker — Start's own travel_dist is the leg INTO the loop
+  // (e.g. from home or the previous stop) and is intentionally excluded from the total.
+  const cyclingLoopDistanceByStartId = React.useMemo(() => {
+    const result = new Map();
+    cyclingByDriver.forEach(({ start, end }, startId) => {
+      if (!start || !end) return;
+      const startOrder = Number(start.stop_order);
+      const endOrder = Number(end.stop_order);
+      if (!Number.isFinite(startOrder) || !Number.isFinite(endOrder)) return;
+      let total = 0;
+      let hasAny = false;
+      deliveryMarkers.forEach((d) => {
+        if (!d || d.driver_id !== start.driver_id || d.delivery_date !== start.delivery_date) return;
+        const order = Number(d.stop_order);
+        if (!Number.isFinite(order) || order <= startOrder || order > endOrder) return;
+        const dist = Number(d.travel_dist);
+        if (Number.isFinite(dist)) {
+          total += dist;
+          hasAny = true;
+        }
+      });
+      result.set(startId, hasAny ? total : null);
+    });
+    return result;
+  }, [cyclingByDriver, deliveryMarkers]);
+
+  // "4.2 km" above 1km, "350 m" below — mirrors ImmersiveMapTopOverlay's formatDistance.
+  const formatLoopDistance = (km) => {
+    const value = Number(km);
+    if (!Number.isFinite(value)) return null;
+    if (value >= 1) return `${value.toFixed(1)} km`;
+    return `${Math.max(1, Math.round(value * 1000))} m`;
+  };
+
   return deliveryMarkers.map((delivery) => {
     // Cycling markers: fan out at high zoom, collapse to split icon at low zoom
     if (delivery?.is_cycling_marker) {
@@ -160,12 +196,14 @@ function DeliveryMarkers({
                 const [eh, em] = endTime ? endTime.split(':').map(Number) : [];
                 const totalMin = (startTime && endTime) ? (eh * 60 + em) - (sh * 60 + sm) : null;
                 const dur = totalMin > 0 ? `${Math.floor(totalMin / 60) > 0 ? Math.floor(totalMin / 60) + 'h ' : ''}${totalMin % 60}min` : null;
+                const loopDistLabel = formatLoopDistance(cyclingLoopDistanceByStartId.get(pair.start?.id));
                 return (
                   <div key={pair.start?.id || idx} style={{ marginBottom: allPairsHere.length > 1 ? 6 : 0, paddingBottom: allPairsHere.length > 1 && idx < allPairsHere.length - 1 ? 6 : 0, borderBottom: allPairsHere.length > 1 && idx < allPairsHere.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
                     <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600, marginBottom: 2 }}>{allPairsHere.length > 1 ? `Loop ${idx + 1} · ` : ''}Stops #{pair.start?.stop_order}–#{pair.end?.stop_order}</div>
                     {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
                     {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
                     {dur && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏱ {dur}</div>}
+                    {loopDistLabel && <div style={{ fontSize: '0.75rem', color: '#0369a1' }}>📏 {loopDistLabel}</div>}
                   </div>
                 );
               })}
@@ -213,6 +251,7 @@ function DeliveryMarkers({
                   {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
                   {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
                   {dur && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏱ {dur}</div>}
+                  {formatLoopDistance(cyclingLoopDistanceByStartId.get(pair.start?.id)) && <div style={{ fontSize: '0.75rem', color: '#0369a1' }}>📏 {formatLoopDistance(cyclingLoopDistanceByStartId.get(pair.start?.id))}</div>}
                   {!startTime && !endTime && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Zoom in to see start &amp; end separately</div>}
                 </div>
               );
