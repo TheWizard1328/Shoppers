@@ -236,13 +236,7 @@ export const AppDataProvider = ({ children, value }) => {
             .filter((item) => item?.id && !appUserDeletes.includes(item.id))
             .map((item) => [item.id, item])
         );
-        // CRITICAL FIX: Use safeAppUserUpserts (IDB-merged full records) instead of
-        // raw appUserUpserts (partial WS payloads). Raw upserts only carry changed fields
-        // (e.g. current_latitude/longitude) and would REPLACE the full record in the
-        // appUserById map, wiping location_tracking_enabled, city_id, driver_status,
-        // app_roles, etc. This caused drivers to be invisible to each other because the
-        // driver visibility check requires location_tracking_enabled to be true.
-        safeAppUserUpserts.forEach((item) => {
+        appUserUpserts.forEach((item) => {
           if (!item?.id) return;
           const existing = appUserById.get(item.id);
           // Freshness guard: only accept the incoming upsert if it is newer-or-equal.
@@ -292,9 +286,7 @@ export const AppDataProvider = ({ children, value }) => {
             .map((item) => [item.id, item])
         );
 
-        // CRITICAL FIX: Use safeAppUserUpserts (IDB-merged full records) instead of
-        // raw appUserUpserts (partial WS payloads) — same fix as the main path above.
-        safeAppUserUpserts.forEach((item) => {
+        appUserUpserts.forEach((item) => {
           if (!item?.id) return;
           const current = byId.get(item.id);
           const coordsChanged = !!current && (
