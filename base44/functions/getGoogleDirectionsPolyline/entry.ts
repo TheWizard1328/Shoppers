@@ -7,6 +7,7 @@
 // engine expects from getMultiStopRouteHere / getMultiStopRouteGoogle.
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { resolveFeatureSecretName } from '../../shared/apiKeyResolver.ts';
 import { encodeGooglePolyline, decodeGooglePolyline, calculateCrowFliesDistance } from '../../shared/polylineCodec.ts';
 
 Deno.serve(async (req) => {
@@ -23,7 +24,22 @@ Deno.serve(async (req) => {
       return Response.json({ sections: [], usedFallbackPolyline: false });
     }
 
-    const googleApiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    // Resolve the Google key through the AppSettings per-feature API provider config
+    // (the same resolver getActiveHereApiKey uses for the 'polylines' slot). The client
+    // only invokes this function when the polylines slot resolved to the Google
+    // provider, so the secret here should be GOOGLE_MAPS_API_KEY. If the config
+    // changed mid-flight, fall back to the GOOGLE_MAPS_API_KEY secret directly —
+    // honoring the client's provider decision rather than failing the whole route.
+    let googleApiKey: string | null = null;
+    try {
+      const secretName = await resolveFeatureSecretName(base44, 'polylines');
+      if (secretName === 'GOOGLE_MAPS_API_KEY') {
+        googleApiKey = Deno.env.get('GOOGLE_MAPS_API_KEY') || null;
+      }
+    } catch (_) { /* config resolve failed — fall back below */ }
+    if (!googleApiKey) {
+      googleApiKey = Deno.env.get('GOOGLE_MAPS_API_KEY') || null;
+    }
     if (!googleApiKey) {
       return Response.json({ error: 'Google Maps API key not configured' }, { status: 500 });
     }
