@@ -1,6 +1,10 @@
 package com.rxdeliver.driver;
 
 import android.app.DownloadManager;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -8,14 +12,18 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
 import android.widget.Toast;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -55,6 +63,22 @@ public class MainActivity extends BridgeActivity {
     // stuck — this is the safety net on top of the primary startActivityForResult fix.
     private long lastSquareChargeLaunchAtMs = 0;
     private static final long FALLBACK_WINDOW_MS = 4000;
+
+    // ── Proximity auto-foreground (isNextDelivery approach trigger) ──────────
+    // The web app's proximityForegroundTrigger module calls
+    // window.AndroidNative.bringToFront() when the driver enters the approach
+    // radius of their flagged next stop while the app is backgrounded. Strategy:
+    //   1. If the app is already in the foreground → no-op.
+    //   2. If SYSTEM_ALERT_WINDOW ("Display over other apps") is granted →
+    //      directly relaunch MainActivity (BAL exemption for SAW apps — true
+    //      auto-foreground, works with the screen on and device unlocked).
+    //   3. Otherwise post a full-screen-intent notification: launches the app
+    //      full-screen over the lock screen when the screen is off, and shows a
+    //      high-priority heads-up banner when the screen is on.
+    public static final String PROXIMITY_LAUNCH_EXTRA = "rx_proximity_launch";
+    private static final String PROXIMITY_CHANNEL_ID = "proximity_foreground";
+    private static final int PROXIMITY_NOTIFICATION_ID = 4711;
+    private boolean activityResumed = false;
 
     // JavaScript interface for direct APK download from web app.
     // Bypasses the WebView DownloadListener entirely, which can be
@@ -189,6 +213,116 @@ public class MainActivity extends BridgeActivity {
             }
         }
 
+
+
+        // ── Proximity auto-foreground bridge ─────────────────────────────
+        // Called by the web app's proximityForegroundTrigger module when the
+        // driver approaches their isNextDelivery stop while the app is
+        // backgrounded. Returns a short status string for JS diagnostics:
+        //   already_foreground | launched_direct | notified_fullscreen |
+        //   notified_heads_up | error:<msg>
+        @JavascriptInterface
+        public String bringToFront(String title, String message) {
+            try {
+                if (activityResumed) {
+                    return "already_foreground";
+                }
+
+                // Strategy 1: direct launch — allowed while backgrounded ONLY
+                // when the user has granted "Display over other apps"
+                // (SYSTEM_ALERT_WINDOW is an official BAL exemption).
+                if (Settings.canDrawOverlays(MainActivity.this)) {
+                    runOnUiThread(() -> {
+                        try {
+                            startActivity(buildProximityLaunchIntent());
+                        } catch (Exception e) {
+                            android.util.Log.w("RxDeliver", "Proximity direct launch failed: " + e.getMessage());
+                        }
+                    });
+                    return "launched_direct";
+                }
+
+                // Strategy 2: full-screen-intent notification (alarm/call style).
+                ensureProximityChannel();
+                PendingIntent launchPI = PendingIntent.getActivity(
+                    MainActivity.this,
+                    PROXIMITY_NOTIFICATION_ID,
+                    buildProximityLaunchIntent(),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                );
+
+                String safeTitle = (title == null || title.isEmpty()) ? "Approaching your next stop" : title;
+                String safeMessage = (message == null || message.isEmpty())
+                    ? "You are close to your next delivery — tap to open RxDeliver" : message;
+
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(MainActivity.this, PROXIMITY_CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_stat_notify)
+                    .setContentTitle(safeTitle)
+                    .setContentText(safeMessage)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+                    .setAutoCancel(true)
+                    .setOnlyAlertOnce(true)
+                    .setContentIntent(launchPI)
+                    .setFullScreenIntent(launchPI, true);
+
+                boolean canFsi = true;
+                if (Build.VERSION.SDK_INT >= 29) {
+                    NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                    canFsi = nm != null && nm.canUseFullScreenIntent();
+                }
+
+                try {
+                    NotificationManagerCompat.from(MainActivity.this)
+                        .notify(PROXIMITY_NOTIFICATION_ID, builder.build());
+                } catch (SecurityException se) {
+                    // POST_NOTIFICATIONS runtime permission not granted on 13+
+                    android.util.Log.w("RxDeliver", "Proximity notify blocked (no notification permission): " + se.getMessage());
+                    return "error:no_notification_permission";
+                }
+
+                return canFsi ? "notified_fullscreen" : "notified_heads_up";
+            } catch (Exception e) {
+                android.util.Log.e("RxDeliver", "bringToFront failed: " + e.getMessage());
+                return "error:" + e.getMessage();
+            }
+        }
+
+        // Whether the user granted "Display over other apps" (required for
+        // true auto-foreground with the screen ON; without it we fall back to
+        // the full-screen-intent notification).
+        @JavascriptInterface
+        public boolean hasOverlayPermission() {
+            try {
+                return Settings.canDrawOverlays(MainActivity.this);
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        // Opens the system "Display over other apps" settings page for this app.
+        // The user must toggle it manually — Android will not show a runtime
+        // dialog for this special access permission.
+        @JavascriptInterface
+        public void requestOverlayPermission() {
+            runOnUiThread(() -> {
+                try {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this,
+                        "Unable to open overlay settings: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
+        // JS can check this to skip unnecessary trigger calls.
+        @JavascriptInterface
+        public boolean isAppInForeground() {
+            return activityResumed;
+        }
     }
 
     // Since Android 7.0 (API 24), passing a raw file:// URI to another app's

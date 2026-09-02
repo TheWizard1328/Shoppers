@@ -6,6 +6,7 @@ import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSett
 import { liveDistanceTracker } from './liveDistanceTracker';
 import { getCurrentDevice, updateDeviceLastActive } from './deviceManager';
 import { arrivalTimeDetector } from './arrivalTimeDetector';
+import { proximityForegroundTrigger } from './proximityForegroundTrigger';
 import { getLocationProvider } from './locationProviders';
 import { getCapacitorPlatform, getNativeLocationAuthorization, isCapacitorNativeApp, requestNativeLocationAuthorization } from './locationProviders/capacitorRuntime';
 import { getLocalDateString, getLocalTimestamp } from './localTimeHelper';
@@ -735,6 +736,16 @@ class LocationTracker {
           this.currentUser.id,
           _todayEdmonton
         );
+
+        // ── Native APK: auto-foreground when approaching the next stop ──
+        // Runs on the same GPS pipeline (also while the app is backgrounded on
+        // native — the CapGo foreground service keeps delivering positions).
+        // All gating (platform, hidden state, enabled, radius, cooldown) is done
+        // inside the trigger module; this call is fire-and-forget on purpose so
+        // a slow IDB read can never stall the upload path.
+        proximityForegroundTrigger
+          .processLocationUpdate(latitude, longitude, this.currentUser.id, _todayEdmonton)
+          .catch((pfErr) => console.warn('⚠️ [LocationTracker] Proximity foreground trigger failed:', pfErr?.message || pfErr));
       }
 
       // Type 1 polyline regeneration is handled by explicit route-change flows only.
