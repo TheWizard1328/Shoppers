@@ -765,6 +765,15 @@ function DeliveryMap({
         isSelf,
         driver_status: user.driver_status,
         location_tracking_enabled: user.location_tracking_enabled,
+        // CRITICAL FIX (Sep 2, 2026): Expose city at the marker top level.
+        // DriverLocationMarkers.shouldShowMarker() driver branch requires user.city_id /
+        // user.city_ids to exist on the record it receives. Marker objects previously only
+        // nested city under `driver: user`, so the driver branch's strict same-city
+        // some() check computed userCityIds=[] and rejected EVERY non-self marker for
+        // pure drivers — while admins (no city check) and dispatchers (WS-event records
+        // carry city) still saw everyone. This made drivers 100% dependent on WS events.
+        city_id: user.city_id,
+        city_ids: user.city_ids,
         isStaleLocation: !user.location_updated_at || now - new Date(user.location_updated_at).getTime() > fiveMinutesMs,
         isOnBreak: user.driver_status === "on_break" && isSelf
       };

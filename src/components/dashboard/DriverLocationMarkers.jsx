@@ -346,8 +346,23 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
       const currentUserCityId = currentUser?.city_id;
       const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
-      const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
-      const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
+
+      // CRITICAL FIX (Sep 2, 2026): Three tolerances added for parity with the
+      // dispatcher branch above:
+      // 1. Fall back to user.driver?.city_id — the DeliveryMap `users` prop path
+      //    passes MARKER objects whose city lives under `driver` (now also mirrored
+      //    top-level in DeliveryMap, this covers any other marker-shaped callers).
+      // 2. Empty viewer city list => see all (same escape hatch the dispatcher
+      //    branch has). Previously a viewer whose own record was missing city data
+      //    saw NOBODY, while dispatchers saw everyone.
+      // 3. No userCityIds at all (record shape unknown) => do NOT reject purely on
+      //    city grounds — the DeliveryMap memo already enforced same-city upstream.
+      const userCityIds = user.city_ids
+        || (user.city_id ? [user.city_id] : null)
+        || (user.driver?.city_id ? [user.driver.city_id] : null);
+      const isSameCity = currentUserCityIds.length === 0
+        || !userCityIds // record carries no city info — DeliveryMap memo enforced same-city upstream
+        || userCityIds.some(cityId => currentUserCityIds.includes(cityId));
 
       return isSameCity;
     }
