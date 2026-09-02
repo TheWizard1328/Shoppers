@@ -5,7 +5,7 @@ import { Truck, Package, CheckCircle, AlertCircle } from "lucide-react";
 import { globalFilters } from '../utils/globalFilters';
 import { offlineDB } from '../utils/offlineDatabase';
 import { userHasRole } from '../utils/userRoles';
-import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
+import { isReturnAddress } from '../utils/returnDeliveryUtils';
 import OfflineSyncIndicator from './OfflineSyncIndicator';
 
 export default function DashboardQuickStats({ currentUser, storeIds = [], isMobile, screenWidth, showOfflineSync = false }) {
@@ -21,6 +21,9 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const lastFetchRef = useRef({ date: null, driver: null, timestamp: 0 });
+  const debounceTimerRef = useRef(null);
+  const idleHandleRef = useRef(null);
+  const isMountedRef = useRef(true);
 
   // Subscribe to global filter changes (not polling)
   useEffect(() => {
@@ -46,9 +49,16 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
   // Load stats from offline DB
   useEffect(() => {
     if (!currentUser || !selectedDateStr) return;
+    isMountedRef.current = true;
 
-    const loadStats = async () => {
-      setIsLoading(true);
+    // CRITICAL: loadStats does heavy IDB reads + array scans. It must NEVER run
+    // synchronously inside a button click's own promise chain (Add/Update/Done),
+    // or it blocks the main thread and freezes those buttons until it finishes.
+    // isBackground=true (the refresh-event path) skips the loading flag entirely
+    // and is always scheduled via requestIdleCallback so it only runs once the
+    // browser is idle — after the click handler's own UI updates have painted.
+    const loadStats = async (isBackground = false) => {
+      if (!isBackground) setIsLoading(true);
       setHasError(false);
 
       try {
@@ -59,13 +69,30 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         // Load deliveries from offline DB
         const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
 
+        if (!isMountedRef.current) return;
+
         if (!allDeliveries || allDeliveries.length === 0) {
           setStats(null);
-          setIsLoading(false);
+          if (!isBackground) setIsLoading(false);
           return;
         }
 
         const allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+
+        if (!isMountedRef.current) return;
+
+        // PERF: Precompute a Set of "return" patient keys once (O(n)) instead of
+        // calling getReturnCountFromPatientId's array.find() per-delivery, which
+        // was an O(deliveries * patients) nested scan — the main hotspot causing
+        // multi-hundred-ms main-thread blocks on stores with large patient lists.
+        const returnPatientKeys = new Set();
+        (allPatients || []).forEach((p) => {
+          if (p && isReturnAddress(p.address)) {
+            if (p.id) returnPatientKeys.add(p.id);
+            if (p.patient_id) returnPatientKeys.add(p.patient_id);
+          }
+        });
+        const isReturnDelivery = (d) => d?.patient_id && returnPatientKeys.has(d.patient_id);
 
         // Determine store filter for dispatcher
         const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
@@ -80,7 +107,9 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
 
         // Calculate today's stats
         const todayPatientDeliveries = todayDeliveries.filter((d) => d && d.patient_id);
-        const allAppUsersFromDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);const offDutyIds = new Set((allAppUsersFromDB || []).filter((au) => au?.driver_status === 'off_duty').map((au) => au.user_id));const todayActiveDrivers = [...new Set(todayDeliveries.filter((d) => d?.driver_id).map((d) => d.driver_id))].filter((id) => !offDutyIds.has(id)).length;
+        const allAppUsersFromDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        if (!isMountedRef.current) return;
+        const offDutyIds = new Set((allAppUsersFromDB || []).filter((au) => au?.driver_status === 'off_duty').map((au) => au.user_id));const todayActiveDrivers = [...new Set(todayDeliveries.filter((d) => d?.driver_id).map((d) => d.driver_id))].filter((id) => !offDutyIds.has(id)).length;
         const todayActiveStops = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled'].includes(d?.status)).length;
         const todayCompleted = todayPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const todayFailed = todayPatientDeliveries.filter((d) => d?.status === 'failed').length;
@@ -89,7 +118,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const todayInTransitInterStore = todayPatientDeliveries.filter((d) => !['completed', 'failed', 'cancelled'].includes(d?.status) && isInterStore(d)).length;
         const todayCompletedInterStore = todayPatientDeliveries.filter((d) => d?.status === 'completed' && isInterStore(d)).length;
         const todayReturns = todayPatientDeliveries.reduce((sum, d) => {
-          const isFinishedReturn = d?.status === 'completed' && getReturnCountFromPatientId(d, allPatients) > 0;
+          const isFinishedReturn = d?.status === 'completed' && isReturnDelivery(d);
           return sum + (isFinishedReturn ? 1 : 0);
         }, 0);
 
@@ -98,9 +127,11 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
         const monthCompleted = monthPatientDeliveries.filter((d) => d?.status === 'completed').length;
         const monthFailed = monthPatientDeliveries.filter((d) => d?.status === 'failed').length;
         const monthReturns = monthPatientDeliveries.reduce((sum, d) => {
-          const isFinishedReturn = d?.status === 'completed' && getReturnCountFromPatientId(d, allPatients) > 0;
+          const isFinishedReturn = d?.status === 'completed' && isReturnDelivery(d);
           return sum + (isFinishedReturn ? 1 : 0);
         }, 0);
+
+        if (!isMountedRef.current) return;
 
         setStats({
           today: {
@@ -118,29 +149,64 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
             returns: monthReturns
           }
         });
-        setIsLoading(false);
+        if (!isBackground) setIsLoading(false);
       } catch (error) {
         console.error('Failed to load QuickStats:', error);
-        setHasError(true);
-        setIsLoading(false);
+        if (isMountedRef.current) setHasError(true);
+        if (!isBackground && isMountedRef.current) setIsLoading(false);
       }
     };
 
-    loadStats();
+    // Initial load — this one is allowed to show the loading skeleton (only
+    // matters on first mount since `stats` is still null at that point).
+    loadStats(false);
 
-    // Listen for delivery changes to refresh stats
-    const handleDeliveryChange = () => {
-      loadStats();
+    // CRITICAL: Delivery-change refresh must be a background process, never a
+    // blocking foreground one. Add/Update/Done handlers dispatch this event
+    // right as part of their own success path — if we ran loadStats() synchronously
+    // here, its IDB reads + array scans would compete with (and delay) the
+    // click handler's own UI updates on the same main thread, which is exactly
+    // what was freezing the Add/Update/Done buttons. Fix: debounce rapid-fire
+    // events (300ms trailing) so several quick edits collapse into one
+    // recompute, then run that recompute via requestIdleCallback so it only
+    // executes once the browser is idle — after pending UI work has painted.
+    const scheduleBackgroundRefresh = () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        if (!isMountedRef.current) return;
+
+        const runRefresh = () => {
+          idleHandleRef.current = null;
+          if (!isMountedRef.current) return;
+          loadStats(true);
+        };
+
+        if (typeof window !== 'undefined' && window.requestIdleCallback) {
+          idleHandleRef.current = window.requestIdleCallback(runRefresh, { timeout: 2000 });
+        } else {
+          idleHandleRef.current = setTimeout(runRefresh, 0);
+        }
+      }, 300);
     };
 
-    window.addEventListener('refreshDeliveryStats', handleDeliveryChange);
-    window.addEventListener('deliveriesImported', handleDeliveryChange);
-    window.addEventListener('offlineSyncComplete', handleDeliveryChange);
+    window.addEventListener('refreshDeliveryStats', scheduleBackgroundRefresh);
+    window.addEventListener('deliveriesImported', scheduleBackgroundRefresh);
+    window.addEventListener('offlineSyncComplete', scheduleBackgroundRefresh);
 
     return () => {
-      window.removeEventListener('refreshDeliveryStats', handleDeliveryChange);
-      window.removeEventListener('deliveriesImported', handleDeliveryChange);
-      window.removeEventListener('offlineSyncComplete', handleDeliveryChange);
+      isMountedRef.current = false;
+      window.removeEventListener('refreshDeliveryStats', scheduleBackgroundRefresh);
+      window.removeEventListener('deliveriesImported', scheduleBackgroundRefresh);
+      window.removeEventListener('offlineSyncComplete', scheduleBackgroundRefresh);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (idleHandleRef.current) {
+        if (typeof window !== 'undefined' && window.cancelIdleCallback) {
+          window.cancelIdleCallback(idleHandleRef.current);
+        } else {
+          clearTimeout(idleHandleRef.current);
+        }
+      }
     };
   }, [currentUser, selectedDateStr, selectedDriverId]);
 

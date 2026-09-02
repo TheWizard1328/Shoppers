@@ -202,8 +202,11 @@ function DeliveryMarkers({
                     <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600, marginBottom: 2 }}>{allPairsHere.length > 1 ? `Loop ${idx + 1} · ` : ''}Stops #{pair.start?.stop_order}–#{pair.end?.stop_order}</div>
                     {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
                     {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
-                    {dur && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏱ {dur}</div>}
-                    {loopDistLabel && <div style={{ fontSize: '0.75rem', color: '#0369a1' }}>📏 {loopDistLabel}</div>}
+                    {(dur || loopDistLabel) && (
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        {dur}{dur && loopDistLabel ? ' · ' : ''}{loopDistLabel && <span style={{ color: '#0369a1' }}>{loopDistLabel}</span>}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -250,8 +253,15 @@ function DeliveryMarkers({
                   <div style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 600, marginBottom: 2 }}>{allPairsAtSplit.length > 1 ? `Loop ${idx + 1} · ` : ''}Stops #{pair.start?.stop_order}–#{pair.end?.stop_order}</div>
                   {startTime && <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>▶ Start: {startTime}</div>}
                   {endTime && <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>■ End: {endTime}</div>}
-                  {dur && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏱ {dur}</div>}
-                  {formatLoopDistance(cyclingLoopDistanceByStartId.get(pair.start?.id)) && <div style={{ fontSize: '0.75rem', color: '#0369a1' }}>📏 {formatLoopDistance(cyclingLoopDistanceByStartId.get(pair.start?.id))}</div>}
+                  {(() => {
+                    const splitLoopDistLabel = formatLoopDistance(cyclingLoopDistanceByStartId.get(pair.start?.id));
+                    if (!dur && !splitLoopDistLabel) return null;
+                    return (
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        {dur}{dur && splitLoopDistLabel ? ' · ' : ''}{splitLoopDistLabel && <span style={{ color: '#0369a1' }}>{splitLoopDistLabel}</span>}
+                      </div>
+                    );
+                  })()}
                   {!startTime && !endTime && <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Zoom in to see start &amp; end separately</div>}
                 </div>
               );
