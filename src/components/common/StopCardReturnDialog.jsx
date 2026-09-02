@@ -33,6 +33,8 @@ export default function StopCardReturnDialog({
 
   const isMerge = Boolean(existingReturn);
   const existingNames = isMerge ? parseReturnNames(existingReturn.delivery_notes) : [];
+  const addingName = patient?.full_name || delivery.patient_name || 'Unknown';
+  const alreadyListed = isMerge && existingNames.some((n) => n.toLowerCase() === String(addingName).toLowerCase());
 
   return ReactDOM.createPortal(
     <div
@@ -74,7 +76,7 @@ export default function StopCardReturnDialog({
                 </div>
                 <div>
                   <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Adding:</span>
-                  <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>And: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>And: {addingName}{alreadyListed ? ' (already on this return)' : ''}</p>
                 </div>
                 <p className="text-xs italic" style={{ color: 'var(--text-slate-500)' }}>No new stop is created — the route is not re-optimized.</p>
               </>

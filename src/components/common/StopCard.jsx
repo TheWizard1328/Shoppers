@@ -46,6 +46,7 @@ import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocal
 import { runTerminalDeliverySideEffects, triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { getActiveDeliveryAction, runWithDeliveryActionLock, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
+import { getEdmontonDate } from '@/components/utils/returnDeliveryBuilder';
 import { dispatchStopCardActionCollapse } from '../utils/stopCardCollapseManager';
 // CSS transition replacement for Framer Motion on StopCard mount/unmount
 // Avoids per-card rAF animation loops (Framer Motion runs JS rAF per animated element)
@@ -388,17 +389,24 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     isStrippedForDispatcher
   });
 
-  const { hasFutureRetry, hasFutureReturn, hasCompletedDelivery } = useMemo(() => {
-    if (delivery.status !== 'failed' || isPickup || !patient) return { hasFutureRetry: false, hasFutureReturn: false, hasCompletedDelivery: false };
+  const { hasFutureRetry, hasFutureReturn, hasBlockingReturn, hasCompletedDelivery } = useMemo(() => {
+    if (delivery.status !== 'failed' || isPickup || !patient) return { hasFutureRetry: false, hasFutureReturn: false, hasBlockingReturn: false, hasCompletedDelivery: false };
 
     const failedDate = String(delivery.delivery_date || '');
     const failedDateValue = Number(failedDate.replace(/-/g, ''));
     const toDateValue = failedDateValue + 7;
+    // Today's Edmonton date as a numeric YYYYMMDD — same-day returns are MERGE
+    // targets now (add-to-existing-return), so they must NOT disable the button.
+    const todayValue = Number(getEdmontonDate().replace(/-/g, ''));
     const returnPatientName = `${String(store?.name || '').replace(/-/g, ' ')} Return`;
     const returnPatientRecord = patients.find((p) => p && p.full_name === returnPatientName && p.store_id === delivery.store_id);
 
     let futureRetryExists = false;
     let futureReturnExists = false;
+    // Blocks the Return button ONLY for non-today returns on THIS driver's route
+    // (future-dated or stale incomplete returns we can't merge into). Today's
+    // returns stay clickable → the dialog offers "Add To Existing Return".
+    let blockingReturnExists = false;
     let completedDeliveryExists = false;
 
     for (const d of allDeliveries) {
@@ -413,7 +421,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           d.patient_id === returnPatientRecord.id &&
           !FINISHED_STATUSES.includes(d.status)
         ) {
+          // Retry gate: any unfinished return in the window still blocks Retry.
           futureReturnExists = true;
+          // Return-button gate: only non-today returns on this driver's route block.
+          if (d.driver_id === delivery.driver_id && dDateValue !== todayValue) blockingReturnExists = true;
         }
         if (
           d.delivery_date === delivery.delivery_date &&
@@ -423,10 +434,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         ) completedDeliveryExists = true;
       }
 
-      if (futureRetryExists && futureReturnExists && completedDeliveryExists) break;
+      if (futureRetryExists && futureReturnExists && blockingReturnExists && completedDeliveryExists) break;
     }
 
-    return { hasFutureRetry: futureRetryExists, hasFutureReturn: futureReturnExists, hasCompletedDelivery: completedDeliveryExists };
+    return { hasFutureRetry: futureRetryExists, hasFutureReturn: futureReturnExists, hasBlockingReturn: blockingReturnExists, hasCompletedDelivery: completedDeliveryExists };
   }, [delivery, allDeliveries, patient, isPickup, patients, store]);
 
   const canRetry = useMemo(() => {
@@ -1311,6 +1322,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             isPreparingReturn={isPreparingReturn}
             isCreatingReturn={isCreatingReturn}
             hasFutureReturn={hasFutureReturn}
+            hasBlockingReturn={hasBlockingReturn}
             onDelete={onDelete}
             isExpanded={isExpanded}
             pendingPickups={pendingPickups}
