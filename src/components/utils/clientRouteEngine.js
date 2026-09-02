@@ -429,6 +429,7 @@ export async function optimizeRouteClientSide({
   startingStopOrder = null,
   polylineProvider = 'here',
   polylineApiKey = null,
+  clearNextDeliveryLock = false,
 }) {
   if (!driverId || !deliveryDate) {
     return { success: false, error: 'Missing driverId or deliveryDate' };
@@ -686,7 +687,11 @@ export async function optimizeRouteClientSide({
   const implicitNextStop = !explicitNextStop
     ? orderedOptimizationStops.find(s => ACTIVE_STATUSES.includes(s.delivery.status)) || null
     : null;
-  const lockedNextStop = !preserveExistingOrder
+  // clearNextDeliveryLock ("contest mode", used by the Return flow): the caller has
+  // swept all isNextDelivery flags to false and wants EVERY active stop — including
+  // the previous next stop — to compete for position 1 on equal footing so a newly
+  // created return stop can genuinely win the next-stop slot. Skip the lock entirely.
+  const lockedNextStop = !preserveExistingOrder && !clearNextDeliveryLock
     ? (explicitNextIsActive ? explicitNextStop : (implicitNextStop || null))
     : null;
   const routeOriginStop = lockedNextStop || null;
@@ -1330,8 +1335,10 @@ export async function optimizeRouteClientSide({
     const isISP_ISD = isInterStoreDelivery(s.delivery_id);
     return !isISP_ISD;
   }) || null;
-  const nextStopId = (explicitNextDelivery ? explicitNextDelivery.id : null)
-    || (!routeInProgress ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null) : null);
+  const nextStopId = (explicitNextDelivery && !clearNextDeliveryLock ? explicitNextDelivery.id : null)
+    || (clearNextDeliveryLock
+      ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null)
+      : (!routeInProgress ? (firstNonInterStoreActive?.id || activeStops[0]?.id || null) : null));
   const finalizedById = new Map(activeStops.map(s => [s.id, s]));
   const writeBatch = [];
 

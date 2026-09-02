@@ -45,3 +45,69 @@ export function buildReturnDeliveryData({ originalDelivery, originalPatient, ret
     })()
   };
 }
+
+// ── Return-merge helpers ─────────────────────────────────────────────────────
+// When a return is requested for a failed delivery, the driver's route may already
+// contain an incomplete return stop for the same store (created by an earlier
+// failed delivery from that store). Instead of creating a second return stop, the
+// new patient's name is appended to the existing return's notes as "And: <name>"
+// directly below the original "For: <name>" line.
+
+const EDM_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
+export const getEdmontonDate = () => {
+  const p = EDM_DATE_FORMATTER.formatToParts(new Date());
+  return `${p.find(x => x.type === 'year').value}-${p.find(x => x.type === 'month').value}-${p.find(x => x.type === 'day').value}`;
+};
+
+/**
+ * Find an existing incomplete return stop for the same store on the driver's route.
+ * Match criteria: same driver, same route date, patient_id = the store's return
+ * patient record, non-terminal status (still on the route), and not the delivery
+ * being returned. Returns the earliest-in-route (lowest stop_order) match, or null.
+ */
+export function findExistingReturnDelivery({ allDeliveries = [], originalDelivery, returnPatient, routeDate }) {
+  if (!returnPatient?.id || !originalDelivery?.driver_id || !routeDate) return null;
+  const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
+  const candidates = (allDeliveries || []).filter((d) =>
+    d
+    && d.id !== originalDelivery.id
+    && d.patient_id === returnPatient.id
+    && d.driver_id === originalDelivery.driver_id
+    && d.delivery_date === routeDate
+    && !TERMINAL.has(String(d.status || ''))
+  );
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999));
+  return candidates[0];
+}
+
+/**
+ * Append a returned patient's name to an existing return stop's notes as
+ * "And: <name>" on the line directly below the "For:" line (keeping "(RTN)" last).
+ * Multiple merges stack additional "And:" lines below the first one.
+ */
+export function buildMergedReturnNotes(existingNotes, failedPatientName) {
+  const notes = String(existingNotes || '').split('\n');
+  const name = String(failedPatientName || 'Unknown').trim();
+  const andLine = `And: ${name}`;
+
+  // Already merged for this patient? Don't duplicate the line.
+  if (notes.some((l) => l.trim() === andLine)) return notes.join('\n');
+
+  const forIdx = notes.findIndex((l) => /^\s*For:/i.test(l));
+  if (forIdx >= 0) {
+    // Insert directly below the For: line (or below the last existing And: line).
+    let insertAt = forIdx + 1;
+    while (insertAt < notes.length && /^\s*And:/i.test(notes[insertAt])) insertAt++;
+    notes.splice(insertAt, 0, andLine);
+    return notes.join('\n');
+  }
+  const fromIdx = notes.findIndex((l) => /^\s*From:/i.test(l));
+  if (fromIdx >= 0) {
+    notes.splice(fromIdx + 1, 0, andLine);
+    return notes.join('\n');
+  }
+  // No recognizable structure — prepend so it's visible.
+  notes.unshift(andLine);
+  return notes.join('\n');
+}

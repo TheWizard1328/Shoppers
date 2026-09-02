@@ -47,6 +47,8 @@ import { recalculateTrackingNumbersLocal } from '@/components/utils/recalculateT
  * @param {string[]} [params.excludeStopIds]
  * @param {number}  [params.startingStopOrder]
  * @param {boolean} [params.recalcTrackingNumbers=false] — When true, recalculate TR#s into writeBatch before bulk DB write (Accept All only)
+ * @param {boolean} [params.clearNextDeliveryLock=false] — Return-flow "contest mode": sweep flags first, let every active stop (incl. previous next) compete for position 1. See clientRouteEngine.
+ * @param {boolean} [params.skipServerWrite=false] — When true, do NOT fire bulkUpdateDeliveries; the caller commits the writeBatch to the server itself (used by the Return flow's atomic client-first commit).
  * @param {string}  [params.recalcTrackingStoreId=null] — When set, only write TR#s for deliveries matching this store_id (prevents overwriting other stores' TR#s). All deliveries are still passed to the calculator for collision detection.
  * @returns {Promise<{success: boolean, optimizeData?: Object, freshDeliveries?: Array, orderedDeliveryIds?: string[], error?: string}>}
  */
@@ -75,6 +77,8 @@ export async function performRouteOptimization({
   recalcTrackingNumbers = false,
   recalcTrackingStoreId = null,
   forceRegenerate = false,
+  clearNextDeliveryLock = false,
+  skipServerWrite = false,
 }) {
   if (!driverId || !deliveryDate) {
     console.warn(`[RouteOptimization] ${source} — missing driverId or deliveryDate`);
@@ -211,6 +215,7 @@ export async function performRouteOptimization({
         hereApiKey,
         polylineProvider,
         polylineApiKey,
+        clearNextDeliveryLock,
         source,
         preserveExistingOrder,
         cyclingSegmentOnly,
@@ -325,6 +330,11 @@ export async function performRouteOptimization({
         // hooks (500ms-5s) before the server write could even start. Removing it lets
         // the coordinator return freshDeliveries immediately while the server write
         // completes in the background.
+        if (skipServerWrite) {
+          // Caller (Return flow) commits the writeBatch itself AFTER all local work is
+          // done, so other devices never see a partial state. IDB is still written below.
+          console.log(`[RouteOptimization] ${source} — skipServerWrite=true, deferring server commit to caller (${optimizeData.writeBatch.length} updates)`);
+        } else {
         base44.functions.invoke('bulkUpdateDeliveries', { updates: optimizeData.writeBatch }).catch((e) => {
           console.warn(`[RouteOptimization] ${source} — bulkUpdateDeliveries failed, falling back to individual writes:`, e?.message);
           // Fallback: individual writes in parallel batches of 20 (fire-and-forget)
@@ -336,6 +346,7 @@ export async function performRouteOptimization({
             })).catch(() => {});
           }
         });
+        }
       }
     } else if (orderedDeliveryIds) {
       // Caller provided pre-computed order — just use it
