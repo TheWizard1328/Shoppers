@@ -3,6 +3,8 @@ import { format } from '../utils/dataManager';
 import { globalFilters } from '../utils/globalFilters';
 import { requestThrottler } from '../utils/requestThrottler';
 import { getEffectiveUser, clearUserCache } from '../utils/auth';
+import { destroyKey } from '../utils/idbCrypto';
+import { clearAllBreadcrumbCaches } from '../utils/locationBreadcrumbService';
 import { base44 } from '@/api/base44Client';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
 import { userHasRole } from '../utils/userRoles';
@@ -204,9 +206,14 @@ export function useLayoutInit({
         }
 
         if (userHasRole(fetchedUser, 'dispatcher') && fetchedUser.status === 'inactive' && !userHasRole(fetchedUser, 'admin')) {
+          // Full cleanup — matches AuthContext.logout() to prevent stale
+          // encryption keys or breadcrumb caches from persisting after
+          // the inactive dispatcher is kicked out.
+          clearAllBreadcrumbCaches();
+          destroyKey();
           sessionStorage.clear();clearUserCache();clearSettingsCache();
           alert('Access Denied: Your dispatcher account is currently inactive. Please contact an administrator.');
-          if (isCapacitorNativeApp()) { try { localStorage.removeItem('base44_access_token'); localStorage.removeItem('token'); } catch (e) {} } else { try { await base44.auth.logout(); } catch (e) {} }
+          if (isCapacitorNativeApp()) { try { localStorage.removeItem('base44_access_token'); localStorage.removeItem('token'); sessionStorage.removeItem('rxdeliver_env_redirect_done'); } catch (e) {} } else { try { await base44.auth.logout(); } catch (e) {} }
           window.location.href = '/';return;
         }
         setCurrentUser(fetchedUser);setHasAccess(true);
