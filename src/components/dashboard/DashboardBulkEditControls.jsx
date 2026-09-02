@@ -355,7 +355,7 @@ export default function DashboardBulkEditControls({
     <>
       {!immersiveHidden && selectedCount > 0 &&
       <div
-        className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center rounded-full border border-border bg-card/95 shadow-xl backdrop-blur-sm px-2 py-1 gap-1"
+        className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center rounded-full border border-border bg-card/50 shadow-xl backdrop-blur-sm px-2 py-1 gap-1 opacity-50 hover:opacity-100 hover:bg-card/95 transition-opacity duration-200"
         style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}>
         
           <span className="text-sm font-medium text-foreground px-1">{totalDeleteCount} Stops</span>

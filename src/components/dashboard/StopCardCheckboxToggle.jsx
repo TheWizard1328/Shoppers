@@ -13,7 +13,7 @@ export default function StopCardCheckboxToggle({
   const bottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight : 0) + 10;
   return (
     <div
-      className="absolute z-[100] pointer-events-auto flex items-center gap-2 bg-transparent"
+      className="absolute z-[100] pointer-events-auto flex items-center gap-2 bg-transparent opacity-50 hover:opacity-100 transition-opacity duration-200"
       style={{ left: "0.75rem", bottom: `${bottomPixels}px` }}
     >
       {!immersiveHidden && !hideCheckbox && (
