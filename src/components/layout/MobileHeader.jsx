@@ -133,7 +133,7 @@ export default function MobileHeader({
             <img
               src={logo}
               alt="RxDeliver"
-              className="rounded object-contain h-12 w-12"
+              className="rounded object-contain h-14 w-14"
               style={{ filter: 'var(--image-filter, none)' }}
               onError={() => setLogoFailed(true)} /> :
 
