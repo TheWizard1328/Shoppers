@@ -89,7 +89,7 @@ export const subscribeMutations = (callback) => {
 /**
  * Notify all listeners of a mutation
  */
-const notifyMutation = (mutation) => {
+export const notifyMutation = (mutation) => {
   // CRITICAL: Don't notify if mutations are paused
   if (mutationsPaused) {
     console.log('⏸️ [OfflineMutations] Notification skipped - mutations paused');

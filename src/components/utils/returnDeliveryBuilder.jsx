@@ -1,14 +1,18 @@
-export function buildReturnDeliveryData({ originalDelivery, originalPatient, returnPatient, store, routeDate, routeDateDeliveries, finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber, patients, preferredTravelMode }) {
-  const puid = originalDelivery?.puid || originalDelivery?.stop_id || null;
+export function resolveFailedPatientName({ originalDelivery, originalPatient, patients }) {
   // Resolve patient name: prefer passed originalPatient, then look up from patients array by patient_id,
   // then try extracting from existing notes, then fallback
   const resolvedPatient = originalPatient || (patients && originalDelivery?.patient_id ? patients.find((p) => p && p.id === originalDelivery.patient_id) : null);
   const extractedPatientName = originalDelivery?.delivery_notes?.match(/For:\s*(.+?)(?:\n|$)/)?.[1]?.trim();
-  const failedPatientName = [
+  return [
     resolvedPatient?.full_name,
     originalDelivery?.patient_name,
     extractedPatientName && extractedPatientName !== 'Unknown' ? extractedPatientName : null
   ].find((value) => typeof value === 'string' && value.trim() && value.trim() !== 'Unknown') || resolvedPatient?.full_name || 'Unknown';
+}
+
+export function buildReturnDeliveryData({ originalDelivery, originalPatient, returnPatient, store, routeDate, routeDateDeliveries, finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber, patients, preferredTravelMode }) {
+  const puid = originalDelivery?.puid || originalDelivery?.stop_id || null;
+  const failedPatientName = resolveFailedPatientName({ originalDelivery, originalPatient, patients });
   const driverNotes = `From: ${originalDelivery?.delivery_date}\nFor: ${failedPatientName}\n(RTN)`;
 
   return {

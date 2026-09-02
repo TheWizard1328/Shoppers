@@ -130,6 +130,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const [showReturnConfirm, setShowReturnConfirm] = useState(false);
   const [isCreatingReturn, setIsCreatingReturn] = useState(false);
   const [returnPatient, setReturnPatient] = useState(null);
+  // Existing incomplete return stop for this store on today's route (merge target).
+  // When set, the return dialog switches to "add to existing return" mode.
+  const [existingReturn, setExistingReturn] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -773,6 +776,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     setIsCreatingReturn,
     returnPatient,
     setReturnPatient,
+    existingReturn,
+    setExistingReturn,
     showReturnConfirm,
     setShowReturnConfirm,
     pendingFailureStatus,
@@ -1008,6 +1013,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           <StopCardReturnDialog
             showReturnConfirm={showReturnConfirm}
             returnPatient={returnPatient}
+            existingReturn={existingReturn}
             handleCancelReturn={handleCancelReturn}
             handleConfirmReturn={handleConfirmReturn}
             isCreatingReturn={isCreatingReturn}

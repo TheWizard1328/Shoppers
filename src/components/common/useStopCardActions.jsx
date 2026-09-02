@@ -12,6 +12,7 @@ import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import { generateCompletionTimestamp, calculateRetroactiveStopTiming, parseLocalTimestamp, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
+import { findExistingReturnDelivery, getEdmontonDate } from '@/components/utils/returnDeliveryBuilder';
 import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, waitForRouteTransitionSettle, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 // pendingBreadcrumbsManager removed — breadcrumbs managed via locationBreadcrumbService / offlineDB directly
 const clearPendingBreadcrumbsForDelivery = async () => {};
@@ -103,6 +104,8 @@ export default function useStopCardActions(params) {
     setReturnPatient,
     showReturnConfirm,
     setShowReturnConfirm,
+    existingReturn,
+    setExistingReturn,
     pendingFailureStatus,
     setPendingFailureStatus,
     setShowFailureReasonDialog,
@@ -676,12 +679,21 @@ export default function useStopCardActions(params) {
       const returnPatientName = `${resolvedStore.name.replace(/-/g, ' ')} Return`;
       const foundReturnPatient = patients.find((p) => p && p.full_name === returnPatientName && p.store_id === delivery.store_id);
       if (!foundReturnPatient) return;
+      // If the driver's route already has an incomplete return stop for this store,
+      // the dialog switches to "add to existing return" mode (merge instead of create).
+      const foundExistingReturn = findExistingReturnDelivery({
+        allDeliveries,
+        originalDelivery: delivery,
+        returnPatient: foundReturnPatient,
+        routeDate: getEdmontonDate()
+      });
+      setExistingReturn(foundExistingReturn || null);
       setReturnPatient(foundReturnPatient);
       setShowReturnConfirm(true);
     } finally {
       setIsPreparingReturn(false);
     }
-  }, [blockCardToggle, delivery, isPreparingReturn, patients, setIsPreparingReturn, setReturnPatient, setShowReturnConfirm, showReturnConfirm, store, stores]);
+  }, [allDeliveries, blockCardToggle, delivery, isPreparingReturn, patients, setExistingReturn, setIsPreparingReturn, setReturnPatient, setShowReturnConfirm, showReturnConfirm, store, stores]);
 
   const handleConfirmReturn = useCallback(async (e) => {
     e?.preventDefault?.();
@@ -690,17 +702,21 @@ export default function useStopCardActions(params) {
     setIsCreatingReturn(true);
     const selectedReturnPatient = returnPatient;
     const resolvedStore = store || stores.find((s) => s && s.id === delivery?.store_id);
-    let createdReturnDelivery = null;
+    let createdReturnResult = null;
     try {
-      createdReturnDelivery = await onCreateReturn({ originalDelivery: delivery, returnPatient: selectedReturnPatient, store: resolvedStore, _skipPickupCreation: true });
+      createdReturnResult = await onCreateReturn({ originalDelivery: delivery, returnPatient: selectedReturnPatient, store: resolvedStore, _skipPickupCreation: true });
+      // handleCreateReturn returns { merged: boolean, delivery } — unwrap for the
+      // background tasks below (COD cleanup + driver notification run in both paths).
+      const createdReturnDelivery = createdReturnResult?.delivery || createdReturnResult;
       setShowReturnConfirm(false);
       setReturnPatient(null);
+      setExistingReturn(null);
       dispatchStopCardActionCollapse();
       onClick?.(null);
       // Use the RETURN delivery's actual date (today), NOT the original delivery's date.
       // handleCreateReturn already ran performRouteOptimization with the correct date,
       // so we only need COD cleanup + notification here — no redundant optimization.
-      const _returnDeliveryDate = createdReturnDelivery?.delivery_date || createdReturnDelivery?.data?.delivery_date;
+      const _returnDeliveryDate = createdReturnResult?.delivery?.delivery_date || createdReturnDelivery?.delivery_date || createdReturnDelivery?.data?.delivery_date;
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: _returnDeliveryDate } }));
       Promise.resolve().then(async () => {
         try {
@@ -713,14 +729,15 @@ export default function useStopCardActions(params) {
     } finally {
       setIsCreatingReturn(false);
     }
-  }, [appUsers, currentUser, delivery, displayName, isCreatingReturn, onClick, onCreateReturn, returnPatient, setIsCreatingReturn, setReturnPatient, setShowReturnConfirm, store, stores, userHasRole]);
+  }, [appUsers, currentUser, delivery, displayName, isCreatingReturn, onClick, onCreateReturn, returnPatient, setExistingReturn, setIsCreatingReturn, setReturnPatient, setShowReturnConfirm, store, stores, userHasRole]);
 
   const handleCancelReturn = useCallback((e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
     setShowReturnConfirm(false);
     setReturnPatient(null);
-  }, [setReturnPatient, setShowReturnConfirm]);
+    setExistingReturn(null);
+  }, [setExistingReturn, setReturnPatient, setShowReturnConfirm]);
 
   const handleRetryDelivery = useCallback(async (e) => {
     blockCardToggle(e, { keepExpanded: true });

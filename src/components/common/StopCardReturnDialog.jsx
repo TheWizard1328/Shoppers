@@ -5,9 +5,22 @@ import { Undo2, Loader2 } from "lucide-react";
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { getDriverDisplayName } from '../utils/driverUtils';
 
+// Parse the returned-patient names listed in an existing return stop's notes
+// ("For: A" + "And: B" lines) for display in merge mode.
+function parseReturnNames(notes) {
+  const lines = String(notes || '').split('\n');
+  const names = [];
+  for (const line of lines) {
+    const m = line.match(/^\s*(?:For|And):\s*(.+)$/i);
+    if (m && m[1].trim()) names.push(m[1].trim());
+  }
+  return names;
+}
+
 export default function StopCardReturnDialog({
   showReturnConfirm,
   returnPatient,
+  existingReturn,
   handleCancelReturn,
   handleConfirmReturn,
   isCreatingReturn,
@@ -17,6 +30,9 @@ export default function StopCardReturnDialog({
   patient
 }) {
   if (!showReturnConfirm || !returnPatient) return null;
+
+  const isMerge = Boolean(existingReturn);
+  const existingNames = isMerge ? parseReturnNames(existingReturn.delivery_notes) : [];
 
   return ReactDOM.createPortal(
     <div
@@ -34,26 +50,49 @@ export default function StopCardReturnDialog({
       >
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Undo2 className="w-5 h-5 text-orange-600" />
-          Confirm Return Delivery
+          {isMerge ? 'Add To Existing Return' : 'Confirm Return Delivery'}
         </h3>
 
         <div className="space-y-3 mb-6 text-sm">
-          <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500">A new return delivery will be created with the following details:</p>
+          <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            {isMerge
+              ? 'Your route already has an incomplete return stop for this store. This patient will be added to it:'
+              : 'A new return delivery will be created with the following details:'}
+          </p>
           <div className="rounded-lg p-3 space-y-2" style={{ background: 'var(--bg-slate-50)' }}>
             <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Return To: {returnPatient.full_name}</span></div>
             <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address: {returnPatient.address || store?.address || 'N/A'}</span></div>
             <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Phone: {formatPhoneNumber(returnPatient.phone || store?.phone || 'N/A')}</span></div>
-            <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Delivery Date: {delivery.delivery_date}</span></div>
-            <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Assigned Driver: {getDriverDisplayName(driver) || 'N/A'}</span></div>
-            <div>
-              <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Notes:</span>
-              <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>PATIENT RETURN</p>
-              <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>For: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
-            </div>
-            <div>
-              <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tracking Number:</span>
-              <p className="italic" style={{ color: 'var(--text-slate-500)' }}>Will be assigned when saved</p>
-            </div>
+            {isMerge ? (
+              <>
+                <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Existing Return Stop: Stop {existingReturn.stop_order ?? '—'}</span></div>
+                <div>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Patients On This Return:</span>
+                  {existingNames.length > 0
+                    ? existingNames.map((name) => <p key={name} className="text-xs" style={{ color: 'var(--text-slate-900)' }}>{name}</p>)
+                    : <p className="text-xs italic" style={{ color: 'var(--text-slate-500)' }}>None listed</p>}
+                </div>
+                <div>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Adding:</span>
+                  <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>And: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
+                </div>
+                <p className="text-xs italic" style={{ color: 'var(--text-slate-500)' }}>No new stop is created — the route is not re-optimized.</p>
+              </>
+            ) : (
+              <>
+                <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Delivery Date: {delivery.delivery_date}</span></div>
+                <div><span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Assigned Driver: {getDriverDisplayName(driver) || 'N/A'}</span></div>
+                <div>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Notes:</span>
+                  <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>PATIENT RETURN</p>
+                  <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>For: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
+                </div>
+                <div>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tracking Number:</span>
+                  <p className="italic" style={{ color: 'var(--text-slate-500)' }}>Will be assigned when saved</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -63,7 +102,7 @@ export default function StopCardReturnDialog({
           </Button>
           <Button className="flex-1 bg-orange-600 hover:bg-orange-700" onClick={handleConfirmReturn} disabled={isCreatingReturn}>
             {isCreatingReturn ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Undo2 className="w-4 h-4 mr-2" />}
-            Create Return
+            {isMerge ? 'Add To Return' : 'Create Return'}
           </Button>
         </div>
       </div>
