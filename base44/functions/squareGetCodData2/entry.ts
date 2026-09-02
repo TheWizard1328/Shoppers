@@ -187,6 +187,16 @@ async function batchWriteEntities(entityApi, operations) {
   return results;
 }
 
+// Parse a delivery ID directly out of a Square catalog item's description field
+// (format: "COD for <name> | Delivery <24-hex-id>"). Module-level function
+// declaration (hoisted) so it's safely callable from anywhere in this file,
+// regardless of call-site vs. definition-site ordering within handleGetCodData.
+function extractDeliveryIdFromCatalog(item) {
+  const desc = String(item?.item_data?.description || '').toLowerCase();
+  const m = desc.match(/delivery\s+([a-f0-9]{24})/i);
+  return m ? m[1] : null;
+}
+
 async function handleGetCodData(base44, payload={}) {
   const t0 = Date.now();
   console.log('[squareGetCodData2] START');
@@ -601,12 +611,6 @@ async function handleGetCodData(base44, payload={}) {
     const sig = buildItemSignature(t?.item_name, t?.amount_cents ?? Math.round(Number(t?.amount || 0) * 100));
     if (sig && sig !== '::0') txSignatureSet.add(sig);
   }
-
-  const extractDeliveryIdFromCatalog = (item) => {
-    const desc = String(item?.item_data?.description || '').toLowerCase();
-    const m = desc.match(/delivery\s+([a-f0-9]{24})/i);
-    return m ? m[1] : null;
-  };
 
   const toDelete = (liveCatalogItems || []).filter((item) => {
     if (!item?.id) return false;
