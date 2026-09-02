@@ -30,7 +30,8 @@ export default function SettingsMenu({
   cities,
   onPatientImportClick,
   onDeliveryImportClick,
-  isMobile
+  isMobile,
+  hasWebUpdate
 }) {
   const { isMobile: isMobileDeviceForUI } = useDevice();
   const { logout: authLogout } = useAuth();
@@ -242,7 +243,9 @@ export default function SettingsMenu({
         </>
       )}
 
-      {/* Force Full App Refresh */}
+      {/* Force Full App Refresh — highlighted green (matching the web UpdateArrow badge,
+          #10b981) whenever a new web build is available, since refreshing is exactly
+          the action that picks it up. Falls back to the default blue when no update is pending. */}
       <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
       <DropdownMenuItem
         onClick={async () => {
@@ -254,11 +257,22 @@ export default function SettingsMenu({
             // Silent fail
           }
         }}
-        className="cursor-pointer text-blue-600"
-        style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+        className={hasWebUpdate ? 'cursor-pointer' : 'cursor-pointer text-blue-600'}
+        style={{
+          fontSize: isMobileDeviceForUI ? '16px' : '15px',
+          ...(hasWebUpdate ? { color: '#10b981' } : {})
+        }}
       >
         <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
         Force Full App Refresh
+        {hasWebUpdate && (
+          <span
+            className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+            style={{ background: '#D1FAE5', color: '#10b981' }}
+          >
+            Update
+          </span>
+        )}
       </DropdownMenuItem>
       <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
       <DropdownMenuItem

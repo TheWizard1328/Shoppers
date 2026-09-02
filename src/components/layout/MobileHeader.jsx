@@ -162,6 +162,7 @@ export default function MobileHeader({
               currentUser={currentUser}
               realUser={realUser}
               isAppOwner={isAppOwner(currentUser)}
+              hasWebUpdate={hasWebUpdate}
               themePreference={themePreference}
               onThemeChange={onThemeChange}
               cities={cities}
@@ -186,6 +187,7 @@ export default function MobileHeader({
               currentUser={currentUser}
               realUser={realUser}
               isAppOwner={isAppOwner(currentUser)}
+              hasWebUpdate={hasWebUpdate}
               themePreference={themePreference}
               onThemeChange={onThemeChange}
               cities={cities}

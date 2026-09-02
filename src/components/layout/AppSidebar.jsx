@@ -271,6 +271,7 @@ export default function AppSidebar({
                   <SettingsMenu
                         currentUser={currentUser}
                         isAppOwner={isAppOwner(currentUser)}
+                        hasWebUpdate={hasWebUpdate}
                         adminImportEnabled={adminImportEnabled}
                         onAdminImportToggle={async (checked) => {
                           setAdminImportEnabled(checked);
