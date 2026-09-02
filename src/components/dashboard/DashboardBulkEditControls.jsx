@@ -20,6 +20,7 @@ import { getDriverNameForStorage } from "@/components/utils/driverUtils";
 import { invalidate } from "@/components/utils/dataManager";
 import { base44 } from "@/api/base44Client";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
+import { markDeleted } from "@/components/utils/deletedDeliveryRegistry";
 
 export default function DashboardBulkEditControls({
   deliveriesWithStopOrder = [],
@@ -288,6 +289,11 @@ export default function DashboardBulkEditControls({
       window.dispatchEvent(new CustomEvent("offlineDeliveriesDeleted", {
         detail: { deletedIds: allDeletedIds }
       }));
+
+      // 1.5. Register ALL deletions in the deleted-delivery registry BEFORE
+      // async backend deletes. This prevents WS echoes or mutation replays
+      // from resurrecting any of these deliveries during the delete cycle.
+      allToDelete.forEach((delivery) => markDeleted(delivery.id, delivery));
 
       // 2. Delete from offline DB + backend for each record
       await Promise.all(allToDelete.map((delivery) => deleteDeliveryLocal(delivery.id)));
