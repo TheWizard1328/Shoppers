@@ -1,4 +1,26 @@
 export const getClearedDraftFields = () => ({
+  // ── Record-identity scrub (CRITICAL) ────────────────────────────────────────
+  // When a pending stop is edited via handleStagedDeliveryClick, formData is
+  // populated with the full pending record — including id, status, stop_id,
+  // tracking_number, isNextDelivery etc. If those leak into the NEXT "Add",
+  // buildPatientStagedDelivery spreads them onto the new staged item, turning
+  // it into a phantom clone of the pending stop (displays as 'pending',
+  // dedup-deleted at Done, and its delete button deletes the REAL pending
+  // record). Scrub them on every draft clear.
+  id: null,
+  status: 'Staged',
+  stop_id: '',
+  tracking_number: '',
+  arrival_time: '',
+  actual_delivery_time: '',
+  isNextDelivery: false,
+  _wasEdited: false,
+  _tempId: null,
+  _interstore_source_id: null,
+  _interstore_dest_id: null,
+  delivery_id: '',
+  puid: '',
+  // ── Patient/delivery draft fields ──────────────────────────────────────────
   patient_id: '',
   patient_name: '',
   patient_phone: '',

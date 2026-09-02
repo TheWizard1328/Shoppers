@@ -13,8 +13,20 @@ export const buildImmediateAddToRouteStage = ({ formData, selectedPatient, store
   // Check first_delivery: prefer patient's delivery_history array, fall back to allDeliveries check
   const isFirstFromHistory = selectedPatient ? isFirstDeliveryPatient(selectedPatient) : null;
   const isFirstFromDeliveries = !((allDeliveries || []).some((delivery) => delivery && delivery.patient_id === formData.patient_id && delivery.status === 'completed'));
+  // Record-identity guard — see buildPatientStagedDelivery. A draft that edited
+  // a pending stop carries that record's id/status; a new staged stop must not.
+  const {
+    id: _leakedId,
+    _wasEdited: _leakedWasEdited,
+    isNextDelivery: _leakedNextFlag,
+    arrival_time: _leakedArrival,
+    actual_delivery_time: _leakedActualTime,
+    tracking_number: _leakedTrackingNumber,
+    stop_id: _leakedStopId,
+    ...draftWithoutRecordIdentity
+  } = formData || {};
   return {
-    ...formData,
+    ...draftWithoutRecordIdentity,
     status: stagedStatus,
     _tempId: `temp-${Date.now()}`,
     patient_name: formData.patient_name || selectedPatient?.full_name || '',

@@ -33,6 +33,22 @@ const getManagerControllers = async () => {
 
 export const getClearedDraftFormData = (prev) => ({
   ...prev,
+  // Record-identity scrub — must stay in sync with getClearedDraftFields()
+  // (deliveryDraftStateHelpers.jsx). Prevents id/status of a previously edited
+  // pending stop from leaking into the next staged stop. See notes there.
+  id: null,
+  status: 'Staged',
+  stop_id: '',
+  tracking_number: '',
+  arrival_time: '',
+  actual_delivery_time: '',
+  isNextDelivery: false,
+  _wasEdited: false,
+  _tempId: null,
+  _interstore_source_id: null,
+  _interstore_dest_id: null,
+  delivery_id: '',
+  puid: '',
   patient_id: '',
   patient_name: '',
   patient_phone: '',

@@ -23,8 +23,22 @@ export const buildPickupStagedDelivery = ({ formData, codAmount, store, timeSlot
     tries += 1;
   } while (ids.includes(sid) && tries < 10000);
 
+  // Strip any leaked record identity from a previously edited pending stop
+  // (see buildPatientStagedDelivery guard) — a new staged pickup gets a fresh
+  // stop_id/puid/delivery_id below and must not carry an existing record's id.
+  const {
+    id: _leakedId,
+    _wasEdited: _leakedWasEdited,
+    _tempId: _leakedTempId,
+    isNextDelivery: _leakedNextFlag,
+    arrival_time: _leakedArrival,
+    actual_delivery_time: _leakedActualTime,
+    tracking_number: _leakedTrackingNumber,
+    ...draftWithoutRecordIdentity
+  } = formData || {};
+
   return {
-    ...formData,
+    ...draftWithoutRecordIdentity,
     patient_id: '',
     patient_name: 'Pickup',
     patient_phone: '',
@@ -61,8 +75,28 @@ export const buildPatientStagedDelivery = ({
   distanceFromStore,
   isNewPatient,
   includeFirstDelivery = true
-}) => ({
-  ...formData,
+}) => {
+  // ── Record-identity guard (CRITICAL) ─────────────────────────────────────
+  // formData can carry the id/status of a previously EDITED pending stop
+  // (handleStagedDeliveryClick spreads the whole pending record into the draft).
+  // If that leaked through, the "new" staged item would be a phantom clone of
+  // the pending record: it displays as pending, gets dedup-dropped at Done, and
+  // its delete button deletes the REAL pending stop. A brand-new staged stop
+  // has no record identity — strip it here unconditionally.
+  const {
+    id: _leakedId,
+    _wasEdited: _leakedWasEdited,
+    _tempId: _leakedTempId,
+    isNextDelivery: _leakedNextFlag,
+    arrival_time: _leakedArrival,
+    actual_delivery_time: _leakedActualTime,
+    tracking_number: _leakedTrackingNumber,
+    stop_id: _leakedStopId,
+    ...draftWithoutRecordIdentity
+  } = formData || {};
+
+  return ({
+  ...draftWithoutRecordIdentity,
   time_window_start: formData.time_window_start || patient?.time_window_start || '',
   time_window_end: formData.time_window_end || patient?.time_window_end || '',
   // Form data (manual entry) takes priority over patient time windows.
@@ -72,14 +106,14 @@ export const buildPatientStagedDelivery = ({
   cod_total_amount_required: codAmount,
   puid: puid || '',
   ampm_deliveries: timeSlot,
-  // ISP/ISD patient deliveries are always in_transit when created.
-  // Preserve any status the user explicitly set (not the default 'Staged');
-  // only fall back to 'Staged' when formData.status is still at its default value.
+  // ISP/ISD patient deliveries are always in_transit when created. Everything
+  // else stages as 'Staged'. NOTE: we deliberately do NOT preserve arbitrary
+  // formData.status values here — a draft that previously edited a pending stop
+  // carries status 'pending', and inheriting it turned new stops into phantom
+  // pending clones (dedup-deleted at Done, delete button hit the real record).
   status: (formData._interstore_source_id || formData._interstore_dest_id)
     ? 'in_transit'
-    : (formData.status && formData.status !== 'Staged')
-      ? formData.status
-      : 'Staged',
+    : 'Staged',
   _tempId: Date.now() + Math.random(),
   patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
   store_name: store.name,
@@ -88,4 +122,5 @@ export const buildPatientStagedDelivery = ({
   delivery_address: patient?.address || store.address,
   transport_mode: formData.transport_mode || 'driving',
   ...(includeFirstDelivery ? { first_delivery: isNewPatient || isFirstDeliveryPatient(patient) } : {})
-});
+  });
+};
