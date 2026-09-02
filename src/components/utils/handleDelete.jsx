@@ -3,6 +3,8 @@
  * Ensures immediate UI update and full data sync for all users
  */
 
+import { markDeleted } from './deletedDeliveryRegistry';
+
 export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveries, updateDeliveriesLocally, selectedCardId, setSelectedCardId, invalidateDeliveriesForDate, invalidate, base44, refreshData) => {
   try {
     console.log('🗑️ [DELETE Handler] Step 1: Checking if delivery exists...');
@@ -16,6 +18,13 @@ export const handleDelete = async (deliveryId, deliveriesWithStopOrder, deliveri
     const driverId = targetDelivery.driver_id;
     const deliveryDate = targetDelivery.delivery_date;
     console.log(`📦 [DELETE Handler] Deleting: ${targetDelivery.patient_name || 'Pickup'}`);
+
+    // CRITICAL: Register this delivery as deleted BEFORE any async operations.
+    // This ensures that even if a WS echo or mutation replay tries to re-insert
+    // it during the delete flow, every guard (Layout.jsx, AppDataContext,
+    // entityMutations, offlineSyncMutationProcessor) will filter it out.
+    markDeleted(deliveryId, targetDelivery);
+    console.log(`🛡️ [DELETE Handler] Marked ${deliveryId} in deleted-delivery registry`);
 
     console.log('🗑️ [DELETE Handler] Step 2: Deleting from offline DB and backend...');
     const { deleteDeliveryLocal } = await import('./offlineMutations');

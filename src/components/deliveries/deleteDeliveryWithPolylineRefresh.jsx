@@ -1,9 +1,15 @@
 import { base44 } from "@/api/base44Client";
 import { deleteDeliveryLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
+import { markDeleted } from "../utils/deletedDeliveryRegistry";
 
 export async function deleteDeliveryWithPolylineRefresh({ deliveryId, deliveries, setAllDeliveries }) {
   const deletedDelivery = (deliveries || []).find((delivery) => delivery?.id === deliveryId) || null;
+
+  // CRITICAL: Register deletion before any async work to prevent resurrection.
+  if (deletedDelivery) {
+    markDeleted(deliveryId, deletedDelivery);
+  }
 
   setAllDeliveries((prev) => prev.filter((delivery) => delivery.id !== deliveryId));
   await deleteDeliveryLocal(deliveryId);
