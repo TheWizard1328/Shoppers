@@ -11,6 +11,7 @@ import { getDriverDisplayName } from '../utils/driverUtils';
 import { useMobileNavigation } from '../navigation/MobileNavigationProvider';
 import { getUserAvatarGradient } from './mobileHeaderUtils';
 import { globalFilters } from '../utils/globalFilters';
+import UpdateArrow from '../common/UpdateArrow';
 
 export default function MobileHeader({
   logo,
@@ -28,7 +29,8 @@ export default function MobileHeader({
   onCurrentUserUpdate,
   isOverlayOpen,
   appUsers,
-  users
+  users,
+  hasWebUpdate
 }) {
   const { canGoBack: canGoBackInTab, goBack } = useMobileNavigation();
 
@@ -151,8 +153,9 @@ export default function MobileHeader({
           {currentUser && !sidebarOpen && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver') &&
           <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation" aria-label="Open header menu">
+                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu">
                   <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+                  {hasWebUpdate && <UpdateArrow type="web" />}
                 </Button>
               </DropdownMenuTrigger>
               <SettingsMenu
@@ -174,8 +177,9 @@ export default function MobileHeader({
             {/* Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation" aria-label="Open header menu">
+                <Button variant="ghost" size="sm" className="h-11 w-11 min-h-[44px] min-w-[44px] p-0 touch-manipulation relative" aria-label="Open header menu">
                   <MoreVertical className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+                  {hasWebUpdate && <UpdateArrow type="web" />}
                 </Button>
               </DropdownMenuTrigger>
               <SettingsMenu

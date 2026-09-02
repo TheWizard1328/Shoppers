@@ -82,6 +82,8 @@ import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandle
 import { useLayoutInit } from './components/layout/useLayoutInit';
 import AppSidebar from './components/layout/AppSidebar';
 import { useLatestApkBuildInfo, useInstalledAppVersion } from './components/utils/useBuildInfo';
+import { useWebUpdateCheck } from './components/utils/useWebUpdateCheck';
+import { useAndroidAppUpdateCheck } from './components/utils/nativeAppUpdateCheck';
 import GlobalOverlays from './components/layout/GlobalOverlays';
 import { useDispatcherMessageAutoOpen } from './components/messaging/useDispatcherMessageAutoOpen';
 
@@ -226,6 +228,11 @@ export default function Layout({ children, currentPageName }) {
   const installedVersion = useInstalledAppVersion();
   const latestBuild = useLatestApkBuildInfo();
   const sidebarVersion = installedVersion?.versionLabel || latestBuild.versionLabel || appVersion;
+
+  // Web code update detection — polls /version.json every 5 min
+  const { hasUpdate: hasWebUpdate } = useWebUpdateCheck();
+  // APK update detection — compares installed build vs latest GitHub Actions build
+  const { updateAvailable: hasApkUpdate } = useAndroidAppUpdateCheck(latestBuild?.buildNumber ?? null);
 
   const [showInviteQRModal, setShowInviteQRModal] = useState(false);
   const [deviceRegistered, setDeviceRegistered] = useState(false);
@@ -1372,6 +1379,7 @@ export default function Layout({ children, currentPageName }) {
                   branding={branding}
                   appVersion={sidebarVersion}
                   latestBuildNumber={latestBuild?.buildNumber ?? null}
+                  hasWebUpdate={hasWebUpdate}
                   currentUser={currentUser}
                   setCurrentUser={setCurrentUser}
                   currentPageName={currentPageName}
@@ -1445,7 +1453,8 @@ export default function Layout({ children, currentPageName }) {
                     setCurrentUser(refreshedUser);
                   }
                 }}
-                isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} />
+                isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen}
+                hasWebUpdate={hasWebUpdate} />
               }
 
                     <main className="flex-1 overflow-hidden relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
@@ -1457,7 +1466,7 @@ export default function Layout({ children, currentPageName }) {
                     {/* Mobile Bottom Nav - inside main-content-area so flex column shrinks main naturally */}
                     {/* Bottom nav shows only on mobile phones (portrait) and tablet-portrait — never in landscape */}
                     {!sidebarOpen && currentUser && isMobile &&
-              <MobileBottomNav ref={bottomNavRef} currentUser={currentUser} currentPageName={currentPageName} onSidebarToggle={() => setSidebarOpen(true)} />
+              <MobileBottomNav ref={bottomNavRef} currentUser={currentUser} currentPageName={currentPageName} onSidebarToggle={() => setSidebarOpen(true)} hasApkUpdate={hasApkUpdate} />
               }
               </div>
             </div>

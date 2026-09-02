@@ -4,6 +4,7 @@ import { createPageUrl } from '@/utils';
 import { userHasRole } from '@/components/utils/userRoles';
 import { useMobileNavigation } from '@/components/navigation/MobileNavigationProvider';
 
+import UpdateArrow from '../common/UpdateArrow';
 import {
   LayoutDashboard,
   Users,
@@ -16,7 +17,7 @@ import {
   CalendarDays,
 } from 'lucide-react';
 
-const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle }, ref) {
+const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle, hasApkUpdate }, ref) {
   const { activeTab, navigateToTab } = useMobileNavigation();
   const { os, deviceType } = useDevice();
   const isIOS = os === 'iOS' && deviceType === 'Mobile';
@@ -77,11 +78,12 @@ const MobileBottomNav = React.forwardRef(function MobileBottomNav({ currentUser,
         <button
           type="button"
           onClick={onSidebarToggle}
-          className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors shrink-0"
+          className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors shrink-0 relative"
           style={{ color: 'var(--text-slate-500)' }}
           aria-label="Open side panel"
         >
           <Menu className="w-5 h-5" />
+          {hasApkUpdate && <UpdateArrow type="apk" />}
         </button>
 
         <div className="flex-1 flex overflow-x-auto custom-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>

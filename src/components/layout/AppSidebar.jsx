@@ -28,6 +28,7 @@ import SettingsMenu from './SettingsMenu';
 import DriverStatusToggle from './DriverStatusToggle';
 import LocationTrackingToggle from './LocationTrackingToggle';
 import SidebarDivider from './SidebarDivider';
+import UpdateArrow from '../common/UpdateArrow';
 import SidebarSectionLabel from './SidebarSectionLabel';
 import SidebarUserFooter from './SidebarUserFooter';
 import DriverAvailabilityPanel from './DriverAvailabilityPanel';
@@ -70,7 +71,8 @@ export default function AppSidebar({
   currentPayrollNetPay,
   onlineCounts,
   totalRoutesCount,
-  latestBuildNumber
+  latestBuildNumber,
+  hasWebUpdate
 }) {
   const { isMobile, isTabletPortrait, isWideScreenMobile, deviceType } = useDevice();
   const navigate = useNavigate();
@@ -261,8 +263,9 @@ export default function AppSidebar({
               <div className="flex flex-col items-center gap-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
                       <MoreVertical className="w-4 h-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+                      {hasWebUpdate && <UpdateArrow type="web" size={8} />}
                     </Button>
                   </DropdownMenuTrigger>
                   <SettingsMenu
