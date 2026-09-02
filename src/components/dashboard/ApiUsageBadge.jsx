@@ -125,7 +125,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
         <TooltipTrigger asChild>
           <button
-          type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm bg-transparent hover:opacity-100 transition-opacity duration-200 opacity-100"
+          type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm"
           onTouchStart={showApiTooltipForTouch}
           onClick={showApiTooltipForTouch}
           style={{ background: "transparent", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
