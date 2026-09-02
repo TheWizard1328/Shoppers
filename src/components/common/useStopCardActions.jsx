@@ -1933,8 +1933,26 @@ export default function useStopCardActions(params) {
         // Dispatchers use a separate delete+notify flow and are intentionally skipped.
         const isDriverCancellingPickup = isPickup && status === 'cancelled' &&
           userHasRole(currentUser, 'driver') && currentUser?.id === delivery.driver_id;
-        if (isDriverCancellingPickup && isDriverWithinStoreRange({ currentUser, appUsers, store, stores, delivery })) {
+        // Diagnostic: every cancel of a pickup logs the full gate breakdown so
+        // missed After-Hours flags can be root-caused from device logs.
+        console.warn('[AfterHoursGate]', isDriverCancellingPickup ? 'GATE PASS' : 'GATE FAIL', {
+          deliveryId: delivery.id,
+          isPickup,
+          status,
+          isDriverRole: userHasRole(currentUser, 'driver'),
+          currentUserAppRoles: currentUser?.app_roles || null,
+          currentUserId: currentUser?.id,
+          pickupDriverId: delivery.driver_id,
+          idMatch: currentUser?.id === delivery.driver_id,
+        });
+        // Only run (and log) the proximity check when the identity/role gate passed —
+        // avoids noisy distance logs on regular delivery fails/cancels.
+        const withinStoreRange = isDriverCancellingPickup
+          ? isDriverWithinStoreRange({ currentUser, appUsers, store, stores, delivery })
+          : false;
+        if (isDriverCancellingPickup && withinStoreRange) {
           criticalUpdate.after_hours_pickup = true;
+          console.warn('[AfterHoursGate] after_hours_pickup=true SET on cancel', { deliveryId: delivery.id });
         }
 
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
