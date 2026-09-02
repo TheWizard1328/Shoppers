@@ -677,9 +677,10 @@ function DeliveryMap({
     const now = Date.now();
     const fiveMinutesMs = 5 * 60 * 1000;
     // Location markers should NOT be filtered by selectedDriverId for admins,
-    // app owner, or dispatchers — they always see all eligible drivers' live GPS dots.
+    // app owner, dispatchers, or drivers — they always see all eligible drivers' live GPS
+    // dots per the role-based visibility rules above (city/on_duty/location_tracking_enabled).
     // The selectedDriverId filter only applies to delivery stop markers (stops, routes, polylines).
-    const skipDriverSelectionFilter = isAdmin || _isAppOwner || isDispatcher;
+    const skipDriverSelectionFilter = isAdmin || _isAppOwner || isDispatcher || isDriver;
 
     const markers = safeUsers.map((user) => {
       if (!user?.id || user.status === "inactive") return null;

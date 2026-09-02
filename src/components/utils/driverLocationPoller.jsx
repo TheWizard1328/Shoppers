@@ -263,12 +263,11 @@ class DriverLocationPoller {
        // ========================================
        // RULE 5: Drivers — see same-city drivers with Share Location ON. No On Duty
        // gate — location sharing auto-turns off when off duty/break, but can be left
-       // manually ON, so the toggle alone is the source of truth.
+       // manually ON, so the toggle alone is the source of truth. NOTE: peer visibility
+       // is intentionally independent of the "showAllDrivers" (Binoculars) UI toggle —
+       // that toggle controls the delivery-route overlay feature, not location dots.
        // ========================================
        if (isDriver) {
-         if (!showAllDrivers) {
-           return false;
-         }
          if (!user.location_tracking_enabled) return false;
          // Same-city check
          if (currentUserCityId) {

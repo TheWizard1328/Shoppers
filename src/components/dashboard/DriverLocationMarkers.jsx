@@ -366,10 +366,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const userId = user.id || user.user_id;
     const isSelf = userId === currentUserId || user.user_id === currentUserId;
 
-    // Admins, app owner, and dispatchers always see ALL eligible driver location markers
-    // regardless of which driver is selected. The selectedDriverId filter only restricts
-    // delivery stop markers (stops, routes, polylines), NOT live GPS location dots.
-    if (isAdmin || _isAppOwner || isDispatcher) return true;
+    // Admins, app owner, dispatchers, and drivers always see ALL eligible driver location
+    // markers regardless of which driver is selected. The selectedDriverId filter only
+    // restricts delivery stop markers (stops, routes, polylines), NOT live GPS location dots.
+    if (isAdmin || _isAppOwner || isDispatcher || isDriver) return true;
 
     // No specific driver selected or "all" mode → show everything that passes shouldShowMarker
     if (!selectedDriverId || selectedDriverId === 'all') return true;
