@@ -49,7 +49,7 @@ const ECHO_SUPPRESSION_MS = 90 * 1000;
  *      (stop_order ascending).
  */
 export async function handleCreateReturn({ originalDelivery, returnPatient, store }, {
-  currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries, preferredTravelMode
+  currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries, updateDeliveriesLocally, preferredTravelMode
 }) {
   setIsEntityUpdating(true);
   pauseOfflineSync();
@@ -251,6 +251,26 @@ export async function handleCreateReturn({ originalDelivery, returnPatient, stor
         const action = realReturn && item.id === realReturn.id ? 'create' : 'update';
         return broadcastMutation('Delivery', action, item.id, item).catch(() => {});
       })).catch(() => {});
+
+      // ── STEP 4b — Apply the optimized route to in-memory state ──
+      // The coordinator only wrote IDB + server; the UI still holds the swept
+      // "no next stop" state from STEP 2, and the 5-min echo suppression on our
+      // own server writes means no WS echo will ever deliver the new flags to
+      // this device. Apply the coordinator's final records (correct stop_order,
+      // polylines, and the new isNextDelivery winner) to in-memory state directly —
+      // same pattern as handleStartDelivery / handleReoptimizeRoute.
+      try {
+        if (typeof updateDeliveriesLocally === 'function' && Array.isArray(finalDeliveries)) {
+          updateDeliveriesLocally(finalDeliveries.filter((d) => d && d.id), false);
+        } else if (typeof forceRefreshDriverDeliveries === 'function') {
+          await forceRefreshDriverDeliveries(driverId, routeDate);
+        }
+      } catch (uiErr) {
+        console.warn('⚠️ [CREATE RETURN] In-memory apply failed, falling back to IDB refresh:', uiErr?.message || uiErr);
+        if (typeof forceRefreshDriverDeliveries === 'function') {
+          await forceRefreshDriverDeliveries(driverId, routeDate).catch(() => {});
+        }
+      }
 
       // Single UI refresh with the coordinator's final data (no server re-fetch)
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {

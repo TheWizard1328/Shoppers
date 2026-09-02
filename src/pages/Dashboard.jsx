@@ -2295,7 +2295,7 @@ function Dashboard() {
   const handleNotesUpdate = useCallback((deliveryId, notes) => _handleNotesUpdate(deliveryId, notes, { refreshData }), [refreshData]);
   const handleCODUpdate = useCallback((deliveryId, codPayments) => _handleCODUpdate(deliveryId, codPayments, { deliveriesWithStopOrder, updateDeliveriesLocally, setIsEntityUpdating }), [deliveriesWithStopOrder, updateDeliveriesLocally, setIsEntityUpdating]);
 
-  const handleCreateReturn = useCallback((args) => _handleCreateReturn(args, { currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries }), [currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries]);
+  const handleCreateReturn = useCallback((args) => _handleCreateReturn(args, { currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries, updateDeliveriesLocally }), [currentUser, deliveries, patients, appUsers, setIsEntityUpdating, forceRefreshDriverDeliveries, updateDeliveriesLocally]);
 
   const handleStartDelivery = useCallback(async (deliveryId) => {
     const { handleStartDelivery: _doStart } = await import('@/components/dashboard/handleStartDelivery');
