@@ -39,3 +39,4 @@ __pycache__/
 conversations/
 icon_work/
 incoming_files/
+.build-id
