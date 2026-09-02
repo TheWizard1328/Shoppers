@@ -88,6 +88,11 @@ export const AppDataProvider = ({ children, value }) => {
     let nextAppUsers = appUsersRef.current || [];
     let nextPatients = patientsRef.current || [];
 
+    // Declared OUTSIDE the try so the post-catch fallback path (which runs when
+    // the main merge threw) can still access the IDB-merged full records. Falls
+    // back to raw appUserUpserts if the merge never ran or failed.
+    let safeAppUserUpserts = appUserUpserts;
+
     try {
       const { offlineDB } = await import('./offlineDatabase');
 
@@ -96,7 +101,7 @@ export const AppDataProvider = ({ children, value }) => {
       // bulkSave would REPLACE the full IDB record and permanently wipe app_roles,
       // user_name, store_ids, and all other fields that weren't in the WS payload.
       // Always read-merge before writing AppUser records to IDB.
-      let safeAppUserUpserts = appUserUpserts;
+      safeAppUserUpserts = appUserUpserts;
       if (appUserUpserts.length > 0) {
         try {
           safeAppUserUpserts = await Promise.all(
