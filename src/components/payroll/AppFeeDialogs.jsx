@@ -58,13 +58,13 @@ export function AppFeeAllDriversDialog({
 
   return (
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="bg-card border-card">
+      <DialogContent className="bg-surface border-surface">
         <DialogHeader><DialogTitle className="text-body">Manage App Owner App Fee</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-slate-600 dark:text-slate-400">Configure app fees for operational costs.</p>
           <div className="mt-4">
             <h3 className="text-sm font-semibold mb-2 text-body">Driver App Fee Breakdown</h3>
-            <div className="border rounded border-card" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+            <div className="border rounded border-surface" style={{ maxHeight: '350px', overflowY: 'auto' }}>
               <table className="w-full text-xs border-collapse">
                 <thead style={{ background: 'var(--bg-slate-100)', position: 'sticky', top: 0 }}>
                   <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
@@ -120,7 +120,7 @@ export function AppFeeAllDriversDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={handleSaveAndClose} style={{ borderColor: 'var(--border-slate-300)' }} className="bg-card">Save & Close</Button>
+          <Button variant="outline" onClick={handleSaveAndClose} style={{ borderColor: 'var(--border-slate-300)' }} className="bg-surface">Save & Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -137,7 +137,7 @@ export function AppFeeSingleDriverDialog({
 
   return (
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="bg-card border-card">
+      <DialogContent className="bg-surface border-surface">
         <DialogHeader><DialogTitle className="text-body">Manage App Fee</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-slate-600 dark:text-slate-400">For {driverName}:</p>
@@ -175,7 +175,7 @@ export function AppFeeSingleDriverDialog({
               savePayrollChanges(driverId, { app_fee_percentage: driverEdits[driverId]?.appFeePercent || 0, app_fee_amount: driverEdits[driverId]?.appFeeAmount || 0 });
               onClose();
             }}
-            style={{ borderColor: 'var(--border-slate-300)' }} className="bg-card">Close</Button>
+            style={{ borderColor: 'var(--border-slate-300)' }} className="bg-surface">Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

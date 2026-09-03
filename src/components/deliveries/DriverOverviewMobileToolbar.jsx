@@ -17,10 +17,10 @@ export default function DriverOverviewMobileToolbar({
     <div className="flex items-center gap-3 w-full">
       {hasCityFilter && (
         <Select value={selectedCityId} onValueChange={onCityChange}>
-          <SelectTrigger className="flex-1 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+          <SelectTrigger className="flex-1 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
             <SelectValue placeholder="Select City" />
           </SelectTrigger>
-          <SelectContent className="bg-card border-card">
+          <SelectContent className="bg-surface border-surface">
             <SelectItem value="all" className="text-body">All Cities</SelectItem>
             {cities.map((city) => (
               <SelectItem key={city.id} value={city.id} className="text-body">{city.name}</SelectItem>
@@ -30,10 +30,10 @@ export default function DriverOverviewMobileToolbar({
       )}
 
       <Select value={selectedOverviewYear} onValueChange={onOverviewYearChange}>
-        <SelectTrigger className="flex-1 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+        <SelectTrigger className="flex-1 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="bg-card border-card">
+        <SelectContent className="bg-surface border-surface">
           <SelectItem value="all" className="text-body">All Years</SelectItem>
           {availableOverviewYears.map((year) => (
             <SelectItem key={year} value={year.toString()} className="text-body">{year}</SelectItem>

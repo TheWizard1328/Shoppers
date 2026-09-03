@@ -182,14 +182,14 @@ export default function RouteManagementContent({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden" style={{ paddingBottom: isMobile ? 'var(--bottom-nav-height, 88px)' : 0 }}>
       {canBulkEdit &&
-      <Card className="sticky top-0 z-10 flex-shrink-0 shadow-sm mb-2 bg-card border-card">
+      <Card className="sticky top-0 z-10 flex-shrink-0 shadow-sm mb-2 bg-surface border-surface">
           <CardContent className="px-3 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-medium text-secondary">
+              <p className="text-sm font-medium text-body-2">
                 {bulkEditMode ? "Select the stops you want to update." : "Bulk edit driver, date, status, pickup location, and time windows for multiple stops."}
               </p>
               {bulkEditMode &&
-            <Badge variant="secondary" style={{ background: "var(--bg-slate-100)" }} className="text-secondary">
+            <Badge variant="secondary" style={{ background: "var(--bg-slate-100)" }} className="text-body-2">
                   {selectedBulkDeliveryIds.length} selected
                 </Badge>
             }
@@ -248,7 +248,7 @@ export default function RouteManagementContent({
           </div>
 
           {showSplitView &&
-        <div className="flex-1 h-full overflow-hidden rounded-lg border bg-card border-card">
+        <div className="flex-1 h-full overflow-hidden rounded-lg border bg-surface border-surface">
               <StopDetailsPanel
             delivery={selectedDelivery}
             patient={selectedPatient}
@@ -297,7 +297,7 @@ export default function RouteManagementContent({
 
       {isMobile && !showSplitView && resolvedViewMode === "cards" && selectedDeliveryId &&
       <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSelectedDeliveryId(null)}>
-          <div className="w-full max-h-[85vh] overflow-hidden rounded-t-2xl bg-card" onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-h-[85vh] overflow-hidden rounded-t-2xl bg-surface" onClick={(event) => event.stopPropagation()}>
             <StopDetailsPanel
             delivery={selectedDelivery}
             patient={selectedPatient}

@@ -23,7 +23,7 @@ export function renderDeliveryIdentifiersSection({
   if (!isAppOwner(currentUser) || !delivery) return null;
 
   return (
-    <div className="px-1 py-1 rounded-lg space-y-1 border border-card" style={{ background: 'var(--bg-slate-100)' }}>
+    <div className="px-1 py-1 rounded-lg space-y-1 border border-surface" style={{ background: 'var(--bg-slate-100)' }}>
       <Label className="text-sm font-semibold text-body">Delivery Identifiers</Label>
       <div className="flex gap-2">
         <div className="flex-1 space-y-1">

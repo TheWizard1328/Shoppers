@@ -62,12 +62,12 @@ export default function ExpandedStatsControls({
 
   return (
     <>
-      <div className="pt-1 pb-1 border-t flex items-center gap-2 border-card" style={{ opacity: isInactiveDriver ? 0.5 : 1, pointerEvents: isInactiveDriver ? 'none' : 'auto' }}>
+      <div className="pt-1 pb-1 border-t flex items-center gap-2 border-surface" style={{ opacity: isInactiveDriver ? 0.5 : 1, pointerEvents: isInactiveDriver ? 'none' : 'auto' }}>
         <Select value={selectedDriverId} onValueChange={handleDriverChange} disabled={isDriverDropdownDisabled || isInactiveDriver}>
-          <SelectTrigger className="whitespace-nowrap border-input bg-transparent shadow-sm data-[placeholder]:text-muted-foreground flex h-10 items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 text-body bg-card" style={{ pointerEvents: 'auto', touchAction: 'manipulation', borderColor: 'var(--border-slate-300)', minWidth: '120px', maxWidth: '160px', width: '100%' }}>
+          <SelectTrigger className="whitespace-nowrap border-input bg-transparent shadow-sm data-[placeholder]:text-muted-foreground flex h-10 items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 text-body bg-surface" style={{ pointerEvents: 'auto', touchAction: 'manipulation', borderColor: 'var(--border-slate-300)', minWidth: '120px', maxWidth: '160px', width: '100%' }}>
             <SelectValue placeholder="All Drivers" />
           </SelectTrigger>
-          <SelectContent className="z-[10001] text-body bg-card border-card" style={{ pointerEvents: 'auto' }}>
+          <SelectContent className="z-[10001] text-body bg-surface border-surface" style={{ pointerEvents: 'auto' }}>
             <SelectItem value="all" className="text-body">All Drivers</SelectItem>
             {driversList.map((driver) => (
               <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
@@ -171,7 +171,7 @@ export default function ExpandedStatsControls({
            onClick={() => setShowOptimizationSettings(true)}
            className="h-8 w-8 p-0 flex-shrink-0"
            title="Route Optimization Settings"
-           style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card"
+           style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface"
         >
           <Settings className="w-3.5 h-3.5" />
         </Button>

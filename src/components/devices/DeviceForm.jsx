@@ -59,7 +59,7 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent className="max-w-md bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+      <DialogContent className="max-w-md bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
         <DialogHeader>
           <DialogTitle className="text-body">
             {device ? 'Edit Device' : 'Add New Device'}
@@ -68,18 +68,18 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="deviceName" className="text-secondary">Device Name</Label>
+            <Label htmlFor="deviceName" className="text-body-2">Device Name</Label>
             <Input
               id="deviceName"
               value={deviceName}
               onChange={(e) => setDeviceName(e.target.value)}
               placeholder="e.g., My iPhone 15 Pro"
-              style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card"
+              style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="deviceType" className="text-secondary">Device Type</Label>
+            <Label htmlFor="deviceType" className="text-body-2">Device Type</Label>
             <Select value={deviceType} onValueChange={setDeviceType}>
               <SelectTrigger id="deviceType">
                 <SelectValue />
@@ -93,7 +93,7 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="status" className="text-secondary">Status</Label>
+            <Label htmlFor="status" className="text-body-2">Status</Label>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger id="status">
                 <SelectValue />
@@ -113,9 +113,9 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
               onChange={(e) => setIsPrimary(e.target.checked)}
               className="h-4 w-4"
             />
-            <Label htmlFor="isPrimary" className="text-sm cursor-pointer text-secondary">
+            <Label htmlFor="isPrimary" className="text-sm cursor-pointer text-body-2">
               Set as primary tracker
-              <span className="block text-xs mt-1 text-muted">
+              <span className="block text-xs mt-1 text-soft">
                 Only the primary device updates your location on the map
               </span>
             </Label>

@@ -807,7 +807,7 @@ export default function AdminMetrics() {
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Card className="p-8 text-center text-body bg-card">
+        <Card className="p-8 text-center text-body bg-surface">
           <h2 className="text-xl font-bold mb-2 text-body">Access Denied</h2>
           <p className="text-label">Only app owners can access this page.</p>
         </Card>
@@ -820,7 +820,7 @@ export default function AdminMetrics() {
       <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="max-w-7xl mx-auto min-h-full flex flex-col gap-3 md:gap-4">
           {renderHeaderSection()}
-          <Card className="p-8 text-center text-body bg-card">
+          <Card className="p-8 text-center text-body bg-surface">
             <h2 className="text-xl font-bold mb-2 text-body">Select a City</h2>
             <p className="text-label">Choose a city to load admin metrics.</p>
           </Card>
@@ -841,7 +841,7 @@ export default function AdminMetrics() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Card className="p-8 text-center text-body bg-card">
+        <Card className="p-8 text-center text-body bg-surface">
           <h2 className="text-xl font-bold mb-2" style={{ color: '#ef4444' }}>Error Loading Metrics</h2>
           <p style={{ marginBottom: '1rem' }} className="text-label">{error}</p>
           <Button onClick={() => fetchMetrics(selectedYear, selectedCityId, false)}>Retry</Button>
@@ -857,7 +857,7 @@ export default function AdminMetrics() {
         {renderHeaderSection()}
 
         {showNoDataMessage &&
-        <Card className="p-4 bg-card border-card">
+        <Card className="p-4 bg-surface border-surface">
             <p className="text-label">No admin metrics data was found for the selected city yet.</p>
           </Card>
         }
@@ -876,9 +876,9 @@ export default function AdminMetrics() {
 
         {/* Summary Cards */}
         <div className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Card className="bg-card border-card">
+          <Card className="bg-surface border-surface">
             <CardContent className="p-4 pt-3 pb-3 min-w-[75px]">
-              <p className="text-sm mb-2 text-muted">{selectedMonth || selectedStoreMonth ? `${MONTH_NAMES[(selectedStoreMonth?.month || selectedMonth) - 1]} Billable` : `${selectedYear} Billable`}</p>
+              <p className="text-sm mb-2 text-soft">{selectedMonth || selectedStoreMonth ? `${MONTH_NAMES[(selectedStoreMonth?.month || selectedMonth) - 1]} Billable` : `${selectedYear} Billable`}</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#d1fae5' }}>
                   <Package className="w-5 h-5" style={{ color: '#059669' }} />
@@ -898,9 +898,9 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-card">
+          <Card className="bg-surface border-surface">
             <CardContent className="p-4 pt-3 pb-3">
-              <p className="text-sm mb-2 text-muted">{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Non-Billable` : `${selectedYear} Non-Billable`}</p>
+              <p className="text-sm mb-2 text-soft">{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Non-Billable` : `${selectedYear} Non-Billable`}</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#fed7aa' }}>
                   <TrendingUp className="w-5 h-5" style={{ color: '#b45309' }} />
@@ -920,9 +920,9 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-card">
+          <Card className="bg-surface border-surface">
             <CardContent className="p-4 pt-3 pb-3">
-              <p className="text-sm mb-2 text-muted">Active Drivers</p>
+              <p className="text-sm mb-2 text-soft">Active Drivers</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#e9d5ff' }}>
                   <Truck className="w-5 h-5" style={{ color: '#7e22ce' }} />
@@ -932,9 +932,9 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-card">
+          <Card className="bg-surface border-surface">
             <CardContent className="p-4 pt-3 pb-3">
-              <p className="text-sm mb-2 text-muted">Stores Paying</p>
+              <p className="text-sm mb-2 text-soft">Stores Paying</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#dbeafe' }}>
                   <Store className="w-5 h-5" style={{ color: '#1e40af' }} />
@@ -946,9 +946,9 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-card">
+          <Card className="bg-surface border-surface">
             <CardContent className="p-4 pt-3 pb-3">
-              <p className="text-sm mb-2 text-muted">Fee Rate</p>
+              <p className="text-sm mb-2 text-soft">Fee Rate</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: 'var(--bg-slate-200)' }}>
                   <DollarSign className="w-5 h-5 text-label" />
@@ -1021,7 +1021,7 @@ export default function AdminMetrics() {
         </div>
 
         {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
-        <Card className="min-h-0 overflow-hidden bg-card border-card">
+        <Card className="min-h-0 overflow-hidden bg-surface border-surface">
           <CardHeader className="px-4 py-2 space-y-1.5 flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
@@ -1163,7 +1163,7 @@ export default function AdminMetrics() {
         {/* Row 3: Monthly Deliveries + Driver Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Monthly Deliveries Chart - Shows daily breakdown when month selected */}
-          <Card className="min-h-0 overflow-hidden bg-card border-card">
+          <Card className="min-h-0 overflow-hidden bg-surface border-surface">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-body">
                 <BarChart3 className="w-5 h-5" />
@@ -1224,7 +1224,7 @@ export default function AdminMetrics() {
           </Card>
 
           {/* Driver Performance Chart - Breakdown by Driver */}
-          <Card className="min-h-0 overflow-hidden bg-card border-card">
+          <Card className="min-h-0 overflow-hidden bg-surface border-surface">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-body">
                 <Users className="w-5 h-5" />

@@ -93,7 +93,7 @@ export function StatBox({ value, label, valueClass, onMeasure, fixedWidth }) {
       style={{ background: "var(--bg-slate-100)", ...(fixedWidth ? { width: fixedWidth } : {}) }}
     >
       <p className={`text-2xl font-bold ${valueClass}`}>{value}</p>
-      <p className="text-xs text-muted">{label}</p>
+      <p className="text-xs text-soft">{label}</p>
     </div>
   );
 }

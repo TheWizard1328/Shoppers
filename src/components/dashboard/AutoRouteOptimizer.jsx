@@ -182,10 +182,10 @@ export default function AutoRouteOptimizer({
       <motion.div
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border bg-card border-card"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border bg-surface border-surface"
       >
         <Zap className={`w-4 h-4 ${autoOptimizeEnabled ? 'text-emerald-600' : 'text-slate-400 dark:text-slate-500 dark:text-slate-400'}`} />
-        <span className="text-xs font-medium text-secondary">
+        <span className="text-xs font-medium text-body-2">
           Auto-Optimize
         </span>
         <button
@@ -209,7 +209,7 @@ export default function AutoRouteOptimizer({
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="px-3 py-2 rounded-lg shadow-lg border bg-card border-card"
+            className="px-3 py-2 rounded-lg shadow-lg border bg-surface border-surface"
           >
             <div className="flex items-center gap-2">
               {isOptimizing ? (

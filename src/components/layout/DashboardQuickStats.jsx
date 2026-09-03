@@ -216,7 +216,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
           <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`} />
           <span className="font-medium text-label">{label}</span>
         </div>
-        <Badge variant="secondary" className="items-center bg-secondary text-secondary-foreground inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[65px] rounded-[10px] text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
+        <Badge variant="secondary" className="items-center bg-secondary text-secondary-foreground inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[65px] rounded-[10px] text-body-2" style={{ background: 'var(--bg-slate-100)' }}>
           {value}{superscript > 0 && <sup className="ml-0.5 text-[9px] font-bold" style={{ color: 'var(--text-slate-400)' }}>{superscript}</sup>}
         </Badge>
       </div>;
@@ -258,12 +258,12 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
   return (
     <div className="space-y-1 py-1 px-4">
       {showOfflineSync &&
-      <div className="border-b pb-2 border-card">
+      <div className="border-b pb-2 border-surface">
           <OfflineSyncIndicator embedded={true} />
         </div>
       }
       <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wider mb-2 text-muted">
+        <h4 className="text-xs font-semibold uppercase tracking-wider mb-2 text-soft">
           {isToday ? "Today's Stats:" : format(selectedDate, 'MMM dd, yyyy') + ':'}
         </h4>
         <div className="space-y-1">
@@ -282,7 +282,7 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
       </div>
 
       <div>
-        <h4 className="xs font-semibold uppercase tracking-wider mb-2 text-muted">{format(selectedDate, 'MMMM yyyy')}:</h4>
+        <h4 className="xs font-semibold uppercase tracking-wider mb-2 text-soft">{format(selectedDate, 'MMMM yyyy')}:</h4>
         <div className="space-y-1">
           <StatItem icon={CheckCircle} label="Completed" value={stats.month.completed} colorClass="text-green-600" />
           {(stats.month.failed > 0 || stats.month.returns > 0) &&

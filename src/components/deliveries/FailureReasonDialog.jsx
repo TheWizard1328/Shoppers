@@ -64,7 +64,7 @@ export default function FailureReasonDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md z-[10020] border bg-card" style={{ borderColor: 'var(--border-slate-300)' }} onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent className="max-w-md z-[10020] border bg-surface" style={{ borderColor: 'var(--border-slate-300)' }} onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <AlertCircle className="w-5 h-5" />
@@ -78,7 +78,7 @@ export default function FailureReasonDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="rounded-lg p-3 border border-card" style={{ background: 'var(--bg-slate-100)' }}>
+          <div className="rounded-lg p-3 border border-surface" style={{ background: 'var(--bg-slate-100)' }}>
             <p className="text-sm font-semibold text-body">{deliveryName}</p>
           </div>
 
@@ -90,7 +90,7 @@ export default function FailureReasonDialog({
               {failureReasons.map((reason) => (
                 <div key={reason} className="flex items-center space-x-2">
                   <RadioGroupItem value={reason} id={reason} />
-                  <Label htmlFor={reason} className="text-sm cursor-pointer text-secondary">
+                  <Label htmlFor={reason} className="text-sm cursor-pointer text-body-2">
                     {reason}
                   </Label>
                 </div>
@@ -114,7 +114,7 @@ export default function FailureReasonDialog({
           <div className="flex gap-3 pt-2">
             <Button
  variant="outline"
- className="flex-1 text-body bg-card"
+ className="flex-1 text-body bg-surface"
  onClick={handleClose}
  style={{ borderColor: 'var(--border-slate-300)' }}
  >

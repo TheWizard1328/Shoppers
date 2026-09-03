@@ -38,16 +38,16 @@ export default function ModeSelectionDialog({
   const panelContent = (
     <>
       {/* Header */}
-      <div className="px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700 border-card">
+      <div className="px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700 border-surface">
         <h2 className="text-xl font-bold text-body">
           Select Stops for Cycling Mode
         </h2>
       </div>
 
       {/* Stop list */}
-      <div className="flex-1 overflow-y-auto divide-y border-card">
+      <div className="flex-1 overflow-y-auto divide-y border-surface">
         {nearbyStops.length === 0 && (
-          <div className="px-6 py-8 text-sm text-center text-muted">
+          <div className="px-6 py-8 text-sm text-center text-soft">
             No stops found on this route.
           </div>
         )}
@@ -73,7 +73,7 @@ export default function ModeSelectionDialog({
                     {stop.storeAbbreviation.slice(0, 2).toUpperCase()}
                   </span>
                 )}
-                <span className="text-xs whitespace-nowrap text-muted">
+                <span className="text-xs whitespace-nowrap text-soft">
                   {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km` : '—'}
                 </span>
               </div>
@@ -91,7 +91,7 @@ export default function ModeSelectionDialog({
       </div>
 
       {/* Footer */}
-      <div className="flex gap-3 px-6 py-4 border-t border-card">
+      <div className="flex gap-3 px-6 py-4 border-t border-surface">
         <Button
           variant="outline"
           onClick={() => onOpenChange?.(false)}

@@ -1043,8 +1043,8 @@ export default function PayrollSummaryCard({
   // Guard clause AFTER all hooks
   if (payrollData.length === 0) {
     return (
-      <Card className="mt-4 bg-card border-card">
-        <CardContent className="p-6 text-center text-muted">
+      <Card className="mt-4 bg-surface border-surface">
+        <CardContent className="p-6 text-center text-soft">
           No payroll data available for this period. 
           {drivers?.length === 0 && ' No drivers found.'}
           {drivers?.length > 0 && appUsers?.length === 0 && ' No driver pay rates configured.'}
@@ -1065,7 +1065,7 @@ export default function PayrollSummaryCard({
           -moz-appearance: textfield;
         }
       `}</style>
-     <Card className="bg-card text-card-foreground mt-1 py-2 rounded-xl border shadow bg-card border-card">
+     <Card className="bg-card text-card-foreground mt-1 py-2 rounded-xl border shadow bg-surface border-surface">
        <CardHeader className="px-4 py-1 space-y-1.5 flex flex-col">
         {/* Mobile View: 2 rows */}
         <div className="md:hidden flex flex-col gap-2">
@@ -1077,7 +1077,7 @@ export default function PayrollSummaryCard({
               </CardTitle>
 
               {isAdmin && driversWithDeliveriesIds.length > 0 && selectedDriverId === 'all' && !isAdminFinalized &&
-                <span className="text-xs text-muted">
+                <span className="text-xs text-soft">
                   <Users className="w-3 h-3 inline mr-1" />
                   {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
                 </span>
@@ -1120,7 +1120,7 @@ export default function PayrollSummaryCard({
                   </Button>
                 }
 
-              <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 h-8 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+              <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 h-8 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
                 <Download className="w-4 h-4" />
                 PDF
               </Button>
@@ -1151,7 +1151,7 @@ export default function PayrollSummaryCard({
             Payroll Summary
           </CardTitle>
           <div className="flex gap-2 items-center" id="payroll-controls">
-            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
               <Download className="w-4 h-4" />
               PDF
             </Button>
@@ -1187,7 +1187,7 @@ export default function PayrollSummaryCard({
               <>
                 {!isAdminFinalized &&
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted">
+                    <span className="text-xs text-soft">
                       <Users className="w-3 h-3 inline mr-1" />
                       {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
                     </span>
@@ -1226,7 +1226,7 @@ export default function PayrollSummaryCard({
 
       {/* Driver Confirmation Dialog - also for admin-drivers viewing their own payroll */}
       <Dialog open={showConfirmDialog && (isDriver || isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
-        <DialogContent className="bg-card border-card">
+        <DialogContent className="bg-surface border-surface">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-body">
               <CheckCircle className="w-5 h-5 text-emerald-500" />
@@ -1241,7 +1241,7 @@ export default function PayrollSummaryCard({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">
               Cancel
             </Button>
             <Button
@@ -1261,7 +1261,7 @@ export default function PayrollSummaryCard({
       {/* Deduction Manager Overlay Dialog */}
       {deductionOverlayDriverId && driverEdits[deductionOverlayDriverId] &&
         <Dialog open={true} onOpenChange={(open) => !open && setDeductionOverlayDriverId(null)}>
-          <DialogContent className="bg-card border-card">
+          <DialogContent className="bg-surface border-surface">
             <DialogHeader>
               <DialogTitle className="text-body">Manage Deductions</DialogTitle>
             </DialogHeader>
@@ -1359,7 +1359,7 @@ export default function PayrollSummaryCard({
               <Button
                 variant="outline"
                 onClick={() => setDeductionOverlayDriverId(null)}
-                style={{ borderColor: 'var(--border-slate-300)' }} className="bg-card">
+                style={{ borderColor: 'var(--border-slate-300)' }} className="bg-surface">
 
                 Close
               </Button>
@@ -1371,7 +1371,7 @@ export default function PayrollSummaryCard({
       {/* Bonus Manager Overlay Dialog */}
        {bonusOverlayDriverId && driverEdits[bonusOverlayDriverId] &&
         <Dialog open={true} onOpenChange={(open) => !open && handleBonusClose()}>
-           <DialogContent className="bg-card border-card">
+           <DialogContent className="bg-surface border-surface">
              <DialogHeader>
                <DialogTitle className="text-body">Manage Bonus Pay</DialogTitle>
              </DialogHeader>
@@ -1408,7 +1408,7 @@ export default function PayrollSummaryCard({
                 variant="outline"
                 data-dialog-close="bonus"
                 onClick={handleBonusClose}
-                style={{ borderColor: 'var(--border-slate-300)' }} className="bg-card">
+                style={{ borderColor: 'var(--border-slate-300)' }} className="bg-surface">
 
                   Close
                 </Button>
@@ -1426,7 +1426,7 @@ export default function PayrollSummaryCard({
           appFeesPerDelivery={appFeesPerDelivery} extraAppFeePercent={extraAppFeePercent} getDriverPayrollRecord={getDriverPayrollRecord} />
 
       <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
-        <DialogContent className="bg-card border-card">
+        <DialogContent className="bg-surface border-surface">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-body">
               <AlertCircle className="w-5 h-5 text-amber-500" />
@@ -1449,7 +1449,7 @@ export default function PayrollSummaryCard({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">
               Cancel
             </Button>
             <Button
@@ -1581,7 +1581,7 @@ export default function PayrollSummaryCard({
 
               {/* Stats and Pay Summary - Side by Side */}
               <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
-                <div className="rounded-lg border px-4 py-3 bg-card border-card">
+                <div className="rounded-lg border px-4 py-3 bg-surface border-surface">
                   <LeftStatsAndNotes
                         data={data}
                         formatCurrency={formatCurrency}
@@ -1596,7 +1596,7 @@ export default function PayrollSummaryCard({
                       
                 </div>
 
-                <div className="rounded-lg border px-4 py-3 bg-card border-card">
+                <div className="rounded-lg border px-4 py-3 bg-surface border-surface">
                   <div className="text-xs h-full flex items-start justify-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
                     <div className="ml-auto flex gap-4">
                       <div className="flex flex-col">
@@ -1759,23 +1759,23 @@ export default function PayrollSummaryCard({
             {/* Desktop View */}
             <div className="hidden md:block">
               <div className="pr-3 pl-3 grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
-                <div className="rounded-lg border px-4 py-3 bg-card border-card">
+                <div className="rounded-lg border px-4 py-3 bg-surface border-surface">
                   <div className="flex h-full flex-col justify-center gap-2">
-                    <div className="text-sm font-semibold text-secondary">
+                    <div className="text-sm font-semibold text-body-2">
                       Total App Fees Collected
                     </div>
-                    <div className="text-xs text-muted">
+                    <div className="text-xs text-soft">
                       Monthly and year-to-date app fee totals.
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-3 pr-4 pb-3 pl-4 rounded-lg border bg-card border-card">
+                <div className="pt-3 pr-4 pb-3 pl-4 rounded-lg border bg-surface border-surface">
                   <div className="text-xs h-full flex items-start justify-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
                     <div className="ml-auto flex gap-6 items-start">
                       {/* Period Column */}
                       <div className="flex flex-col">
-                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b text-muted" style={{ borderColor: 'var(--border-slate-300)' }}>Month</div>
+                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b text-soft" style={{ borderColor: 'var(--border-slate-300)' }}>Month</div>
                         <table className="border-collapse">
                           <tbody>
                             <tr className="text-label">
@@ -1799,7 +1799,7 @@ export default function PayrollSummaryCard({
 
                       {/* YTD Column */}
                       <div className="flex flex-col">
-                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b text-muted" style={{ borderColor: 'var(--border-slate-300)' }}>YTD</div>
+                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b text-soft" style={{ borderColor: 'var(--border-slate-300)' }}>YTD</div>
                         <table className="border-collapse">
                           <tbody>
                             <tr className="text-label">
@@ -1819,14 +1819,14 @@ export default function PayrollSummaryCard({
 
             {/* Mobile View */}
             <div className="md:hidden">
-              <div className="text-xs font-semibold mb-2 text-secondary">
+              <div className="text-xs font-semibold mb-2 text-body-2">
                 Total App Fees Collected
               </div>
               
-              <div className="p-3 rounded-lg border bg-card border-card" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <div className="p-3 rounded-lg border bg-surface border-surface" style={{ fontVariantNumeric: 'tabular-nums' }}>
                 <div className="text-xs font-mono">
                   {/* Header Row */}
-                  <div className="grid gap-1 mb-2 font-semibold pb-1 border-b text-secondary border-card" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
+                  <div className="grid gap-1 mb-2 font-semibold pb-1 border-b text-body-2 border-surface" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
                     <div></div>
                     <div></div>
                     <div className="text-right">Month</div>
@@ -1865,28 +1865,28 @@ export default function PayrollSummaryCard({
                 })()
               }}>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="font-semibold text-secondary">Total Payroll (All Drivers)</div>
+                  <div className="font-semibold text-body-2">Total Payroll (All Drivers)</div>
                 </div>
 
                 {/* Two Column Layout */}
                 <div className="pr-3 pl-3 grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)] gap-4 items-stretch">
-                  <div className="rounded-lg border px-4 py-3 bg-card border-card">
+                  <div className="rounded-lg border px-4 py-3 bg-surface border-surface">
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <div className="flex flex-col gap-1">
                         <span className="text-label">Deliveries</span>
-                        <span className="rounded-md px-2 py-1 text-xs font-semibold text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
+                        <span className="rounded-md px-2 py-1 text-xs font-semibold text-body-2" style={{ background: 'var(--bg-slate-100)' }}>
                           {driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex flex-col gap-1">
                         <span className="text-label">Extra KM</span>
-                        <span className="rounded-md px-2 py-1 text-xs font-semibold text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
+                        <span className="rounded-md px-2 py-1 text-xs font-semibold text-body-2" style={{ background: 'var(--bg-slate-100)' }}>
                           {driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex flex-col gap-1">
                         <span className="text-label">Oversized</span>
-                        <span className="rounded-md px-2 py-1 text-xs font-semibold text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
+                        <span className="rounded-md px-2 py-1 text-xs font-semibold text-body-2" style={{ background: 'var(--bg-slate-100)' }}>
                           {driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}
                         </span>
                       </div>
@@ -1907,7 +1907,7 @@ export default function PayrollSummaryCard({
                     </div>
                   </div>
 
-                  <div className="rounded-lg border px-4 py-3 bg-card border-card">
+                  <div className="rounded-lg border px-4 py-3 bg-surface border-surface">
                     <div className="text-xs h-full flex items-start justify-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
                       <div className="ml-auto flex gap-4">
                         <div className="flex flex-col">
@@ -2021,13 +2021,13 @@ export default function PayrollSummaryCard({
                   return window.innerWidth < 768 ? 'block' : 'none';
                 })()
               }} className="px-2">
-                <div className="font-semibold mb-3 text-sm text-secondary">Total Payroll (All Drivers)</div>
+                <div className="font-semibold mb-3 text-sm text-body-2">Total Payroll (All Drivers)</div>
                 
                 {/* Pay Summary Table */}
-                <div className="p-3 rounded-lg border bg-card border-card" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <div className="p-3 rounded-lg border bg-surface border-surface" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   <div className="text-xs font-mono">
                     {/* Header Row */}
-                    <div className="grid gap-1 mb-2 font-semibold pb-1 border-b text-secondary border-card" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
+                    <div className="grid gap-1 mb-2 font-semibold pb-1 border-b text-body-2 border-surface" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
                       <div></div>
                       <div></div>
                       <div className="text-right">Period</div>
@@ -2087,7 +2087,7 @@ export default function PayrollSummaryCard({
                     }
 
                     {/* Net (bold, divider) */}
-                    <div className="grid gap-1 pt-1 border-t font-bold border-card" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: '#10b981' }}>
+                    <div className="grid gap-1 pt-1 border-t font-bold border-surface" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: '#10b981' }}>
                       <div className="text-left">Net:</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right">{grandTotalNet.toFixed(2)}</div>

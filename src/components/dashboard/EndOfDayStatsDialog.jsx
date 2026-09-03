@@ -258,7 +258,7 @@ export default function EndOfDayStatsDialog({
   if (!stats && !isProcessing) return null;
   if (!stats) return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="max-w-md z-[10030] border bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+      <DialogContent className="max-w-md z-[10030] border bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle className="w-6 h-6 text-emerald-600" />
@@ -275,7 +275,7 @@ export default function EndOfDayStatsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md z-[10030] border bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+      <DialogContent className="max-w-md z-[10030] border bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="w-6 h-6" />
@@ -285,7 +285,7 @@ export default function EndOfDayStatsDialog({
 
         <div className="space-y-4 py-2">
           {/* Driver & Date */}
-          <div className="text-center pb-3 border-b border-card">
+          <div className="text-center pb-3 border-b border-surface">
             <p className="text-lg font-semibold text-body">
               {driver?.user_name || driver?.full_name || 'Driver'}
             </p>
@@ -296,14 +296,14 @@ export default function EndOfDayStatsDialog({
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-lg border text-center border-card" style={{ background: 'var(--bg-slate-50)' }}>
+            <div className="p-3 rounded-lg border text-center border-surface" style={{ background: 'var(--bg-slate-50)' }}>
               <Package className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400" />
               <div className="text-2xl font-bold text-body">{stats.total}</div>
               <div className="text-xs text-label">Total Stops</div>
             </div>
 
             {stats.timeOnDuty && (
-              <div className="p-3 rounded-lg border text-center border-card" style={{ background: 'var(--bg-slate-50)' }}>
+              <div className="p-3 rounded-lg border text-center border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                 <Clock className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400" />
                 <div className="text-lg font-bold text-body">{stats.timeOnDuty}</div>
                 <div className="text-xs text-label">Time on Duty</div>
@@ -344,7 +344,7 @@ export default function EndOfDayStatsDialog({
             </div>
 
             {/* Distance — single card, shows Total + Remaining when incomplete */}
-            <div className="p-3 rounded-lg border text-center border-card" style={{ background: 'var(--bg-slate-50)' }}>
+            <div className="p-3 rounded-lg border text-center border-surface" style={{ background: 'var(--bg-slate-50)' }}>
               <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400" />
               {stats.estimatedDistance != null ? (
                 // Not started — show full est. total
@@ -358,12 +358,12 @@ export default function EndOfDayStatsDialog({
                   <div className="flex justify-center items-baseline gap-1.5">
                     <span className="text-lg font-bold text-body">{stats.totalDistance}</span>
                     <span className="text-xs font-semibold text-slate-400 dark:text-slate-400">+{stats.remainingDistance}</span>
-                    <span className="text-xs text-muted">km</span>
+                    <span className="text-xs text-soft">km</span>
                   </div>
                   <div className="flex justify-center gap-2 mt-0.5">
                     <span className="text-xs text-label">Done</span>
                     <span className="text-xs text-slate-400 dark:text-slate-400">/</span>
-                    <span className="text-xs text-muted">Est. Rem.</span>
+                    <span className="text-xs text-soft">Est. Rem.</span>
                   </div>
                 </>
               ) : (
@@ -374,7 +374,7 @@ export default function EndOfDayStatsDialog({
                 </>
               )}
               {(parseFloat(stats.drivingDistance) > 0 && parseFloat(stats.cyclingDistance) > 0) && (
-                <div className="flex justify-center gap-3 mt-1.5 pt-1.5 border-t border-card">
+                <div className="flex justify-center gap-3 mt-1.5 pt-1.5 border-t border-surface">
                   <div className="flex items-center gap-1">
                     <Car className="w-3 h-3 text-blue-600 shrink-0" />
                     <span className="text-xs font-medium text-blue-700">{stats.drivingDistance} km</span>
@@ -387,7 +387,7 @@ export default function EndOfDayStatsDialog({
               )}
             </div>
 
-            <div className="p-3 rounded-lg border text-center border-card" style={{ background: 'var(--bg-slate-50)' }}>
+            <div className="p-3 rounded-lg border text-center border-surface" style={{ background: 'var(--bg-slate-50)' }}>
               <Camera className="w-5 h-5 mx-auto mb-1 text-slate-600 dark:text-slate-400" />
               <div className="text-lg font-bold text-body">{stats.deliveriesWithPOD} / {stats.successfulDeliveries}</div>
               <div className="text-xs text-label">Proof of Delivery</div>

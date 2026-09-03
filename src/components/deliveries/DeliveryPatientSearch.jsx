@@ -107,7 +107,7 @@ export default function DeliveryPatientSearch({
   };
 
   return (
-    <div className={${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} h-[102px] flex flex-col justify-between p-3 rounded-lg border border-card} style={{ background: 'var(--bg-slate-50)' }}>
+    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} h-[102px] flex flex-col justify-between p-3 rounded-lg border border-surface`} style={{ background: 'var(--bg-slate-50)' }}>
       <div className="flex items-center justify-between min-h-[28px] mb-1">
         <Label className="text-sm font-semibold text-body">Patient Search</Label>
         <div className="min-h-[28px] flex items-center justify-end">
@@ -165,7 +165,7 @@ export default function DeliveryPatientSearch({
       </div>
 
       {patientSearch && !formData.patient_id &&
-      <div className={absolute top-full left-0 mt-1 max-h-64 overflow-y-auto border rounded-lg shadow-lg z-[40] ${isMobile || mobileStandalone ? 'right-0 w-full' : '-right-[150px]'} bg-card border-card}>
+      <div className={`absolute top-full left-0 mt-1 max-h-64 overflow-y-auto border rounded-lg shadow-lg z-[40] ${isMobile || mobileStandalone ? 'right-0 w-full' : '-right-[150px]'} bg-surface border-surface`}>
           {selectedPatientIds.size > 1 &&
         <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 p-2 flex items-center justify-between z-10">
               <span className="text-sm font-medium text-emerald-700">{selectedPatientIds.size} selected</span>

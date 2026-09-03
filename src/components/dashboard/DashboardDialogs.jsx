@@ -173,7 +173,7 @@ export default function DashboardDialogs({
           setShowQuickAdjustments(true);
         }
       }}>
-        <DialogContent className="max-w-[300px] max-h-[80vh] overflow-hidden z-[10001] text-body bg-card border-card">
+        <DialogContent className="max-w-[300px] max-h-[80vh] overflow-hidden z-[10001] text-body bg-surface border-surface">
           <DialogHeader><DialogTitle className="text-body">Quick Route Adjustments</DialogTitle></DialogHeader>
           <QuickRouteAdjustments
             deliveries={deliveriesWithStopOrder}

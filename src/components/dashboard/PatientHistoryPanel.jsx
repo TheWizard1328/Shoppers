@@ -91,15 +91,15 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed top-0 right-0 h-full z-[9991] flex flex-col shadow-2xl bg-card" style={{ width: 'min(400px, 100vw)', borderLeft: '1px solid var(--border-slate-200)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          className="fixed top-0 right-0 h-full z-[9991] flex flex-col shadow-2xl bg-surface" style={{ width: 'min(400px, 100vw)', borderLeft: '1px solid var(--border-slate-200)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+            <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
               <div className="min-w-0">
                 <h2 className="font-semibold text-base truncate text-body">
                   {patient.full_name}
                 </h2>
-                <p className="text-xs truncate text-muted">
+                <p className="text-xs truncate text-soft">
                   {patient.address}
                 </p>
               </div>
@@ -115,7 +115,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
             <div className="flex-1 flex flex-col overflow-hidden px-3 py-3 space-y-3">
 
               {isLoading &&
-            <div className="flex items-center justify-center py-10 gap-2 text-muted">
+            <div className="flex items-center justify-center py-10 gap-2 text-soft">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span className="text-sm">Loading history...</span>
                 </div>
@@ -123,7 +123,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
 
               {/* Analytics Card */}
               {!isLoading && deliveryStats &&
-            <div className="rounded-xl border shadow-sm bg-card border-card">
+            <div className="rounded-xl border shadow-sm bg-surface border-surface">
                   <div
                 className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
                 onClick={() => setAnalyticsCollapsed((v) => !v)}>
@@ -155,7 +155,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
 
                       {deliveryStats.lastDeliveryDate &&
                 <div className="flex items-center gap-3 text-sm p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-                          <Calendar className="w-4 h-4 flex-shrink-0 text-muted" />
+                          <Calendar className="w-4 h-4 flex-shrink-0 text-soft" />
                           <div>
                             <p className="font-medium text-body">Last Delivery</p>
                             <p className="text-label">
@@ -196,7 +196,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
             }
 
               {/* Recent Deliveries */}
-              {!isLoading && <div className="rounded-xl border shadow-sm flex flex-col flex-1 overflow-hidden bg-card border-card">
+              {!isLoading && <div className="rounded-xl border shadow-sm flex flex-col flex-1 overflow-hidden bg-surface border-surface">
                 <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-100)' }}>
                   <span className="flex items-center gap-2 font-semibold text-sm text-body">
                      <Package className="w-4 h-4 text-blue-600" />
@@ -217,7 +217,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
 
                 <div className="p-3 overflow-y-auto flex-1">
                   {patientDeliveries.length === 0 ?
-                <p className="text-sm text-center py-4 text-muted">No deliveries found</p> :
+                <p className="text-sm text-center py-4 text-soft">No deliveries found</p> :
 
                 <>
                     <div className="space-y-2">
@@ -226,7 +226,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                       return (
                         <div
                           key={delivery.id}
-                          className="p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                          className="p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           
                             <div className="grid grid-cols-2 gap-3 mb-2">
                               <div className="text-xs space-y-1">
@@ -252,7 +252,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                                 delivery.status === 'failed' ? 'Failed' : delivery.status}
                                 </Badge>
                                 {delivery.driver_name &&
-                              <Badge variant="outline" className="text-xs text-secondary">
+                              <Badge variant="outline" className="text-xs text-body-2">
                                     {delivery.driver_name}
                                   </Badge>
                               }
@@ -286,7 +286,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                                 {userHasRole(currentUser, 'admin') && onEditDelivery &&
                               <button
                                 onClick={() => onEditDelivery(delivery)}
-                                className="flex items-center gap-1 text-xs font-medium shrink-0 text-muted">
+                                className="flex items-center gap-1 text-xs font-medium shrink-0 text-soft">
                                 
                                     <Pencil className="w-3 h-3" />
                                     Edit
@@ -309,7 +309,7 @@ export default function PatientHistoryPanel({ patient, currentUser, onClose, onE
                     {hasMore &&
                   <button
                     onClick={() => setVisibleCount((c) => c + 60)}
-                    className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 text-label border-card">
+                    className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 text-label border-surface">
                     
                         Show more ({filteredDeliveries.length - visibleCount} more)
                       </button>

@@ -420,7 +420,7 @@ export default function InkbirdRawDiagnostic() {
     latestTemp < 2 || latestTemp > 8 ? 'text-red-600' : 'text-emerald-600';
 
   return (
-    <Card className="bg-card border-card">
+    <Card className="bg-surface border-surface">
       <CardHeader>
         <CardTitle className="flex items-center justify-between flex-wrap gap-2 text-body">
           <div className="flex items-center gap-2 flex-wrap">
@@ -450,7 +450,7 @@ export default function InkbirdRawDiagnostic() {
             )}
           </div>
         </CardTitle>
-        <CardDescription className="text-muted">
+        <CardDescription className="text-soft">
           Connects via GATT, reads FFF2 (confirmed temp source), subscribes FFF6 notifications,
           and polls FFF2 every 2s as a fallback. Reuses the paired device automatically — no picker after first use.
         </CardDescription>

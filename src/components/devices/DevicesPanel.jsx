@@ -252,14 +252,14 @@ export default function DevicesPanel({ currentUser }) {
 
       {/* Background GPS */}
       {isNativeBackgroundTrackingAvailable && (
-        <Card className="bg-card border-card">
+        <Card className="bg-surface border-surface">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold flex items-center gap-2 text-secondary">
+            <CardTitle className="text-base font-semibold flex items-center gap-2 text-body-2">
               <ShieldCheck className="w-4 h-4" /> Background GPS Setup
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted">
+            <p className="text-sm text-soft">
               Tap below, then allow full background access when prompted.
             </p>
             <Button size="sm" className="gap-2" onClick={handleRequestLocationAccess} disabled={isRequestingLocationAccess}>
@@ -287,7 +287,7 @@ export default function DevicesPanel({ currentUser }) {
         const isCurrent = device.id === currentDeviceId;
 
         return (
-          <Card key={device.id} className="bg-card border-card">
+          <Card key={device.id} className="bg-surface border-surface">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -297,7 +297,7 @@ export default function DevicesPanel({ currentUser }) {
                       {device.device_name}
                       {isCurrent && <Badge className="ml-2 bg-blue-500 text-white text-xs">Current</Badge>}
                     </p>
-                    <p className="text-sm text-muted">{displayOS} · {lastActive}</p>
+                    <p className="text-sm text-soft">{displayOS} · {lastActive}</p>
                   </div>
                 </div>
                 {device.is_primary_tracker && (
@@ -317,7 +317,7 @@ export default function DevicesPanel({ currentUser }) {
                       value={deviceSettings[device.id]?.device_name ?? device.device_name}
                       onChange={(e) => setDeviceSettings((p) => ({ ...p, [device.id]: { ...p[device.id], device_name: e.target.value } }))}
                       placeholder={device.device_name}
-                      className="flex-1 px-2 py-1 rounded text-sm border min-w-0 text-body bg-card border-card"
+                      className="flex-1 px-2 py-1 rounded text-sm border min-w-0 text-body bg-surface border-surface"
                     />
                   </div>
                   <div className="flex items-center justify-between p-2 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
@@ -325,7 +325,7 @@ export default function DevicesPanel({ currentUser }) {
                     <select
                       value={deviceSettings[device.id]?.status ?? device.status}
                       onChange={(e) => setDeviceSettings((p) => ({ ...p, [device.id]: { ...p[device.id], status: e.target.value } }))}
-                      className="px-2 py-1 rounded text-sm border bg-card border-card"
+                      className="px-2 py-1 rounded text-sm border bg-surface border-surface"
                     >
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
@@ -384,13 +384,13 @@ export default function DevicesPanel({ currentUser }) {
               </div>
 
               {isCurrent && showChangeSettings && (
-                <div className="rounded-lg border p-3 space-y-2 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                <div className="rounded-lg border p-3 space-y-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                   <p className="text-sm font-semibold text-body">Apply settings from:</p>
                   {devices.filter((d) => d.id !== currentDeviceId).map((d) => (
-                    <div key={d.id} className="flex items-center justify-between p-2 rounded border bg-card border-card">
+                    <div key={d.id} className="flex items-center justify-between p-2 rounded border bg-surface border-surface">
                       <div>
                         <p className="text-sm font-medium text-body">{d.device_name}</p>
-                        <p className="text-xs text-muted">{d.device_info?.device_type || 'Unknown'}</p>
+                        <p className="text-xs text-soft">{d.device_info?.device_type || 'Unknown'}</p>
                       </div>
                       <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => handleApplyDeviceSettings(d)}>Apply</Button>
                     </div>
@@ -408,7 +408,7 @@ export default function DevicesPanel({ currentUser }) {
         <div className="text-center py-10 border-2 border-dashed rounded-xl" style={{ borderColor: 'var(--border-slate-300)' }}>
           <Smartphone className="w-10 h-10 mx-auto mb-2" style={{ color: 'var(--text-slate-400)' }} />
           <p className="text-sm font-medium mb-1 text-body">No devices registered</p>
-          <p className="text-xs mb-3 text-muted">Add your first device to enable location tracking</p>
+          <p className="text-xs mb-3 text-soft">Add your first device to enable location tracking</p>
           <Button size="sm" onClick={() => setShowForm(true)}>Add Device</Button>
         </div>
       )}

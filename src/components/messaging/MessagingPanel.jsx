@@ -97,7 +97,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
-      <div className="rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden bg-card">
+      <div className="rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden bg-surface">
         {/* Header */}
         <div className="p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
           <h2 className="text-lg font-semibold text-body">Messages</h2>
@@ -115,7 +115,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
               </Button>
             )}
             <Button variant="ghost" size="icon" onClick={handleCloseMessaging}>
-              <X className="w-5 h-5 text-secondary" />
+              <X className="w-5 h-5 text-body-2" />
             </Button>
           </div>
         </div>
@@ -154,7 +154,7 @@ function MessagingPanel({ currentUser, users, onClose, initialConversation, onUn
                 autoFocus={!!(initialConversation && initialConversation.conversationId === selectedConversation.conversationId)}
               />
             ) : (
-              <div className="flex-1 flex items-center justify-center text-muted">
+              <div className="flex-1 flex items-center justify-center text-soft">
                 <p>Select a conversation to start messaging</p>
               </div>
             )}

@@ -24,7 +24,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, smal
             <span className="absolute -top-1 -left-0.5 text-[8px] font-bold leading-none" style={{ color: '#0369a1' }}>{superscript}</span>
           }
           {driverCount !== undefined && driverCount > 0 &&
-            <span className="absolute -top-1 -right-0.5 text-[8px] font-bold leading-none text-muted">{driverCount}</span>
+            <span className="absolute -top-1 -right-0.5 text-[8px] font-bold leading-none text-soft">{driverCount}</span>
           }
           <span className={small ? "text-sm font-medium text-center text-body" : "text-lg font-bold text-body"}>{value}</span>
         </span>
@@ -38,7 +38,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, smal
         <TooltipTrigger asChild>
           {badge}
         </TooltipTrigger>
-        <TooltipContent className="z-[9999] border text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+        <TooltipContent className="z-[9999] border text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
           <p>{tooltip || ''}</p>
         </TooltipContent>
       </Tooltip>

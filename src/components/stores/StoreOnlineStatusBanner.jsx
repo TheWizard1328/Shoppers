@@ -86,7 +86,7 @@ export default function StoreOnlineStatusBanner({ stores, appUsers }) {
   if (storeStatuses.length === 0) return null;
 
   return (
-    <Card className="mb-6 p-4 bg-card border-card">
+    <Card className="mb-6 p-4 bg-surface border-surface">
       <div className="flex flex-wrap gap-x-6 gap-y-2">
         {storeStatuses.map(store => {
           const isHovered = hoveredStore === store.id;

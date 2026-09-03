@@ -366,14 +366,14 @@ input[type="time"].compact-time-input::-webkit-calendar-picker-indicator:focus {
    themes. The vars themselves are theme-aware (redefined under html.dark-theme
    in layoutStyles.jsx), so these classes render identically in light and dark.
    .text-body     = color: var(--text-slate-900)   (primary text)
-   .text-secondary= color: var(--text-slate-700)
+   .text-body-2  = color: var(--text-slate-700)
    .text-label    = color: var(--text-slate-600)
-   .text-muted    = color: var(--text-slate-500)
-   .bg-card       = background: var(--bg-white)
-   .border-card   = border-color: var(--border-slate-200) */
+   .text-soft     = color: var(--text-slate-500)
+   .bg-surface    = background: var(--bg-white)
+   .border-surface= border-color: var(--border-slate-200) */
 .text-body { color: var(--text-slate-900); }
-.text-secondary { color: var(--text-slate-700); }
+.text-body-2 { color: var(--text-slate-700); }
 .text-label { color: var(--text-slate-600); }
-.text-muted { color: var(--text-slate-500); }
-.bg-card { background: var(--bg-white); }
-.border-card { border-color: var(--border-slate-200); }
+.text-soft { color: var(--text-slate-500); }
+.bg-surface { background: var(--bg-white); }
+.border-surface { border-color: var(--border-slate-200); }

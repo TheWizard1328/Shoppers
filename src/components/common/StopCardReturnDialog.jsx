@@ -47,7 +47,7 @@ export default function StopCardReturnDialog({
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4 bg-card"
+        className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4 bg-surface"
       >
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Undo2 className="w-5 h-5 text-orange-600" />
@@ -61,36 +61,36 @@ export default function StopCardReturnDialog({
               : 'A new return delivery will be created with the following details:'}
           </p>
           <div className="rounded-lg p-3 space-y-2" style={{ background: 'var(--bg-slate-50)' }}>
-            <div><span className="font-semibold text-secondary">Return To: {returnPatient.full_name}</span></div>
-            <div><span className="font-semibold text-secondary">Address: {returnPatient.address || store?.address || 'N/A'}</span></div>
-            <div><span className="font-semibold text-secondary">Phone: {formatPhoneNumber(returnPatient.phone || store?.phone || 'N/A')}</span></div>
+            <div><span className="font-semibold text-body-2">Return To: {returnPatient.full_name}</span></div>
+            <div><span className="font-semibold text-body-2">Address: {returnPatient.address || store?.address || 'N/A'}</span></div>
+            <div><span className="font-semibold text-body-2">Phone: {formatPhoneNumber(returnPatient.phone || store?.phone || 'N/A')}</span></div>
             {isMerge ? (
               <>
-                <div><span className="font-semibold text-secondary">Existing Return Stop: Stop {existingReturn.stop_order ?? '—'}</span></div>
+                <div><span className="font-semibold text-body-2">Existing Return Stop: Stop {existingReturn.stop_order ?? '—'}</span></div>
                 <div>
-                  <span className="font-semibold text-secondary">Patients On This Return:</span>
+                  <span className="font-semibold text-body-2">Patients On This Return:</span>
                   {existingNames.length > 0
                     ? existingNames.map((name) => <p key={name} className="text-xs text-body">{name}</p>)
-                    : <p className="text-xs italic text-muted">None listed</p>}
+                    : <p className="text-xs italic text-soft">None listed</p>}
                 </div>
                 <div>
-                  <span className="font-semibold text-secondary">Adding:</span>
+                  <span className="font-semibold text-body-2">Adding:</span>
                   <p className="text-xs text-body">And: {addingName}{alreadyListed ? ' (already on this return)' : ''}</p>
                 </div>
-                <p className="text-xs italic text-muted">No new stop is created — the route is not re-optimized.</p>
+                <p className="text-xs italic text-soft">No new stop is created — the route is not re-optimized.</p>
               </>
             ) : (
               <>
-                <div><span className="font-semibold text-secondary">Delivery Date: {delivery.delivery_date}</span></div>
-                <div><span className="font-semibold text-secondary">Assigned Driver: {getDriverDisplayName(driver) || 'N/A'}</span></div>
+                <div><span className="font-semibold text-body-2">Delivery Date: {delivery.delivery_date}</span></div>
+                <div><span className="font-semibold text-body-2">Assigned Driver: {getDriverDisplayName(driver) || 'N/A'}</span></div>
                 <div>
-                  <span className="font-semibold text-secondary">Notes:</span>
+                  <span className="font-semibold text-body-2">Notes:</span>
                   <p className="text-xs text-body">PATIENT RETURN</p>
                   <p className="text-xs text-body">For: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
                 </div>
                 <div>
-                  <span className="font-semibold text-secondary">Tracking Number:</span>
-                  <p className="italic text-muted">Will be assigned when saved</p>
+                  <span className="font-semibold text-body-2">Tracking Number:</span>
+                  <p className="italic text-soft">Will be assigned when saved</p>
                 </div>
               </>
             )}

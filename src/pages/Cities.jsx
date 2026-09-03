@@ -122,7 +122,7 @@ export default function CitiesPage() {
                 </div>
 
                 {/* Search and Filter */}
-                <Card className="bg-card border-card">
+                <Card className="bg-surface border-surface">
                     <CardContent className="p-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
@@ -130,7 +130,7 @@ export default function CitiesPage() {
                                 placeholder="Search cities..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
+                                className="pl-10 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}
                             />
                         </div>
                     </CardContent>
@@ -148,16 +148,16 @@ export default function CitiesPage() {
                         {filteredCities.length === 0 ? (
                             <div className="text-center py-16">
                                 <h3 className="text-xl font-semibold" style={{ color: 'var(--text-slate-800)' }}>No cities found</h3>
-                                <p className="mt-2 text-muted">
+                                <p className="mt-2 text-soft">
                                     {searchTerm ? `Your search for "${searchTerm}" did not return any results.` : 'Click "Add City" to get started.'}
                                 </p>
                             </div>
                         ) : (
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {filteredCities.map((city) => (
-                                    <Card key={city.id} className="hover:shadow-lg transition-shadow relative bg-card border-card">
+                                    <Card key={city.id} className="hover:shadow-lg transition-shadow relative bg-surface border-surface">
                                         {city.sort_order !== undefined && (
-                                            <Badge className="absolute top-2 left-2 text-xs text-secondary" style={{ background: 'var(--bg-slate-200)' }}>
+                                            <Badge className="absolute top-2 left-2 text-xs text-body-2" style={{ background: 'var(--bg-slate-200)' }}>
                                                 {city.sort_order}
                                             </Badge>
                                         )}
@@ -169,7 +169,7 @@ export default function CitiesPage() {
                                                     </div>
                                                     <div>
                                                         <h3 className="font-bold text-lg text-body">{city.name}</h3>
-                                                        <p className="text-sm text-muted">{city.province_state}, {city.country}</p>
+                                                        <p className="text-sm text-soft">{city.province_state}, {city.country}</p>
                                                         <p className="text-xs font-mono mt-1" style={{ color: 'var(--text-slate-400)' }}>ID: {city.id}</p>
                                                     </div>
                                                 </div>

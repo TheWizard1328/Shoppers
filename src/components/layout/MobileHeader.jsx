@@ -100,12 +100,11 @@ export default function MobileHeader({
   if (!shouldShow) return null;
 
   return (
+    /* No safe-area-inset-top on the header — the .app-container already handles it.
+       Adding it here too creates a double-padding dead bar at the top. */
     <header
       data-mobile-header
-      className="mobile-header border-b sticky top-0 z-50 overflow-visible border-card" style={{ background: 'var(--bg-white)'
-        // No safe-area-inset-top here — the .app-container already handles it.
-        // Adding it here too creates a double-padding dead bar at the top. }}>
-      
+      className="mobile-header border-b sticky top-0 z-50 overflow-visible border-surface bg-surface">
       <div className="w-full min-h-[56px] flex items-center justify-between gap-2 px-4 py-2">
         {/* LEFT: Back button + Logo (+ Menu button for dispatchers) */}
         <div className="flex items-center gap-1 flex-shrink-0">

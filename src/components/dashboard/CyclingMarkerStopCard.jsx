@@ -270,7 +270,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
         </div>
 
         {/* Row 2: Marker name — matches address style: text-xs font-bold */}
-        <div className="flex-1 flex items-center justify-center text-center font-bold text-xl text-muted" style={{ lineHeight: 1.3, padding: '2px 0' }}>
+        <div className="flex-1 flex items-center justify-center text-center font-bold text-xl text-soft" style={{ lineHeight: 1.3, padding: '2px 0' }}>
           {markerName}
         </div>
 
@@ -297,7 +297,7 @@ export default function CyclingMarkerStopCard({ delivery, stopOrder, onEdit, onD
             const end = fmt(delivery?.delivery_time_end);
             if (!start && !end) return null;
             return (
-              <div className="flex items-center justify-center text-xs font-bold mb-1 text-muted">
+              <div className="flex items-center justify-center text-xs font-bold mb-1 text-soft">
                 {start && end ? `${start} → ${end}` : start ? `${start} →` : `← ${end}`}
               </div>);
 

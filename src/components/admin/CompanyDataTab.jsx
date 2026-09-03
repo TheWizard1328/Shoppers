@@ -113,7 +113,7 @@ export default function CompanyDataTab() {
       {rows.map((row) => {
         const total = statDefs.reduce((sum, s) => sum + getCount(s.key, row.id), 0);
         return (
-          <Card key={row.id} className="bg-card border-card">
+          <Card key={row.id} className="bg-surface border-surface">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base text-body">
                 <Building2 className="w-5 h-5 text-slate-500 dark:text-slate-400" />
@@ -123,7 +123,7 @@ export default function CompanyDataTab() {
                 <span className="ml-auto text-sm font-normal text-slate-500 dark:text-slate-400">{total.toLocaleString()} total records</span>
               </CardTitle>
               {row.company && (
-                <CardDescription className="text-muted">
+                <CardDescription className="text-soft">
                   {row.company.contact_email || row.company.website_url || ''}
                 </CardDescription>
               )}
@@ -133,13 +133,13 @@ export default function CompanyDataTab() {
                 {statDefs.map(({ key, label, Icon, color }) => (
                   <div
                     key={key}
-                    className="flex flex-col items-center justify-center rounded-lg border p-3 gap-1 border-card" style={{ background: 'var(--bg-slate-50)' }}
+                    className="flex flex-col items-center justify-center rounded-lg border p-3 gap-1 border-surface" style={{ background: 'var(--bg-slate-50)' }}
                   >
                     <Icon className={`w-4 h-4 ${color}`} />
                     <span className="text-xl font-bold text-body">
                       {getCount(key, row.id).toLocaleString()}
                     </span>
-                    <span className="text-xs text-center text-muted">{label}</span>
+                    <span className="text-xs text-center text-soft">{label}</span>
                   </div>
                 ))}
               </div>

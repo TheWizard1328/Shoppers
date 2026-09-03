@@ -1347,8 +1347,8 @@ export default function Patients() {
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            <Card className="mt-4 bg-card border-card">
-              <CardContent className="p-6 text-center text-muted">
+            <Card className="mt-4 bg-surface border-surface">
+              <CardContent className="p-6 text-center text-soft">
                 Please select a store to view patients from the dropdown above.
               </CardContent>
             </Card>
@@ -1371,8 +1371,8 @@ export default function Patients() {
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            <Card className="mt-4 bg-card border-card">
-              <CardContent className="p-6 text-center text-muted">No stores found for this city.</CardContent>
+            <Card className="mt-4 bg-surface border-surface">
+              <CardContent className="p-6 text-center text-soft">No stores found for this city.</CardContent>
             </Card>
           </div>
         </div>);
@@ -1395,7 +1395,7 @@ export default function Patients() {
   if (isLoading) {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-shrink-0 p-6 bg-card" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+        <div className="flex-shrink-0 p-6 bg-surface" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
           <h1 className="text-3xl font-bold text-body">Patient Database</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -1408,7 +1408,7 @@ export default function Patients() {
   if (!hasAccess) {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-shrink-0 p-6 bg-card" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+        <div className="flex-shrink-0 p-6 bg-surface" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
           <h1 className="text-3xl font-bold text-body">Patient Database</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -1422,7 +1422,7 @@ export default function Patients() {
     <div className="h-screen flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
       {/* Static Header - Only show when NOT in overview context */}
       {!inOverviewContext &&
-      <div className="flex-shrink-0 shadow-sm bg-card" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+      <div className="flex-shrink-0 shadow-sm bg-surface" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
           <div className="px-3 py-2" ref={headerRef}>
             {useCompactLayout ? (
           /* Mobile Layout */
@@ -1514,7 +1514,7 @@ export default function Patients() {
                   <div className="flex gap-2 flex-wrap">
                     {/* City Filter - MOVED FIRST */}
                     <div className="space-y-1 flex-1">
-                      <span className="text-xs font-medium text-secondary">City</span>
+                      <span className="text-xs font-medium text-body-2">City</span>
                       <Select
                     value={selectedCityId}
                     onValueChange={(cityId) => {
@@ -1536,10 +1536,10 @@ export default function Patients() {
                       }
                     }}
                     disabled={!userHasRole(currentUser, 'admin') && currentUser.city_id}>
-                        <SelectTrigger className="w-full h-9 text-body bg-card" style={{ borderColor: 'var(--menu-border)' }}>
+                        <SelectTrigger className="w-full h-9 text-body bg-surface" style={{ borderColor: 'var(--menu-border)' }}>
                           <SelectValue placeholder="City..." />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-card border-card">
+                        <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-surface border-surface">
                           {userHasRole(currentUser, 'admin') ?
                       <>
                               <SelectItem value="all">All Cities</SelectItem>
@@ -1561,7 +1561,7 @@ export default function Patients() {
                     {/* Store Filter - Hide if dispatcher with only one store */}
                     {!(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && currentUser.store_ids?.length === 1) &&
                 <div className="space-y-1 flex-1">
-                        <span className="text-xs font-medium text-secondary">Store</span>
+                        <span className="text-xs font-medium text-body-2">Store</span>
                         <Select
                     value={storeFilter}
                     onValueChange={(value) => {
@@ -1580,10 +1580,10 @@ export default function Patients() {
                       urlParams.set('store', value);
                       navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
                     }}>
-                          <SelectTrigger className="w-full h-9 text-body bg-card" style={{ borderColor: 'var(--menu-border)' }}>
+                          <SelectTrigger className="w-full h-9 text-body bg-surface" style={{ borderColor: 'var(--menu-border)' }}>
                             <SelectValue placeholder="Store..." />
                           </SelectTrigger>
-                          <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-card border-card">
+                          <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-surface border-surface">
                             <SelectItem value="all">
                               {selectedCityId === "all" ? "All Patients" : `All in ${cities.find((c) => c.id === selectedCityId)?.name || "city"}`}
                             </SelectItem>
@@ -1611,12 +1611,12 @@ export default function Patients() {
 
                     {/* Status Filter */}
                     <div className="space-y-1 flex-1">
-                      <span className="text-xs font-medium text-secondary">Status</span>
+                      <span className="text-xs font-medium text-body-2">Status</span>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full h-9 text-body bg-card" style={{ borderColor: 'var(--menu-border)' }}>
+                        <SelectTrigger className="w-full h-9 text-body bg-surface" style={{ borderColor: 'var(--menu-border)' }}>
                           <SelectValue placeholder="Status..." />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-card border-card">
+                        <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-surface border-surface">
                           <SelectItem value="all">All Statuses</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
@@ -1646,12 +1646,12 @@ export default function Patients() {
                   {/* Calendar Picker */}
                   <Popover open={isCalendarOpen} onOpenChange={(open) => { setIsCalendarOpen(open); if (open) setCalendarMonth(selectedDate instanceof Date ? selectedDate : new Date()); }}>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-10 px-3 gap-2 text-sm font-medium flex-shrink-0 text-body bg-card border-card">
+                      <Button variant="outline" size="sm" className="h-10 px-3 gap-2 text-sm font-medium flex-shrink-0 text-body bg-surface border-surface">
                         <CalendarIcon className="w-4 h-4" />
                         {selectedDate ? format(selectedDate instanceof Date ? selectedDate : new Date(selectedDate), 'EEE MMM dd') : 'Pick date'}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[1000] text-body bg-card border-card" align="start">
+                    <PopoverContent className="w-auto p-0 z-[1000] text-body bg-surface border-surface" align="start">
                       <Calendar
                         mode="single"
                         selected={selectedDate instanceof Date ? selectedDate : new Date(selectedDate)}
@@ -1659,7 +1659,7 @@ export default function Patients() {
                         month={calendarMonth}
                         onMonthChange={setCalendarMonth}
                         footer={
-                          <div className="px-3 pb-2 pt-1 border-t border-card">
+                          <div className="px-3 pb-2 pt-1 border-t border-surface">
                             <TooltipProvider><Tooltip>
                               <TooltipTrigger asChild>
                                 <button type="button" onClick={() => { setCalendarMonth(new Date()); setIsCalendarOpen(false); }}
@@ -1684,7 +1684,7 @@ export default function Patients() {
                   <div className="flex gap-2">
                     {/* City Filter - MOVED FIRST */}
                     <div className="space-y-1 w-40 flex-shrink-0">
-                      <span className="text-sm font-medium text-secondary">City</span>
+                      <span className="text-sm font-medium text-body-2">City</span>
                       <Select
                     value={selectedCityId}
                     onValueChange={(cityId) => {
@@ -1706,10 +1706,10 @@ export default function Patients() {
                       }
                     }}
                     disabled={!userHasRole(currentUser, 'admin') && currentUser.city_id}>
-                        <SelectTrigger className="w-full text-body bg-card" style={{ borderColor: 'var(--menu-border)' }}>
+                        <SelectTrigger className="w-full text-body bg-surface" style={{ borderColor: 'var(--menu-border)' }}>
                           <SelectValue placeholder="Filter by city..." />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-card border-card">
+                        <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-surface border-surface">
                           {userHasRole(currentUser, 'admin') ?
                       <>
                               <SelectItem value="all">All Cities</SelectItem>
@@ -1731,7 +1731,7 @@ export default function Patients() {
                     {/* Store Filter - Hide if dispatcher with only one store */}
                     {!(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && currentUser.store_ids?.length === 1) &&
                 <div className="space-y-1 w-40 flex-shrink-0">
-                        <span className="text-sm font-medium text-secondary">Store</span>
+                        <span className="text-sm font-medium text-body-2">Store</span>
                         <Select
                     value={storeFilter}
                     onValueChange={(value) => {
@@ -1750,10 +1750,10 @@ export default function Patients() {
                       urlParams.set('store', value);
                       navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
                     }}>
-                          <SelectTrigger className="w-full text-body bg-card" style={{ borderColor: 'var(--menu-border)' }}>
+                          <SelectTrigger className="w-full text-body bg-surface" style={{ borderColor: 'var(--menu-border)' }}>
                             <SelectValue placeholder="Filter by store..." />
                           </SelectTrigger>
-                          <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-card border-card">
+                          <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-surface border-surface">
                             <SelectItem value="all">
                               {selectedCityId === "all" ? "All Patients" : `All in ${cities.find((c) => c.id === selectedCityId)?.name || "selected city"}`}
                             </SelectItem>
@@ -1781,12 +1781,12 @@ export default function Patients() {
 
                     {/* Status Filter */}
                     <div className="space-y-1 w-40 flex-shrink-0">
-                      <span className="text-sm font-medium text-secondary">Status</span>
+                      <span className="text-sm font-medium text-body-2">Status</span>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full text-body bg-card" style={{ borderColor: 'var(--menu-border)' }}>
+                        <SelectTrigger className="w-full text-body bg-surface" style={{ borderColor: 'var(--menu-border)' }}>
                           <SelectValue placeholder="Status..." />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-card border-card">
+                        <SelectContent className="max-h-[300px] overflow-y-auto text-body bg-surface border-surface">
                           <SelectItem value="all">All Statuses</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
@@ -1803,7 +1803,7 @@ export default function Patients() {
 
       {/* Patient Database Header - Only show IN overview context */}
       {inOverviewContext &&
-      <div className="flex-shrink-0 shadow-sm bg-card" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+      <div className="flex-shrink-0 shadow-sm bg-surface" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
           <div className="p-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex-1">
@@ -1828,8 +1828,8 @@ export default function Patients() {
               <div className="flex-1 overflow-y-auto py-3 px-3">
                 <AnimatePresence>
                   {sortedAndFilteredPatients.length === 0 ?
-                <Card className="col-span-full bg-card border-card">
-                      <CardContent className="p-6 text-center text-muted">
+                <Card className="col-span-full bg-surface border-surface">
+                      <CardContent className="p-6 text-center text-soft">
                         {allPatients.length === 0 ?
                     "No patients found in your assigned stores." :
 

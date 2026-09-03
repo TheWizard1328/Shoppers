@@ -123,7 +123,7 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
   const displayedSettings = viewMode === 'cloud' ? userSettings : localUserSettings;
 
   return (
-    <Card className="bg-card border-card">
+    <Card className="bg-surface border-surface">
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-body">
           <div className="flex items-center gap-2">
@@ -139,15 +139,15 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
             <ColumnVisibilityControl config={config} visibleColumns={visibleColumns} onToggle={toggleColumn} />
           </div>
         </CardTitle>
-        <CardDescription className="text-muted">View and manage per-user, per-device settings. Toggle between Cloud (backend) and Local (IndexedDB) storage.</CardDescription>
+        <CardDescription className="text-soft">View and manage per-user, per-device settings. Toggle between Cloud (backend) and Local (IndexedDB) storage.</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <div className="flex justify-center items-center h-40"><Loader2 className="w-6 h-6 animate-spin text-emerald-500" /><span className="ml-2 text-label">Loading user settings...</span></div>
         ) : displayedSettings.length === 0 ? (
-          <div className="text-center py-8 text-muted">No {viewMode} user settings found.</div>
+          <div className="text-center py-8 text-soft">No {viewMode} user settings found.</div>
         ) : (
-          <div className="border rounded-md overflow-hidden border-card">
+          <div className="border rounded-md overflow-hidden border-surface">
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full text-sm table-fixed">
                 <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
@@ -173,7 +173,7 @@ export default function UserSettingsTable({ appUsers, mergedUsers }) {
                   }).map((setting) => {
                     const selectedDriverName = setting.selected_driver_id ? (setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id)) : '-';
                     return (
-                      <tr key={setting.id} className="border-t border-card">
+                      <tr key={setting.id} className="border-t border-surface">
                         {visibleColumns.includes('user_name') && <td className="p-3 font-medium text-body">{getUserName(setting.user_id)}</td>}
                         {visibleColumns.includes('device_type') && <td className="p-3"><Badge variant={setting.device_type === 'Mobile' ? 'default' : 'secondary'}>{setting.device_type || 'Unknown'}</Badge></td>}
                         {visibleColumns.includes('selected_driver') && <td className="p-3 text-body">{selectedDriverName}</td>}

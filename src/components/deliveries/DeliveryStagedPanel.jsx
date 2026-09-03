@@ -79,7 +79,7 @@ export function DeliveryStagedPanelDesktop({
   selectedDate
 }) {
   return (
-    <div className="px-2 py-2 rounded-lg w-[300px] self-stretch flex-shrink-0 border-2 flex flex-col h-full min-h-0 overflow-hidden border-card" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="px-2 py-2 rounded-lg w-[300px] self-stretch flex-shrink-0 border-2 flex flex-col h-full min-h-0 overflow-hidden border-surface" style={{ background: 'var(--bg-slate-50)' }}>
       <Label className="text-sm font-semibold mb-2 text-body">
         Deliveries: (S: {sortedStagedDeliveries.filter((s) => !s.id).length} P: {sortedStagedDeliveries.filter((s) => s.id).length})
       </Label>
@@ -107,7 +107,7 @@ export function DeliveryStagedPanelDesktop({
           selectedDate={selectedDate} />
         
       </div>
-      <div className="pt-2 mt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto border-card">
+      <div className="pt-2 mt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto border-surface">
         <Button
           type="button"
           variant="outline"
@@ -119,7 +119,7 @@ export function DeliveryStagedPanelDesktop({
             console.log('[DeliveryStagedPanel] Refresh Projections clicked (desktop)');
             onRefreshProjections?.();
           }}
-          style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
+          style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">
           
           {isLoadingPredictions ? 'Refreshing Projections...' : 'Refresh Projections'}
         </Button>
@@ -170,9 +170,9 @@ export function DeliveryStagedPanelMobile({
           exit={{ x: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-0 bottom-0 w-[300px] shadow-2xl flex flex-col bg-card">
+          className="absolute right-0 top-0 bottom-0 w-[300px] shadow-2xl flex flex-col bg-surface">
           
-            <div className="border-b p-4 flex items-center justify-between border-card" style={{ background: 'var(--bg-slate-50)' }}>
+            <div className="border-b p-4 flex items-center justify-between border-surface" style={{ background: 'var(--bg-slate-50)' }}>
               <h3 className="text-lg font-semibold text-body">
                 Deliveries: (S: {sortedStagedDeliveries.filter((s) => !s.id).length} P: {sortedStagedDeliveries.filter((s) => s.id).length})
               </h3>
@@ -202,7 +202,7 @@ export function DeliveryStagedPanelMobile({
               selectedDate={selectedDate} />
             
             </div>
-            <div className="mx-3 mb-2 pt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto border-card">
+            <div className="mx-3 mb-2 pt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto border-surface">
               <Button
               type="button"
               variant="outline"
@@ -214,7 +214,7 @@ export function DeliveryStagedPanelMobile({
                 console.log('[DeliveryStagedPanel] Refresh Projections clicked (mobile)');
                 onRefreshProjections?.();
               }}
-              style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
+              style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">
               
                 {isLoadingPredictions ? 'Refreshing Projections...' : 'Refresh Projections'}
               </Button>
@@ -254,7 +254,7 @@ export function DeliveryDeleteConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-[60000] bg-black/60 flex items-center justify-center p-4">
-      <div className="rounded-lg shadow-xl max-w-md w-full p-4 border bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+      <div className="rounded-lg shadow-xl max-w-md w-full p-4 border bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
         <h3 className="text-lg font-semibold mb-2 text-body">
           Delete Pending {isPickup ? 'Pickup' : 'Delivery'}?
         </h3>

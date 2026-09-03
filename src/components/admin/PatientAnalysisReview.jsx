@@ -128,7 +128,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
   return (
     <div className="space-y-4">
       {/* Header / Run Controls */}
-      <Card className="bg-card border-card">
+      <Card className="bg-surface border-surface">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between flex-wrap gap-2 text-body">
             <div className="flex items-center gap-2">
@@ -198,13 +198,13 @@ export default function PatientAnalysisReview({ stores = [] }) {
           <span className="ml-2 text-sm text-label">Loading results...</span>
         </div>
       ) : results.length === 0 ? (
-        <div className="text-center py-12 text-sm text-muted">
+        <div className="text-center py-12 text-sm text-soft">
           No analysis results found.
         </div>
       ) : (
         <div className="space-y-2">
           {results.map(result => (
-            <Card key={result.id} className="cursor-pointer hover:shadow-md transition-shadow bg-card border-card"
+            <Card key={result.id} className="cursor-pointer hover:shadow-md transition-shadow bg-surface border-surface"
               onClick={() => result.status === 'pending_review' ? setSelectedResult(result) : null}
             >
               <CardContent className="p-3">
@@ -219,7 +219,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
                         {getResultTypeBadge(result.result_type)}
                         {getStatusBadge(result.status)}
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs flex-wrap text-muted">
+                      <div className="flex items-center gap-3 mt-1 text-xs flex-wrap text-soft">
                         <span className="flex items-center gap-1">
                           <Store className="w-3 h-3" />{result.store_name}
                         </span>
@@ -276,11 +276,11 @@ export default function PatientAnalysisReview({ stores = [] }) {
             </DialogHeader>
 
             <div className="space-y-3 py-2">
-              <p className="text-sm font-medium text-secondary">
+              <p className="text-sm font-medium text-body-2">
                 Select the correct recurring pattern:
               </p>
               {(selectedResult.suggested_patterns || []).map((p, i) => (
-                <div key={i} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-card" style={{ background: i === 0 ? 'var(--bg-emerald-50)' : 'var(--bg-slate-50)' }}>
+                <div key={i} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-surface" style={{ background: i === 0 ? 'var(--bg-emerald-50)' : 'var(--bg-slate-50)' }}>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm text-body">
@@ -291,7 +291,7 @@ export default function PatientAnalysisReview({ stores = [] }) {
                       </Badge>
                       {i === 0 && <Badge className="text-xs bg-blue-100 text-blue-800">Top match</Badge>}
                     </div>
-                    <p className="text-xs mt-1 text-muted">{p.supporting_data}</p>
+                    <p className="text-xs mt-1 text-soft">{p.supporting_data}</p>
                   </div>
                   <Button
                     size="sm"

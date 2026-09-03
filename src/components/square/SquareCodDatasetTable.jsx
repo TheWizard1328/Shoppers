@@ -161,27 +161,27 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
       {expanded && (
         <div className="border-t border-slate-100 dark:border-slate-700/70 p-4 space-y-3">
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-            <div className="text-[11px] uppercase tracking-wide text-muted">Store</div>
+            <div className="text-[11px] uppercase tracking-wide text-soft">Store</div>
             <div className="mt-1 text-sm font-medium truncate text-body">{row.storeName || 'Unknown'}</div>
-            {row.subtext && <div className="mt-0.5 text-xs truncate text-muted">{row.subtext}</div>}
+            {row.subtext && <div className="mt-0.5 text-xs truncate text-soft">{row.subtext}</div>}
           </div>
           {showLocationColumn &&
             <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-              <div className="text-[11px] uppercase tracking-wide text-muted">Square Location ID</div>
-              <div className="mt-1 text-xs font-mono break-all text-secondary">
+              <div className="text-[11px] uppercase tracking-wide text-soft">Square Location ID</div>
+              <div className="mt-1 text-xs font-mono break-all text-body-2">
                 {row.locationId || '--'}
               </div>
             </div>
           }
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-            <div className="text-[11px] uppercase tracking-wide text-muted">Catalog ID</div>
-            <div className="mt-1 text-xs font-mono break-all text-secondary">
+            <div className="text-[11px] uppercase tracking-wide text-soft">Catalog ID</div>
+            <div className="mt-1 text-xs font-mono break-all text-body-2">
               {row.catalogId || '--'}
             </div>
           </div>
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-            <div className="text-[11px] uppercase tracking-wide text-muted">Transaction ID</div>
-            <div className="mt-1 text-xs font-mono break-all text-secondary">
+            <div className="text-[11px] uppercase tracking-wide text-soft">Transaction ID</div>
+            <div className="mt-1 text-xs font-mono break-all text-body-2">
               {row.transactionId ? (row.transactionId.includes(':') ? row.transactionId.split(':')[0] : row.transactionId) : '--'}
             </div>
           </div>

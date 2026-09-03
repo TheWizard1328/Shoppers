@@ -94,7 +94,7 @@ export default function DriverDetailSheet({ driver, currentUser, onClose }) {
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-sm w-full rounded-2xl p-0 overflow-hidden bg-card">
+      <DialogContent className="max-w-sm w-full rounded-2xl p-0 overflow-hidden bg-surface">
         {/* Header */}
         <DialogHeader className="px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border-slate-100)' }}>
           <div className="flex items-center gap-3">

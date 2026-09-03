@@ -213,11 +213,11 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
       className="flex h-full flex-col">
       
       <div className="flex-1 overflow-y-auto px-4 space-y-2 pb-2">
-        <div className="rounded-lg border p-3 border-card" style={{ background: "var(--bg-slate-50)" }}>
+        <div className="rounded-lg border p-3 border-surface" style={{ background: "var(--bg-slate-50)" }}>
           <p className="text-sm font-medium text-body">
             {selectedCount} stop{selectedCount === 1 ? "" : "s"} selected
           </p>
-          <p className="text-xs mt-1 text-muted">
+          <p className="text-xs mt-1 text-soft">
             Leave any field blank or set to Keep current to skip it.
           </p>
         </div>
@@ -417,8 +417,8 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
         )}
 
         {patientWindowSummary && (
-          <div className="rounded-lg border px-3 py-2 flex items-center gap-2 border-card" style={{ background: "var(--bg-slate-50)" }}>
-            <span className="text-xs font-medium text-muted">Patient preferred window:</span>
+          <div className="rounded-lg border px-3 py-2 flex items-center gap-2 border-surface" style={{ background: "var(--bg-slate-50)" }}>
+            <span className="text-xs font-medium text-soft">Patient preferred window:</span>
             <span className="text-xs font-semibold text-body">{patientWindowSummary}</span>
           </div>
         )}
@@ -447,7 +447,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
         )}
       </div>
 
-      <div className="border-t px-4 py-2 border-card">
+      <div className="border-t px-4 py-2 border-surface">
         <div className="flex items-center gap-3">
           {allPickups && (
             <label className="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
@@ -456,7 +456,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
                 onCheckedChange={(checked) => setValues(current => ({ ...current, after_hours_pickup: !!checked }))}
                 disabled={isSaving}
                 className="mt-0.5 shrink-0" />
-              <span className="text-xs font-medium leading-tight text-secondary">
+              <span className="text-xs font-medium leading-tight text-body-2">
                 After Hours
               </span>
             </label>
@@ -589,11 +589,11 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
           // redundant and shows as extra empty space under Cancel/Apply. `pb-0`
           // overrides it via tailwind-merge (cn() in drawer.jsx uses twMerge, so
           // the later pb-0 here wins over the primitive's default pb- class).
-          className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-var(--native-safe-bottom,0px)-0.75rem)] pb-0 bg-card" style={{ bottom: "calc(var(--actual-bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))" }}>
+          className="z-[11001] max-h-[calc(100dvh-var(--actual-bottom-nav-height,0px)-var(--native-safe-bottom,0px)-0.75rem)] pb-0 bg-surface" style={{ bottom: "calc(var(--actual-bottom-nav-height, 0px) + var(--native-safe-bottom, env(safe-area-inset-bottom, 0px)))" }}>
           
           <DrawerHeader style={{ paddingTop: "max(1rem, var(--native-safe-top, env(safe-area-inset-top, 0px)))" }}>
             <DrawerTitle className="text-body">Bulk Edit Stops</DrawerTitle>
-            <DrawerDescription className="text-muted">
+            <DrawerDescription className="text-soft">
               Update the basic route info for the selected stops.
             </DrawerDescription>
           </DrawerHeader>
@@ -621,11 +621,11 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       
       {/* Panel */}
       <div
-        className="relative z-[11001] flex max-h-[90vh] w-auto min-w-[380px] max-w-[520px] flex-col rounded-xl shadow-2xl bg-card">
+        className="relative z-[11001] flex max-h-[90vh] w-auto min-w-[380px] max-w-[520px] flex-col rounded-xl shadow-2xl bg-surface">
         
-        <div className="border-b px-6 py-2 border-card">
+        <div className="border-b px-6 py-2 border-surface">
           <h2 className="text-lg font-semibold text-body">Bulk Edit Stops</h2>
-          <p className="text-sm mt-0.5 text-muted">
+          <p className="text-sm mt-0.5 text-soft">
             Update the basic route info for the selected stops.
           </p>
         </div>

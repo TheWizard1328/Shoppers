@@ -52,12 +52,12 @@ export const ColumnVisibilityControl = ({ config, visibleColumns, onToggle }) =>
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 text-body bg-card border-card">
+        <Button variant="outline" size="sm" className="gap-2 text-body bg-surface border-surface">
           <Settings className="w-4 h-4" />
           Columns ({visibleColumns.length}/{config.length})
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2 bg-card border-card" align="end">
+      <PopoverContent className="w-64 p-2 bg-surface border-surface" align="end">
         <div className="space-y-2">
           <h4 className="font-semibold text-sm mb-3 px-1 text-body">Toggle Columns</h4>
           {config.map((column) => (

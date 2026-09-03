@@ -327,7 +327,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
-                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface" />
 
                         </div>
 
@@ -340,7 +340,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value.substring(0, 2).toUpperCase() })}
                 maxLength={2}
                 required
-                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface" />
 
                         </div>
 
@@ -368,7 +368,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 required
-                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface" />
 
                         </div>
                         
@@ -390,10 +390,10 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 onValueChange={(value) => setFormData({ ...formData, city_id: value })}
                 required>
 
-                                <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card">
+                                <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface">
                                     <SelectValue placeholder="Select city..." />
                                 </SelectTrigger>
-                                <SelectContent className="z-[10001] bg-card border-card" position="popper" sideOffset={4}>
+                                <SelectContent className="z-[10001] bg-surface border-surface" position="popper" sideOffset={4}>
                                     {sortedCities.map((city) =>
                   <SelectItem key={city.id} value={city.id} className="text-body">
                                             {city.name}
@@ -412,7 +412,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 value={formData.sort_order ?? ''}
                 onChange={(e) => setFormData({ ...formData, sort_order: e.target.value })}
                 placeholder="Optional"
-                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface" />
 
                         </div>
                     </div>
@@ -428,7 +428,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 value={formData.latitude ?? ''}
                 onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
                 placeholder="e.g., 49.2827"
-                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface" />
 
                         </div>
 
@@ -442,7 +442,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 value={formData.longitude ?? ''}
                 onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
                 placeholder="e.g., -123.1207"
-                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
+                style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface" />
 
                         </div>
 
@@ -451,14 +451,14 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                             <Select
                 value={formData.dispatcher_id || 'null'}
                 onValueChange={handleDispatcherSelect}>
-                                <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card">
+                                <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface">
                                     <SelectValue placeholder="Select dispatcher...">
                                         {formData.dispatcher_id ?
                     sortedUsers.find((u) => u.id === formData.dispatcher_id)?.user_name || sortedUsers.find((u) => u.id === formData.dispatcher_id)?.full_name :
                     "Select dispatcher..."}
                                     </SelectValue>
                                 </SelectTrigger>
-                                <SelectContent className="z-[10001] bg-card border-card" position="popper" sideOffset={4}>
+                                <SelectContent className="z-[10001] bg-surface border-surface" position="popper" sideOffset={4}>
                                     <SelectItem value="null" className="text-body">No Dispatcher</SelectItem>
                                     {sortedUsers.
                   filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher')).
@@ -476,10 +476,10 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                           <Select
                 value={formData.patient_scan_day !== null && formData.patient_scan_day !== undefined ? String(formData.patient_scan_day) : 'null'}
                 onValueChange={(v) => setFormData({ ...formData, patient_scan_day: v === 'null' ? null : Number(v) })}>
-                            <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card">
+                            <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface">
                               <SelectValue placeholder="No scan day" />
                             </SelectTrigger>
-                            <SelectContent className="z-[10001] bg-card" position="popper" sideOffset={4}>
+                            <SelectContent className="z-[10001] bg-surface" position="popper" sideOffset={4}>
                               <SelectItem value="null">No Scan</SelectItem>
                               <SelectItem value="0">Sunday</SelectItem>
                               <SelectItem value="1">Monday</SelectItem>
@@ -502,14 +502,14 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                           <Select
                 value={formData.square_location_config_id || 'null'}
                 onValueChange={(value) => setFormData({ ...formData, square_location_config_id: value === 'null' ? null : value })}>
-                            <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card">
+                            <SelectTrigger style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface">
                               <SelectValue placeholder="Select Square location...">
                                 {formData.square_location_config_id ?
                     squareLocationConfigs.find((c) => c.id === formData.square_location_config_id)?.name :
                     "None"}
                               </SelectValue>
                             </SelectTrigger>
-                            <SelectContent className="z-[10001] bg-card border-card" position="popper" sideOffset={4}>
+                            <SelectContent className="z-[10001] bg-surface border-surface" position="popper" sideOffset={4}>
                               <SelectItem value="null" className="text-body">No Square location</SelectItem>
                               {squareLocationConfigs.map((config) =>
                   <SelectItem key={config.id} value={config.id} className="text-body">
@@ -539,7 +539,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                         {/* App Fee History List */}
                         {formData.app_fee_history && formData.app_fee_history.length > 0 &&
-            <div className="border rounded-lg p-3 space-y-2 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+            <div className="border rounded-lg p-3 space-y-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                                 <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Fee Payment History:</p>
                                 {formData.app_fee_history.
               slice().
@@ -555,7 +555,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                       updated[idx] = { ...entry, effective_date: e.target.value };
                       setFormData({ ...formData, app_fee_history: updated });
                     }}
-                    className="w-36 h-8 text-xs bg-card" style={{ borderColor: 'var(--menu-border)' }} />
+                    className="w-36 h-8 text-xs bg-surface" style={{ borderColor: 'var(--menu-border)' }} />
                   
                                                 <Select
                     value={entry.pays_app_fees ? 'true' : 'false'}
@@ -564,7 +564,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                       updated[idx] = { ...entry, pays_app_fees: value === 'true' };
                       setFormData({ ...formData, app_fee_history: updated });
                     }}>
-                                                    <SelectTrigger className="w-32 h-8 bg-card" style={{ borderColor: 'var(--menu-border)' }}>
+                                                    <SelectTrigger className="w-32 h-8 bg-surface" style={{ borderColor: 'var(--menu-border)' }}>
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent className="z-[10001]">
@@ -622,7 +622,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                     </h3>
 
                     {/* Table Header */}
-                    <div className="grid grid-cols-7 gap-2 text-sm font-semibold pb-1 text-secondary" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+                    <div className="grid grid-cols-7 gap-2 text-sm font-semibold pb-1 text-body-2" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
                         <div className="col-span-1">Day</div>
                         <div className="col-span-3 text-center">AM Shift</div>
                         <div className="col-span-3 text-center">PM Shift</div>
@@ -630,7 +630,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                     {/* Weekdays Row */}
                     <div className="grid grid-cols-7 gap-2 items-start" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
-                        <div className="col-span-1 font-medium pt-2 text-secondary">
+                        <div className="col-span-1 font-medium pt-2 text-body-2">
                             Mon-Fri
                         </div>
                         
@@ -653,14 +653,14 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                   value={formData.weekday_am_driver_id || 'null'}
                   onValueChange={(value) => handleDriverSelect(value, "weekday_am")}>
 
-                                        <SelectTrigger className="h-9 text-body bg-card" style={{ borderColor: 'var(--menu-border)' }}>
+                                        <SelectTrigger className="h-9 text-body bg-surface" style={{ borderColor: 'var(--menu-border)' }}>
                                             <SelectValue placeholder="Select driver...">
                                                 {formData.weekday_am_driver_id ?
                       sortedDrivers.find((d) => d.id === formData.weekday_am_driver_id)?.user_name || sortedDrivers.find((d) => d.id === formData.weekday_am_driver_id)?.full_name :
                       "Select driver..."}
                                             </SelectValue>
                                         </SelectTrigger>
-                                        <SelectContent className="z-[10001] bg-card border-card" position="popper" sideOffset={4}>
+                                        <SelectContent className="z-[10001] bg-surface border-surface" position="popper" sideOffset={4}>
                                             <SelectItem value="null" className="text-body">No Driver</SelectItem>
                                             {sortedDrivers.map((driver) =>
                     <SelectItem key={driver.id} value={driver.id} className="text-body">
@@ -677,7 +677,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                     onChange={(e) => setFormData({ ...formData, weekday_am_start: e.target.value })}
                     className="h-9 text-xs"
                     placeholder="Start"
-                    style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
+                    style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface" />
 
                                         <Input
                     type="time"
@@ -685,7 +685,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                     onChange={(e) => setFormData({ ...formData, weekday_am_end: e.target.value })}
                     className="h-9 text-xs"
                     placeholder="End"
-                    style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-card" />
+                    style={{ borderColor: 'var(--menu-border)' }} className="text-body bg-surface" />
 
                                     </div>
                                 </>
@@ -751,7 +751,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                     {/* Saturday Row */}
                     <div className="grid grid-cols-7 gap-2 items-start" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
-                        <div className="col-span-1 font-medium pt-2 text-secondary">
+                        <div className="col-span-1 font-medium pt-2 text-body-2">
                             Saturday
                         </div>
                         
@@ -870,7 +870,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                     {/* Sunday Row */}
                     <div className="grid grid-cols-7 gap-2 items-start">
-                        <div className="col-span-1 font-medium pt-2 text-secondary">
+                        <div className="col-span-1 font-medium pt-2 text-body-2">
                             Sunday
                         </div>
                         
@@ -990,7 +990,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                 {/* Form Actions */}
                 <div className="flex justify-end gap-3 py-4" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
-                    <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
+                    <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">
                         Cancel
                     </Button>
                     <Button

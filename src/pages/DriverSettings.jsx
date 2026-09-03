@@ -273,13 +273,13 @@ export default function DriverSettings() {
           value={selectedCityId}
           onValueChange={(cityId) => globalFilters.setSelectedCityId(cityId)}>
           
-            <SelectTrigger className="w-[150px] h-10 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+            <SelectTrigger className="w-[150px] h-10 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
                 <SelectValue placeholder="City" />
               </div>
             </SelectTrigger>
-            <SelectContent className="bg-card border-card">
+            <SelectContent className="bg-surface border-surface">
               {sortedCities.map((city) =>
             <SelectItem key={city.id} value={city.id} className="text-body">
                   {city.name}
@@ -301,8 +301,8 @@ export default function DriverSettings() {
         return (
           <div className={`grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(275px,1fr))] ${isAdmin ? '[grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]' : ""}`}>
             {filteredDrivers.length === 0 ?
-            <Card className="col-span-full bg-card border-card">
-                <CardContent className="py-8 text-center text-muted">
+            <Card className="col-span-full bg-surface border-surface">
+                <CardContent className="py-8 text-center text-soft">
                   {searchQuery ? 'No drivers match your search' : 'No drivers found'}
                 </CardContent>
               </Card> :
@@ -336,7 +336,7 @@ export default function DriverSettings() {
                   <Card
                     key={driver.id}
                     onClick={() => setSelectedDriver(driver)}
-                    className="rounded-xl border shadow hover:shadow-md transition-shadow cursor-pointer active:opacity-70 bg-card border-card">
+                    className="rounded-xl border shadow hover:shadow-md transition-shadow cursor-pointer active:opacity-70 bg-surface border-surface">
                     
                     <CardContent className="p-3">
                       {/* 3-column grid: Avatar | Name+Phone | Badges */}
@@ -359,7 +359,7 @@ export default function DriverSettings() {
                         </div>
 
                         {/* Col 2 Row 2: Phone (non-tappable) */}
-                        <div className="flex items-center gap-1 text-xs text-muted">
+                        <div className="flex items-center gap-1 text-xs text-soft">
                           {driver.phone ?
                           <>
                               <Phone className="w-3 h-3 flex-shrink-0" />
@@ -396,7 +396,7 @@ export default function DriverSettings() {
 
               // Full card for admins
               return (
-                <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full w-full bg-card border-card">
+                <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full w-full bg-surface border-surface">
                   <CardContent className="h-full px-2 py-2">
                     <div className="flex items-start h-full gap-2">
                       {/* Avatar */}
@@ -455,7 +455,7 @@ export default function DriverSettings() {
 
                         {/* Pay rates display - admins only */}
                         {(latestAppUser?.pay_cycle_type || latestAppUser?.pay_rate_per_delivery > 0) &&
-                        <div className="flex items-center gap-1.5 mt-1.5 text-xs flex-wrap text-muted">
+                        <div className="flex items-center gap-1.5 mt-1.5 text-xs flex-wrap text-soft">
                             {latestAppUser?.pay_cycle_type &&
                           <span className="capitalize">{latestAppUser.pay_cycle_type === 'biweekly' ? 'Bi-Weekly' : latestAppUser.pay_cycle_type === 'semimonthly' ? 'Semi-Monthly' : latestAppUser.pay_cycle_type}</span>
                           }
@@ -466,7 +466,7 @@ export default function DriverSettings() {
                           </div>
                         }
                         {(latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0 || latestAppUser?.oversized_item_rate > 0) &&
-                        <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap text-muted">
+                        <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap text-soft">
                             {latestAppUser?.extra_km_rate > 0 && <span>${Number(latestAppUser.extra_km_rate).toFixed(2)}/km</span>}
                             {latestAppUser?.extra_km_rate > 0 && latestAppUser?.extra_km_limit > 0 && <span>•</span>}
                             {latestAppUser?.extra_km_limit > 0 && <span>{Number(latestAppUser.extra_km_limit).toFixed(2)}km limit</span>}
@@ -496,7 +496,7 @@ export default function DriverSettings() {
                                 {deductions.map((d, i) => {
                                   const isActive = active.includes(d);
                                   return (
-                                    <div key={i} className={flex items-center gap-1.5 text-[11px] ${isActive ? '' : 'opacity-50 line-through'} text-muted}>
+                                    <div key={i} className={`flex items-center gap-1.5 text-[11px] ${isActive ? '' : 'opacity-50 line-through'} text-soft`}>
                                       <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
                                       <span className="truncate">{d.name}: ${Number(d.amount || 0).toFixed(2)}</span>
                                       {(() => {

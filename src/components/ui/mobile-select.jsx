@@ -69,11 +69,11 @@ export function MobileSelect({
                 <button
                   key={itemValue || index}
                   onClick={() => handleSelect(itemValue)}
-                  className={w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors text-left select-none ${
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors text-left select-none ${
                     isSelected 
                       ? 'bg-emerald-50 border border-emerald-200' 
                       : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 border border-transparent'
-                  } text-body}
+                  } text-body`}
                 >
                   <span>{itemLabel}</span>
                   {isSelected && <Check className="w-5 h-5 text-emerald-600" />}

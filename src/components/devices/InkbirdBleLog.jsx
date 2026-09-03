@@ -81,11 +81,11 @@ export default function InkbirdBleLog() {
   };
 
   return (
-    <Card className="bg-card border-card">
+    <Card className="bg-surface border-surface">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle
-            className="text-base font-semibold flex items-center gap-2 cursor-pointer select-none text-secondary"
+            className="text-base font-semibold flex items-center gap-2 cursor-pointer select-none text-body-2"
             onClick={() => setExpanded(v => !v)}
           >
             <Bluetooth className="w-4 h-4 text-blue-500" />
@@ -109,8 +109,8 @@ export default function InkbirdBleLog() {
       {expanded && (
         <CardContent className="space-y-3 pt-0">
           {/* Environment snapshot */}
-          <div className="rounded-lg border p-3 space-y-1 text-xs border-card" style={{ background: 'var(--bg-slate-50)' }}>
-            <p className="font-semibold mb-1 text-secondary">BLE Environment</p>
+          <div className="rounded-lg border p-3 space-y-1 text-xs border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+            <p className="font-semibold mb-1 text-body-2">BLE Environment</p>
             {[
               ['Web Bluetooth API', bleInfo.hasBluetooth],
               ['getDevices() available', bleInfo.hasGetDevices],

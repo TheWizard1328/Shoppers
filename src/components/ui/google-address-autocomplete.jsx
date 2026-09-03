@@ -351,7 +351,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       
       {/* Dropdown for suggestions */}
       {open && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-[10050] max-h-60 overflow-auto bg-card border-card" style={{ border: '1px solid var(--border-slate-200)' }}>
+        <div className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-[10050] max-h-60 overflow-auto bg-surface border-surface" style={{ border: '1px solid var(--border-slate-200)' }}>
           {suggestions.map((prediction, index) => (
             <button
               key={prediction.place_id}
@@ -380,15 +380,15 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
                 e.stopPropagation();
                 handleSelectAddress(prediction);
               }}
-              className={w-full px-3 py-2 text-left text-sm flex items-start gap-2 last:border-b-0 transition-colors text-body} style={{ background: index === selectedIndex ? 'var(--bg-slate-200)' : 'var(--bg-white)', borderBottom: '1px solid var(--border-slate-200)' }}
+              className={`w-full px-3 py-2 text-left text-sm flex items-start gap-2 last:border-b-0 transition-colors text-body`} style={{ background: index === selectedIndex ? 'var(--bg-slate-200)' : 'var(--bg-white)', borderBottom: '1px solid var(--border-slate-200)' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-slate-100)'}
               onMouseLeave={(e) => e.currentTarget.style.background = index === selectedIndex ? 'var(--bg-slate-200)' : 'var(--bg-white)'}
             >
-              <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted" />
+              <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-soft" />
               <div className="flex-1 flex items-center justify-between gap-2">
                 <span>{prediction.description}</span>
                 {prediction.distance !== null && (
-                  <span className="text-xs text-muted">
+                  <span className="text-xs text-soft">
                     {prediction.distance.toFixed(1)} km
                   </span>
                 )}

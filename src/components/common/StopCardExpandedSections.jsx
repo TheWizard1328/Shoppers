@@ -142,8 +142,8 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
       <div className="flex items-start gap-2">
         <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-base font-semibold mb-0.5 text-secondary">Patient Notes:</p>
-          <div className="text-base rounded px-2 py-1.5 text-label border-card" style={{ background: 'var(--bg-slate-50)', borderWidth: '1px' }}>
+          <p className="text-base font-semibold mb-0.5 text-body-2">Patient Notes:</p>
+          <div className="text-base rounded px-2 py-1.5 text-label border-surface" style={{ background: 'var(--bg-slate-50)', borderWidth: '1px' }}>
             <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
         <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <p className="text-base font-semibold mb-0.5 text-secondary">Patient Info:</p>
+            <p className="text-base font-semibold mb-0.5 text-body-2">Patient Info:</p>
             <TravelModeButton
               currentUser={currentUser}
               appUsers={appUsers}
@@ -167,7 +167,7 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
             
           </div>
           {(patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
-          <div className="text-base rounded px-2 py-1.5 space-y-1 text-label border-card" style={{ background: 'var(--bg-slate-50)', borderWidth: '1px' }}>
+          <div className="text-base rounded px-2 py-1.5 space-y-1 text-label border-surface" style={{ background: 'var(--bg-slate-50)', borderWidth: '1px' }}>
               {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) &&
             <div className="flex flex-wrap gap-1">
                   {patient.mailbox_ok && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 dark:bg-blue-950 border-blue-200 text-blue-700">Mailbox OK</Badge>}
@@ -234,9 +234,9 @@ export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, de
   if (isFinishedDelivery || !isPickup || (delivery.status !== 'en_route' && delivery.status !== 'in_transit') || !pendingPickups || pendingPickups.length === 0) return null;
 
   return (
-    <div className="pt-1 border-t border-card">
+    <div className="pt-1 border-t border-surface">
       <div className="mb-1 flex items-center justify-between">
-         <h4 className="text-base font-bold flex items-center gap-2 text-secondary">
+         <h4 className="text-base font-bold flex items-center gap-2 text-body-2">
           <Package className="w-3.5 h-3.5" />
           Pending Pickup List ({pendingPickups.length})
           <HelpTooltip title={HELP_CONTENT.pendingPickups.title} content={HELP_CONTENT.pendingPickups.content} size="sm" />
@@ -267,7 +267,7 @@ export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, de
           const deliveryId = projectedDelivery.id || `projected-${delivery.id}-${idx}`;
           const projPatient = patients.find((p) => p?.id === projectedDelivery.patient_id || p?.patient_id === projectedDelivery.patient_id);
           return (
-            <div key={deliveryId} className="flex items-center justify-between gap-1 border px-2.5 py-1.0 rounded-md cursor-pointer transition-colors bg-card border-card" onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-50)';}} onMouseLeave={(e) => {e.currentTarget.style.background = 'var(--bg-white)';}} onClick={(e) => {e.stopPropagation();if (onEdit && projectedDelivery.id) onEdit(projectedDelivery);}}>
+            <div key={deliveryId} className="flex items-center justify-between gap-1 border px-2.5 py-1.0 rounded-md cursor-pointer transition-colors bg-surface border-surface" onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-50)';}} onMouseLeave={(e) => {e.currentTarget.style.background = 'var(--bg-white)';}} onClick={(e) => {e.stopPropagation();if (onEdit && projectedDelivery.id) onEdit(projectedDelivery);}}>
               <span className="text-base font-medium truncate flex-1 text-body">
                 {projPatient?.full_name || projectedDelivery.patient_name || 'Unknown Patient'}
               </span>
@@ -299,7 +299,7 @@ export function StopCardNotesSection({ lastDeliveryBadgeDate, notesInput, setNot
   return (
     <div className="space-y-1 mt-2">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-base font-medium flex items-center gap-1 text-secondary">Driver Notes</Label>
+        <Label className="text-base font-medium flex items-center gap-1 text-body-2">Driver Notes</Label>
         {lastDeliveryBadgeDate &&
         <Badge variant="outline" className="text-[11px] px-2 py-1 h-auto bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold whitespace-nowrap">
             LD: {format(parseISO(`${lastDeliveryBadgeDate}T00:00:00`), 'MMM dd, yy')}
@@ -319,7 +319,7 @@ export function StopCardNotesSection({ lastDeliveryBadgeDate, notesInput, setNot
           onKeyDown={handleNotesKeyDown}
           onClick={(e) => e.stopPropagation()}
           placeholder=""
-          className="text-base resize-none h-24 bg-card border-card" style={{ color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)', fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal' }} />
+          className="text-base resize-none h-24 bg-surface border-surface" style={{ color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)', fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal' }} />
       )}
     </div>);
 }

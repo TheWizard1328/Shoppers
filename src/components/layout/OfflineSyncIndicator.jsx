@@ -277,10 +277,10 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
         <div className="flex items-center gap-2">
           {getStatusIcon()}
           <div>
-            <span className="text-xs font-medium text-secondary">
+            <span className="text-xs font-medium text-body-2">
               {isSyncing ? 'Syncing...' : 'Offline DB'}
             </span>
-            <span className="text-xs text-muted">
+            <span className="text-xs text-soft">
               ({totalRecords})
             </span>
             <div className="text-[10px] font-mono" style={{ color: 'var(--text-slate-400)' }}>
@@ -313,9 +313,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                     <div className="flex-1">
                       <div className="flex items-center gap-1 mb-1">
                         <span>{getEntityIcon('appUsers')}</span>
-                        <span className="font-medium text-secondary">Users</span>
+                        <span className="font-medium text-body-2">Users</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px] text-muted">
+                      <div className="flex items-center gap-1 text-[10px] text-soft">
                         <Clock className="w-3 h-3" />
                         <span>{formatLastSync(cachedLastSync.appUsers)}</span>
                       </div>
@@ -331,9 +331,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                       <div className="flex-1">
                         <div className="flex items-center gap-1 mb-1">
                           <span>{getEntityIcon('cities')}</span>
-                          <span className="font-medium text-secondary">Cities</span>
+                          <span className="font-medium text-body-2">Cities</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[10px] text-muted">
+                        <div className="flex items-center gap-1 text-[10px] text-soft">
                           <Clock className="w-3 h-3" />
                           <span>{formatLastSync(cachedLastSync.cities)}</span>
                         </div>
@@ -349,9 +349,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                     <div className="flex-1">
                       <div className="flex items-center gap-1 mb-1">
                         <span>{getEntityIcon('patients')}</span>
-                        <span className="font-medium text-secondary">Patients</span>
+                        <span className="font-medium text-body-2">Patients</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px] text-muted">
+                      <div className="flex items-center gap-1 text-[10px] text-soft">
                         <Clock className="w-3 h-3" />
                         <span>{formatLastSync(cachedLastSync.patients)}</span>
                       </div>
@@ -366,9 +366,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                     <div className="flex-1">
                       <div className="flex items-center gap-1 mb-1">
                         <span>{getEntityIcon('deliveries')}</span>
-                        <span className="font-medium text-secondary">Deliveries / Stats</span>
+                        <span className="font-medium text-body-2">Deliveries / Stats</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px] text-muted">
+                      <div className="flex items-center gap-1 text-[10px] text-soft">
                         <Clock className="w-3 h-3" />
                         <span>{formatLastSync(cachedLastSync.deliveries)}</span>
                       </div>
@@ -384,9 +384,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
                       <div className="flex-1">
                         <div className="flex items-center gap-1 mb-1">
                           <span>{getEntityIcon('squareTransactions')}</span>
-                          <span className="font-medium text-secondary">Square TX</span>
+                          <span className="font-medium text-body-2">Square TX</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[10px] text-muted">
+                        <div className="flex items-center gap-1 text-[10px] text-soft">
                           <Clock className="w-3 h-3" />
                           <span>{formatLastSync(cachedLastSync.squareTransactions)}</span>
                         </div>
@@ -429,7 +429,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false,
  disabled={isSyncing}
  size="sm"
  variant="outline"
- className="w-full text-xs font-medium text-body bg-card"
+ className="w-full text-xs font-medium text-body bg-surface"
  data-offline-sync-button
  style={{ borderColor: 'var(--border-slate-300)' }}>
                 <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />

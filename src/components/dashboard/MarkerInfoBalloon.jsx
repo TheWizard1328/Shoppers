@@ -100,7 +100,7 @@ export default function MarkerInfoBalloon({
       </div>
       {/* Row 2b: ISP/ISD address */}
       {isISPOrISD && ispLoc?.store_address && (
-        <div className="flex items-center gap-1.5 text-[11px] text-muted">
+        <div className="flex items-center gap-1.5 text-[11px] text-soft">
           <MapPin className="w-3.5 h-3.5 flex-shrink-0 opacity-0" />
           <span className="truncate">{ispLoc.store_address}</span>
         </div>
@@ -110,7 +110,7 @@ export default function MarkerInfoBalloon({
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <div className="flex min-w-0 items-center gap-1.5 text-body">
           <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="shrink-0 font-medium text-muted" style={{ fontFamily: 'Courier New, monospace' }}>#{stopNumber}</span>
+          <span className="shrink-0 font-medium text-soft" style={{ fontFamily: 'Courier New, monospace' }}>#{stopNumber}</span>
           {onPatientClick && !isPickup ? (
             <button
               onClick={(event) => { event.stopPropagation(); onPatientClick(); }}
@@ -129,7 +129,7 @@ export default function MarkerInfoBalloon({
       </div>
 
       {extraContent ? (
-        <div className="border-t pt-1.5 mt-1.5 border-card">
+        <div className="border-t pt-1.5 mt-1.5 border-surface">
           {extraContent}
         </div>
       ) : null}

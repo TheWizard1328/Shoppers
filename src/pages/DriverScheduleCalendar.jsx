@@ -231,7 +231,7 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
   const cardContent = isLocked ?
   <div className="grid items-center gap-0.5 w-full" style={{ gridTemplateColumns: '28px 28px 1fr 30px 16px' }}>
       <span
-      className="text-[10px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden bg-card" style={{ color: storeColor, border: `1px solid ${storeColor}` }}>
+      className="text-[10px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden bg-surface" style={{ color: storeColor, border: `1px solid ${storeColor}` }}>
         <span className="truncate px-0.5">{storeLabel}</span>
       </span>
       <span
@@ -243,18 +243,18 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
         {firstStop && lastStop ?
       <>
             <Clock className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
-            <span className="text-[10px] text-muted">
+            <span className="text-[10px] text-soft">
               {fmtTime(firstStop.arrival_time || firstStop.actual_delivery_time)}–{fmtTime(lastStop.actual_delivery_time)}
             </span>
           </> :
       timeWindow ?
       <>
             <Clock className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
-            <span className="text-[10px] text-muted">{timeWindow}</span>
+            <span className="text-[10px] text-soft">{timeWindow}</span>
           </> :
       null}
       </div>
-      <span className={text-[10px] font-semibold rounded-full leading-4 h-[18px] w-[30px] inline-flex items-center justify-center flex-shrink-0 ${totalDeliveries > 0 ? '' : 'invisible'} text-label} style={{ background: 'var(--bg-slate-200)' }}>
+      <span className={`text-[10px] font-semibold rounded-full leading-4 h-[18px] w-[30px] inline-flex items-center justify-center flex-shrink-0 ${totalDeliveries > 0 ? '' : 'invisible'} text-label`} style={{ background: 'var(--bg-slate-200)' }}>
         {totalDeliveries}
       </span>
       <span className="inline-flex items-center justify-center w-[14px]">
@@ -275,7 +275,7 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
 
   <div className="grid w-full items-center gap-0.5" style={{ gridTemplateColumns: '28px 28px 1fr 30px 16px' }}>
       <span
-      className="text-[10px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden bg-card" style={{ color: storeColor, border: `1px solid ${storeColor}` }}>
+      className="text-[10px] font-bold rounded-full leading-4 inline-flex items-center justify-center w-[26px] h-4 overflow-hidden bg-surface" style={{ color: storeColor, border: `1px solid ${storeColor}` }}>
         <span className="truncate px-0.5">{storeLabel}</span>
       </span>
       <span
@@ -287,18 +287,18 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
         {firstStop ?
       <>
             <Clock className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
-            <span className="text-[10px] truncate text-muted">
+            <span className="text-[10px] truncate text-soft">
               {fmtTime(firstStop.arrival_time || firstStop.actual_delivery_time)}–{fmtTime(lastStop.actual_delivery_time)}
             </span>
           </> :
       timeWindow ?
       <>
             <Clock className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
-            <span className="text-[10px] truncate text-muted">{timeWindow}</span>
+            <span className="text-[10px] truncate text-soft">{timeWindow}</span>
           </> :
       null}
       </div>
-      <span className={text-[10px] font-semibold rounded-full leading-4 h-[18px] w-[30px] inline-flex items-center justify-center ${totalDeliveries > 0 ? '' : 'invisible'} text-label} style={{ background: 'var(--bg-slate-200)' }}>
+      <span className={`text-[10px] font-semibold rounded-full leading-4 h-[18px] w-[30px] inline-flex items-center justify-center ${totalDeliveries > 0 ? '' : 'invisible'} text-label`} style={{ background: 'var(--bg-slate-200)' }}>
         {slotDeliveries.filter((d) => d.status === 'completed').length}/{totalDeliveries}
       </span>
       <span className="inline-flex items-center justify-center w-[14px]">
@@ -324,7 +324,7 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
         <PopoverContent className="w-52 p-1" align="start">
           {!isAdmin && isBookedOff ?
           <>
-              <div className="text-[10px] font-semibold px-2 py-1 text-muted">Claim this slot</div>
+              <div className="text-[10px] font-semibold px-2 py-1 text-soft">Claim this slot</div>
               <button
               className="w-full text-left text-xs px-2 py-1.5 rounded bg-green-100 hover:bg-green-200 text-green-800 font-semibold"
               onClick={() => {onDriverChange(date, slotKey, store, currentUser?.id);setOpen(false);}}>
@@ -332,7 +332,7 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
               </button>
             </> :
           <>
-              <div className="text-[10px] font-semibold px-2 py-1 text-muted">Assign driver</div>
+              <div className="text-[10px] font-semibold px-2 py-1 text-soft">Assign driver</div>
               {defaultDriverId &&
             <button
               className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent text-label"
@@ -342,7 +342,7 @@ const DriverSlotCell = React.memo(function DriverSlotCell({
             }
               {!isBookedOff &&
             <button
-              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent text-muted"
+              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent text-soft"
               onClick={() => {onDriverChange(date, slotKey, store, '__none__');setOpen(false);}}>
                   — Book Off —
                 </button>
@@ -754,7 +754,7 @@ export default function DriverScheduleCalendar() {
   if (loading) {
     return (
       <div className="flex flex-col h-full">
-        <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between border-b border-card">
+        <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between border-b border-surface">
           <div className="h-7 w-40 rounded animate-pulse" style={{ background: 'var(--bg-slate-200)' }} />
           <div className="flex gap-2">
             <div className="h-9 w-9 rounded animate-pulse" style={{ background: 'var(--bg-slate-200)' }} />
@@ -762,13 +762,13 @@ export default function DriverScheduleCalendar() {
             <div className="h-9 w-9 rounded animate-pulse" style={{ background: 'var(--bg-slate-200)' }} />
           </div>
         </div>
-        <div className="flex-shrink-0 px-4 py-1.5 flex gap-3 border-b border-card">
+        <div className="flex-shrink-0 px-4 py-1.5 flex gap-3 border-b border-surface">
           {[1,2,3,4].map((i) => <div key={i} className="h-3 w-20 rounded animate-pulse" style={{ background: 'var(--bg-slate-100)' }} />)}
         </div>
         <div className="flex-1 p-3 overflow-hidden">
           <div className={`grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-7'}`}>
             {Array.from({ length: isMobile ? 5 : 35 }).map((_, i) => (
-              <div key={i} className="rounded-xl border p-2 border-card" style={{ minHeight: 90 }}>
+              <div key={i} className="rounded-xl border p-2 border-surface" style={{ minHeight: 90 }}>
                 <div className="h-4 w-8 rounded animate-pulse mb-2" style={{ background: 'var(--bg-slate-100)' }} />
                 <div className="space-y-1.5">
                   <div className="h-6 rounded animate-pulse" style={{ background: 'var(--bg-slate-50)' }} />
@@ -788,7 +788,7 @@ export default function DriverScheduleCalendar() {
       onDragEnd={() => setDragItem(null)}>
 
       {/* Header */}
-      <div className="flex-shrink-0 border-b bg-card border-card">
+      <div className="flex-shrink-0 border-b bg-surface border-surface">
         <div className="px-4 pt-3 pb-2 flex items-center gap-2">
           <Calendar className="w-5 h-5 flex-shrink-0 text-label" />
           <h1 className="text-lg font-bold text-body">Driver Scheduling Calendar</h1>
@@ -819,7 +819,7 @@ export default function DriverScheduleCalendar() {
             <Button variant="outline" size="icon" className={isMobile ? 'h-8 w-8' : ''} onClick={() => setMonthDate((m) => viewMode === 'week' ? subDays(m, 7) : subMonths(m, 1))}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className={font-semibold text-center ${isMobile ? 'text-xs px-1 min-w-[100px]' : 'text-sm px-3 min-w-[140px]'} text-body}>
+            <span className={`font-semibold text-center ${isMobile ? 'text-xs px-1 min-w-[100px]' : 'text-sm px-3 min-w-[140px]'} text-body`}>
               {viewMode === 'week' ? format(monthDate, 'MMM d') : (isMobile ? format(monthDate, 'MMM yyyy') : format(monthDate, 'MMMM yyyy'))}
             </span>
             <Button variant="outline" size="icon" className={isMobile ? 'h-8 w-8' : ''} onClick={() => setMonthDate((m) => viewMode === 'week' ? addDays(m, 7) : addMonths(m, 1))}>
@@ -840,7 +840,7 @@ export default function DriverScheduleCalendar() {
       </div>
 
       {/* Legend */}
-      <div className="flex-shrink-0 sticky top-0 z-10 px-4 py-1.5 flex flex-wrap items-center gap-3 border-b text-muted bg-card border-card">
+      <div className="flex-shrink-0 sticky top-0 z-10 px-4 py-1.5 flex flex-wrap items-center gap-3 border-b text-soft bg-surface border-surface">
         <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-green-100 border border-green-400 inline-block" /> Scheduled</span>
         <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-indigo-100 border border-indigo-400 inline-block" /> Transferred deliveries</span>
         <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-amber-300 inline-block" /> Reassigned</span>
@@ -945,7 +945,7 @@ export default function DriverScheduleCalendar() {
               <div
                 key={dateStr}
                 ref={today ? todayRef : null}
-                className={rounded-xl border flex flex-col ${today ? 'border-blue-500 shadow-lg ring-2 ring-blue-200' : past ? 'border-slate-200 dark:border-slate-700 opacity-55' : 'border-green-300'} bg-card} style={{ minHeight: 90, transition: 'opacity 200ms ease' }}>
+                className={`rounded-xl border flex flex-col ${today ? 'border-blue-500 shadow-lg ring-2 ring-blue-200' : past ? 'border-slate-200 dark:border-slate-700 opacity-55' : 'border-green-300'} bg-surface`} style={{ minHeight: 90, transition: 'opacity 200ms ease' }}>
 
                 <div className={`rounded-t-xl flex items-center px-5`}
                 style={{
@@ -1195,14 +1195,14 @@ const MobileDriverGroup = React.memo(function MobileDriverGroup({ driverId, driv
     </div>;
 
   return (
-    <div className="rounded-lg overflow-hidden bg-card" style={{ border: `1.5px solid ${driverColor}55` }}>
+    <div className="rounded-lg overflow-hidden bg-surface" style={{ border: `1.5px solid ${driverColor}55` }}>
       {canBookOff ?
       <Popover open={bookOffOpen} onOpenChange={setBookOffOpen}>
           <PopoverTrigger asChild>
             <div className="cursor-pointer">{header}</div>
           </PopoverTrigger>
           <PopoverContent className="w-44 p-1" align="end">
-            <div className="text-[10px] font-semibold px-2 py-1 text-muted">
+            <div className="text-[10px] font-semibold px-2 py-1 text-soft">
               {format(date, 'EEE, MMM d')}
             </div>
             <button
@@ -1379,7 +1379,7 @@ const DriverGroupDraggable = React.memo(function DriverGroupDraggable({ driverId
               </div>
             </PopoverTrigger>
             <PopoverContent className="w-44 p-1" align="end">
-              <div className="text-[10px] font-semibold px-2 py-1 text-muted">
+              <div className="text-[10px] font-semibold px-2 py-1 text-soft">
                 {format(date, 'EEE, MMM d')}
               </div>
               <button
@@ -1551,7 +1551,7 @@ function UnassignedGroupHeader({ noDriverEntries, date, isAdmin, drivers, onDriv
         <div className="cursor-pointer">{header}</div>
       </PopoverTrigger>
       <PopoverContent className="w-48 p-1" align="start">
-        <div className="text-[10px] font-semibold px-2 py-1 text-muted">
+        <div className="text-[10px] font-semibold px-2 py-1 text-soft">
           {isAdmin ? 'Assign all to driver' : 'Accept all slots'}
         </div>
         {!isAdmin &&
@@ -1569,7 +1569,7 @@ function UnassignedGroupHeader({ noDriverEntries, date, isAdmin, drivers, onDriv
         {isAdmin && drivers.map((d) =>
         <button
           key={d.user_id || d.id}
-          className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-amber-400 hover:text-black text-secondary"
+          className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-amber-400 hover:text-black text-body-2"
           onClick={() => {
             setOpen(false);
             reassignableEntries.forEach(({ store, slotKey }) => {

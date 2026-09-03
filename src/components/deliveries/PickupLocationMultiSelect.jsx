@@ -123,7 +123,7 @@ export default function PickupLocationMultiSelect({
   };
 
   return (
-    <div className="space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
       <Label className="text-sm font-semibold text-body">Pickup Location *</Label>
       <div className="relative" ref={containerRef}>
         {/* Trigger */}
@@ -131,16 +131,16 @@ export default function PickupLocationMultiSelect({
           type="button"
           disabled={isSaving}
           onClick={() => setOpen((v) => !v)}
-          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 bg-card" style={{ borderColor: 'var(--border-slate-300)', color: selectedCount === 0 ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
+          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 bg-surface" style={{ borderColor: 'var(--border-slate-300)', color: selectedCount === 0 ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
         >
           <span className="truncate">{getLabel()}</span>
-          <ChevronDown className={ml-2 h-4 w-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''} text-muted} />
+          <ChevronDown className={`ml-2 h-4 w-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''} text-soft`} />
         </button>
 
         {/* Dropdown */}
         {open && (
           <div
-            className="absolute z-[999999] mt-1 w-full rounded-md border shadow-lg bg-card border-card"
+            className="absolute z-[999999] mt-1 w-full rounded-md border shadow-lg bg-surface border-surface"
           >
             {/* Select All / Deselect All */}
             {availableStores.length > 1 && (
@@ -153,7 +153,7 @@ export default function PickupLocationMultiSelect({
                   {selectedPickupStoreIds.size === availableStores.length ? 'Deselect All' : 'Select All'}
                 </button>
                 {selectedCount > 0 && (
-                  <span className="ml-auto text-xs text-muted">
+                  <span className="ml-auto text-xs text-soft">
                     {selectedCount} selected
                   </span>
                 )}

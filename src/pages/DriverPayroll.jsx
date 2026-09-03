@@ -1379,10 +1379,10 @@ export default function DriverPayroll() {
                 setSelectedCityId(v);
               });
             }} disabled={isDriver || !sortedCities.length}>
-                <SelectTrigger className="w-[78px] text-xs px-2 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+                <SelectTrigger className="w-[78px] text-xs px-2 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-card">
+                <SelectContent className="bg-surface border-surface">
                   {sortedCities.map((city) =>
                 <SelectItem key={city.id} value={city.id} className="text-body">
                       {city.name}
@@ -1431,10 +1431,10 @@ export default function DriverPayroll() {
                 setSelectedCityId(v);
               });
             }} disabled={isDriver || !sortedCities.length}>
-                <SelectTrigger ref={citySelectTriggerRef} className="w-[105px] md:w-[130px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+                <SelectTrigger ref={citySelectTriggerRef} className="w-[105px] md:w-[130px] text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-card">
+                <SelectContent className="bg-surface border-surface">
                   {sortedCities.map((city) =>
                 <SelectItem key={city.id} value={city.id} className="text-body">
                       {city.name}
@@ -1450,10 +1450,10 @@ export default function DriverPayroll() {
                 setSelectedYear(Number(v));
               });
             }}>
-                <SelectTrigger className="w-[105px] md:w-[130px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px] text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-card">
+                <SelectContent className="bg-surface border-surface">
                   {years.map((year) =>
                 <SelectItem key={year} value={String(year)} className="text-body">
                       {year}
@@ -1474,10 +1474,10 @@ export default function DriverPayroll() {
 
               setTimeout(() => {isManualChangeRef.current = false;}, 200);
             }} disabled={isDriver}>
-                <SelectTrigger className="w-[105px] md:w-[130px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px] text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue placeholder="Driver" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-card">
+                <SelectContent className="bg-surface border-surface">
                   <SelectItem value="all" className="text-body">All Drivers ({driversInPayCycle.length})</SelectItem>
                   {driversInPayCycle.map((driver) =>
                 <SelectItem key={driver.user_id} value={driver.user_id} className="text-body">
@@ -1489,10 +1489,10 @@ export default function DriverPayroll() {
 
               {/* Pay Cycle Selector - 4th position dropdown */}
               <Select value={payPeriod || 'monthly'} onValueChange={handlePayPeriodChange} disabled={isDriver}>
-                <SelectTrigger className="w-[105px] md:w-[130px] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px] text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <SelectValue placeholder="Cycle" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-card">
+                <SelectContent className="bg-surface border-surface">
                   {payCycleInfo.cycles.map((cycle) =>
                 <SelectItem key={cycle} value={cycle} className="text-body">
                       {cycle.charAt(0).toUpperCase() + cycle.slice(1)}

@@ -50,7 +50,7 @@ export default function AccountDeletionSection() {
 
   return (
     <>
-      <Card className="border-2 bg-card" style={{ borderColor: '#fca5a5' }}>
+      <Card className="border-2 bg-surface" style={{ borderColor: '#fca5a5' }}>
         <CardHeader className="px-4 py-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2 text-red-600">
             <AlertTriangle className="w-4 h-4" />

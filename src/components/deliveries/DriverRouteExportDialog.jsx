@@ -60,7 +60,7 @@ export default function DriverRouteExportDialog({ open, onOpenChange, isExportin
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="bg-background px-4 py-3 fixed left-[50%] top-[50%] z-[10001] flex flex-col w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-h-[85vh] overflow-hidden max-w-[480px] text-body bg-card border-card"
+        className="bg-background px-4 py-3 fixed left-[50%] top-[50%] z-[10001] flex flex-col w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-h-[85vh] overflow-hidden max-w-[480px] text-body bg-surface border-surface"
       >
         <DialogHeader>
           <DialogTitle>Export my route</DialogTitle>
@@ -77,7 +77,7 @@ export default function DriverRouteExportDialog({ open, onOpenChange, isExportin
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
                 <input type="date" value={startDate} max={format(new Date(), "yyyy-MM-dd")}
                   onChange={(e) => { setStartDate(e.target.value); if (e.target.value > endDate) setEndDate(e.target.value); }}
-                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-card border-card" />
+                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-surface border-surface" />
               </div>
             </div>
             <div className="flex-1">
@@ -86,7 +86,7 @@ export default function DriverRouteExportDialog({ open, onOpenChange, isExportin
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
                 <input type="date" value={endDate} max={format(new Date(), "yyyy-MM-dd")}
                   onChange={(e) => { setEndDate(e.target.value); if (e.target.value < startDate) setStartDate(e.target.value); }}
-                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-card border-card" />
+                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-surface border-surface" />
               </div>
             </div>
             {onPreviewPdf && (
@@ -106,11 +106,11 @@ export default function DriverRouteExportDialog({ open, onOpenChange, isExportin
             </p>
           )}
 
-          <div className="rounded-lg border p-3 space-y-2 border-card">
+          <div className="rounded-lg border p-3 space-y-2 border-surface">
             <p className="text-sm font-semibold text-body">Recipients</p>
             <div className="space-y-1">
               {emails.map((e) => (
-                <div key={e} className="flex items-center justify-between rounded px-2 py-1 text-xs text-secondary" style={{ background: "var(--bg-slate-50)" }}>
+                <div key={e} className="flex items-center justify-between rounded px-2 py-1 text-xs text-body-2" style={{ background: "var(--bg-slate-50)" }}>
                   <span className="truncate">{e}</span>
                   <button type="button" onClick={() => removeEmail(e)} className="text-red-400 hover:text-red-600 ml-2 flex-shrink-0">
                     <Trash2 className="w-3 h-3" />
@@ -122,7 +122,7 @@ export default function DriverRouteExportDialog({ open, onOpenChange, isExportin
               <Input type="email" placeholder="Add email..." value={pending}
                 onChange={(e) => setPending(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
-                className="flex-1 h-7 text-xs text-body bg-card border-card" />
+                className="flex-1 h-7 text-xs text-body bg-surface border-surface" />
               <Button type="button" size="sm" variant="outline" onClick={addEmail} className="h-7 px-2 flex-shrink-0">
                 <Plus className="w-3.5 h-3.5" />
               </Button>
@@ -130,17 +130,17 @@ export default function DriverRouteExportDialog({ open, onOpenChange, isExportin
           </div>
         </div>
 
-        <div className="flex-shrink-0 pt-2 border-t flex items-center justify-between gap-2 border-card">
+        <div className="flex-shrink-0 pt-2 border-t flex items-center justify-between gap-2 border-surface">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Rx Type:</span>
-            <div className="flex-shrink-0 flex rounded-md border overflow-hidden border-card">
+            <div className="flex-shrink-0 flex rounded-md border overflow-hidden border-surface">
               <button type="button" onClick={() => setUseBarcodes(false)}
                 className="flex items-center justify-center w-9 h-8 transition-colors"
                 style={{ background: !useBarcodes ? "#1e293b" : "var(--bg-white)", color: !useBarcodes ? "#fff" : "#64748b" }}>
                 <Hash className="w-3.5 h-3.5" />
               </button>
               <button type="button" onClick={() => setUseBarcodes(true)}
-                className="flex items-center justify-center w-9 h-8 border-l transition-colors border-card" style={{ background: useBarcodes ? "#1e293b" : "var(--bg-white)", color: useBarcodes ? "#fff" : "#64748b" }}>
+                className="flex items-center justify-center w-9 h-8 border-l transition-colors border-surface" style={{ background: useBarcodes ? "#1e293b" : "var(--bg-white)", color: useBarcodes ? "#fff" : "#64748b" }}>
                 <Barcode className="w-3.5 h-3.5" />
               </button>
             </div>

@@ -538,7 +538,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
             {barcodeValues.map((val, idx) => (
               <div
                 key={idx}
-                className="relative rounded-lg border bg-white dark:bg-slate-900 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700 border-card"
+                className="relative rounded-lg border bg-white dark:bg-slate-900 p-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700 border-surface"
                 onClick={() => onSelectBarcode(val)}
                 title={val}
               >

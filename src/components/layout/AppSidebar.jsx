@@ -209,8 +209,8 @@ export default function AppSidebar({
   return (
     <>
 {/* Sidebar */}
-<div className={app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200] bg-card border-card}>
-  <div className="border-b p-4 flex-shrink-0 border-card">
+<div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200] bg-surface border-surface`}>
+  <div className="border-b p-4 flex-shrink-0 border-surface">
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         {/* Close button - show when sidebar is open (always on mobile, on desktop when expanded) */}
@@ -218,7 +218,7 @@ export default function AppSidebar({
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="p-2 rounded-lg transition-colors hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700">
-            <X className="w-5 h-5 text-secondary" />
+            <X className="w-5 h-5 text-body-2" />
           </button>
               }
 
@@ -245,9 +245,9 @@ export default function AppSidebar({
           <h2 className="font-bold text-lg text-body">
             {'RxDeliver'}
           </h2>
-          <p className="text-xs text-muted">Pharmacy Logistics</p>
+          <p className="text-xs text-soft">Pharmacy Logistics</p>
           <div className="flex items-center gap-1">
-            <p className="text-xs text-muted">{appVersion}</p>
+            <p className="text-xs text-soft">{appVersion}</p>
             {!isMobile && !isTabletPortrait && !isWideScreenMobile && !(deviceType === 'Tablet' && !isTabletPortrait) && <BatteryIndicator />}
           </div>
         </div>
@@ -319,7 +319,7 @@ export default function AppSidebar({
     </div>
   </div>
 
-  <div className="pt-1 flex-1 overflow-y-auto custom-scrollbar pr-2 pl-2 pb-2 bg-card" onClickCapture={(e) => {if ((isMobile || isTabletPortrait) && e.target?.closest?.('a')) {window.dispatchEvent(new CustomEvent('overlayNavigateClose'));}}}>
+  <div className="pt-1 flex-1 overflow-y-auto custom-scrollbar pr-2 pl-2 pb-2 bg-surface" onClickCapture={(e) => {if ((isMobile || isTabletPortrait) && e.target?.closest?.('a')) {window.dispatchEvent(new CustomEvent('overlayNavigateClose'));}}}>
     <div className="py-0.5">
       <Link
               to={constructUrlWithParams("Dashboard")}
@@ -491,7 +491,7 @@ export default function AppSidebar({
             </div>
             }
 
-            <div className="border-t mb-2 py-0.5 mt-1 border-card"></div>
+            <div className="border-t mb-2 py-0.5 mt-1 border-surface"></div>
 
       {/* Square COD - Admins and Drivers only, clickable only if active */}
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
@@ -598,7 +598,7 @@ export default function AppSidebar({
         </Link>
             }
 
-      <div className="border-t mb-2 mt-1 border-card"></div>
+      <div className="border-t mb-2 mt-1 border-surface"></div>
 
       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
             <Link
@@ -633,7 +633,7 @@ export default function AppSidebar({
 
     {currentPageName === 'Dashboard' &&
           <div className="mt-0">
-          <div className="border-t mb-2 border-card"></div>
+          <div className="border-t mb-2 border-surface"></div>
           <SidebarSectionLabel>Quick Stats</SidebarSectionLabel>
           <QuickStats
               currentUser={currentUser}

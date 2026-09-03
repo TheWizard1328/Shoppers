@@ -398,7 +398,7 @@ export default function SidebarUserFooter({
 
   if (!currentUser) {
     return (
-      <div className="border-t p-4 flex-shrink-0 bg-card border-card">
+      <div className="border-t p-4 flex-shrink-0 bg-surface border-surface">
         <div className="space-y-2">
           <div className="text-sm text-slate-500 dark:text-slate-400 mb-2">Not logged in</div>
           <Button
@@ -440,7 +440,7 @@ export default function SidebarUserFooter({
   });
 
   return (
-    <div className="px-2 flex-shrink-0 border-t py-2 bg-card border-card">
+    <div className="px-2 flex-shrink-0 border-t py-2 bg-surface border-surface">
       <div>
 
         {currentUser?.app_roles?.includes('dispatcher') && (scheduledDrivers.length > 0 || otherCityDrivers.length > 0) &&
@@ -518,7 +518,7 @@ export default function SidebarUserFooter({
                     return (
                       <div
                         key={driver.user_id || driver.id}
-                        className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95 border-card" style={{ background: 'var(--bg-slate-50)' }}
+                        className="flex flex-col px-2 py-1.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm active:scale-95 border-surface" style={{ background: 'var(--bg-slate-50)' }}
                         onClick={() => onOpenDriverChat?.(driver)}
                         title={`Message ${driverName}`}>
                         
@@ -581,7 +581,7 @@ export default function SidebarUserFooter({
                   </span>
                 )}
               </p>
-              <p className="text-xs truncate capitalize text-muted">
+              <p className="text-xs truncate capitalize text-soft">
                 {formatRoles(currentUser)}
               </p>
               {currentUser.phone &&

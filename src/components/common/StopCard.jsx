@@ -877,7 +877,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           if (startTapLockRef.current || completeTapLockRef.current || actionTapLockRef.current || isStarting || isCompleting || isRestarting || isProcessingBackground || isFailing) return;
           onClick && onClick(delivery);
         }}
-        style={{ borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', minWidth: cardWidthOverride ? `${cardWidthOverride}px` : '370px', maxWidth: cardWidthOverride ? `${cardWidthOverride}px` : '370px', maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }} className="bg-card">
+        style={{ borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', minWidth: cardWidthOverride ? `${cardWidthOverride}px` : '370px', maxWidth: cardWidthOverride ? `${cardWidthOverride}px` : '370px', maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }} className="bg-surface">
         
         <CardContent className={`p-6 px-1 flex flex-col py-0 ${shouldAnchorExpandedCard ? 'max-h-full overflow-y-auto overscroll-contain' : ''}`}>
           <div className="flex items-start">
@@ -911,7 +911,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             
           </div>
 
-          {showMiddleSection && <div className="border-t border-card"></div>}
+          {showMiddleSection && <div className="border-t border-surface"></div>}
 
           {showMiddleSection &&
           <div className="flex flex-col">
@@ -919,7 +919,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[55px]">
                   {finalDisplayAddress ?
                 <>
-                      <div className="flex items-start gap-2 text-lg text-secondary">
+                      <div className="flex items-start gap-2 text-lg text-body-2">
                         <span className="text-xl font-medium truncate">{isISPorISD && interStoreLocation?.store_address ? interStoreLocation.store_address : (isPickup ? store?.address || '' : patient?.address || '')}</span>
                       </div>
                       {!isStrippedDelivery && !shouldRedact &&

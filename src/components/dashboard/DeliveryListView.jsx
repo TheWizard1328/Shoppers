@@ -105,7 +105,7 @@ const DeliveryRow = memo(({
         return <Badge className="rounded-full text-[11px] px-2 py-0.5 text-white" style={{ background: dColor }} title={delivery.driver_name}>{label}</Badge>;
       })())
     : (store?.abbreviation && (
-        <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5 bg-card" style={{ color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
+        <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5 bg-surface" style={{ color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
           {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
         </Badge>
       ));
@@ -140,9 +140,9 @@ const DeliveryRow = memo(({
     isMobile ?
     <div
       onClick={handleRowClick}
-      className={flex flex-col rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+      className={`flex flex-col rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
       isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60'} ${
-      isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''} border-card}>
+      isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''} border-surface`}>
       
         <div className="flex flex-col gap-1.5 w-full">
           {/* Row 1: Stop# • TR# (left) | Store badge • Time • Status+time (right) */}
@@ -163,7 +163,7 @@ const DeliveryRow = memo(({
                 {actualTm && <span className="opacity-80 font-normal">• {actualTm}</span>}
               </Badge>
               {minutesOnLocation !== null && (
-                <Badge variant="outline" className="flex items-center gap-1 text-[11px] px-2 py-0.5 text-label bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+                <Badge variant="outline" className="flex items-center gap-1 text-[11px] px-2 py-0.5 text-label bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
                   <Clock className="w-3 h-3" />{minutesOnLocation} min
                 </Badge>
               )}
@@ -183,7 +183,7 @@ const DeliveryRow = memo(({
                 : (finalDisplayAddress && <span className="text-xs text-slate-500 dark:text-slate-400 truncate flex-1 min-w-0">{finalDisplayAddress}</span>)
               }
               {unitNumber && (
-                <Badge variant="secondary" className="text-xs px-2 py-0.5 flex-shrink-0 text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
+                <Badge variant="secondary" className="text-xs px-2 py-0.5 flex-shrink-0 text-body-2" style={{ background: 'var(--bg-slate-100)' }}>
                   Unit {unitNumber}
                 </Badge>
               )}
@@ -216,7 +216,7 @@ const DeliveryRow = memo(({
               {codPayments.map((p, idx) => (
                 <span key={idx} className="contents">
                   <span className="text-slate-400 dark:text-slate-500">-</span>
-                  <Badge variant="secondary" className="text-xs text-secondary" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Badge variant="secondary" className="text-xs text-body-2" style={{ background: 'var(--bg-slate-100)' }}>
                     {p.type}: ${Number(p.amount || 0).toFixed(2)}
                   </Badge>
                 </span>
@@ -248,7 +248,7 @@ const DeliveryRow = memo(({
           {hasPodRow && (
             <div className="flex flex-wrap items-center gap-2">
               {hasSig && (
-                <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert border-card" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }} />
+                <img src={delivery.signature_image_url} alt="Signature" className="w-7 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert border-surface" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' }); }} />
               )}
               {photos.slice(0, 2).map((url, i) => (
                 <img key={i} src={url} alt={`POD ${i + 1}`} className="w-7 h-7 rounded-md object-cover ring-2 ring-white cursor-zoom-in" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'image', src: url, title: `Photo ${i + 1}` }); }} />
@@ -258,7 +258,7 @@ const DeliveryRow = memo(({
               )}
               {barcodeList.length > 0 && (
                 <button className="flex items-center gap-1 cursor-zoom-in" onClick={(e) => { e.stopPropagation(); onOpenMedia({ type: 'barcode', value: barcodeList[0], title: isPickup ? 'Receipt Barcode' : 'Rx Barcode' }); }}>
-                  <div className="w-10 h-6 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center border-card">
+                  <div className="w-10 h-6 bg-white dark:bg-slate-900 border rounded-sm overflow-hidden flex items-center border-surface">
                     <BarcodeThumb value={barcodeList[0]} height={24} className="w-full h-6" />
                   </div>
                   <span className="text-xs text-slate-600 dark:text-slate-400">x{barcodeList.length}</span>
@@ -270,7 +270,7 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick} className="grid w-full h-full overflow-hidden grid-cols-[120px_100px_100px_250px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60 py-1 border-card">
+      onClick={handleRowClick} className="grid w-full h-full overflow-hidden grid-cols-[120px_100px_100px_250px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800/60 py-1 border-surface">
       
         {bulkEditMode &&
       <div className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
@@ -371,7 +371,7 @@ const DeliveryRow = memo(({
         <img
           src={delivery.signature_image_url}
           alt="Signature"
-          className="w-20 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert border-card"
+          className="w-20 h-7 rounded-sm object-cover border cursor-zoom-in dark:invert border-surface"
           onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' });}} /> :
 
         <div className="w-20 h-7 rounded-sm border flex items-center justify-center text-slate-400 dark:text-slate-400" style={{ borderColor: 'var(--border-slate-200 dark:border-slate-700)' }}>—</div>
@@ -681,16 +681,16 @@ const DeliveryListView = ({
   return (
     <>
       <style>{`.delivery-list-header-scroll{scrollbar-width:none;-ms-overflow-style:none;}.delivery-list-header-scroll::-webkit-scrollbar{display:none;}`}</style>
-      <div className="h-full max-h-full w-full max-w-full min-h-0 min-w-0 flex flex-col relative overflow-hidden bg-card">
+      <div className="h-full max-h-full w-full max-w-full min-h-0 min-w-0 flex flex-col relative overflow-hidden bg-surface">
         {/* Table Header */}
-        <div className="sticky top-0 flex-shrink-0 border-b z-20 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+        <div className="sticky top-0 flex-shrink-0 border-b z-20 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
           {!isMobile &&
           <div
             ref={headerScrollRef}
             onScroll={syncHeaderScroll}
             className="delivery-list-header-scroll max-w-full overflow-x-auto overflow-y-hidden">
             
-              <div className="grid min-w-max grid-cols-[120px_100px_100px_250px_minmax(0,1fr)_110px_110px_110px_110px_110px] gap-1 py-2 text-sm font-semibold text-secondary" style={{ width: listWidth }}>
+              <div className="grid min-w-max grid-cols-[120px_100px_100px_250px_minmax(0,1fr)_110px_110px_110px_110px_110px] gap-1 py-2 text-sm font-semibold text-body-2" style={{ width: listWidth }}>
                 {bulkEditMode &&
               <div className="flex items-center justify-center">
                     <Checkbox

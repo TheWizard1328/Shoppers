@@ -73,7 +73,7 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
   return (
     <div className="space-y-6">
       {/* Delivery Info Card */}
-      <Card className="border shadow-sm bg-card border-card">
+      <Card className="border shadow-sm bg-surface border-surface">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="w-5 h-5 text-emerald-600" />
@@ -86,7 +86,7 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
               <h3 className="font-semibold text-lg mb-1 text-body">
                 {delivery.prescription_details}
               </h3>
-              <div className="flex items-center gap-3 text-sm font-mono text-muted">
+              <div className="flex items-center gap-3 text-sm font-mono text-soft">
                 {delivery.tracking_number && (
                     <span>#{delivery.tracking_number}</span>
                 )}
@@ -215,11 +215,11 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
                   {/* Collected Payments Breakdown */}
                   {codPayments.length > 0 && (
                     <div className="space-y-1 mb-2">
-                      <span className="text-xs font-medium text-muted">Collected:</span>
+                      <span className="text-xs font-medium text-soft">Collected:</span>
                       {codPayments.map((payment, index) => (
                         <div key={index} className="flex items-center justify-between text-xs pl-2">
                           <span className="text-label">{payment.type}:</span>
-                          <span className="font-medium text-secondary">
+                          <span className="font-medium text-body-2">
                             ${parseFloat(payment.amount).toFixed(2)}
                           </span>
                         </div>
@@ -232,7 +232,7 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
                     <div className={`flex items-center justify-between pt-2 border-t ${
                       isCODComplete ? 'border-emerald-200' : 'border-amber-200'
                     }`}>
-                      <span className="font-medium text-secondary">Total Collected:</span>
+                      <span className="font-medium text-body-2">Total Collected:</span>
                       <span className={`font-bold ${
                         isCODComplete ? 'text-emerald-700' : 'text-amber-700'
                       }`}>
@@ -264,7 +264,7 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
           </div>
 
           {(delivery.delivery_instructions || delivery.delivery_notes) && (
-            <div className="pt-3 border-t space-y-3 border-card">
+            <div className="pt-3 border-t space-y-3 border-surface">
               {delivery.delivery_instructions && (
                 <div className="flex items-start gap-3 text-sm">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center mt-0.5" style={{ background: 'var(--bg-slate-100)' }}>
@@ -295,7 +295,7 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
 
       {/* Patient Info Card */}
       {patient && (
-        <Card className="border shadow-sm bg-card border-card">
+        <Card className="border shadow-sm bg-surface border-surface">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="w-5 h-5 text-blue-600" />
@@ -313,9 +313,9 @@ export default function DeliveryDetails({ delivery, patient, store, statusConfig
               )}
             </div>
             {patient.notes && (
-              <div className="pt-3 border-t border-card">
-                <p className="text-xs font-semibold mb-1 text-muted">Notes:</p>
-                <p className="text-xs text-secondary">{patient.notes}</p>
+              <div className="pt-3 border-t border-surface">
+                <p className="text-xs font-semibold mb-1 text-soft">Notes:</p>
+                <p className="text-xs text-body-2">{patient.notes}</p>
               </div>
             )}
           </CardContent>

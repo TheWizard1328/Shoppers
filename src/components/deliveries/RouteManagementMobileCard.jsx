@@ -199,9 +199,9 @@ export default function RouteManagementMobileCard({
       )}
 
       <div
-        className={w-full rounded-xl border-2 shadow-md cursor-pointer transition-all overflow-hidden ${
+        className={`w-full rounded-xl border-2 shadow-md cursor-pointer transition-all overflow-hidden ${
           isSelected ? "ring-2 ring-blue-500" : ""
-        } bg-card} style={{ borderColor, opacity: 1 }}
+        } bg-surface`} style={{ borderColor, opacity: 1 }}
         onClick={() => onClick?.(delivery)}
       >
         <div className="px-3 py-2 flex flex-col gap-1.5">
@@ -300,8 +300,8 @@ export default function RouteManagementMobileCard({
 
           {/* ── Row 4: COD info (single row) ── */}
           {hasCODRow && (
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-secondary">
-              <span className="font-medium flex items-center gap-1 text-muted">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-body-2">
+              <span className="font-medium flex items-center gap-1 text-soft">
                 <DollarSign className="w-3 h-3" /> COD Payment:
               </span>
               {codRequired > 0 && (
@@ -310,7 +310,7 @@ export default function RouteManagementMobileCard({
               {codPayments.map((p, idx) => (
                 <span key={idx} className="contents">
                   <span style={{ color: "var(--text-slate-400)" }}>-</span>
-                  <Badge variant="secondary" className="text-xs text-secondary" style={{ background: "var(--bg-slate-100)" }}>
+                  <Badge variant="secondary" className="text-xs text-body-2" style={{ background: "var(--bg-slate-100)" }}>
                     {p.type}: ${Number(p.amount || 0).toFixed(2)}
                   </Badge>
                 </span>
@@ -322,7 +322,7 @@ export default function RouteManagementMobileCard({
           {patientNotes && (
             <div className="flex items-start gap-1 min-w-0">
               <StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "var(--text-slate-400)" }} />
-              <p className="text-xs whitespace-pre-wrap break-words text-secondary">
+              <p className="text-xs whitespace-pre-wrap break-words text-body-2">
                 <span className="font-medium">Patient Notes:</span> {patientNotes}
               </p>
             </div>
@@ -332,7 +332,7 @@ export default function RouteManagementMobileCard({
           {driverNotes && (
             <div className="flex items-start gap-1 min-w-0">
               <StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: "var(--text-slate-400)" }} />
-              <p className="text-xs whitespace-pre-wrap break-words text-secondary">
+              <p className="text-xs whitespace-pre-wrap break-words text-body-2">
                 <span className="font-medium">Driver Notes:</span> {driverNotes}
               </p>
             </div>

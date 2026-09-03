@@ -61,7 +61,7 @@ export default function TravelModeControl({
         size="sm"
         onClick={handleClick}
         disabled={disabled}
-        className="h-8 gap-1.5 px-2 flex-shrink-0 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
+        className="h-8 gap-1.5 px-2 flex-shrink-0 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}
         title={disabled ? 'Available during active route only' : isCycling ? 'Cycling' : 'Driving'}
       >
         <CurrentIcon className="w-3.5 h-3.5" />

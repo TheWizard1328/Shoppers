@@ -299,11 +299,11 @@ export default function SquareSyncAudit() {
   }, [tables]);
 
   if (isLoadingUser || (isLoading && !lastLoadedAt)) {
-    return <div className="p-6 text-sm text-muted">Loading Square COD audit…</div>;
+    return <div className="p-6 text-sm text-soft">Loading Square COD audit…</div>;
   }
 
   if (!currentUser || !isAppOwner(currentUser)) {
-    return <div className="p-6 text-sm text-muted">This page is only available to the App Owner.</div>;
+    return <div className="p-6 text-sm text-soft">This page is only available to the App Owner.</div>;
   }
 
   return (
@@ -312,7 +312,7 @@ export default function SquareSyncAudit() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-body">Square COD Audit</h1>
-            <p className="text-sm text-muted">
+            <p className="text-sm text-soft">
               Comparing collected transactions, current Square catalog items, and in-app COD deliveries using Date + Square Location ID + Amount.
             </p>
           </div>
@@ -328,16 +328,16 @@ export default function SquareSyncAudit() {
           </div>
         </div>
 
-        <Card className="shadow-sm bg-card border-card">
+        <Card className="shadow-sm bg-surface border-surface">
           <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="border text-secondary border-card" style={{ background: "var(--bg-slate-100)" }}>
+              <Badge variant="secondary" className="border text-body-2 border-surface" style={{ background: "var(--bg-slate-100)" }}>
                 {tables.transactions.length} transactions
               </Badge>
-              <Badge variant="secondary" className="border text-secondary border-card" style={{ background: "var(--bg-slate-100)" }}>
+              <Badge variant="secondary" className="border text-body-2 border-surface" style={{ background: "var(--bg-slate-100)" }}>
                 {tables.catalogItems.length} catalog items
               </Badge>
-              <Badge variant="secondary" className="border text-secondary border-card" style={{ background: "var(--bg-slate-100)" }}>
+              <Badge variant="secondary" className="border text-body-2 border-surface" style={{ background: "var(--bg-slate-100)" }}>
                 {tables.deliveries.length} in-app deliveries
               </Badge>
               {summary > 0 && (
@@ -347,7 +347,7 @@ export default function SquareSyncAudit() {
                 </Badge>
               )}
             </div>
-            <div className="text-xs text-muted">
+            <div className="text-xs text-soft">
               Last loaded {lastLoadedAt ? format(lastLoadedAt, "MMM d, yyyy h:mm a") : "—"}
             </div>
           </CardContent>

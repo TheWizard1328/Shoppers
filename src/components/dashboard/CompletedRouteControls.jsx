@@ -47,7 +47,7 @@ export default function CompletedRouteControls({
   return (
     <div className="absolute top-3 right-3 z-[1200] pointer-events-auto">
       <div
-        className="rounded-lg border shadow-md overflow-hidden bg-card border-card"
+        className="rounded-lg border shadow-md overflow-hidden bg-surface border-surface"
       >
         <div className="flex items-stretch">
           <div className="px-3 py-2 flex flex-col gap-2 min-w-[148px]">
@@ -76,7 +76,7 @@ export default function CompletedRouteControls({
             </div>
           </div>
 
-          <div className="border-l flex items-start justify-center p-2 border-card">
+          <div className="border-l flex items-start justify-center p-2 border-surface">
             <ResetPolylinesButton
               selectedDriverIds={[selectedDriverId]}
               selectedDate={format(selectedDate, 'yyyy-MM-dd')}

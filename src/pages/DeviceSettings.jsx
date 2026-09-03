@@ -20,7 +20,7 @@ export default function DeviceSettings() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-body">Devices</h1>
-            <p className="text-sm mt-0.5 text-muted">
+            <p className="text-sm mt-0.5 text-soft">
               Manage your registered devices and location tracking.
             </p>
           </div>

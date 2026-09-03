@@ -134,7 +134,7 @@ export default function StopCardBody({
           transition={{ duration: 0.2 }}
           className="overflow-hidden">
           
-            <div className="space-y-2 border-t border-card">
+            <div className="space-y-2 border-t border-surface">
               <StopCardPhoneRow
               isPickup={isPickup}
               finalDisplayPhone={finalDisplayPhone}

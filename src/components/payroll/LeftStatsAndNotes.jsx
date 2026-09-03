@@ -22,36 +22,36 @@ export default function LeftStatsAndNotes({
       >
         {/* Row 1: Rates */}
         <div className="flex items-center">
-          <span className="w-10 text-right pr-1 text-muted">Rate:</span>
-          <span className="px-2 py-0.5 rounded text-[11px] text-secondary" style={{ background: 'var(--bg-slate-200)' }}>{formatCurrency(data.payRate)}</span>
+          <span className="w-10 text-right pr-1 text-soft">Rate:</span>
+          <span className="px-2 py-0.5 rounded text-[11px] text-body-2" style={{ background: 'var(--bg-slate-200)' }}>{formatCurrency(data.payRate)}</span>
         </div>
         <div className="flex items-center">
-          <span className="w-8 text-right pr-1 text-muted">KM:</span>
-          <span className="px-2 py-0.5 rounded text-[11px] text-secondary" style={{ background: 'var(--bg-slate-200)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
+          <span className="w-8 text-right pr-1 text-soft">KM:</span>
+          <span className="px-2 py-0.5 rounded text-[11px] text-body-2" style={{ background: 'var(--bg-slate-200)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
         </div>
         <div className="flex items-center">
-          <span className="w-8 text-right pr-1 text-muted">OS:</span>
-          <span className="px-2 py-0.5 rounded text-[11px] text-secondary" style={{ background: 'var(--bg-slate-200)' }}>{formatCurrency(data.oversizedRate)}</span>
+          <span className="w-8 text-right pr-1 text-soft">OS:</span>
+          <span className="px-2 py-0.5 rounded text-[11px] text-body-2" style={{ background: 'var(--bg-slate-200)' }}>{formatCurrency(data.oversizedRate)}</span>
         </div>
         <div className="flex items-center">
-          <span className="w-14 text-right pr-1 text-muted">Failed:</span>
+          <span className="w-14 text-right pr-1 text-soft">Failed:</span>
           <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px] min-w-[2.5rem] text-center">{data.failedCount}</span>
         </div>
         {/* Row 2: Totals */}
         <div className="flex items-center">
-          <span className="w-10 text-right pr-1 text-muted">Del:</span>
-          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap text-secondary" style={{ background: 'var(--bg-slate-200)' }}>{data.graphDeliveryUnits ?? data.graphDeliveryCount ?? data.totalDeliveries} = {formatCurrency(data.graphBasePay ?? data.totalBasePay)}</span>
+          <span className="w-10 text-right pr-1 text-soft">Del:</span>
+          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap text-body-2" style={{ background: 'var(--bg-slate-200)' }}>{data.graphDeliveryUnits ?? data.graphDeliveryCount ?? data.totalDeliveries} = {formatCurrency(data.graphBasePay ?? data.totalBasePay)}</span>
         </div>
         <div className="flex items-center">
-          <span className="w-8 text-right pr-1 text-muted">KM:</span>
-          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap text-secondary" style={{ background: 'var(--bg-slate-200)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
+          <span className="w-8 text-right pr-1 text-soft">KM:</span>
+          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap text-body-2" style={{ background: 'var(--bg-slate-200)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
         </div>
         <div className="flex items-center">
-          <span className="w-8 text-right pr-1 text-muted">OS:</span>
-          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap text-secondary" style={{ background: 'var(--bg-slate-200)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+          <span className="w-8 text-right pr-1 text-soft">OS:</span>
+          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap text-body-2" style={{ background: 'var(--bg-slate-200)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
         </div>
         <div className="flex items-center">
-          <span className="w-14 text-right pr-1 text-muted">Returns:</span>
+          <span className="w-14 text-right pr-1 text-soft">Returns:</span>
           <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px] min-w-[2.5rem] text-center">{data.returnsCount || 0}</span>
         </div>
       </div>
@@ -60,7 +60,7 @@ export default function LeftStatsAndNotes({
       {(Number(data.afterHoursCount) > 0 || Number(data.noChargeCount) > 0) && (
         <div className="mt-2 flex items-center">
           <span
-            className="inline-flex w-full items-center justify-center gap-2 px-3 py-1 rounded text-[11px] font-semibold whitespace-nowrap text-secondary" style={{ background: 'var(--bg-slate-200)', textWrap: 'balance' }}
+            className="inline-flex w-full items-center justify-center gap-2 px-3 py-1 rounded text-[11px] font-semibold whitespace-nowrap text-body-2" style={{ background: 'var(--bg-slate-200)', textWrap: 'balance' }}
           >
             <span><span className="text-slate-500">A/H:</span> {Number(data.afterHoursPickupCount) || 0}p + {Number(data.afterHoursDeliveryCount) || 0}d</span>
             <span className="text-slate-400">-</span>

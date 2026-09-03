@@ -41,7 +41,7 @@ export default function HelpTooltip({
         </TooltipTrigger>
         <TooltipContent 
           side={side} 
-          className="max-w-[280px] p-3 z-[10000] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
+          className="max-w-[280px] p-3 z-[10000] text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}
         >
           {title && (
             <p className="font-semibold text-sm mb-1 text-body">

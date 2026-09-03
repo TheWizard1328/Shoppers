@@ -82,7 +82,7 @@ export default function CompanyForm({ company, stores = [], onSave, onCancel }) 
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10002] flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-card border-card">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-surface border-surface">
         <CardHeader className="px-6 py-3 flex flex-row items-center justify-between">
           <CardTitle>{company ? 'Edit Company' : 'Add Company'}</CardTitle>
           <Button variant="ghost" size="icon" onClick={onCancel}>
@@ -170,9 +170,9 @@ export default function CompanyForm({ company, stores = [], onSave, onCancel }) 
 
             <div>
               <Label>Associated Stores</Label>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-1 max-h-52 overflow-y-auto border rounded-lg p-3 border-card">
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-1 max-h-52 overflow-y-auto border rounded-lg p-3 border-surface">
                 {sortedStores.length === 0 ?
-                <p className="text-sm text-muted">No stores available yet.</p> :
+                <p className="text-sm text-soft">No stores available yet.</p> :
                 sortedStores.map((store) =>
                 <label key={store.id} className="flex items-center gap-2 text-sm cursor-pointer">
                     <input

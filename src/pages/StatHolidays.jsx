@@ -101,11 +101,11 @@ export default function StatHolidays() {
   return (
     <div className="flex flex-col h-full overflow-hidden text-body" style={{ background: 'var(--bg-slate-50)' }}>
       {/* Header */}
-      <div className="flex-shrink-0 border-b px-5 py-4 flex items-center gap-3 bg-card border-card">
+      <div className="flex-shrink-0 border-b px-5 py-4 flex items-center gap-3 bg-surface border-surface">
         <CalendarDays className="w-5 h-5 text-amber-500" />
         <div>
           <h1 className="text-lg font-bold">Stat Holidays</h1>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-soft">
             Stat holiday dates suppress automatic driver scheduling and require manual driver selection in the delivery form.
           </p>
         </div>
@@ -114,10 +114,10 @@ export default function StatHolidays() {
 
       <div className="flex-1 overflow-auto p-5 space-y-6">
         {/* Import from Public API */}
-        <div className="rounded-xl border p-4 space-y-3 bg-card border-card">
+        <div className="rounded-xl border p-4 space-y-3 bg-surface border-surface">
           <div>
             <h2 className="text-sm font-semibold">Import Public Holidays</h2>
-            <p className="text-xs mt-0.5 text-muted">Fetch official public holidays from Nager.Date and add any that aren't already in your list.</p>
+            <p className="text-xs mt-0.5 text-soft">Fetch official public holidays from Nager.Date and add any that aren't already in your list.</p>
           </div>
           <div className="flex gap-3 items-end flex-wrap">
             <div className="space-y-1">
@@ -183,7 +183,7 @@ export default function StatHolidays() {
         </div>
 
         {/* Add Holiday Form */}
-        <div className="rounded-xl border p-4 space-y-3 bg-card border-card">
+        <div className="rounded-xl border p-4 space-y-3 bg-surface border-surface">
           <h2 className="text-sm font-semibold">Add Stat Holiday</h2>
           <div className="flex gap-3 items-end flex-wrap">
             <div className="space-y-1">
@@ -214,7 +214,7 @@ export default function StatHolidays() {
         </div>
 
         {/* Holiday List */}
-        <div className="rounded-xl border overflow-hidden bg-card border-card">
+        <div className="rounded-xl border overflow-hidden bg-surface border-surface">
           {loading ? (
             <div className="py-10 text-center text-sm" style={{ color: 'var(--text-slate-400)' }}>Loading...</div>
           ) : holidays.length === 0 ? (
@@ -224,10 +224,10 @@ export default function StatHolidays() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-card" style={{ background: 'var(--bg-slate-50)' }}>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-muted">Date</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-muted">Holiday Name</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-muted"></th>
+                <tr className="border-b border-surface" style={{ background: 'var(--bg-slate-50)' }}>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-soft">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-soft">Holiday Name</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-soft"></th>
                 </tr>
               </thead>
               <tbody>
@@ -239,7 +239,7 @@ export default function StatHolidays() {
                     <td className="px-4 py-2.5 font-medium">
                       🎉 {format(parseISO(h.date), 'MMMM d, yyyy')}
                     </td>
-                    <td className="px-4 py-2.5 text-secondary">
+                    <td className="px-4 py-2.5 text-body-2">
                       {h.holiday_name}
                     </td>
                     <td className="px-4 py-2.5 text-right">

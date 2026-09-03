@@ -28,7 +28,7 @@ export default function CompanyCard({ company, stores = [], appUsers = [], onEdi
   }, [appUsers]);
 
   return (
-    <Card className="hover:shadow-lg transition-shadow bg-card border-card">
+    <Card className="hover:shadow-lg transition-shadow bg-surface border-surface">
       <CardContent className="p-6 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -67,13 +67,13 @@ export default function CompanyCard({ company, stores = [], appUsers = [], onEdi
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-secondary">
+          <div className="flex items-center gap-2 text-sm font-medium text-body-2">
             <StoreIcon className="w-4 h-4" />
             Associated Stores ({linkedStores.length})
           </div>
           <div className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 items-stretch">
             {linkedStores.length === 0 ? (
-              <span className="text-sm col-span-full text-muted">No stores linked yet.</span>
+              <span className="text-sm col-span-full text-soft">No stores linked yet.</span>
             ) : linkedStores.map((store) => (
               <Badge
                 key={store.id}
@@ -96,10 +96,10 @@ export default function CompanyCard({ company, stores = [], appUsers = [], onEdi
         </div>
 
         {(company.notes || company.support_email || company.support_phone) && (
-          <div className="pt-3 border-t border-card">
+          <div className="pt-3 border-t border-surface">
             {company.support_email && <p className="text-sm text-label">Support: {company.support_email}</p>}
             {company.support_phone && <p className="text-sm text-label">{company.support_phone}</p>}
-            {company.notes && <p className="text-sm mt-2 text-muted">{company.notes}</p>}
+            {company.notes && <p className="text-sm mt-2 text-soft">{company.notes}</p>}
           </div>
         )}
       </CardContent>

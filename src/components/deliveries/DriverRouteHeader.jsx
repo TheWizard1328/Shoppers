@@ -38,11 +38,11 @@ export default function DriverRouteHeader({
 
   return (
     <Card
-      className="flex-shrink-0 shadow-sm relative min-w-0 overflow-hidden bg-card border-card"
+      className="flex-shrink-0 shadow-sm relative min-w-0 overflow-hidden bg-surface border-surface"
     >
       <button
         onClick={() => setIsMobileMenuOpen((v) => !v)}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center lg:hidden text-secondary bg-card" style={{ borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center lg:hidden text-body-2 bg-surface" style={{ borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}
       >
         <CalendarIcon className="w-5 h-5" />
       </button>
@@ -76,11 +76,11 @@ export default function DriverRouteHeader({
                 </p>
               )}
               <div className="flex items-center gap-2">
-                <p className="text-sm capitalize text-muted">
+                <p className="text-sm capitalize text-soft">
                   {activeDriver.app_roles?.[0]}
                 </p>
                 <span style={{ color: 'var(--text-slate-400)' }}>•</span>
-                <p className="text-sm font-medium text-secondary">
+                <p className="text-sm font-medium text-body-2">
                   {selectedDate ? format(selectedDate, 'MMM d, yyyy') : ''}
                 </p>
               </div>
@@ -90,11 +90,11 @@ export default function DriverRouteHeader({
               <div className="flex-shrink-0">
                 <Select value={driverFilter} onValueChange={handleDriverChange}>
                   <SelectTrigger
-                    className="w-[120px] h-9 text-xs text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}
+                    className="w-[120px] h-9 text-xs text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}
                   >
                     <SelectValue placeholder="Driver" />
                   </SelectTrigger>
-                  <SelectContent className="bg-card border-card">
+                  <SelectContent className="bg-surface border-surface">
                     <SelectItem value="all" className="text-body">All Drivers</SelectItem>
                     {sortUsers((effectiveDrivers || []).filter((d) => userHasRole(d, 'driver'))).map((driver) => {
                       const dup = (effectiveDrivers || []).filter(

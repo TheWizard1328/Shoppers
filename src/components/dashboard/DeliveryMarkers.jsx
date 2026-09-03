@@ -374,7 +374,7 @@ function DeliveryMarkers({
           isClustered && !isFanned ? (
             <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
               <div className="min-w-[240px] max-w-[320px]">
-                <div className="font-semibold text-sm pb-1 mb-2 border-b text-body border-card">
+                <div className="font-semibold text-sm pb-1 mb-2 border-b text-body border-surface">
                   {delivery.duplicateCount} stops at this location
                 </div>
                 {(() => {
@@ -405,7 +405,7 @@ function DeliveryMarkers({
                     return (
                       <div key={`dg-${driverId}`}>
                         {dIdx > 0 && (
-                          <div className="border-t my-2 border-card" />
+                          <div className="border-t my-2 border-surface" />
                         )}
                         {/* Driver row — shown once */}
                         <div className="flex items-center gap-1.5 text-xs font-semibold mb-1.5 text-body">
@@ -445,8 +445,8 @@ function DeliveryMarkers({
                                     }}
                                   >
                                     <div className="flex min-w-0 items-center gap-1 text-body">
-                                      <MapPin className="w-3 h-3 flex-shrink-0 text-muted" />
-                                      <span className="shrink-0 font-medium text-muted" style={{ fontFamily: 'Courier New, monospace' }}>#{String(stopNum).padStart(2, '0')}</span>
+                                      <MapPin className="w-3 h-3 flex-shrink-0 text-soft" />
+                                      <span className="shrink-0 font-medium text-soft" style={{ fontFamily: 'Courier New, monospace' }}>#{String(stopNum).padStart(2, '0')}</span>
                                       <span className="truncate">{name}</span>
                                     </div>
                                     {timeLabel && (
@@ -504,14 +504,14 @@ function DeliveryMarkers({
                 });
                 return (
                   <>
-                    <div className="font-semibold text-sm pb-1 mb-2 border-b text-body border-card">
+                    <div className="font-semibold text-sm pb-1 mb-2 border-b text-body border-surface">
                       {delivery.duplicateCount} stops at this location
                     </div>
                     {driverOrder.map((driverId, dIdx) => {
                       const dGroup = driverMap[driverId];
                       return (
                         <div key={`dg-${driverId}`}>
-                          {dIdx > 0 && <div className="border-t my-2 border-card" />}
+                          {dIdx > 0 && <div className="border-t my-2 border-surface" />}
                           <div className="flex items-center gap-1.5 text-xs font-semibold mb-1.5 text-body">
                             <Truck className="w-3.5 h-3.5 flex-shrink-0" />
                             <span>{dGroup.driver?.user_name || dGroup.driver?.full_name || 'Unknown Driver'}</span>
@@ -535,8 +535,8 @@ function DeliveryMarkers({
                                   return (
                                     <div key={`stop-${driverId}-${storeId}-${m.id}-${m.stop_order || 'na'}`} className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1">
                                       <div className="flex min-w-0 items-center gap-1 text-body">
-                                        <MapPin className="w-3 h-3 flex-shrink-0 text-muted" />
-                                        <span className="shrink-0 font-medium text-muted" style={{ fontFamily: 'Courier New, monospace' }}>#{stopNum != null ? String(stopNum).padStart(2, '0') : '??'}</span>
+                                        <MapPin className="w-3 h-3 flex-shrink-0 text-soft" />
+                                        <span className="shrink-0 font-medium text-soft" style={{ fontFamily: 'Courier New, monospace' }}>#{stopNum != null ? String(stopNum).padStart(2, '0') : '??'}</span>
                                         <span className="truncate">{name}</span>
                                       </div>
                                       {timeLabel && (

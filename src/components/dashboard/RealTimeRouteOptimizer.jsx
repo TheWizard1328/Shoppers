@@ -68,7 +68,7 @@ export default function RealTimeRouteOptimizer({
           style={{ transform: 'none' }}
         >
           <div
-            className="rounded-xl shadow-2xl p-4 border-2 bg-card" style={{ borderColor: 'var(--border-slate-300)', boxShadow: '0 25px 50px -12px var(--shadow-color)' }}
+            className="rounded-xl shadow-2xl p-4 border-2 bg-surface" style={{ borderColor: 'var(--border-slate-300)', boxShadow: '0 25px 50px -12px var(--shadow-color)' }}
           >
             <div className="flex items-start gap-3">
               <div

@@ -23,7 +23,7 @@ export default function DriverLegendBar({
   return (
     <div
       ref={legendRef}
-      className="rounded-lg backdrop-blur-sm shadow-lg border bg-card border-card" style={{ opacity: 0.95, width: cardWidth }}
+      className="rounded-lg backdrop-blur-sm shadow-lg border bg-surface border-surface" style={{ opacity: 0.95, width: cardWidth }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -53,8 +53,8 @@ export default function DriverLegendBar({
                 {isOnline && <div className="absolute inset-0 rounded-full animate-ping opacity-75" style={{ backgroundColor: c }} />}
                 <div className="relative w-3 h-3 rounded-full shadow-sm flex-shrink-0" style={{ backgroundColor: bg, border: bd }} />
               </div>
-              <span className="text-xs font-medium whitespace-nowrap text-secondary">{route.driverName || 'Unknown'}</span>
-              <span className="text-xs text-muted">({route.totalStops})</span>
+              <span className="text-xs font-medium whitespace-nowrap text-body-2">{route.driverName || 'Unknown'}</span>
+              <span className="text-xs text-soft">({route.totalStops})</span>
             </button>
           );
         })}

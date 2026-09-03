@@ -34,7 +34,7 @@ export default function DeliveryRecurringOptions({
       </div>
 
       {showDayPopup &&
-      <div className="absolute bottom-0 left-0 right-0 z-[100] rounded-lg shadow-xl p-3 border bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+      <div className="absolute bottom-0 left-0 right-0 z-[100] rounded-lg shadow-xl p-3 border bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
           <h3 className="text-sm font-semibold mb-3 text-body">Select Days</h3>
           <div className="space-y-2 mb-3">
             {[

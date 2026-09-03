@@ -272,7 +272,7 @@ export default function ExportRouteEmailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="bg-background px-4 py-3 fixed left-[50%] top-[50%] z-[10001] flex flex-col w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-h-[85vh] overflow-hidden max-w-[480px] text-body bg-card border-card">
+        className="bg-background px-4 py-3 fixed left-[50%] top-[50%] z-[10001] flex flex-col w-full translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg max-h-[85vh] overflow-hidden max-w-[480px] text-body bg-surface border-surface">
 
         <DialogHeader>
           <DialogTitle>Route export</DialogTitle>
@@ -300,7 +300,7 @@ export default function ExportRouteEmailDialog({
                     setStartDate(val);
                     if (val > endDate) setEndDate(val);
                   }}
-                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-card border-card"
+                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-surface border-surface"
                 />
               </div>
             </div>
@@ -320,7 +320,7 @@ export default function ExportRouteEmailDialog({
                     setEndDate(val);
                     if (val < startDate) setStartDate(val);
                   }}
-                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-card border-card"
+                  className="w-full pl-10 pr-3 py-2 rounded-md border text-sm text-body bg-surface border-surface"
                 />
               </div>
             </div>
@@ -380,7 +380,7 @@ export default function ExportRouteEmailDialog({
                 placeholder="owner@example.com"
                 value={testingEmail}
                 onChange={(e) => setTestingEmail(e.target.value)}
-                className="h-8 text-sm text-body bg-card border-card"
+                className="h-8 text-sm text-body bg-surface border-surface"
               />
             </div>
           )}
@@ -399,7 +399,7 @@ export default function ExportRouteEmailDialog({
           ) : (
             <div className="grid grid-cols-1 gap-3">
               {stores.map((store) => (
-                <div key={store.id} className="rounded-lg border p-3 space-y-2 border-card">
+                <div key={store.id} className="rounded-lg border p-3 space-y-2 border-surface">
                   <div>
                     <p className="text-sm font-semibold text-body">{store.name}</p>
                     {driverNamesByStore[store.id]?.length > 0 && (
@@ -412,7 +412,7 @@ export default function ExportRouteEmailDialog({
                   {/* Existing emails */}
                   <div className="space-y-1">
                     {(emailDrafts[store.id] || []).map((email) => (
-                      <div key={email} className="flex items-center justify-between rounded px-2 py-1 text-xs text-secondary" style={{ background: 'var(--bg-slate-50)' }}>
+                      <div key={email} className="flex items-center justify-between rounded px-2 py-1 text-xs text-body-2" style={{ background: 'var(--bg-slate-50)' }}>
                         <span className="truncate">{email}</span>
                         <button type="button" onClick={() => removeEmail(store.id, email)}
                           className="text-red-400 hover:text-red-600 ml-2 flex-shrink-0">
@@ -430,7 +430,7 @@ export default function ExportRouteEmailDialog({
                       value={pendingEmails[store.id] || ""}
                       onChange={(e) => setPendingEmails((p) => ({ ...p, [store.id]: e.target.value }))}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addEmail(store.id); } }}
-                      className="flex-1 h-7 text-xs text-body bg-card border-card"
+                      className="flex-1 h-7 text-xs text-body bg-surface border-surface"
                     />
                     <Button type="button" size="sm" variant="outline" onClick={() => addEmail(store.id)}
                       className="h-7 px-2 flex-shrink-0">
@@ -443,11 +443,11 @@ export default function ExportRouteEmailDialog({
           )}
         </div>
 
-        <div className="flex-shrink-0 pt-2 border-t flex items-center justify-between gap-2 border-card">
+        <div className="flex-shrink-0 pt-2 border-t flex items-center justify-between gap-2 border-surface">
           {/* Left: Rx Type label + # / barcode segmented toggle */}
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Rx Type:</span>
-          <div className="flex-shrink-0 flex rounded-md border overflow-hidden border-card">
+          <div className="flex-shrink-0 flex rounded-md border overflow-hidden border-surface">
             <button
               type="button"
               onClick={() => setUseBarcodes(false)}
@@ -459,7 +459,7 @@ export default function ExportRouteEmailDialog({
             <button
               type="button"
               onClick={() => setUseBarcodes(true)}
-              className="flex items-center justify-center w-9 h-8 border-l transition-colors border-card" style={{ background: useBarcodes ? '#1e293b' : 'var(--bg-white)', color: useBarcodes ? '#fff' : '#64748b' }}
+              className="flex items-center justify-center w-9 h-8 border-l transition-colors border-surface" style={{ background: useBarcodes ? '#1e293b' : 'var(--bg-white)', color: useBarcodes ? '#fff' : '#64748b' }}
             >
               <Barcode className="w-3.5 h-3.5" />
             </button>

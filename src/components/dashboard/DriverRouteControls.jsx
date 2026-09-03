@@ -45,7 +45,7 @@ export default function DriverRouteControls({
               disabled={!hasActiveRoute || !filteredDeliveries?.some(d => d && (d.status === 'in_transit' || d.status === 'en_route'))}
               className="h-8 gap-1.5 px-2 flex-shrink-0"
               title="Quick route adjustments"
-              style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card"
+              style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface"
             >
               <span className="text-xs">Adjust</span>
             </Button>

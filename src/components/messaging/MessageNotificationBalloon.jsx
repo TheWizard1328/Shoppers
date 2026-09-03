@@ -112,7 +112,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
           className="fixed top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 z-[10002] max-w-sm w-full cursor-pointer"
         >
           <div 
-            className="rounded-xl shadow-2xl overflow-hidden hover:shadow-xl transition-shadow bg-card" style={{ border: '1px solid var(--border-slate-200)' }}
+            className="rounded-xl shadow-2xl overflow-hidden hover:shadow-xl transition-shadow bg-surface" style={{ border: '1px solid var(--border-slate-200)' }}
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 flex items-center justify-between">

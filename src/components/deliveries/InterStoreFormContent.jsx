@@ -136,7 +136,7 @@ function LocationPanel({ title, color, locations, loading, selectedId, onSelect,
       </div>
 
       {/* List — always shows all locations, matched one is highlighted */}
-      <div className="rounded-lg border overflow-hidden border-card">
+      <div className="rounded-lg border overflow-hidden border-surface">
         <div ref={listRef} className="max-h-[220px] overflow-y-auto divide-y" style={{ borderColor: 'var(--border-slate-100)' }}>
           {loading &&
           <div className="px-3 py-4 text-center text-xs text-slate-400 dark:text-slate-400">Loading...</div>
@@ -432,7 +432,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
 
       {/* Route summary */}
       {
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm border-card" style={{ background: 'var(--bg-slate-50)' }}>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm border-surface" style={{ background: 'var(--bg-slate-50)' }}>
           <span className={`font-semibold truncate max-w-[30%] ${sourceId ? 'text-emerald-700' : 'text-slate-400 dark:text-slate-500 dark:text-slate-400 italic'}`}>
             {sourceLocation ? sourceLocation.store_name : 'Select Pickup'}
           </span>
@@ -490,7 +490,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
       {/* Status & Timing + Delivery Options */}
       <div className="grid grid-cols-2 gap-3">
         {/* Left: Status + Time fields */}
-        <div className="flex flex-col gap-2 px-3 py-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+        <div className="flex flex-col gap-2 px-3 py-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
           <div className="flex flex-col gap-1 min-w-0">
             <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Status</Label>
             <Select value={formData.status || ''} onValueChange={(s) => setFormData((prev) => ({ ...prev, status: s }))} disabled={isSaving || statusLockedToInTransit}>
@@ -551,7 +551,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
         </div>
 
         {/* Right: Delivery Options */}
-        <div className="flex flex-col gap-2 px-3 py-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+        <div className="flex flex-col gap-2 px-3 py-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
           <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Delivery Options</Label>
           <div className="flex flex-col gap-3">
             {[
@@ -575,7 +575,7 @@ export default function InterStoreFormContent({ formData, setFormData, isSaving,
       </div>
 
       {/* Transfer Notes */}
-      <div className="flex flex-col gap-1 px-3 py-2 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+      <div className="flex flex-col gap-1 px-3 py-2 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
         <Label className="text-sm font-semibold text-body">Transfer Notes</Label>
         <Textarea
           value={formData._interstore_notes || ''}

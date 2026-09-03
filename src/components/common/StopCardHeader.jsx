@@ -390,7 +390,7 @@ export default function StopCardHeader({
 
           {/* Time window for active stops — ISP/ISD only shows start time, no end */}
           {!isFinished && (delivery?.delivery_time_start || delivery?.delivery_time_end) &&
-          <div className="text-xs font-bold text-muted">
+          <div className="text-xs font-bold text-soft">
               {isInterStore ? (
                 delivery?.delivery_time_start ? <>{formatTime24Hour(delivery.delivery_time_start)} →</> : null
               ) : delivery?.delivery_time_start && delivery?.delivery_time_end ?

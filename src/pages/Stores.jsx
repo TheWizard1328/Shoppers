@@ -357,9 +357,9 @@ export default function StoresPage() {
             </div> :
 
           <div className="text-center py-12">
-              <p className="mb-4 text-muted">No stores found</p>
+              <p className="mb-4 text-soft">No stores found</p>
               {currentUser && userHasRole(currentUser, 'admin') &&
-            <Button onClick={handleAddStore} variant="outline" style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
+            <Button onClick={handleAddStore} variant="outline" style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Your First Store
                 </Button>
@@ -370,7 +370,7 @@ export default function StoresPage() {
       </div>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto px-6 py-3 bg-card border-card">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto px-6 py-3 bg-surface border-surface">
           <StoreForm
             store={editingStore}
             onSave={handleSaveStore}

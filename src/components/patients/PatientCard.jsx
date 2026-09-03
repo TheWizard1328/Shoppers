@@ -191,7 +191,7 @@ export default function PatientCard({
       showStoreBadge && store?.color ?
       `border-2 hover:border-opacity-80` :
       'hover:border-emerald-400'} ${
-      isSelected ? 'ring-2 ring-emerald-500 border-emerald-500' : ''} text-body bg-card`}
+      isSelected ? 'ring-2 ring-emerald-500 border-emerald-500' : ''} text-body bg-surface`}
       style={{ borderColor: patient.status !== 'inactive' && showStoreBadge && store?.color ? store.color : 'var(--border-slate-200)' }}
       onClick={() => onSelect?.(patient)}>
 
@@ -221,11 +221,11 @@ export default function PatientCard({
               </div>
             }
             <p className="text-sm text-label">{displayAddress}</p>
-            {patient.phone && <p className="text-sm text-muted">{formatPhoneNumber(patient.phone)}</p>}
+            {patient.phone && <p className="text-sm text-soft">{formatPhoneNumber(patient.phone)}</p>}
             {patient.distance_from_store && store || patient.call_upon_arrival || patient.ring_bell || patient.dont_ring_bell || patient.mailbox_ok ?
             <div className="flex items-center gap-2 mt-1">
                 {patient.distance_from_store && store &&
-              <span className="text-xs text-muted">
+              <span className="text-xs text-soft">
                   {patient.distance_from_store.toFixed(1)} km
                 </span>
               }
@@ -341,19 +341,19 @@ export default function PatientCard({
         {/* Quick Info Icons (Badges) */}
         <div className="flex gap-2 mt-3 flex-wrap">
           {(patient.time_window_start || patient.time_window_end) &&
-          <Badge variant="outline" className="text-xs text-secondary" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
+          <Badge variant="outline" className="text-xs text-body-2" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
               <Clock className="w-4 h-3 mr-1" />
               {patient.time_window_start || '...'}-{patient.time_window_end || '...'}
             </Badge>
           }
           {recurringText &&
-          <Badge variant="outline" className="text-xs text-secondary" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
+          <Badge variant="outline" className="text-xs text-body-2" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
               <RefreshCw className="w-4 h-3 mr-1" />
               {recurringText}
             </Badge>
           }
           {deliveryPreferences.length > 0 &&
-          <Badge variant="outline" className="text-xs text-secondary" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
+          <Badge variant="outline" className="text-xs text-body-2" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
               <Info className="w-4 h-3 mr-1" />
               {deliveryPreferences.join(', ')}
             </Badge>
@@ -363,11 +363,11 @@ export default function PatientCard({
         {/* Patient Notes */}
         {patient.notes &&
         <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
-            <div className="text-xs font-semibold mb-1 flex items-center gap-1 text-muted">
+            <div className="text-xs font-semibold mb-1 flex items-center gap-1 text-soft">
               <StickyNote className="w-3 h-3" />
               Notes:
             </div>
-            <div className="text-xs p-2 rounded text-secondary" style={{ background: 'var(--bg-slate-50)' }}>
+            <div className="text-xs p-2 rounded text-body-2" style={{ background: 'var(--bg-slate-50)' }}>
               {patient.notes.split('\n').map((line, i) =>
             <div key={i}>{line}</div>
             )}

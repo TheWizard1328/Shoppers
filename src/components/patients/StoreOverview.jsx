@@ -39,7 +39,7 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
             const stats = getStoreStats(store);
             const driversInfo = getAssignedDrivers(store);
             return (
-              <Card key={store.id} className="rounded-xl border shadow cursor-pointer hover:shadow-md transition-all duration-200 text-body bg-card" style={{ borderColor: store.color || 'var(--border-slate-200)', borderWidth: '2px' }} onClick={() => onStoreSelect(store.id)}>
+              <Card key={store.id} className="rounded-xl border shadow cursor-pointer hover:shadow-md transition-all duration-200 text-body bg-surface" style={{ borderColor: store.color || 'var(--border-slate-200)', borderWidth: '2px' }} onClick={() => onStoreSelect(store.id)}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
@@ -52,19 +52,19 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
                     </div>
                     <div className="text-center ml-3">
                       <div className="text-3xl font-bold text-emerald-600 mb-1">{store.patientCount || 0}</div>
-                      <div className="text-xs mb-1 text-muted">patients</div>
+                      <div className="text-xs mb-1 text-soft">patients</div>
                     </div>
                   </div>
                   <div className="pt-2 mt-2" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
                     {stats.totalRoutes > 0 && <div className="flex justify-center gap-3 text-xs font-medium flex-wrap"><span className="text-blue-600">Active: {stats.activeRoutes}</span><span className="text-green-600">Comp: {stats.completedRoutes}</span><span className="text-red-600">Failed: {stats.failedRoutes}</span><span className="text-orange-600">Returns: {stats.returnedRoutes}</span></div>}
                     <div className="text-sm text-label">
-                      <div className="font-semibold mb-1 text-secondary">Assigned Drivers:</div>
+                      <div className="font-semibold mb-1 text-body-2">Assigned Drivers:</div>
                       <table className="w-full text-xs table-fixed">
                         <thead><tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}><th className="w-1/3 text-left py-1 pr-2 font-medium text-label">Day</th><th className="w-1/3 text-center py-1 px-2 font-medium text-label">AM</th><th className="w-1/3 text-center py-1 pl-2 font-medium text-label">PM</th></tr></thead>
                         <tbody>
                           {[{ day: 'Mon-Fri', am: driversInfo.weekdayAM, pm: driversInfo.weekdayPM }, { day: 'Saturday', am: driversInfo.saturdayAM, pm: driversInfo.saturdayPM }, { day: 'Sunday', am: driversInfo.sundayAM, pm: driversInfo.sundayPM }].map(({ day, am, pm }) => (
                             <tr key={day}>
-                              <td className="w-1/3 text-left py-1 pr-2 text-secondary">{day}</td>
+                              <td className="w-1/3 text-left py-1 pr-2 text-body-2">{day}</td>
                               <td className="w-1/3 text-center py-1 px-2">{am !== 'Off' ? <Badge variant="outline" className="text-foreground px-2.5 py-0.5 text-xs font-semibold opacity-75 rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" style={{ backgroundColor: 'transparent', backgroundImage: store.color ? `linear-gradient(to bottom right, ${store.color}, ${hexToRgba(store.color, 0.8)})` : 'linear-gradient(to bottom right, #10B981, #059669)', color: store.color ? 'white' : '#475569', borderColor: store.color || '#e2e8f0', width: '80px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>{am}</Badge> : 'Off'}</td>
                               <td className="w-1/3 text-center py-1 pl-2">{pm !== 'Off' ? <Badge variant="outline" className="text-foreground px-2.5 py-0.5 text-xs font-semibold opacity-75 rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" style={{ backgroundColor: 'transparent', backgroundImage: store.color ? `linear-gradient(to bottom right, ${store.color}, ${hexToRgba(store.color, 0.8)})` : 'linear-gradient(to bottom right, #10B981, #059669)', color: store.color ? 'white' : '#475569', borderColor: store.color || '#e2e8f0', width: '80px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>{pm}</Badge> : 'Off'}</td>
                             </tr>
@@ -78,7 +78,7 @@ export default function StoreOverview({ stores, onStoreSelect, allPatients, deli
             );
           })}
         </div>
-        {stores.length === 0 && <Card className="mt-4 bg-card border-card"><CardContent className="p-6 text-center text-muted">No stores found for this city.</CardContent></Card>}
+        {stores.length === 0 && <Card className="mt-4 bg-surface border-surface"><CardContent className="p-6 text-center text-soft">No stores found for this city.</CardContent></Card>}
       </div>
     </div>
   );

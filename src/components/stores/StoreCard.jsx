@@ -155,7 +155,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
       className="h-full">
 
       <Card
-        className={overflow-hidden hover:border-emerald-400 transition-all duration-200 hover:shadow-lg cursor-pointer h-full ${isSelected ? 'ring-2 ring-emerald-500 border-emerald-500' : ''} bg-card border-card}
+        className={`overflow-hidden hover:border-emerald-400 transition-all duration-200 hover:shadow-lg cursor-pointer h-full ${isSelected ? 'ring-2 ring-emerald-500 border-emerald-500' : ''} bg-surface border-surface`}
         onClick={() => onSelect?.(store)}>
 
         <CardContent className="p-4 flex flex-col justify-between h-full">
@@ -218,12 +218,12 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-label">{store.address}</p>
                   {store.phone &&
-                  <p className="text-sm mt-1 text-muted">
+                  <p className="text-sm mt-1 text-soft">
                       {formatPhoneNumber(store.phone)}
                     </p>
                   }
                   {store.latitude && store.longitude &&
-                  <p className="text-xs mt-2 mb-2 text-muted">
+                  <p className="text-xs mt-2 mb-2 text-soft">
                       GPS: {store.latitude.toFixed(4)}, {store.longitude.toFixed(4)}
                     </p>
                   }
@@ -356,9 +356,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           (Effective: {formatEffectiveDate(currentPeriod.effective_date)} → {endPeriod ? formatEffectiveDate(endPeriod.effective_date) : 'Present'})
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3 z-[100] bg-card border-card" onClick={(e) => e.stopPropagation()}>
+                      <PopoverContent className="w-auto p-3 z-[100] bg-surface border-surface" onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-3">
-                          <div className="text-sm font-medium text-secondary">Edit Date Range</div>
+                          <div className="text-sm font-medium text-body-2">Edit Date Range</div>
                           <div className="flex gap-2">
                             <Button
                             variant={editingDateType === 'start' ? 'default' : 'outline'}
@@ -475,11 +475,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   const inner = (
                     <div className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${canEdit ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                       style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store[enabledField], driverId) }}>
-                      <div className="text-xs font-medium text-secondary">{label}</div>
+                      <div className="text-xs font-medium text-body-2">{label}</div>
                       {isEnabled && driverId ?
                         <>
                           <div className="text-sm font-medium text-body">{driverName}</div>
-                          {timeStr && <div className="text-xs text-muted">{timeStr}</div>}
+                          {timeStr && <div className="text-xs text-soft">{timeStr}</div>}
                         </> :
                         <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
                           {!isEnabled ? 'Disabled' : 'No driver'}
@@ -495,8 +495,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                         {inner}
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent className="z-[10002] bg-card border-card" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuItem onSelect={() => handleSlotDriverSelect(slotKey, 'null')} className="text-muted">
+                      <DropdownMenuContent className="z-[10002] bg-surface border-surface" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onSelect={() => handleSlotDriverSelect(slotKey, 'null')} className="text-soft">
                           No Driver
                         </DropdownMenuItem>
                         {(drivers || []).filter((driver) => driver?.app_roles?.includes('driver')).map((driver) =>
@@ -544,8 +544,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
           {!isLimitedView && <div className="space-y-0" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
             {/* Store ID with Copy */}
             <div className="flex items-center">
-              <span className="text-xs font-mono w-28 flex-shrink-0 text-muted">Store ID:</span>
-              <span className="text-xs font-mono truncate flex-1 mr-2 text-muted" title={store.id}>
+              <span className="text-xs font-mono w-28 flex-shrink-0 text-soft">Store ID:</span>
+              <span className="text-xs font-mono truncate flex-1 mr-2 text-soft" title={store.id}>
                 {store.id}
               </span>
               <Button
@@ -569,8 +569,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             {/* Dispatcher ID with Copy */}
             {store.dispatcher_id &&
             <div className="flex items-center">
-              <span className="text-xs font-mono w-28 flex-shrink-0 text-muted">Dispatcher ID:</span>
-              <span className="text-xs font-mono truncate flex-1 mr-2 text-muted" title={store.dispatcher_id}>
+              <span className="text-xs font-mono w-28 flex-shrink-0 text-soft">Dispatcher ID:</span>
+              <span className="text-xs font-mono truncate flex-1 mr-2 text-soft" title={store.dispatcher_id}>
                 {store.dispatcher_id}
               </span>
               <Button

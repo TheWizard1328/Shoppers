@@ -147,18 +147,18 @@ export default function PayrollMobileCard({
       </div>
 
       {/* Deliveries Section - Collapsible */}
-      <div className="border rounded border-card">
+      <div className="border rounded border-surface">
         <button
           onClick={() => toggleSection('deliveries')}
-          className="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-200 transition-colors bg-card">
+          className="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-200 transition-colors bg-surface">
 
-          <span className="text-xs font-semibold text-secondary">Deliveries</span>
+          <span className="text-xs font-semibold text-body-2">Deliveries</span>
           <ChevronDown
-            className="w-4 h-4 transition-transform text-muted" style={{ transform: expandedSection === 'deliveries' ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+            className="w-4 h-4 transition-transform text-soft" style={{ transform: expandedSection === 'deliveries' ? 'rotate(180deg)' : 'rotate(0deg)' }} />
 
         </button>
         {expandedSection === 'deliveries' &&
-        <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between overflow-x-hidden w-full bg-card" style={{ borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
+        <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between overflow-x-hidden w-full bg-surface" style={{ borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
             {/* 5-column grid layout */}
             <div className="space-y-1" style={{ display: 'grid', gridTemplateColumns: '1fr 0.5fr 0.8fr 0.35fr 1fr', columnGap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace', minWidth: 0, width: '100%' }}>
               {/* Total */}
@@ -184,7 +184,7 @@ export default function PayrollMobileCard({
             </div>
 
             {/* Failed & Returns counts */}
-            <div className="flex items-center gap-3 pt-1 border-t border-card">
+            <div className="flex items-center gap-3 pt-1 border-t border-surface">
               {(data.failedCount > 0 || data.returnsCount > 0 || Number(data.afterHoursCount) > 0 || Number(data.noChargeCount) > 0) &&
             <>
                   <span style={{ color: 'var(--text-red-600)' }}>Failed: <span className="font-semibold">{data.failedCount}</span></span>
@@ -200,10 +200,10 @@ export default function PayrollMobileCard({
 
       {/* Pay Summary - Table Layout with Aligned Columns */}
       {currentPeriod &&
-      <div className="px-2 py-2 rounded-lg border w-full overflow-x-hidden bg-card border-card" style={{ fontVariantNumeric: 'tabular-nums' }}>
+      <div className="px-2 py-2 rounded-lg border w-full overflow-x-hidden bg-surface border-surface" style={{ fontVariantNumeric: 'tabular-nums' }}>
         <div className="text-xs font-mono text-body" style={{ minWidth: 0, width: '100%' }}>
           {/* Header Row */}
-          <div className="grid gap-1 mb-2 font-semibold pb-1 border-b text-secondary border-card" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
+          <div className="grid gap-1 mb-2 font-semibold pb-1 border-b text-body-2 border-surface" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div></div>
             <div></div>
             <div className="text-right">Period</div>
@@ -296,7 +296,7 @@ export default function PayrollMobileCard({
           }
 
           {/* Gross (bold, divider) */}
-          <div className="grid gap-1 pt-1 border-t font-bold border-card" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: '#10b981' }}>
+          <div className="grid gap-1 pt-1 border-t font-bold border-surface" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: '#10b981' }}>
             <div className="text-left">Net:</div>
             <div className="text-right pr-0.5">$</div>
             <div className="text-right">{periodNet.toFixed(2)}</div>

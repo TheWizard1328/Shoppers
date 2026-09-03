@@ -335,7 +335,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               />
             </div>
           </div>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-soft">
             KM Limit: Minimum km before extra pay starts
           </p>
 
@@ -355,7 +355,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 onChange={(values) => setFormData((prev) => ({ ...prev, square_location_ids: values }))}
                 placeholder="Select Square card locations..."
               />
-              <p className="text-xs mt-1 text-muted">
+              <p className="text-xs mt-1 text-soft">
                 Assign Square terminals/cards for COD processing
               </p>
             </div>
@@ -511,7 +511,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 </div>
               </div>
             </div>
-            <p className="text-xs mt-1.5 text-muted">
+            <p className="text-xs mt-1.5 text-soft">
               These deductions will be applied to each payroll period that starts within the date range.
             </p>
           </div>

@@ -125,7 +125,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
         <TooltipTrigger asChild>
           <button
- type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm text-label border-card"
+ type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm text-label border-surface"
  onTouchStart={showApiTooltipForTouch}
  onClick={showApiTooltipForTouch}
  style={{ background: "transparent" }}>
@@ -134,14 +134,14 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
         </TooltipTrigger>
         <TooltipContent
         side="top"
-        className="max-w-[280px] p-3 z-[10000] text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+        className="max-w-[280px] p-3 z-[10000] text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
           <p className="font-semibold text-sm mb-1 text-body">
             Active Maps API Key
           </p>
           <p className="text-xs leading-relaxed mb-2 text-label">
             {selectedApiKey}
           </p>
-          <div className="space-y-1 text-xs text-secondary">
+          <div className="space-y-1 text-xs text-body-2">
             <div>Google API: {googleCount ?? '...'}</div>
             <div>HERE Routing API: {hereRoutingCount ?? '...'}</div>
             <div>HERE Map Tile API: {hereTileCount ?? '...'}</div>
@@ -156,7 +156,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       {counterButton}
       {showCompletedRouteControls &&
       <div className="absolute top-4 right-4 z-[180] pointer-events-auto">
-          <div className="px-2 py-2 rounded-xl border shadow-lg space-y-1 border-card" style={{ background: 'transparent' }}>
+          <div className="px-2 py-2 rounded-xl border shadow-lg space-y-1 border-surface" style={{ background: 'transparent' }}>
             <div className="flex items-start justify-between gap-3">
               <RadioGroup
               value={selectedPolylineOption}

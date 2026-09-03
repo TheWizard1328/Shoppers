@@ -61,7 +61,7 @@ export default function StopCardTimingDisplay({
       )}
       {/* Time Window - Only for non-finished stops */}
       {!FINISHED_STATUSES.includes(delivery?.status) && (delivery?.delivery_time_start || delivery?.delivery_time_end) &&
-        <div className="text-sm md:text-[11px] text-muted">
+        <div className="text-sm md:text-[11px] text-soft">
           {delivery?.delivery_time_start && delivery?.delivery_time_end ?
             <>{formatTime24Hour(delivery.delivery_time_start)} → {formatTime24Hour(delivery.delivery_time_end)}</> :
             delivery?.delivery_time_start ?
@@ -73,7 +73,7 @@ export default function StopCardTimingDisplay({
       }
       {/* Arrival and Completion Times for Pickups */}
       {isPickup && (delivery?.arrival_time || delivery?.actual_delivery_time) &&
-        <div className="text-sm md:text-[11px] flex items-center gap-1 text-muted">
+        <div className="text-sm md:text-[11px] flex items-center gap-1 text-soft">
           {delivery?.arrival_time && (
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />

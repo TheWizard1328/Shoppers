@@ -24,7 +24,7 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
             whileHover={{ y: -2 }}
             transition={{ duration: 0.2 }}
         >
-            <Card className="shadow-sm hover:shadow-md transition-shadow duration-300 h-full bg-card border-card">
+            <Card className="shadow-sm hover:shadow-md transition-shadow duration-300 h-full bg-surface border-surface">
                 <CardContent className="p-6 flex flex-col justify-between h-full">
                     <div>
                         <div className="flex items-start justify-between mb-4">
@@ -77,7 +77,7 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                                     Delete
                                 </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent className="bg-card border-card">
+                            <AlertDialogContent className="bg-surface border-surface">
                                 <AlertDialogHeader>
                                     <AlertDialogTitle className="text-body">Delete City</AlertDialogTitle>
                                     <AlertDialogDescription className="text-label">
@@ -85,7 +85,7 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">Cancel</AlertDialogCancel>
+                                    <AlertDialogCancel style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">Cancel</AlertDialogCancel>
                                     <AlertDialogAction
                                         onClick={() => onDelete(city.id)}
                                         className="bg-red-600 hover:bg-red-700"
@@ -99,7 +99,7 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                             variant="outline"
                             size="sm"
                             onClick={() => onEdit(city)}
-                            style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card"
+                            style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface"
                         >
                             <Edit className="w-4 h-4 mr-2" />
                             Edit

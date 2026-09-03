@@ -61,7 +61,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
   const hasMore = filteredDeliveries.length > visibleCount;
 
   return (
-    <Card className="shadow-sm flex flex-col h-full bg-card border-card">
+    <Card className="shadow-sm flex flex-col h-full bg-surface border-surface">
       <CardHeader className="px-4 py-2 flex-shrink-0">
         <CardTitle className="flex items-center justify-between gap-2 text-body">
           <span className="flex items-center gap-2">
@@ -81,12 +81,12 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
       </CardHeader>
       <CardContent className="flex-1 min-h-0 flex flex-col">
         {isLoading ?
-        <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted">
+        <div className="flex items-center justify-center gap-2 py-6 text-sm text-soft">
             <Loader2 className="w-4 h-4 animate-spin" />
             Loading deliveries...
           </div> :
         patientDeliveries.length === 0 ?
-        <p className="text-sm text-center py-4 text-muted">
+        <p className="text-sm text-center py-4 text-soft">
             No deliveries found
           </p> :
 
@@ -97,7 +97,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
             return (
               <div
                 key={delivery.id}
-                className={p-3 rounded-lg border border-card} style={{ background: 'var(--bg-slate-50)' }}>
+                className={`p-3 rounded-lg border border-surface`} style={{ background: 'var(--bg-slate-50)' }}>
                   <div className="grid grid-cols-2 gap-3 mb-2">
                     <div className="text-xs space-y-1">
                       <div className="text-sm font-medium text-body">
@@ -125,7 +125,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
                       delivery.status}
                       </Badge>
                       {delivery.driver_name &&
-                    <Badge variant="outline" className="text-xs text-secondary">
+                    <Badge variant="outline" className="text-xs text-body-2">
                           {delivery.driver_name}
                         </Badge>
                     }
@@ -147,7 +147,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
                       {userHasRole(currentUser, 'admin') && onEditDelivery &&
                     <button
                       onClick={() => onEditDelivery(delivery)}
-                      className="flex items-center gap-1 text-xs font-medium shrink-0 text-muted">
+                      className="flex items-center gap-1 text-xs font-medium shrink-0 text-soft">
                       
                           <Pencil className="w-3 h-3" />
                           Edit
@@ -169,7 +169,7 @@ const RecentDeliveries = ({ allDeliveries, isLoading, patient, currentUser, onEd
           {hasMore &&
           <button
             onClick={() => setVisibleCount((c) => c + 60)}
-            className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 flex-shrink-0 text-label border-card">
+            className="w-full mt-3 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-slate-100 flex-shrink-0 text-label border-surface">
               Show more ({filteredDeliveries.length - visibleCount} more)
             </button>
           }
@@ -258,7 +258,7 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
 
   if (!patient) {
     return (
-      <div className="text-center py-10 text-muted">
+      <div className="text-center py-10 text-soft">
         <p className="text-lg mb-2">Select a patient to view details</p>
         <p className="text-sm">Click on any patient card on the left to see analytics and recent delivery history.</p>
       </div>);
@@ -280,7 +280,7 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
     <div className="flex flex-col h-full overflow-hidden px-3 py-3 gap-3">
       {/* Delivery Statistics */}
       {deliveryStats &&
-      <Card className="shadow-sm bg-card border-card">
+      <Card className="shadow-sm bg-surface border-surface">
           <CardHeader
           className="cursor-pointer select-none"
           style={{ touchAction: 'none' }}
@@ -316,7 +316,7 @@ export default function PatientDetails({ patient, currentUser, onEditDelivery })
 
             {deliveryStats.lastDeliveryDate &&
           <div className="flex items-center gap-3 text-sm p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-                <Calendar className="w-4 h-4 flex-shrink-0 text-muted" />
+                <Calendar className="w-4 h-4 flex-shrink-0 text-soft" />
                 <div>
                   <p className="font-medium text-body">Last Delivery</p>
                   <p className="text-label">

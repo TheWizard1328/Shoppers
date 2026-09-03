@@ -21,7 +21,7 @@ export const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCoun
       </div>
       <div className="relative">
         {driverCount !== undefined && driverCount > 0 &&
-          <span className="absolute -top-1 -right-1 text-[9px] font-bold text-muted">
+          <span className="absolute -top-1 -right-1 text-[9px] font-bold text-soft">
             {driverCount}
           </span>
         }
@@ -35,7 +35,7 @@ export const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCoun
         <TooltipTrigger asChild>
           {badge}
         </TooltipTrigger>
-        <TooltipContent className="z-[9999] border text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+        <TooltipContent className="z-[9999] border text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
           <p>{tooltip || ''}</p>
         </TooltipContent>
       </Tooltip>

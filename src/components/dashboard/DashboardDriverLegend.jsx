@@ -17,7 +17,7 @@ export default function DashboardDriverLegend({
     <div
       ref={legendRef}
       data-driver-legend
-      className="rounded-lg backdrop-blur-sm shadow-lg border bg-card border-card" style={{ opacity: 0.95, width: cardWidth }}
+      className="rounded-lg backdrop-blur-sm shadow-lg border bg-surface border-surface" style={{ opacity: 0.95, width: cardWidth }}
       onMouseEnter={() => handleCardInteraction(true)}
       onMouseLeave={() => handleCardInteraction(false)}
     >
@@ -48,10 +48,10 @@ export default function DashboardDriverLegend({
                 {isOnline && <div className="opacity-75 rounded-full absolute inset-0 animate-ping" style={{ backgroundColor: c }} />}
                 <div className="rounded-full relative w-3 h-3 shadow-sm flex-shrink-0" style={{ backgroundColor: bg, border: bd }} />
               </div>
-              <span className="text-xs font-medium whitespace-nowrap text-secondary">
+              <span className="text-xs font-medium whitespace-nowrap text-body-2">
                 {route.driverName || 'Unknown'}
               </span>
-              <span className="text-xs text-muted">
+              <span className="text-xs text-soft">
                 ({route.totalStops})
               </span>
             </button>

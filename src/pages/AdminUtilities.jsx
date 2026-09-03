@@ -1665,7 +1665,7 @@ export default function AdminUtilities() {
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Card className="p-8 text-center bg-card border-card">
+        <Card className="p-8 text-center bg-surface border-surface">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
           <h2 className="text-xl font-bold mb-2 text-body">Access Denied</h2>
           <p className="text-label">Only app owners can access this page.</p>

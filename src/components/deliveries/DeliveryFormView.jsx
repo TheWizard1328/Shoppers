@@ -838,10 +838,10 @@ export default function DeliveryFormView({
         style={useMobileLayout && isMobileDevice ? { height: '100%', maxHeight: '100%' } : undefined}>
         <Card
           onKeyDown={handleGlobalKeyDown}
-          className={border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl overflow-hidden'} text-body bg-card border-card}>
+          className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl overflow-hidden'} text-body bg-surface border-surface`}>
           
           {/* Header */}
-          <CardHeader className="px-4 py-1 flex flex-col space-y-1.5 border-b flex-shrink-0 border-card">
+          <CardHeader className="px-4 py-1 flex flex-col space-y-1.5 border-b flex-shrink-0 border-surface">
             <div className="flex items-center justify-between gap-3">
               <div className={`flex ${useMobileLayout && isMobileDevice ? 'items-center gap-2 min-w-0' : 'items-center gap-3'}`}>
                 <Package className="w-5 h-5 text-emerald-600 flex-shrink-0" />
@@ -980,7 +980,7 @@ export default function DeliveryFormView({
             <div className="flex flex-col gap-3">
                 {/* Date + Driver row (same as pickup mode) */}
                 <div className="flex gap-3">
-                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">Transfer Date *</Label>
                     <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                   </div>
@@ -1025,11 +1025,11 @@ export default function DeliveryFormView({
             <div className="flex flex-col gap-3">
                 {/* Date + Driver row */}
                 <div className="flex gap-3">
-                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">Date *</Label>
                     <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                   </div>
-                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">Driver</Label>
                     <Select value={formData.driver_id || currentUser?.id || 'none'} onValueChange={(driverId) => {
                     const driver = allDrivers.find((d) => d.id === driverId);
@@ -1043,7 +1043,7 @@ export default function DeliveryFormView({
                   </div>
                 </div>
                 {/* Cycling Point selector */}
-                <div className="p-3 rounded-lg border space-y-2 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                <div className="p-3 rounded-lg border space-y-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                   <Label className="text-sm font-semibold text-body">Cycling Point</Label>
                   <div className="flex gap-2">
                     {['Cycling Route Start', 'Cycling Route End'].map((label) => {
@@ -1062,7 +1062,7 @@ export default function DeliveryFormView({
                   </div>
                 </div>
                 {/* Status / Arrival / Completion */}
-                <div className="p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                <div className="p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                   <DeliveryStatusAndTiming
                   formData={formData} setFormData={setFormData}
                   delivery={null} isPickupMode={false} isSaving={isSaving}
@@ -1073,7 +1073,7 @@ export default function DeliveryFormView({
                   isCyclingMarker={true} />
                 </div>
                 {/* Library search */}
-                <div className="p-3 rounded-lg border space-y-2 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                <div className="p-3 rounded-lg border space-y-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                   <CyclingLocationSearch
                   cities={cities}
                   currentUser={currentUser}
@@ -1125,13 +1125,13 @@ export default function DeliveryFormView({
                 </div>
                 {/* Lat / Lng */}
                 <div className="flex gap-3">
-                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">
                       Latitude {coordsLocked && <span className="text-xs font-normal text-slate-400 dark:text-slate-400 ml-1">(locked)</span>}
                     </Label>
                     <Input type="number" step="any" value={formData.cycling_latitude ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, cycling_latitude: e.target.value === '' ? null : parseFloat(parseFloat(e.target.value).toFixed(7)) }))} placeholder="e.g. 53.5461" disabled={isSaving || coordsLocked} className="h-9" />
                   </div>
-                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                  <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                     <Label className="text-sm font-semibold text-body">
                       Longitude {coordsLocked && <span className="text-xs font-normal text-slate-400 dark:text-slate-400 ml-1">(locked)</span>}
                     </Label>
@@ -1166,7 +1166,7 @@ export default function DeliveryFormView({
                   
                   {/* Row 2: Date + Driver */}
                   <div className="flex gap-3">
-                    <div className="flex-1 space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                    <div className="flex-1 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                       <Label className="text-sm font-semibold text-body">Delivery Date *</Label>
                       <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                     </div>
@@ -1219,7 +1219,7 @@ export default function DeliveryFormView({
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 w-full">
-                          <div className="min-w-0 space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="min-w-0 space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             <Label className="text-sm font-semibold text-body">Delivery Date *</Label>
                             <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                           </div>
@@ -1270,7 +1270,7 @@ export default function DeliveryFormView({
                           onTabKey={() => codAmountInputRef?.current?.focus()} />
                         </div>
 
-                        <div className="min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           <Label className="text-sm font-semibold text-body">Delivery Date *</Label>
                           <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                         </div>
@@ -1303,7 +1303,7 @@ export default function DeliveryFormView({
 
                   <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'flex gap-3 flex-row w-full'}`}>
                     <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'grid grid-cols-[1.1fr_0.9fr_auto] gap-2 w-full items-stretch' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
-                      <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                      <div className="px-1 py-1 rounded-lg min-w-0 flex-1 space-y-1 border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                         <Label className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold leading-tight text-body">Delivery Date *</Label>
                         <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="px-3 py-1 text-base rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-9 [&::-webkit-calendar-picker-indicator]:mr-1 [&::-webkit-calendar-picker-indicator]:scale-100" />
                       </div>
@@ -1331,7 +1331,7 @@ export default function DeliveryFormView({
                       </div>
 
                       {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
-                      <div className="px-1 py-1 rounded-lg w-fit border flex flex-col items-start justify-start gap-1 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                      <div className="px-1 py-1 rounded-lg w-fit border flex flex-col items-start justify-start gap-1 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           {!useMobileLayout &&
                         <Label className="text-sm font-semibold text-body">Travel Mode</Label>
                         }
@@ -1386,7 +1386,7 @@ export default function DeliveryFormView({
                       <div className="min-w-0 space-y-3">
 
                         {/* Notes */}
-                        <div className="px-3 rounded-lg border py-2 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="px-3 rounded-lg border py-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           <div className="flex gap-3">
                             <div className="flex-1 space-y-1">
                               <Label className="text-sm font-semibold text-body">Patient Notes</Label>
@@ -1400,7 +1400,7 @@ export default function DeliveryFormView({
                         </div>
 
                         {/* Delivery Options & COD */}
-                        <div className="px-3 rounded-lg space-y-2 border py-2.5 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="px-3 rounded-lg space-y-2 border py-2.5 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           <div className="grid grid-cols-[minmax(0,1fr)_minmax(9rem,0.9fr)] gap-3 items-start">
                             <div className="space-y-2 min-w-0">
                               <Label className="text-sm font-semibold text-body">Delivery Options</Label>
@@ -1449,7 +1449,7 @@ export default function DeliveryFormView({
 
                         {!useMobileLayout &&
                         <>
-                            <div className="pr-3 pl-3 rounded-lg space-y-2 border pb-3 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                            <div className="pr-3 pl-3 rounded-lg space-y-2 border pb-3 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           
                               <DeliveryStatusAndTiming
                               formData={formData} setFormData={setFormData}
@@ -1462,7 +1462,7 @@ export default function DeliveryFormView({
                           
                             </div>
 
-                            <div className="px-3 rounded-lg space-y-2 border py-2 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                            <div className="px-3 rounded-lg space-y-2 border py-2 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                               <div className="flex gap-3">
                                 <div className="flex-[65] space-y-1">
                                   <div className="relative" style={{ height: '1.5rem' }}>
@@ -1533,7 +1533,7 @@ export default function DeliveryFormView({
 
                       {!useMobileLayout &&
                       <div className="min-w-0 min-h-0 overflow-y-auto pr-1 space-y-3">
-                          <div className="px-3 py-2 rounded-lg space-y-2 border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="px-3 py-2 rounded-lg space-y-2 border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             <SmartBarcodeScanner
                             receiptBarcodeValues={formData.receipt_barcode_values || []}
                             rxBarcodeValues={formData.barcode_values || []}
@@ -1550,7 +1550,7 @@ export default function DeliveryFormView({
 
                           </div>
 
-                          <div className="px-3 rounded-lg border flex flex-col py-3 min-h-[218px] border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="px-3 rounded-lg border flex flex-col py-3 min-h-[218px] border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             {/* desktop SmartBarcodeScanner barcodeInputRef is wired via shared ref */}
                             <Label className="text-sm font-semibold text-body">Patient Preferences</Label>
                             <div className="flex-1 flex flex-col justify-around">
@@ -1563,7 +1563,7 @@ export default function DeliveryFormView({
                             </div>
                           </div>
 
-                          <div className="px-3 py-2 rounded-lg space-y-2 border min-h-[240px] border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="px-3 py-2 rounded-lg space-y-2 border min-h-[240px] border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             <Label className="text-sm font-semibold text-body">Recurring</Label>
                             <DeliveryRecurringOptions
                             formData={formData} setFormData={setFormData} isSaving={isSaving}
@@ -1580,7 +1580,7 @@ export default function DeliveryFormView({
                       }
                     </div> :
 
-                    <div className="px-3 py-2 rounded-lg space-y-2 border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                    <div className="px-3 py-2 rounded-lg space-y-2 border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                       {delivery?.is_cycling_marker ?
                       <div className="space-y-3">
                           <div className="space-y-1">
@@ -1633,7 +1633,7 @@ export default function DeliveryFormView({
                     useMobileLayout ?
                     <>
                         {/* Barcode Scanner */}
-                        <div className="space-y-2 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="space-y-2 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                           <SmartBarcodeScanner
                           receiptBarcodeValues={formData.receipt_barcode_values || []}
                           rxBarcodeValues={formData.barcode_values || []}
@@ -1652,7 +1652,7 @@ export default function DeliveryFormView({
 
                           <div className="space-y-2">
                           {/* Store / Status / Time */}
-                          <div className={space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} border-card} style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''} border-surface`} style={{ background: 'var(--bg-slate-50)' }}>
                             <DeliveryStatusAndTiming
                             formData={formData} setFormData={setFormData}
                             delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
@@ -1665,7 +1665,7 @@ export default function DeliveryFormView({
                           </div>
 
                           {/* Patient Name / Email / Phone / Address / Unit */}
-                          <div className="space-y-2 p-3 rounded-lg border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="space-y-2 p-3 rounded-lg border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                             <div className="flex gap-3">
                               <div className="flex-1 space-y-1">
                                 <Label className="text-sm font-semibold text-body">Patient Name *</Label>
@@ -1730,7 +1730,7 @@ export default function DeliveryFormView({
                           </div>
 
                           <div className="grid grid-cols-2 gap-3 items-start">
-                            <div className="space-y-2 p-3 rounded-lg border h-full border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                            <div className="space-y-2 p-3 rounded-lg border h-full border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                               <Label className="text-sm font-semibold text-body">Patient Preferences</Label>
                               <div className={`${useMobileLayout ? 'space-y-5' : 'space-y-3'}`}>
                                 <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
@@ -1742,7 +1742,7 @@ export default function DeliveryFormView({
                               </div>
                             </div>
 
-                            <div className="space-y-2 p-3 rounded-lg border h-full border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                            <div className="space-y-2 p-3 rounded-lg border h-full border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                               <Label className="text-sm font-semibold text-body">Recurring</Label>
                               <DeliveryRecurringOptions
                               formData={formData} setFormData={setFormData} isSaving={isSaving}
@@ -1760,7 +1760,7 @@ export default function DeliveryFormView({
                       </> :
                     null :
                     !(isPickupMode && !delivery) ?
-                    <div className="px-1 py-1 rounded-lg space-y-1 border border-card" style={{ background: 'var(--bg-slate-50)' }}>
+                    <div className="px-1 py-1 rounded-lg space-y-1 border border-surface" style={{ background: 'var(--bg-slate-50)' }}>
                       <DeliveryStatusAndTiming
                         formData={formData} setFormData={setFormData}
                         delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
@@ -1796,11 +1796,11 @@ export default function DeliveryFormView({
           </CardContent>
 
           {/* Footer */}
-          <CardFooter className="px-3 py-1.5 flex items-center border-t flex-shrink-0 border-card" style={{ background: 'var(--bg-slate-50)' }}>
+          <CardFooter className="px-3 py-1.5 flex items-center border-t flex-shrink-0 border-surface" style={{ background: 'var(--bg-slate-50)' }}>
             <div className="flex flex-wrap items-center w-full gap-2">
               <div className="flex flex-wrap items-center gap-3 min-w-0">
                 {!delivery && useMobileLayout && !isPickupMode &&
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowStagedPanel(!showStagedPanel)} className="gap-2 text-body bg-card" style={{ borderColor: 'var(--border-slate-300)' }}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowStagedPanel(!showStagedPanel)} className="gap-2 text-body bg-surface" style={{ borderColor: 'var(--border-slate-300)' }}>
                     <Package className="w-4 h-4" />
                     Deliveries: (S: {stagedCount.new} P: {stagedCount.pending})
                   </Button>
@@ -1851,7 +1851,7 @@ export default function DeliveryFormView({
                   } else {
                     handleCancelClick();
                   }
-                }} disabled={isSaving || effectiveDeliveryActionBusy} style={{ borderColor: 'var(--border-slate-300)' }} className="inline-flex min-h-11 min-w-20 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs text-body bg-card">
+                }} disabled={isSaving || effectiveDeliveryActionBusy} style={{ borderColor: 'var(--border-slate-300)' }} className="inline-flex min-h-11 min-w-20 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs text-body bg-surface">
                  {(() => {
                     if (delivery) return 'Cancel';
                     if (isInterStoreMode) {

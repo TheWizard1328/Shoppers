@@ -74,7 +74,7 @@ export default function StopCardFooter(props) {
   if (isDispatcherOnly && showCancelPickupButton) {
     return (
       <div>
-        <div className="border-t border-card">
+        <div className="border-t border-surface">
           <div className="mx-1 flex justify-end items-center mt-1 mb-0.5">
             <Button
               type="button"
@@ -99,7 +99,7 @@ export default function StopCardFooter(props) {
 
   return (
     <div>
-      <div className="border-t border-card">
+      <div className="border-t border-surface">
         <div className="mx-1 flex justify-between items-center mt-1 mb-0.5">
           <StopCardActionButtons {...props} />
         </div>

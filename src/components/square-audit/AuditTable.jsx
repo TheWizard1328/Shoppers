@@ -53,15 +53,15 @@ export default function AuditTable({ title, description, rows, columns, defaultS
   const discrepancyCount = rows.filter((row) => row.hasDiscrepancy).length;
 
   return (
-    <Card className="shadow-sm overflow-hidden bg-card border-card">
+    <Card className="shadow-sm overflow-hidden bg-surface border-surface">
       <CardHeader className="space-y-2">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="text-lg text-body">{title}</CardTitle>
-            <p className="text-sm text-muted">{description}</p>
+            <p className="text-sm text-soft">{description}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="border text-secondary border-card" style={{ background: "var(--bg-slate-100)" }}>
+            <Badge variant="secondary" className="border text-body-2 border-surface" style={{ background: "var(--bg-slate-100)" }}>
               {sortedRows.length} / {rows.length} rows
             </Badge>
             {discrepancyCount > 0 && (
@@ -76,18 +76,18 @@ export default function AuditTable({ title, description, rows, columns, defaultS
       <CardContent className="p-0">
         <div className="max-h-[62vh] overflow-auto">
           <table className="w-full min-w-max text-sm">
-            <thead className="sticky top-0 z-10 bg-card">
+            <thead className="sticky top-0 z-10 bg-surface">
               <tr style={{ borderBottom: "1px solid var(--border-slate-200)" }}>
                 {columns.map((column) => {
                   const isActive = sortConfig.key === column.key;
                   const SortIcon = !isActive ? ArrowUpDown : sortConfig.direction === "asc" ? ArrowUp : ArrowDown;
 
                   return (
-                    <th key={column.key} className={px-3 py-3 text-left font-semibold ${column.headerClassName || ""} text-secondary}>
+                    <th key={column.key} className={`px-3 py-3 text-left font-semibold ${column.headerClassName || ""} text-body-2`}>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-auto px-0 py-0 font-semibold hover:bg-transparent text-secondary"
+                        className="h-auto px-0 py-0 font-semibold hover:bg-transparent text-body-2"
                         onClick={() => handleSort(column.key)}
                       >
                         {column.label}
@@ -96,7 +96,7 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                     </th>
                   );
                 })}
-                <th className="px-3 py-3 text-left font-semibold whitespace-nowrap text-secondary">Audit Flags</th>
+                <th className="px-3 py-3 text-left font-semibold whitespace-nowrap text-body-2">Audit Flags</th>
               </tr>
               <tr style={{ borderBottom: "1px solid var(--border-slate-200)" }}>
                 {columns.map((column) => (
@@ -119,7 +119,7 @@ export default function AuditTable({ title, description, rows, columns, defaultS
             <tbody>
               {sortedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="px-3 py-10 text-center text-muted">
+                  <td colSpan={columns.length + 1} className="px-3 py-10 text-center text-soft">
                     No rows found.
                   </td>
                 </tr>
@@ -133,7 +133,7 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                     }}
                   >
                     {columns.map((column) => (
-                      <td key={column.key} className={px-3 py-3 align-top ${column.cellClassName || ""} text-secondary}>
+                      <td key={column.key} className={`px-3 py-3 align-top ${column.cellClassName || ""} text-body-2`}>
                         {column.render ? column.render(row) : row[column.key]}
                       </td>
                     ))}
@@ -145,7 +145,7 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                               <Badge
                                 key={issue}
                                 variant="outline"
-                                className="border-amber-300 text-amber-800 bg-card"
+                                className="border-amber-300 text-amber-800 bg-surface"
                               >
                                 {issue}
                               </Badge>
@@ -155,7 +155,7 @@ export default function AuditTable({ title, description, rows, columns, defaultS
                           <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Matched</Badge>
                         )}
                         {row.bestTransactionMatch && (
-                          <div className="text-xs text-muted">
+                          <div className="text-xs text-soft">
                             Tx match: {row.bestTransactionMatch.score}%
                           </div>
                         )}

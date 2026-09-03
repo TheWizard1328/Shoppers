@@ -570,7 +570,7 @@ export default function ResetPolylinesButton({
       size="sm"
       onClick={handleReset}
       disabled={disabled || isResetting || driverIds.length === 0}
-      className={h-8 gap-2 ${className} text-body bg-card} style={{ borderColor: "var(--border-slate-300)" }}
+      className={`h-8 gap-2 ${className} text-body bg-surface`} style={{ borderColor: "var(--border-slate-300)" }}
       title="Refresh polylines"
     >
       {isResetting

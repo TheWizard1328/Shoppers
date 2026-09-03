@@ -189,7 +189,7 @@ export default function CyclingLocationSearch({
           {isOpen && (
             <div
               ref={dropdownRef}
-              className="absolute z-[999999] top-full left-0 right-0 mt-1 rounded-lg border shadow-lg overflow-hidden bg-card border-card"
+              className="absolute z-[999999] top-full left-0 right-0 mt-1 rounded-lg border shadow-lg overflow-hidden bg-surface border-surface"
             >
               {isLoading ? (
                 <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Searching…</div>

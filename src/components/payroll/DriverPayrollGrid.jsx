@@ -369,7 +369,7 @@ export default function DriverPayrollGrid({
   const periodDateRange = `${format(currentPeriod.start, 'MMM d')} - ${format(currentPeriod.end, 'MMM d, yyyy')}`;
 
   return (
-    <Card className="bg-card border-card">
+    <Card className="bg-surface border-surface">
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-2" ref={containerRef}>
 
@@ -409,7 +409,7 @@ export default function DriverPayrollGrid({
                   </div>
                   <div className="text-center min-w-[200px]">
                     <div className="font-semibold text-body">{currentPeriod.label}</div>
-                    <div className="text-xs text-muted">{periodDateRange}</div>
+                    <div className="text-xs text-soft">{periodDateRange}</div>
                   </div>
                 </div>
                 <Button
@@ -455,7 +455,7 @@ export default function DriverPayrollGrid({
                 </Button>
                 <div className="flex flex-col items-center gap-1">
                   <div className="font-semibold text-sm text-body">{currentPeriod.label}</div>
-                  <div className="text-xs text-muted">{periodDateRange}</div>
+                  <div className="text-xs text-soft">{periodDateRange}</div>
                 </div>
                 <Button
                 size="sm"
@@ -512,7 +512,7 @@ export default function DriverPayrollGrid({
                 </Button>
                 <div className="text-center min-w-[200px]">
                   <div className="font-semibold text-body">{currentPeriod.label}</div>
-                  <div className="text-xs text-muted">{periodDateRange}</div>
+                  <div className="text-xs text-soft">{periodDateRange}</div>
                 </div>
                 <Button
                 size="sm"
@@ -635,7 +635,7 @@ export default function DriverPayrollGrid({
               })}
               {/* Totals Row */}
               <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-slate-300)', background: 'var(--bg-slate-100)' }}>
-                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 align-top text-secondary" style={{ background: 'var(--bg-slate-100)' }}>Tot</td>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 align-top text-body-2" style={{ background: 'var(--bg-slate-100)' }}>Tot</td>
                 {sortedStores.map((store) => {
                   const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const displayValueMobile = viewMode === 'extraKm' ?
@@ -662,7 +662,7 @@ export default function DriverPayrollGrid({
               </tr>
               {/* Average Per Active Day Row */}
               <tr className="font-medium" style={{ background: 'var(--bg-slate-50)' }}>
-                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 text-secondary" style={{ background: 'var(--bg-slate-50)' }}>AVG</td>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 text-body-2" style={{ background: 'var(--bg-slate-50)' }}>AVG</td>
                 {sortedStores.map((store) => {
                   const storeTotal = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const activeDays = periodDays.filter((day) => {
@@ -706,7 +706,7 @@ export default function DriverPayrollGrid({
               </tr>
               {/* Projected Total Row */}
               <tr className="font-medium" style={{ background: 'var(--bg-slate-50)' }}>
-                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 text-secondary" style={{ background: 'var(--bg-slate-50)' }}>Proj</td>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 dark:border-slate-600 text-body-2" style={{ background: 'var(--bg-slate-50)' }}>Proj</td>
                 {sortedStores.map((store) => {
                   const storeTotal = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const activeDays = periodDays.filter((day) => {

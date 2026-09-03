@@ -71,16 +71,16 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, trend, previousValue, 
   }
 
   return (
-    <Card className="bg-card border-card">
+    <Card className="bg-surface border-surface">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-secondary">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-body-2">{title}</CardTitle>
         <div className={`p-2 rounded-full ${colorClasses[color]}`}>
           <Icon className="h-4 w-4" />
         </div>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold text-body">{value}</div>
-        {subtitle && <p className="text-xs mt-1 text-muted">{subtitle}</p>}
+        {subtitle && <p className="text-xs mt-1 text-soft">{subtitle}</p>}
         {percentChange !== null &&
         <div className={`flex items-center mt-2 text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
             {isPositive ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
@@ -976,7 +976,7 @@ export default function DeliveryMetrics() {
                 })()}
               </p>
               {showComparison && prevStartDate && prevEndDate &&
-                <span className="text-xs text-muted">
+                <span className="text-xs text-soft">
                   (vs {format(prevStartDate, 'MMM d')} - {format(prevEndDate, 'MMM d')})
                 </span>
               }
@@ -1055,7 +1055,7 @@ export default function DeliveryMetrics() {
               </SelectContent>
             </Select>
 
-            <Button onClick={() => loadData()} variant="outline" style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-card">
+            <Button onClick={() => loadData()} variant="outline" style={{ borderColor: 'var(--border-slate-300)' }} className="text-body bg-surface">
               Refresh Data
             </Button>
           </div>
@@ -1107,7 +1107,7 @@ export default function DeliveryMetrics() {
 
           <TabsContent value="daily" className="space-y-4">
             {dateRange === 'today' && (
-              <Card className="bg-card border-card">
+              <Card className="bg-surface border-surface">
                 <CardHeader>
                   <CardTitle className="text-body">Deliveries by Hour of Day</CardTitle>
                 </CardHeader>
@@ -1127,7 +1127,7 @@ export default function DeliveryMetrics() {
                 </CardContent>
               </Card>
             )}
-            <Card className="bg-card border-card">
+            <Card className="bg-surface border-surface">
               <CardHeader>
                 <CardTitle className="text-body">
                   {dateRange === 'year' ? 'Monthly Delivery Performance' : 'Daily Delivery Performance'}
@@ -1202,12 +1202,12 @@ export default function DeliveryMetrics() {
 
             {/* Render separate chart for previous period if not a weekly range and comparison is enabled */}
             {showComparison && !isWeeklyRangeForChart && metrics.prevDailyData.length > 0 &&
-            <Card className="bg-card border-card">
+            <Card className="bg-surface border-surface">
                 <CardHeader>
                   <CardTitle className="text-body">
                     Daily Delivery Performance - Previous Period
                     {prevStartDate && prevEndDate && (
-                      <span className="text-sm font-normal ml-2 text-muted">
+                      <span className="text-sm font-normal ml-2 text-soft">
                         ({format(prevStartDate, 'MMM d, yyyy')} - {format(prevEndDate, 'MMM d, yyyy')})
                       </span>
                     )}
@@ -1233,7 +1233,7 @@ export default function DeliveryMetrics() {
           </TabsContent>
 
           <TabsContent value="drivers" className="space-y-4">
-            <Card className="bg-card border-card">
+            <Card className="bg-surface border-surface">
               <CardHeader>
                 <CardTitle className="text-body">Performance by Driver</CardTitle>
               </CardHeader>
@@ -1262,7 +1262,7 @@ export default function DeliveryMetrics() {
           </TabsContent>
 
           <TabsContent value="status" className="space-y-4">
-            <Card className="bg-card border-card">
+            <Card className="bg-surface border-surface">
               <CardHeader>
                 <CardTitle className="text-body">Delivery Status Distribution</CardTitle>
               </CardHeader>
@@ -1314,42 +1314,42 @@ export default function DeliveryMetrics() {
 
         {/* Additional Stats */}
         <div className="grid grid-cols-3 gap-4">
-          <Card className="bg-card border-card">
+          <Card className="bg-surface border-surface">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-secondary">Total Distance</CardTitle>
-              <MapPin className="h-4 w-4 text-muted" />
+              <CardTitle className="text-sm font-medium text-body-2">Total Distance</CardTitle>
+              <MapPin className="h-4 w-4 text-soft" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-body">{metrics.totalDistance} km</div>
-              <p className="text-xs mt-1 text-muted">Across all routes</p>
+              <p className="text-xs mt-1 text-soft">Across all routes</p>
               {showComparison &&
               <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {metrics.prevTotalDistance} km</p>
               }
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-card">
+          <Card className="bg-surface border-surface">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-secondary">Failed Returned</CardTitle>
+              <CardTitle className="text-sm font-medium text-body-2">Failed Returned</CardTitle>
               <XCircle className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-body">{metrics.failedDeliveries}/{metrics.returnedDeliveries}</div>
-              <p className="text-xs mt-1 text-muted">Total failed and returned</p>
+              <p className="text-xs mt-1 text-soft">Total failed and returned</p>
               {showComparison &&
               <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {metrics.prevFailedDeliveries}/{metrics.prevReturnedDeliveries}</p>
               }
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-card">
+          <Card className="bg-surface border-surface">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-secondary">Avg Distance</CardTitle>
+              <CardTitle className="text-sm font-medium text-body-2">Avg Distance</CardTitle>
               <Truck className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-body">{metrics.avgDistance} km</div>
-              <p className="text-xs mt-1 text-muted">Between deliveries</p>
+              <p className="text-xs mt-1 text-soft">Between deliveries</p>
               {showComparison &&
               <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {metrics.prevAvgDistance} km</p>
               }
