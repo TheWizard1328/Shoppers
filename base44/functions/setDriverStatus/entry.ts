@@ -111,6 +111,86 @@ const roundTo5Min = (isoTimestamp, direction) => {
  *   - off_duty: should be the actual_delivery_time of the last completed stop
  *   - on_duty (first of day): should be the actual_delivery_time of the first completed stop
  */
+// Merges activity_segments from every duplicate DriverDailyActivity record for the
+// same driver_id+activity_date into ONE surviving record (the oldest by created_date),
+// deleting the rest. Segments are deduped by identical start_time+end_time and sorted
+// chronologically. Self-heals duplicates created by the historical race below every
+// time this function touches that driver's day, so the admin Timeline/Cards view
+// converges back to a single row within one status-change cycle.
+const mergeDuplicateActivityRecords = async (base44, records) => {
+  const sorted = [...records].sort((a, b) => new Date(a.created_date).getTime() - new Date(b.created_date).getTime());
+  const survivor = sorted[0];
+  const dupes = sorted.slice(1);
+
+  const seen = new Set();
+  const mergedSegments = [];
+  sorted.forEach((rec) => {
+    (Array.isArray(rec.activity_segments) ? rec.activity_segments : []).forEach((seg) => {
+      const key = `${seg?.start_time || ''}|${seg?.end_time || ''}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      mergedSegments.push(seg);
+    });
+  });
+  mergedSegments.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+  await base44.asServiceRole.entities.DriverDailyActivity.update(survivor.id, { activity_segments: mergedSegments }).catch(() => {});
+  for (const dupe of dupes) {
+    await base44.asServiceRole.entities.DriverDailyActivity.delete(dupe.id).catch((err) => {
+      console.warn(`⚠️ [setDriverStatus] Failed to delete duplicate DriverDailyActivity ${dupe.id}:`, err?.message || err);
+    });
+  }
+  console.log(`🩹 [setDriverStatus] Merged ${records.length} duplicate DriverDailyActivity records into ${survivor.id} for driver ${survivor.driver_id} (${dupes.length} deleted)`);
+  return { ...survivor, activity_segments: mergedSegments };
+};
+
+// Get-or-create is NOT atomic on this platform (no compound-unique-index / upsert
+// primitive exposed) — a filter-then-create can race when setDriverStatus is invoked
+// twice in close succession for the same driver+day. This happens in practice because
+// multiple independent call sites fire newStatus:'on_duty' redundantly without
+// coordination (DriverStatusToggle's manual toggle, useStopCardActions.ensureDriverOnline
+// firing on nearly every stop-card action by design, and queued offline mutations
+// replaying in a burst on reconnect). Two concurrent invocations can both see zero
+// matching records and both create — producing two DriverDailyActivity rows for the
+// same driver_id+activity_date, each with its own orphaned open segment (visible as
+// duplicate driver rows in the admin Timeline/Cards view).
+//
+// Mitigated with self-healing (merge existing dupes on every read) plus a
+// create-then-reconcile double-check (re-query immediately after create; if a
+// concurrent request won the race, merge down to one record instead of leaving two).
+const getOrCreateDailyActivityRecord = async (base44, driverId, driverName, todayStr) => {
+  let existing = await base44.asServiceRole.entities.DriverDailyActivity.filter({
+    driver_id: driverId,
+    activity_date: todayStr
+  }).catch(() => []);
+
+  if (existing.length > 1) {
+    return await mergeDuplicateActivityRecords(base44, existing);
+  }
+  if (existing.length === 1) {
+    return existing[0];
+  }
+
+  const created = await base44.asServiceRole.entities.DriverDailyActivity.create({
+    driver_id: driverId,
+    driver_name: driverName || '',
+    activity_date: todayStr,
+    activity_segments: []
+  });
+
+  // Race check: did a concurrent invocation ALSO create a record for this driver+day
+  // in the window between our filter() and our create() above?
+  const recheck = await base44.asServiceRole.entities.DriverDailyActivity.filter({
+    driver_id: driverId,
+    activity_date: todayStr
+  }).catch(() => [created]);
+
+  if (recheck.length > 1) {
+    return await mergeDuplicateActivityRecords(base44, recheck);
+  }
+  return created;
+};
+
 const recordActivitySegment = async (base44, driverId, driverName, newStatus, previousStatus, anchorTime = null) => {
   try {
     const todayStr = getEdmDate();
@@ -124,21 +204,7 @@ const recordActivitySegment = async (base44, driverId, driverName, newStatus, pr
     const now = roundTo5Min(rawNow, roundDirection);
     const nowMs = new Date(now).getTime();
 
-    const existing = await base44.asServiceRole.entities.DriverDailyActivity.filter({
-      driver_id: driverId,
-      activity_date: todayStr
-    }).catch(() => []);
-
-    let record = existing?.[0] || null;
-
-    if (!record) {
-      record = await base44.asServiceRole.entities.DriverDailyActivity.create({
-        driver_id: driverId,
-        driver_name: driverName || '',
-        activity_date: todayStr,
-        activity_segments: []
-      });
-    }
+    const record = await getOrCreateDailyActivityRecord(base44, driverId, driverName, todayStr);
 
     const segments = Array.isArray(record.activity_segments) ? [...record.activity_segments] : [];
 
@@ -307,7 +373,10 @@ Deno.serve(async (req) => {
         driver_id: subjectUserId,
         activity_date: targetDate
       }).catch(() => []);
-      const hasExistingSegments = existingActivity?.[0]?.activity_segments?.length > 0;
+      // Check ALL matching records, not just [0] — duplicate rows from the historical
+      // race (see recordActivitySegment/getOrCreateDailyActivityRecord) can put real
+      // segments on a record that isn't the first one returned by filter().
+      const hasExistingSegments = (existingActivity || []).some((rec) => (rec?.activity_segments?.length || 0) > 0);
       if (!hasExistingSegments) {
         const todayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
           driver_id: subjectUserId,
