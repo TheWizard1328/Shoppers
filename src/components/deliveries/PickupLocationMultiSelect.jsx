@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { ChevronDown, Check } from 'lucide-react';
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
+import { userHasRole } from '../utils/userRoles';
 
 export default function PickupLocationMultiSelect({
+  currentUser,
   availableStores,
   selectedPickupStoreIds,
   setSelectedPickupStoreIds,
@@ -36,10 +38,33 @@ export default function PickupLocationMultiSelect({
   const toggleStore = (store) => {
     const storeId = store._originalStoreId || store.id;
     const requestedSlot = store._timeSlot || 'AM';
-    const { driverId: defaultDriverId, resolvedSlot, hasAnyAssignedSlot } = getDefaultDriverForStoreSlot(storeId, requestedSlot, formData.delivery_date);
+    const { driverId: defaultDriverId, resolvedSlot, hasAnyAssignedSlot, hasSlotDriver } = getDefaultDriverForStoreSlot(storeId, requestedSlot, formData.delivery_date);
     const effectiveSlot = resolvedSlot || requestedSlot;
     const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, effectiveSlot, allDeliveries, formData.driver_id);
-    const defaultDriver = defaultDriverId ? allDrivers.find((d) => d.id === defaultDriverId) : null;
+
+    // Driver auto-selection when the requested slot has NO scheduled default driver:
+    //   1. Admin/dispatcher → the other slot's default is used (resolved by
+    //      getDefaultDriverForStoreSlot's fallback, hasSlotDriver: false).
+    //   2. Driver user → the active driver is automatically the assigned driver.
+    //   3. No defaults for ANY slot on this date + admin/dispatcher → prompt by
+    //      opening (and highlighting) the driver select.
+    const isDriverUser = !!(currentUser && userHasRole(currentUser, 'driver'));
+    let autoDriverId = defaultDriverId || null;
+    let forceDriverPrompt = false;
+    if (!hasSlotDriver) {
+      if (isDriverUser) {
+        autoDriverId = currentUser.id || null;
+      } else if (!hasAnyAssignedSlot) {
+        forceDriverPrompt = true;
+        autoDriverId = null;
+      }
+    }
+
+    const defaultDriver = autoDriverId
+      ? allDrivers.find((d) => String(d.id) === String(autoDriverId) || String(d.user_id) === String(autoDriverId))
+      : null;
+    // Driver users may not appear in allDrivers — fall back to their own identity.
+    const effectiveDriver = defaultDriver || (isDriverUser && autoDriverId ? currentUser : null);
 
     setSelectedPickupOption(store.id);
     setFormData((prev) => ({
@@ -47,15 +72,15 @@ export default function PickupLocationMultiSelect({
       store_id: storeId,
       ampm_deliveries: effectiveSlot,
       puid: newPuid || '',
-      driver_id: defaultDriver ? defaultDriverId : prev.driver_id,
-      driver_name: defaultDriver ? getDriverNameForStorage(defaultDriver) : prev.driver_name,
+      driver_id: effectiveDriver ? autoDriverId : prev.driver_id,
+      driver_name: effectiveDriver ? (getDriverNameForStorage(effectiveDriver) || prev.driver_name) : prev.driver_name,
     }));
     setSelectedPickupStoreIds((prev) => {
       const next = new Set(prev);
       if (next.has(store.id)) { next.delete(store.id); } else { next.add(store.id); }
       return next;
     });
-    if (!hasAnyAssignedSlot && !formData.driver_id) {
+    if (forceDriverPrompt && !formData.driver_id) {
       setTimeout(() => setForceOpenDriverSelect(true), 150);
     } else {
       setForceOpenDriverSelect(false);

@@ -403,14 +403,14 @@ export default function DeliveryFormView({
   // first, then falls back to the store's default driver fields.
   const getDefaultDriverForStoreSlot = (storeId, timeSlot, deliveryDate) => {
     const store = stores?.find((s) => s && s.id === storeId);
-    if (!store || !deliveryDate) return { driverId: null, resolvedSlot: timeSlot || null, hasAnyAssignedSlot: false };
+    if (!store || !deliveryDate) return { driverId: null, resolvedSlot: timeSlot || null, hasAnyAssignedSlot: false, hasSlotDriver: false };
 
     // scheduledDriverMap is keyed by storeId and already resolves overrides → store default.
     // Use it when the date matches the form's current delivery_date (the common case).
     if (scheduledDriverMap && deliveryDate === formData.delivery_date) {
       const overrideDriverId = scheduledDriverMap[storeId] || null;
       if (overrideDriverId) {
-        return { driverId: overrideDriverId, resolvedSlot: timeSlot || 'AM', hasAnyAssignedSlot: true };
+        return { driverId: overrideDriverId, resolvedSlot: timeSlot || 'AM', hasAnyAssignedSlot: true, hasSlotDriver: true };
       }
     }
 
@@ -424,17 +424,20 @@ export default function DeliveryFormView({
     // The explicitly chosen slot ALWAYS wins (2:00 PM cutoff rule) — never silently
     // rewrite a PM selection back to AM (or vice versa) just because the store has
     // no driver scheduled for that slot. After-hours pickups are legitimate.
+    // hasSlotDriver = the REQUESTED slot has its own scheduled driver.
+    // When it doesn't, the other slot's driver is suggested (hasSlotDriver: false) so
+    // callers can apply driver-selection rules (self-assign for drivers, prompt, etc.).
     if (timeSlot === 'PM') {
-      if (pmDriverId) return { driverId: pmDriverId, resolvedSlot: 'PM', hasAnyAssignedSlot: true };
+      if (pmDriverId) return { driverId: pmDriverId, resolvedSlot: 'PM', hasAnyAssignedSlot: true, hasSlotDriver: true };
       // No PM driver — keep PM slot; suggest the AM driver as the default.
-      if (amDriverId) return { driverId: amDriverId, resolvedSlot: 'PM', hasAnyAssignedSlot: true };
-      return { driverId: null, resolvedSlot: 'PM', hasAnyAssignedSlot: false };
+      if (amDriverId) return { driverId: amDriverId, resolvedSlot: 'PM', hasAnyAssignedSlot: true, hasSlotDriver: false };
+      return { driverId: null, resolvedSlot: 'PM', hasAnyAssignedSlot: false, hasSlotDriver: false };
     }
 
-    if (amDriverId) return { driverId: amDriverId, resolvedSlot: 'AM', hasAnyAssignedSlot: true };
+    if (amDriverId) return { driverId: amDriverId, resolvedSlot: 'AM', hasAnyAssignedSlot: true, hasSlotDriver: true };
     // No AM driver — keep AM slot; suggest the PM driver as the default.
-    if (pmDriverId) return { driverId: pmDriverId, resolvedSlot: 'AM', hasAnyAssignedSlot: true };
-    return { driverId: null, resolvedSlot: timeSlot || 'AM', hasAnyAssignedSlot: false };
+    if (pmDriverId) return { driverId: pmDriverId, resolvedSlot: 'AM', hasAnyAssignedSlot: true, hasSlotDriver: false };
+    return { driverId: null, resolvedSlot: timeSlot || 'AM', hasAnyAssignedSlot: false, hasSlotDriver: false };
   };
 
   // NOTE: Driver auto-set from patient selection is handled in DeliveryForm's handlePatientSelect
@@ -1147,6 +1150,7 @@ export default function DeliveryFormView({
                 <div className="flex flex-col gap-3">
                   {/* Row 1: Pickup Location multi-select dropdown */}
                   <PickupLocationMultiSelect
+                    currentUser={currentUser}
                     availableStores={availableStores}
                     selectedPickupStoreIds={selectedPickupStoreIds}
                     setSelectedPickupStoreIds={setSelectedPickupStoreIds}
@@ -1167,7 +1171,7 @@ export default function DeliveryFormView({
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                       <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                     </div>
-                    <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className={`flex-1 space-y-1 p-3 rounded-lg border transition-colors ${forceOpenDriverSelect ? 'border-red-400 ring-2 ring-red-300' : ''}`} style={forceOpenDriverSelect ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver</Label>
                       <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                         const newDriverId = driverId === 'all' ? '' : driverId;
