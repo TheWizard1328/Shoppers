@@ -369,7 +369,7 @@ export default function DashboardBulkEditControls({
           background: 'var(--bg-white)'
         }}>
         
-          <span className="text-sm font-medium text-foreground px-1">{totalDeleteCount} Stops</span>
+          <span className="text-sm font-medium text-foreground px-1 whitespace-nowrap shrink-0">{totalDeleteCount} Stops</span>
           <Button size="sm" onClick={openBulkEditPanel} className="gap-2" disabled={isSaving || isDeleting || hasCyclingMarkerSelected}>
             <PencilLine className="h-4 w-4" />
             Edit
