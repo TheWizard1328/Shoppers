@@ -40,6 +40,67 @@ const STATUS_RANK = {
   'cancelled': 3,
 };
 
+export const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
+
+// How long a terminal status is "sticky" against regression from WS events,
+// measured from the record's own completion/update timestamp. Stale interleaved
+// echoes arrive within seconds; legitimate admin corrections happen later.
+const TERMINAL_STICKY_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * GLOBAL TERMINAL-STICKINESS GUARD — device-agnostic, no lock registration needed.
+ *
+ * The per-delivery locks above are armed ONLY on the device that performed the
+ * action (lockDeliveryFields is called inside executeTerminalAction). Receiving
+ * devices (tablets, dashboards, second phones) never arm those locks, so
+ * interleaved WS payloads from a terminal action's multi-stream write fan-out
+ * can momentarily revert a just-completed stop back to in_transit +
+ * isNextDelivery=true on those devices ("the completion bounce").
+ *
+ * This guard closes that hole for ALL devices. Rules:
+ *   1. If the local record has been terminal (completed/failed/cancelled) for
+ *      less than TERMINAL_STICKY_WINDOW_MS, an incoming non-terminal status is
+ *      rejected — the local terminal status is kept.
+ *   2. A record whose local state is terminal (within the sticky window) can
+ *      never receive isNextDelivery=true — terminal stops don't carry the flag.
+ *
+ * Terminal-to-terminal transitions (e.g. a dispatcher correcting completed→failed)
+ * are NOT blocked — only resurrecting a terminal record as incomplete is.
+ *
+ * @param {object} incomingData  the merged/incoming record to vet
+ * @param {object} localData     the device's existing record (pre-merge source of truth)
+ * @returns {object} incomingData, possibly with status/isNextDelivery corrected
+ */
+export const applyTerminalStatusGuard = (incomingData, localData) => {
+  if (!incomingData || !localData) return incomingData;
+
+  const localStatus = localData?.status;
+  if (!TERMINAL_STATUSES.includes(localStatus)) return incomingData;
+
+  // Only sticky while the terminal state is recent — after the window, a
+  // non-terminal incoming status is treated as a legitimate correction.
+  const terminalTs = new Date(
+    localData.actual_delivery_time || localData.updated_date || localData.created_date || 0
+  ).getTime();
+  const sticky = Number.isFinite(terminalTs)
+    ? (Date.now() - terminalTs) < TERMINAL_STICKY_WINDOW_MS
+    : true; // unknown timestamp — err on the side of stability
+  if (!sticky) return incomingData;
+
+  const merged = { ...incomingData };
+
+  const incomingStatus = merged.status;
+  if (incomingStatus !== undefined && !TERMINAL_STATUSES.includes(incomingStatus)) {
+    merged.status = localStatus;
+  }
+
+  if (merged.isNextDelivery === true) {
+    merged.isNextDelivery = false;
+  }
+
+  return merged;
+};
+
 /**
  * Lock specific fields for a delivery against realtime reversion.
  * @param {string} deliveryId
@@ -126,10 +187,12 @@ export const applyRealtimeMergeWithLockout = (deliveryId, incomingData, localDat
   if (!incomingData || !localData) return incomingData;
 
   const entry = locks.get(deliveryId);
-  if (!entry) return incomingData;
-  if (Date.now() > entry.expiresAt) {
-    locks.delete(deliveryId);
-    return incomingData;
+  if (!entry || Date.now() > entry.expiresAt) {
+    if (entry) locks.delete(deliveryId);
+    // No active per-delivery lock (typical on RECEIVING devices that never ran
+    // the action). Still apply the global terminal-stickiness guard so stale
+    // interleaved WS payloads can't resurrect a just-completed stop.
+    return applyTerminalStatusGuard(incomingData, localData);
   }
 
   const merged = { ...incomingData };
@@ -204,5 +267,5 @@ export const applyRealtimeMergeWithLockout = (deliveryId, incomingData, localDat
     }
   }
 
-  return merged;
+  return applyTerminalStatusGuard(merged, localData);
 };

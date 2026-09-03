@@ -11,6 +11,7 @@ import { performBackgroundSync, processPendingMutations } from '../utils/offline
 import { clearUserCache } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
+import { applyTerminalStatusGuard } from '../utils/completionLockout';
 
 /**
  * useLayoutEventHandlers
@@ -443,8 +444,10 @@ export function useLayoutEventHandlers({
           freshDeliveries.forEach((d) => {
             if (d?.id && !idsToRemove.has(d.id)) {
               const existing = map.get(d.id);
-              const merged = existing ? { ...existing, ...d } : d;
-              // Full-record IDB merge model: trust the incoming data unconditionally.
+              // Full-record IDB merge model, EXCEPT: never let a stale interleaved
+              // WS payload resurrect a just-terminal stop as in_transit + NEXT
+              // (the completion bounce on receiving devices).
+              const merged = applyTerminalStatusGuard(existing ? { ...existing, ...d } : d, existing);
               map.set(d.id, merged);
             }
           });
@@ -472,7 +475,10 @@ export function useLayoutEventHandlers({
             } else {
               merged = existing ? { ...existing, ...d } : d;
             }
-            // Full-record IDB merge model: trust the incoming data unconditionally.
+            // Full-record IDB merge model, EXCEPT: never let a stale interleaved
+            // WS payload resurrect a just-terminal stop as in_transit + NEXT
+            // (the completion bounce on receiving devices).
+            merged = applyTerminalStatusGuard(merged, existing);
             map.set(d.id, merged);
           });
           return Array.from(map.values());

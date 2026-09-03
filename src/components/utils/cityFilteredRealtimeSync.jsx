@@ -2,6 +2,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
+import { applyTerminalStatusGuard } from './completionLockout';
 import { isDeleted, isDeletedByContent, filterDeleted } from "./deletedDeliveryRegistry";
 
 class CityFilteredRealtimeSync {
@@ -102,10 +103,20 @@ class CityFilteredRealtimeSync {
               const _deliveryId = event.data?.id || event.id;
               if (_deliveryId && typeof window !== 'undefined' && window.__localDeliveryWrites) {
                 const _suppressTs = window.__localDeliveryWrites.get(_deliveryId);
-                if (_suppressTs && _suppressTs > Date.now()) {
-                  const _remaining = Math.round((_suppressTs - Date.now()) / 1000);
-                  console.log(`🔇 [cityFilteredRealtimeSync] Self-echo suppressed for ${event.type}: ${event.data?.patient_name || _deliveryId} — ${_remaining}s remaining`);
-                  return;
+                if (_suppressTs) {
+                  // Same dual-mode semantics as realtimeSync.jsx:
+                  //   1. past write timestamp (marker) -> suppress for 15s (legacy broadcastMutation)
+                  //   2. future expiry timestamp -> suppress until expiry (AcceptAll/Start/terminal 90s windows)
+                  // Previously only mode 2 was honored here, leaving marker-mode
+                  // writes unprotected on this subscription.
+                  const _now = Date.now();
+                  const _isExtended = _suppressTs > _now + 1000;
+                  const _suppressed = _isExtended ? (_now < _suppressTs) : (_now - _suppressTs < 15000);
+                  if (_suppressed) {
+                    const _remaining = _isExtended ? Math.round((_suppressTs - _now) / 1000) : Math.round((15000 - (_now - _suppressTs)) / 1000);
+                    console.log(`🔇 [cityFilteredRealtimeSync] Self-echo suppressed for ${event.type}: ${event.data?.patient_name || _deliveryId} — ${_remaining}s remaining`);
+                    return;
+                  }
                 }
               }
 
@@ -136,6 +147,13 @@ class CityFilteredRealtimeSync {
                 if (existing) {
                   mergedDelivery = { ...existing, ...freshDelivery };
                 }
+                // GLOBAL TERMINAL-STICKINESS GUARD: receiving devices don't arm the
+                // per-delivery completionLockout (that happens only on the device that
+                // performed the Complete/Fail/Cancel). Without this guard, an interleaved
+                // partial WS payload from the terminal action's multi-stream write fan-out
+                // can momentarily resurrect the just-completed stop as in_transit +
+                // isNextDelivery=true (the "completion bounce" seen on tablets).
+                mergedDelivery = applyTerminalStatusGuard(mergedDelivery, existing);
               } catch (mergeErr) {
                 console.warn('⚠️ [cityFilteredRealtimeSync] IDB merge failed, using raw payload:', mergeErr?.message);
               }
@@ -222,9 +240,13 @@ class CityFilteredRealtimeSync {
              const _deleteId = event.id;
              if (_deleteId && typeof window !== 'undefined' && window.__localDeliveryWrites) {
                const _suppressTs = window.__localDeliveryWrites.get(_deleteId);
-               if (_suppressTs && _suppressTs > Date.now()) {
-                 console.log(`🔇 [cityFilteredRealtimeSync] Self-echo suppressed for delete: ${_deleteId}`);
-                 return;
+               if (_suppressTs) {
+                 const _now = Date.now();
+                 const _isExtendedDel = _suppressTs > _now + 1000;
+                 if (_isExtendedDel ? (_now < _suppressTs) : (_now - _suppressTs < 15000)) {
+                   console.log(`🔇 [cityFilteredRealtimeSync] Self-echo suppressed for delete: ${_deleteId}`);
+                   return;
+                 }
                }
              }
              console.log(`🗑️ [Realtime Delivery] PROCESSING delete for ${event.id}`);
