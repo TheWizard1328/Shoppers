@@ -27,6 +27,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
 import { getDriverDisplayName } from './components/utils/driverUtils';
 import { filterDeleted } from './components/utils/deletedDeliveryRegistry';
+import { applyRealtimeMergeWithLockout } from './components/utils/completionLockout';
 import { formatPhoneNumber } from './components/utils/phoneFormatter';
 import { sortUsers, sortStores } from './components/utils/sorting';
 import { UserProvider } from './components/utils/UserContext';
@@ -502,6 +503,17 @@ export default function Layout({ children, currentPageName }) {
         if (_deletedIds && _deletedIds.size > 0) {
           next = next.filter(d => d?.id && !_deletedIds.has(d.id));
         }
+        // Apply completion lockout — a full-replacement snapshot taken before the
+        // optimistic write propagated to the server would otherwise stomp status,
+        // isNextDelivery, stop_order, etc. back to their pre-action values. This
+        // mirrors the guard already applied on the WS path (AppDataContext).
+        if (prev && prev.length > 0) {
+          const prevById = new Map(prev.filter(Boolean).map((d) => [d.id, d]));
+          next = next.map((d) => {
+            const existing = prevById.get(d?.id);
+            return existing ? applyRealtimeMergeWithLockout(d.id, d, existing) : d;
+          });
+        }
         // Only use the replacement if it has content or prev is empty
         next = next.length || !prev.length ? next : prev;
         // Sync window.__appDeliveries SYNCHRONOUSLY so flushRealtimeBatch sees latest
@@ -522,7 +534,13 @@ export default function Layout({ children, currentPageName }) {
           if (!delivery?.id) return;
           if (_deletedIds && _deletedIds.has(delivery.id)) return; // NEVER re-insert deleted stops
           const existing = merged.get(delivery.id);
-          merged.set(delivery.id, existing ? { ...existing, ...delivery } : delivery);
+          // Apply completion lockout — protects optimistic fields (status, isNextDelivery,
+          // stop_order, actual_delivery_time, ...) from being reverted by a stale server
+          // snapshot merged in via full-data-load or smart-refresh paths. Same guard the
+          // WS path uses; without it these merges bypass the lockout entirely.
+          const baseRecord = existing ? { ...existing, ...delivery } : delivery;
+          const guardedRecord = existing ? applyRealtimeMergeWithLockout(delivery.id, baseRecord, existing) : baseRecord;
+          merged.set(delivery.id, guardedRecord);
         });
         const next = Array.from(merged.values());
         // Sync window.__appDeliveries SYNCHRONOUSLY so flushRealtimeBatch sees latest

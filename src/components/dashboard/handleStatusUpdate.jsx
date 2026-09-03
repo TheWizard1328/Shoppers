@@ -23,6 +23,11 @@ const getEdmDate = () => {
   return `${p.find(x => x.type === 'year').value}-${p.find(x => x.type === 'month').value}-${p.find(x => x.type === 'day').value}`;
 };
 
+// Deferred manager resume — see finally block below. Cleared at the start of each
+// action so back-to-back actions don't un-pause each other mid-flight.
+let _deferredResumeTimer = null;
+const DEFERRED_RESUME_MS = 5000;
+
 export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, skipAutoCenter = false, ctx) {
   const {
     statusUpdateLockRef, deliveriesWithStopOrder, mapViewPhase, isMapViewLocked,
@@ -45,6 +50,9 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
   pauseOfflineSync();
   smartRefreshManager.pause();
   backgroundSyncManager.pause();
+  // Cancel any pending deferred resume from a previous action so this action's
+  // pause isn't undone by the previous one's delayed resume firing mid-flight.
+  if (_deferredResumeTimer) { clearTimeout(_deferredResumeTimer); _deferredResumeTimer = null; }
 
   // CRITICAL: Read live refs for phase/lock state — closure values (mapViewPhase,
   // isMapViewLocked) may be stale if the user cycled the FAB after this handler was queued.
@@ -529,9 +537,21 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     throw error;
   } finally {
     statusUpdateLockRef.current.delete(statusLockKey);
-    resumeOfflineSync();
-    smartRefreshManager.resume();
-    backgroundSyncManager.resume();
+    // CRITICAL: Defer manager resume by a short propagation window instead of
+    // resuming instantly. The optimistic write has already been pushed to the
+    // server (Delivery.update + clearAndSetNextDelivery above), but the server's
+    // read path can still return the pre-update snapshot for a few seconds.
+    // Resuming the sync managers immediately lets their next tick fetch that
+    // stale snapshot. The completionLockout (wired into updateDeliveriesLocally)
+    // now makes any such stale fetch harmless, and this delay reduces how often
+    // one fires. Cleared at the start of the next action (see pause block above).
+    if (_deferredResumeTimer) clearTimeout(_deferredResumeTimer);
+    _deferredResumeTimer = setTimeout(() => {
+      _deferredResumeTimer = null;
+      resumeOfflineSync();
+      smartRefreshManager.resume();
+      backgroundSyncManager.resume();
+    }, DEFERRED_RESUME_MS);
     ctx.setIsEntityUpdating(false);
     document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
   }
