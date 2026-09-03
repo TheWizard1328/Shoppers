@@ -179,10 +179,10 @@ export default function DriverSettings() {
     const driverStatus = appUser?.driver_status ?? driver.driver_status ?? 'off_duty';
 
     switch (driverStatus) {
-      case 'on_duty':return { label: 'On Duty', color: 'bg-emerald-100 text-emerald-800' };
-      case 'on_break':return { label: 'On Break', color: 'bg-orange-100 text-orange-800' };
-      case 'online':return { label: 'Online', color: 'bg-blue-100 text-blue-800' };
-      default:return { label: 'Off Duty', color: 'bg-red-100 text-red-800' };
+      case 'on_duty':return { label: 'On Duty', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' };
+      case 'on_break':return { label: 'On Break', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' };
+      case 'online':return { label: 'Online', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' };
+      default:return { label: 'Off Duty', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' };
     }
   };
 
@@ -327,8 +327,8 @@ export default function DriverSettings() {
               const isOnDuty = dutyStatus.label === 'On Duty' || dutyStatus.label === 'On Break' || dutyStatus.label === 'Online';
               const distToStore = getDriverDistanceToStore(driver, latestAppUser, isOnDuty);
               const distBadgeClass = isOnDuty ?
-              'bg-emerald-100 text-emerald-800' :
-              'bg-red-100 text-red-700';
+              'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' :
+              'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
 
               if (!isAdmin) {
                 // Compact card: 3-column grid layout
@@ -422,14 +422,14 @@ export default function DriverSettings() {
                           }
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <Badge className={`text-xs ${(latestAppUser?.status ?? driver.status) === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                          <Badge className={`text-xs ${(latestAppUser?.status ?? driver.status) === 'active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'}`}>
                             {(latestAppUser?.status ?? driver.status) === 'active' ? 'Active' : 'Inactive'}
                           </Badge>
                           <Badge className={`text-xs ${dutyStatus.color}`}>
                             {dutyStatus.label}
                           </Badge>
                           {gpsLabel &&
-                          <Badge className={`text-xs gap-1 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                          <Badge className={`text-xs gap-1 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'}`}>
                               <Navigation className="w-3 h-3" />
                               GPS: {gpsLabel.label}
                             </Badge>
